@@ -104,10 +104,17 @@ public class GeminiRecognizerEngine(
             }
             if ((int)resp.StatusCode >= 500 && attempt < maxAttempts) { await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue; }
 
+            // ⚠️ Тело ответа — в ЖУРНАЛ, а не в текст отказа: почему — см. Anthropic (issue #1050).
+            logger.LogWarning("Gemini {Status}: {Body}", resp.StatusCode, RecognitionShared.Truncate(body, 300));
+
             if (ModelGone.Is(resp.StatusCode))
-                throw new RecognitionModelGoneException(Name, model, ModelGone.AdviceFrom(body),
-                    $"Gemini: модель {model} больше не обслуживается: {RecognitionShared.Truncate(body, 300)}");
-            throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}: {RecognitionShared.Truncate(body, 300)}");
+            {
+                var advice = ModelGone.AdviceFrom(body);
+                throw new RecognitionModelGoneException(Name, model, advice,
+                    $"Gemini: модель {model} больше не обслуживается"
+                    + (advice is null ? "." : $" — {advice}."));
+            }
+            throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}.");
         }
     }
 

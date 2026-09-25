@@ -131,7 +131,9 @@ public partial class DataSetPdfRecognitionService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidRequestException($"Не удалось подготовить страницы PDF: {ex.Message}");
+            // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).
+            throw new InvalidRequestException(
+                "Не удалось подготовить страницы PDF — файл повреждён или защищён.", ex);
         }
 
         var fields = (await ProfileForFileAsync(source.File, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
@@ -175,7 +177,7 @@ public partial class DataSetPdfRecognitionService
                 // страницо-специфичной проблемой (не роняем весь реестр, см. фикс невычислимых
                 // колонок XPath/JSONPath той же сессии), строка остаётся пустой.
                 if (i == 0)
-                    throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
+                    throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, sourceId);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failures.PageFailed(ex, silent: false);

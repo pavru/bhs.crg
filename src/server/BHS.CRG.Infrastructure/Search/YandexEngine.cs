@@ -9,7 +9,7 @@ namespace BHS.CRG.Infrastructure.Search;
 
 /// <summary>Движок веб-поиска через Яндекс XML (Yandex Cloud Search API). Настройки — из IIntegrationSettings.</summary>
 public class YandexEngine(
-    HttpClient http, IIntegrationSettings settings, ILogger<YandexEngine> logger
+    HttpClient http, IIntegrationSettings settings, OutboundProxyState proxy, ILogger<YandexEngine> logger
 ) : IWebSearchEngine
 {
     /// <inheritdoc cref="SerperEngine.Timeout" />
@@ -71,8 +71,10 @@ public class YandexEngine(
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not SearchUnavailableException)
         {
+            // Как у Serper: наружу — разбор OutboundDiagnosis, а не сообщение целиком (issue #1050).
             logger.LogWarning(ex, "Yandex-запрос не выполнен");
-            throw new SearchUnavailableException($"Яндекс: ошибка обращения: {ex.Message}");
+            throw new SearchUnavailableException(
+                $"Яндекс: ошибка обращения: {OutboundDiagnosis.Describe(ex, OutboundService.Yandex, proxy)}");
         }
     }
 

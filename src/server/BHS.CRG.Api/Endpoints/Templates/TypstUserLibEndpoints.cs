@@ -36,7 +36,7 @@ public static class TypstUserLibEndpoints
         // клиент, который шлёт только точку входа.
         g.MapPut("/", async (SaveTypstUserLibRequest req, IRepository<TypstUserLib> libRepo,
             IRepository<TypstUserLibFile> fileRepo, IUserLibProvider provider,
-            IUserLibChecker checker, CancellationToken ct) =>
+            IUserLibChecker checker, ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (req.Files is { } incoming)
             {
@@ -101,9 +101,16 @@ public static class TypstUserLibEndpoints
             catch (Exception ex)
             {
                 // Недоступный Typst CLI — не повод потерять сохранение; честно говорим, что не проверили.
+                //
+                // Сообщение — в журнал, а не на экран (issue #691): отсюда наружу уходил текст
+                // запуска процесса с абсолютными путями установки и временной папки. Автору шаблона
+                // он не говорит ничего — это неисправность установки, а не его библиотеки.
+                loggers.CreateLogger("BHS.CRG.Api.Endpoints.Templates")
+                    .LogWarning(ex, "Проверка библиотеки Typst не выполнена");
                 check = new UserLibCheckResult(
                     [new UserLibError(UserLibAnalysis.EntrypointName, 0, 0,
-                        $"Проверить библиотеку не удалось: {ex.Message}")],
+                        "Проверить библиотеку не удалось: компилятор Typst не отвечает. "
+                        + "Библиотека сохранена; проверку повторит генерация.")],
                     UserLibAnalysis.Warnings(snapshot.Entrypoint, snapshot.Files));
             }
 

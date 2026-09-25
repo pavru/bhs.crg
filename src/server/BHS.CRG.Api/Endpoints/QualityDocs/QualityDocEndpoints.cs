@@ -87,13 +87,18 @@ public static class QualityDocEndpoints
                     req.BlobPath, req.MimeType, fields, userId, Notify: !(req.Silent ?? false), promptBuilder), ct);
                 return Results.Ok(new { values = res.Values, pageCount = res.PageCount });
             }
+            // Текст отказа движка доходит до человека дословно — и это решение, а не недосмотр:
+            // см. EngineRefusal (issue #1050). Названная форма отличает его от чужого сообщения,
+            // которое здесь было бы утечкой, и связывает с проверкой, эту разницу стерегущей.
             catch (RecognitionLimitException ex)
             {
-                return Results.Json(new { error = ex.Message, limit = true, retryAfter = ex.RetryAfterSeconds }, statusCode: 429);
+                return Results.Json(
+                    new { error = EngineRefusal.TextOf(ex), limit = true, retryAfter = ex.RetryAfterSeconds },
+                    statusCode: 429);
             }
             catch (RecognitionUnavailableException ex)
             {
-                return Results.Json(new { error = ex.Message }, statusCode: 503);
+                return Results.Json(new { error = EngineRefusal.TextOf(ex) }, statusCode: 503);
             }
         });
 
@@ -176,7 +181,7 @@ public static class QualityDocEndpoints
             // Токен нужен по существу: поиск раскрывает найденные страницы по одной, и без него
             // брошенный запрос дочитывал бы их все впустую.
             try { return Results.Ok(await m.Send(new SearchQualityDocsQuery(req.Query), ct)); }
-            catch (SearchUnavailableException ex) { return Results.Json(new { error = ex.Message }, statusCode: 503); }
+            catch (SearchUnavailableException ex) { return Results.Json(new { error = EngineRefusal.TextOf(ex) }, statusCode: 503); }
         });
 
         g.MapPost("/import-url", async (ImportUrlReq req, IMediator m) =>
@@ -186,7 +191,7 @@ public static class QualityDocEndpoints
                 var doc = await m.Send(new ImportQualityDocFromUrlCommand(req.Url, req.Title, req.DocumentTypeId, ParseScope(req.Scope), req.ScopeId));
                 return Results.Ok(ToDto(doc));
             }
-            catch (SearchUnavailableException ex) { return Results.Json(new { error = ex.Message }, statusCode: 503); }
+            catch (SearchUnavailableException ex) { return Results.Json(new { error = EngineRefusal.TextOf(ex) }, statusCode: 503); }
         });
 
         // ── Предложение связей по сходству наименований ──────────────────────────

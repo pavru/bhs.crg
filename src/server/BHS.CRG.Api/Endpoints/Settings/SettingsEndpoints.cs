@@ -185,7 +185,8 @@ public static class SettingsEndpoints
         });
 
         // Тест-отправка: проверяет, что SMTP настроен и письмо уходит. Возвращает понятную ошибку, не 500.
-        g.MapPost("/email/test", async (EmailTestRequest req, IEmailSender email) =>
+        g.MapPost("/email/test", async (EmailTestRequest req, IEmailSender email,
+            OutboundProxyState proxyState, ILoggerFactory loggers) =>
         {
             if (string.IsNullOrWhiteSpace(req.To))
                 return Results.BadRequest(new { ok = false, error = "Укажите адрес получателя." });
@@ -198,14 +199,30 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { ok = false, error = ex.Message });
+                // Здесь — СОХРАНЁННОЕ состояние, и это не оплошность: тест-письмо уходит через
+                // SendAsync, а тот берёт настройки из базы, а не из формы. Разбирать его отказ по
+                // значениям формы значило бы объяснять не тот путь.
+                return Results.Ok(new { ok = false, error = SmtpFailure(ex, proxyState, loggers, "Тестовое письмо не отправлено") });
             }
         });
 
         // Проверка подключения: соединение + аутентификация по значениям ФОРМЫ (без отправки письма и
         // без сохранения). Пустой пароль = взять сохранённый (форма не присылает существующий).
-        g.MapPost("/email/test-connection", async (SmtpSettings smtp, IIntegrationSettings settings, IEmailSender email, CancellationToken ct) =>
+        g.MapPost("/email/test-connection", async (SmtpSettings smtp, IIntegrationSettings settings, IEmailSender email,
+            ILoggerFactory loggers, CancellationToken ct) =>
         {
+            var effective = await settings.GetEffectiveAsync(ct);
+
+            // ⚠️ Отказ разбирается по ТОМУ ЖЕ прокси, через который шло соединение, а идёт оно по
+            // значениям ФОРМЫ: MailKitEmailSender.ConnectAndAuthAsync смотрит на smtp.UseProxy из
+            // присланных настроек, а не на сохранённую галку. Возьми мы сохранённое состояние,
+            // проверка с только что поставленной галкой получила бы совет её поставить: классификатор
+            // увидел бы «прокси задан, а у почты галки нет» и ответил бы ProxyOffForService. Адрес
+            // прокси при этом сохранённый — форма почты его не задаёт. Приём тот же, что у кнопки
+            // проверки прокси: ProxyCheck строит состояние через ForCheck (issue #937).
+            OutboundService[] viaProxy = smtp.UseProxy ? [OutboundService.Smtp] : [];
+            var asChecked = OutboundProxyState.ForCheck(effective.Proxy, viaProxy);
+
             try
             {
                 if (string.IsNullOrWhiteSpace(smtp.Password))
@@ -216,7 +233,7 @@ public static class SettingsEndpoints
                     // достаточно указать свой сервер, чтобы он пришёл на него сам. Роль Admin по
                     // модели угроз всесильна, но украденная сессия администратора — нет, а здесь
                     // секрет уходил без единого «покажи пароль».
-                    var saved = (await settings.GetEffectiveAsync(ct)).Smtp;
+                    var saved = effective.Smtp;
                     if (!smtp.SameServerAs(saved))
                         return Results.Ok(new { ok = false, error = "Проверка на другом сервере, под другим пользователем или без шифрования требует ввести пароль: сохранённый на чужой адрес не отправляется." });
                     smtp.Password = saved.Password;
@@ -226,7 +243,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { ok = false, error = ex.Message });
+                return Results.Ok(new { ok = false, error = SmtpFailure(ex, asChecked, loggers, "Проверка связи с SMTP не удалась") });
             }
         });
 
@@ -377,6 +394,25 @@ public static class SettingsEndpoints
         useSsl = s.UseSsl,
         useProxy = s.UseProxy,
     };
+
+    /// <summary>
+    /// Почему проверка SMTP не прошла — текстом для администратора (issue #1050).
+    ///
+    /// <para>Сообщение MailKit целиком отдавать нельзя: правило #691 запрещает пускать наружу текст
+    /// чужого исключения, и не зря — в отказе почты оказываются и адрес прокси с учётными данными в
+    /// нём, и ответ чужого сервера. Но и сухое «не удалось» здесь бесполезно: весь смысл кнопки в
+    /// том, чтобы назвать причину тому, кто эти настройки и вводит.</para>
+    ///
+    /// <para>Разбор идёт тем же классификатором, что и у мониторинга здоровья: он прячет
+    /// <c>логин:пароль@</c> и говорит, чей это отказ — сервера или прокси, — вместо того чтобы
+    /// оставлять администратора гадать, до кого запрос вообще дошёл. Исключение целиком уходит в
+    /// журнал: здесь его никто не перехватит выше, потому что ответ уже сформирован.</para>
+    /// </summary>
+    private static string SmtpFailure(Exception ex, OutboundProxyState proxy, ILoggerFactory loggers, string what)
+    {
+        loggers.CreateLogger("BHS.CRG.Api.Endpoints.Settings").LogWarning(ex, "{What}", what);
+        return $"{what}: {OutboundDiagnosis.Describe(ex, OutboundService.Smtp, proxy)}";
+    }
 
     private record CompanyTimeZoneRequest(string? TimeZoneId);
     private record EmailTestRequest(string? To);

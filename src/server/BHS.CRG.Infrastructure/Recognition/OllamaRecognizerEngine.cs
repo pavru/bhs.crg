@@ -91,7 +91,10 @@ public class OllamaRecognizerEngine(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                throw new RecognitionUnavailableException($"Ollama: не удалось конвертировать PDF в изображения: {ex.Message}");
+                // Сообщение растеризатора — в журнал: оно чужое и называет пути (issue #1050).
+                logger.LogWarning(ex, "Ollama: растеризация PDF не удалась");
+                throw new RecognitionUnavailableException(
+                    "Ollama: не удалось преобразовать PDF в изображения — файл повреждён или защищён.");
             }
             if (pages.Count == 0)
                 throw new RecognitionUnavailableException("Ollama: PDF не содержит страниц для распознавания.");
