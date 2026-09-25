@@ -156,22 +156,38 @@ public class RefusalTextTests
             "logger, а полезное из тела извлекает ModelGone.AdviceFrom нашими словами.");
     }
 
+    /// <summary>
+    /// Осознанные исключения ТРЕТЬЕЙ проверки — по имени файла: отказ там адресован не клиенту.
+    /// </summary>
+    private static readonly Dictionary<string, string> DeliberateResponses = new(StringComparer.Ordinal)
+    {
+        ["ServiceRegistration.Host.cs"] =
+            "отказ на СТАРТЕ: каталог ключей Data Protection недоступен для записи. Приложение не "
+            + "поднимается вовсе, текст читает администратор в журнале запуска, до клиента он не доходит",
+        ["StorageConfigGuard.cs"] =
+            "то же: неразбираемая строка подключения останавливает запуск. Ответа на запрос в этот "
+            + "момент не существует — принимать его некому",
+    };
+
     [Fact]
     public void Ответ_эндпоинта_из_общего_перехвата_не_несёт_чужого_сообщения()
     {
         var offenders = new List<string>();
-        string[] roots =
-        [
-            Path.Combine("BHS.CRG.Api", "Endpoints"),
-            Path.Combine("BHS.CRG.Api", "Mcp"),
-        ];
 
-        foreach (var (file, text) in Sources(roots))
+        // Корень — ВЕСЬ проект Api, а не каталог Endpoints: маршруты объявляет и
+        // Configuration/EndpointMap.cs (там же /api/version, причём анонимный), и следующий такой
+        // файл появится, не спросив проверку. Startup-отказы, которые сюда попадают заодно, названы
+        // в DeliberateResponses поимённо — это решение, а не обход.
+        foreach (var (file, text) in Sources(["BHS.CRG.Api"]))
+        {
+            if (DeliberateResponses.ContainsKey(Path.GetFileName(file))) continue;
+
             foreach (var (body, line) in GeneralCatchBodies(text))
             {
                 if (!ForeignMessage.IsMatch(Sanctioned.Replace(body, string.Empty))) continue;
                 offenders.Add($"{Path.GetFileName(file)}:{line}  {Short(body)}");
             }
+        }
 
         Assert.True(offenders.Count == 0,
             "Ответ эндпоинта несёт сообщение чужого исключения:\n  " + string.Join("\n  ", offenders) + "\n\n" +
@@ -222,6 +238,8 @@ public class RefusalTextTests
     /// </summary>
     private static IEnumerable<(string Body, int Line)> GeneralCatchBodies(string text)
     {
+        var seenHelpers = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (Match m in GeneralCatch.Matches(text))
         {
             var brace = text.IndexOf('{', m.Index + m.Length - 1);
@@ -232,9 +250,40 @@ public class RefusalTextTests
                 && !header.Contains(" is not ", StringComparison.Ordinal))
                 continue;
 
-            yield return (Balanced(text, brace + 1, '{', '}'), LineAt(text, m.Index));
+            var body = Balanced(text, brace + 1, '{', '}');
+            yield return (body, LineAt(text, m.Index));
+
+            // ⚠️ И тела помощников, которых перехват зовёт. Без этого правило обходится переносом
+            // текста в метод — а это не диверсия, это обычный рефакторинг: ровно так из двух
+            // почтовых перехватов появился SmtpFailure, и проверка перестала их видеть в тот же
+            // час, когда их чинили. Один уровень вглубь: помощник помощника — уже не «ответ
+            // эндпоинта», а отдельный слой, и туда правило тянуть незачем.
+            foreach (var (helper, bodyStart) in HelpersCalledIn(text, body))
+                if (seenHelpers.Add(helper))
+                    yield return (Balanced(text, bodyStart, '{', '}'), LineAt(text, bodyStart));
         }
     }
+
+    /// <summary>
+    /// Методы ЭТОГО ЖЕ файла, которые зовёт перехват: имя и позиция открывающей скобки тела.
+    /// Объявление узнаётся по модификатору доступа — вызов под это описание не подходит, поэтому
+    /// само место вызова помощником не считается.
+    /// </summary>
+    private static IEnumerable<(string Name, int BodyStart)> HelpersCalledIn(string text, string body)
+    {
+        foreach (var name in CallNames.Matches(body).Select(m => m.Groups["n"].Value).Distinct(StringComparer.Ordinal))
+        {
+            var decl = new Regex(
+                @"\b(?:private|internal|protected|public)[^;{}()\n]*\b" + Regex.Escape(name)
+                + @"\s*\([^()]*\)\s*\{",
+                RegexOptions.Singleline, TimeSpan.FromSeconds(1)).Match(text);
+            if (decl.Success) yield return (name, decl.Index + decl.Length);
+        }
+    }
+
+    /// <summary>Имена вызванных методов. Ключевые слова языка отсеиваются — они тоже со скобкой.</summary>
+    private static readonly Regex CallNames = new(
+        @"(?<![.\w])(?<n>[A-Z]\w+)\s*\(", RegexOptions.Compiled | RegexOptions.Singleline);
 
     private static readonly Regex GeneralCatch = new(
         @"catch\s*(\(\s*(System\.)?Exception\b[^)]*\)\s*(when\s*\([^{]*\))?\s*)?\{",
