@@ -9,7 +9,7 @@ namespace BHS.CRG.Infrastructure.Search;
 
 /// <summary>Движок веб-поиска через Serper.dev (выдача Google). Настройки — из IIntegrationSettings.</summary>
 public class SerperEngine(
-    HttpClient http, IIntegrationSettings settings, ILogger<SerperEngine> logger
+    HttpClient http, IIntegrationSettings settings, OutboundProxyState proxy, ILogger<SerperEngine> logger
 ) : IWebSearchEngine
 {
     private const string ApiUrl = "https://google.serper.dev/search";
@@ -59,8 +59,12 @@ public class SerperEngine(
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not SearchUnavailableException)
         {
+            // Разбор наружу — только через OutboundDiagnosis: он прячет логин с паролем в адресе
+            // прокси и объясняет, чей это отказ (issue #1050). Голый ex.Message стоял здесь прежде
+            // и уезжал в ответ эндпоинта библиотеки качества дословно.
             logger.LogWarning(ex, "Serper-запрос не выполнен");
-            throw new SearchUnavailableException($"Serper: ошибка обращения: {ex.Message}");
+            throw new SearchUnavailableException(
+                $"Serper: ошибка обращения: {OutboundDiagnosis.Describe(ex, OutboundService.Serper, proxy)}");
         }
     }
 }

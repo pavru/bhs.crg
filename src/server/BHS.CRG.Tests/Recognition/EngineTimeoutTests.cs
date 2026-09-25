@@ -160,7 +160,7 @@ public class EngineTimeoutTests
     {
         var engine = new SerperEngine(new HttpClient(new TimingOutHandler()),
             Settings("web", "Serper", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
-            NullLogger<SerperEngine>.Instance);
+            new OutboundProxyState(), NullLogger<SerperEngine>.Instance);
 
         // Отказ движка назван отказом: оркестратор гасит его до пустой выдачи, но отличает от
         // «ничего не нашлось» — иначе полная недоступность выглядела бы пустым результатом
@@ -174,7 +174,7 @@ public class EngineTimeoutTests
     {
         var engine = new YandexEngine(new HttpClient(new TimingOutHandler()),
             Settings("web", "Yandex", new IntegrationEngine { Enabled = true, ApiKey = "k", FolderId = "f" }),
-            NullLogger<YandexEngine>.Instance);
+            new OutboundProxyState(), NullLogger<YandexEngine>.Instance);
 
         await Assert.ThrowsAsync<SearchUnavailableException>(() => engine.QueryAsync("кабель ВВГнг"));
     }
@@ -186,7 +186,7 @@ public class EngineTimeoutTests
         await cts.CancelAsync();
         var engine = new SerperEngine(new HttpClient(new TimingOutHandler()),
             Settings("web", "Serper", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
-            NullLogger<SerperEngine>.Instance);
+            new OutboundProxyState(), NullLogger<SerperEngine>.Instance);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => engine.QueryAsync("кабель", cts.Token));
     }

@@ -185,7 +185,8 @@ public static class SettingsEndpoints
         });
 
         // Тест-отправка: проверяет, что SMTP настроен и письмо уходит. Возвращает понятную ошибку, не 500.
-        g.MapPost("/email/test", async (EmailTestRequest req, IEmailSender email) =>
+        g.MapPost("/email/test", async (EmailTestRequest req, IEmailSender email,
+            OutboundProxyState proxyState, ILoggerFactory loggers) =>
         {
             if (string.IsNullOrWhiteSpace(req.To))
                 return Results.BadRequest(new { ok = false, error = "Укажите адрес получателя." });
@@ -198,13 +199,14 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { ok = false, error = ex.Message });
+                return Results.Ok(new { ok = false, error = SmtpFailure(ex, proxyState, loggers, "Тестовое письмо не отправлено") });
             }
         });
 
         // Проверка подключения: соединение + аутентификация по значениям ФОРМЫ (без отправки письма и
         // без сохранения). Пустой пароль = взять сохранённый (форма не присылает существующий).
-        g.MapPost("/email/test-connection", async (SmtpSettings smtp, IIntegrationSettings settings, IEmailSender email, CancellationToken ct) =>
+        g.MapPost("/email/test-connection", async (SmtpSettings smtp, IIntegrationSettings settings, IEmailSender email,
+            OutboundProxyState proxyState, ILoggerFactory loggers, CancellationToken ct) =>
         {
             try
             {
@@ -226,7 +228,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { ok = false, error = ex.Message });
+                return Results.Ok(new { ok = false, error = SmtpFailure(ex, proxyState, loggers, "Проверка связи с SMTP не удалась") });
             }
         });
 
@@ -377,6 +379,25 @@ public static class SettingsEndpoints
         useSsl = s.UseSsl,
         useProxy = s.UseProxy,
     };
+
+    /// <summary>
+    /// Почему проверка SMTP не прошла — текстом для администратора (issue #1050).
+    ///
+    /// <para>Сообщение MailKit целиком отдавать нельзя: правило #691 запрещает пускать наружу текст
+    /// чужого исключения, и не зря — в отказе почты оказываются и адрес прокси с учётными данными в
+    /// нём, и ответ чужого сервера. Но и сухое «не удалось» здесь бесполезно: весь смысл кнопки в
+    /// том, чтобы назвать причину тому, кто эти настройки и вводит.</para>
+    ///
+    /// <para>Разбор идёт тем же классификатором, что и у мониторинга здоровья: он прячет
+    /// <c>логин:пароль@</c> и говорит, чей это отказ — сервера или прокси, — вместо того чтобы
+    /// оставлять администратора гадать, до кого запрос вообще дошёл. Исключение целиком уходит в
+    /// журнал: здесь его никто не перехватит выше, потому что ответ уже сформирован.</para>
+    /// </summary>
+    private static string SmtpFailure(Exception ex, OutboundProxyState proxy, ILoggerFactory loggers, string what)
+    {
+        loggers.CreateLogger("BHS.CRG.Api.Endpoints.Settings").LogWarning(ex, "{What}", what);
+        return $"{what}: {OutboundDiagnosis.Describe(ex, OutboundService.Smtp, proxy)}";
+    }
 
     private record CompanyTimeZoneRequest(string? TimeZoneId);
     private record EmailTestRequest(string? To);

@@ -195,6 +195,9 @@ public static class AccountEndpoints
             if (user.EmailConfirmed) return Results.Ok();
 
             var token = await users.GenerateEmailConfirmationTokenAsync(user);
+            // Перехват С ФИЛЬТРОМ по двум НАШИМ типам, а не общий: их текст написан нами целиком и
+            // говорит, чего не хватает в настройке (issue #691). Общий catch здесь пустил бы наружу
+            // сообщение MailKit с адресом сервера и учётной записью — см. EmailEndpoints.
             try { await emails.SendEmailConfirmationAsync(user.Email!, token, ct); }
             catch (Exception ex) when (ex is EmailNotConfiguredException or AppUrlNotConfiguredException)
             { return Results.BadRequest(new { error = ex.Message }); }
@@ -218,6 +221,7 @@ public static class AccountEndpoints
                 return Results.BadRequest(new { error = "Этот email уже используется" });
 
             var token = await users.GenerateChangeEmailTokenAsync(user, newEmail);
+            // Тот же фильтр по нашим типам, что и у повторной отправки подтверждения, — см. там.
             try { await emails.SendEmailChangeAsync(user.Id, newEmail, token, ct); }
             catch (Exception ex) when (ex is EmailNotConfiguredException or AppUrlNotConfiguredException)
             { return Results.BadRequest(new { error = ex.Message }); }

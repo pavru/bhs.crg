@@ -1,6 +1,7 @@
 using System.Net;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Search;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -72,7 +73,7 @@ public class SearchOutageTests
         var engine = new SerperEngine(
             new HttpClient(new Handler(() => new HttpResponseMessage(HttpStatusCode.InternalServerError)
             { Content = new StringContent("boom") })),
-            WebSettings(), NullLogger<SerperEngine>.Instance);
+            WebSettings(), new OutboundProxyState(), NullLogger<SerperEngine>.Instance);
 
         await Assert.ThrowsAsync<SearchUnavailableException>(() => engine.QueryAsync("кабель"));
     }
@@ -83,7 +84,7 @@ public class SearchOutageTests
         // Пустая выдача — законный ответ, и объявлять её отказом нельзя: пользователь получил бы
         // «поиск недоступен» там, где поиск отработал.
         var engine = new SerperEngine(new HttpClient(new Handler(() => Ok("{\"organic\":[]}"))),
-            WebSettings(), NullLogger<SerperEngine>.Instance);
+            WebSettings(), new OutboundProxyState(), NullLogger<SerperEngine>.Instance);
 
         Assert.Empty(await engine.QueryAsync("такого товара нет"));
     }

@@ -59,7 +59,9 @@ public partial class DataSetPdfRecognitionService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidRequestException($"Не удалось отрендерить страницу {pageIndex + 1}: {ex.Message}");
+            // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).
+            throw new InvalidRequestException(
+                $"Не удалось отрисовать страницу {pageIndex + 1} — файл PDF повреждён или защищён.", ex);
         }
     }
 

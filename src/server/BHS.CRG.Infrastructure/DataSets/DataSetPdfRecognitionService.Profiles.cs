@@ -60,11 +60,11 @@ public partial class DataSetPdfRecognitionService
             // Одиночный вызов по прямой просьбе человека: он указал, ЧТО распознать, и «ответа не
             // было» тут не страничная случайность, а результат. Отдельно от «недоступно» ради
             // текста: движок работает, но ответа не отдал, и совет проверять настройки был бы ложью.
-            throw new InvalidRequestException($"Модель не отдала ответ: {ex.Message}");
+            throw new InvalidRequestException($"Модель не отдала ответ: {EngineRefusal.TextOf(ex)}", ex);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
-            throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
+            throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
         }
 
         var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values, headerFields);
@@ -124,7 +124,9 @@ public partial class DataSetPdfRecognitionService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidRequestException($"Не удалось подготовить страницы PDF: {ex.Message}");
+            // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).
+            throw new InvalidRequestException(
+                "Не удалось подготовить страницы PDF — файл повреждён или защищён.", ex);
         }
 
         // Постраничная проверка текстового слоя (бесплатно, PdfPig) — гейт для второго прохода
@@ -233,7 +235,7 @@ public partial class DataSetPdfRecognitionService
                 // одной, а дальше первой строка остаётся пустой. Это и есть прежнее поведение,
                 // только теперь по классифицированному типу, а не по сырой отмене.
                 if (i == 0)
-                    throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
+                    throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failures.PageFailed(ex, silent: false, pageIndex: i);

@@ -98,12 +98,22 @@ public class AnthropicRecognizerEngine(
             }
             if ((int)resp.StatusCode >= 500 && attempt < maxAttempts) { await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue; }
 
+            // ⚠️ Тело ответа — в ЖУРНАЛ, а не в текст отказа (issue #1050). Текст этого семейства
+            // доходит до человека дословно: через ответ эндпоинта библиотеки качества и через отказ
+            // распознавания наборов данных. Тело же пишет сторонний сервис, и что в нём окажется,
+            // мы не решаем. Полезное из него уже извлечено нами — это Advice ниже.
+            logger.LogWarning("Anthropic {Status}: {Body}", resp.StatusCode, RecognitionShared.Truncate(body, 300));
+
             if (ModelGone.Is(resp.StatusCode))
-                throw new RecognitionModelGoneException(Name, model, ModelGone.AdviceFrom(body),
-                    $"Anthropic: модель {model} больше не обслуживается: {RecognitionShared.Truncate(body, 300)}");
+            {
+                var advice = ModelGone.AdviceFrom(body);
+                throw new RecognitionModelGoneException(Name, model, advice,
+                    $"Anthropic: модель {model} больше не обслуживается"
+                    + (advice is null ? "." : $" — {advice}."));
+            }
             // 400 «credit balance too low» и пр. — считаем движок недоступным, цепочка перейдёт к следующему.
             // Пустой счёт отвечает 400 и на снятую модель, маскируя 404 (см. ModelGone.Is).
-            throw new RecognitionUnavailableException($"Anthropic ответил {(int)resp.StatusCode}: {RecognitionShared.Truncate(body, 300)}");
+            throw new RecognitionUnavailableException($"Anthropic ответил {(int)resp.StatusCode}.");
         }
     }
 

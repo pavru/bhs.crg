@@ -83,7 +83,14 @@ public partial class DataSetPdfRecognitionService
             await s.CopyToAsync(m, ct);
             var pageIndices = group.Pages.Select(p => p.PageIndex).OrderBy(i => i).ToList();
             try { subPdf = PdfPageSplitter.ExtractPages(m.ToArray(), pageIndices); }
-            catch (Exception ex) { throw new InvalidRequestException($"Не удалось выделить страницы документа: {ex.Message}"); }
+            // Сообщение разборщика PDF — в inner, а не в текст: тип отказа наш, значит текст уходит
+            // человеку дословно, и чужая половина уехала бы вместе с ним (issue #1050). Исключение
+            // целиком запишет конвейер.
+            catch (Exception ex)
+            {
+                throw new InvalidRequestException(
+                    "Не удалось выделить страницы документа — файл PDF повреждён или защищён.", ex);
+            }
         }
 
         // Промпт выбирает ВИД профиля (issue #406; прежде — прямое сравнение с тэгом, issue #389):
@@ -105,11 +112,11 @@ public partial class DataSetPdfRecognitionService
             // Одиночный вызов по прямой просьбе человека: он указал, ЧТО распознать, и «ответа не
             // было» тут не страничная случайность, а результат. Отдельно от «недоступно» ради
             // текста: движок работает, но ответа не отдал, и совет проверять настройки был бы ложью.
-            throw new InvalidRequestException($"Модель не отдала ответ: {ex.Message}");
+            throw new InvalidRequestException($"Модель не отдала ответ: {EngineRefusal.TextOf(ex)}", ex);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
-            throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
+            throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
         }
 
         var rows = GostTableFields.SplitRows(result.Values, columns);
@@ -250,7 +257,7 @@ public partial class DataSetPdfRecognitionService
             {
                 // Движок не работает вовсе (нет ключа, лимит, отказ) — перебирать оставшиеся страницы
                 // незачем, каждая упрётся в то же самое.
-                throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
+                throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
             }
 
             var nameMissing = string.IsNullOrWhiteSpace(values.GetValueOrDefault("НаименованиеДокумента"));

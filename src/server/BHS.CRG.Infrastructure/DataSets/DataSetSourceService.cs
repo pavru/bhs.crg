@@ -729,11 +729,18 @@ public class DataSetSourceService(
             var result = await parser.ParseAsync(ms.ToArray(), sheetOrPath, columnExpressionsJson, ct);
             return (result.Columns, result.Rows.Count);
         }
-        catch (Exception ex) when (ex is System.Xml.XPath.XPathException or ArgumentException
-            or System.Xml.XmlException or InvalidOperationException or JsonCons.JsonPath.JsonPathParseException)
-        {
-            throw new InvalidRequestException($"Не удалось разобрать выражение: {ex.Message}");
-        }
+        // Разборщики ВЫРАЖЕНИЯ названы поимённо, и их сообщение уходит наружу намеренно: оно про
+        // то, что написал сам пользователь, — где оборвалась скобка, какой символ не на месте. Это
+        // единственная подсказка, по которой выражение правится, и общий текст оставил бы
+        // построитель XPath/JSONPath без диагностики вовсе (issue #1050, решение записано в
+        // RefusalTextTests.Deliberate).
+        catch (Exception ex) when (ex is System.Xml.XPath.XPathException
+            or System.Xml.XmlException or JsonCons.JsonPath.JsonPathParseException)
+        { throw new InvalidRequestException($"Выражение не разбирается: {ex.Message}", ex); }
+        // А эти два — чей угодно: их бросает и разбор выражения, и работа с файлом, и нижележащий
+        // код разборщика. Что окажется в сообщении, мы не решаем, поэтому оно идёт в inner.
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        { throw new InvalidRequestException("Не удалось разобрать выражение — проверьте синтаксис.", ex); }
     }
 
     public async Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct)

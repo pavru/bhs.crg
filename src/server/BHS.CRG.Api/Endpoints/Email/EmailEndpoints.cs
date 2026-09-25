@@ -23,7 +23,8 @@ public static class EmailEndpoints
         var g = app.MapGroup("/api/email")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.UsersManage));
 
-        g.MapPost("/send", async (SendMessageRequest req, AppDbContext db, IEmailSender email, CancellationToken ct) =>
+        g.MapPost("/send", async (SendMessageRequest req, AppDbContext db, IEmailSender email,
+            ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Subject) || string.IsNullOrWhiteSpace(req.Body))
                 return Results.BadRequest(new { ok = false, error = "Заполните тему и текст." });
@@ -50,10 +51,22 @@ public static class EmailEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { ok = false, error = ex.Message });
+                // Сообщение MailKit наружу не уходит (issue #691): оно называет почтовый сервер,
+                // учётную запись под ним и то, что ответил чужой SMTP. Разбор отправки — не дело
+                // того, кто пишет письмо: право здесь на УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ, а почту
+                // настраивает обслуживание экземпляра, и у него для этого есть своя проверка связи.
+                loggers.CreateLogger(LogCategory).LogWarning(ex, "Рассылка не отправлена");
+                return Results.Ok(new
+                {
+                    ok = false,
+                    error = "Письмо не отправлено: почтовый сервер не принял его или не ответил. "
+                        + "Проверку связи и настройки почты ведёт администратор системы.",
+                });
             }
         });
     }
+
+    private const string LogCategory = "BHS.CRG.Api.Endpoints.Email";
 
     private record SendMessageRequest(List<Guid>? UserIds, string? Subject, string? Body);
 }
