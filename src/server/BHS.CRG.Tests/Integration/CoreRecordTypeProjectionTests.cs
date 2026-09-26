@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
@@ -118,10 +119,13 @@ public class CoreRecordTypeProjectionTests(IntegrationTestFixture fixture) : IAs
     }
 
     /// <summary>
-    /// Имя занято — отказ, и это найдено на ЖИВОЙ базе (issue #962). В рабочей базе тип с кодом
-    /// «Персона» носит имя «Сотрудник»; проекция завела бы второй тип с тем же именем, и после
-    /// этого из редактора не сохранился бы НИ ОДИН из двух — уникальность имени запретила бы обоих.
-    /// Проверка кода тут не помогает: коды как раз разные.
+    /// Имя занято — второго такого типа не заводим, и это найдено на ЖИВОЙ базе (issue #962). В
+    /// рабочей базе тип с кодом «Персона» носит имя «Сотрудник»; проекция завела бы второй тип с
+    /// тем же именем, и после этого из редактора не сохранился бы НИ ОДИН из двух — уникальность
+    /// имени запретила бы обоих. Проверка кода тут не помогает: коды как раз разные.
+    ///
+    /// <para>Объявлению МОДУЛЯ это отказ старта: модуль включает администратор, и выключить его —
+    /// действие, которое ему доступно.</para>
     /// </summary>
     [Fact]
     public async Task Имя_занято_другим_типом_второго_такого_не_заводим()
@@ -130,11 +134,68 @@ public class CoreRecordTypeProjectionTests(IntegrationTestFixture fixture) : IAs
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             SendAsync(new ProjectModuleTypeCommand(
-                new(TypeOwner.Core, "ДругойКод", "Тестовый сотрудник", SchemaEditLevel.Extendable,
+                new("id", "ДругойКод", "Тестовый сотрудник", SchemaEditLevel.Extendable,
                     [], Kind: DocumentTypeKind.Composite))));
 
         Assert.Contains("ТестПерсона", ex.Message);
         Assert.Contains("не сохранился бы ни один из двух", ex.Message);
+    }
+
+    /// <summary>
+    /// А объявлению ЯДРА занятое имя — не отказ, а пропуск (ревью PR #1052).
+    ///
+    /// <para>Разница не в педантизме. Ядро выключить нельзя, поэтому его отказ означает
+    /// неподнимаемую установку — а совет из текста отказа, «переименуйте существующий тип»,
+    /// требует работающего приложения. Замкнутый круг: обновились и остались без системы.
+    /// Пропуск не портит ничего — справочника просто нет, пока имя не освободят.</para>
+    /// </summary>
+    [Fact]
+    public async Task Ядру_занятое_имя_не_отказ_а_пропуск()
+    {
+        await MakeTypeAsync(CoreRecordTypes.PersonCode, "Лицо", TypeOwner.Core);
+        // Посторонний тип, назвавшийся так же, как будущий справочник.
+        await MakeTypeAsync("ЧужойКод", "Сотрудник", "id");
+
+        var projected = await SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.Employee));
+
+        Assert.Null(projected);
+
+        using var scope = fixture.Services.CreateScope();
+        var all = await scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>().GetAllAsync();
+        Assert.DoesNotContain(all, t => t.Code == CoreRecordTypes.EmployeeCode);
+    }
+
+    /// <summary>
+    /// Объявление, которое о родителе МОЛЧИТ, родителя и не трогает (ревью PR #1052).
+    ///
+    /// <para>Найденный дефект: родитель ставился безусловно, а объявление модуля его не несёт —
+    /// значит каждый старт обнулял бы родителя у всех типов модулей. Ставит его администратор
+    /// (тип модуля вправе опереться на тип ядра, ТЗ CORE-30), и тип молча терял бы унаследованные
+    /// поля: форма нарисовалась бы, печать промолчала, а виновником выглядел бы кто угодно, кроме
+    /// перезапуска.</para>
+    /// </summary>
+    [Fact]
+    public async Task Объявление_без_родителя_не_обнуляет_родителя()
+    {
+        var parent = await MakeTypeAsync("ТестОпора", "Тестовая опора", TypeOwner.Core);
+        var spec = new ModuleTypeSpec("id", "ТестЗапись", "Тестовая запись", SchemaEditLevel.Extendable,
+            [new("Поле", "Поле", "string")], Kind: DocumentTypeKind.Composite);
+
+        var created = await SendAsync(new ProjectModuleTypeCommand(spec));
+
+        // Администратор назначает родителя — штатное действие.
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+            var stored = await repo.GetByIdAsync(created!.Id);
+            stored!.SetParent(parent.Id);
+            repo.Update(stored);
+            await repo.SaveChangesAsync();
+        }
+
+        var again = await SendAsync(new ProjectModuleTypeCommand(spec));
+
+        Assert.Equal(parent.Id, again!.ParentId);
     }
 
     /// <summary>

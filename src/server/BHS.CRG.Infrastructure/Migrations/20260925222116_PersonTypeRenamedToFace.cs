@@ -30,10 +30,23 @@ namespace BHS.CRG.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // ⚠️ Имя «Лицо» должно быть СВОБОДНО, иначе переименование само создаёт то столкновение,
+            // ради устранения которого написано (нашло ревью PR #1052): уникального индекса на
+            // "Name" в базе нет, и второй «Лицо» лёг бы молча, после чего из редактора не
+            // сохранился бы ни один из двух. Не сложилось — миграция ничего не делает, а проекция
+            // пропускает справочник и пишет причину в журнал запуска.
+            //
+            // Сверка имени — без учёта регистра и обрамляющих пробелов: ровно так его сравнивает
+            // проверка занятости имени, и разойдись они, миграция «не нашла бы» тип, который
+            // проекция считает столкнувшимся.
             migrationBuilder.Sql("""
                 UPDATE document_types
                    SET "Name" = 'Лицо', "UpdatedAt" = now()
-                 WHERE "Code" = 'Персона' AND "Name" = 'Сотрудник';
+                 WHERE "Code" = 'Персона'
+                   AND lower(btrim("Name")) = lower('Сотрудник')
+                   AND NOT EXISTS (
+                       SELECT 1 FROM document_types other
+                        WHERE lower(btrim(other."Name")) = lower('Лицо'));
                 """);
         }
 
@@ -50,8 +63,11 @@ namespace BHS.CRG.Infrastructure.Migrations
             migrationBuilder.Sql("""
                 UPDATE document_types
                    SET "Name" = 'Сотрудник', "UpdatedAt" = now()
-                 WHERE "Code" = 'Персона' AND "Name" = 'Лицо'
-                   AND NOT EXISTS (SELECT 1 FROM document_types other WHERE other."Name" = 'Сотрудник');
+                 WHERE "Code" = 'Персона'
+                   AND lower(btrim("Name")) = lower('Лицо')
+                   AND NOT EXISTS (
+                       SELECT 1 FROM document_types other
+                        WHERE lower(btrim(other."Name")) = lower('Сотрудник'));
                 """);
         }
     }
