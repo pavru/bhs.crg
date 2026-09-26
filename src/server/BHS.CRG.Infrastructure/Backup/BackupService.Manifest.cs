@@ -76,6 +76,7 @@ public partial class BackupService
         var sections = full ? await db.Sections.AsNoTracking().ToListAsync(ct) : [];
         var sets = full ? await db.DocumentSets.AsNoTracking().ToListAsync(ct) : [];
         var setPlans = full ? await db.DocumentSetPlans.AsNoTracking().ToListAsync(ct) : [];
+        var workPlan = full ? await db.WorkPlanItems.AsNoTracking().ToListAsync(ct) : [];
         var documents = full
             ? await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
                 .Where(o => o.Facet != null).ToListAsync(ct)
@@ -174,6 +175,9 @@ public partial class BackupService
                 x.Id, x.SectionId, x.Name, x.ProfileObjectId, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
             DocumentSetPlans: full ? setPlans.Select(x => new BackupDocumentSetPlan(
                 x.Id, x.DocumentSetId, x.DocumentTypeId, x.PlannedCount, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
+            WorkPlanItems: full ? workPlan.Select(x => new BackupWorkPlanItem(
+                x.Id, x.WorkTypeId, x.ConstructionId, x.SectionId, x.UnitId,
+                x.CreatedAt, x.UpdatedAt)).ToArray() : null,
             Documents: full ? documents.Select(o => new BackupDocument(
                 o.Id, o.ScopeId ?? Guid.Empty, o.CompositeTypeId, o.DisplayName, o.Data.RootElement.Clone(),
                 o.Aliases.ToArray(), o.Facet!.Status.ToString(), o.Facet.SortOrder,

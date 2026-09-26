@@ -92,6 +92,10 @@ public partial class BackupService
             // План — после комплектов (носитель) и после типов документов (на них ссылается).
             await RestoreDocumentSetPlansAsync(manifest.DocumentSetPlans ?? [], stats, warnings, ct);
             await RestoreCommonDataEntriesAsync(manifest.CommonDataEntries, stats, warnings, ct);
+            // Перечень работ — ПОСЛЕ общих данных: позиция ссылается на запись классификатора
+            // и на единицу измерения, а это объекты общего типа. До них перечень уехал бы
+            // в сироты целиком, с предупреждением «нет вида работы или единицы».
+            await RestoreWorkPlanItemsAsync(manifest.WorkPlanItems ?? [], stats, warnings, ct);
             // Документы комплектов — после типов (тип документа) и после комплектов (носитель).
             await RestoreDocumentsAsync(manifest.Documents ?? [], stats, warnings, ct);
             // После типов документов: шаблон маппинга висит на типе и без него бессмыслен.

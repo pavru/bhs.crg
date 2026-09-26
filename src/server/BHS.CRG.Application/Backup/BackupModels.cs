@@ -38,6 +38,7 @@ public record BackupManifest(
     BackupReconciliationDefinition[]? Reconciliations = null,
     BackupMaterialQualityLink[]? MaterialQualityLinks = null,
     BackupDocumentSetPlan[]? DocumentSetPlans = null,
+    BackupWorkPlanItem[]? WorkPlanItems = null,
     BackupActivityRecord[]? ActivityLog = null,
     // Настройки экземпляра (issue #960): часовой пояс компании. В ЛЮБОЙ копии, как журнал: это
     // конфигурация, а не проектные данные, и потеря пояса при восстановлении означала бы молча
@@ -102,6 +103,18 @@ public record BackupDocumentSet(
 /// консолидируют комплекты на лету. Восстановился бы такой «план» — и разошёлся бы с суммой
 /// нижележащих при первой же правке.
 /// </summary>
+/// <summary>
+/// Позиция перечня работ стройки (ТЗ CORE-10, issue #964) — «вид работы + стройка + раздел +
+/// единица измерения» и ничего больше.
+///
+/// <para>В копию входит, хотя в этапе 1 таблица пуста: позиция — общая точка, на которую ссылаются
+/// план, факт и акты модулей. Восстановление без перечня оставило бы эти ссылки висеть, и заметили
+/// бы это не при восстановлении, а много позже — по пустым отчётам.</para>
+/// </summary>
+public record BackupWorkPlanItem(
+    Guid Id, Guid WorkTypeId, Guid ConstructionId, Guid? SectionId, Guid UnitId,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 public record BackupDocumentSetPlan(
     Guid Id, Guid DocumentSetId, Guid DocumentTypeId, int PlannedCount,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);

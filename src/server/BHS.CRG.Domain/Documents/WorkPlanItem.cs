@@ -74,4 +74,23 @@ public class WorkPlanItem : Entity
             SectionId = sectionId,
             UnitId = unitId,
         };
+
+    /// <summary>
+    /// Позиция из резервной копии — со своим идентификатором и временами. Только для восстановления:
+    /// оно обязано вернуть ТЕ ЖЕ идентификаторы, иначе ссылки модулей на позиции после
+    /// восстановления указывали бы в пустоту.
+    /// </summary>
+    public static WorkPlanItem Restore(
+        Guid id, Guid workTypeId, Guid constructionId, Guid? sectionId, Guid unitId,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id,
+            WorkTypeId = workTypeId,
+            ConstructionId = constructionId,
+            SectionId = sectionId,
+            UnitId = unitId,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+        };
 }
