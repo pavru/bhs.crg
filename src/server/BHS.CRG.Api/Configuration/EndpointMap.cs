@@ -59,6 +59,9 @@ internal static class EndpointMap
     // Стройки и разделы — справочник ядра (CORE-5, issue #960). Комплекты документов
     // регистрирует модуль исполнительной документации: см. IdModule.MapEndpoints.
     app.MapConstructionEndpoints();
+    // Сотрудники — справочник ядра (CORE-7, issue #962). Дверь тонкая: хранение общее с каталогом,
+    // своя она ради отдельного права core.employees.*.
+    app.MapEmployeeEndpoints();
     app.MapGenerationEndpoints();
 
     // Адреса включённых модулей — каждый в своей группе (см. AppModuleExtensions.MapAppModules).

@@ -25,7 +25,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
 {
     /// <summary>Пути справочников ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
     private static readonly string[] DirectoryPrefixes =
-        ["/api/constructions", "/api/sections", "/api/common-data", "/api/catalog"];
+        ["/api/constructions", "/api/sections", "/api/common-data", "/api/catalog", "/api/employees"];
 
     private static readonly string[] Expected =
     [
@@ -71,6 +71,17 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/catalog/",
         "PUT /api/catalog/{id:guid}",
         "DELETE /api/catalog/{id:guid}",
+
+        // ── Справочник сотрудников (ТЗ CORE-7, issue #962) ─────────────────────
+        //
+        // Дверь тонкая — хранение общее с каталогом, — но принадлежность у неё своя: сотрудники
+        // нужны учёту работ, планированию и затратам, и уедь справочник под любой из этих модулей,
+        // выключение модуля унесло бы людей из всех остальных.
+        "GET /api/employees/",
+        "GET /api/employees/{id:guid}",
+        "POST /api/employees/",
+        "PUT /api/employees/{id:guid}",
+        "DELETE /api/employees/{id:guid}",
     ];
 
     [Fact]

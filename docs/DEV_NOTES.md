@@ -145,6 +145,17 @@ PUT    /api/templates/{id}          { content }  — создаёт новую �
 
 PUT    /api/constructions/{id}/timezone     { timeZoneId }   — null = «как у компании» (#960)
 PUT    /api/constructions/{id}/external-id  { system, code } — только парой
+GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
+GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
+POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь
+PUT    /api/employees/{id}                  { displayName, data, aliases }
+DELETE /api/employees/{id}
+                                    Право core.employees.* — отдельное от core.catalog.*, но
+                                    разграничением НЕ является: те же карточки отдаёт
+                                    /api/common-data, пока пути чтения не разведены (STG-11).
+                                    Поле связи с учётной записью заперто: значение кладёт код,
+                                    а действия «связать» в этапе 1 нет.
+
 GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved }
 PUT    /api/settings/company                { timeZoneId }  — null снимает настройку
 
