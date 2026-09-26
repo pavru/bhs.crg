@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules;
@@ -29,9 +30,46 @@ public static class ModuleTypeProjector
         var registry = services.GetRequiredService<ModuleRegistry>();
         var mediator = services.GetRequiredService<IMediator>();
 
+        // Типы ЯДРА — первыми (issue #962). Порядок обязателен: тип модуля вправе опереться на тип
+        // ядра (ТЗ CORE-30), и опора должна существовать к моменту проекции наследника. Обратной
+        // зависимости не бывает — ядро о модулях не знает (CORE-2), — поэтому порядок здесь
+        // односторонний и спорить с ним нечему.
+        foreach (var core in CoreRecordTypes.All)
+            if (await mediator.Send(new ProjectModuleTypeCommand(core), ct) is null)
+                // Не завели — и об этом надо сказать вслух, назвав ПРИЧИНУ. Молчание означало бы,
+                // что справочника в системе нет, а почему — не знает никто: администратор ищет его
+                // в списке типов и не находит, а в журнале запуска ровно ничего.
+                await LogSkipAsync(services, core, ct);
+
         foreach (var module in registry.Enabled)
             foreach (var declared in module.RecordTypes)
                 await mediator.Send(new ProjectModuleTypeCommand(Translate(module.Code, declared)), ct);
+    }
+
+    /// <summary>
+    /// Почему справочник не завёлся — словами и по фактам из базы. Причин две: нет объявленного
+    /// родителя или занято имя. Спрашиваем базу ЗАНОВО, а не гадаем: сообщение, разошедшееся с
+    /// действительностью, отправило бы администратора чинить не то.
+    /// </summary>
+    private static async Task LogSkipAsync(IServiceProvider services, ModuleTypeSpec spec, CancellationToken ct)
+    {
+        var all = await services.GetRequiredService<IRepository<DocumentType>>().GetAllAsync(ct);
+        var log = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ModuleTypeProjector));
+
+        if (ModuleTypeProjectionHandler.NameTakenBy(spec, all) is { } taken)
+        {
+            log.LogWarning(
+                "Справочник «{Code}» не заведён: имя «{Name}» занято типом с кодом «{TakenCode}». " +
+                "Переименуйте его в редакторе типов — справочник появится при следующем запуске. " +
+                "Завести второй с тем же именем нельзя: после этого не сохранился бы ни один из двух.",
+                spec.Code, spec.Name, taken.Code);
+            return;
+        }
+
+        log.LogInformation(
+            "Справочник «{Code}» не заведён: нет типа-родителя «{Parent}». Так и должно быть на " +
+            "новой установке — справочник появится, как только появится родитель.",
+            spec.Code, spec.Parent);
     }
 
     private static ModuleTypeSpec Translate(string moduleCode, ModuleRecordType declared) => new(
