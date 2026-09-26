@@ -162,8 +162,6 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     {
         ["core.worktypes.edit"] = "классификатор видов работ — модуль учёта работ, этап 2",
         ["core.nomenclature.edit"] = "номенклатура — модуль затрат, этап 2",
-        ["core.employees.read"] = "справочник сотрудников — #962",
-        ["core.employees.edit"] = "справочник сотрудников — #962",
         ["core.period.close"] = "закрытие периода — этап 2",
         ["core.views.share"] = "общие представления таблиц — отдельной группы адресов пока нет",
         ["*.read.all"] = "составное право; раскрытие по модулям — этап 2 (AUTH-5.2)",
