@@ -325,6 +325,68 @@ public class MigrationCensusTests
             "SELECT count(*) FROM document_types WHERE \"Code\" = 'Номенклатура'"));
     }
 
+    /// <summary>
+    /// Тип с кодом «ВидРаботы» уже есть и принадлежит НЕ ядру — свой классификатор заказчика.
+    /// Миграция не заводит второго (код уникален индексом, вставка уронила бы старт) и не вешает на
+    /// «Работу» ссылку на чужой тип: ровно эту конфигурацию тем же PR запрещает проекция — опора на
+    /// цель чужого владельца (нашло ревью PR #1055).
+    /// </summary>
+    [Fact]
+    public async Task Чужой_вид_работы_ссылку_не_получает()
+    {
+        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_alien");
+        await MigrateToPreviousAsync(db);
+        await SeedLegacyTypesAsync(db);
+        await InsertTypeAsync(db, Guid.NewGuid(), "ВидРаботы", "Свой классификатор", "id", "Open",
+            """ {"fields":[{"key":"Наименование","title":"Наименование","type":"string"}]} """);
+
+        await db.Database.MigrateAsync();
+
+        // Тип один, и он остался чужим: ни владельца, ни схему миграция не забрала.
+        Assert.Equal("id|Свой классификатор|Наименование", await ScalarAsync(db,
+            "SELECT string_agg(t.\"Module\" || '|' || t.\"Name\" || '|' || coalesce((SELECT string_agg(f->>'key', ',') "
+            + "FROM jsonb_array_elements(t.\"Schema\"->'fields') f), '—'), ' / ') "
+            + "FROM document_types t WHERE t.\"Code\" = 'ВидРаботы'"));
+
+        // Ссылки у «Работы» нет: вешать её было некуда.
+        Assert.Equal(0L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE t.\"Code\" = 'Работа' AND f->>'key' = 'ВидРаботы'"));
+
+        // А номенклатура всё равно поднялась: половины задачи независимы.
+        Assert.Equal("Количество, Цена", await OwnKeysAsync(db, "Материал"));
+    }
+
+    /// <summary>
+    /// Откат не уносит ЧУЖОЕ поле. Классификатор к моменту откока наполнен — значит скелет ему
+    /// дописала проекция, а ссылка на него могла прийти и от администратора. Безусловное снятие по
+    /// тэгу уносило бы её (нашло ревью PR #1055).
+    /// </summary>
+    [Fact]
+    public async Task Откат_не_уносит_ссылку_наполненного_классификатора()
+    {
+        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down_filled");
+        await MigrateToPreviousAsync(db);
+        await SeedLegacyTypesAsync(db);
+        await db.Database.MigrateAsync();
+
+        // То же, что сделает проекция первым же стартом: дописывает скелет классификатору.
+        // ⚠️ Мимо EF: ExecuteSqlRaw разбирает фигурные скобки как подстановки и спотыкается о JSON.
+        await RawAsync(db, "UPDATE document_types SET \"Schema\" = '{\"fields\":[{\"key\":\"Код\"}]}'::jsonb "
+            + "WHERE \"Code\" = 'ВидРаботы'");
+
+        await MigrateToPreviousAsync(db);
+
+        Assert.Equal(1L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types WHERE \"Code\" = 'ВидРаботы'"));
+        Assert.Equal(1L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE t.\"Code\" = 'Работа' AND f->>'key' = 'ВидРаботы'"));
+        // Номенклатура при этом разобрана: половины откока независимы так же, как половины перехода.
+        Assert.Equal(0L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types WHERE \"Code\" = 'Номенклатура'"));
+    }
+
     /// <summary>Схема ПРЕЖНЕЙ версии: до предпоследней миграции, то есть без проверяемой.</summary>
     private static async Task MigrateToPreviousAsync(AppDbContext db)
     {

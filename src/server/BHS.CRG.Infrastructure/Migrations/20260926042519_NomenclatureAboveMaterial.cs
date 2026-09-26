@@ -26,6 +26,15 @@ namespace BHS.CRG.Infrastructure.Migrations
     /// эффективная схема наследника — это поля родителя плюс свои. Ключи те же, значит документы
     /// открываются и печатаются как раньше; проверено генерацией на копии рабочей базы.</para>
     ///
+    /// <para>⚠️ <b>Ссылку у «Работы» заводит только эта миграция, и она одноразовая.</b> Не
+    /// сложились её условия — классификатор позже заведёт проекция (она повторяется каждым
+    /// стартом), а ссылки у «Работы» не будет уже никогда, и никто об этом не скажет. Условий,
+    /// которые к этому ведут, два: тип с кодом «ВидРаботы» уже есть и принадлежит не ядру, либо
+    /// имя «Вид работы» занято. Оба — про базу, где человек завёл свой классификатор; оба видны в
+    /// журнале запуска как пропуск справочника. Тогда ссылку добавляет администратор сам, и найдёт
+    /// её код по тэгу <c>ref.workType</c>, а не по названию поля — ровно для этого тэг и нужен
+    /// (нашло ревью PR #1055).</para>
+    ///
     /// <para>⚠️ <b>Всё под условиями, и каждое — про чужую работу.</b> Нет «Материала» (чистая
     /// установка) — переносить нечего. У «Материала» уже есть родитель — значит иерархию строил
     /// человек, и встраиваться в неё миграция не вправе. Код или имя «Номенклатура» заняты — второй
@@ -109,9 +118,19 @@ namespace BHS.CRG.Infrastructure.Migrations
                     -- заводим мы, а скелет (код, наименование, единица, признаки) допишет проекция
                     -- тем же запуском. Порядок обратный был бы невозможен: идентификатор цели в
                     -- каждой установке свой, и в объявлении его нет.
-                    SELECT "Id" INTO cls_id FROM document_types WHERE "Code" = 'ВидРаботы';
+                    -- ⚠️ Классификатор — только НАШ тип: составной и принадлежащий ядру (нашло
+                    -- ревью PR #1055). Тип с тем же кодом мог когда-то завести человек — тогда он
+                    -- чужой, и ссылка на него была бы ровно тем, что запрещает проекция: опора на
+                    -- цель чужого владельца или не того рода. Проекция такой тип пропускает и
+                    -- называет причину в журнале запуска; ссылку не заводим и мы.
+                    SELECT "Id" INTO cls_id FROM document_types
+                     WHERE "Code" = 'ВидРаботы' AND "Kind" = 'Composite' AND "Module" = 'core';
 
                     IF cls_id IS NULL
+                       -- Код уникален индексом: тип с этим кодом есть, но он чужой (условие выше) —
+                       -- вставка упала бы, а упавшая миграция означает, что приложение не
+                       -- поднимается вовсе. Пропускаем и это.
+                       AND NOT EXISTS (SELECT 1 FROM document_types WHERE "Code" = 'ВидРаботы')
                        -- Единицы измерения обязательны классификатору по ТЗ CORE-8. Нет их — не
                        -- заводим и тип: проекция такому типу отказала бы, а отказ в проекции
                        -- останавливает старт, то есть мы своими руками сделали бы базу неподнимаемой.
@@ -201,29 +220,34 @@ namespace BHS.CRG.Infrastructure.Migrations
                         DELETE FROM document_types WHERE "Id" = nomen_id;
                     END IF;
 
-                    SELECT "Id" INTO cls_id FROM document_types WHERE "Code" = 'ВидРаботы';
+                    -- ⚠️ Ссылка у «Работы» снимается ТОЛЬКО вместе с классификатором, который
+                    -- заводили мы: составной, ядра, пустой (скелет ему дописывает проекция),
+                    -- без своих объектов и наследников. Безусловное снятие уносило бы поле,
+                    -- заведённое администратором, — там, где Up его не добавлял вовсе, потому что
+                    -- условия не сложились (нашло ревью PR #1055). Наполненный классификатор тоже
+                    -- уже не наш: его и ссылку на него оставляем как есть.
+                    SELECT t."Id" INTO cls_id FROM document_types t
+                     WHERE t."Code" = 'ВидРаботы' AND t."Kind" = 'Composite' AND t."Module" = 'core'
+                       AND coalesce(jsonb_array_length(t."Schema"->'fields'), 0) = 0
+                       AND NOT EXISTS (SELECT 1 FROM domain_objects o WHERE o."CompositeTypeId" = t."Id")
+                       AND NOT EXISTS (SELECT 1 FROM document_types c WHERE c."ParentId" = t."Id");
+
                     SELECT "Id" INTO work_id FROM document_types WHERE "Code" = 'Работа';
 
-                    IF work_id IS NOT NULL THEN
-                        UPDATE document_types
-                           SET "Schema" = jsonb_set("Schema", '{fields}', coalesce((
-                                   SELECT jsonb_agg(f ORDER BY ord)
-                                     FROM jsonb_array_elements(coalesce("Schema"->'fields', '[]'::jsonb))
-                                          WITH ORDINALITY AS a(f, ord)
-                                    WHERE NOT (coalesce(f->'tags', '[]'::jsonb)
-                                               @> '["ref.workType"]'::jsonb)), '[]'::jsonb)),
-                               "UpdatedAt" = now()
-                         WHERE "Id" = work_id;
-                    END IF;
+                    IF cls_id IS NOT NULL THEN
+                        IF work_id IS NOT NULL THEN
+                            UPDATE document_types
+                               SET "Schema" = jsonb_set("Schema", '{fields}', coalesce((
+                                       SELECT jsonb_agg(f ORDER BY ord)
+                                         FROM jsonb_array_elements(coalesce("Schema"->'fields', '[]'::jsonb))
+                                              WITH ORDINALITY AS a(f, ord)
+                                        WHERE NOT (coalesce(f->'tags', '[]'::jsonb)
+                                                   @> '["ref.workType"]'::jsonb
+                                                   AND f->>'typeId' = cls_id::text)), '[]'::jsonb)),
+                                   "UpdatedAt" = now()
+                             WHERE "Id" = work_id;
+                        END IF;
 
-                    -- Пустой классификатор заводили мы — его и убираем. Наполненный (скелет от
-                    -- проекции, объекты заказчика) остаётся: он уже не наш.
-                    IF cls_id IS NOT NULL
-                       AND NOT EXISTS (SELECT 1 FROM domain_objects WHERE "CompositeTypeId" = cls_id)
-                       AND NOT EXISTS (SELECT 1 FROM document_types WHERE "ParentId" = cls_id)
-                       AND (SELECT coalesce(jsonb_array_length("Schema"->'fields'), 0) = 0
-                              FROM document_types WHERE "Id" = cls_id)
-                    THEN
                         DELETE FROM document_types WHERE "Id" = cls_id;
                     END IF;
                 END $$;
