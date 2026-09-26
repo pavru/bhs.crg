@@ -289,26 +289,64 @@ public class ModuleTypeProjectionTests(IntegrationTestFixture fixture) : IAsyncL
     }
 
     /// <summary>
-    /// Вид значения, которому нужна ссылка на другой тип, останавливает старт.
+    /// Вид значения, которому нужна ссылка на другой тип, останавливает старт — пока цель не названа.
     ///
-    /// Цель такие виды адресуют по <c>Guid</c>, а он в каждой установке свой — в коде модуля его нет
-    /// и быть не может. Пропусти мы это молча, поле легло бы в схему без цели: не нарисовалось бы и
-    /// не заполнилось, а тем же путём в схему уходила бы опора на тип чужого модуля — нарушение
-    /// ТЗ CORE-30 без единой проверки. Найдено ревью PR #1010.
+    /// Найдено ревью PR #1010: поле легло бы в схему без цели — не нарисовалось бы и не
+    /// заполнилось, — а тем же путём в схему уходила бы опора на тип чужого модуля, то есть
+    /// нарушение ТЗ CORE-30 без единой проверки.
+    ///
+    /// ⚠️ С issue #963 у половины этих видов появился ЗАКОННЫЙ способ: цель называется КОДОМ типа
+    /// (<see cref="ModuleFieldSpec.Target" />). Отказ остался ровно для объявления БЕЗ цели, и
+    /// проверять его надо по-прежнему: код цели — это разрешение, а не отмена правила.
     /// </summary>
     [Theory]
     [InlineData("complex")]
     [InlineData("enum")]
     [InlineData("doc-ref")]
     [InlineData("primitive")]
-    public async Task Вид_значения_со_ссылкой_на_другой_тип_останавливает_старт(string kind)
+    public async Task Вид_значения_со_ссылкой_без_цели_останавливает_старт(string kind)
     {
         var spec = Spec("WORK_REF", new ModuleFieldSpec("Поле", "Поле", kind));
 
         var refusal = await Assert.ThrowsAsync<ConflictException>(
             () => SendAsync(new ProjectModuleTypeCommand(spec)));
 
-        Assert.Contains("Guid", refusal.Message);
+        Assert.Contains("без цели", refusal.Message);
+    }
+
+    /// <summary>
+    /// А с ЦЕЛЬЮ ПО КОДУ — можно, и опора на тип ядра модулю разрешена (ТЗ CORE-30): именно так
+    /// модуль сошлётся на общий справочник единиц измерения, не заводя своего второго (TYPE-7.1).
+    ///
+    /// <para>Тест держит вторую половину правила. Первая — отказ без цели — рядом, и вместе они
+    /// говорят, что цель разрешена не «всем видам молча», а названному виду с названной целью.</para>
+    /// </summary>
+    [Fact]
+    public async Task Модуль_ссылается_по_коду_на_тип_ядра()
+    {
+        var unit = await SeedCustomerTypeAsync("ЕдиницаЯдра", @"{""fields"":[]}", owner: TypeOwner.Core, kind: DocumentTypeKind.Composite);
+
+        var type = await SendAsync(new ProjectModuleTypeCommand(Spec("WORK_UNIT",
+            new ModuleFieldSpec("Единица", "Ед. изм.", "complex", Target: "ЕдиницаЯдра"))));
+
+        var field = type!.Schema!.RootElement.GetProperty("fields")[0];
+        Assert.Equal(unit.Id.ToString(), field.GetProperty("typeId").GetString());
+    }
+
+    /// <summary>
+    /// Цель из ЧУЖОГО модуля запрещена и модулю (ТЗ CORE-30): при выключении того модуля поле
+    /// указывало бы в пустоту, а починить его в схеме модуля администратору не дадут.
+    /// </summary>
+    [Fact]
+    public async Task Цель_из_чужого_модуля_останавливает_старт()
+    {
+        await SeedCustomerTypeAsync("ЕдиницаЧужая", @"{""fields"":[]}", owner: "id", kind: DocumentTypeKind.Composite);
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(
+            new ProjectModuleTypeCommand(Spec("WORK_ALIEN",
+                new ModuleFieldSpec("Единица", "Ед. изм.", "complex", Target: "ЕдиницаЧужая")))));
+
+        Assert.Contains("CORE-30", refusal.Message);
     }
 
     [Fact]
@@ -344,11 +382,12 @@ public class ModuleTypeProjectionTests(IntegrationTestFixture fixture) : IAsyncL
 
     // ── Посев и помощники ─────────────────────────────────────────────────────
 
-    private async Task<DocumentType> SeedCustomerTypeAsync(string code, string schema, string owner = TypeOwner.Core)
+    private async Task<DocumentType> SeedCustomerTypeAsync(string code, string schema,
+        string owner = TypeOwner.Core, DocumentTypeKind kind = DocumentTypeKind.Document)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
-        var type = DocumentType.Create(code, code, DocumentTypeKind.Document, null,
+        var type = DocumentType.Create(code, code, kind, null,
             JsonDocument.Parse(schema), owner, TypeVisibility.Shared);
         db.DocumentTypes.Add(type);
         await db.SaveChangesAsync();

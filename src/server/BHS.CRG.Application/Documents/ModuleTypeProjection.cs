@@ -9,9 +9,25 @@ using MediatR;
 namespace BHS.CRG.Application.Documents;
 
 /// <summary>Системное поле в объявлении модуля — то же, что <c>ModuleSystemField</c>, но в словах ядра.</summary>
+/// <param name="Target">
+/// КОД типа-цели для поля, которое на другой тип ссылается (issue #963), — или <c>null</c> у поля,
+/// которое хранит значение само.
+///
+/// <para>По коду, а не по <c>Guid</c>, и по той же причине, что у <see cref="ModuleTypeSpec.Parent" />:
+/// идентификатор в каждой установке свой, а код постоянен (ТЗ TYPE-6). Без этого справочник видов
+/// работ нельзя было объявить вовсе: единица измерения у него обязательна по ТЗ CORE-8, а
+/// объявить её кодом было нечем — и она осталась бы ручной работой администратора, без единого
+/// сторожа.</para>
+///
+/// <para>⚠️ Принимает его пока ОДИН вид поля — <c>complex</c> (составной тип). Массив, ссылка на
+/// документ и перечисление ждут первого потребителя: <c>enum</c> и <c>primitive</c> вообще целятся
+/// в другие справочники (<c>EnumType</c>, <c>PrimitiveType</c>), то есть требуют не строчки, а
+/// своего разрешения цели.</para>
+/// </param>
 public sealed record ModuleFieldSpec(
     string Key, string Title, string Type,
-    IReadOnlyList<string>? Tags = null, bool Required = false, bool Locked = true)
+    IReadOnlyList<string>? Tags = null, bool Required = false, bool Locked = true,
+    string? Target = null)
 {
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
@@ -100,6 +116,13 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     private static readonly HashSet<string> SelfContainedKinds = new(StringComparer.Ordinal)
         { "string", "text", "number", "date", "boolean", "image", "file" };
 
+    /// <summary>
+    /// Виды значения, которые цель ПРИНИМАЮТ — по коду типа (<see cref="ModuleFieldSpec.Target" />).
+    /// Список отдельный и короткий нарочно: каждый вид тут требует своей проверки цели (род, чей
+    /// он, тот ли справочник), и вид без потребителя означал бы непроверенную проверку.
+    /// </summary>
+    private static readonly HashSet<string> TargetedKinds = new(StringComparer.Ordinal) { "complex" };
+
     public async Task<DocumentType?> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
     {
         var spec = cmd.Spec;
@@ -117,6 +140,10 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         // Родителя нет, наследника тоже — заводить нечего (см. SkipWhenBlocked).
         if (parentId is null && spec.Parent is { Length: > 0 } && type is null) return null;
 
+        // Цели полей — тем же порядком и с тем же послаблением: нет типа единицы измерения, нет и
+        // классификатора, который её требует.
+        if (ResolveTargets(spec, all, typeExists: type is not null) is not { } targets) return null;
+
         if (type is null)
         {
             if (NameTakenBy(spec, all) is { } taken)
@@ -126,7 +153,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
             }
 
             type = DocumentType.Create(spec.Name, spec.Code, spec.Kind, parentId,
-                JsonDocument.Parse(Schema(spec, existing: null).ToJsonString()),
+                JsonDocument.Parse(Schema(spec, existing: null, targets).ToJsonString()),
                 spec.Module, TypeVisibility.Shared, editLevel: spec.Level);
             type.SetGroup(spec.Group);
             EnsureCardinalityHolds(type, all, spec);
@@ -135,7 +162,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
             return type;
         }
 
-        var projected = JsonDocument.Parse(Schema(spec, type.Schema).ToJsonString());
+        var projected = JsonDocument.Parse(Schema(spec, type.Schema, targets).ToJsonString());
         // Родителя трогаем ТОЛЬКО если объявление о нём говорит (ревью PR #1052). Иначе каждый
         // старт обнулял бы родителя у всех типов модулей: объявление модуля родителя не несёт, а
         // администратор его ставит — это штатное действие (тип модуля вправе опереться на тип ядра,
@@ -184,7 +211,8 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     /// Остальное в схеме (группы, исключения, переопределения, тэги типа, справка) не трогаем: это
     /// работа администратора, и проекция о ней ничего не знает.
     /// </summary>
-    private static JsonObject Schema(ModuleTypeSpec spec, JsonDocument? existing)
+    private static JsonObject Schema(
+        ModuleTypeSpec spec, JsonDocument? existing, IReadOnlyDictionary<string, Guid> targets)
     {
         var root = existing is null
             ? new JsonObject()
@@ -215,7 +243,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         }
 
         var fields = new JsonArray();
-        foreach (var f in spec.Fields) fields.Add(Field(f, system.GetValueOrDefault(f.Key)));
+        foreach (var f in spec.Fields) fields.Add(Field(f, system.GetValueOrDefault(f.Key), targets));
         foreach (var c in customer) fields.Add(c);
 
         root["fields"] = fields;
@@ -233,12 +261,20 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     /// класс ошибки стоил дефекта в #1004 и ещё одного в #1008; лечится он не памятью, а тем, что
     /// умолчание здесь — «сохранить», а не «забыть».</para>
     /// </summary>
-    private static JsonObject Field(ModuleFieldSpec f, JsonObject? existing)
+    private static JsonObject Field(
+        ModuleFieldSpec f, JsonObject? existing, IReadOnlyDictionary<string, Guid> targets)
     {
         var node = existing ?? [];
 
         node["key"] = f.Key;
         node["type"] = f.Type;
+
+        // Цель ведёт модуль, как обязательность и тэги: перестал объявлять — ссылки быть не должно.
+        // ⚠️ Идентификатор кладётся СТРОКОЙ: так его пишет редактор типов и так читает
+        // SchemaFieldInfo. Положи мы его иначе — поле нарисовалось бы, а цель не нашлась.
+        if (targets.TryGetValue(f.Key, out var target)) node["typeId"] = target.ToString();
+        else node.Remove("typeId");
+
         node[SchemaFieldOrigin.Property] = SchemaFieldOrigin.Module;
         node[SchemaFieldLock.Property] = f.Locked;
         node["title"] = MergedTitle(f, node);
@@ -341,6 +377,70 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     }
 
     /// <summary>
+    /// Цели полей по КОДАМ из объявления (issue #963): «ключ поля → идентификатор типа-цели».
+    /// <c>null</c> — тип заводить нельзя: цели нет, а послабление разрешено (см. SkipWhenBlocked).
+    ///
+    /// <para>Отказы — те же три, что у родителя, и по тем же причинам. Нет типа с таким кодом:
+    /// поле осталось бы без цели, то есть не нарисовалось бы и не заполнилось, а справочник с виду
+    /// был бы целым. Цель принадлежит чужому модулю: при его выключении ссылка повисла бы, и
+    /// сильнее всего это бьёт по ядру — оно выключению не подлежит, а половина его справочника
+    /// уехала бы вместе с модулем (ТЗ CORE-30). Не тот род: составное поле умеет показывать только
+    /// составной тип, документ в нём не нарисуется.</para>
+    /// </summary>
+    private static Dictionary<string, Guid>? ResolveTargets(
+        ModuleTypeSpec spec, IReadOnlyList<DocumentType> all, bool typeExists)
+    {
+        var resolved = new Dictionary<string, Guid>(StringComparer.Ordinal);
+
+        foreach (var f in spec.Fields)
+        {
+            if (f.Target is not { Length: > 0 } code) continue;
+
+            var target = all.FirstOrDefault(
+                t => string.Equals(t.Code, code, StringComparison.OrdinalIgnoreCase));
+
+            // Цели нет, наследника тоже — чистая установка: справочников в ней нет ни одного.
+            if (target is null && !typeExists && spec.SkipWhenBlocked) return null;
+
+            if (target is null)
+                throw new ConflictException(
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на тип " +
+                    $"«{code}», а типа с таким кодом в системе нет. Поле осталось бы без цели: не " +
+                    "нарисовалось бы и не заполнилось, а справочник с виду был бы целым. Проверьте " +
+                    "код цели в объявлении — его могли переименовать из редактора типов.");
+
+            if (!TypeOwnershipRules.Allows(spec.Module, target.Module))
+                throw new ConflictException(
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на " +
+                    $"«{target.Name}», а тот принадлежит {TypeOwnershipRules.OwnerWords(target.Module)} " +
+                    "(ТЗ CORE-30). Ссылаться разрешено на ядро и на своего владельца: иначе при " +
+                    "выключенном модуле поле указывало бы в пустоту.");
+
+            if (target.Kind != DocumentTypeKind.Composite)
+                throw new ConflictException(
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на " +
+                    $"«{target.Name}», а это {target.Kind}, не составной тип. Составное поле умеет " +
+                    "показывать только составной тип — документ в нём не нарисуется.");
+
+            resolved[f.Key] = target.Id;
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// Код цели, которой в системе нет, — для журнала запуска (см. <c>ModuleTypeProjector</c>).
+    /// Спрашивается ЗАНОВО по базе: причину пропуска называют фактами, а не памятью о том, почему
+    /// команда вернула «не завёл».
+    /// </summary>
+    public static string? MissingTargetOf(ModuleTypeSpec spec, IReadOnlyList<DocumentType> all) =>
+        spec.Fields
+            .Select(f => f.Target)
+            .Where(code => code is { Length: > 0 })
+            .FirstOrDefault(code => !all.Any(
+                t => string.Equals(t.Code, code, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
     /// Кто объявил — словами. У ядра модуля нет, и «модуль «core»» было бы неправдой: с issue #962
     /// по этому же пути ходит ядро, а отказ, называющий его модулем, отправил бы читателя искать
     /// выключатель, которого не существует. Тот же приём, что у
@@ -385,13 +485,25 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     private static void Validate(ModuleTypeSpec spec, TagCatalog tags)
     {
         foreach (var f in spec.Fields)
-            if (!SelfContainedKinds.Contains(f.Type))
+        {
+            var targeted = f.Target is { Length: > 0 };
+
+            if (targeted && !TargetedKinds.Contains(f.Type))
+                throw new ConflictException(
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» цель " +
+                    $"«{f.Target}», а вид поля «{f.Type}» цели не принимает. Ссылка была бы записана " +
+                    "в схему рядом с видом, который её не читает: поле нарисовалось бы пустым. " +
+                    $"Цель принимают: {string.Join(", ", TargetedKinds.Order(StringComparer.Ordinal))}.");
+
+            if (!targeted && !SelfContainedKinds.Contains(f.Type))
                 throw new ConflictException(
                     $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» вид " +
-                    $"«{f.Type}». Так нельзя: этот вид адресует цель — составной тип, перечисление, " +
-                    "примитив или документ — по Guid, а Guid в каждой установке свой, и в коде " +
-                    "модуля его нет. Поле осталось бы без цели: не нарисовалось бы и не заполнилось. " +
-                    $"Допустимые виды: {string.Join(", ", SelfContainedKinds.Order(StringComparer.Ordinal))}.");
+                    $"«{f.Type}» без цели. Так нельзя: этот вид адресует цель — составной тип, " +
+                    "перечисление, примитив или документ, — а без неё поле не нарисуется и не " +
+                    "заполнится. Составной тип называется КОДОМ в «Target»; перечисление и примитив " +
+                    "кодом не объявляются вовсе — они целятся в другие справочники. " +
+                    $"Хранят значение сами: {string.Join(", ", SelfContainedKinds.Order(StringComparer.Ordinal))}.");
+        }
 
         var duplicates = spec.Fields.GroupBy(f => f.Key, StringComparer.Ordinal)
             .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
