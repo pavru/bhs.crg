@@ -66,6 +66,12 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         // CatalogEntity — прежнее хранилище того же справочника (аналог «КаталогОбщихДанных»
         // старой системы). Потребителей у него не осталось, но адреса живы и закрыты теми же
         // воротами, поэтому под присмотром тоже: пока дверь есть, она обязана быть дверью ядра.
+        "GET /api/catalog/",
+        "GET /api/catalog/{id:guid}",
+        "POST /api/catalog/",
+        "PUT /api/catalog/{id:guid}",
+        "DELETE /api/catalog/{id:guid}",
+
         // ── Справочник сотрудников (ТЗ CORE-7, issue #962) ─────────────────────
         //
         // Дверь тонкая — хранение общее с каталогом, — но принадлежность у неё своя: сотрудники
@@ -76,12 +82,6 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/employees/",
         "PUT /api/employees/{id:guid}",
         "DELETE /api/employees/{id:guid}",
-
-        "GET /api/catalog/",
-        "GET /api/catalog/{id:guid}",
-        "POST /api/catalog/",
-        "PUT /api/catalog/{id:guid}",
-        "DELETE /api/catalog/{id:guid}",
     ];
 
     [Fact]

@@ -68,9 +68,13 @@ public static class EmployeeEndpoints
             if (await EmployeeTypeIdAsync(types) is not { } typeId)
                 return Results.Conflict(new { error = DirectoryMissing });
 
+            // Новая карточка без данных осмысленна: реквизиты заполнят следом. Негодный JSON — нет:
+            // это 400 с указанием поля, а не 500 «внутренняя ошибка» (см. ParseData).
+            if (ParseData(req.Data, "{}") is not { } data)
+                return Results.BadRequest(new { error = DataNotJson });
+
             return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
-                req.DisplayName, typeId, JsonDocument.Parse(req.Data ?? "{}"),
-                CatalogScope.System, ScopeId: null, req.Aliases))));
+                req.DisplayName, typeId, data, CatalogScope.System, ScopeId: null, req.Aliases))));
         });
 
         edit.MapPut("/{id:guid}", async (
@@ -79,8 +83,20 @@ public static class EmployeeEndpoints
             var entry = await m.Send(new GetCommonDataEntryQuery(id));
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
 
+            // ⚠️ Отсутствующее «data» — ОТКАЗ, а не пустой объект (нашло ревью PR #1053). Правка
+            // заменяет реквизиты целиком, поэтому подстановка «{}» молча стирала бы карточку и
+            // отвечала 200: улетели бы табельный номер (по нему сотрудника находит бухгалтерия),
+            // период работы и унаследованное ФИО. Охрана записи тут не спасает — обязательность она
+            // не проверяет, а замок на связи срабатывает только если значение там БЫЛО.
+            if (req.Data is null) return Results.BadRequest(new { error = DataRequired });
+            if (ParseData(req.Data, "{}") is not { } data)
+                return Results.BadRequest(new { error = DataNotJson });
+
             return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
-                id, req.DisplayName, JsonDocument.Parse(req.Data ?? "{}"), req.Aliases))));
+                // Псевдонимы, о которых запрос молчит, ОСТАЮТСЯ: null здесь означает «очистить»
+                // (DomainObject.Update нормализует его в пустой список), и промолчавший клиент
+                // стирал бы их заодно с правкой одного поля.
+                id, req.DisplayName, data, req.Aliases ?? [.. entry.Aliases]))));
         });
 
         edit.MapDelete("/{id:guid}", async (Guid id, IMediator m, IRepository<DocumentType> types) =>
@@ -91,6 +107,29 @@ public static class EmployeeEndpoints
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
+    }
+
+    private const string DataRequired =
+        "В запросе нет поля «data» с реквизитами. Правка заменяет карточку целиком, поэтому пустое " +
+        "значение стёрло бы её — включая табельный номер и период работы. Пришлите реквизиты, " +
+        "которые должны остаться.";
+
+    private const string DataNotJson =
+        "Поле «data» — строка с JSON, а разобрать её не удалось. Обратите внимание: это строка, " +
+        "а не вложенный объект.";
+
+    /// <summary>
+    /// Реквизиты из запроса — или <c>null</c>, если это не JSON (нашло ревью PR #1053).
+    ///
+    /// <para>Без разбора здесь негодная строка уходила бы наружу как 500 «внутренняя ошибка сервера»
+    /// с предложением сообщить об ошибке и записью в журнале ошибок — то есть ошибка ввода
+    /// выглядела бы поломкой сервера. Тот же изъян есть у соседней двери общих данных; здесь он
+    /// заметнее, потому что о форме поля уже думали.</para>
+    /// </summary>
+    private static JsonDocument? ParseData(string? raw, string whenMissing)
+    {
+        try { return JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? whenMissing : raw); }
+        catch (JsonException) { return null; }
     }
 
     private const string DirectoryMissing =

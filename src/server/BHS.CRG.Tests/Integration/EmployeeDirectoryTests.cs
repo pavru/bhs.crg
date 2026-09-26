@@ -109,12 +109,15 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
 
         var employee = await EmployeeAsync(type.Id, userId);
 
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = await users.FindByIdAsync(userId.ToString());
-            Assert.True((await users.DeleteAsync(user!)).Succeeded);
-        }
+        // ⚠️ Удаляем через НАСТОЯЩУЮ дверь, а не UserManager'ом (нашло ревью PR #1053). Уборка
+        // живёт именно в эндпоинте: сразу за users.DeleteAsync там стоит явный ExecuteDeleteAsync
+        // по личным уведомлениям — внешнего ключа нет, поэтому чистят запросом. Допишут вычистку
+        // связи сотрудника той же строкой — сторож, дёргающий UserManager напрямую, останется
+        // зелёным, то есть проверка не сработает на реальном входе.
+        var admin = fixture.CreateClient();
+        await AuthorizeAsync(admin, CorePermissions.UsersManage);
+        var deleted = await admin.DeleteAsync($"/api/users/{userId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
 
         var survived = await SendAsync(new GetCommonDataEntryQuery(employee.Id));
 
@@ -225,6 +228,96 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
         // 409, а не 400: запрос сам по себе правильный — не пускает состояние системы.
         Assert.Equal(HttpStatusCode.Conflict, created.StatusCode);
         Assert.Contains("Персона", await created.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Правка карточки — единственный полноценно пишущий путь двери, и до ревью PR #1053 его не
+    /// выполнял ни один тест. Именно в нём и нашлась потеря данных.
+    /// </summary>
+    [Fact]
+    public async Task Правка_карточки_сохраняет_реквизиты()
+    {
+        var type = await EmployeeTypeAsync();
+        var employee = await SendAsync(new CreateCommonDataEntryCommand(
+            "Иванов И. И.", type.Id, JsonDocument.Parse("""{"ТабельныйНомер":"0421"}"""),
+            CatalogScope.System, null));
+
+        var client = fixture.CreateClient();
+        await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+
+        var ok = await client.PutAsJsonAsync($"/api/employees/{employee.Id}", new
+        {
+            displayName = "Иванов Иван Иванович",
+            data = """{"ТабельныйНомер":"0421","ПринятС":"2026-01-09"}""",
+        });
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+
+        var stored = await SendAsync(new GetCommonDataEntryQuery(employee.Id));
+        Assert.Equal("2026-01-09", stored!.Data.RootElement.GetProperty("ПринятС").GetString());
+        Assert.Equal("0421", stored.Data.RootElement.GetProperty("ТабельныйНомер").GetString());
+    }
+
+    /// <summary>
+    /// ⚠️ Правка БЕЗ реквизитов — отказ, а не пустая карточка (нашло ревью PR #1053).
+    ///
+    /// <para>Подстановка «{}» отвечала 200 и стирала карточку молча: улетали табельный номер, по
+    /// которому сотрудника находит бухгалтерия, период работы и унаследованное ФИО. Охрана записи
+    /// это не ловит — обязательность она не проверяет, а замок на связи срабатывает только если
+    /// значение там было, а положить его в этапе 1 некому.</para>
+    /// </summary>
+    [Fact]
+    public async Task Правка_без_реквизитов_отвергается_и_карточку_не_стирает()
+    {
+        var type = await EmployeeTypeAsync();
+        var employee = await SendAsync(new CreateCommonDataEntryCommand(
+            "Иванов И. И.", type.Id, JsonDocument.Parse("""{"ТабельныйНомер":"0421"}"""),
+            CatalogScope.System, null));
+
+        var client = fixture.CreateClient();
+        await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+
+        var wiped = await client.PutAsJsonAsync($"/api/employees/{employee.Id}",
+            new { displayName = "Иванов И. И." });
+
+        Assert.Equal(HttpStatusCode.BadRequest, wiped.StatusCode);
+
+        var stored = await SendAsync(new GetCommonDataEntryQuery(employee.Id));
+        Assert.Equal("0421", stored!.Data.RootElement.GetProperty("ТабельныйНомер").GetString());
+    }
+
+    /// <summary>
+    /// Негодный JSON в реквизитах — 400 с указанием поля, а не 500 «внутренняя ошибка сервера»:
+    /// ошибка ввода не должна выглядеть поломкой, после которой идут к администратору.
+    /// </summary>
+    [Fact]
+    public async Task Негодный_json_в_реквизитах_это_отказ_ввода()
+    {
+        var type = await EmployeeTypeAsync();
+
+        var client = fixture.CreateClient();
+        await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+
+        var created = await client.PostAsJsonAsync("/api/employees",
+            new { displayName = "Петров", data = "{не json" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
+        Assert.Contains("data", await created.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Правка_чужой_карточки_через_дверь_сотрудников_отвергается()
+    {
+        var type = await EmployeeTypeAsync();
+        var alien = await SendAsync(new CreateCommonDataEntryCommand(
+            "ООО «Ромашка»", type.ParentId!.Value, JsonDocument.Parse("{}"), CatalogScope.System, null));
+
+        var client = fixture.CreateClient();
+        await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+
+        var refused = await client.PutAsJsonAsync($"/api/employees/{alien.Id}",
+            new { displayName = "Подмена", data = "{}" });
+
+        Assert.Equal(HttpStatusCode.NotFound, refused.StatusCode);
     }
 
     private async Task AuthorizeAsync(HttpClient client, params string[] permissions)
