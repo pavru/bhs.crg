@@ -52,7 +52,8 @@ public sealed record ModuleFieldSpec(
 /// Что делать, если тип ЗАВЕСТИ НЕЛЬЗЯ, а его ещё нет: <c>false</c> (умолчание) — отказ старта,
 /// <c>true</c> — тип не заводится, и об этом пишется в журнал запуска.
 ///
-/// <para>Завести нельзя по двум причинам: нет объявленного родителя или занято имя.</para>
+/// <para>Завести нельзя по трём причинам: код занят чужим типом, занято имя или нет того, на
+/// что объявление опирается — родителя либо типа-цели поля.</para>
 ///
 /// <para>Нужно ядру и только ему, и разница с модулем существенна. Модуль включает
 /// администратор — отказ старта для него действие: выключить модуль и разобраться. Ядро выключить
@@ -134,7 +135,16 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         // проекция завела бы второй тип, а администратор после этого не сохранил бы ни одного из
         // двух — уникальность кода запрещала бы оба.
         var type = all.FirstOrDefault(t => string.Equals(t.Code, spec.Code, StringComparison.OrdinalIgnoreCase));
-        if (type is not null) EnsureOwnedByModule(type, spec);
+        // Код занят ЧУЖИМ типом. Для модуля это отказ старта: администратор выключит модуль и
+        // разнимет совпадение. Для ядра — ПРОПУСК (нашло ревью PR #1055): ядро не выключить, а
+        // совет «переименуйте код» требует работающего приложения — то есть на базе, где тип с
+        // таким кодом когда-то завёл человек, приложение не поднялось бы НИКОГДА. Нашего
+        // справочника при этом не существует, заводить нечего, и пропуск ничего не портит.
+        if (ForeignCodeHolder(spec, all) is { } foreign)
+        {
+            if (spec.SkipWhenBlocked) return null;
+            throw ForeignCodeRefusal(foreign, spec);
+        }
 
         var parentId = ResolveParent(spec, all, typeExists: type is not null);
         // Родителя нет, наследника тоже — заводить нечего (см. SkipWhenBlocked).
@@ -467,17 +477,22 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     /// правку собственного типа, зависимый тип ядра нарушает ТЗ CORE-30 и перестаёт сохраняться, а
     /// при выключении модуля тип остаётся без родителя. Совпадение кода — случайность, и разнимать
     /// её должен человек, зная оба типа.</para>
+    ///
+    /// <para>⚠️ Для ядра последствие у отказа другое, и потому там пропуск (SkipWhenBlocked): ядро
+    /// не выключить, а «переименуйте код» — совет, выполнимый только в работающем приложении.
+    /// Отказом мы заперли бы установку навсегда, и заперли бы её заказчику, который всего лишь
+    /// когда-то завёл тип с таким же кодом сам.</para>
     /// </summary>
-    private static void EnsureOwnedByModule(DocumentType type, ModuleTypeSpec spec)
-    {
-        if (string.Equals(type.Module, spec.Module, StringComparison.OrdinalIgnoreCase)) return;
+    public static DocumentType? ForeignCodeHolder(ModuleTypeSpec spec, IReadOnlyList<DocumentType> all) =>
+        all.FirstOrDefault(t => string.Equals(t.Code, spec.Code, StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(t.Module, spec.Module, StringComparison.OrdinalIgnoreCase));
 
-        throw new ConflictException(
+    private static ConflictException ForeignCodeRefusal(DocumentType type, ModuleTypeSpec spec) =>
+        new(
             $"{WhoCapitalized(spec)} объявляет тип с кодом «{spec.Code}», а тип с таким кодом уже " +
             $"есть и принадлежит {TypeOwnershipRules.OwnerWords(type.Module)} — это «{type.Name}». " +
             "Проекция его не забирает: переименуйте код одного из двух. Иначе модуль стал бы вести " +
             "чужой тип, а его владелец молча потерял бы право его править.");
-    }
 
     /// <summary>
     /// Что проверяется ДО записи. Каждая строка — про то, что иначе сломается молча и поздно.

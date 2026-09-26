@@ -506,4 +506,49 @@ public class CoreRecordTypeProjectionTests(IntegrationTestFixture fixture) : IAs
             () => SendAsync(new ProjectModuleTypeCommand(blind)));
         Assert.Contains("без цели", refusal.Message);
     }
+
+    // ── Код справочника занят чужим типом (ревью PR #1055) ────────────────────
+
+    /// <summary>
+    /// Тип с кодом справочника уже есть и принадлежит НЕ ядру — например, классификатор, который
+    /// заказчик завёл себе сам (владельца таким типам присвоила миграция <c>TypeModuleOwner</c>:
+    /// всё, чего нет в списке типов ядра, досталось модулю исполнительной документации).
+    ///
+    /// <para>Это ПРОПУСК, а не отказ. Отказом мы заперли бы установку навсегда: ядро не выключить, а
+    /// совет «переименуйте код» выполним только в работающем приложении. Причина уходит в журнал
+    /// запуска, а чужой тип остаётся нетронутым — забирать его проекция не вправе.</para>
+    /// </summary>
+    [Fact]
+    public async Task Код_справочника_занят_чужим_типом_пропуск_а_не_отказ()
+    {
+        await MakeTypeAsync(CoreRecordTypes.UnitCode, "Единица измерения", TypeOwner.Core);
+        var alien = await MakeTypeAsync(CoreRecordTypes.WorkTypeCode, "Свой классификатор", "id");
+
+        Assert.Null(await SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType)));
+
+        using var scope = fixture.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+        var stored = await repo.GetByIdAsync(alien.Id);
+        Assert.Equal("id", stored!.Module);
+        Assert.Equal("Свой классификатор", stored.Name);
+        Assert.Empty(stored.Schema!.RootElement.GetProperty("fields").EnumerateArray());
+    }
+
+    /// <summary>
+    /// А МОДУЛЮ чужой код — по-прежнему отказ старта: его администратор выключит и разнимет
+    /// совпадение, а тихий захват стоил бы трёх поломок сразу (см. ForeignCodeHolder). Без этой
+    /// половины послабление ядра выглядело бы отменой правила.
+    /// </summary>
+    [Fact]
+    public async Task Модулю_чужой_код_по_прежнему_отказ()
+    {
+        await MakeTypeAsync("ЧужойКод", "Чужой тип", TypeOwner.Core);
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(
+            new ProjectModuleTypeCommand(new ModuleTypeSpec("work", "ЧужойКод", "Тип модуля",
+                SchemaEditLevel.Extendable, [new("Поле", "Поле", "string")],
+                Kind: DocumentTypeKind.Composite))));
+
+        Assert.Contains("переименуйте код", refusal.Message);
+    }
 }

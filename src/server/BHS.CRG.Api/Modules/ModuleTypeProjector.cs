@@ -47,14 +47,25 @@ public static class ModuleTypeProjector
     }
 
     /// <summary>
-    /// Почему справочник не завёлся — словами и по фактам из базы. Причин три: занято имя, нет
-    /// объявленного родителя, нет типа, на который ссылается поле. Спрашиваем базу ЗАНОВО, а не
-    /// гадаем: сообщение, разошедшееся с действительностью, отправило бы администратора чинить не то.
+    /// Почему справочник не завёлся — словами и по фактам из базы. Причин четыре: код занят чужим
+    /// типом, занято имя, нет объявленного родителя, нет типа-цели поля. Спрашиваем базу ЗАНОВО, а
+    /// не гадаем: сообщение, разошедшееся с действительностью, отправило бы администратора чинить
+    /// не то.
     /// </summary>
     private static async Task LogSkipAsync(IServiceProvider services, ModuleTypeSpec spec, CancellationToken ct)
     {
         var all = await services.GetRequiredService<IRepository<DocumentType>>().GetAllAsync(ct);
         var log = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ModuleTypeProjector));
+
+        if (ModuleTypeProjectionHandler.ForeignCodeHolder(spec, all) is { } foreign)
+        {
+            log.LogWarning(
+                "Справочник «{Code}» не заведён: тип с таким кодом уже есть — это «{Name}», и " +
+                "принадлежит он не ядру. Проекция его не забирает: переименуйте код одного из двух " +
+                "в редакторе типов — справочник появится при следующем запуске.",
+                spec.Code, foreign.Name);
+            return;
+        }
 
         if (ModuleTypeProjectionHandler.NameTakenBy(spec, all) is { } taken)
         {
