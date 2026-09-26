@@ -32,6 +32,7 @@ public sealed record MigrationCensus(IReadOnlyDictionary<string, long> Counts)
     private const string Sections = "sections";
     private const string Sets = "document_sets";
     private const string Objects = "domain_objects";
+    private const string Types = "document_types";
 
     /// <summary>
     /// Перепись или <c>null</c>, если справочника нет вовсе — пустая база, первый запуск. Отличать
@@ -92,6 +93,18 @@ public sealed record MigrationCensus(IReadOnlyDictionary<string, long> Counts)
                     " OR (o.\"ScopeLevel\" = 'Set' AND NOT EXISTS " +
                     "      (SELECT 1 FROM document_sets d WHERE d.\"Id\" = o.\"ScopeId\")))"));
 
+            // Поля справочника номенклатуры — счёт СКВОЗЬ наследование (issue #963). Миграция
+            // поднимает общие поля «Материала» в новый базовый тип «Номенклатура», и ошибка здесь
+            // выглядела бы так: поля из схемы ушли, родитель не встал — документы печатают пустоту
+            // там, где было наименование материала. По счёту это видно сразу, и остановка старта
+            // приходит раньше первого испорченного PDF.
+            //
+            // ⚠️ Считаются РАЗНЫЕ ключи по всей цепочке родителей, а исключения унаследованных
+            // полей (excludedFields) не учитываются: формула нужна одинаковая ДО и ПОСЛЕ, а не
+            // точная — сверка ищет расхождение, а не показывает схему.
+            if (present.Contains(Types) && await HasColumnAsync(conn, Types, "ParentId", ct))
+                parts.Add(("полей у справочника номенклатуры", EffectiveFieldsSql("Материал")));
+
             await using var cmd = new NpgsqlCommand(
                 "SELECT " + string.Join(", ", parts.Select(p => "(" + p.Sql + ")")), conn);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -107,11 +120,44 @@ public sealed record MigrationCensus(IReadOnlyDictionary<string, long> Counts)
         }
     }
 
+    /// <summary>
+    /// Сколько РАЗНЫХ ключей полей у типа с этим кодом вместе с унаследованными. Ноль — и когда
+    /// полей нет, и когда самого типа нет: перепись сверяет число с числом, а «типа не стало»
+    /// поймается как расхождение на том же счётчике.
+    /// </summary>
+    private static string EffectiveFieldsSql(string code) =>
+        """
+        WITH RECURSIVE chain AS (
+            SELECT t."Id", t."ParentId", t."Schema" AS s
+              FROM document_types t WHERE t."Code" = '@code@'
+             UNION ALL
+            SELECT p."Id", p."ParentId", p."Schema"
+              FROM document_types p JOIN chain c ON p."Id" = c."ParentId")
+        SELECT count(DISTINCT f->>'key') FROM chain,
+             jsonb_array_elements(coalesce(chain.s->'fields', '[]'::jsonb)) f
+        """.Replace("@code@", code);
+
+    /// <summary>
+    /// Есть ли у таблицы такая колонка. Нужно для баз, которые старше самой колонки: запрос по
+    /// отсутствующей колонке — не «ноль», а исключение, то есть сторож ронял бы старт вместо того,
+    /// чтобы его проверить (той же ценой обошлась чистая установка в #1046).
+    /// </summary>
+    private static async Task<bool> HasColumnAsync(
+        NpgsqlConnection conn, string table, string column, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns " +
+            "WHERE table_schema = 'public' AND table_name = @t AND column_name = @c)", conn);
+        cmd.Parameters.AddWithValue("t", table);
+        cmd.Parameters.AddWithValue("c", column);
+        return await cmd.ExecuteScalarAsync(ct) is true;
+    }
+
     /// <summary>Какие из нужных таблиц существуют в базе сейчас.</summary>
     private static async Task<HashSet<string>> PresentTablesAsync(NpgsqlConnection conn, CancellationToken ct)
     {
         var present = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var table in new[] { Constructions, Sections, Sets, Objects })
+        foreach (var table in new[] { Constructions, Sections, Sets, Objects, Types })
         {
             await using var cmd = new NpgsqlCommand("SELECT to_regclass(@name) IS NOT NULL", conn);
             cmd.Parameters.AddWithValue("name", "public." + table);

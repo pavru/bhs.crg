@@ -2,6 +2,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
@@ -15,6 +16,10 @@ namespace BHS.CRG.Tests.Integration;
 /// Различает их порядок создания — и всё, что от него зависит: значения, проставленные прежними
 /// умолчаниями, строки, которых в свежей схеме не бывает, и индексы, которые на пустой таблице
 /// создаются всегда, а на полной могут и не создаться.</para>
+///
+/// <para>С issue #963 здесь же проверяется ПЕРЕШИВКА ТИПОВ: «Номенклатура» обязана встать НАД
+/// «Материалом», а не рядом с ним. Проверка на тех же двух базах и по той же причине — перешивка
+/// живых типов задевает документы, которые на них ссылаются.</para>
 ///
 /// <para>⚠️ Базы свои, а не общая тестовая: тест применяет миграции ЧАСТЯМИ и создаёт схему с нуля,
 /// то есть делает с базой то, чего соседние тесты не переживут.</para>
@@ -154,6 +159,238 @@ public class MigrationCensusTests
         MigrationCensus.EnsureUnchanged(before, Census(2, 5, 4, 0));
     }
 
+    // ── Перешивка типов: номенклатура над материалом (issue #963) ─────────────
+
+    /// <summary>
+    /// Схема «Материала» в рабочей базе — списком, как она там лежит (сверено 26.09.2026 на копии
+    /// базы заказчика и на базе разработки: обе совпадают до ключа).
+    ///
+    /// <para>Порядок тэгов <c>identity</c> здесь ВАЖЕН и неочевиден: наименование 1, производитель
+    /// 2, артикул 3 — не как в примере ТЗ. Из них складывается ключ, которым строка накладной
+    /// находит запись справочника; перенумеруй их миграция «по ТЗ» — разошлись бы существующие
+    /// связки с документами качества, и заметили бы это не здесь.</para>
+    /// </summary>
+    private const string LegacyMaterialSchema = """
+        {"fields":[
+          {"key":"Группа","title":"Группа","type":"string"},
+          {"key":"Наименование","title":"Наименование","type":"string","required":true,"tags":["identity:1"]},
+          {"key":"Артикул","title":"Артикул","type":"string","tags":["identity:3"]},
+          {"key":"Производитель","title":"Производитель","type":"string","tags":["identity:2","quality.manufacturer"]},
+          {"key":"ЕдиницаИзмерения","title":"Единица измерения","type":"complex","required":true,"typeId":"@unit@"},
+          {"key":"Количество","title":"Количество","type":"number","required":true},
+          {"key":"Цена","title":"Цена","type":"number"},
+          {"key":"ДокументПодтверждающийКачество","title":"Документ качества","type":"doc-ref","tags":["material.qualityDocLink"]},
+          {"key":"СсылочнаяИнформация","title":"СсылочнаяИнформация","type":"string"},
+          {"key":"Изображение","title":"Изображение","type":"image"}
+        ],"typstRenders":[{"name":"Строка","fnName":"resource-name-quantity","block":"{ }"}]}
+        """;
+
+    private const string LegacyWorkSchema = """
+        {"fields":[
+          {"key":"Наименование","title":"Наименование","type":"string","required":true},
+          {"key":"Количество","title":"Количество","type":"number","required":true},
+          {"key":"ЕдиницаИзмерения","title":"Единица измерения","type":"complex","required":true,"typeId":"@unit@"}
+        ]}
+        """;
+
+    /// <summary>
+    /// СТОРОЖ ЗАДАЧИ (issue #963). На базе С ИСТОРИЕЙ: общие поля «Материала» уходят наверх, в новый
+    /// базовый тип, а сам он становится производным. Второго справочника материалов не появляется —
+    /// именно этим задача и ломается: заведи «Номенклатуру» рядом, и у заказчика два «материала».
+    /// </summary>
+    [Fact]
+    public async Task История_поднимает_номенклатуру_над_материалом()
+    {
+        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift");
+        await MigrateToPreviousAsync(db);
+        var unit = await SeedLegacyTypesAsync(db);
+
+        var before = await MigrationCensus.ReadAsync(db);
+        Assert.NotNull(before);
+        Assert.Equal(10, before.Counts["полей у справочника номенклатуры"]);
+
+        await db.Database.MigrateAsync();
+
+        // Состав не изменился: поля переехали, а не потерялись.
+        MigrationCensus.EnsureUnchanged(before, await MigrationCensus.ReadAsync(db));
+
+        // Один справочник, а не два: «Материал» производен от «Номенклатуры».
+        Assert.Equal(await ScalarAsync(db, "SELECT \"Id\"::text FROM document_types WHERE \"Code\" = 'Номенклатура'"),
+            await ScalarAsync(db, "SELECT \"ParentId\"::text FROM document_types WHERE \"Code\" = 'Материал'"));
+
+        // У строки остались количество и цена; всё остальное она наследует.
+        Assert.Equal("Количество, Цена", await OwnKeysAsync(db, "Материал"));
+        Assert.Equal(
+            "Группа, Наименование, Артикул, Производитель, ЕдиницаИзмерения, "
+            + "ДокументПодтверждающийКачество, СсылочнаяИнформация, Изображение",
+            await OwnKeysAsync(db, "Номенклатура"));
+
+        // Ссылка на единицы переехала как есть — с тем же идентификатором цели.
+        Assert.Equal(unit.ToString(), await ScalarAsync(db,
+            "SELECT f->>'typeId' FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE t.\"Code\" = 'Номенклатура' AND f->>'key' = 'ЕдиницаИзмерения'"));
+
+        // Поле документа качества — РОВНО В ОДНОЙ схеме. Окажись оно в двух, материалом стали бы два
+        // типа, и ключ сопоставления собрался бы из полей обоих (MaterialIdentity.KeysOf).
+        Assert.Equal(1L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE coalesce(f->'tags', '[]'::jsonb) @> '[\"material.qualityDocLink\"]'::jsonb"));
+
+        // Порядок компонентов ключа сохранён ровно как был: 1 наименование, 2 производитель, 3 артикул.
+        Assert.Equal("Наименование, Производитель, Артикул", await ScalarAsync(db,
+            "SELECT string_agg(k, ', ' ORDER BY n) FROM (SELECT f->>'key' AS k, "
+            + "split_part(tag #>> '{}', ':', 2) AS n "
+            + "FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f, "
+            + "jsonb_array_elements(coalesce(f->'tags', '[]'::jsonb)) tag "
+            + "WHERE t.\"Code\" = 'Номенклатура' AND tag #>> '{}' LIKE 'identity:%') x"));
+
+        // Печатный блок строки остался у строки: он печатает количество, которого у справочника нет.
+        Assert.Equal(1L, await ScalarAsync(db,
+            "SELECT jsonb_array_length(\"Schema\"->'typstRenders')::bigint FROM document_types WHERE \"Code\" = 'Материал'"));
+
+        // И ссылка «Работы» на классификатор — необязательная, с тэгом, по которому её найдёт код.
+        Assert.Equal("ref.workType", await ScalarAsync(db,
+            "SELECT f->'tags'->>0 FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE t.\"Code\" = 'Работа' AND f->>'key' = 'ВидРаботы'"));
+        Assert.Equal(await ScalarAsync(db, "SELECT \"Id\"::text FROM document_types WHERE \"Code\" = 'ВидРаботы'"),
+            await ScalarAsync(db,
+                "SELECT f->>'typeId' FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+                + "WHERE t.\"Code\" = 'Работа' AND f->>'key' = 'ВидРаботы'"));
+    }
+
+    /// <summary>
+    /// ПОВТОРНЫЙ ПРОГОН и ЧУЖАЯ РАБОТА: миграция не делает ничего дважды и не встраивается в
+    /// иерархию, которую строил человек. Второй «Номенклатуры» не появляется, ссылка у «Работы» не
+    /// дублируется.
+    /// </summary>
+    [Fact]
+    public async Task Повторный_прогон_второго_справочника_не_заводит()
+    {
+        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_twice");
+        await MigrateToPreviousAsync(db);
+        await SeedLegacyTypesAsync(db);
+        await db.Database.MigrateAsync();
+
+        // Прогоняем тело миграции ещё раз — ровно это случилось бы, будь она не идемпотентной.
+        // ⚠️ Мимо EF: ExecuteSqlRaw разбирает текст на подстановки и спотыкается о $$ — тело
+        // миграции для него «положение параметра, за которым нет цифры».
+        await RawAsync(db, MigrationSqlOf("NomenclatureAboveMaterial"));
+
+        Assert.Equal(1L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types WHERE \"Code\" = 'Номенклатура'"));
+        Assert.Equal(1L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE t.\"Code\" = 'Работа' AND f->>'key' = 'ВидРаботы'"));
+        Assert.Equal("Количество, Цена", await OwnKeysAsync(db, "Материал"));
+    }
+
+    /// <summary>
+    /// Дорога назад: откат возвращает поля строке и убирает то, что заводила миграция. Полноценный
+    /// путь отката — прежний образ плюс резервная копия (решение по G1), но и этот прогон обязан
+    /// быть чистым: иначе «туда-обратно» оставляло бы базу с половиной перешивки.
+    /// </summary>
+    [Fact]
+    public async Task Откат_возвращает_поля_строке()
+    {
+        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down");
+        await MigrateToPreviousAsync(db);
+        await SeedLegacyTypesAsync(db);
+        await db.Database.MigrateAsync();
+
+        await MigrateToPreviousAsync(db);
+
+        Assert.Equal(0L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types WHERE \"Code\" IN ('Номенклатура', 'ВидРаботы')"));
+        Assert.Equal(
+            "Группа, Наименование, Артикул, Производитель, ЕдиницаИзмерения, "
+            + "ДокументПодтверждающийКачество, СсылочнаяИнформация, Изображение, Количество, Цена",
+            await OwnKeysAsync(db, "Материал"));
+        Assert.Null(await ScalarAsync(db, "SELECT \"ParentId\"::text FROM document_types WHERE \"Code\" = 'Материал'"));
+        Assert.Equal(0L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types t, jsonb_array_elements(t.\"Schema\"->'fields') f "
+            + "WHERE t.\"Code\" = 'Работа' AND f->>'key' = 'ВидРаботы'"));
+    }
+
+    /// <summary>
+    /// ЧИСТАЯ УСТАНОВКА: «Материала» в ней нет — поднимать нечего, и миграция молчит. Отказ здесь
+    /// означал бы, что новая установка не поднимается вовсе (той же ценой обошлась #1046).
+    /// </summary>
+    [Fact]
+    public async Task Пересозданная_база_номенклатуру_не_заводит()
+    {
+        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_fresh");
+        await db.Database.MigrateAsync();
+
+        Assert.Equal(0L, await ScalarAsync(db,
+            "SELECT count(*) FROM document_types WHERE \"Code\" = 'Номенклатура'"));
+    }
+
+    /// <summary>Схема ПРЕЖНЕЙ версии: до предпоследней миграции, то есть без проверяемой.</summary>
+    private static async Task MigrateToPreviousAsync(AppDbContext db)
+    {
+        var all = db.Database.GetMigrations().ToList();
+        await db.GetService<IMigrator>().MigrateAsync(all[^2]);
+    }
+
+    /// <summary>
+    /// Типы, какими они лежат в рабочей базе: единицы измерения, материал-строка и работа-строка.
+    /// Возвращает идентификатор единиц — на него ссылаются оба.
+    /// </summary>
+    private static async Task<Guid> SeedLegacyTypesAsync(AppDbContext db)
+    {
+        var unit = Guid.NewGuid();
+        await InsertTypeAsync(db, unit, "ЕдиницаИзмерения", "Единица измерения", "core", "Open",
+            """ {"fields":[{"key":"ЕдиницаИзмерения","title":"Единица измерения","type":"string","tags":["identity"]}]} """);
+        await InsertTypeAsync(db, Guid.NewGuid(), "Материал", "Материал", "id", "Open",
+            LegacyMaterialSchema.Replace("@unit@", unit.ToString()), group: "Материалы");
+        await InsertTypeAsync(db, Guid.NewGuid(), "Работа", "Работа", "id", "Open",
+            LegacyWorkSchema.Replace("@unit@", unit.ToString()));
+        return unit;
+    }
+
+    private static async Task InsertTypeAsync(AppDbContext db, Guid id, string code, string name,
+        string module, string level, string schema, string? group = null)
+    {
+        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO document_types
+                ("Id","Name","Code","Schema","PluginBindings","CreatedAt","UpdatedAt","ParentId",
+                 "Kind","IsAbstract","Group","AllowsProxy","Module","ReadChannels","Storage",
+                 "Visibility","EditLevel")
+            VALUES (@id, @name, @code, @schema::jsonb, '[]'::jsonb, now(), now(), NULL,
+                    'Composite', false, @group, false, @module, '', 'SharedObject', 'Shared', @level)
+            """, conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("name", name);
+        cmd.Parameters.AddWithValue("code", code);
+        cmd.Parameters.AddWithValue("schema", schema);
+        cmd.Parameters.AddWithValue("group", (object?)group ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("module", module);
+        cmd.Parameters.AddWithValue("level", level);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Свои ключи полей типа — в порядке схемы, строкой: так расхождение читается сразу.</summary>
+    private static async Task<object?> OwnKeysAsync(AppDbContext db, string code) => await ScalarAsync(db,
+        "SELECT string_agg(f->>'key', ', ' ORDER BY ord) FROM document_types t, "
+        + "jsonb_array_elements(t.\"Schema\"->'fields') WITH ORDINALITY AS a(f, ord) "
+        + "WHERE t.\"Code\" = '" + code + "'");
+
+    /// <summary>
+    /// Текст миграции из самой сборки — чтобы повторный прогон проверял НАСТОЯЩИЙ запрос, а не его
+    /// копию в тесте. Копия разошлась бы с оригиналом первым же исправлением, и тест остался бы
+    /// зелёным, проверяя себя.
+    /// </summary>
+    private static string MigrationSqlOf(string name)
+    {
+        var type = typeof(AppDbContext).Assembly.GetTypes()
+            .Single(t => typeof(Migration).IsAssignableFrom(t) && t.Name == name);
+        var migration = (Migration)Activator.CreateInstance(type)!;
+        return string.Join("\n;\n", migration.UpOperations.OfType<SqlOperation>().Select(o => o.Sql));
+    }
+
     private static async Task<AppDbContext> CreateDatabaseAsync(string name)
     {
         await using (var conn = new NpgsqlConnection(AdminConnectionString()))
@@ -194,6 +431,15 @@ public class MigrationCensusTests
 
     private static async Task ExecAsync(AppDbContext db, string sql) =>
         await db.Database.ExecuteSqlRawAsync(sql);
+
+    /// <summary>Запрос как есть, без разбора подстановок: так его выполняет и сама миграция.</summary>
+    private static async Task RawAsync(AppDbContext db, string sql)
+    {
+        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        await cmd.ExecuteNonQueryAsync();
+    }
 
     private static async Task<object?> ScalarAsync(AppDbContext db, string sql)
     {
