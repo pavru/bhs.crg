@@ -82,6 +82,29 @@ public static class FunctionalTag
     /// </summary>
     public const string CertValidUntil = "cert.validUntil";
 
+    // ── Тэги поля: классификатор видов работ (ТЗ TYPE-21, CORE-8, issue #963) ───
+    //
+    // Читатель по ТЗ — модуль учёта работ (этап 2), а объявлены тэги здесь, у ядра, и это не
+    // небрежность: поля с ними объявляет САМО ЯДРО (CoreRecordTypes.WorkType), а объявление ядра
+    // не вправе ждать модуля. Отдай мы их модулю — при выключенном «work» классификатор не
+    // поднялся бы вовсе, хотя он справочник ядра и переживает выключение любого модуля. Что
+    // кода-читателя пока нет, сказано вслух в описаниях реестра — как у cert.validUntil.
+
+    /// <summary>Вид работы требует указания места выполнения (ТЗ CORE-8, TYPE-9).</summary>
+    public const string WorkRequiresLocation = "work.requiresLocation";
+
+    /// <summary>Вид работы требует указания применённых материалов (ТЗ CORE-8, TYPE-9).</summary>
+    public const string WorkRequiresMaterials = "work.requiresMaterials";
+
+    /// <summary>
+    /// Работа этого вида попадает в исполнительную документацию (ТЗ CORE-8, TYPE-9).
+    ///
+    /// ⚠️ Читателей по ТЗ двое — учёт работ и исполнительная документация, — а владелец у тэга
+    /// один. Отсюда владелец «ядро»: тэг, отданный одному из двух читателей, пропадал бы из
+    /// редактора схем при выключении чужого для него модуля.
+    /// </summary>
+    public const string WorkProducesId = "work.producesId";
+
     // ── Тэги типа ───────────────────────────────────────────────────────────────
     /// <summary>Тип документа является «документом качества» (база для подтипов).</summary>
     public const string TypeQualityDocument = "type.qualityDocument";

@@ -47,14 +47,25 @@ public static class ModuleTypeProjector
     }
 
     /// <summary>
-    /// Почему справочник не завёлся — словами и по фактам из базы. Причин две: нет объявленного
-    /// родителя или занято имя. Спрашиваем базу ЗАНОВО, а не гадаем: сообщение, разошедшееся с
-    /// действительностью, отправило бы администратора чинить не то.
+    /// Почему справочник не завёлся — словами и по фактам из базы. Причин четыре: код занят чужим
+    /// типом, занято имя, нет объявленного родителя, нет типа-цели поля. Спрашиваем базу ЗАНОВО, а
+    /// не гадаем: сообщение, разошедшееся с действительностью, отправило бы администратора чинить
+    /// не то.
     /// </summary>
     private static async Task LogSkipAsync(IServiceProvider services, ModuleTypeSpec spec, CancellationToken ct)
     {
         var all = await services.GetRequiredService<IRepository<DocumentType>>().GetAllAsync(ct);
         var log = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ModuleTypeProjector));
+
+        if (ModuleTypeProjectionHandler.ForeignCodeHolder(spec, all) is { } foreign)
+        {
+            log.LogWarning(
+                "Справочник «{Code}» не заведён: тип с таким кодом уже есть — это «{Name}», и " +
+                "принадлежит он не ядру. Проекция его не забирает: переименуйте код одного из двух " +
+                "в редакторе типов — справочник появится при следующем запуске.",
+                spec.Code, foreign.Name);
+            return;
+        }
 
         if (ModuleTypeProjectionHandler.NameTakenBy(spec, all) is { } taken)
         {
@@ -66,10 +77,33 @@ public static class ModuleTypeProjector
             return;
         }
 
-        log.LogInformation(
-            "Справочник «{Code}» не заведён: нет типа-родителя «{Parent}». Так и должно быть на " +
-            "новой установке — справочник появится, как только появится родитель.",
-            spec.Code, spec.Parent);
+        if (spec.Parent is { Length: > 0 } parent
+            && !all.Any(t => string.Equals(t.Code, parent, StringComparison.OrdinalIgnoreCase)))
+        {
+            log.LogInformation(
+                "Справочник «{Code}» не заведён: нет типа-родителя «{Parent}». Так и должно быть на " +
+                "новой установке — справочник появится, как только появится родитель.",
+                spec.Code, parent);
+            return;
+        }
+
+        if (ModuleTypeProjectionHandler.MissingTargetOf(spec, all) is { } target)
+        {
+            log.LogInformation(
+                "Справочник «{Code}» не заведён: нет типа «{Target}», на который ссылается его " +
+                "поле. Так и должно быть на новой установке — справочник появится, как только " +
+                "появится тип-цель.",
+                spec.Code, target);
+            return;
+        }
+
+        // Сюда дорога есть: команда вернула «не завёл», а по базе причина не воспроизвелась —
+        // значит она успела измениться либо пропуск случился по причине, о которой здесь не знают.
+        // Молчать нельзя: справочника в системе нет, и это единственное место, где это заметно.
+        log.LogWarning(
+            "Справочник «{Code}» не заведён, а причину по базе установить не удалось. Сообщите о " +
+            "находке: пропуск без объяснения — это отсутствующий справочник, который никто не искал.",
+            spec.Code);
     }
 
     private static ModuleTypeSpec Translate(string moduleCode, ModuleRecordType declared) => new(
