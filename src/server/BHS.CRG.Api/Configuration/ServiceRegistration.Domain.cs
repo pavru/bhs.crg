@@ -44,6 +44,7 @@ internal static class DomainRegistration
     builder.Services.AddScoped<IRepository<DocumentType>, Repository<DocumentType>>();
     builder.Services.AddScoped<IRepository<Construction>, ConstructionRepository>();
     builder.Services.AddScoped<IRepository<Section>, Repository<Section>>();
+    builder.Services.AddScoped<IRepository<WorkPlanItem>, Repository<WorkPlanItem>>();
     builder.Services.AddScoped<IRepository<DocumentSet>, DocumentSetRepository>();
     // План по документам (issue #796): строки живут на комплекте, уровни выше считаются.
     builder.Services.AddScoped<IRepository<DocumentSetPlanItem>, Repository<DocumentSetPlanItem>>();

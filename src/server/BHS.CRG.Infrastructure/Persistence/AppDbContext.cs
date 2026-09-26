@@ -28,6 +28,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Construction> Constructions => Set<Construction>();
     public DbSet<Section> Sections => Set<Section>();
     public DbSet<DocumentSet> DocumentSets => Set<DocumentSet>();
+
+    /// <summary>Перечень работ стройки (ТЗ CORE-10, issue #964): позиция-якорь всех модулей.</summary>
+    public DbSet<WorkPlanItem> WorkPlanItems => Set<WorkPlanItem>();
     public DbSet<DocumentSetPlanItem> DocumentSetPlans => Set<DocumentSetPlanItem>();
     public DbSet<GeneratedFile> GeneratedFiles => Set<GeneratedFile>();
     public DbSet<DocumentSetOutput> DocumentSetOutputs => Set<DocumentSetOutput>();

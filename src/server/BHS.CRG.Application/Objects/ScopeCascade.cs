@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -46,11 +47,24 @@ public interface IScopeCascade
 /// <param name="QualityDocuments">Документы качества, чья область — внутри поддерева.</param>
 /// <param name="MaterialLinks">Связки материалов той же области.</param>
 /// <param name="ExternalReferrers">Держатели ссылок вне поддерева. Не пусто → удалять нельзя.</param>
+/// <param name="WorkPlanReferrers">
+/// Держатели ссылок на позиции перечня работ этого уровня — строками «что: сколько» (ТЗ CORE-11,
+/// issue #964). Позиции уносит каскад базы, и без этого вопроса он унёс бы их из-под модулей, у
+/// которых на них план, факт и акты: правило «удаляем только то, на что не ссылаются» обходится
+/// каскадом с фланга — тем же, каким оно однажды обошлось для объектов уровня (issue #739).
+/// </param>
+/// <param name="WorkPlanItemsHoldingObjects">
+/// Сколько позиций перечня ИЗВНЕ поддерева ссылаются на его записи — на запись классификатора или
+/// единицу измерения, лежащую на уровне стройки. Внешний ключ таких записей удалить не даст, и без
+/// этой проверки человек увидел бы не отказ, а внутреннюю ошибку сервера.
+/// </param>
 public sealed record ScopeCascadePlan(
     IReadOnlyList<DomainObject> Objects,
     IReadOnlyList<QualityDocument> QualityDocuments,
     IReadOnlyList<MaterialQualityLink> MaterialLinks,
-    IReadOnlyList<DomainObjectReferences.Referrer> ExternalReferrers);
+    IReadOnlyList<DomainObjectReferences.Referrer> ExternalReferrers,
+    IReadOnlyList<string> WorkPlanReferrers,
+    int WorkPlanItemsHoldingObjects);
 
 /// <inheritdoc cref="IScopeCascade" />
 public class ScopeCascade(
@@ -58,6 +72,8 @@ public class ScopeCascade(
     IRepository<QualityDocument> qualityRepo,
     IRepository<MaterialQualityLink> linkRepo,
     IRepository<Section> sectionRepo,
+    IRepository<WorkPlanItem> planRepo,
+    IEnumerable<IWorkPlanItemReferrer> workPlanReferrers,
     IReferenceIndex refIndex,
     IScopeSubtree subtree) : IScopeCascade
 {
@@ -109,7 +125,26 @@ public class ScopeCascade(
         // запись общих данных, объявил бы комплект неудаляемым, «сославшись извне» на самого себя.
         var targetIds = objects.Select(o => o.Id).Concat(quality.Select(d => d.Id)).ToHashSet();
         var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityRepo, refIndex, targetIds, ct);
-        return new ScopeCascadePlan(objects, quality, links, referrers);
+
+        // Позиции перечня этого уровня (ТЗ CORE-10): уносит их каскад базы по стройке и разделу, но
+        // спросить держателей ссылок обязаны мы — у базы такого вопроса нет.
+        var items = await planRepo.FindAsync(
+            p => constructionIds.Contains(p.ConstructionId)
+                 || (p.SectionId != null && sectionIds.Contains(p.SectionId.Value)), ct);
+        var itemIds = items.Select(p => p.Id).ToList();
+        var planRefs = await WorkPlanItemReferences.DescribeAsync(workPlanReferrers, itemIds, ct);
+
+        // И обратная сторона: на запись содержимого может ссылаться позиция ЧУЖОГО перечня — если
+        // заказчик держит запись классификатора или единицу на уровне стройки. Свои позиции не в
+        // счёт: они уходят этим же каскадом, вместе со ссылкой.
+        var objectIds = objects.Select(o => o.Id).ToList();
+        var held = objectIds.Count == 0
+            ? 0
+            : (await planRepo.FindAsync(
+                    p => objectIds.Contains(p.WorkTypeId) || objectIds.Contains(p.UnitId), ct))
+                .Count(p => !itemIds.Contains(p.Id));
+
+        return new ScopeCascadePlan(objects, quality, links, referrers, planRefs, held);
     }
 
     /// <inheritdoc />
@@ -126,6 +161,17 @@ public class ScopeCascade(
     /// <inheritdoc />
     public void EnsureDeletable(ScopeCascadePlan plan, string levelAccusative)
     {
+        // Ссылки модулей на позиции перечня — первыми: удаление уровня уносит перечень целиком, и
+        // это самая дорогая из потерь здесь (план, факт и акты потеряли бы то, к чему относятся).
+        WorkPlanItemReferences.EnsureNone(plan.WorkPlanReferrers, levelAccusative);
+
+        if (plan.WorkPlanItemsHoldingObjects > 0)
+            throw new ConflictException(
+                $"Нельзя удалить {levelAccusative}: на его записи ссылается перечень работ — "
+                + $"позиций: {plan.WorkPlanItemsHoldingObjects}. Это записи классификатора видов "
+                + "работ или единицы измерения, лежащие на этом уровне; перечень других строек без "
+                + "них потерял бы смысл. Перенесите записи на уровень выше.");
+
         if (plan.ExternalReferrers.Count == 0) return;
         // Уровень назван словом в винительном падеже, держатели — списком: ссылка может держаться и
         // вне удаляемого места (документ качества общей библиотеки), и без имени её негде искать.

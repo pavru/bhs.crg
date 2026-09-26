@@ -16,6 +16,7 @@ public class CommonDataHandlers(
     IRepository<Section> sectionRepo,
     IRepository<Construction> constructionRepo,
     IRepository<QualityDocument> qualityDocRepo,
+    IRepository<WorkPlanItem> planRepo,
     IReferenceIndex refIndex,
     IDataSetResolver dataSetResolver,
     ILevelProfileService levelProfiles) :
@@ -70,6 +71,18 @@ public class CommonDataHandlers(
             || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0
             || (await setRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0)
             throw new ConflictException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
+        // issue #964: запись, на которую ссылается ПЕРЕЧЕНЬ РАБОТ — вид работы или единица
+        // измерения позиции (ТЗ CORE-10). Её удаление запрещает внешний ключ, и без этой проверки
+        // человек получил бы внутреннюю ошибку сервера вместо отказа: отказ, переодетый в поломку,
+        // читается как «система сломалась», а не «так нельзя».
+        var inPlan = (await planRepo.FindAsync(p => p.WorkTypeId == cmd.Id || p.UnitId == cmd.Id, ct)).Count;
+        if (inPlan > 0)
+            throw new ConflictException(
+                $"Нельзя удалить запись — на неё ссылается перечень работ, позиций: {inPlan}. " +
+                "Позиция перечня — это вид работы, стройка, раздел и единица измерения; без этой " +
+                "записи она перестала бы что-либо означать, а план, факт и акты модулей ссылаются " +
+                "на неё. Сначала уберите позиции перечня.");
+
         // issue #71/#269: запись, на которую ссылаются другие объекты (базовый экземпляр "_baseRef"
         // или "$ref" в значениях полей), — тот же guard, что и для документа: иначе висячая ссылка.
         var referrers = await DomainObjectReferences.FindReferrersAsync(repo, qualityDocRepo, refIndex, cmd.Id, ct);
