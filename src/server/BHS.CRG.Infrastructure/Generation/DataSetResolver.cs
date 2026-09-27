@@ -4,6 +4,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Resolution;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.DataSets;
@@ -374,10 +375,16 @@ public class DataSetResolver(
                     "Привязка набора данных пропущена. BindingId={BindingId}, SourceId={SourceId}, Owner={OwnerId}",
                     binding.Id, binding.SourceId, ownerId);
                 // Иначе поле просто исчезает без следа — поднимаем причину в диагностику.
+                // Диагностику читает человек на экране генерации — значит, это такой же выход
+                // наружу, как ответ на запрос (правило issue #691). Подклеенный сюда ex.Message
+                // назывался бы «причиной», а приносил текст Npgsql или хранилища: ровно то, обо что
+                // спотыкается чтение источника. Наш отказ (скажем, «источник не опубликован») дойдёт
+                // дословно, чужой заменится — а журнал строкой выше получил исключение целиком.
                 diagnostics?.Add(new ResolutionDiagnostic(
                     DiagnosticSeverity.Error,
                     binding.TargetFieldKey ?? "(скалярная привязка)",
-                    $"Источник данных недоступен — поле не заполнено. {ex.Message}"));
+                    "Источник данных недоступен — поле не заполнено. " + Refusals.TextOr(ex,
+                        "Подробности — в журнале приложения.")));
             }
         }
 

@@ -2,6 +2,7 @@
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -312,8 +313,13 @@ public class DataSetBindingService(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Не удалось построить предпросмотр привязки {BindingId}", binding.Id);
+                // В режиме "error" этот текст видит человек прямо на экране «Проверка
+                // связок», поэтому наружу уходит только наш отказ (правило issue #691): чтение
+                // источника идёт через базу и хранилище, и их сообщения называют хост, базу и бакет.
+                // Причина не теряется — строкой выше она записана в журнал целиком.
                 results.Add(new BindingPreviewDto(binding.Id, binding.Source?.Name ?? "?",
-                    binding.Source?.File?.Name ?? "?", "error", binding.TargetFieldKey, 0, new { }, ex.Message));
+                    binding.Source?.File?.Name ?? "?", "error", binding.TargetFieldKey, 0, new { },
+                    Refusals.TextOr(ex, "Не удалось прочитать источник привязки — подробности в журнале приложения.")));
             }
         }
         return results;
