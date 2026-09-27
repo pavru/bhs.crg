@@ -107,7 +107,7 @@ public class ModuleTypeProjectionTests(IntegrationTestFixture fixture) : IAsyncL
             "Запись", type.Id, JsonDocument.Parse("{}"), Domain.Catalog.CatalogScope.System, null));
 
         var refusal = await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(
-            new UpdateCommonDataEntryCommand(entry.Id, "Запись", JsonDocument.Parse("""{"Объём":5}"""))));
+            new UpdateCommonDataEntryCommand(entry.Id, "Запись", JsonDocument.Parse("""{"Объём":5}"""), TestAccess.All)));
 
         Assert.Equal(RecordWriteGuard.LockedField, Assert.Single(refusal.Details).Code);
     }
@@ -282,7 +282,7 @@ public class ModuleTypeProjectionTests(IntegrationTestFixture fixture) : IAsyncL
 
         // Охрана записи пропускает — значит «поле модуля» и «заперто» разведены не на словах.
         await SendAsync(new UpdateCommonDataEntryCommand(
-            entry.Id, "Запись", JsonDocument.Parse("""{"Табельный":"42"}""")));
+            entry.Id, "Запись", JsonDocument.Parse("""{"Табельный":"42"}"""), TestAccess.All));
 
         var field = DocumentTypeSchemaReader.EffectiveFields(type.Id, await ByIdAsync()).Single();
         Assert.False(field.Locked);

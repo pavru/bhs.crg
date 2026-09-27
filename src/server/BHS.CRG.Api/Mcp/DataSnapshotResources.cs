@@ -15,19 +15,22 @@ namespace BHS.CRG.Api.Mcp;
 /// «за этой страницей есть ещё» — риск тихой неполноты, которого мы избегаем (см. get_rows).
 /// </summary>
 [McpServerResourceType]
-public class DataSnapshotResources(IDataSnapshotService snapshots)
+public class DataSnapshotResources(
+    IDataSnapshotService snapshots, DataAccessResolver access, IHttpContextAccessor http)
 {
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerResource(UriTemplate = "bhs://dataset/{datasetId}", Name = "dataset",
         Title = "Набор данных", MimeType = "application/json")]
     [Description("Структура набора данных: источники, число строк, происхождение, признак устаревания.")]
     public async Task<ResourceContents> GetDatasetAsync(Guid datasetId, CancellationToken ct)
-        => McpJsonResource.Json($"bhs://dataset/{datasetId}", await snapshots.GetDatasetAsync(datasetId, ct));
+        => McpJsonResource.Json($"bhs://dataset/{datasetId}",
+            await snapshots.GetDatasetAsync(datasetId, await access.ForRequestAsync(http, ct), ct));
 
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerResource(UriTemplate = "bhs://source/{sourceId}", Name = "source",
         Title = "Источник данных", MimeType = "application/json")]
     [Description("Источник: колонки с примерами, происхождение, свежесть, якорь на листы исходного PDF.")]
     public async Task<ResourceContents> GetSourceAsync(Guid sourceId, CancellationToken ct)
-        => McpJsonResource.Json($"bhs://source/{sourceId}", await snapshots.GetSourceAsync(sourceId, ct));
+        => McpJsonResource.Json($"bhs://source/{sourceId}",
+            await snapshots.GetSourceAsync(sourceId, await access.ForRequestAsync(http, ct), ct));
 }

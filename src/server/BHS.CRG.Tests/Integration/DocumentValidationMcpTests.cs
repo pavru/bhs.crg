@@ -21,6 +21,7 @@ public class DocumentValidationMcpTests(IntegrationTestFixture fixture) : IAsync
 
     private static DocumentActionTools Tools(IServiceScope s) => new(
         s.ServiceProvider.GetRequiredService<IMediator>(),
+        s.ServiceProvider.GetRequiredService<BHS.CRG.Api.Auth.DataAccessResolver>(),
         s.ServiceProvider.GetRequiredService<IHttpContextAccessor>());
 
     private static async Task<Guid> SeedDocumentAsync(IMediator m, string schema)

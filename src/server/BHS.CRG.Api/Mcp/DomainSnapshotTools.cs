@@ -14,7 +14,8 @@ namespace BHS.CRG.Api.Mcp;
 /// Инструментов записи здесь по-прежнему НЕТ.
 /// </summary>
 [McpServerToolType]
-public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAccessor http)
+public class DomainSnapshotTools(
+    IDomainSnapshotService domain, DataAccessResolver access, IHttpContextAccessor http)
 {
     /// <summary>Агент действует ОТ ИМЕНИ пользователя — идентичность берём из его же JWT.</summary>
     private Guid CurrentUserId
@@ -118,7 +119,8 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
             больше, чем весь остальной ответ, поэтому просите её, только если сравниваете значения
             внутри неё.
             """)] bool expandDocumentRefs = false)
-        => await domain.GetDocumentAsync(documentId, resolveRefs, fields, expandDocumentRefs, ct);
+        => await domain.GetDocumentAsync(documentId, await access.ForRequestAsync(http, ct),
+            resolveRefs, fields, expandDocumentRefs, ct);
 
     [McpPermission(CorePermissions.CatalogRead)]
     [McpServerTool(Name = "list_catalog_entries", ReadOnly = true, Idempotent = true, Destructive = false,

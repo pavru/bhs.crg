@@ -1,4 +1,5 @@
-﻿using BHS.CRG.Api.Auth;
+﻿using System.Security.Claims;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Application.DataSets;
 
@@ -14,8 +15,11 @@ public static class DataSetBindingEndpoints
             Results.Ok(await svc.ListBindingsAsync(ownerId, ct)));
 
         // Literal route — registered before /{id:guid} so it is matched first.
-        g.MapGet("/preview", async (Guid ownerId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.PreviewBindingsAsync(ownerId, ct)));
+        // Предпросмотр привязок ЧИТАЕТ строки источников (ТЗ CORE-24.1, issue #965) — параметр
+        // доступа здесь обязателен, в отличие от соседнего списка самих привязок.
+        g.MapGet("/preview", async (Guid ownerId,
+            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.PreviewBindingsAsync(ownerId, await access.ForAsync(user, ct), ct)));
 
         g.MapPost("", async (CreateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
         {

@@ -1,3 +1,4 @@
+using BHS.CRG.Api.Auth;
 using System.ComponentModel;
 using System.Security.Claims;
 using BHS.CRG.Application.Generation;
@@ -48,7 +49,7 @@ public record GenerationResult(Guid DocumentId, IReadOnlyList<GeneratedFileInfo>
 /// <c>GenerationEndpoints</c>. HTTP-API и MCP остаются двумя адаптерами над одним ядром.
 /// </summary>
 [McpServerToolType]
-public class DocumentActionTools(IMediator mediator, IHttpContextAccessor http)
+public class DocumentActionTools(IMediator mediator, DataAccessResolver access, IHttpContextAccessor http)
 {
     /// <summary>Агент действует ОТ ИМЕНИ пользователя — выпуск атрибутируется ему, а не «системе».</summary>
     private (Guid? Id, string? Name) CurrentUser
@@ -116,7 +117,8 @@ public class DocumentActionTools(IMediator mediator, IHttpContextAccessor http)
             разбираете конкретные строки таблицы; на реестре материалов это десятки килобайт.
             """)] bool allPaths = false)
     {
-        var diagnostics = await mediator.Send(new ValidateInstanceResolutionQuery(documentId), ct);
+        var diagnostics = await mediator.Send(
+            new ValidateInstanceResolutionQuery(documentId, await access.ForRequestAsync(http, ct)), ct);
         return new DocumentValidation(
             documentId,
             diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error),
@@ -142,8 +144,8 @@ public class DocumentActionTools(IMediator mediator, IHttpContextAccessor http)
         var (userId, userName) = CurrentUser;
         try
         {
-            var files = await mediator.Send(
-                new GenerateDocumentCommand(documentId, OutputFormat.Pdf, userName, userId), ct);
+            var files = await mediator.Send(new GenerateDocumentCommand(
+                documentId, OutputFormat.Pdf, await access.ForRequestAsync(http, ct), userName, userId), ct);
             return new GenerationResult(documentId,
                 [.. files.Select(f => new GeneratedFileInfo(f.Id, f.Format.ToString(), f.TemplateId, f.CreatedAt))]);
         }

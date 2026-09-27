@@ -40,7 +40,7 @@ public class DataSnapshotService(
         return SnapshotPage<DatasetSummary>.Of(all, offset, limit, DomainSnapshotLimits.NavigationMax);
     }
 
-    public async Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, CancellationToken ct = default)
+    public async Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, DataAccess access, CancellationToken ct = default)
     {
         var file = await db.DataSetFiles.AsNoTracking().Include(f => f.Sources)
             .FirstOrDefaultAsync(f => f.Id == datasetId, ct);
@@ -49,7 +49,7 @@ public class DataSnapshotService(
         var grouping = GostGroupingSerialization.Parse(file.Grouping);
         // Системный набор: число строк, колонки и оговорка живые, кэш при создании — уже история
         // (issue #613, #664, #661). Один вызов на набор отдаёт все три.
-        var liveStates = await systemCounts.StateAsync([file], ct);
+        var liveStates = await systemCounts.StateAsync([file], access, ct);
         var sources = file.Sources
             .OrderBy(s => s.Name)
             .Select(s =>
@@ -75,7 +75,7 @@ public class DataSnapshotService(
             file.Sources.Any(s => s.RecognitionStale), file.PreprocessingProfile, sources);
     }
 
-    public async Task<SourceDetail?> GetSourceAsync(Guid sourceId, CancellationToken ct = default)
+    public async Task<SourceDetail?> GetSourceAsync(Guid sourceId, DataAccess access, CancellationToken ct = default)
     {
         var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -95,7 +95,7 @@ public class DataSnapshotService(
         string? rowsError = null;
         try
         {
-            loaded = await rowLoader.LoadAsync(source, ct);
+            loaded = await rowLoader.LoadAsync(source, access, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -114,7 +114,7 @@ public class DataSnapshotService(
         SystemSourceCounter.SystemSourceState? fallback = null;
         if (loaded is null)
         {
-            try { fallback = await systemCounts.StateAsync(source, source.File, ct); }
+            try { fallback = await systemCounts.StateAsync(source, source.File, access, ct); }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 rowsError ??= ex.Message;
@@ -136,7 +136,8 @@ public class DataSnapshotService(
     }
 
     public async Task<RowsPage?> GetRowsAsync(
-        Guid sourceId, int offset, int limit, string? ifNoneMatch = null, CancellationToken ct = default)
+        Guid sourceId, int offset, int limit, DataAccess access,
+        string? ifNoneMatch = null, CancellationToken ct = default)
     {
         var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -148,7 +149,7 @@ public class DataSnapshotService(
 
         // Строки ПОСЛЕ всей обработки источника (фильтр/вычисляемые колонки/сортировка) — тот же путь,
         // которым их видит генерация, поэтому внешний анализ и генерация смотрят на одни данные.
-        var loaded = await rowLoader.LoadAsync(source, ct);
+        var loaded = await rowLoader.LoadAsync(source, access, ct);
         var all = loaded.Rows;
         var page = all.Skip(offset).Take(limit).ToList();
         var hash = RowsFingerprint.Of(all);

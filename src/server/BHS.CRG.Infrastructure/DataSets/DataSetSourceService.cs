@@ -32,7 +32,8 @@ public class DataSetSourceService(
     // cachedSchema stores camelCase keys ("name"/"sampleValues") — match them case-insensitively.
     private static readonly JsonSerializerOptions CachedSchemaJson = new() { PropertyNameCaseInsensitive = true };
 
-    public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct)
+    public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(
+        Guid fileId, DataAccess access, CancellationToken ct)
     {
         var sources = await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct);
         var ids = sources.Select(s => s.Id).ToList();
@@ -47,7 +48,7 @@ public class DataSetSourceService(
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
         var liveStates = file is null
             ? new Dictionary<Guid, SystemSourceCounter.SystemSourceState>()
-            : await systemCounts.StateAsync(file, sources, ct);
+            : await systemCounts.StateAsync(file, sources, access, ct);
 
         return sources.Select(s => DataSetDtoMapper.MapSource(
             s, bindingCounts.GetValueOrDefault(s.Id),
@@ -61,11 +62,18 @@ public class DataSetSourceService(
     /// пустой список источников.
     /// </summary>
     public async Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(
-        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         var candidates = new List<DataSetSourceInfo>();
         foreach (var provider in systemProviders.All)
+        {
+            // Недоступный набор не ПРЕДЛАГАЕТСЯ вовсе (ТЗ CORE-24.1, issue #965). Пропуск, а не отказ:
+            // список кандидатов собирается из всех поставщиков разом, и один закрытый набор не
+            // должен отменять остальные. А показать его нельзя — кандидат несёт число своих строк,
+            // то есть само предложение уже было бы чтением.
+            if (!SystemDataSetGate.Allows(provider.Declaration, access)) continue;
             candidates.AddRange(await provider.GetCandidatesAsync(scope, scopeId, ct));
+        }
         return candidates;
     }
 
@@ -74,7 +82,8 @@ public class DataSetSourceService(
     /// для CSV) — БЕЗ персиста. Используется диалогом создания источника как подсказки в один клик.
     /// Для XML парсер кандидатов не даёт (пусто) — источник строится вручную через XPath-builder.
     /// </summary>
-    public async Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct)
+    public async Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(
+        Guid fileId, DataAccess access, CancellationToken ct)
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new NotFoundException($"DataSetFile {fileId} not found");
@@ -90,8 +99,11 @@ public class DataSetSourceService(
                 .Where(s => s.FileId == file.Id).Select(s => s.SheetOrPath).ToListAsync(ct);
             var candidates = new List<DataSetSourceInfo>();
             foreach (var provider in systemProviders.All)
+            {
+                if (!SystemDataSetGate.Allows(provider.Declaration, access)) continue;
                 candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, ct))
                     .Select(c => c with { ExistingCount = existingMarkers.Count(m => m == c.SheetOrPath) }));
+            }
             return candidates;
         }
 
@@ -194,13 +206,14 @@ public class DataSetSourceService(
         catch { return 0; }
     }
 
-    public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
+    public async Task<SourcePreviewDto?> PreviewSourceAsync(
+        Guid sourceId, int maxRows, DataAccess access, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var loaded = await rowLoader.LoadAsync(source, ct);
+        var loaded = await rowLoader.LoadAsync(source, access, ct);
         var rows = loaded.Rows;
 
         var take = maxRows <= 0 ? 50 : maxRows;
@@ -218,14 +231,15 @@ public class DataSetSourceService(
         return new SourcePreviewDto(columns, previewRows, rows.Count);
     }
 
-    public async Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct)
+    public async Task<SourceExportDto?> ExportSourceAsync(
+        Guid sourceId, string? format, DataAccess access, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
         // Все строки после обработки (Filter/Transformation/Sort) — тот же путь, что и превью, без лимита.
-        var loaded = await rowLoader.LoadAsync(source, ct);
+        var loaded = await rowLoader.LoadAsync(source, access, ct);
         var rows = loaded.Rows;
         var columns = BaseColumnNames(loaded.Columns, source.CachedSchema);
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
@@ -241,7 +255,7 @@ public class DataSetSourceService(
     }
 
     public async Task<Dictionary<string, string>?> AutoMapAsync(
-        Guid sourceId, IReadOnlyList<FieldInfo> fields, CancellationToken ct)
+        Guid sourceId, IReadOnlyList<FieldInfo> fields, DataAccess access, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -255,7 +269,7 @@ public class DataSetSourceService(
         // Здесь это терпимо: действие разовое и ручное, в отличие от списков наборов, где тот же
         // вызов идёт на каждый источник. Понадобится дешевле — заводить `ColumnsAsync` в контракте
         // провайдера, а не обходить его здесь.
-        var live = await systemCounts.StateAsync(source, source.File, ct);
+        var live = await systemCounts.StateAsync(source, source.File, access, ct);
         return DataSetAutoMapper.AutoMap(BaseColumnNames(live?.Columns, source.CachedSchema), fields);
     }
 
@@ -308,7 +322,8 @@ public class DataSetSourceService(
     /// </summary>
     public async Task<MaterializePreviewDto?> MaterializePreviewAsync(
         Guid sourceId, int maxRows, Guid? typeId, Dictionary<string, string>? mapping,
-        MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, CancellationToken ct)
+        MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, DataAccess access,
+        CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
@@ -334,7 +349,7 @@ public class DataSetSourceService(
 
         try
         {
-            var rows = await rowLoader.LoadRowsAsync(source, ct);
+            var rows = await rowLoader.LoadRowsAsync(source, access, ct);
             var take = maxRows <= 0 ? 50 : maxRows;
             var page = rows.Take(take).ToList();
 
@@ -445,7 +460,8 @@ public class DataSetSourceService(
     /// живёт выше комплекта и используется в разных, и проверять принадлежность нечему.</summary>
     private static Guid? SetOf(DataSetFile file) => file.Scope == CatalogScope.Set ? file.ScopeId : null;
 
-    public async Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct)
+    public async Task<DataSetSourceDto> CreateSourceAsync(
+        Guid fileId, CreateSourceInput input, DataAccess access, CancellationToken ct)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new NotFoundException($"DataSetFile {fileId} not found");
@@ -460,7 +476,7 @@ public class DataSetSourceService(
         // Системный набор (issue #580): строки даёт провайдер, кэшировать их нельзя (данные живые) —
         // прогон нужен только чтобы записать схему колонок и счётчик строк для UI.
         if (file.Format == Domain.DataSets.DataSetFormat.System)
-            return await CreateSystemSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), ct);
+            return await CreateSystemSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), access, ct);
 
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
@@ -478,10 +494,14 @@ public class DataSetSourceService(
     // Источник системного набора (issue #580): маркер выбирает провайдера консолидации. CachedData не
     // пишем — строки собираются заново при каждом обращении, иначе реестр отстанет от состава комплекта.
     private async Task<DataSetSourceDto> CreateSystemSourceAsync(
-        Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
+        Domain.DataSets.DataSetFile file, string name, string marker, DataAccess access, CancellationToken ct)
     {
         var provider = systemProviders.Get(marker);
-        var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, ct);
+        // Ворота и на создании (ТЗ CORE-24.1): создание прогоняет консолидацию, чтобы записать схему
+        // колонок и счётчик строк, — то есть читает данные. Здесь отказ, а не пропуск: набор выбрал
+        // человек, и молчаливо создать источник без строк значило бы отдать ему пустую таблицу.
+        SystemDataSetGate.Ensure(provider.Declaration, access, name);
+        var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
 
         var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
         db.DataSetSources.Add(source);

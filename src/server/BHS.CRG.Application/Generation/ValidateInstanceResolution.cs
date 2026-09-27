@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using MediatR;
 
 namespace BHS.CRG.Application.Generation;
@@ -11,11 +12,12 @@ namespace BHS.CRG.Application.Generation;
 /// комплекту) нужно читать справочники схемы один раз на прогон, а не на документ (issue #628), и
 /// через запрос MediatR такое не передашь.
 /// </summary>
-public record ValidateInstanceResolutionQuery(Guid InstanceId) : IRequest<IReadOnlyList<ResolutionDiagnostic>>;
+public record ValidateInstanceResolutionQuery(Guid InstanceId, DataAccess Access)
+    : IRequest<IReadOnlyList<ResolutionDiagnostic>>;
 
 public class ValidateInstanceResolutionHandler(IInstanceResolutionValidator validator)
     : IRequestHandler<ValidateInstanceResolutionQuery, IReadOnlyList<ResolutionDiagnostic>>
 {
     public async Task<IReadOnlyList<ResolutionDiagnostic>> Handle(ValidateInstanceResolutionQuery q, CancellationToken ct)
-        => await validator.ValidateAsync(q.InstanceId, await validator.LoadCatalogAsync(ct), ct);
+        => await validator.ValidateAsync(q.InstanceId, await validator.LoadCatalogAsync(ct), q.Access, ct);
 }

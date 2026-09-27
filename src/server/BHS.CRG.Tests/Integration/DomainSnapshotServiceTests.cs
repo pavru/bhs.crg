@@ -104,7 +104,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         var (_, setId, docId, typeId, scope) = await SeedAsync();
         using (scope)
         {
-            var doc = await Svc(scope).GetDocumentAsync(docId);
+            var doc = await Svc(scope).GetDocumentAsync(docId, TestAccess.All);
             Assert.Equal(typeId, doc!.TypeId);
             Assert.Equal(setId, doc.SetId);
             Assert.Equal("12", doc.Requisites.GetProperty("НомерАкта").GetString());
@@ -148,13 +148,13 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
 
         var svc = Svc(scope);
 
-        var raw = await svc.GetDocumentAsync(doc.Id, resolveRefs: false);
+        var raw = await svc.GetDocumentAsync(doc.Id, TestAccess.All, resolveRefs: false);
         Assert.False(raw!.RefsResolved);
         var rawRef = raw.Requisites.GetProperty("Подрядчик");
         Assert.Equal("catalog", rawRef.GetProperty("$ref").GetString());
         Assert.Equal(org.Id.ToString(), rawRef.GetProperty("entryId").GetString());
 
-        var resolved = await svc.GetDocumentAsync(doc.Id);
+        var resolved = await svc.GetDocumentAsync(doc.Id, TestAccess.All);
         Assert.True(resolved!.RefsResolved);
         var value = resolved.Requisites.GetProperty("Подрядчик");
         Assert.False(value.TryGetProperty("$ref", out _));
@@ -212,7 +212,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var detail = await Svc(scope).GetDocumentAsync(doc.Id);
+        var detail = await Svc(scope).GetDocumentAsync(doc.Id, TestAccess.All);
 
         var bound = Assert.Single(detail!.TableFields, f => f.Key == "Материалы");
         Assert.True(bound.BoundToDataset);
@@ -251,7 +251,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         await m.Send(new UpdateRequisitesCommand(doc.Id, JsonDocument.Parse(
             """{"Материалы":[{"Наименование":"Кабель"},{"Наименование":"Лоток"}]}""")));
 
-        var field = Assert.Single((await Svc(scope).GetDocumentAsync(doc.Id))!.TableFields);
+        var field = Assert.Single((await Svc(scope).GetDocumentAsync(doc.Id, TestAccess.All))!.TableFields);
 
         Assert.False(field.BoundToDataset);   // источника действительно нет
         Assert.Equal(2, field.RowCount);      // но строки есть, и их видно
@@ -287,11 +287,11 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
             JsonDocument.Parse("""{"НомерАкта":"12","ДатаАкта":"2026-07-01"}""")));
 
         var svc = Svc(scope);
-        var full = await svc.GetDocumentAsync(doc.Id);
+        var full = await svc.GetDocumentAsync(doc.Id, TestAccess.All);
         Assert.Null(full!.ProjectedFields);   // не просили — ответ полный и об этом молчит
 
         var projected = await svc.GetDocumentAsync(
-            doc.Id, fields: ["НомерАкта", "НмоерАкта"]);
+            doc.Id, TestAccess.All, fields: ["НомерАкта", "НмоерАкта"]);
 
         Assert.Equal("12", projected!.Requisites.GetProperty("НомерАкта").GetString());
         Assert.False(projected.Requisites.TryGetProperty("ДатаАкта", out _));
@@ -338,7 +338,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         var refJson = $$"""{"Заказчик":{{orgRef}},"Подрядчик":{{orgRef}}}""";
         await m.Send(new UpdateRequisitesCommand(doc.Id, JsonDocument.Parse(refJson)));
 
-        var detail = await Svc(scope).GetDocumentAsync(doc.Id);
+        var detail = await Svc(scope).GetDocumentAsync(doc.Id, TestAccess.All);
 
         // По месту — ссылки, карточка одна и лежит под своим идентификатором.
         Assert.Equal(org.Id.ToString(),
@@ -350,7 +350,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal("ООО Инвест Строй", card.Value.GetProperty("Наименование").GetString());
 
         // Форма хранения сворачивать нечего: там ссылки и так ссылки.
-        var raw = await Svc(scope).GetDocumentAsync(doc.Id, resolveRefs: false);
+        var raw = await Svc(scope).GetDocumentAsync(doc.Id, TestAccess.All, resolveRefs: false);
         Assert.Null(raw!.Entities);
     }
 
@@ -385,7 +385,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         await m.Send(new UpdateRequisitesCommand(registry.Id,
             JsonDocument.Parse($$"""{"ОсновнойДокумент":{{actRef}}}""")));
 
-        var folded = await Svc(scope).GetDocumentAsync(registry.Id);
+        var folded = await Svc(scope).GetDocumentAsync(registry.Id, TestAccess.All);
         var link = folded!.Requisites.GetProperty("ОсновнойДокумент");
         Assert.Equal(act.Id.ToString(), link.GetProperty("$document").GetString());
         // Имя приходит вместе со ссылкой: голый идентификатор человеку ничего не говорит.
@@ -393,7 +393,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.False(link.TryGetProperty("НомерАкта", out _));
 
         // По явной просьбе копия остаётся — иногда сравнивают именно значения внутри неё.
-        var expanded = await Svc(scope).GetDocumentAsync(registry.Id, expandDocumentRefs: true);
+        var expanded = await Svc(scope).GetDocumentAsync(registry.Id, TestAccess.All, expandDocumentRefs: true);
         Assert.Equal("5", expanded!.Requisites.GetProperty("ОсновнойДокумент")
             .GetProperty("НомерАкта").GetString());
     }
@@ -544,7 +544,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         var svc = Svc(scope);
         Assert.Null(await svc.GetConstructionAsync(Guid.NewGuid()));
         Assert.Null(await svc.GetDocumentSetAsync(Guid.NewGuid()));
-        Assert.Null(await svc.GetDocumentAsync(Guid.NewGuid()));
+        Assert.Null(await svc.GetDocumentAsync(Guid.NewGuid(), TestAccess.All));
         Assert.Null(await svc.GetDocumentTypeAsync(Guid.NewGuid()));
         Assert.Null(await svc.GetCatalogEntryAsync(Guid.NewGuid()));
     }

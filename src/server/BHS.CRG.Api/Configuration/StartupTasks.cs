@@ -112,6 +112,13 @@ internal static class StartupTasks
         // не сторож.
         _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>();
 
+        // Объявления системных наборов — ЗДЕСЬ, при старте (ТЗ CORE-24.1, CORE-24.3, issue #965).
+        // Реестр поставщиков создаётся на запрос, и проверка в его конструкторе пришла бы отказом в
+        // чужой экран, а не остановила бы запуск. Сторож сверяет объявления со справочником прав и
+        // реестром модулей — оба собраны на сборке приложения. Исключение не ловится намеренно — набор, который отдавал бы строки всем и
+        // молчал бы о том, что отдаёт, обязан остановить выпуск, а не открыться у заказчика.
+        SystemDataSetDeclarations.Validate(scope.ServiceProvider);
+
         // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
         await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();
 

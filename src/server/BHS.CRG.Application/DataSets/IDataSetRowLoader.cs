@@ -6,12 +6,19 @@ namespace BHS.CRG.Application.DataSets;
 /// Единая точка извлечения строк источника: extraction → computed columns (transformation) →
 /// row filter → sort. Через неё смотрят на данные генерация, превью, экспорт, материализация,
 /// MCP-срез и сверка — расширение способа извлечения (новый вид источника) делается здесь один раз.
+///
+/// <para><b>Параметр доступа обязателен у всех форматов</b> (ТЗ CORE-24.1, issue #965), хотя
+/// проверяет его только опубликованный набор: файловый источник читает тот, кому открыт сам набор.
+/// Стоит он здесь, а не в одной ветке внутри, ради подписи — по вызову видно, в чьих правах
+/// читаются строки, и служебное задание не может прочитать их «просто так». Развилка «этому пути
+/// параметр не нужен» вернула бы ровно ту дыру, которую правило закрывает: путь, у которого его нет,
+/// станет самым удобным.</para>
 /// </summary>
 public interface IDataSetRowLoader
 {
     /// <summary>Требует source.File загруженным (.Include) заранее у вызывающего кода.</summary>
     Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
-        DataSetSource source, CancellationToken ct);
+        DataSetSource source, DataAccess access, CancellationToken ct);
 
     /// <summary>
     /// То же, но с числом строк ДО обработки (issue #592), набором колонок и оговоркой к данным
@@ -19,7 +26,7 @@ public interface IDataSetRowLoader
     /// загрузки, а извлечь его повторно значит второй раз скачать и разобрать файл — либо второй
     /// раз сходить к системному провайдеру.
     /// </summary>
-    Task<LoadedRows> LoadAsync(DataSetSource source, CancellationToken ct);
+    Task<LoadedRows> LoadAsync(DataSetSource source, DataAccess access, CancellationToken ct);
 }
 
 /// <summary>

@@ -38,6 +38,13 @@ public class QualityDocumentsProvider(AppDbContext db) : ISystemDataProvider
         "Уровень", "Источник", "ЕстьСкан", "ИмяФайлаСкана",
     ];
 
+    /// <summary>Библиотека документов качества — модуль исполнительной документации; ключ — код
+    /// модуля, по той же причине, что у связок материалов (ТЗ AUTH-12.2).</summary>
+    public SystemDataSetDeclaration Declaration { get; } = new(
+        "id", "id", SystemDataSetIsolation.None,
+        ["Отдаёт документы качества, видимые с уровня набора, — всем, кому открыт модуль "
+         + "исполнительной документации"]);
+
     public bool Handles(string marker) => marker == SystemDataSets.QualityDocumentsMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
@@ -53,7 +60,7 @@ public class QualityDocumentsProvider(AppDbContext db) : ISystemDataProvider
     }
 
     public async Task<DataSetParseResult> ProvideAsync(
-        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         // Единственный вид отказа — InvalidRequestException: NotFoundException из провайдера уронил бы
         // весь список наборов, а не одну строку в нём.

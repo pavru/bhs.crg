@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
@@ -26,7 +27,11 @@ public record DeleteReconciliationCommand(Guid Id) : IRequest;
 /// Прогон синхронный: сверка читает уже сохранённые данные источников и распознавание НЕ запускает
 /// (P5 в issue #414). Фоновая задача понадобится, только если появятся тяжёлые своды.
 /// </summary>
-public record RunReconciliationCommand(Guid DefinitionId) : IRequest<ReconciliationRun>;
+/// <param name="Access">
+/// В чьих правах читаются сравниваемые наборы (ТЗ CORE-24.1, issue #965). Прогон запускает человек, и
+/// строки обеих сторон читаются его правами — у сверки своей логики отбора нет.
+/// </param>
+public record RunReconciliationCommand(Guid DefinitionId, DataAccess Access) : IRequest<ReconciliationRun>;
 
 public record ListReconciliationRunsQuery(Guid DefinitionId, int Limit = 20)
     : IRequest<IReadOnlyList<ReconciliationRun>>;

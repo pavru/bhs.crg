@@ -1,3 +1,5 @@
+using BHS.CRG.Application.DataSets;
+
 namespace BHS.CRG.Application.DataSnapshots;
 
 /// <summary>
@@ -19,17 +21,17 @@ public interface IDataSnapshotService
         CancellationToken ct = default);
 
     /// <summary>Структура набора и его источники, либо null — набора нет.</summary>
-    Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, CancellationToken ct = default);
+    Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, DataAccess access, CancellationToken ct = default);
 
     /// <summary>Источник с колонками и метаданными достоверности, либо null.</summary>
-    Task<SourceDetail?> GetSourceAsync(Guid sourceId, CancellationToken ct = default);
+    Task<SourceDetail?> GetSourceAsync(Guid sourceId, DataAccess access, CancellationToken ct = default);
 
     /// <summary>Страница строк источника после всей обработки. Лимит ограничивается сверху жёстко —
     /// см. <see cref="MaxRowsPerPage"/>; за пределом страницы выставляется <c>Truncated</c>.</summary>
     /// <param name="ifNoneMatch">Отпечаток строк, который вызывающий уже держит (issue #598). Совпал —
     /// вместо таблицы приходит <c>Unchanged</c>, остальные поля заполнены как обычно.</param>
-    Task<RowsPage?> GetRowsAsync(Guid sourceId, int offset, int limit, string? ifNoneMatch = null,
-        CancellationToken ct = default);
+    Task<RowsPage?> GetRowsAsync(Guid sourceId, int offset, int limit, DataAccess access,
+        string? ifNoneMatch = null, CancellationToken ct = default);
 
     /// <summary>Жёсткий потолок строк за один запрос: защищает и от переполнения контекста агента,
     /// и от неявного «получил всё» на большом источнике.</summary>

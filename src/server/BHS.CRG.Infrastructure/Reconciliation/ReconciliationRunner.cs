@@ -30,7 +30,7 @@ public class ReconciliationRunner(
         Dictionary<string, List<PartRows>> Parts,
         Dictionary<string, string> Labels);
 
-    public async Task<ReconciliationRun> RunAsync(Guid definitionId, CancellationToken ct = default)
+    public async Task<ReconciliationRun> RunAsync(Guid definitionId, DataAccess access, CancellationToken ct = default)
     {
         var definition = await db.Set<ReconciliationDefinition>()
             .FirstOrDefaultAsync(d => d.Id == definitionId, ct)
@@ -48,8 +48,8 @@ public class ReconciliationRunner(
             // Алиасы применяются на СВЁРТКЕ, до сравнения: иначе сопоставление ключей ничего не
             // даст — количества так и останутся в двух разных позициях.
             var aliases = await AliasesAsync(ct);
-            var left = await TotalsAsync(spec.Left, aliases, ct);
-            var right = await TotalsAsync(spec.Right, aliases, ct);
+            var left = await TotalsAsync(spec.Left, aliases, access, ct);
+            var right = await TotalsAsync(spec.Right, aliases, access, ct);
 
             var findings = Compare(run.Id, spec, left, right).ToList();
             db.AddRange(findings);
@@ -106,7 +106,7 @@ public class ReconciliationRunner(
     /// Строки берутся после всей обработки источника — тем же путём, которым их видит генерация.
     /// </summary>
     private async Task<SideTotals> TotalsAsync(
-        ReconciliationSide side, AliasResolver aliases, CancellationToken ct)
+        ReconciliationSide side, AliasResolver aliases, DataAccess access, CancellationToken ct)
     {
         var values = new Dictionary<string, double>();
         var parts = new Dictionary<string, List<PartRows>>();
@@ -118,7 +118,7 @@ public class ReconciliationRunner(
                 .FirstOrDefaultAsync(s => s.Id == part.SourceId, ct)
                 ?? throw new ConflictException($"Источник {part.SourceId} не найден.");
 
-            var rows = await rowLoader.LoadRowsAsync(source, ct);
+            var rows = await rowLoader.LoadRowsAsync(source, access, ct);
 
             for (var i = 0; i < rows.Count; i++)
             {

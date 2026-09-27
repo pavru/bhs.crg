@@ -56,8 +56,8 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         var svc = Svc(scope);
         var file = await svc.UploadFileAsync(
             new UploadFileInput(Encoding.UTF8.GetBytes(csv), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), TestAccess.All, default);
         await svc.SetMaterializationAsync(source.Id, typeId, mapping: new(), discriminator: null, byIdColumn: idColumn, default);
         return source.Id;
     }
@@ -70,7 +70,7 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         var view = DocumentView.From(inst!);
         var entity = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var ctx = await entity.ResolveAsync(view);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, diagnostics, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, diagnostics, default);
         // Второй проход: именно он разворачивает добавленные привязкой ссылки на документы.
         await entity.ResolveContextRefsAsync(ctx, view.DocumentSetId);
         return ctx;
@@ -182,7 +182,7 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         var sourceId = await ByIdSourceAsync(scope, $"Ид\n{aosrId}\n{Guid.NewGuid()}\n", aosrType.Id, "Ид");
         await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Документы", null), default);
 
-        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
 
         Assert.Equal("tabular", preview.Mode);
         var rows = Assert.IsType<List<Dictionary<string, object?>>>(preview.Data);
@@ -210,11 +210,12 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         var svc = Svc(scope);
         var file = await svc.UploadFileAsync(
             new UploadFileInput(Encoding.UTF8.GetBytes($"Ид\n{aosrId}\n"), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), TestAccess.All, default);
 
         var preview = await svc.MaterializePreviewAsync(source.Id, 50, aosrType.Id,
-            new Dictionary<string, string>(), discriminator: null, byIdColumn: "Ид", default);
+            new Dictionary<string, string>(), discriminator: null, byIdColumn: "Ид",
+            access: TestAccess.All, ct: default);
 
         Assert.NotNull(preview);
         Assert.Null(preview!.Error);
@@ -243,7 +244,7 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         var sourceId = await ByIdSourceAsync(scope, $"Ид\n{foreignAosrId}\n", aosrType.Id, "Ид");
         await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Документы", null), default);
 
-        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
         var rows = Assert.IsType<List<Dictionary<string, object?>>>(preview.Data);
         Assert.Equal("документ другого комплекта — ссылка не развернётся", Assert.Single(rows)["Документ"]);
 
@@ -270,8 +271,8 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         var svc = Svc(scope);
         var file = await svc.UploadFileAsync(new UploadFileInput(
             Encoding.UTF8.GetBytes($"ИдДокумента\n{aosrId}\n"), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), TestAccess.All, default);
         // Колонка выбрана та, которой в источнике нет (заголовок переименован после настройки).
         await svc.SetMaterializationAsync(source.Id, aosrType.Id, new(), discriminator: null, byIdColumn: "Ид", default);
         await svc.CreateBindingAsync(new CreateBindingInput(reestrId, source.Id, "Документы", null), default);

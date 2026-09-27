@@ -101,13 +101,13 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         {
             var svc = Svc(scope);
 
-            var first = await svc.GetRowsAsync(sourceId, offset: 0, limit: 100);
+            var first = await svc.GetRowsAsync(sourceId, offset: 0, limit: 100, TestAccess.All);
             Assert.NotNull(first);
             Assert.Equal(250, first!.TotalRows);
             Assert.Equal(100, first.Rows.Count);
             Assert.True(first.Truncated);   // агент обязан увидеть, что это НЕ вся таблица
 
-            var last = await svc.GetRowsAsync(sourceId, offset: 200, limit: 100);
+            var last = await svc.GetRowsAsync(sourceId, offset: 200, limit: 100, TestAccess.All);
             Assert.Equal(50, last!.Rows.Count);
             Assert.False(last.Truncated);   // последняя страница — усечения нет
 
@@ -136,7 +136,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         }
 
         static async Task<RowsPage> svc_GetRows(IServiceScope s, Guid id, int offset, int limit)
-            => (await Svc(s).GetRowsAsync(id, offset, limit))!;
+            => (await Svc(s).GetRowsAsync(id, offset, limit, TestAccess.All))!;
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         var (_, sourceId, scope) = await SeedCsvAsync(3);
         using (scope)
         {
-            var page = await Svc(scope).GetRowsAsync(sourceId, 0, 10);
+            var page = await Svc(scope).GetRowsAsync(sourceId, 0, 10, TestAccess.All);
             Assert.Equal(["Позиция", "Наименование"], page!.Columns);
         }
     }
@@ -174,13 +174,13 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
-            var detail = await Svc(scope).GetSourceAsync(sourceId);
+            var detail = await Svc(scope).GetSourceAsync(sourceId, TestAccess.All);
 
             Assert.Equal(10, detail!.RawRowCount);
             Assert.Equal(1, detail.RowCount);
             Assert.True(detail.Filtered);
             // Число из описания обязано совпадать с тем, что реально отдают строки.
-            Assert.Equal(detail.RowCount, (await Svc(scope).GetRowsAsync(sourceId, 0, 50))!.TotalRows);
+            Assert.Equal(detail.RowCount, (await Svc(scope).GetRowsAsync(sourceId, 0, 50, TestAccess.All))!.TotalRows);
         }
     }
 
@@ -191,7 +191,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         var (_, sourceId, scope) = await SeedCsvAsync(4);
         using (scope)
         {
-            var detail = await Svc(scope).GetSourceAsync(sourceId);
+            var detail = await Svc(scope).GetSourceAsync(sourceId, TestAccess.All);
 
             Assert.Equal(4, detail!.RawRowCount);
             Assert.Equal(4, detail.RowCount);
@@ -218,7 +218,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
-            var summary = Assert.Single((await Svc(scope).GetDatasetAsync(fileId))!.Sources);
+            var summary = Assert.Single((await Svc(scope).GetDatasetAsync(fileId, TestAccess.All))!.Sources);
 
             Assert.Equal(10, summary.RawRowCount);
             Assert.True(summary.Filtered);
@@ -274,11 +274,11 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         using (scope)
         {
             var svc = Svc(scope);
-            var first = await svc.GetRowsAsync(sourceId, 0, 50);
+            var first = await svc.GetRowsAsync(sourceId, 0, 50, TestAccess.All);
             Assert.NotEmpty(first!.RowsHash);
             Assert.False(first.Unchanged);
 
-            var again = await svc.GetRowsAsync(sourceId, 0, 50, ifNoneMatch: first.PageHash);
+            var again = await svc.GetRowsAsync(sourceId, 0, 50, TestAccess.All, ifNoneMatch: first.PageHash);
 
             Assert.True(again!.Unchanged);
             Assert.Empty(again.Rows);
@@ -288,7 +288,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
 
             // Сквозной отпечаток отдаёт и описание источника — иначе им нельзя было бы
             // пользоваться, не выгрузив таблицу хотя бы раз.
-            Assert.Equal(first.RowsHash, (await svc.GetSourceAsync(sourceId))!.RowsHash);
+            Assert.Equal(first.RowsHash, (await svc.GetSourceAsync(sourceId, TestAccess.All))!.RowsHash);
         }
     }
 
@@ -304,16 +304,16 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         using (scope)
         {
             var svc = Svc(scope);
-            var first = await svc.GetRowsAsync(sourceId, 0, 4);
+            var first = await svc.GetRowsAsync(sourceId, 0, 4, TestAccess.All);
 
             // Сквозной отпечаток на роль ifNoneMatch не годится и страницу не «схлопывает».
-            var next = await svc.GetRowsAsync(sourceId, 4, 4, ifNoneMatch: first!.RowsHash);
+            var next = await svc.GetRowsAsync(sourceId, 4, 4, TestAccess.All, ifNoneMatch: first!.RowsHash);
             Assert.False(next!.Unchanged);
             Assert.Equal(4, next.Rows.Count);
             Assert.Equal("5", next.Rows[0]["Позиция"]);
 
             // Отпечаток чужой страницы тоже не совпадёт — строки придут.
-            var third = await svc.GetRowsAsync(sourceId, 8, 4, ifNoneMatch: first.PageHash);
+            var third = await svc.GetRowsAsync(sourceId, 8, 4, TestAccess.All, ifNoneMatch: first.PageHash);
             Assert.False(third!.Unchanged);
             Assert.Equal(2, third.Rows.Count);
         }
@@ -335,7 +335,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
-            var detail = await Svc(scope).GetSourceAsync(sourceId);
+            var detail = await Svc(scope).GetSourceAsync(sourceId, TestAccess.All);
 
             Assert.NotNull(detail);
             Assert.Null(detail!.RowCount);
@@ -355,7 +355,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         using (scope)
         {
             var svc = Svc(scope);
-            var before = await svc.GetRowsAsync(sourceId, 0, 50);
+            var before = await svc.GetRowsAsync(sourceId, 0, 50, TestAccess.All);
 
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var source = await db.DataSetSources.Include(s => s.File).FirstAsync(s => s.Id == sourceId);
@@ -365,7 +365,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
-            var after = await svc.GetRowsAsync(sourceId, 0, 50, ifNoneMatch: before!.RowsHash);
+            var after = await svc.GetRowsAsync(sourceId, 0, 50, TestAccess.All, ifNoneMatch: before!.RowsHash);
 
             Assert.False(after!.Unchanged);
             Assert.NotEqual(before.RowsHash, after.RowsHash);
@@ -380,13 +380,13 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
     {
         var (_, csvSourceId, csvScope) = await SeedCsvAsync(2);
         using (csvScope)
-            Assert.Equal(DataOrigin.Parsed, (await Svc(csvScope).GetSourceAsync(csvSourceId))!.Origin);
+            Assert.Equal(DataOrigin.Parsed, (await Svc(csvScope).GetSourceAsync(csvSourceId, TestAccess.All))!.Origin);
 
         var (_, pdfSourceId, pdfScope) = await SeedRecognizedTableAsync(tableStale: false);
         using (pdfScope)
         {
             // Правило проекта «истина в xml, pdf — производное» держится именно на этом различии.
-            var detail = await Svc(pdfScope).GetSourceAsync(pdfSourceId);
+            var detail = await Svc(pdfScope).GetSourceAsync(pdfSourceId, TestAccess.All);
             Assert.Equal(DataOrigin.Recognized, detail!.Origin);
         }
     }
@@ -398,14 +398,14 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            Assert.False((await Svc(scope).GetSourceAsync(sourceId))!.Stale);
+            Assert.False((await Svc(scope).GetSourceAsync(sourceId, TestAccess.All))!.Stale);
 
             var source = await db.DataSetSources.FirstAsync(x => x.Id == sourceId);
             source.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
-            var detail = await Svc(scope).GetSourceAsync(sourceId);
+            var detail = await Svc(scope).GetSourceAsync(sourceId, TestAccess.All);
             Assert.True(detail!.Stale);
             Assert.False(string.IsNullOrWhiteSpace(detail.StaleReason)); // причина, а не голый флаг
         }
@@ -419,7 +419,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         {
             // Состав страниц документа изменился после распознавания таблицы — строки относятся к
             // прежним границам, сверять по ним нельзя.
-            var detail = await Svc(scope).GetSourceAsync(sourceId);
+            var detail = await Svc(scope).GetSourceAsync(sourceId, TestAccess.All);
             Assert.True(detail!.Stale);
             Assert.Contains("границ", detail.StaleReason!, StringComparison.OrdinalIgnoreCase);
         }
@@ -433,7 +433,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         var (_, sourceId, scope) = await SeedRecognizedTableAsync(tableStale: false);
         using (scope)
         {
-            var detail = await Svc(scope).GetSourceAsync(sourceId);
+            var detail = await Svc(scope).GetSourceAsync(sourceId, TestAccess.All);
             Assert.NotNull(detail!.Sheet);
             Assert.Equal("A113", detail.Sheet!.Code);
             Assert.Equal("Список деталей ТКШ1", detail.Sheet.Name);
@@ -446,7 +446,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
     {
         var (_, sourceId, scope) = await SeedCsvAsync(2);
         using (scope)
-            Assert.Null((await Svc(scope).GetSourceAsync(sourceId))!.Sheet);
+            Assert.Null((await Svc(scope).GetSourceAsync(sourceId, TestAccess.All))!.Sheet);
     }
 
     // ── Навигация ────────────────────────────────────────────────────────────────
@@ -463,7 +463,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             var summary = Assert.Single(list.Items, d => d.Id == fileId);
             Assert.Equal(1, summary.SourceCount);
 
-            var detail = await svc.GetDatasetAsync(fileId);
+            var detail = await svc.GetDatasetAsync(fileId, TestAccess.All);
             var src = Assert.Single(detail!.Sources);
             Assert.Equal(sourceId, src.Id);
             Assert.Equal(DataOrigin.Recognized, src.Origin);
@@ -476,8 +476,8 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
     {
         using var scope = fixture.Services.CreateScope();
         var svc = Svc(scope);
-        Assert.Null(await svc.GetDatasetAsync(Guid.NewGuid()));
-        Assert.Null(await svc.GetSourceAsync(Guid.NewGuid()));
-        Assert.Null(await svc.GetRowsAsync(Guid.NewGuid(), 0, 10));
+        Assert.Null(await svc.GetDatasetAsync(Guid.NewGuid(), TestAccess.All));
+        Assert.Null(await svc.GetSourceAsync(Guid.NewGuid(), TestAccess.All));
+        Assert.Null(await svc.GetRowsAsync(Guid.NewGuid(), 0, 10, TestAccess.All));
     }
 }

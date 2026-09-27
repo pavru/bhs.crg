@@ -27,7 +27,8 @@ public static class GenerationEndpoints
         var g = app.MapGroup("/api/generate").RequireAuthorization(AppPolicies.Permission("id.document.generate"));
 
         g.MapPost("/{instanceId:guid}", async (
-            Guid instanceId, GenerateRequest req, IMediator m, ClaimsPrincipal user) =>
+            Guid instanceId, GenerateRequest req, IMediator m, ClaimsPrincipal user,
+            DataAccessResolver access, CancellationToken ct) =>
         {
             if (!string.Equals(req.Format, "pdf", StringComparison.OrdinalIgnoreCase))
                 return Results.BadRequest(new { error = $"Неизвестный формат генерации: «{req.Format}». Поддерживается только PDF." });
@@ -37,7 +38,8 @@ public static class GenerationEndpoints
             Guid? userId = Guid.TryParse(userIdStr, out var uid) ? uid : null;
             try
             {
-                var files = await m.Send(new GenerateDocumentCommand(instanceId, format, generatedBy, userId));
+                var files = await m.Send(new GenerateDocumentCommand(
+                    instanceId, format, await access.ForAsync(user, ct), generatedBy, userId), ct);
                 return Results.Ok(files.Select(f => new { f.Id, f.BlobPath, Format = f.Format.ToString(), f.TemplateId }));
             }
             catch (ResolutionValidationException ex)
@@ -55,10 +57,12 @@ public static class GenerationEndpoints
         // реквизитах в PDF. Эфемерно — ничего не персистит. PDF → 200 application/pdf;
         // нет шаблона → 200 {noTemplate:true}; ошибка резолва/Typst → 422 {error, diagnostics}.
         g.MapPost("/preview/{instanceId:guid}", async (
-            Guid instanceId, System.Text.Json.JsonElement requisites, IMediator m, CancellationToken ct) =>
+            Guid instanceId, System.Text.Json.JsonElement requisites, IMediator m,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
             var raw = requisites.ValueKind == System.Text.Json.JsonValueKind.Undefined ? "{}" : requisites.GetRawText();
-            var result = await m.Send(new PreviewDocumentQuery(instanceId, System.Text.Json.JsonDocument.Parse(raw)), ct);
+            var result = await m.Send(new PreviewDocumentQuery(
+                instanceId, System.Text.Json.JsonDocument.Parse(raw), await access.ForAsync(user, ct)), ct);
             if (result.Pdf is not null)
                 return Results.File(result.Pdf, "application/pdf");
             if (result.NoTemplate)
@@ -71,9 +75,11 @@ public static class GenerationEndpoints
         });
 
         // Проверка разрешения ссылок «по требованию» — возвращает все проблемы (warning/error).
-        g.MapGet("/validate/{instanceId:guid}", async (Guid instanceId, IMediator m) =>
+        g.MapGet("/validate/{instanceId:guid}", async (Guid instanceId, IMediator m,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
-            var diagnostics = await m.Send(new ValidateInstanceResolutionQuery(instanceId));
+            var diagnostics = await m.Send(
+                new ValidateInstanceResolutionQuery(instanceId, await access.ForAsync(user, ct)), ct);
             return Results.Ok(diagnostics.Select(ToDto));
         });
 
@@ -117,9 +123,11 @@ public static class GenerationEndpoints
         // Отладочный пакет: template.typ + data.json + typeblocks.typ + userlib.typ —
         // ровно те файлы, что генератор кладёт в tmpDir. Распаковал → typst compile template.typ.
         g.MapGet("/debug-bundle/{instanceId:guid}", async (Guid instanceId, IMediator m,
-            BHS.CRG.Application.Common.IBlobStorage blob, CancellationToken ct) =>
+            BHS.CRG.Application.Common.IBlobStorage blob,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
-            var bundle = await m.Send(new GetGenerationDebugBundleQuery(instanceId), ct);
+            var bundle = await m.Send(
+                new GetGenerationDebugBundleQuery(instanceId, await access.ForAsync(user, ct)), ct);
             if (bundle is null) return Results.NotFound();
 
             var userLib = string.IsNullOrEmpty(bundle.UserLib)

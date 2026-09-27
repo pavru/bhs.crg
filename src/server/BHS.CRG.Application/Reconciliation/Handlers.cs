@@ -55,7 +55,7 @@ public class ReconciliationHandlers(
     }
 
     public async Task<ReconciliationRun> Handle(RunReconciliationCommand cmd, CancellationToken ct)
-        => await runner.RunAsync(cmd.DefinitionId, ct);
+        => await runner.RunAsync(cmd.DefinitionId, cmd.Access, ct);
 
     public async Task<IReadOnlyList<ReconciliationRun>> Handle(ListReconciliationRunsQuery q, CancellationToken ct)
     {

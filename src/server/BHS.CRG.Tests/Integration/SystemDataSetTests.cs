@@ -64,13 +64,13 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
 
-        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, default));
+        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default));
         Assert.Equal("system:set-documents", candidate.SheetOrPath);
 
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
+            new CreateSourceInput("Документы", candidate.SheetOrPath, null), TestAccess.All, default);
 
-        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, TestAccess.All, default);
         Assert.NotNull(preview);
         Assert.Equal(2, preview.Rows.Count);
 
@@ -100,12 +100,12 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", "system:set-documents", null), default);
+            new CreateSourceInput("Документы", "system:set-documents", null), TestAccess.All, default);
 
         var typeId = (await m.Send(new GetDocumentInstanceQuery(namedId)))!.CompositeTypeId;
         await m.Send(new AddDocumentToSetCommand(setId, typeId));
 
-        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, TestAccess.All, default);
         Assert.Equal(3, preview!.Rows.Count);
     }
 
@@ -126,14 +126,14 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", "system:set-documents", null), default);
+            new CreateSourceInput("Документы", "system:set-documents", null), TestAccess.All, default);
         await svc.CreateBindingAsync(new CreateBindingInput(registry.Id, source.Id, "Строки",
             new() { ["Наименование"] = "Наименование", ["Номер"] = "НомерДокумента" }), default);
 
         var instance = await m.Send(new GetDocumentInstanceQuery(registry.Id));
         var view = DocumentView.From(instance!);
         var ctx = await scope.ServiceProvider.GetRequiredService<IEntityResolver>().ResolveAsync(view, default);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, null, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
         Assert.Equal(JsonValueKind.Array, rows.ValueKind);
@@ -153,10 +153,10 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", "system:set-documents", null), default);
+            new CreateSourceInput("Документы", "system:set-documents", null), TestAccess.All, default);
 
         var detail = await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
-            .GetSourceAsync(source.Id, default);
+            .GetSourceAsync(source.Id, TestAccess.All, default);
 
         Assert.Equal(DataOrigin.System, detail!.Origin);
         Assert.False(detail.Stale);
@@ -197,7 +197,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", "system:set-documents", null), default);
+            new CreateSourceInput("Документы", "system:set-documents", null), TestAccess.All, default);
         await svc.CreateBindingAsync(new CreateBindingInput(namedId, source.Id, "Строки", new()), default);
 
         var bindings = await scope.ServiceProvider.GetRequiredService<IRepository<DataSetBinding>>()
@@ -217,7 +217,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("System", null, null), default);
         // Не «пусто вообще»: с #623 на любом уровне может предложиться библиотека документов
         // качества. Проверяем ровно то, о чём тест, — документов КОМПЛЕКТА вне комплекта нет.
-        Assert.DoesNotContain(await svc.DetectSourceCandidatesAsync(file.Id, default),
+        Assert.DoesNotContain(await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.SetDocumentsMarker);
     }
 
@@ -232,7 +232,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var svc = Svc(scope);
         var (setId, _, _, _) = await SeedSetAsync(scope);
 
-        var inSet = await svc.ListSystemCandidatesAsync("Set", setId, default);
+        var inSet = await svc.ListSystemCandidatesAsync("Set", setId, TestAccess.All, default);
         Assert.Equal(SystemDataSets.SetDocumentsMarker, Assert.Single(inSet).SheetOrPath);
 
         // Раздел/стройка/система: документов комплекта там нет. Проверяем именно их отсутствие, а
@@ -240,11 +240,11 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // есть хоть один документ, — здесь их не заводили, поэтому список пока пуст и целиком.
         foreach (var (level, id) in ((string, Guid?)[])
                  [("Section", Guid.NewGuid()), ("Construction", Guid.NewGuid()), ("System", null)])
-            Assert.DoesNotContain(await svc.ListSystemCandidatesAsync(level, id, default),
+            Assert.DoesNotContain(await svc.ListSystemCandidatesAsync(level, id, TestAccess.All, default),
                 c => c.SheetOrPath == SystemDataSets.SetDocumentsMarker);
 
         await Assert.ThrowsAsync<InvalidRequestException>(
-            () => svc.ListSystemCandidatesAsync("Ерунда", null, default));
+            () => svc.ListSystemCandidatesAsync("Ерунда", null, TestAccess.All, default));
     }
 
     /// <summary>
@@ -263,24 +263,24 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", SystemDataSets.SetDocumentsMarker, null), default);
+            new CreateSourceInput("Документы", SystemDataSets.SetDocumentsMarker, null), TestAccess.All, default);
         Assert.Equal(2, source.CachedRowCount);
 
         var typeId = (await m.Send(new GetDocumentInstanceQuery(namedId)))!.CompositeTypeId;
         await m.Send(new AddDocumentToSetCommand(setId, typeId));
 
         // Список источников набора и оба списка наборов — из них берут подпись выпадающие списки привязок.
-        Assert.Equal(3, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
+        Assert.Equal(3, Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default)).CachedRowCount);
         Assert.Equal(3, Assert.Single(
-            Assert.Single(await svc.ListFilesAsync("Set", setId, false, default)).Sources).CachedRowCount);
+            Assert.Single(await svc.ListFilesAsync("Set", setId, false, TestAccess.All, default)).Sources).CachedRowCount);
         Assert.Equal(3, Assert.Single(
-            (await svc.ListAvailableFilesAsync(setId, default)).Single(f => f.Id == file.Id).Sources).CachedRowCount);
+            (await svc.ListAvailableFilesAsync(setId, TestAccess.All, default)).Single(f => f.Id == file.Id).Sources).CachedRowCount);
 
         // MCP-срез: внешний агент не должен видеть число, расходящееся с выдачей get_rows.
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
-        Assert.Equal(3, (await snapshots.GetSourceAsync(source.Id))!.RowCount);
-        Assert.Equal(3, Assert.Single((await snapshots.GetDatasetAsync(file.Id))!.Sources).RawRowCount);
-        Assert.Equal(3, (await snapshots.GetRowsAsync(source.Id, 0, 50))!.TotalRows);
+        Assert.Equal(3, (await snapshots.GetSourceAsync(source.Id, TestAccess.All))!.RowCount);
+        Assert.Equal(3, Assert.Single((await snapshots.GetDatasetAsync(file.Id, TestAccess.All))!.Sources).RawRowCount);
+        Assert.Equal(3, (await snapshots.GetRowsAsync(source.Id, 0, 50, TestAccess.All))!.TotalRows);
     }
 
     /// <summary>
@@ -297,7 +297,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы", SystemDataSets.SetDocumentsMarker, null), default);
+            new CreateSourceInput("Документы", SystemDataSets.SetDocumentsMarker, null), TestAccess.All, default);
 
         // Шаблон «из файловой жизни»: с извлечением (лист) и фильтром.
         var template = await svc.CreateProcessingTemplateAsync(new CreateProcessingTemplateInput(
@@ -309,7 +309,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var updated = await svc.ApplyProcessingTemplateAsync(source.Id, template.Id, default);
 
         Assert.Equal(SystemDataSets.SetDocumentsMarker, updated!.SheetOrPath);
-        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, TestAccess.All, default);
         Assert.Equal("7И-СОТВ 1", Assert.Single(preview!.Rows)[preview.Columns.ToList().IndexOf("НомерДокумента")]);
     }
 }

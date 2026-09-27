@@ -183,7 +183,8 @@ public class DataSetBindingService(
         return true;
     }
 
-    public async Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid ownerId, CancellationToken ct)
+    public async Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(
+        Guid ownerId, DataAccess access, CancellationToken ct)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
@@ -203,7 +204,7 @@ public class DataSetBindingService(
         {
             try
             {
-                var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+                var rows = await rowLoader.LoadRowsAsync(binding.Source, access, ct);
 
                 // Материализация ссылкой на существующий документ (issue #725) — до маппинга, его в
                 // этом режиме нет. Показываем НАИМЕНОВАНИЯ документов: идентификатор в таблице не

@@ -21,18 +21,19 @@ public class DataSetService(
 {
     // ── Files ─────────────────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
-        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct) =>
-        files.ListFilesAsync(scope, scopeId, includeInherited, ct);
-    public Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct) =>
-        files.ListAvailableFilesAsync(setId, ct);
+        string? scope, Guid? scopeId, bool includeInherited, DataAccess access, CancellationToken ct) =>
+        files.ListFilesAsync(scope, scopeId, includeInherited, access, ct);
+    public Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(
+        Guid setId, DataAccess access, CancellationToken ct) =>
+        files.ListAvailableFilesAsync(setId, access, ct);
     public Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct) =>
         files.UploadFileAsync(input, ct);
     public Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct) =>
         files.CreateSystemFileAsync(input, ct);
     public Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(
-        string scope, Guid? scopeId, CancellationToken ct) =>
+        string scope, Guid? scopeId, DataAccess access, CancellationToken ct) =>
         Enum.TryParse<CatalogScope>(scope, out var s)
-            ? sources.ListSystemCandidatesAsync(s, scopeId, ct)
+            ? sources.ListSystemCandidatesAsync(s, scopeId, access, ct)
             : throw new InvalidRequestException("Неверный scope");
     public Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct) =>
         files.ReplaceFileAsync(id, input, ct);
@@ -42,26 +43,32 @@ public class DataSetService(
         files.DeleteFileAsync(id, ct);
 
     // ── Sources ───────────────────────────────────────────────────────────────
-    public Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct) =>
-        sources.ListSourcesAsync(fileId, ct);
-    public Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct) =>
-        sources.DetectSourceCandidatesAsync(fileId, ct);
-    public Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct) =>
-        sources.PreviewSourceAsync(sourceId, maxRows, ct);
-    public Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct) =>
-        sources.ExportSourceAsync(sourceId, format, ct);
-    public Task<Dictionary<string, string>?> AutoMapAsync(Guid sourceId, IReadOnlyList<FieldInfo> fields, CancellationToken ct) =>
-        sources.AutoMapAsync(sourceId, fields, ct);
-    public Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct) =>
-        sources.CreateSourceAsync(fileId, input, ct);
+    public Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(
+        Guid fileId, DataAccess access, CancellationToken ct) =>
+        sources.ListSourcesAsync(fileId, access, ct);
+    public Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(
+        Guid fileId, DataAccess access, CancellationToken ct) =>
+        sources.DetectSourceCandidatesAsync(fileId, access, ct);
+    public Task<SourcePreviewDto?> PreviewSourceAsync(
+        Guid sourceId, int maxRows, DataAccess access, CancellationToken ct) =>
+        sources.PreviewSourceAsync(sourceId, maxRows, access, ct);
+    public Task<SourceExportDto?> ExportSourceAsync(
+        Guid sourceId, string? format, DataAccess access, CancellationToken ct) =>
+        sources.ExportSourceAsync(sourceId, format, access, ct);
+    public Task<Dictionary<string, string>?> AutoMapAsync(
+        Guid sourceId, IReadOnlyList<FieldInfo> fields, DataAccess access, CancellationToken ct) =>
+        sources.AutoMapAsync(sourceId, fields, access, ct);
+    public Task<DataSetSourceDto> CreateSourceAsync(
+        Guid fileId, CreateSourceInput input, DataAccess access, CancellationToken ct) =>
+        sources.CreateSourceAsync(fileId, input, access, ct);
     public Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
         string? byIdColumn, CancellationToken ct) =>
         sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct);
     public Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
-        string? byIdColumn, CancellationToken ct) =>
-        sources.MaterializePreviewAsync(sourceId, maxRows, typeId, mapping, discriminator, byIdColumn, ct);
+        string? byIdColumn, DataAccess access, CancellationToken ct) =>
+        sources.MaterializePreviewAsync(sourceId, maxRows, typeId, mapping, discriminator, byIdColumn, access, ct);
     public Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct) =>
         sources.UpdateSourceAsync(sourceId, input, ct);
     public Task<DataSetSourceDto?> RenameSourceAsync(Guid sourceId, string name, CancellationToken ct) =>
@@ -137,8 +144,9 @@ public class DataSetService(
         bindings.UpdateBindingAsync(id, input, ct);
     public Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct) =>
         bindings.DeleteBindingAsync(id, ct);
-    public Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid ownerId, CancellationToken ct) =>
-        bindings.PreviewBindingsAsync(ownerId, ct);
+    public Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(
+        Guid ownerId, DataAccess access, CancellationToken ct) =>
+        bindings.PreviewBindingsAsync(ownerId, access, ct);
 
     // ── Binding templates ───────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetBindingTemplateDto>> ListTemplatesAsync(Guid docTypeId, CancellationToken ct) =>

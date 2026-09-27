@@ -43,7 +43,7 @@ public class DataSetFileService(
             (chain.SetId != Guid.Empty && f.Scope == CatalogScope.Set && f.ScopeId == chain.SetId));
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
-        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct)
+        string? scope, Guid? scopeId, bool includeInherited, DataAccess access, CancellationToken ct)
     {
         var q = db.DataSetFiles.Include(f => f.Sources).AsNoTracking().AsQueryable();
         if (scope != null && Enum.TryParse<CatalogScope>(scope, out var s))
@@ -70,12 +70,13 @@ public class DataSetFileService(
 
         // Строки системных наборов живые — их число считаем заново, а не показываем запомненное
         // при создании источника (issue #613).
-        var liveStates = await systemCounts.StateAsync(files, ct);
+        var liveStates = await systemCounts.StateAsync(files, access, ct);
 
         return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts, liveStates)).ToList();
     }
 
-    public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
+    public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(
+        Guid setId, DataAccess access, CancellationToken ct)
     {
         if (!await db.Set<DocumentSet>().AsNoTracking().AnyAsync(s => s.Id == setId, ct))
             throw new NotFoundException("DocumentSet не найден");
@@ -86,7 +87,7 @@ public class DataSetFileService(
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 
-        var liveStates = await systemCounts.StateAsync(files, ct);
+        var liveStates = await systemCounts.StateAsync(files, access, ct);
         return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts: null, liveStates)).ToList();
     }
 

@@ -65,7 +65,7 @@ public class ReconciliationHandlersTests(IntegrationTestFixture fixture) : IAsyn
         var def = await m.Send(new CreateReconciliationCommand(
             "Кабель", CatalogScope.System, null, SpecFor(left, right)));
 
-        await m.Send(new RunReconciliationCommand(def.Id));
+        await m.Send(new RunReconciliationCommand(def.Id, TestAccess.All));
         var before = Assert.Single(await m.Send(new ListFindingsQuery(def.Id)));
         Assert.Equal(FindingStatus.Mismatch, before.Finding.Status);
         Assert.Null(before.Decision);
@@ -94,7 +94,7 @@ public class ReconciliationHandlersTests(IntegrationTestFixture fixture) : IAsyn
         var def = await m.Send(new CreateReconciliationCommand(
             "Кабель", CatalogScope.System, null, SpecFor(shortSource, right)));
 
-        await m.Send(new RunReconciliationCommand(def.Id));
+        await m.Send(new RunReconciliationCommand(def.Id, TestAccess.All));
         var first = Assert.Single(await m.Send(new ListFindingsQuery(def.Id)));
         Assert.Equal(FindingStatus.Mismatch, first.Finding.Status);
         // Первый прогон: сравнивать не с чем, устранением это быть не может.
@@ -103,7 +103,7 @@ public class ReconciliationHandlersTests(IntegrationTestFixture fixture) : IAsyn
         // Данные исправлены — журнал перевыпущен с полным количеством.
         var fixedSource = await SeedCsvAsync(scope, "Журнал (исправлен)", FixedCsv);
         await m.Send(new UpdateReconciliationCommand(def.Id, "Кабель", SpecFor(fixedSource, right)));
-        await m.Send(new RunReconciliationCommand(def.Id));
+        await m.Send(new RunReconciliationCommand(def.Id, TestAccess.All));
 
         var second = Assert.Single(await m.Send(new ListFindingsQuery(def.Id)));
         Assert.Equal(FindingStatus.Match, second.Finding.Status);
@@ -121,7 +121,7 @@ public class ReconciliationHandlersTests(IntegrationTestFixture fixture) : IAsyn
         var right = await SeedCsvAsync(scope, "Реестр", RegistryCsv);
         var def = await m.Send(new CreateReconciliationCommand(
             "Кабель", CatalogScope.System, null, SpecFor(left, right)));
-        await m.Send(new RunReconciliationCommand(def.Id));
+        await m.Send(new RunReconciliationCommand(def.Id, TestAccess.All));
         var key = Assert.Single(await m.Send(new ListFindingsQuery(def.Id))).Finding.Key;
 
         await m.Send(new SetDecisionCommand(def.Id, key, DecisionKind.Accepted, "первая", "alex"));
@@ -152,8 +152,8 @@ public class ReconciliationHandlersTests(IntegrationTestFixture fixture) : IAsyn
         var def = await m.Send(new CreateReconciliationCommand(
             "Кабель", CatalogScope.System, null, SpecFor(left, right)));
 
-        var first = await m.Send(new RunReconciliationCommand(def.Id));
-        var second = await m.Send(new RunReconciliationCommand(def.Id));
+        var first = await m.Send(new RunReconciliationCommand(def.Id, TestAccess.All));
+        var second = await m.Send(new RunReconciliationCommand(def.Id, TestAccess.All));
 
         var history = await m.Send(new ListReconciliationRunsQuery(def.Id));
         Assert.Equal(2, history.Count);

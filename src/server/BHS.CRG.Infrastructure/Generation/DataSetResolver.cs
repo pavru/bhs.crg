@@ -21,10 +21,10 @@ public class DataSetResolver(
 ) : IDataSetResolver
 {
     /// <summary>Генерация документа: резолвит привязки владельца в контекст (scope — из комплекта документа).</summary>
-    public Task InjectAsync(GenerationContext ctx, DocumentView instance,
+    public Task InjectAsync(GenerationContext ctx, DocumentView instance, DataAccess access,
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
         => ResolveBindingsCoreAsync(ctx, instance.Id, instance.DocumentTypeId,
-            CatalogScope.Set, instance.DocumentSetId, diagnostics, ct);
+            CatalogScope.Set, instance.DocumentSetId, access, diagnostics, ct);
 
     /// <summary>
     /// Резолв привязок для ПЕРСИСТА (issue #99): sync-on-save общих данных. Прогоняет тот же резолв-путь,
@@ -33,16 +33,17 @@ public class DataSetResolver(
     /// Ключевое отличие от превью: здесь резолвится ЗНАЧЕНИЕ (ссылка), а не display-строка «🔗 …».
     /// </summary>
     public async Task<IReadOnlyDictionary<string, object?>> ResolveOwnerBindingsAsync(
-        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId,
+        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId, DataAccess access,
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
     {
         var ctx = new GenerationContext();
-        await ResolveBindingsCoreAsync(ctx, ownerId, typeId, scopeLevel, scopeId, diagnostics, ct);
+        await ResolveBindingsCoreAsync(ctx, ownerId, typeId, scopeLevel, scopeId, access, diagnostics, ct);
         return ctx.Data;
     }
 
     private async Task ResolveBindingsCoreAsync(GenerationContext ctx, Guid ownerId, Guid typeId,
-        CatalogScope scopeLevel, Guid? scopeId, List<ResolutionDiagnostic>? diagnostics, CancellationToken ct)
+        CatalogScope scopeLevel, Guid? scopeId, DataAccess access,
+        List<ResolutionDiagnostic>? diagnostics, CancellationToken ct)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
@@ -124,7 +125,7 @@ public class DataSetResolver(
                 }
 
                 // Download → parse → transformation → filter → sort (shared with preview via DataSetRowLoader).
-                var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+                var rows = await rowLoader.LoadRowsAsync(binding.Source, access, ct);
 
                 // Материализация ссылкой на существующий документ (issue #725). Проверяем ДО маппинга:
                 // в этом режиме маппинга нет вовсе, и общая ветка отказала бы «маппинг колонок пуст» —

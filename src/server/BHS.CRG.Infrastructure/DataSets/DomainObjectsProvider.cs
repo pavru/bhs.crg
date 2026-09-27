@@ -35,6 +35,18 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
         "НомерПП", "Ид", "ИмяОбъекта", "Алиасы", "ТипКод", "ТипИмя", "Уровень",
     ];
 
+    /// <summary>
+    /// Общие данные — данные ЯДРА, и читает их тот, кому открыт справочник (ТЗ CORE-24.1).
+    ///
+    /// Без построчной изоляции: записи общих данных видны всем сотрудникам компании одинаково
+    /// (решение #675, ТЗ CORE-19). Изоляция появится вместе с модулем, который её потребует, и
+    /// объявление — то место, где это придётся сказать вслух.
+    /// </summary>
+    public SystemDataSetDeclaration Declaration { get; } = new(
+        SystemDataSetDeclaration.CoreModule, "core.catalog.read", SystemDataSetIsolation.None,
+        ["Отдаёт все записи выбранного типа, видимые с уровня набора, — право «видеть справочник "
+         + "организаций, лиц и объектов»"]);
+
     public bool Handles(string marker) => SystemDataSets.TryParseObjectsMarker(marker, out _);
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
@@ -74,7 +86,7 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
     }
 
     public async Task<DataSetParseResult> ProvideAsync(
-        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         if (!SystemDataSets.TryParseObjectsMarker(marker, out var typeId))
             throw new InvalidRequestException($"Маркер «{marker}» не содержит идентификатора типа.");

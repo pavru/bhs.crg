@@ -40,6 +40,10 @@ public class MaterialLabelBackfill(
     AppDbContext db,
     IDataSetService bindings)
 {
+    /// <summary>Параметр доступа этого прохода: человека за ним нет (ТЗ WORK-41).</summary>
+    private static readonly DataAccess SystemAccess =
+        DataAccess.OfSystem("дозаполнение подписей материалов");
+
     public async Task<MaterialLabelReport> RunAsync(bool dryRun, CancellationToken ct = default)
     {
         var links = await db.MaterialQualityLinks
@@ -76,7 +80,13 @@ public class MaterialLabelBackfill(
             // Файл мог исчезнуть, набор — перестать разбираться: один сломанный документ не должен
             // отменять дозаполнение остальных. Но и молчать нельзя — иначе «материала больше нет»
             // сказали бы про материал, который просто не удалось прочитать.
-            try { preview = await bindings.PreviewBindingsAsync(ownerId, ct); scanned++; }
+            // ⚠️ Служебное задание — от имени системы (ТЗ WORK-41, CORE-24.1): человека за этим
+            // проходом нет, и «под правами системы» опубликованный набор не читается. Файловые
+            // привязки, из которых дозаполнение и берёт материалы, читаются как прежде; привязка на
+            // опубликованном наборе даст отказ, и он попадёт в счётчик failed — тем же путём, каким
+            // сюда попадает исчезнувший файл. Молча пропустить нельзя: «материала больше нет»
+            // сказали бы про материал, который просто не прочитали.
+            try { preview = await bindings.PreviewBindingsAsync(ownerId, SystemAccess, ct); scanned++; }
             catch (Exception) { failed++; continue; }
 
             named += Apply(MaterialsOf(preview, identityKeys), byKey);

@@ -27,9 +27,24 @@ public interface ISystemDataProvider
     Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
         CatalogScope scope, Guid? scopeId, CancellationToken ct);
 
-    /// <summary>Строки консолидации на момент вызова — данные живые, не кэшируются.</summary>
+    /// <summary>
+    /// Объявление набора: модуль, требуемый ключ доступа, вид отбора строк и текст границы выдачи
+    /// (ТЗ CORE-24.1, CORE-24.3). Умолчания НЕТ нарочно: поставщик без объявления не собирается, и
+    /// это единственный способ не получить молчаливое «отдаёт всем всё» у забытого поставщика.
+    /// </summary>
+    SystemDataSetDeclaration Declaration { get; }
+
+    /// <summary>
+    /// Строки консолидации на момент вызова — данные живые, не кэшируются.
+    ///
+    /// <paramref name="access" /> — от чьего имени читаем (ТЗ CORE-24.1). Параметром, а не неявным
+    /// «текущим пользователем»: см. <see cref="DataAccess" />. Поставщик без построчной изоляции
+    /// вправе его не смотреть — ключ за него проверили воротами
+    /// (<see cref="SystemDataSetGate" />), — но получить обязан: иначе изоляцию нельзя будет
+    /// добавить, не переписав контракт второй раз.
+    /// </summary>
     Task<DataSetParseResult> ProvideAsync(
-        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct);
+        string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct);
 }
 
 /// <summary>Провайдеры системных консолидаций — по образцу <c>DataSetParserFactory</c>.</summary>
@@ -45,4 +60,37 @@ public class SystemDataProviderRegistry(IEnumerable<ISystemDataProvider> provide
         => providers.FirstOrDefault(p => p.Handles(marker));
 
     public IReadOnlyList<ISystemDataProvider> All => [.. providers];
+
+    /// <summary>
+    /// Все объявления годны? Иначе отказ — один на все поставщики сразу.
+    ///
+    /// <para>Зовётся при СТАРТЕ приложения, а не при первом чтении. Реестр создаётся на запрос
+    /// (scoped), то есть проверка в конструкторе пришла бы пользователю пятисотым ответом из экрана
+    /// наборов — приложение при этом считалось бы поднявшимся. На этом уже наступали с реестром
+    /// тэгов: сторож, который не срабатывает вовремя, — не сторож (ревью PR #1012).</para>
+    ///
+    /// <para>Собираем ВСЕ негодные объявления, а не первое: чинить по одному на перезапуск — это
+    /// пять перезапусков там, где хватает одного (тот же приём, что в <c>PermissionCatalog</c>).</para>
+    /// </summary>
+    public void EnsureDeclared()
+    {
+        // ⚠️ Отсутствие объявления и годное объявление оба дают null — первым заходом они были
+        // склеены через `??`, и полное объявление отказывало «объявление не заполнено вовсе».
+        // Поймал собственный прогон; развилка обязана быть явной.
+        var broken = All
+            .Select(p => (Provider: p.GetType().Name, Problem: p.Declaration is null
+                ? "объявления нет вовсе"
+                : p.Declaration.Validate()))
+            .Where(x => x.Problem is not null)
+            .Select(x => $"{x.Provider}: {x.Problem}")
+            .ToList();
+        if (broken.Count == 0) return;
+
+        throw new InvalidOperationException(
+            "Системный набор объявлен не до конца: " + string.Join("; ", broken) + ".\n" +
+            "Набор без параметра доступа и без текста границы выдачи не регистрируется (ТЗ CORE-24.1, " +
+            "CORE-24.3): он отдавал бы строки всем и молчал бы о том, что именно отдаёт. Отказ " +
+            "приходит при старте нарочно — забытое объявление обязано остановить выпуск, а не " +
+            "открыться у заказчика.");
+    }
 }

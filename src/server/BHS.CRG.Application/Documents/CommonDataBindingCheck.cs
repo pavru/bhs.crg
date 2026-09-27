@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -24,7 +25,7 @@ namespace BHS.CRG.Application.Documents;
 public record BindingCheckItem(string FieldKey, string FieldTitle, string Status, string? LinkedName, string? Detail);
 public record BindingCheckResult(IReadOnlyList<BindingCheckItem> Items);
 
-public record CheckCommonDataBindingsQuery(Guid Id) : IRequest<BindingCheckResult>;
+public record CheckCommonDataBindingsQuery(Guid Id, DataAccess Access) : IRequest<BindingCheckResult>;
 
 public class CheckCommonDataBindingsHandler(
     IRepository<DomainObject> repo,
@@ -37,7 +38,7 @@ public class CheckCommonDataBindingsHandler(
 
         var diag = new List<ResolutionDiagnostic>();
         var fresh = await dataSetResolver.ResolveOwnerBindingsAsync(
-            q.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, diag, ct);
+            q.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, q.Access, diag, ct);
 
         var allTypes = (await docTypeRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         var titles = DocumentTypeSchemaReader.EffectiveFields(entry.CompositeTypeId, allTypes)

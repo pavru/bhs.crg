@@ -42,6 +42,19 @@ public class MaterialQualityProvider(AppDbContext db) : ISystemDataProvider
         "НомерДокумента", "ДатаДокумента", "СрокДействия", "Изготовитель", "УровеньСвязки", "ЕстьСкан",
     ];
 
+    /// <summary>
+    /// Связки материалов с документами качества принадлежат модулю исполнительной документации.
+    ///
+    /// ⚠️ Ключ — КОД МОДУЛЯ, а не право: своего права на чтение библиотека документов качества
+    /// сегодня не носит, и её адреса закрыты воротами модуля (ТЗ AUTH-12.2). Придумать набору право,
+    /// которого нет у его же адресов, значило бы завести второе правило доступа к тем же данным —
+    /// и первое расхождение между ними никто бы не заметил.
+    /// </summary>
+    public SystemDataSetDeclaration Declaration { get; } = new(
+        "id", "id", SystemDataSetIsolation.None,
+        ["Отдаёт связки материалов с документами качества, действующие на уровне набора, — всем, "
+         + "кому открыт модуль исполнительной документации"]);
+
     public bool Handles(string marker) => marker == SystemDataSets.MaterialQualityMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
@@ -55,7 +68,7 @@ public class MaterialQualityProvider(AppDbContext db) : ISystemDataProvider
     }
 
     public async Task<DataSetParseResult> ProvideAsync(
-        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         if (scope != CatalogScope.System && scopeId is null)
             throw new InvalidRequestException(

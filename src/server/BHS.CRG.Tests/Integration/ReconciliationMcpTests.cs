@@ -66,7 +66,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         db.Add(definition);
         await db.SaveChangesAsync();
 
-        await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>().RunAsync(definition.Id);
+        await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>().RunAsync(definition.Id, TestAccess.All);
         return definition.Id;
     }
 
@@ -110,7 +110,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal("Proposed", proposed.Status);
 
         // Прогон не изменился — модель в путь сравнения не попала.
-        await runner.RunAsync(definitionId);
+        await runner.RunAsync(definitionId, TestAccess.All);
         Assert.Equal(2, (await tools.GetFindingsAsync(definitionId, CancellationToken.None))
             .Items.Count(f => f.Status.StartsWith("Missing")));
 
@@ -120,7 +120,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         db.Update(alias);
         await db.SaveChangesAsync();
 
-        await runner.RunAsync(definitionId);
+        await runner.RunAsync(definitionId, TestAccess.All);
         var merged = Assert.Single((await tools.GetFindingsAsync(definitionId, CancellationToken.None)).Items);
         Assert.Equal("Match", merged.Status);
         Assert.Equal(10, merged.LeftValue);

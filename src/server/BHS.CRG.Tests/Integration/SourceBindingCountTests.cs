@@ -47,7 +47,7 @@ public class SourceBindingCountTests(IntegrationTestFixture fixture) : IAsyncLif
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var file = (await svc.ListFilesAsync(nameof(CatalogScope.System), null, false, default))
+            var file = (await svc.ListFilesAsync(nameof(CatalogScope.System), null, false, TestAccess.All, default))
                 .Single(f => f.Id == fileId);
 
             Assert.Equal(3, file.Sources.Single(s => s.Id == boundId).BindingCount);
@@ -63,7 +63,7 @@ public class SourceBindingCountTests(IntegrationTestFixture fixture) : IAsyncLif
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var sources = await svc.ListSourcesAsync(fileId, default);
+            var sources = await svc.ListSourcesAsync(fileId, TestAccess.All, default);
             Assert.Equal(2, sources.Single(s => s.Id == boundId).BindingCount);
         }
     }

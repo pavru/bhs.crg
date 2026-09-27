@@ -405,12 +405,12 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
 
             // До привязки кандидата нет — группа не табличная.
-            Assert.DoesNotContain(await svc.DetectSourceCandidatesAsync(fileId, default),
+            Assert.DoesNotContain(await svc.DetectSourceCandidatesAsync(fileId, TestAccess.All, default),
                 c => c.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal));
 
             await svc.SetDocumentProfileAsync(fileId, 0, profileId, default);
 
-            var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(fileId, default),
+            var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(fileId, TestAccess.All, default),
                 c => c.SheetOrPath == PdfProfiles.GostTableMarkerPrefix + DocId);
             Assert.Equal(0, candidate.FirstPageIndex);   // «таблица не распознана» → кнопка «Распознать»
             Assert.Contains("Список деталей ТКШ1", candidate.Name);

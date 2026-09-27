@@ -19,7 +19,8 @@ namespace BHS.CRG.Api.Mcp;
 /// без чего он построит неверную сверку (усечение, устаревание, происхождение данных).
 /// </summary>
 [McpServerToolType]
-public class DataSnapshotTools(IDataSnapshotService snapshots)
+public class DataSnapshotTools(
+    IDataSnapshotService snapshots, DataAccessResolver access, IHttpContextAccessor http)
 {
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "list_datasets", ReadOnly = true, Idempotent = true, Destructive = false,
@@ -63,7 +64,7 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
     public async Task<DatasetDetail?> GetDatasetAsync(
         [Description("Идентификатор набора данных.")] Guid datasetId,
         CancellationToken ct)
-        => await snapshots.GetDatasetAsync(datasetId, ct);
+        => await snapshots.GetDatasetAsync(datasetId, await access.ForRequestAsync(http, ct), ct);
 
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "get_source", ReadOnly = true, Idempotent = true, Destructive = false,
@@ -90,7 +91,7 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
     public async Task<SourceDetail?> GetSourceAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,
         CancellationToken ct)
-        => await snapshots.GetSourceAsync(sourceId, ct);
+        => await snapshots.GetSourceAsync(sourceId, await access.ForRequestAsync(http, ct), ct);
 
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "get_rows", ReadOnly = true, Idempotent = true, Destructive = false,
@@ -119,5 +120,6 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
             Отпечаток страницы (pageHash), которую вы уже читали с тем же offset/limit. Совпал —
             вместо таблицы придёт unchanged=true.
             """)] string? ifNoneMatch = null)
-        => await snapshots.GetRowsAsync(sourceId, offset, limit, ifNoneMatch, ct);
+        => await snapshots.GetRowsAsync(
+            sourceId, offset, limit, await access.ForRequestAsync(http, ct), ifNoneMatch, ct);
 }

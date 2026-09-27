@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -34,8 +35,14 @@ public class DocumentSetAssemblyService(
     /// Собирает комплект. <paramref name="subsetIds"/> — необязательное подмножество документов (иначе весь
     /// комплект). <paramref name="reportProgress"/>(готово, всего) — честный прогресс по документам.
     /// </summary>
+    /// <param name="access">
+    /// Права ТОГО, КТО НАЖАЛ (ТЗ CORE-24.1, issue #965). Пользователь в этой сборке был и раньше, но
+    /// только как автор и адресат уведомления — на чтение строк он не влиял. Теперь он доходит до
+    /// поставщика: опубликованный набор в печатной форме читается правами человека, запустившего
+    /// сборку, а не «правами системы».
+    /// </param>
     public async Task AssembleAsync(Guid setId, IReadOnlyList<Guid>? subsetIds, Guid userId,
-        CancellationToken ct, Func<int, int, Task>? reportProgress = null)
+        DataAccess access, CancellationToken ct, Func<int, int, Task>? reportProgress = null)
     {
         var set = await setRepo.GetByIdAsync(setId, ct) ?? throw new NotFoundException("Комплект не найден");
 
@@ -66,7 +73,7 @@ public class DocumentSetAssemblyService(
                 try
                 {
                     await mediator.Send(new GenerateDocumentCommand(inst.Id, OutputFormat.Pdf,
-                        GeneratedBy: "Сборка комплекта", UserId: userId), ct);
+                        access, GeneratedBy: "Сборка комплекта", UserId: userId), ct);
                 }
                 catch (Exception ex)
                 {
@@ -99,7 +106,7 @@ public class DocumentSetAssemblyService(
             try
             {
                 await mediator.Send(new GenerateDocumentCommand(inst.Id, OutputFormat.Pdf,
-                    GeneratedBy: "Сборка комплекта", UserId: userId), ct);
+                    access, GeneratedBy: "Сборка комплекта", UserId: userId), ct);
             }
             catch (Exception ex)
             {

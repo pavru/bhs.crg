@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using BHS.CRG.Application.DataSets;
+using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -158,8 +159,14 @@ public record CreateCommonDataEntryCommand(
     string DisplayName, Guid CompositeTypeId, JsonDocument Data,
     CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
 
+/// <param name="Access">
+/// В чьих правах читаются привязанные наборы при сохранении (ТЗ CORE-24.1, issue #965): сохранение
+/// записи подмешивает в её данные РЕЗОЛВНУТЫЕ строки привязок, то есть читает наборы. Параметр
+/// обязателен и здесь — иначе путь записи стал бы самым удобным способом прочитать набор чужими
+/// правами.
+/// </param>
 public record UpdateCommonDataEntryCommand(Guid Id, string DisplayName, JsonDocument Data,
-    IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
+    DataAccess Access, IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
 
 public record DeleteCommonDataEntryCommand(Guid Id) : IRequest;
 

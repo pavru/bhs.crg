@@ -64,7 +64,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput(level, scopeId?.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Объекты", MarkerFor(typeId), null), default);
+            new CreateSourceInput("Объекты", MarkerFor(typeId), null), TestAccess.All, default);
         return source.Id;
     }
 
@@ -90,7 +90,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.ContractorTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var columns = preview!.Columns.ToList();
 
         Assert.Contains("ИНН", columns);          // унаследовано от предка
@@ -123,9 +123,9 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         await AddEntryAsync(scope, seed.OrgTypeId, "ЭнергоСтрой", "{'ИНН':'7702'}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var fileId = (await svc.ListFilesAsync("Set", seed.SetId, false, default)).Single().Id;
+        var fileId = (await svc.ListFilesAsync("Set", seed.SetId, false, TestAccess.All, default)).Single().Id;
         Assert.DoesNotContain("КПП",
-            SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, default)).CachedSchema));
+            SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, TestAccess.All, default)).CachedSchema));
 
         // Схема типа поехала — вместе с ней едут и колонки консолидации.
         await M(scope).Send(new UpdateDocumentTypeSchemaCommand(seed.OrgTypeId,
@@ -141,16 +141,16 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
 
         // Список источников набора — из него берёт колонки диалог привязки.
         Assert.Contains("КПП",
-            SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, default)).CachedSchema));
+            SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, TestAccess.All, default)).CachedSchema));
         // И список наборов уровня: тот же DTO, другой путь.
         Assert.Contains("КПП", SchemaColumns(Assert.Single(
-            Assert.Single(await svc.ListFilesAsync("Set", seed.SetId, false, default)).Sources).CachedSchema));
+            Assert.Single(await svc.ListFilesAsync("Set", seed.SetId, false, TestAccess.All, default)).Sources).CachedSchema));
 
         // MCP-срез: сводка набора, карточка источника и страница строк.
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
-        Assert.Contains("КПП", Assert.Single((await snapshots.GetDatasetAsync(fileId))!.Sources).Columns);
-        Assert.Contains("КПП", (await snapshots.GetSourceAsync(sourceId))!.Columns.Select(c => c.Name));
-        Assert.Contains("КПП", (await snapshots.GetRowsAsync(sourceId, 0, 50))!.Columns);
+        Assert.Contains("КПП", Assert.Single((await snapshots.GetDatasetAsync(fileId, TestAccess.All))!.Sources).Columns);
+        Assert.Contains("КПП", (await snapshots.GetSourceAsync(sourceId, TestAccess.All))!.Columns.Select(c => c.Name));
+        Assert.Contains("КПП", (await snapshots.GetRowsAsync(sourceId, 0, 50, TestAccess.All))!.Columns);
     }
 
     /// <summary>
@@ -175,14 +175,14 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             null, JsonSerializer.Deserialize<object>("""[{"alias":"ИННиСРО","expr":"get('ИНН') + '/' + get('СРО')"}]"""), null), default);
 
         var page = (await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
-            .GetRowsAsync(sourceId, 0, 50))!;
+            .GetRowsAsync(sourceId, 0, 50, TestAccess.All))!;
 
         Assert.Contains("ИННиСРО", page.Columns);
         Assert.Equal([.. page.Columns.Order()], [.. Assert.Single(page.Rows).Keys.Order()]);
 
         // Превью показывает то же — оно и раньше складывало колонки, здесь это защита от расхождения
         // двух путей, а не от нового дефекта.
-        Assert.Contains("ИННиСРО", (await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Columns);
+        Assert.Contains("ИННиСРО", (await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Columns);
     }
 
     /// <summary>
@@ -201,16 +201,16 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        Assert.Contains("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, default))!.Columns);
+        Assert.Contains("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Columns);
 
         // Поле убрали из схемы типа — провайдер перестал отдавать колонку.
         await M(scope).Send(new UpdateDocumentTypeSchemaCommand(seed.OrgTypeId,
             J("{'fields':[{'key':'ИНН','type':'string','required':false}]}")));
 
-        Assert.DoesNotContain("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, default))!.Columns);
+        Assert.DoesNotContain("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Columns);
 
         var mapped = await svc.AutoMapAsync(sourceId,
-            [new FieldInfo("Адрес", "Адрес"), new FieldInfo("ИНН", "ИНН")], default);
+            [new FieldInfo("Адрес", "Адрес"), new FieldInfo("ИНН", "ИНН")], TestAccess.All, default);
         Assert.DoesNotContain("Адрес", mapped!.Keys);
         Assert.Contains("ИНН", mapped.Keys);
     }
@@ -224,7 +224,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             CatalogScope.Section, seed.SectionId, ["ЭС", "Энерго"]);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Equal("1", Cell(preview!, 0, "НомерПП"));
         Assert.Equal("ЭнергоСтрой", Cell(preview, 0, "ИмяОбъекта"));
@@ -255,7 +255,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         await m.Send(new AddDocumentToSetCommand(seed.SetId, docType.Id));
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Equal(2, preview!.Rows.Count);
         Assert.Equal(["Организация", "Подрядчик"],
@@ -277,7 +277,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         await AddEntryAsync(scope, seed.OrgTypeId, "Чужая", "{}", CatalogScope.Set, other.Id);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var names = preview!.Rows.Select(r => r[preview.Columns.ToList().IndexOf("ИмяОбъекта")]).ToList();
 
         Assert.Equal(["Общая", "Раздельная", "Своя"], [.. names.Order()]);
@@ -294,7 +294,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         await AddEntryAsync(scope, seed.OrgTypeId, "Заказчик", "{'ИНН':'комплектный'}", CatalogScope.Set, seed.SetId);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Equal(2, preview!.Rows.Count);
         Assert.Equal(["Комплект", "Система"],
@@ -314,7 +314,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var heir = preview!.Rows.Single(r => r[preview.Columns.ToList().IndexOf("ИмяОбъекта")] == "Наследник");
 
         Assert.Equal("7700", heir[preview.Columns.ToList().IndexOf("ИНН")]);  // от базы
@@ -338,7 +338,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             $"{{'_baseRef':{{'kind':'catalog','id':'{parent.Id}'}}}}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var cols = preview!.Columns.ToList();
         var heir = preview.Rows.Single(r => r[cols.IndexOf("ИмяОбъекта")] == "Внук");
 
@@ -364,7 +364,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             $"{{'_baseRef':{{'kind':'catalog','id':'{foreign.Id}'}}}}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var cols = preview!.Columns.ToList();
         var heir = preview.Rows.Single(r => r[cols.IndexOf("ИмяОбъекта")] == "Наследник");
 
@@ -380,10 +380,10 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         await AddEntryAsync(scope, seed.OrgTypeId, "Первая", "{}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows);
+        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows);
 
         await AddEntryAsync(scope, seed.OrgTypeId, "Вторая", "{}", CatalogScope.System, null);
-        Assert.Equal(2, (await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows.Count);
+        Assert.Equal(2, (await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows.Count);
     }
 
     /// <summary>
@@ -401,19 +401,19 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Set", seed.SetId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Объекты", MarkerFor(seed.OrgTypeId), null), default);
+            new CreateSourceInput("Объекты", MarkerFor(seed.OrgTypeId), null), TestAccess.All, default);
         Assert.Equal(1, source.CachedRowCount);
 
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(MarkerFor(seed.OrgTypeId)));
         await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
-            MarkerFor(Guid.NewGuid()), CatalogScope.Set, seed.SetId, default));
+            MarkerFor(Guid.NewGuid()), CatalogScope.Set, seed.SetId, TestAccess.All, default));
 
         // Маркер без идентификатора — тоже отказ, а не падение обходом.
         await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
-            SystemDataSets.ObjectsMarkerPrefix + "не-guid", CatalogScope.Set, seed.SetId, default));
+            SystemDataSets.ObjectsMarkerPrefix + "не-guid", CatalogScope.Set, seed.SetId, TestAccess.All, default));
 
-        var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, default));
+        var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default));
         Assert.Equal(source.Id, listed.Id);
     }
 
@@ -425,12 +425,12 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         var svc = Svc(scope);
         var seed = await SeedAsync(scope);
 
-        Assert.DoesNotContain(await svc.ListSystemCandidatesAsync("Set", seed.SetId, default),
+        Assert.DoesNotContain(await svc.ListSystemCandidatesAsync("Set", seed.SetId, TestAccess.All, default),
             c => c.SheetOrPath.StartsWith(SystemDataSets.ObjectsMarkerPrefix, StringComparison.Ordinal));
 
         await AddEntryAsync(scope, seed.ContractorTypeId, "СтройМонтаж", "{}", CatalogScope.System, null);
 
-        var candidates = await svc.ListSystemCandidatesAsync("Set", seed.SetId, default);
+        var candidates = await svc.ListSystemCandidatesAsync("Set", seed.SetId, TestAccess.All, default);
         var objectCandidates = candidates
             .Where(c => c.SheetOrPath.StartsWith(SystemDataSets.ObjectsMarkerPrefix, StringComparison.Ordinal))
             .ToList();
@@ -455,10 +455,10 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Set", seed.SetId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Объекты", MarkerFor(seed.OrgTypeId), null), default);
+            new CreateSourceInput("Объекты", MarkerFor(seed.OrgTypeId), null), TestAccess.All, default);
         Assert.Equal(1, source.CachedRowCount);
 
         await AddEntryAsync(scope, seed.OrgTypeId, "Вторая", "{}", CatalogScope.System, null);
-        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
+        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default)).CachedRowCount);
     }
 }

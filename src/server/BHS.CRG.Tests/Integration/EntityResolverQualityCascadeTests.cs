@@ -355,7 +355,7 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
 
         using var s = fixture.Services.CreateScope();
         var snapshot = s.ServiceProvider.GetRequiredService<IDomainSnapshotService>();
-        var detail = await snapshot.GetDocumentAsync(ownerId);
+        var detail = await snapshot.GetDocumentAsync(ownerId, TestAccess.All);
 
         var quality = detail!.Requisites.GetProperty("Качество");
         Assert.False(quality.TryGetProperty("$document", out _), "документ качества свёрнут в нефетчабельный адрес");
@@ -381,7 +381,7 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
 
         using var s = fixture.Services.CreateScope();
         var snapshot = s.ServiceProvider.GetRequiredService<IDomainSnapshotService>();
-        var detail = await snapshot.GetDocumentAsync(ownerId);
+        var detail = await snapshot.GetDocumentAsync(ownerId, TestAccess.All);
 
         Assert.Equal(targetId.ToString(), detail!.Requisites.GetProperty("Качество").GetProperty("$document").GetString());
     }
@@ -479,9 +479,9 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
 
         var file = await svc.UploadFileAsync(new UploadFileInput(
             Encoding.UTF8.GetBytes($"Ид\n{quality.Id}\n"), "quality.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Документы качества", candidate.SheetOrPath, null), default);
+            new CreateSourceInput("Документы качества", candidate.SheetOrPath, null), TestAccess.All, default);
         await svc.SetMaterializationAsync(source.Id, rowType.Id,
             new Dictionary<string, string> { ["Документ"] = "Ид" }, discriminator: null, byIdColumn: null, default);
         await svc.CreateBindingAsync(new CreateBindingInput(owner.Id, source.Id, "Качество", null), default);
@@ -490,7 +490,7 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
         var view = DocumentView.From(inst!);
         var entity = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var ctx = await entity.ResolveAsync(view);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, null, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, null, default);
         // Второй проход — именно он разворачивает ссылки, добавленные привязкой.
         await entity.ResolveContextRefsAsync(ctx, view.DocumentSetId);
 

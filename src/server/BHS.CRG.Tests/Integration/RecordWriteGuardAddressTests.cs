@@ -105,7 +105,7 @@ public class RecordWriteGuardAddressTests(IntegrationTestFixture fixture) : IAsy
             "Запись", typeId, JsonDocument.Parse("""{"Кол":1}"""), CatalogScope.System, null));
 
         var refusal = await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(
-            new UpdateCommonDataEntryCommand(entry.Id, "Запись", JsonDocument.Parse("""{"Кол":"12,5"}"""))));
+            new UpdateCommonDataEntryCommand(entry.Id, "Запись", JsonDocument.Parse("""{"Кол":"12,5"}"""), TestAccess.All)));
 
         Assert.Equal("Кол", Assert.Single(refusal.Details).Path);
     }

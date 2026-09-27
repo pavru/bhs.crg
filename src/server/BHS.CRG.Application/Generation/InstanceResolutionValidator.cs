@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
@@ -37,7 +38,8 @@ public interface IInstanceResolutionValidator
     Task<SchemaCatalog> LoadCatalogAsync(CancellationToken ct);
 
     /// <summary>Проверить один экземпляр справочниками, прочитанными заранее.</summary>
-    Task<IReadOnlyList<ResolutionDiagnostic>> ValidateAsync(Guid instanceId, SchemaCatalog catalog, CancellationToken ct);
+    Task<IReadOnlyList<ResolutionDiagnostic>> ValidateAsync(
+        Guid instanceId, SchemaCatalog catalog, DataAccess access, CancellationToken ct);
 }
 
 public class InstanceResolutionValidator(
@@ -54,7 +56,7 @@ public class InstanceResolutionValidator(
                (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id));
 
     public async Task<IReadOnlyList<ResolutionDiagnostic>> ValidateAsync(
-        Guid instanceId, SchemaCatalog catalog, CancellationToken ct)
+        Guid instanceId, SchemaCatalog catalog, DataAccess access, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(instanceId, ct)
             ?? throw new NotFoundException($"DocumentInstance {instanceId} not found");
@@ -62,7 +64,7 @@ public class InstanceResolutionValidator(
         var diagnostics = new List<ResolutionDiagnostic>();
         var view = DocumentView.From(instance);
         var context = await entityResolver.ResolveAsync(view, ct: ct);
-        await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
+        await dataSetResolver.InjectAsync(context, view, access, diagnostics, ct);
         await entityResolver.ApplyDefaultsAsync(context, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
         // Документы качества подмешиваем и здесь (issue #585): без этого шага проверка не увидела бы
