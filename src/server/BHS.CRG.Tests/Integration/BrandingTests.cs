@@ -55,14 +55,14 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Название_и_логотип_видны_БЕЗ_входа()
     {
         var admin = await SignInAsync(SystemRoles.Admin);
-        (await admin.PutAsJsonAsync("/api/branding", new { productName = "СУ-155" })).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync("/api/branding", new { productName = "Пример-Строй" })).EnsureSuccessStatusCode();
         (await UploadLogoAsync(admin, "logo.png", Png)).EnsureSuccessStatusCode();
 
         // Страница входа открыта до входа — и оформление на ней обязано читаться так же.
         var anonymous = fixture.CreateClient();
         var branding = await anonymous.GetFromJsonAsync<JsonElement>("/api/branding");
 
-        Assert.Equal("СУ-155", branding.GetProperty("productName").GetString());
+        Assert.Equal("Пример-Строй", branding.GetProperty("productName").GetString());
         Assert.True(branding.GetProperty("isCustom").GetBoolean());
         Assert.True(branding.GetProperty("hasLogo").GetBoolean());
 
@@ -114,7 +114,7 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Пустое_название_возвращает_умолчание_а_не_пустую_шапку()
     {
         var admin = await SignInAsync(SystemRoles.Admin);
-        (await admin.PutAsJsonAsync("/api/branding", new { productName = "СУ-155" })).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync("/api/branding", new { productName = "Пример-Строй" })).EnsureSuccessStatusCode();
 
         var cleared = await admin.PutAsJsonAsync("/api/branding", new { productName = "   " });
         var branding = await cleared.Content.ReadFromJsonAsync<JsonElement>();
@@ -183,7 +183,7 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // системным ассетом, — и проверяется здесь ровно это: обе уже проложенные дороги ведут
         // именно туда, куда обещано, на ПОЛНОМ круге выгрузить → стереть → восстановить.
         var admin = await SignInAsync(SystemRoles.Admin);
-        (await admin.PutAsJsonAsync("/api/branding", new { productName = "СУ-155" })).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync("/api/branding", new { productName = "Пример-Строй" })).EnsureSuccessStatusCode();
         (await UploadLogoAsync(admin, "logo.png", Png)).EnsureSuccessStatusCode();
 
         byte[] archive;
@@ -202,7 +202,7 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var anonymous = fixture.CreateClient();
         var branding = await anonymous.GetFromJsonAsync<JsonElement>("/api/branding");
-        Assert.Equal("СУ-155", branding.GetProperty("productName").GetString());
+        Assert.Equal("Пример-Строй", branding.GetProperty("productName").GetString());
         Assert.True(branding.GetProperty("hasLogo").GetBoolean());
 
         // И сам файл вернулся, а не одна строка о нём: иначе логотип «есть», но не рисуется.
