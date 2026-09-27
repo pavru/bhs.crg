@@ -2,6 +2,7 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Api.Endpoints.Common;
 using BHS.CRG.Application.Branding;
+using Microsoft.Net.Http.Headers;
 
 namespace BHS.CRG.Api.Endpoints.Settings;
 
@@ -35,7 +36,11 @@ public static class BrandingEndpoints
 
     public static void MapBrandingEndpoints(this IEndpointRouteBuilder app)
     {
-        var pub = app.MapGroup("/api/branding");
+        // Предел частоты — как у прочих адресов, открытых до входа: этот отдаёт файл до пяти
+        // мегабайт кому угодно (ревью PR #1061). Он щедрый нарочно: за общим адресом офиса сидят
+        // десятки людей, а оформление читает КАЖДЫЙ экран — предел, годный для «забыли пароль»,
+        // оставил бы контору без шапки и логотипа.
+        var pub = app.MapGroup("/api/branding").RequireRateLimiting("branding");
         var admin = app.MapGroup("/api/branding")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
@@ -51,8 +56,15 @@ public static class BrandingEndpoints
             // каждой замене файла. Без метки пришлось бы выбирать между «логотип не обновляется» и
             // «картинка качается на каждый экран».
             http.Response.Headers.CacheControl = "public, max-age=604800";
-            http.Response.Headers.ETag = logo.ETag;
-            return Results.File(logo.Content, logo.MimeType, logo.FileName, enableRangeProcessing: false);
+
+            // Метка версии отдаётся ЧЕРЕЗ Results.File, а не заголовком вручную: только так
+            // конвейер сравнивает её с If-None-Match и отвечает 304. Заголовок, поставленный
+            // руками, выглядел как работающий ETag — и не работал (ревью PR #1061).
+            //
+            // Без fileDownloadName: имя файла в Content-Disposition превращает ответ во вложение, а
+            // это картинка в <img> на странице входа.
+            return Results.File(logo.Content, logo.MimeType, enableRangeProcessing: false,
+                entityTag: EntityTagHeaderValue.Parse(logo.ETag));
         });
 
         admin.MapPut("/", async (ProductNameRequest req, IBrandingService branding, CancellationToken ct) =>

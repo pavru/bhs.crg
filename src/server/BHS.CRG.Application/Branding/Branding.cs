@@ -33,6 +33,19 @@ public static class BrandingDefaults
 
     /// <summary>Предел длины названия: оно стоит в шапке, на входе и в заголовке вкладки.</summary>
     public const int MaxProductNameLength = 64;
+
+    /// <summary>
+    /// Имя файла логотипа в хранилище и на диске генерации — НАШЕ, а не то, с каким файл принесли
+    /// (ревью PR #1061).
+    ///
+    /// <para>Имя файла ассета становится именем файла в <c>assets/</c>, а путь в шаблоне записан
+    /// строчными: <c>image("/assets/company-logo.png")</c>. Принесённый «Логотип.PNG» дал бы на
+    /// диске «company-logo.PNG», и в контейнере (Linux, регистр значим) печать упала бы «файл не
+    /// найден» — при том что в интерфейсе логотип виден. Заодно уходит кириллица и пробелы из
+    /// имени, которое попадает в путь компиляции.</para>
+    /// </summary>
+    public static string LogoFileName(string extension) =>
+        LogoAssetName + extension.ToLowerInvariant();
 }
 
 /// <param name="ProductName">Действующее название — заданное администратором либо умолчание.</param>

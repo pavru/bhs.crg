@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { FileCheck2 } from 'lucide-react';
 import { useBranding, logoUrl } from '@/shared/api/branding';
 
@@ -14,11 +14,17 @@ export function BrandLogo(
 ) {
   const { data } = useBranding();
   const src = logoUrl(data);
+  // Картинка не загрузилась — рисуем общий значок, а не битую рамку с alt-текстом. Признак
+  // hasLogo с сервера означает лишь, что строка ассета ЕСТЬ: файл могли убрать мимо системы, а
+  // ответ про оформление живёт в клиенте десять минут (ревью PR #1061). Ключ сбрасывает отказ при
+  // смене адреса: иначе заменённый логотип остался бы «сломанным» до перезагрузки страницы.
+  const [failed, setFailed] = useState<string | null>(null);
 
-  if (src) {
+  if (src && failed !== src) {
     return (
       <span className={`flex items-center justify-center shrink-0 overflow-hidden ${className}`} style={style}>
-        <img src={src} alt={data?.productName ?? ''} className="max-w-full max-h-full object-contain" />
+        <img src={src} alt={data?.productName ?? ''} className="max-w-full max-h-full object-contain"
+          onError={() => setFailed(src)} />
       </span>
     );
   }

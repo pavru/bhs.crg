@@ -21,6 +21,9 @@ const MAX_NAME = 64;
  */
 export function BrandingSection() {
   const { data } = useBranding();
+  // Пока настройка НЕ ПОЛУЧЕНА, сохранять нечего: поле пусто не потому, что название сняли, а
+  // потому, что его ещё не знают, — и «Сохранить» отправило бы пустоту, стерев заданное (ревью
+  // PR #1061). Та же мысль, что у знака в шапке: «ещё не знаем» — не «пусто».
   const saveName = useSaveProductName();
   const uploadLogo = useUploadLogo();
   const removeLogo = useRemoveLogo();
@@ -75,7 +78,9 @@ export function BrandingSection() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="filled" onClick={submitName} disabled={saveName.isPending}>Сохранить</Button>
+        <Button variant="filled" onClick={submitName} disabled={!data || saveName.isPending}>
+          Сохранить
+        </Button>
       </div>
 
       <div className="border-t border-stroke pt-4">

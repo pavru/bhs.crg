@@ -4,6 +4,7 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Branding;
@@ -26,8 +27,16 @@ public class BrandingService(
     AppDbContext db,
     IBlobStorage blob,
     IAppSettingsStore settings,
+    IMemoryCache cache,
     ILogger<BrandingService> logger) : IBrandingService
 {
+    /// <summary>
+    /// Сколько держим содержимое логотипа в памяти. Адрес картинки АНОНИМНЫЙ и зовётся со страницы
+    /// входа, то есть до всякой проверки прав: без кеша каждый такой запрос — обращение к
+    /// хранилищу за файлом до пяти мегабайт (ревью PR #1061). Ключ содержит метку версии, поэтому
+    /// заменённый логотип не может прийти из кеша — придёт промах по новому ключу.
+    /// </summary>
+    private static readonly TimeSpan LogoCacheFor = TimeSpan.FromMinutes(30);
     public async Task<BrandingInfo> GetAsync(CancellationToken ct = default)
     {
         var name = await settings.GetAsync(AppSettingKeys.ProductName, ct);
@@ -48,6 +57,9 @@ public class BrandingService(
         var asset = await LogoAssetAsync(ct);
         if (asset is null) return null;
 
+        if (cache.TryGetValue<BrandingLogo>(CacheKey(asset), out var cached) && cached is not null)
+            return cached;
+
         byte[] content;
         try
         {
@@ -65,12 +77,20 @@ public class BrandingService(
             return null;
         }
 
-        return new BrandingLogo(content, asset.MimeType, asset.FileName, $"\"{Version(asset)}\"");
+        var logo = new BrandingLogo(content, asset.MimeType, asset.FileName, $"\"{Version(asset)}\"");
+        cache.Set(CacheKey(asset), logo, LogoCacheFor);
+        return logo;
     }
+
+    /// <summary>Ключ кеша содержит метку версии: замена файла делает прежний ключ недостижимым.</summary>
+    private static string CacheKey(TemplateAsset asset) => $"branding-logo:{Version(asset)}";
 
     public async Task<BrandingInfo> SetLogoAsync(
         byte[] content, string fileName, string mimeType, CancellationToken ct = default)
     {
+        // Имя файла — наше (см. BrandingDefaults.LogoFileName): оно попадает в путь компиляции
+        // шаблона, и регистр там значим.
+        fileName = BrandingDefaults.LogoFileName(Path.GetExtension(fileName));
         var blobPath = await blob.UploadAsync(fileName, new MemoryStream(content), mimeType, ct);
         var asset = await LogoAssetAsync(ct);
 

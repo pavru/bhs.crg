@@ -37,6 +37,9 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private static readonly byte[] Png = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
 
+    private static readonly byte[] Svg = Encoding.UTF8.GetBytes(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\"><rect width=\"8\" height=\"8\"/></svg>");
+
     [Fact]
     public async Task До_настройки_нейтральное_название_и_без_логотипа()
     {
@@ -89,6 +92,69 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal("image/png", image.MimeType);
         // Имя и расширение — это и есть путь в шаблоне: image("/assets/company-logo.png").
         Assert.Equal(".png", Path.GetExtension(image.FileName));
+    }
+
+    [Fact]
+    public async Task Имя_файла_логотипа_наше_и_строчными()
+    {
+        // Имя файла ассета становится именем файла в assets/ при генерации, а путь в шаблоне
+        // записан строчными. «Логотип.PNG» дал бы на диске company-logo.PNG, и в контейнере
+        // (Linux, регистр значим) печать упала бы «файл не найден» — при том что в интерфейсе
+        // логотип виден (ревью PR #1061).
+        var admin = await SignInAsync(SystemRoles.Admin);
+        (await UploadLogoAsync(admin, "Логотип КОМПАНИИ.PNG", Png)).EnsureSuccessStatusCode();
+
+        using var scope = fixture.Services.CreateScope();
+        var (templateId, typeId) = await SeedTemplateAsync(scope);
+        var assets = await scope.ServiceProvider.GetRequiredService<ITemplateAssetResolver>()
+            .ResolveAsync(templateId, typeId);
+
+        var image = Assert.Single(assets.Images, i => i.Name == BrandingDefaults.LogoAssetName);
+        // Ровно тот путь, который назван в интерфейсе и в инструкции: /assets/company-logo.png.
+        Assert.Equal("company-logo.png", image.FileName);
+    }
+
+    [Fact]
+    public async Task Неизменившийся_логотип_переспрашивается_одним_304()
+    {
+        // Метка версии обещана и в комментарии, и в DEV_NOTES. Заголовок, поставленный руками,
+        // выглядел бы работающим ETag и не работал: сравнивает его конвейер, и только если метка
+        // отдана через Results.File (ревью PR #1061).
+        var admin = await SignInAsync(SystemRoles.Admin);
+        var info = await (await UploadLogoAsync(admin, "logo.png", Png)).Content.ReadFromJsonAsync<JsonElement>();
+        var version = info.GetProperty("logoVersion").GetString();
+
+        var anonymous = fixture.CreateClient();
+        var first = await anonymous.GetAsync($"/api/branding/logo?v={version}");
+        first.EnsureSuccessStatusCode();
+        var etag = first.Headers.ETag;
+        Assert.NotNull(etag);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/branding/logo?v={version}");
+        request.Headers.IfNoneMatch.Add(etag!);
+        var second = await anonymous.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NotModified, second.StatusCode);
+        Assert.Empty(await second.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task После_замены_отдаётся_НОВЫЙ_файл_а_не_кешированный()
+    {
+        // Содержимое логотипа держится в памяти (адрес анонимный, файл до пяти мегабайт). Ключ
+        // кеша содержит метку версии — но проверяется это здесь, а не в комментарии: кеш, не
+        // заметивший замену, показывал бы прежний логотип неделями и выглядел бы исправным.
+        var admin = await SignInAsync(SystemRoles.Admin);
+        (await UploadLogoAsync(admin, "logo.png", Png)).EnsureSuccessStatusCode();
+        var anonymous = fixture.CreateClient();
+        Assert.Equal(Png, await (await anonymous.GetAsync("/api/branding/logo")).Content.ReadAsByteArrayAsync());
+
+        var replaced = await (await UploadLogoAsync(admin, "logo.svg", Svg)).Content
+            .ReadFromJsonAsync<JsonElement>();
+
+        var logo = await anonymous.GetAsync($"/api/branding/logo?v={replaced.GetProperty("logoVersion").GetString()}");
+        Assert.Equal(Svg, await logo.Content.ReadAsByteArrayAsync());
+        Assert.Equal("image/svg+xml", logo.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
