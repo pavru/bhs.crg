@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseNumberStrict } from './parseNumber';
+import { parseNumber } from './parseNumber';
 
-/** Таблица из issue #1064: `null` = отказ по ячейке (значение НЕ число целиком). */
-const TABLE: [raw: string, expected: number | null][] = [
+/** Таблица из issue #1064, разбор по русской локали. `null` = отказ (значение НЕ число целиком). */
+const RU_TABLE: [raw: string, expected: number | null][] = [
   ['1.234,56', 1234.56],      // разделитель тысяч точкой — обычный вид в выгрузках и PDF
   ['1 234,56', 1234.56],      // разделитель тысяч пробелом
   ['12 шт', null],            // количество с единицей измерения — не число
@@ -12,9 +12,9 @@ const TABLE: [raw: string, expected: number | null][] = [
   ['-1 234,56', -1234.56],    // отрицательное
 ];
 
-describe('parseNumberStrict', () => {
-  it.each(TABLE)('%s → %s', (raw, expected) => {
-    expect(parseNumberStrict(raw)).toBe(expected);
+describe('parseNumber, локаль ru-RU', () => {
+  it.each(RU_TABLE)('%s → %s', (raw, expected) => {
+    expect(parseNumber(raw, 'ru-RU')).toBe(expected);
   });
 
   it('нынешний наивный разбор эту таблицу НЕ проходит', () => {
@@ -26,59 +26,81 @@ describe('parseNumberStrict', () => {
       const n = parseFloat(raw.replace(',', '.').replace(/\s/g, ''));
       return isNaN(n) ? null : n;
     };
-    const broken = TABLE.filter(([raw, expected]) => naive(raw) !== expected).map(([raw]) => raw);
+    const broken = RU_TABLE.filter(([raw, expected]) => naive(raw) !== expected).map(([raw]) => raw);
     expect(broken).toEqual(['1.234,56', '12 шт', '1.234.567,89']);
   });
 
-  it('точка как десятичный разделитель', () => {
-    expect(parseNumberStrict('12.5')).toBe(12.5);
-    expect(parseNumberStrict('0.75')).toBe(0.75);
-    expect(parseNumberStrict('.5')).toBe(0.5);
+  it('дробная часть любой длины — в том числе три знака', () => {
+    // Три знака после запятой группировкой быть не могут: первая группа — 1–3 цифры.
+    expect(parseNumber('0,125', 'ru-RU')).toBe(0.125);
+    expect(parseNumber('-0,125', 'ru-RU')).toBe(-0.125);
+    expect(parseNumber('1000,125', 'ru-RU')).toBe(1000.125);
+    expect(parseNumber('12345,678', 'ru-RU')).toBe(12345.678);
+    expect(parseNumber(',5', 'ru-RU')).toBe(0.5);
   });
 
-  it('английская запись: тысячи запятой, дробная часть точкой', () => {
-    expect(parseNumberStrict('1,234.56')).toBe(1234.56);
-    expect(parseNumberStrict('1,234,567.89')).toBe(1234567.89);
-  });
-
-  it('целые числа с группировкой и без', () => {
-    expect(parseNumberStrict('12')).toBe(12);
-    expect(parseNumberStrict('1 234 567')).toBe(1234567);
-    expect(parseNumberStrict('1.234.567')).toBe(1234567);
-    expect(parseNumberStrict('+42')).toBe(42);
-    expect(parseNumberStrict('-42')).toBe(-42);
+  it('целые с группировкой и без', () => {
+    expect(parseNumber('12', 'ru-RU')).toBe(12);
+    expect(parseNumber('1 234 567', 'ru-RU')).toBe(1234567);
+    expect(parseNumber('+42', 'ru-RU')).toBe(42);
+    expect(parseNumber('-42', 'ru-RU')).toBe(-42);
   });
 
   it('неразрывный пробел Excel считается разделителем тысяч', () => {
-    expect(parseNumberStrict('1\u00a0234,56')).toBe(1234.56);
-    expect(parseNumberStrict('1\u202f234\u202f567,89')).toBe(1234567.89);
+    expect(parseNumber('1\u00a0234,56', 'ru-RU')).toBe(1234.56);
+    expect(parseNumber('1\u202f234\u202f567,89', 'ru-RU')).toBe(1234567.89);
   });
 
-  it('пустое значение — отказ, а не нуль', () => {
-    expect(parseNumberStrict('')).toBeNull();
-    expect(parseNumberStrict('   ')).toBeNull();
-  });
-
-  it('единственный разделитель и ровно три цифры за ним — запись неоднозначная, отказ', () => {
-    // `1.234` это и «тысяча двести тридцать четыре», и «1,234». Догадка тут и есть дефект.
-    expect(parseNumberStrict('1.234')).toBeNull();
-    expect(parseNumberStrict('1,234')).toBeNull();
-    // Группы размечены пробелами — тогда точка/запятая однозначно десятичная.
-    expect(parseNumberStrict('1 234.567')).toBe(1234.567);
+  it('точка без десятичной запятой — отказ: запись неоднозначна', () => {
+    // `1.234` это и «тысяча двести тридцать четыре», и «1,234» из чужой локали. Догадка здесь и
+    // есть дефект, поэтому отказ. С явной запятой точка уже не может быть ничем, кроме тысяч.
+    expect(parseNumber('1.234', 'ru-RU')).toBeNull();
+    expect(parseNumber('1.234.567', 'ru-RU')).toBeNull();
+    expect(parseNumber('1234.567', 'ru-RU')).toBeNull();
+    expect(parseNumber('12.5', 'ru-RU')).toBeNull();
   });
 
   it('битая группировка — отказ', () => {
-    expect(parseNumberStrict('1 23 456')).toBeNull();
-    expect(parseNumberStrict('1.23.456')).toBeNull();
-    expect(parseNumberStrict('1234.5678,9')).toBeNull();
+    expect(parseNumber('1 23 456', 'ru-RU')).toBeNull();
+    expect(parseNumber('1.23.456,7', 'ru-RU')).toBeNull();
+    expect(parseNumber('1234.5678,9', 'ru-RU')).toBeNull();
+    expect(parseNumber('1,2,3', 'ru-RU')).toBeNull();
   });
 
   it('мусор рядом с числом не отбрасывается', () => {
-    expect(parseNumberStrict('12 м²')).toBeNull();
-    expect(parseNumberStrict('~12')).toBeNull();
-    expect(parseNumberStrict('12%')).toBeNull();
-    expect(parseNumberStrict('1e3')).toBeNull();
-    expect(parseNumberStrict('12,')).toBeNull();
-    expect(parseNumberStrict('-')).toBeNull();
+    expect(parseNumber('12 м²', 'ru-RU')).toBeNull();
+    expect(parseNumber('~12', 'ru-RU')).toBeNull();
+    expect(parseNumber('12%', 'ru-RU')).toBeNull();
+    expect(parseNumber('1e3', 'ru-RU')).toBeNull();
+    expect(parseNumber('12,', 'ru-RU')).toBeNull();
+    expect(parseNumber('-', 'ru-RU')).toBeNull();
+    expect(parseNumber('', 'ru-RU')).toBeNull();
+    expect(parseNumber('   ', 'ru-RU')).toBeNull();
+  });
+});
+
+describe('parseNumber, локаль en-US', () => {
+  it('десятичный разделитель — точка, группирующий — запятая', () => {
+    expect(parseNumber('12.5', 'en-US')).toBe(12.5);
+    expect(parseNumber('1.234', 'en-US')).toBe(1.234);
+    expect(parseNumber('1,234.56', 'en-US')).toBe(1234.56);
+    expect(parseNumber('1,234,567.89', 'en-US')).toBe(1234567.89);
+    expect(parseNumber('1,234', 'en-US')).toBe(1234);   // свой групповой знак группирует всегда
+    expect(parseNumber('1 234.56', 'en-US')).toBe(1234.56);
+  });
+
+  it('русская запись в этой локали — отказ, а не другое число', () => {
+    expect(parseNumber('12,5', 'en-US')).toBeNull();      // «5» не группа из трёх цифр
+    expect(parseNumber('1 234,56', 'en-US')).toBeNull();
+    expect(parseNumber('1.234,56', 'en-US')).toBeNull();  // «234,56» — не дробная часть из цифр
+  });
+});
+
+describe('parseNumber, локаль de-DE', () => {
+  it('точка группирует, запятая отделяет дробную часть', () => {
+    expect(parseNumber('1.234,56', 'de-DE')).toBe(1234.56);
+    expect(parseNumber('1.234', 'de-DE')).toBe(1234);     // здесь точка — СВОЙ групповой знак
+    expect(parseNumber('12,5', 'de-DE')).toBe(12.5);
+    expect(parseNumber('1,234.56', 'de-DE')).toBeNull();
   });
 });

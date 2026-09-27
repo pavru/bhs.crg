@@ -5,20 +5,22 @@ import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
-import { parseNumberStrict } from '@/shared/utils/parseNumber';
+import { parseNumber } from '@/shared/utils/parseNumber';
 import { ruPlural } from '@/shared/utils/pluralize';
+import { useLocale, resolveLocale, LOCALE_OPTIONS, SYSTEM_LOCALE } from '@/shared/hooks/useLocale';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
 /**
  * Приведение скалярного значения ячейки к типу поля. `null` → ячейка НЕ разобрана: она остаётся
  * пустой и называется человеку (issue #1064), а не заполняется догадкой.
  *
- * <p>Числа разбираются строго: `parseFloat` брал префикс и менял только первую запятую, поэтому
- * `1.234,56` уезжало в 1.234 — в тысячу раз меньше, без единого признака на экране, — а `12 шт`
- * проходило как 12. Правила разбора — в {@link parseNumberStrict}.</p>
+ * <p>Числа разбираются строго и ПО РЕГИОНАЛЬНОЙ НАСТРОЙКЕ — той же, какой они форматируются
+ * (issue #953). `parseFloat` брал префикс и менял только первую запятую, поэтому `1.234,56`
+ * уезжало в 1.234 — в тысячу раз меньше, без единого признака на экране, — а `12 шт` проходило
+ * как 12. Правила разбора — в {@link parseNumber}.</p>
  */
-function coerceScalar(field: SchemaField, raw: string): unknown {
-  if (field.type === 'number') return parseNumberStrict(raw);
+function coerceScalar(field: SchemaField, raw: string, locale: string): unknown {
+  if (field.type === 'number') return parseNumber(raw, locale);
   if (field.type === 'boolean') return ['1', 'да', 'true', 'yes', '+', 'y'].includes(raw.toLowerCase());
   if (field.type === 'enum') {
     const opts = (field.options ?? []).filter(o => o !== '');
@@ -91,6 +93,9 @@ function PasteMappingModalBody({
   onOpenChange, initialText, tableFields, allDocTypes, scope, scopeId, onApply,
 }: PasteMappingModalProps) {
   const [initial] = useState(() => detectMapping(tableFields, initialText));
+  // Числа разбираются по той же региональной настройке, какой они показываются (issue #953):
+  // она и решает, что в `12,5` запятая десятичная, а в `1,234` — разделитель тысяч.
+  const [locale] = useLocale();
   const [step, setStep] = useState<'input' | 'map'>(initialText.trim() ? 'map' : 'input');
   const [rawText, setRawText] = useState(initialText);
   const [skipHeader, setSkipHeader] = useState(initial.skipHeader);
@@ -145,7 +150,11 @@ function PasteMappingModalBody({
   // или «по ключу» (identity-поля, OR: значение матчит любое identity-поле). Нет совпадения →
   // inline-данные (сырой текст в identity/строковое под-поле), чтобы НЕ терять ввод (не пусто).
   async function stage() {
-    const dataOnly = dataRows.filter(r => r.some(c => c.trim()));
+    // Номер строки считается по ВСТАВЛЕННОМУ тексту — со строкой заголовков и пропущенными
+    // пустыми: сводка зовёт «исправьте источник», значит человек пойдёт искать эту строку у себя.
+    const lineOffset = skipHeader ? 2 : 1;
+    const dataOnly: { cells: string[]; line: number }[] = [];
+    dataRows.forEach((r, i) => { if (r.some(c => c.trim())) dataOnly.push({ cells: r, line: i + lineOffset }); });
     const rows: Record<string, unknown>[] = dataOnly.map(() => ({}));
     const flat: ObjectResolveItem[] = [];
     // На complex-ячейку — диапазон [start, start+count) запросов в flat; фолбэк — куда класть inline.
@@ -153,7 +162,7 @@ function PasteMappingModalBody({
     // Ячейки, которые не легли в тип поля: остаются пустыми и НАЗЫВАЮТСЯ в сводке (issue #1064).
     const rejects: RejectedCell[] = [];
 
-    dataOnly.forEach((r, ri) => {
+    dataOnly.forEach(({ cells: r, line }, ri) => {
       Object.entries(fieldCol).forEach(([fieldKey, ci]) => {
         const field = tableFields.find(f => f.key === fieldKey);
         if (!field) return;
@@ -177,9 +186,9 @@ function PasteMappingModalBody({
           }
           cells.push({ row: ri, fieldKey, raw, start, count: flat.length - start, fallbackKey });
         } else {
-          const v = coerceScalar(field, raw);
+          const v = coerceScalar(field, raw, locale);
           if (v !== null) rows[ri][fieldKey] = v;
-          else rejects.push({ row: ri + 1, title: field.title, raw, type: field.type });
+          else rejects.push({ row: line, title: field.title, raw, type: field.type });
         }
       });
     });
@@ -206,11 +215,20 @@ function PasteMappingModalBody({
       setResolving(false);
     }
 
+    // Строка, у которой ВСЕ сопоставленные ячейки ушли в отказ, не вставляется вовсе: пустая
+    // строка в таблице — не данные, а мусор, который человеку ещё и удалять руками.
+    const filled = rows.filter(r => Object.keys(r).length > 0);
+
     // Сводка перед вставкой нужна, если есть что назвать: несопоставленные ссылки ИЛИ ячейки,
     // не разобранные по типу. Молча уехать может только полностью разобранная вставка.
-    if (inline === 0 && rejects.length === 0) { onApply(rows); onOpenChange(false); }
-    else setPending({ rows, linked, inline, rejects });
+    if (inline === 0 && rejects.length === 0) { onApply(filled); onOpenChange(false); }
+    else setPending({ rows: filled, linked, inline, rejects });
   }
+
+  // Отказ по числу необъясним без имени настройки, по которой его разбирали.
+  const localeLabel = locale === SYSTEM_LOCALE
+    ? `${LOCALE_OPTIONS.find(o => o.value === SYSTEM_LOCALE)?.label}: ${resolveLocale(locale)}`
+    : LOCALE_OPTIONS.find(o => o.value === locale)?.label ?? locale;
 
   const selectCls = 'w-full min-w-[140px] border border-stroke-strong rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
 
@@ -249,14 +267,19 @@ function PasteMappingModalBody({
             <Button variant="text" onClick={() => setPending(null)}>← Изменить сопоставление</Button>
             <div className="flex gap-3">
               <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
-              <Button variant="filled" onClick={() => { onApply(pending.rows); onOpenChange(false); }}>
-                Вставить {importCount} стр.
+              <Button variant="filled" disabled={pending.rows.length === 0}
+                onClick={() => { onApply(pending.rows); onOpenChange(false); }}>
+                Вставить {pending.rows.length} стр.
               </Button>
             </div>
           </div>
         }>
         <div className="space-y-3 text-sm">
-          <p className="text-fg2">Будет вставлено строк: <span className="font-medium text-fg1">{importCount}</span></p>
+          <p className="text-fg2">Будет вставлено строк: <span className="font-medium text-fg1">{pending.rows.length}</span>
+            {pending.rows.length < importCount && (
+              <span className="text-fg4"> (из {importCount}: остальные не дали ни одного значения)</span>
+            )}
+          </p>
           {pending.linked + pending.inline > 0 && (
             <ul className="space-y-1.5">
               <li className="text-fg2">🔗 Связано с каталогом: <span className="font-medium text-fg1">{pending.linked}</span></li>
@@ -287,6 +310,13 @@ function PasteMappingModalBody({
                 Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя:
                 ячейка остаётся пустой — заполните её вручную после вставки либо исправьте источник.
               </p>
+              {pending.rejects.some(c => c.type === 'number') && (
+                <p className="text-xs text-fg4">
+                  Числа разбираются по региональной настройке (<span className="text-fg3">{localeLabel}</span>):
+                  десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
+                  Настройка — в профиле, раздел «Внешний вид».
+                </p>
+              )}
             </div>
           )}
           {pending.inline > 0 && (
