@@ -76,10 +76,17 @@ public record DocumentDetail(
 /// именно на этом ответе, и без происхождения он примет распознанную таблицу за первоисточник —
 /// то самое различие, ради которого <see cref="DataOrigin" /> и заводился (issue #415).
 /// </param>
+/// <param name="RowsError">
+/// Строки привязанного источника прочитать не удалось: файл недоступен, консолидации больше нет,
+/// настройка источника негодна (issue #966). Заведено потому, что иначе отказ приходил агенту
+/// НЕОТЛИЧИМЫМ от «значения нет»: <c>rowCount</c> в обоих случаях пуст, и сверка, построенная на
+/// таком ответе, объявила бы таблицу пустой. То же правило, что у <c>rowsError</c> источника
+/// (<see cref="SourceDetail" />).
+/// </param>
 public record DocumentTableField(
     string Key, string? Title, bool BoundToDataset,
     Guid? SourceId, string? SourceName, Guid? DatasetId, string? DatasetName, int? RowCount,
-    DataOrigin? Origin = null);
+    DataOrigin? Origin = null, string? RowsError = null);
 
 /// <summary>Запись каталога (общие данные): организация, лицо, объект строительства и т.п.</summary>
 /// <param name="Scope">Уровень видимости: System / Construction / Section / Set.</param>

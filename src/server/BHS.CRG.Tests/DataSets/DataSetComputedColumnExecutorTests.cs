@@ -74,12 +74,15 @@ public class DataSetComputedColumnExecutorTests
     }
 
     [Fact]
-    public void MalformedJson_ReturnsUnchanged()
+    public void Испорченное_описание_отказ_а_не_молчаливая_пропажа_колонки()
     {
+        // Тот же род отказа, что у отбора (issue #966): до 0.199.1 негодное описание оставляло
+        // строки без вычисляемой колонки, а шаблон печатает пустое место. Отказ по строке остаётся
+        // терпимым (ниже) — негодно описание целиком, а не данные отдельной строки.
         var rows = Rows([("A", "1")]);
-        var result = DataSetComputedColumnExecutor.Apply("{ broken", rows);
-        Assert.Single(result);
-        Assert.False(result[0].ContainsKey("B"));
+        var refusal = Assert.Throws<ConflictException>(
+            () => DataSetComputedColumnExecutor.Apply("{ broken", rows, "Материалы"));
+        Assert.Contains("Материалы", refusal.Message);
     }
 
     [Fact]

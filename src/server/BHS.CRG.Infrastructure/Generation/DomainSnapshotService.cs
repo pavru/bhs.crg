@@ -256,7 +256,14 @@ public class DomainSnapshotService(
             // Сломанная привязка (файл удалён, хранилище недоступно, консолидации больше нет) НЕ
             // должна ронять чтение документа: генерация такие привязки пропускает с диагностикой, а
             // здесь ответ важнее числа — rowCount останется пустым.
+            //
+            // ⚠️ Но пустое число без причины — это отказ, переодетый в результат (ревью PR #1058):
+            // «сосчитать не удалось» и «значения нет» выглядели для агента одинаково, и сверка
+            // объявила бы таблицу пустой при живых строках. Поэтому рядом едет rowsError — по тому
+            // же правилу, что у источника в get_source. Наш отказ уходит дословно, чужая ошибка —
+            // общим текстом: её сообщение называет хост, базу или бакет (правило issue #691).
             int? rowCount = null;
+            string? rowsError = null;
             try
             {
                 rowCount = (await rowLoader.LoadRowsAsync(binding.Source, access, ct)).Count;
@@ -265,13 +272,15 @@ public class DomainSnapshotService(
             {
                 logger.LogWarning(ex, "Не удалось посчитать строки источника {SourceId} для поля {Field} документа {DocumentId}",
                     binding.SourceId, field.Key, documentId);
+                rowsError = Refusals.TextOr(ex,
+                    "Строки источника прочитать не удалось — подробности в журнале сервера.");
             }
 
             result.Add(new DocumentTableField(
                 field.Key, field.Title, true,
                 binding.SourceId, binding.Source.Name,
                 binding.Source.FileId, binding.Source.File?.Name,
-                rowCount, binding.Source.Origin));
+                rowCount, binding.Source.Origin, rowsError));
         }
         return result;
     }

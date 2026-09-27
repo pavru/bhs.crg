@@ -3,7 +3,7 @@ import {
   parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
   mergeBindingPreviewsIntoValues, computeBoundFieldKeys, computeRecognizedFieldKeys,
   computeStaleFieldKeys, computeStaleReasonByField, staleReasonText,
-  isFileMappingValue, parseFileMapping, buildFileMapping, nextSourceName,
+  isFileMappingValue, parseFileMapping, buildFileMapping, nextSourceName, isEditableFilterRoot,
 } from './datasetHelpers';
 import type { FilterGroup, DataSetBindingPreviewResult } from './types';
 
@@ -50,6 +50,21 @@ describe('countFilterConditions', () => {
 
   it('does not count a condition with empty column', () => {
     expect(countFilterConditions({ type: 'condition', column: '', op: 'eq' })).toBe(0);
+  });
+
+  // Негодная форма отбора лежит в базе (сервер такой отбор ОТКАЗЫВАЕТСЯ выполнять, issue #966), и
+  // значок на строке источника не имеет права ронять рендер: граница ошибок здесь страничная, и
+  // одно исключение уносило всю страницу наборов данных (ревью PR #1058).
+  it('не падает на узле чужой формы — считает нулём', () => {
+    const bogus = [
+      'A = Кабель',
+      [{ type: 'condition', column: 'A', op: 'eq' }],
+      { type: 'group', logic: 'and' },          // без children
+      { type: 'conditon', column: 'A' },        // опечатка в виде узла
+      42,
+    ];
+    for (const node of bogus)
+      expect(countFilterConditions(node as never)).toBe(0);
   });
 
   it('counts conditions across nested groups', () => {
@@ -340,5 +355,21 @@ describe('computeStaleReasonByField', () => {
       { targetFieldKey: 'Схемы', mapping: {}, source: { recognitionStale: false, staleReason: 'FileReplaced' } },
     ]);
     expect(reasons.size).toBe(0);
+  });
+});
+
+describe('isEditableFilterRoot', () => {
+  it('корневая группа с детьми — редактируема', () => {
+    expect(isEditableFilterRoot({ type: 'group', logic: 'and', children: [] })).toBe(true);
+  });
+
+  it('чужая форма и пустое значение — нет', () => {
+    // Диалог отбора открывают ПО ОТКАЗУ сервера «исправьте условия отбора»; принять негодную форму
+    // он не может (редактировать в ней нечего), но и упасть не имеет права.
+    expect(isEditableFilterRoot(null)).toBe(false);
+    expect(isEditableFilterRoot(undefined)).toBe(false);
+    expect(isEditableFilterRoot('A = Кабель' as never)).toBe(false);
+    expect(isEditableFilterRoot({ type: 'group', logic: 'and' } as never)).toBe(false);
+    expect(isEditableFilterRoot({ type: 'condition', column: 'A' } as never)).toBe(false);
   });
 });
