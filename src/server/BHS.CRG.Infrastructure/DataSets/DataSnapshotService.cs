@@ -132,7 +132,10 @@ public class DataSnapshotService(
             loaded is null ? null : RowsFingerprint.Of(loaded.Rows), rowsError,
             LiveColumns(loaded?.Columns ?? fallback?.Columns) ?? Columns(source.CachedSchema),
             SheetOf(source, grouping),
-            loaded?.Warning ?? fallback?.Warning);
+            loaded?.Warning ?? fallback?.Warning,
+            // Границу выдачи знает только УДАВШАЯСЯ загрузка: у запасного счётчика её нет, и подписать
+            // описание источника прошлой подписью значило бы соврать о правах на момент вызова.
+            loaded?.Boundary);
     }
 
     public async Task<RowsPage?> GetRowsAsync(
@@ -176,12 +179,14 @@ public class DataSnapshotService(
             return new RowsPage(
                 source.Id, offset, limit, all.Count,
                 Truncated: offset + page.Count < all.Count,
-                columns, [], hash, pageHash, Unchanged: true);
+                // Граница едет и с «не изменилось»: строк в ответе нет, а подпись к ним нужна —
+                // иначе агент, получивший unchanged, потерял бы её на всех последующих страницах.
+                columns, [], hash, pageHash, Unchanged: true, Boundary: loaded.Boundary);
 
         return new RowsPage(
             source.Id, offset, limit, all.Count,
             Truncated: offset + page.Count < all.Count,
-            columns, page, hash, pageHash);
+            columns, page, hash, pageHash, Boundary: loaded.Boundary);
     }
 
     // ── Достоверность снимка ─────────────────────────────────────────────────────

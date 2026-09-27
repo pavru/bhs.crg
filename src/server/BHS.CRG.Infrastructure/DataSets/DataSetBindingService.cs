@@ -16,6 +16,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 public class DataSetBindingService(
     AppDbContext db,
     IDataSetRowLoader rowLoader,
+    SystemDataProviderRegistry systemProviders,
     ILogger<DataSetBindingService> logger)
 {
     public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct)
@@ -152,6 +153,23 @@ public class DataSetBindingService(
         var source = await db.DataSetSources.Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == input.SourceId, ct);
         if (source == null) return null;
+
+        // Запреты опубликованного набора (ТЗ CORE-24.2, issue #965) — ЗДЕСЬ, на привязке: это
+        // единственная дверь, которой набор попадает и в запись общих данных, и в печатную форму.
+        if (source.File.IsSystem)
+        {
+            // Владелец — документ или запись общих данных: различает их документная фасета
+            // (DomainObject.IsDocument). Владельца, которого нет вовсе, считаем НЕ документом: у
+            // записи запрет строже, и ошибиться в эту сторону безопаснее.
+            var ownerIsDocument = await db.DomainObjects.AsNoTracking()
+                .AnyAsync(o => o.Id == input.OwnerId && o.Facet != null, ct);
+            SystemDataSetRules.EnsureBindableTo(ownerIsDocument, source.Name);
+
+            // Привязка — это и есть путь набора в печатную форму, поэтому здесь же проверяется, что
+            // набор одинаков для всех, кто вправе его читать.
+            if (systemProviders.TryGet(source.SheetOrPath) is { } provider)
+                SystemDataSetRules.EnsureShared(provider.Declaration, "печатная форма");
+        }
 
         var binding = DataSetBinding.For(input.OwnerId, input.SourceId, input.TargetFieldKey,
             DataSetDtoMapper.SerializeMapping(input.Mapping));

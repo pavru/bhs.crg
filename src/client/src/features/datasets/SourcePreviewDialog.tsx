@@ -1,10 +1,30 @@
 import { useState } from 'react';
-import { Loader2, FileText, ExternalLink } from 'lucide-react';
+import { Loader2, FileText, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
 import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
+
+/**
+ * Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965).
+ *
+ * Подпись ПОСТОЯННАЯ и нейтральная по виду: не предупреждение и не ошибка. Строки такого набора
+ * отобраны по правам открывшего, и человек должен видеть это и тогда, когда всё в порядке —
+ * оформленная как замечание, она читалась бы как «что-то не так», и её перестали бы замечать.
+ *
+ * Про скрытое не сказано намеренно: «12 строк скрыто» человек проверить не может, а две разные
+ * цифры, обе выглядящие окончательными, опаснее одной с оговоркой.
+ */
+function SourceBoundary({ boundary }: { boundary?: string | null }) {
+  if (!boundary) return null;
+  return (
+    <div className="px-1 pt-2 text-xs text-fg3 flex items-start gap-1.5">
+      <ShieldCheck size={13} className="mt-0.5 shrink-0 text-fg4" />
+      <span>{boundary}</span>
+    </div>
+  );
+}
 
 const MAX_ROWS = 200;
 
@@ -58,6 +78,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
           </div>
         );
       })}
+      <SourceBoundary boundary={data.boundary} />
       <div className="px-1 pt-1 text-xs text-fg4">
         {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
       </div>
@@ -122,6 +143,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
               </tbody>
             </table>
           </div>
+          <SourceBoundary boundary={data.boundary} />
           <div className="px-1 pt-2 text-xs text-fg4">
             {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
           </div>

@@ -16,6 +16,7 @@ namespace BHS.CRG.Infrastructure.Reconciliation;
 public class ReconciliationRunner(
     AppDbContext db,
     IDataSetRowLoader rowLoader,
+    SystemDataProviderRegistry systemProviders,
     ILogger<ReconciliationRunner> logger) : IReconciliationRunner
 {
     private static JsonSerializerOptions Json => ReconciliationSpecJson.Options;
@@ -117,6 +118,13 @@ public class ReconciliationRunner(
             var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
                 .FirstOrDefaultAsync(s => s.Id == part.SourceId, ct)
                 ?? throw new ConflictException($"Источник {part.SourceId} не найден.");
+
+            // Сверка обязана давать один ответ всем, кто вправе её прогнать (ТЗ CORE-24.1): набор с
+            // построчной изоляцией дал бы две находки с разными суммами, и расхождение вскрылось бы
+            // после подписи. Проверяем на ПРОГОНЕ, а не при сохранении определения: спека — это JSON,
+            // и разбирать её вторым местом значило бы повторить здесь всё разрешение источников.
+            if (source.File.IsSystem && systemProviders.TryGet(source.SheetOrPath) is { } provider)
+                SystemDataSetRules.EnsureShared(provider.Declaration, "сверка");
 
             var rows = await rowLoader.LoadRowsAsync(source, access, ct);
 

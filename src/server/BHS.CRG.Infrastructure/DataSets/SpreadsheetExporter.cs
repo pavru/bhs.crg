@@ -24,15 +24,24 @@ public static class SpreadsheetExporter
         _ => SpreadsheetFormat.Xlsx, // xlsx — по умолчанию (приоритетный)
     };
 
+    /// <param name="preamble">
+    /// Строки НАД таблицей — тем же приёмом, что у многолистового отчёта (<see cref="Sheet" />). Сюда
+    /// идёт граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): выгрузка уходит из
+    /// системы и живёт своей жизнью, а «что это за строки и все ли они» по самому файлу не узнать.
+    /// У CSV шапки нет — строки становятся первыми записями файла, до заголовка колонок: своего места
+    /// под примечание в формате не предусмотрено, а потерять подпись хуже, чем сдвинуть заголовок.
+    /// </param>
     public static (byte[] Bytes, string Extension, string ContentType) Export(
         SpreadsheetFormat format,
         IReadOnlyList<string> columns,
         IReadOnlyList<IReadOnlyList<string?>> rows,
-        string sheetName = "Данные") => format switch
+        string sheetName = "Данные",
+        IReadOnlyList<string>? preamble = null) => format switch
     {
-        SpreadsheetFormat.Csv => (Csv(columns, rows), "csv", "text/csv; charset=utf-8"),
-        SpreadsheetFormat.Xls => (Workbook(new HSSFWorkbook(), columns, rows, sheetName), "xls", "application/vnd.ms-excel"),
-        _ => (Workbook(new XSSFWorkbook(), columns, rows, sheetName), "xlsx",
+        SpreadsheetFormat.Csv => (Csv(columns, rows, preamble), "csv", "text/csv; charset=utf-8"),
+        SpreadsheetFormat.Xls => (Workbook(new HSSFWorkbook(), columns, rows, sheetName, preamble), "xls",
+            "application/vnd.ms-excel"),
+        _ => (Workbook(new XSSFWorkbook(), columns, rows, sheetName, preamble), "xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     };
 
@@ -88,12 +97,19 @@ public static class SpreadsheetExporter
         }
     }
 
-    private static byte[] Csv(IReadOnlyList<string> columns, IReadOnlyList<IReadOnlyList<string?>> rows)
+    private static byte[] Csv(IReadOnlyList<string> columns, IReadOnlyList<IReadOnlyList<string?>> rows,
+        IReadOnlyList<string>? preamble = null)
     {
         using var ms = new MemoryStream();
         using (var writer = new StreamWriter(ms, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)))
         using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
         {
+            foreach (var line in preamble ?? [])
+            {
+                csv.WriteField(line);
+                csv.NextRecord();
+            }
+
             foreach (var c in columns) csv.WriteField(c);
             csv.NextRecord();
             foreach (var row in rows)
@@ -107,17 +123,12 @@ public static class SpreadsheetExporter
     }
 
     private static byte[] Workbook(IWorkbook wb, IReadOnlyList<string> columns,
-        IReadOnlyList<IReadOnlyList<string?>> rows, string sheetName)
+        IReadOnlyList<IReadOnlyList<string?>> rows, string sheetName,
+        IReadOnlyList<string>? preamble = null)
     {
-        var sheet = wb.CreateSheet(SafeSheetName(sheetName));
-        var header = sheet.CreateRow(0);
-        for (var c = 0; c < columns.Count; c++) header.CreateCell(c).SetCellValue(columns[c]);
-        for (var r = 0; r < rows.Count; r++)
-        {
-            var row = sheet.CreateRow(r + 1);
-            for (var c = 0; c < columns.Count; c++)
-                row.CreateCell(c).SetCellValue(c < rows[r].Count ? rows[r][c] ?? "" : "");
-        }
+        // Один и тот же приём на одном листе и на многих: шапка пишется WriteSheet (issue #444), и
+        // второй её экземпляр здесь разошёлся бы с ним при первой правке.
+        WriteSheet(wb, new Sheet(sheetName, columns, rows, preamble));
         using var ms = new MemoryStream();
         wb.Write(ms, leaveOpen: true);
         return ms.ToArray();

@@ -41,6 +41,7 @@ public class DataSetRowLoader(
         // записано при создании. Спрашивать то же второй раз значило бы повторить всю загрузку.
         IReadOnlyList<DataSetColumnInfo>? columns = null;
         string? warning = null;
+        string? boundary = null;
         if (source.File.Format == DataSetFormat.Pdf)
         {
             // Кэш распознавания — сам себе описание: CachedSchema писался тем же проходом, что и
@@ -59,6 +60,10 @@ public class DataSetRowLoader(
             parsedRows = provided.Rows.ToList();
             columns = provided.Columns;
             warning = provided.Warning;
+            // Подпись к данным — ПОСТОЯННАЯ, а не сообщение об ошибке (ТЗ CORE-24.3): человек должен
+            // видеть, что именно ему отдали, и в удачном случае тоже. «12 строк скрыто» не годится:
+            // две разные цифры, обе выглядящие окончательными, опаснее одной с оговоркой.
+            boundary = provider.Declaration.BoundaryFor(provided.Boundary);
         }
         else
         {
@@ -78,7 +83,7 @@ public class DataSetRowLoader(
         var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows);
         rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
         rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
-        return new LoadedRows(rows, parsedRows.Count, columns, warning);
+        return new LoadedRows(rows, parsedRows.Count, columns, warning, boundary);
     }
 
     private static List<IReadOnlyDictionary<string, string?>> DeserializeCachedData(string? json)

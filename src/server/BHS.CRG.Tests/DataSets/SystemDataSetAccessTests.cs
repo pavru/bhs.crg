@@ -166,6 +166,82 @@ public class SystemDataSetAccessTests
         Assert.False(SystemDataSetGate.Allows(Good, TestAccess.With("core.catalog.read")));
     }
 
+    // ── Граница выдачи: чем подписаны данные (ТЗ CORE-24.3) ───────────────────
+
+    [Fact]
+    public void Один_объявленный_исход_подписывает_данные_сам()
+    {
+        Assert.Equal("Отдаёт документы комплекта", Good.BoundaryFor(null));
+    }
+
+    [Fact]
+    public void Поставщик_вправе_назвать_свой_исход()
+    {
+        // Ради этого исход и передаётся: у набора с изоляцией их несколько, и выбирает поставщик —
+        // ядро на его месте сочинило бы безликое «показаны доступные вам строки».
+        var declaration = Good with
+        {
+            Isolation = SystemDataSetIsolation.PerUser,
+            Boundary = ["Отдаёт отчёты ваших строек", "Отдаёт все стройки — право «читать всё»"],
+        };
+
+        Assert.Equal("Отдаёт все стройки — право «читать всё»",
+            declaration.BoundaryFor("Отдаёт все стройки — право «читать всё»"));
+    }
+
+    [Fact]
+    public void Несколько_исходов_без_выбора_отказ_а_не_первый()
+    {
+        // Подписать наугад нельзя: человек прочитал бы «все стройки» там, где ему отдали свои, —
+        // и это хуже отсутствующей подписи, потому что выглядит окончательным.
+        var declaration = Good with
+        {
+            Isolation = SystemDataSetIsolation.PerUser,
+            Boundary = ["Отдаёт отчёты ваших строек", "Отдаёт все стройки"],
+        };
+
+        var refusal = Assert.Throws<ConflictException>(() => declaration.BoundaryFor(null));
+        Assert.Contains("не сказал, какой", refusal.Message);
+    }
+
+    // ── Чего опубликованный набор не делает (ТЗ CORE-24.2) ────────────────────
+
+    [Fact]
+    public void К_записи_общих_данных_набор_не_привязывается()
+    {
+        var refusal = Assert.Throws<ConflictException>(() =>
+            SystemDataSetRules.EnsureBindableTo(ownerIsDocument: false, "Материалы"));
+
+        // Причина названа полностью: без неё запрет читается как поломка, и человек пойдёт искать,
+        // почему «не работает привязка».
+        Assert.Contains("переживут отзыв права", refusal.Message);
+        Assert.Contains("Материалы", refusal.Message);
+    }
+
+    [Fact]
+    public void К_документу_комплекта_привязывается()
+    {
+        // Там резолв живой: значения собираются в data.json в момент генерации и не сохраняются.
+        SystemDataSetRules.EnsureBindableTo(ownerIsDocument: true, "Материалы");
+    }
+
+    [Fact]
+    public void Набор_с_изоляцией_к_печати_и_сверке_не_подключается()
+    {
+        var isolated = Good with { Isolation = SystemDataSetIsolation.PerUser };
+
+        foreach (var what in new[] { "печатная форма", "сверка" })
+        {
+            var refusal = Assert.Throws<ConflictException>(() =>
+                SystemDataSetRules.EnsureShared(isolated, what));
+            Assert.Contains(what, refusal.Message);
+            Assert.Contains("после подписи", refusal.Message);
+        }
+
+        // А набор без изоляции подключается: он одинаков для всех, кто вправе его читать.
+        SystemDataSetRules.EnsureShared(Good, "печатная форма");
+    }
+
     // ── Загрузчик строк: ворота стоят ДО обращения к поставщику ────────────────
 
     private sealed class NoBlob : IBlobStorage

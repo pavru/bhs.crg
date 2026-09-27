@@ -37,13 +37,25 @@ public class DataSetResolver(
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
     {
         var ctx = new GenerationContext();
-        await ResolveBindingsCoreAsync(ctx, ownerId, typeId, scopeLevel, scopeId, access, diagnostics, ct);
+        await ResolveBindingsCoreAsync(ctx, ownerId, typeId, scopeLevel, scopeId, access, diagnostics, ct,
+            forPersist: true);
         return ctx.Data;
     }
 
+    /// <param name="forPersist">
+    /// Резолв для ПЕРСИСТА (sync-on-save записи общих данных), а не для генерации. Строки
+    /// опубликованного набора в этот путь не попадают (ТЗ CORE-24.2, issue #965): они легли бы прямо
+    /// в данные записи и пережили бы отзыв права.
+    ///
+    /// <para>Новую такую привязку не создать вовсе (<c>SystemDataSetRules.EnsureBindableTo</c>), но
+    /// заведённая ДО правила в базе заказчика лежать может. Поэтому здесь пропуск с предупреждением,
+    /// а не отказ: отказ запер бы саму запись — правка карточки перестала бы сохраняться, и человек
+    /// остался бы без всякого выхода, кроме обращения в поддержку. Значения, попавшие в данные
+    /// прежде, не трогаем: удалять чужие данные молча — не наше решение.</para>
+    /// </param>
     private async Task ResolveBindingsCoreAsync(GenerationContext ctx, Guid ownerId, Guid typeId,
         CatalogScope scopeLevel, Guid? scopeId, DataAccess access,
-        List<ResolutionDiagnostic>? diagnostics, CancellationToken ct)
+        List<ResolutionDiagnostic>? diagnostics, CancellationToken ct, bool forPersist = false)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
@@ -51,7 +63,26 @@ public class DataSetResolver(
             .AsNoTracking()
             .ToListAsync(ct);
 
+        if (forPersist)
+        {
+            foreach (var published in bindings.Where(b => b.Source.File.IsSystem))
+                diagnostics?.Add(new ResolutionDiagnostic(
+                    DiagnosticSeverity.Warning,
+                    published.TargetFieldKey ?? "(скалярная привязка)",
+                    $"Привязка источника «{published.Source.Name}» пропущена: набор отбирает строки по " +
+                    "правам, и в данные записи они не сохраняются — иначе пережили бы отзыв права. " +
+                    "Поле заполняется только на документе комплекта."));
+            bindings = [.. bindings.Where(b => !b.Source.File.IsSystem)];
+        }
+
         if (bindings.Count == 0) return;
+
+        // Границы выдачи опубликованных наборов — в контекст генерации, то есть в data.json
+        // отладочного комплекта (ТЗ CORE-24.3, issue #965). Нужны ровно там: отладочный пакет — то
+        // единственное место, где видно, ЧТО шаблон получил на входе, и подпись «строки отобраны по
+        // правам такого-то» объясняет расхождение печатной формы с экраном. Ключ с подчёркиванием —
+        // та же конвенция, что у `_baseRef` и `_type`.
+        var boundaries = new List<Dictionary<string, string?>>();
 
         // Схема типов (для кардинальности целевого поля материализации/табличной связки) — лениво, один раз.
         Dictionary<Guid, DocumentType>? typesById = null;
@@ -125,7 +156,15 @@ public class DataSetResolver(
                 }
 
                 // Download → parse → transformation → filter → sort (shared with preview via DataSetRowLoader).
-                var rows = await rowLoader.LoadRowsAsync(binding.Source, access, ct);
+                var loaded = await rowLoader.LoadAsync(binding.Source, access, ct);
+                var rows = loaded.Rows;
+                if (loaded.Boundary is { } boundary)
+                    boundaries.Add(new()
+                    {
+                        ["источник"] = binding.Source.Name,
+                        ["поле"] = binding.TargetFieldKey,
+                        ["граница"] = boundary,
+                    });
 
                 // Материализация ссылкой на существующий документ (issue #725). Проверяем ДО маппинга:
                 // в этом режиме маппинга нет вовсе, и общая ветка отказала бы «маппинг колонок пуст» —
@@ -318,6 +357,11 @@ public class DataSetResolver(
                     $"Источник данных недоступен — поле не заполнено. {ex.Message}"));
             }
         }
+
+        // Ставим ПОСЛЕ разбора привязок и только при непустом списке: у документа без опубликованных
+        // наборов ключа в data.json не появляется вовсе — пустой массив читался бы как «границ нет»,
+        // а их нет потому, что нечему их иметь.
+        if (boundaries.Count > 0) ctx.Set("_dataSets", boundaries);
     }
 
     /// <summary>

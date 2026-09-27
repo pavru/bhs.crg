@@ -46,6 +46,11 @@ public interface IDataSetRowLoader
 /// <param name="Warning">Оговорка к данным на момент загрузки (issue #626): строки прочитаны
 /// успешно, но часть данных внутри них неизвестна — «не собрано документов: 9 из 12». Не путать с
 /// отказом чтения: там строк нет вовсе.</param>
+/// <param name="Boundary">Текст границы выдачи опубликованного набора (ТЗ CORE-24.3, issue #965):
+/// что именно набор отдал этому человеку. Постоянная подпись рядом с данными, а не сообщение об
+/// ошибке: «Отдаёт документы комплекта — право „видеть документы и комплекты“». null — источник не
+/// опубликованный (файл, распознанный PDF): его границу задаёт сам файл.</param>
 public record LoadedRows(
     IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows, int RawRowCount,
-    IReadOnlyList<DataSetColumnInfo>? Columns = null, string? Warning = null);
+    IReadOnlyList<DataSetColumnInfo>? Columns = null, string? Warning = null,
+    string? Boundary = null);

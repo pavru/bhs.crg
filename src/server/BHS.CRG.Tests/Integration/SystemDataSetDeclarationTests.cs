@@ -1,3 +1,12 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.EntityFrameworkCore;
+using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Infrastructure.Backup;
+using BHS.CRG.Application.DataSnapshots;
+using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Backup;
+using System.Text;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
@@ -141,6 +150,160 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         Assert.Contains("автора задачи больше нет", refusal.Message);
     }
 
+    // ── Граница выдачи доходит до человека и до агента (ТЗ CORE-24.3) ─────────
+
+    [Fact]
+    public async Task Подпись_стоит_в_предпросмотре_выгрузке_и_ответе_агенту()
+    {
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+
+        const string expected = "Отдаёт все записи выбранного типа";
+
+        var preview = await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
+        Assert.Contains(expected, preview!.Boundary);
+
+        // Выгрузка уходит из системы и живёт своей жизнью: по самому файлу не узнать ни чьими
+        // правами он снят, ни того, все ли это строки. Поэтому подпись — ПЕРВОЙ строкой.
+        var csv = await svc.ExportSourceAsync(sourceId, "csv", TestAccess.All, default);
+        var firstLine = Encoding.UTF8.GetString(csv!.Content).Split('\n')[0];
+        Assert.Contains(expected, firstLine);
+
+        // Агенту нужнее, чем человеку: человек видит подпись рядом с таблицей, а агент строит на этих
+        // строках сверку и без границы сочтёт их полными.
+        var detail = await snapshots.GetSourceAsync(sourceId, TestAccess.All, default);
+        Assert.Contains(expected, detail!.Boundary);
+        var rows = await snapshots.GetRowsAsync(sourceId, 0, 10, TestAccess.All, ct: default);
+        Assert.Contains(expected, rows!.Boundary);
+
+        // Номер контракта поднят вместе с полем: пока агент не увидит 10, он не знает, что строки
+        // отбираются по правам, — и сочтёт выборку полной.
+        Assert.Equal(10, rows.ContractVersion);
+    }
+
+    [Fact]
+    public async Task У_файлового_источника_подписи_нет()
+    {
+        // Обратная половина: подпись принадлежит опубликованному набору, а не всякой таблице. Стой
+        // она везде, её перестали бы читать — ровно та судьба, что у предупреждения на каждом экране.
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var sourceId = await SeedCsvSourceAsync(scope, svc);
+
+        var preview = await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
+        Assert.Null(preview!.Boundary);
+    }
+
+    // ── Чего опубликованный набор не делает (ТЗ CORE-24.2) ────────────────────
+
+    [Fact]
+    public async Task К_записи_общих_данных_источник_не_привязывается_а_к_документу_да()
+    {
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+
+        var entry = (await m.Send(new ListCommonDataEntriesQuery())).First();
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => svc.CreateBindingAsync(
+            new CreateBindingInput(entry.Id, sourceId, "Наименование", null), default));
+        Assert.Contains("переживут отзыв права", refusal.Message);
+
+        // А к документу комплекта — привязывается: там строки собираются в момент генерации.
+        var document = await SeedDocumentAsync(scope);
+        var binding = await svc.CreateBindingAsync(
+            new CreateBindingInput(document, sourceId, "Таблица", null), default);
+        Assert.NotNull(binding);
+    }
+
+    [Fact]
+    public async Task Строки_опубликованного_набора_не_кэшируются_и_не_едут_в_копию()
+    {
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+
+        // Читаем всеми путями, которые могли бы «попутно» сохранить разобранное.
+        _ = await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
+        _ = await svc.ExportSourceAsync(sourceId, "xlsx", TestAccess.All, default);
+        _ = await svc.ListSourcesAsync(
+            (await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == sourceId)).FileId,
+            TestAccess.All, default);
+
+        // Кеша у системного источника нет уже сейчас — и это правило, а не совпадение (ТЗ CORE-24.2):
+        // сохранённые строки переживут отзыв права, а снимок, снятый обладателем «читать всё», потом
+        // читал бы любой. Прогон закрепляет: кеш не появляется ни одной будущей правкой.
+        var source = await db.DataSetSources.AsNoTracking().FirstAsync(s => s.Id == sourceId);
+        Assert.Null(source.CachedData);
+
+        // В резервную копию строки не едут тем же следствием: копия выгружает CachedData источников
+        // (иначе восстановленный файловый источник приехал бы пустым), и пустой кеш — единственная
+        // причина, по которой строк опубликованного набора там не окажется.
+        var (zip, _) = await new BackupService(
+            db, scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
+            NullLogger<BackupService>.Instance,
+            scope.ServiceProvider.GetRequiredService<Application.Activity.IActivityLog>())
+            .ExportAsync(BackupScope.Full);
+        await using var _handle = zip;
+        using var ms = new MemoryStream();
+        await zip.CopyToAsync(ms);
+        Assert.DoesNotContain("ВВГ 3х2.5", Encoding.UTF8.GetString(ms.ToArray()));
+    }
+
+    [Fact]
+    public async Task Набор_с_изоляцией_к_печатной_форме_не_привязывается()
+    {
+        // ⚠️ В этапе 1 ни один поставщик изоляции не объявляет, поэтому правило проверяется
+        // ПОДСТАВНЫМ объявлением на настоящей базе: служба собирается руками, с реестром из одного
+        // поставщика, объявившего отбор по правам. Иначе сторож был бы зелёным всегда — та же
+        // ловушка, что в #962, где «завести внешний ключ с каскадом» проверяло ключ, которого в том
+        // хранении не существует.
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+        var document = await SeedDocumentAsync(scope);
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var marker = (await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == sourceId)).SheetOrPath;
+        var isolated = new DataSetBindingService(
+            db,
+            scope.ServiceProvider.GetRequiredService<IDataSetRowLoader>(),
+            new SystemDataProviderRegistry([new IsolatedProvider(marker)]),
+            NullLogger<DataSetBindingService>.Instance);
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => isolated.CreateBindingAsync(
+            new CreateBindingInput(document, sourceId, "Таблица", null), default));
+
+        Assert.Contains("печатная форма", refusal.Message);
+        Assert.Contains("после подписи", refusal.Message);
+    }
+
+    /// <summary>Поставщик с построчной изоляцией — которого в этапе 1 ещё нет.</summary>
+    private sealed class IsolatedProvider(string marker) : ISystemDataProvider
+    {
+        public SystemDataSetDeclaration Declaration { get; } = new(
+            SystemDataSetDeclaration.CoreModule, "core.catalog.read", SystemDataSetIsolation.PerUser,
+            ["Отдаёт то, что видно вам", "Отдаёт всё — право «читать всё»"]);
+
+        public bool Handles(string m) => m == marker;
+
+        public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
+            Domain.Catalog.CatalogScope scope, Guid? scopeId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
+
+        public Task<DataSetParseResult> ProvideAsync(string m, Domain.Catalog.CatalogScope scope,
+            Guid? scopeId, DataAccess access, CancellationToken ct)
+            => Task.FromResult(new DataSetParseResult([], []));
+    }
+
     // ── Данные прогона ────────────────────────────────────────────────────────
 
     /// <summary>Запись общих данных составного типа — сырьё консолидации «Общие данные: {тип}».</summary>
@@ -152,6 +315,37 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         await m.Send(new CreateCommonDataEntryCommand("Кабель", type.Id,
             J("{'Наименование':'ВВГ 3х2.5'}"), Domain.Catalog.CatalogScope.System, null));
         return type.Id;
+    }
+
+    /// <summary>Файловый источник (CSV) — для обратной половины правил.</summary>
+    private static async Task<Guid> SeedCsvSourceAsync(IServiceScope scope, IDataSetService svc)
+    {
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+        var path = await blob.UploadAsync($"{Guid.NewGuid():N}.csv",
+            new MemoryStream(Encoding.UTF8.GetBytes("Имя,Кол\nКабель,10\n")), "text/csv");
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var file = Domain.DataSets.DataSetFile.Create("Файл", Domain.DataSets.DataSetFormat.Csv, path,
+            Domain.Catalog.CatalogScope.System, null);
+        db.DataSetFiles.Add(file);
+        await db.SaveChangesAsync();
+
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).First();
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Строки", candidate.SheetOrPath, null), TestAccess.All, default);
+        return source.Id;
+    }
+
+    /// <summary>Документ комплекта — владелец, которому привязка разрешена.</summary>
+    private static async Task<Guid> SeedDocumentAsync(IServiceScope scope)
+    {
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var type = await m.Send(new CreateDocumentTypeCommand("Акт", "Act", DocumentTypeKind.Document,
+            null, J("{'fields':[{'key':'Таблица','type':'table'}]}")));
+        var construction = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "Комплект"));
+        return (await m.Send(new AddDocumentToSetCommand(set.Id, type.Id))).Id;
     }
 
     private static async Task<(Guid FileId, Guid SourceId)> SeedCommonDataSourceAsync(

@@ -73,7 +73,16 @@ public record SourceDetail(
     DataOrigin Origin, int? RowCount, int RawRowCount, bool Filtered,
     bool Stale, string? StaleReason,
     DateTimeOffset UpdatedAt, string? RowsHash, string? RowsError,
-    IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet, string? Warning = null);
+    IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet, string? Warning = null,
+    /// <summary>
+    /// Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): что именно отдано владельцу
+    /// предъявленного токена. Читается на момент вызова и не хранится (CORE-24.2). null — источник не
+    /// опубликованный.
+    ///
+    /// ⚠️ Агенту это поле нужнее, чем человеку: человек видит подпись рядом с таблицей, а агент строит
+    /// на этих строках сверку и без границы сочтёт их полными.
+    /// </summary>
+    string? Boundary = null);
 
 public record ColumnInfo(string Name, IReadOnlyList<string> SampleValues);
 
@@ -103,7 +112,9 @@ public record RowsPage(
     Guid SourceId, int Offset, int Limit, int TotalRows, bool Truncated,
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows,
-    string RowsHash = "", string PageHash = "", bool Unchanged = false)
+    string RowsHash = "", string PageHash = "", bool Unchanged = false,
+    /// <inheritdoc cref="SourceDetail.Boundary" />
+    string? Boundary = null)
 {
     /// <inheritdoc cref="SnapshotContract.Version" />
     public int ContractVersion => SnapshotContract.Version;

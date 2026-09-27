@@ -206,7 +206,7 @@ public partial class DataSetSourceService(
         var previewRows = rows.Take(take)
             .Select(r => (IReadOnlyList<string?>)columns.Select(c => r.TryGetValue(c, out var v) ? v : null).ToList())
             .ToList();
-        return new SourcePreviewDto(columns, previewRows, rows.Count);
+        return new SourcePreviewDto(columns, previewRows, rows.Count, loaded.Boundary);
     }
 
     public async Task<SourceExportDto?> ExportSourceAsync(
@@ -226,8 +226,12 @@ public partial class DataSetSourceService(
             .Select(r => (IReadOnlyList<string?>)columns.Select(c => r.TryGetValue(c, out var v) ? v : null).ToList())
             .ToList();
 
+        // Граница выдачи — ПЕРВОЙ строкой файла (ТЗ CORE-24.3): выгрузка уходит из системы и живёт
+        // своей жизнью, а по самому файлу не узнать ни того, чьими правами он снят, ни того, все ли
+        // это строки. Через штатную шапку выгрузки (issue #444), а не своим приёмом.
         var (bytes, ext, contentType) = SpreadsheetExporter.Export(
-            SpreadsheetExporter.ParseFormat(format), columns, exportRows, sheetName: source.Name);
+            SpreadsheetExporter.ParseFormat(format), columns, exportRows, sheetName: source.Name,
+            preamble: loaded.Boundary is null ? null : [loaded.Boundary]);
         var fileName = $"{DataSetDtoMapper.SanitizeFileName(source.Name)}.{ext}";
         return new SourceExportDto(bytes, fileName, contentType);
     }

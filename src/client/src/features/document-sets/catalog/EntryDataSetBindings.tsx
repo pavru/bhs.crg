@@ -92,7 +92,19 @@ function AddEntryBindingPanel({
             {files.map(f => (
               <optgroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
                 {f.sources.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} · {s.cachedRowCount} строк</option>
+                  /*
+                   * Источник опубликованного набора к ЗАПИСИ общих данных не привязывается
+                   * (ТЗ CORE-24.2, issue #965): сохранение записи положило бы отобранные по правам
+                   * строки прямо в её данные, и там они пережили бы отзыв права.
+                   *
+                   * Заперт с причиной, а не спрятан: исчезнувший пункт читается как поломка — человек
+                   * видел набор на странице наборов и пошёл бы искать, куда он делся. Причина стоит в
+                   * самом пункте, потому что title у <option> браузеры показывают не везде.
+                   */
+                  <option key={s.id} value={s.id} disabled={f.format === 'System'}>
+                    {s.name} · {s.cachedRowCount} строк
+                    {f.format === 'System' ? ' — отбор по правам: к записи не привязывается' : ''}
+                  </option>
                 ))}
               </optgroup>
             ))}
