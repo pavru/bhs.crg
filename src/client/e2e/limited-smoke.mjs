@@ -153,13 +153,21 @@ await check('sidebar-shows-the-version-label', async () => {
 await check('document-editor-opens-under-limited-rights', async () => {
   screen = 'редактор документа';
   await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}?doc=${INSTANCE}`);
-  await page.waitForSelector('[role=dialog]', { timeout: 20000 })
-    .catch(() => { throw new Error('редактор документа не открылся'); });
-  await page.waitForTimeout(2500);
-  const dialog = await page.locator('[role=dialog]').first().innerText();
-  if (!/АОСР/.test(dialog)) throw new Error(`открылось не то: ${dialog.slice(0, 200)}`);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(1000);
+  try {
+    await page.waitForSelector('[role=dialog]', { timeout: 20000 })
+      .catch(() => { throw new Error('редактор документа не открылся'); });
+    await page.waitForTimeout(2500);
+    const dialog = await page.locator('[role=dialog]').first().innerText();
+    if (!/АОСР/.test(dialog)) throw new Error(`открылось не то: ${dialog.slice(0, 200)}`);
+  } finally {
+    // ⚠️ Закрываем ОБЯЗАТЕЛЬНО — в том числе когда проверка упала. Редактор открыт на весь экран
+    // (`inset-0` над оверлеем), и оставленный открытым он перекрывает боковую панель: следующая
+    // проверка полминуты ждёт кнопку «Сообщить об ошибке», падает чужим сообщением — и вложение,
+    // то есть сторож поломки 3 из #974, не выполняется ВОВСЕ. Счётчик отказов при этом зелёный,
+    // потому что запросов не было. Найдено ревью PR #1062.
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(1000);
+  }
 });
 
 // ── «Сообщить об ошибке» со вложением (issue #974, поломка 3) ─────────────────
@@ -170,6 +178,11 @@ await check('document-editor-opens-under-limited-rights', async () => {
 // у роли нет, то есть ту самую поломку, только в мягком виде.
 await check('bug-report-with-an-attachment-goes-through', async () => {
   screen = 'сообщить об ошибке';
+  // Свой заход на экран: проверка не должна зависеть от того, убрала ли за собой предыдущая.
+  // Уборка у неё есть (`finally` выше), но держаться на ней одной значит связать две проверки
+  // так, что падение первой уносит вторую.
+  await page.goto(`${BASE}/document-sets`);
+  await page.waitForTimeout(1500);
   await page.getByText('Сообщить об ошибке').first().click();
   await page.waitForSelector('[role=dialog]', { timeout: 10000 });
   const dialog = page.locator('[role=dialog]').last();
@@ -183,13 +196,33 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
     throw new Error('вложение не показано — диалог не принял файл');
 
   await dialog.locator('button', { hasText: 'Отправить' }).last().click();
-  await page.waitForTimeout(3000);
 
-  const text = await page.locator('body').innerText();
-  if (/без снимка экрана/.test(text))
+  /**
+   * Ждём ТОСТ, а не отсчитываем секунды. Тост успеха живёт 4 с, и фиксированная пауза попадает
+   * между двух огней: отправка дольше паузы — тоста ещё нет и прогон говорит «сообщение не ушло»,
+   * посылая чинить конвейер обращений вместо часов; пауза дольше жизни тоста — его уже нет, и
+   * сказано будет то же самое. Найдено ревью PR #1062.
+   */
+  /**
+   * Ждём ТОСТ, а не отсчитываем секунды. Тост успеха живёт 4 с, и фиксированная пауза попадает
+   * между двух огней: отправка дольше паузы — тоста ещё нет и прогон говорит «сообщение не ушло»,
+   * посылая чинить конвейер обращений вместо часов; пауза дольше жизни тоста — его уже нет, и
+   * сказано будет то же самое. Найдено ревью PR #1062, проверено подсадкой: отправка, замедленная
+   * до шести секунд, прежнее устройство краснило — причём с пустым хвостом сообщения.
+   */
+  const toast = page.getByText(/Передано администратору/).first();
+  await toast.waitFor({ state: 'visible', timeout: 20000 }).catch(async () => {
+    // Причина в этом случае написана в самом диалоге — она и уходит в сообщение, иначе «тоста нет»
+    // не отличить от «сервер отказал».
+    const said = (await dialog.innerText().catch(() => '')).slice(-300);
+    throw new Error(`сообщение не ушло: ${said || 'диалог закрылся, а тост не появился'}`);
+  });
+
+  // Текст читается у САМОГО тоста, а не у страницы: оговорка стоит в той же строке, и сверка с
+  // телом страницы приняла бы за неё любое совпадение на экране позади.
+  const said = await toast.innerText();
+  if (/без снимка экрана/.test(said))
     throw new Error('сообщение ушло БЕЗ снимка: загрузка вложений закрыта от этой роли');
-  if (!/Передано администратору/.test(text))
-    throw new Error(`сообщение не ушло: ${text.slice(-300)}`);
 });
 
 // ── Итог прохода: ни одного отказа ────────────────────────────────────────────
