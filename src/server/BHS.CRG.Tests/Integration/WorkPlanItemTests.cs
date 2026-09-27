@@ -277,11 +277,12 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         return type.Id;
     }
 
-    private async Task<Guid> AddObjectAsync(Guid typeId, string name)
+    private async Task<Guid> AddObjectAsync(
+        Guid typeId, string name, CatalogScope scope = CatalogScope.System, Guid? scopeId = null)
     {
-        using var scope = fixture.Services.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
-        var obj = DomainObject.Create(typeId, name, JsonDocument.Parse("{}"), CatalogScope.System, null);
+        using var s = fixture.Services.CreateScope();
+        var repo = s.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+        var obj = DomainObject.Create(typeId, name, JsonDocument.Parse("{}"), scope, scopeId);
         await repo.AddAsync(obj);
         await repo.SaveChangesAsync();
         return obj.Id;
@@ -294,5 +295,111 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         await repo.AddAsync(item);
         await repo.SaveChangesAsync();
         return item;
+    }
+
+    // ── Находки ревью PR #1056 ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Запись классификатора, лежащая НА УРОВНЕ УДАЛЯЕМОЙ СТРОЙКИ (ревью PR #1056, воспроизведено на
+    /// живой базе).
+    ///
+    /// <para>Каскад внешнего ключа тут не спасал: EF удаляет <c>domain_objects</c> раньше строек, и
+    /// запись уходила до того, как база унесёт ссылающуюся на неё позицию. Ключ на вид работы —
+    /// RESTRICT, поэтому сохранение падало отказом базы, а человек видел внутреннюю ошибку сервера
+    /// вместо удаления стройки — ровно то, что этот PR обещает исключить.</para>
+    ///
+    /// <para>Теперь позиции уносит прикладной каскад, и уносит ПЕРВЫМИ.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(true)]   // запись на уровне стройки
+    [InlineData(false)]  // запись на уровне раздела
+    public async Task Удаление_уровня_с_записью_классификатора_на_нём_проходит(bool onConstruction)
+    {
+        var (construction, section, _, unit) = await SeedAsync();
+        var scopeId = onConstruction ? construction : section;
+        var level = onConstruction ? CatalogScope.Construction : CatalogScope.Section;
+
+        var localWorkType = await AddObjectAsync(
+            await TypeAsync(CoreRecordTypes.WorkTypeCode, "Вид работы"), "Своя работа", level, scopeId);
+        await AddAsync(WorkPlanItem.Create(localWorkType, construction, section, unit));
+
+        using (var scope = fixture.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<IMediator>()
+                .Send(new DeleteConstructionCommand(construction));
+
+        using var after = fixture.Services.CreateScope();
+        Assert.Empty(await after.ServiceProvider
+            .GetRequiredService<IRepository<WorkPlanItem>>().GetAllAsync());
+        Assert.Null(await after.ServiceProvider
+            .GetRequiredService<IRepository<DomainObject>>().GetByIdAsync(localWorkType));
+    }
+
+    /// <summary>
+    /// А позиция ЧУЖОЙ стройки, ссылающаяся на запись этого уровня, удаление запрещает: унести
+    /// запись значило бы оставить чужой перечень без смысла, и внешний ключ её не отдаст. Отказ
+    /// вместо отказа базы — то же различие «так нельзя» против «сломалось».
+    /// </summary>
+    [Fact]
+    public async Task Позиция_чужой_стройки_держит_запись_уровня()
+    {
+        var (construction, section, _, unit) = await SeedAsync();
+        var localWorkType = await AddObjectAsync(
+            await TypeAsync(CoreRecordTypes.WorkTypeCode, "Вид работы"), "Своя работа",
+            CatalogScope.Construction, construction);
+
+        // Вторая стройка, и позиция ЕЁ перечня смотрит на запись первой.
+        Guid other;
+        using (var scope = fixture.Services.CreateScope())
+            other = (await scope.ServiceProvider.GetRequiredService<IMediator>()
+                .Send(new CreateConstructionCommand("Чужая стройка", Guid.NewGuid()))).Id;
+        await AddAsync(WorkPlanItem.Create(localWorkType, other, null, unit));
+
+        using var s = fixture.Services.CreateScope();
+        var refusal = await Assert.ThrowsAsync<ConflictException>(
+            () => s.ServiceProvider.GetRequiredService<IMediator>()
+                .Send(new DeleteConstructionCommand(construction)));
+        Assert.Contains("перечень работ ДРУГИХ строек", refusal.Message);
+        Assert.Contains("позиций: 1", refusal.Message);
+        _ = section;
+    }
+
+    /// <summary>
+    /// Уборка сирот (issue #739) удаляет объекты ОДНИМ запросом, поэтому сирота, на которую
+    /// ссылается позиция перечня, уронила бы всю операцию отказом базы — и не убралось бы НИЧЕГО,
+    /// включая сирот, к перечню отношения не имеющих (ревью PR #1056). Скан ссылок её не видел:
+    /// ссылка здесь колонкой, а не «$ref» в данных.
+    /// </summary>
+    [Fact]
+    public async Task Уборка_сирот_не_спотыкается_о_перечень()
+    {
+        var (construction, _, _, unit) = await SeedAsync();
+
+        // Сирота: объект на уровне комплекта, которого нет. На неё смотрит позиция перечня.
+        var orphanHeld = await AddObjectAsync(
+            await TypeAsync(CoreRecordTypes.WorkTypeCode, "Вид работы"), "Сирота в перечне",
+            CatalogScope.Set, Guid.NewGuid());
+        await AddAsync(WorkPlanItem.Create(orphanHeld, construction, null, unit));
+
+        // И вторая сирота, к перечню отношения не имеющая: именно её потеря доказывала бы, что
+        // уборка падала целиком.
+        var orphanFree = await AddObjectAsync(
+            await TypeAsync(CoreRecordTypes.UnitCode, "Единица измерения"), "Сирота свободная",
+            CatalogScope.Set, Guid.NewGuid());
+
+        using var scope = fixture.Services.CreateScope();
+        var cleanup = scope.ServiceProvider
+            .GetRequiredService<Infrastructure.Maintenance.OrphanObjectCleanup>();
+
+        var dry = await cleanup.RunAsync(dryRun: true);
+        Assert.Equal(2, dry.Objects);
+        Assert.Equal(1, dry.Referenced);   // держит перечень
+        Assert.Equal(1, dry.Total);        // уберётся только свободная
+
+        var real = await cleanup.RunAsync(dryRun: false);
+        Assert.Equal(1, real.Total);
+
+        var objects = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+        Assert.Null(await objects.GetByIdAsync(orphanFree));
+        Assert.NotNull(await objects.GetByIdAsync(orphanHeld));
     }
 }

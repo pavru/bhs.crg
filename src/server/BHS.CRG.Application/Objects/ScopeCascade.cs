@@ -47,11 +47,21 @@ public interface IScopeCascade
 /// <param name="QualityDocuments">Документы качества, чья область — внутри поддерева.</param>
 /// <param name="MaterialLinks">Связки материалов той же области.</param>
 /// <param name="ExternalReferrers">Держатели ссылок вне поддерева. Не пусто → удалять нельзя.</param>
+/// <param name="WorkPlanItems">
+/// Позиции перечня работ этого уровня (ТЗ CORE-10, issue #964). Удаляются ПРИКЛАДНО, а не каскадом
+/// внешнего ключа, хотя ключ на стройку и раздел каскадный.
+///
+/// <para>⚠️ Причина не в аккуратности, а в порядке: EF удаляет <c>domain_objects</c> РАНЬШЕ строек и
+/// разделов, и запись классификатора, лежащая на уровне стройки, уходит до того, как база унесёт
+/// ссылающуюся на неё позицию. Ключ на вид работы — RESTRICT, поэтому сохранение падает
+/// <c>23001</c>, и человек видит внутреннюю ошибку сервера вместо удаления стройки. Нашло ревью
+/// PR #1056 — воспроизведением на живой базе, а не разбором.</para>
+/// </param>
 /// <param name="WorkPlanReferrers">
 /// Держатели ссылок на позиции перечня работ этого уровня — строками «что: сколько» (ТЗ CORE-11,
-/// issue #964). Позиции уносит каскад базы, и без этого вопроса он унёс бы их из-под модулей, у
-/// которых на них план, факт и акты: правило «удаляем только то, на что не ссылаются» обходится
-/// каскадом с фланга — тем же, каким оно однажды обошлось для объектов уровня (issue #739).
+/// issue #964). Без этого вопроса удаление уровня унесло бы перечень из-под модулей, у которых на
+/// него план, факт и акты: правило «удаляем только то, на что не ссылаются» обходится удалением
+/// уровня с фланга — тем же, каким оно однажды обошлось для объектов уровня (issue #739).
 /// </param>
 /// <param name="WorkPlanItemsHoldingObjects">
 /// Сколько позиций перечня ИЗВНЕ поддерева ссылаются на его записи — на запись классификатора или
@@ -63,6 +73,7 @@ public sealed record ScopeCascadePlan(
     IReadOnlyList<QualityDocument> QualityDocuments,
     IReadOnlyList<MaterialQualityLink> MaterialLinks,
     IReadOnlyList<DomainObjectReferences.Referrer> ExternalReferrers,
+    IReadOnlyList<WorkPlanItem> WorkPlanItems,
     IReadOnlyList<string> WorkPlanReferrers,
     int WorkPlanItemsHoldingObjects);
 
@@ -144,12 +155,18 @@ public class ScopeCascade(
                     p => objectIds.Contains(p.WorkTypeId) || objectIds.Contains(p.UnitId), ct))
                 .Count(p => !itemIds.Contains(p.Id));
 
-        return new ScopeCascadePlan(objects, quality, links, referrers, planRefs, held);
+        return new ScopeCascadePlan(objects, quality, links, referrers, items, planRefs, held);
     }
 
     /// <inheritdoc />
     public void Remove(ScopeCascadePlan plan)
     {
+        // Позиции перечня — ПЕРВЫМИ и прикладно (ревью PR #1056). Каскад базы унёс бы их за стройкой
+        // и разделом, но позже, чем EF удалит объекты уровня, — а позиция ссылается на запись
+        // классификатора ключом RESTRICT. Порядок внутри одного сохранения решает EF, и «сначала
+        // позиции, потом объекты» получается только если позиции удалить самим.
+        foreach (var i in plan.WorkPlanItems) planRepo.Remove(i);
+
         // Порядок: связки, потом документы качества, потом объекты. Связки у документа качества
         // ушли бы и каскадом базы, но только у СВОЕГО: связка уровня комплекта, указывающая на
         // документ общей библиотеки, каскадом не покрыта — её уносим сами.
@@ -167,10 +184,11 @@ public class ScopeCascade(
 
         if (plan.WorkPlanItemsHoldingObjects > 0)
             throw new ConflictException(
-                $"Нельзя удалить {levelAccusative}: на его записи ссылается перечень работ — "
-                + $"позиций: {plan.WorkPlanItemsHoldingObjects}. Это записи классификатора видов "
-                + "работ или единицы измерения, лежащие на этом уровне; перечень других строек без "
-                + "них потерял бы смысл. Перенесите записи на уровень выше.");
+                $"Нельзя удалить {levelAccusative}: на его записи ссылается перечень работ ДРУГИХ "
+                + $"строек — позиций: {plan.WorkPlanItemsHoldingObjects}. Это записи классификатора "
+                + "видов работ или единицы измерения, заведённые на этом уровне, а перечень чужой "
+                + "стройки без них перестал бы что-либо означать. Сообщите о находке: переносить "
+                + "записи между уровнями система пока не умеет, и разъять это без нас нечем.");
 
         if (plan.ExternalReferrers.Count == 0) return;
         // Уровень назван словом в винительном падеже, держатели — списком: ссылка может держаться и

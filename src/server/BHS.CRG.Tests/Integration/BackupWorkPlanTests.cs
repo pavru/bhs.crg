@@ -49,13 +49,19 @@ public class BackupWorkPlanTests(IntegrationTestFixture fixture) : IAsyncLifetim
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var type = DocumentType.Create("Вид работы", "ВидРаботы", DocumentTypeKind.Composite, null,
-                JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
-            db.DocumentTypes.Add(type);
+            // ⚠️ Единице измерения — СВОЙ тип, и это не педантизм. Оставь класс «ВидРаботы» без
+            // «ЕдиницаИзмерения», и следующий старт хоста увидит справочник ядра, чья цель исчезла.
+            // На это и наступили: весь прогон падал на запуске, а по виду — «сломалось всё».
+            var typeOfWork = DocumentType.Create("Вид работы", "ВидРаботы", DocumentTypeKind.Composite,
+                null, JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
+            var unitType = DocumentType.Create("Единица измерения", "ЕдиницаИзмерения",
+                DocumentTypeKind.Composite, null, JsonDocument.Parse("""{"fields":[]}"""),
+                TypeOwner.Core, TypeVisibility.Shared);
+            db.DocumentTypes.AddRange(typeOfWork, unitType);
 
-            var work = DomainObject.Create(type.Id, "Прокладка кабеля",
+            var work = DomainObject.Create(typeOfWork.Id, "Прокладка кабеля",
                 JsonDocument.Parse("{}"), CatalogScope.System, null);
-            var unitObj = DomainObject.Create(type.Id, "м",
+            var unitObj = DomainObject.Create(unitType.Id, "м",
                 JsonDocument.Parse("{}"), CatalogScope.System, null);
             db.DomainObjects.AddRange(work, unitObj);
 

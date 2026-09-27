@@ -96,14 +96,6 @@ public record BackupDocumentSet(
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// Строка плана комплекта (issue #796). Секция аддитивная, как и остальные проектные: копия,
-/// снятая новой версией, читается старой — план она просто не увидит.
-///
-/// Планы уровней выше в копию не попадают, потому что их не существует: раздел и стройка
-/// консолидируют комплекты на лету. Восстановился бы такой «план» — и разошёлся бы с суммой
-/// нижележащих при первой же правке.
-/// </summary>
-/// <summary>
 /// Позиция перечня работ стройки (ТЗ CORE-10, issue #964) — «вид работы + стройка + раздел +
 /// единица измерения» и ничего больше.
 ///
@@ -115,6 +107,14 @@ public record BackupWorkPlanItem(
     Guid Id, Guid WorkTypeId, Guid ConstructionId, Guid? SectionId, Guid UnitId,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+/// <summary>
+/// Строка плана комплекта (issue #796). Секция аддитивная, как и остальные проектные: копия,
+/// снятая новой версией, читается старой — план она просто не увидит.
+///
+/// Планы уровней выше в копию не попадают, потому что их не существует: раздел и стройка
+/// консолидируют комплекты на лету. Восстановился бы такой «план» — и разошёлся бы с суммой
+/// нижележащих при первой же правке.
+/// </summary>
 public record BackupDocumentSetPlan(
     Guid Id, Guid DocumentSetId, Guid DocumentTypeId, int PlannedCount,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);

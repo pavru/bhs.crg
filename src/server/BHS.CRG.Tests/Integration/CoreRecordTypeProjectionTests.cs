@@ -424,14 +424,25 @@ public class CoreRecordTypeProjectionTests(IntegrationTestFixture fixture) : IAs
     }
 
     /// <summary>
-    /// А у УЖЕ ЗАВЕДЁННОГО классификатора цель пропасть не вправе: поле осталось бы без цели — с
-    /// виду целое, но не заполняемое. Это отказ старта, а не пропуск.
+    /// У УЖЕ ЗАВЕДЁННОГО классификатора цель исчезла — это ПРОПУСК, а не отказ старта, и справочник
+    /// остаётся как лежит.
+    ///
+    /// <para>Сначала (issue #963) здесь был отказ с доводом «поле без цели не должно существовать
+    /// молча». Довод неверен дважды: поле уже такое, каким лежит в базе, и отказ старта его не
+    /// исправляет; а выбраться из отказа нечем — «заведите тип единиц заново» делается в
+    /// приложении, которое не поднимается. Наступили на это на тестовой базе, где тип единиц был
+    /// стёрт: упал не один тест, а весь прогон, и по виду — «сломалось всё». Тот же замкнутый круг
+    /// ревью PR #1055 нашло у совпадения кодов; здесь он воспроизвёлся сам.</para>
+    ///
+    /// <para>Причина уходит в журнал запуска ПРЕДУПРЕЖДЕНИЕМ (см. <c>ModuleTypeProjector</c>): это
+    /// не «новая установка», а потеря, и заметить её надо.</para>
     /// </summary>
     [Fact]
-    public async Task У_заведённого_классификатора_цель_пропасть_не_вправе()
+    public async Task Пропавшая_цель_у_заведённого_классификатора_не_роняет_старт()
     {
         var unit = await MakeTypeAsync(CoreRecordTypes.UnitCode, "Единица измерения", TypeOwner.Core);
-        await SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType));
+        var before = await SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType));
+        Assert.NotNull(before);
 
         using (var scope = fixture.Services.CreateScope())
         {
@@ -441,10 +452,19 @@ public class CoreRecordTypeProjectionTests(IntegrationTestFixture fixture) : IAs
             await repo.SaveChangesAsync();
         }
 
-        var refusal = await Assert.ThrowsAsync<ConflictException>(
-            () => SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType)));
-        Assert.Contains(CoreRecordTypes.UnitCode, refusal.Message);
-        Assert.Contains("без цели", refusal.Message);
+        Assert.Null(await SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType)));
+
+        // Справочник на месте и не тронут: проекция его не чинила и не ломала.
+        using var after = fixture.Services.CreateScope();
+        var stillThere = await after.ServiceProvider.GetRequiredService<IRepository<DocumentType>>()
+            .GetByIdAsync(before.Id);
+        Assert.NotNull(stillThere);
+        Assert.Equal(6, stillThere.Schema!.RootElement.GetProperty("fields").GetArrayLength());
+
+        // И причину пропуска проекция называет — ею живёт предупреждение в журнале запуска.
+        var all = await after.ServiceProvider.GetRequiredService<IRepository<DocumentType>>().GetAllAsync();
+        Assert.Equal(CoreRecordTypes.UnitCode,
+            ModuleTypeProjectionHandler.MissingTargetOf(CoreRecordTypes.WorkType, all));
     }
 
     /// <summary>
