@@ -28,8 +28,12 @@ public static class SpreadsheetExporter
     /// Строки НАД таблицей — тем же приёмом, что у многолистового отчёта (<see cref="Sheet" />). Сюда
     /// идёт граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): выгрузка уходит из
     /// системы и живёт своей жизнью, а «что это за строки и все ли они» по самому файлу не узнать.
-    /// У CSV шапки нет — строки становятся первыми записями файла, до заголовка колонок: своего места
-    /// под примечание в формате не предусмотрено, а потерять подпись хуже, чем сдвинуть заголовок.
+    /// ⚠️ <b>У CSV шапки НЕТ.</b> Своего места под примечание формат не предусматривает, и строка
+    /// легла бы первой записью файла, сдвинув заголовок колонок на вторую, — а такой файл заново
+    /// загружают в систему как набор данных, и разбор увидел бы в заголовке подпись вместо имён
+    /// колонок (нашло ревью PR #1057). ТЗ CORE-24.3 требует подпись в XLSX, и здесь это буквально:
+    /// у XLSX шапка есть, у CSV — нет. Выгрузку в CSV поэтому подписывает не файл, а экран, с
+    /// которого её забирают.
     /// </param>
     public static (byte[] Bytes, string Extension, string ContentType) Export(
         SpreadsheetFormat format,
@@ -38,7 +42,7 @@ public static class SpreadsheetExporter
         string sheetName = "Данные",
         IReadOnlyList<string>? preamble = null) => format switch
     {
-        SpreadsheetFormat.Csv => (Csv(columns, rows, preamble), "csv", "text/csv; charset=utf-8"),
+        SpreadsheetFormat.Csv => (Csv(columns, rows), "csv", "text/csv; charset=utf-8"),
         SpreadsheetFormat.Xls => (Workbook(new HSSFWorkbook(), columns, rows, sheetName, preamble), "xls",
             "application/vnd.ms-excel"),
         _ => (Workbook(new XSSFWorkbook(), columns, rows, sheetName, preamble), "xlsx",
@@ -97,19 +101,12 @@ public static class SpreadsheetExporter
         }
     }
 
-    private static byte[] Csv(IReadOnlyList<string> columns, IReadOnlyList<IReadOnlyList<string?>> rows,
-        IReadOnlyList<string>? preamble = null)
+    private static byte[] Csv(IReadOnlyList<string> columns, IReadOnlyList<IReadOnlyList<string?>> rows)
     {
         using var ms = new MemoryStream();
         using (var writer = new StreamWriter(ms, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)))
         using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
         {
-            foreach (var line in preamble ?? [])
-            {
-                csv.WriteField(line);
-                csv.NextRecord();
-            }
-
             foreach (var c in columns) csv.WriteField(c);
             csv.NextRecord();
             foreach (var row in rows)

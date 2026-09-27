@@ -1,3 +1,5 @@
+using BHS.CRG.Modules;
+using BHS.CRG.Api.Configuration;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
@@ -240,6 +242,34 @@ public class SystemDataSetAccessTests
 
         // А набор без изоляции подключается: он одинаков для всех, кто вправе его читать.
         SystemDataSetRules.EnsureShared(Good, "печатная форма");
+    }
+
+    // ── Ключ доступа выключенного модуля (ревью PR #1057) ─────────────────────
+
+    [Fact]
+    public void Право_выключенного_модуля_старт_не_роняет()
+    {
+        // ⚠️ Самый важный случай правила — ВЫКЛЮЧЕННЫЙ модуль, а хост прогона поднимается с
+        // включённым. Поэтому правило проверяется функцией, а не живым запуском: справочник прав
+        // собирается из ядра и ВКЛЮЧЁННЫХ модулей, и «id.document.read» в нём отсутствует законно.
+        // Прежняя проверка требовала полного совпадения с кодом модуля — и поставка без `id` не
+        // поднималась вовсе вместо ожидаемого «модуль не подключён» на чтении.
+        var catalog = new PermissionCatalog([new("core.catalog.read", "видеть справочник", "карточки", [])]);
+        ISet<string> known = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { SystemDataSetDeclaration.CoreModule, "id" };
+
+        Assert.True(SystemDataSetDeclarations.KeyIsKnown(
+            new("id", "id.document.read", SystemDataSetIsolation.None, ["…"]), known, catalog));
+        Assert.True(SystemDataSetDeclarations.KeyIsKnown(
+            new("id", "id", SystemDataSetIsolation.None, ["…"]), known, catalog));
+        Assert.True(SystemDataSetDeclarations.KeyIsKnown(
+            new(SystemDataSetDeclaration.CoreModule, "core.catalog.read", SystemDataSetIsolation.None, ["…"]),
+            known, catalog));
+
+        // А ключ чужого модуля, которого в сборке нет вовсе, — по-прежнему отказ: набор с таким
+        // ключом не откроется никому, и выглядело бы это как отобранные права.
+        Assert.False(SystemDataSetDeclarations.KeyIsKnown(
+            new("id", "costs.invoice.read", SystemDataSetIsolation.None, ["…"]), known, catalog));
     }
 
     // ── Загрузчик строк: ворота стоят ДО обращения к поставщику ────────────────

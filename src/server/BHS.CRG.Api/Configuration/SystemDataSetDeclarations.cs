@@ -17,7 +17,11 @@ namespace BHS.CRG.Api.Configuration;
 /// «такое право вообще объявлено» и «такой модуль в сборке есть» знают только здесь: справочник прав
 /// и реестр модулей живут в Api.</para>
 /// </summary>
-internal static class SystemDataSetDeclarations
+/// <remarks>
+/// Класс public, а не internal: правило годности ключа (<see cref="KeyIsKnown" />) проверяется
+/// прогоном, а <c>InternalsVisibleTo</c> в решении не заведён ни для одной сборки.
+/// </remarks>
+public static class SystemDataSetDeclarations
 {
     public static void Validate(IServiceProvider services)
     {
@@ -47,13 +51,18 @@ internal static class SystemDataSetDeclarations
             // Ключ доступа — либо объявленное право, либо код своего модуля (у библиотеки документов
             // качества своего права нет, ТЗ AUTH-12.2). Право с опечаткой никому не выдано, то есть
             // набор закрыт для всех, включая администратора, — и выглядело бы это как «мне не дали
-            // прав». Право ВЫКЛЮЧЕННОГО модуля в справочнике отсутствует законно, поэтому для него
-            // засчитывается совпадение с кодом модуля.
-            if (!permissions.Declares(declaration.Requires)
-                && !string.Equals(declaration.Requires, declaration.Module, StringComparison.OrdinalIgnoreCase)
-                && !known.Contains(declaration.Requires))
+            // прав».
+            //
+            // ⚠️ Права ВЫКЛЮЧЕННОГО модуля в справочнике отсутствуют законно: PermissionCatalog
+            // собирается из ядра и ВКЛЮЧЁННЫХ модулей. Поэтому ключ принимается и тогда, когда он
+            // принадлежит модулю из сборки по префиксу — `id.document.read` при выключенном `id`.
+            // Прежнее правило сверяло только полное совпадение с кодом модуля, и поставка без `id`
+            // не поднималась вовсе вместо ожидаемого «модуль не подключён» на чтении (нашло ревью
+            // PR #1057). Цена послабления названа вслух: опечатку в праве выключенного модуля
+            // отличить не от чего — справочника его прав на этом экземпляре не существует.
+            if (!KeyIsKnown(declaration, known, permissions))
                 broken.Add($"{name}: ключа доступа «{declaration.Requires}» нет ни в справочнике прав, " +
-                           "ни среди кодов модулей");
+                           "ни среди модулей сборки");
         }
 
         if (broken.Count == 0) return;
@@ -62,5 +71,22 @@ internal static class SystemDataSetDeclarations
             "Системный набор ссылается на то, чего нет: " + string.Join("; ", broken) + ".\n" +
             "Набор с несуществующим ключом доступа не откроется никому, а с неизвестным модулем " +
             "будет вечно отвечать «модуль не подключён» — оба случая выглядят как отобранные права.");
+    }
+
+    /// <summary>
+    /// Годен ли ключ доступа: объявленное право, код своего модуля либо право модуля из сборки
+    /// (по префиксу до первой точки — <c>id.document.read</c> принадлежит модулю <c>id</c>).
+    ///
+    /// <para>Отдельной функцией, чтобы правило можно было проверить прогоном без поднятия хоста:
+    /// самый важный его случай — ВЫКЛЮЧЕННЫЙ модуль, а хост прогона поднимается с включённым.</para>
+    /// </summary>
+    public static bool KeyIsKnown(
+        SystemDataSetDeclaration declaration, ISet<string> knownModules, PermissionCatalog permissions)
+    {
+        if (permissions.Declares(declaration.Requires)) return true;
+        if (knownModules.Contains(declaration.Requires)) return true;
+
+        var dot = declaration.Requires.IndexOf('.');
+        return dot > 0 && knownModules.Contains(declaration.Requires[..dot]);
     }
 }

@@ -1,3 +1,5 @@
+using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Infrastructure.Maintenance;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using BHS.CRG.Infrastructure.Persistence;
@@ -167,10 +169,17 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         Assert.Contains(expected, preview!.Boundary);
 
         // Выгрузка уходит из системы и живёт своей жизнью: по самому файлу не узнать ни чьими
-        // правами он снят, ни того, все ли это строки. Поэтому подпись — ПЕРВОЙ строкой.
+        // правами он снят, ни того, все ли это строки. Поэтому подпись — ПЕРВОЙ строкой листа XLSX,
+        // над заголовком колонок (ТЗ CORE-24.3 называет именно XLSX).
+        var xlsx = await svc.ExportSourceAsync(sourceId, "xlsx", TestAccess.All, default);
+        Assert.StartsWith(expected, FirstCellOf(xlsx!.Content));
+
+        // ⚠️ А в CSV подписи НЕТ, и это решение: своего места под примечание формат не имеет, строка
+        // сдвинула бы заголовок колонок на вторую — и такой файл, загруженный обратно набором
+        // данных, разобрался бы с подписью вместо имён колонок (ревью PR #1057).
         var csv = await svc.ExportSourceAsync(sourceId, "csv", TestAccess.All, default);
         var firstLine = Encoding.UTF8.GetString(csv!.Content).Split('\n')[0];
-        Assert.Contains(expected, firstLine);
+        Assert.DoesNotContain(expected, firstLine);
 
         // Агенту нужнее, чем человеку: человек видит подпись рядом с таблицей, а агент строит на этих
         // строках сверку и без границы сочтёт их полными.
@@ -310,11 +319,130 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
     private static async Task<Guid> SeedCommonDataEntryAsync(IServiceScope scope)
     {
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        // Тип МАТЕРИАЛЬНЫЙ: поле-ссылка на документ качества плюс поле идентичности. Без них ключ
+        // идентичности материала пуст, и дозаполнение подписей выходит раньше, чем дойдёт до
+        // привязок, — прогон проверял бы не то (ТЗ TYPE-21, MaterialIdentity.KeysOf).
         var type = await m.Send(new CreateDocumentTypeCommand("Материал", "Material",
-            DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Наименование','type':'string'}]}")));
+            DocumentTypeKind.Composite, null, J(
+                "{'fields':[" +
+                "{'key':'Наименование','type':'string','tags':['identity:1']}," +
+                "{'key':'Сертификат','type':'string','tags':['material.qualityDocLink']}]}")));
         await m.Send(new CreateCommonDataEntryCommand("Кабель", type.Id,
             J("{'Наименование':'ВВГ 3х2.5'}"), Domain.Catalog.CatalogScope.System, null));
         return type.Id;
+    }
+
+    [Fact]
+    public async Task Служебный_проход_не_объявляет_материал_пропавшим_из_за_отказа_ворот()
+    {
+        // ⚠️ Отказ ворот приходит служебному проходу НЕ исключением: предпросмотр привязок глотает
+        // его сам и возвращает элемент со статусом «error». Прежний код читал это как «материалов в
+        // этой привязке нет», и связка уезжала в отчёт как «материала больше нет» — при живом
+        // материале (нашло ревью PR #1057). Теперь владелец с непрочитанной привязкой попадает в
+        // DocumentsFailed, а отчёт говорит вслух, что его материалы в поиске не участвовали.
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+
+        // Привязка на опубликованном наборе — к ДОКУМЕНТУ: к записи общих данных её не завести.
+        var document = await SeedDocumentAsync(scope);
+        await svc.CreateBindingAsync(new CreateBindingInput(document, sourceId, "Таблица", null), default);
+
+        // Связка без подписи — то, ради чего проход и существует. Документ качества настоящий:
+        // у связки на него внешний ключ.
+        var docType = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(
+            new CreateDocumentTypeCommand("Сертификат", "Cert", DocumentTypeKind.Document, null,
+                J("{'fields':[]}")));
+        var qualityDoc = Domain.Documents.QualityDocument.Create(
+            docType.Id, "Сертификат", J("{}"), Domain.Catalog.CatalogScope.System, null,
+            Domain.Documents.QualityDocSource.Manual);
+        db.QualityDocuments.Add(qualityDoc);
+        db.MaterialQualityLinks.Add(Domain.Documents.MaterialQualityLink.Create(
+            Domain.Catalog.CatalogScope.System, null, "ВВГ 3х2.5", qualityDoc.Id));
+        await db.SaveChangesAsync();
+
+        var report = await new MaterialLabelBackfill(db, svc).RunAsync(dryRun: true);
+
+        Assert.Equal(1, report.DocumentsFailed);
+        Assert.Equal(0, report.DocumentsScanned);
+    }
+
+    [Fact]
+    public async Task Старая_привязка_к_записи_пропускается_с_НАЗВАННОЙ_причиной()
+    {
+        // Новую такую привязку не создать (см. прогон выше), но заведённая ДО правила в базе
+        // заказчика лежать может — поэтому она заводится здесь НАПРЯМУЮ, минуя дверь.
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+        var entry = (await m.Send(new ListCommonDataEntriesQuery())).First();
+
+        db.DataSetBindings.Add(Domain.DataSets.DataSetBinding.For(
+            entry.Id, sourceId, "Наименование", "{}"));
+        await db.SaveChangesAsync();
+
+        // ⚠️ Статус «error», а не «not-found»: резолв не состоялся ВОВСЕ, по правилу, — а not-found
+        // означает «значение источника не сматчилось» и отправило бы человека искать пропавшую
+        // запись каталога (ревью PR #1057).
+        var check = await m.Send(new CheckCommonDataBindingsQuery(entry.Id, TestAccess.All));
+        var item = Assert.Single(check.Items, i => i.FieldKey == "Наименование");
+        Assert.Equal("error", item.Status);
+        Assert.Contains("не сохраняются", item.Detail);
+
+        // И сохранение записи её значения не подмешивает: правка проходит, поле остаётся как было.
+        var saved = await m.Send(new UpdateCommonDataEntryCommand(
+            entry.Id, "Кабель", J("{'Наименование':'ВВГ 3х2.5'}"), TestAccess.All));
+        Assert.Equal("ВВГ 3х2.5", saved.Data.RootElement.GetProperty("Наименование").GetString());
+    }
+
+    [Fact]
+    public async Task Изоляция_ловится_на_КАЖДОМ_выпуске_а_не_только_при_привязке()
+    {
+        // Привязка заводится один раз, а поставщик вправе объявить изоляцию позже (этап 3): проверка
+        // только на входе оставила бы старые привязки работать, и два инженера получили бы разные
+        // акты. Поэтому резолвер генерации собирается руками — с реестром из поставщика, объявившего
+        // отбор по правам, — и привязка при этом УЖЕ существует (ревью PR #1057).
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
+        var documentId = await SeedDocumentAsync(scope);
+        await svc.CreateBindingAsync(new CreateBindingInput(documentId, sourceId, "Таблица", null), default);
+
+        var marker = (await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == sourceId)).SheetOrPath;
+        var resolver = new DataSetResolver(
+            db,
+            scope.ServiceProvider.GetRequiredService<IDataSetRowLoader>(),
+            scope.ServiceProvider.GetRequiredService<Application.Resolution.IObjectResolver>(),
+            new SystemDataProviderRegistry([new IsolatedProvider(marker)]),
+            NullLogger<DataSetResolver>.Instance);
+
+        // Фасету документа грузим явно: PluginData живёт в ней, а без неё DocumentView.From падает.
+        var document = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+            .FirstAsync(o => o.Id == documentId);
+        var diagnostics = new List<Application.Generation.ResolutionDiagnostic>();
+        await resolver.InjectAsync(new Application.Generation.GenerationContext(),
+            Application.Generation.DocumentView.From(document), TestAccess.All, diagnostics);
+
+        // Отказ приходит диагностикой уровня Error — а он снимает документ с выпуска целиком
+        // (GenerateDocumentHandler бросает ResolutionValidationException на любой Error).
+        var d = Assert.Single(diagnostics);
+        Assert.Equal(Application.Generation.DiagnosticSeverity.Error, d.Severity);
+        Assert.Contains("печатная форма", d.Message);
+    }
+
+    /// <summary>Первая ячейка первого листа XLSX — там стоит подпись к данным.</summary>
+    private static string FirstCellOf(byte[] xlsx)
+    {
+        using var ms = new MemoryStream(xlsx);
+        var wb = new NPOI.XSSF.UserModel.XSSFWorkbook(ms);
+        return wb.GetSheetAt(0).GetRow(0).GetCell(0).StringCellValue;
     }
 
     /// <summary>Файловый источник (CSV) — для обратной половины правил.</summary>

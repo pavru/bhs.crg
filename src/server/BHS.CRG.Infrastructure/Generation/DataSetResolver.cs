@@ -17,6 +17,7 @@ public class DataSetResolver(
     AppDbContext db,
     IDataSetRowLoader rowLoader,
     IObjectResolver objectResolver,
+    SystemDataProviderRegistry systemProviders,
     ILogger<DataSetResolver> logger
 ) : IDataSetResolver
 {
@@ -66,12 +67,24 @@ public class DataSetResolver(
         if (forPersist)
         {
             foreach (var published in bindings.Where(b => b.Source.File.IsSystem))
-                diagnostics?.Add(new ResolutionDiagnostic(
-                    DiagnosticSeverity.Warning,
-                    published.TargetFieldKey ?? "(скалярная привязка)",
-                    $"Привязка источника «{published.Source.Name}» пропущена: набор отбирает строки по " +
-                    "правам, и в данные записи они не сохраняются — иначе пережили бы отзыв права. " +
-                    "Поле заполняется только на документе комплекта."));
+            {
+                var field = published.TargetFieldKey ?? "(скалярная привязка)";
+                var why = $"Привязка источника «{published.Source.Name}» пропущена: набор отбирает " +
+                    "строки по правам, и в данные записи они не сохраняются — иначе пережили бы отзыв " +
+                    "права. Поле заполняется только на документе комплекта.";
+
+                // Error, а не Warning: экран «Проверка связок» показывает предупреждение статусом
+                // not-found — «значение источника не сматчилось», — а здесь резолв не состоялся
+                // ВОВСЕ, по правилу. Не сматчилось и не делалось — разные вещи, и первое отправило
+                // бы человека искать пропавшую запись каталога (нашло ревью PR #1057).
+                diagnostics?.Add(new ResolutionDiagnostic(DiagnosticSeverity.Error, field, why));
+
+                // Сохранение записи диагностику не собирает вовсе (diagnostics: null), поэтому след
+                // остаётся в журнале сервера: иначе поле просто перестало бы обновляться молча.
+                logger.LogInformation(
+                    "Привязка {BindingId} владельца {OwnerId} пропущена при сохранении: источник на " +
+                    "опубликованном наборе (ТЗ CORE-24.2)", published.Id, ownerId);
+            }
             bindings = [.. bindings.Where(b => !b.Source.File.IsSystem)];
         }
 
@@ -154,6 +167,16 @@ public class DataSetResolver(
                         "Удалите привязку или переключите её на поле текущей схемы."));
                     continue;
                 }
+
+                // Набор с построчной изоляцией в печатную форму не идёт (ТЗ CORE-24.1) — и проверяется
+                // это на КАЖДОМ выпуске, а не только при создании привязки. Привязка заводится один
+                // раз, а поставщик вправе объявить изоляцию позже (этап 3): проверка только на входе
+                // оставила бы старые привязки работать, и два инженера получили бы разные акты —
+                // ровно то, что правило запрещает (нашло ревью PR #1057). Сверка стережётся так же,
+                // на прогоне.
+                if (binding.Source.File.IsSystem
+                    && systemProviders.TryGet(binding.Source.SheetOrPath) is { } provider)
+                    SystemDataSetRules.EnsureShared(provider.Declaration, "печатная форма");
 
                 // Download → parse → transformation → filter → sort (shared with preview via DataSetRowLoader).
                 var loaded = await rowLoader.LoadAsync(binding.Source, access, ct);

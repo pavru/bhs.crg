@@ -38,8 +38,13 @@ public static class GenerationEndpoints
             Guid? userId = Guid.TryParse(userIdStr, out var uid) ? uid : null;
             try
             {
+                // ⚠️ БЕЗ токена запроса — как было до issue #965. Обработчик уже перевёл документ в
+                // «Генерируется», и его же catch пишет «Ошибка» тем же токеном: с отменённым токеном
+                // это сохранение не проходит, и документ остаётся в «Генерируется» навсегда, без
+                // уведомления. Клиент, закрывший вкладку, не должен оставлять такой след (нашло
+                // ревью PR #1057). Параметр доступа берётся ДО отправки — там токен ещё нужен.
                 var files = await m.Send(new GenerateDocumentCommand(
-                    instanceId, format, await access.ForAsync(user, ct), generatedBy, userId), ct);
+                    instanceId, format, await access.ForAsync(user, ct), generatedBy, userId));
                 return Results.Ok(files.Select(f => new { f.Id, f.BlobPath, Format = f.Format.ToString(), f.TemplateId }));
             }
             catch (ResolutionValidationException ex)
