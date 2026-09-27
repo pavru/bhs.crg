@@ -72,7 +72,7 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput(level, scopeId?.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), default);
+            new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), TestAccess.All, default);
         return source.Id;
     }
 
@@ -89,13 +89,13 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
 
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Set", seed.SetId.ToString(), null), default);
-        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, default),
+        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.QualityDocumentsMarker);
         Assert.Equal("Документы качества", candidate.Name);
 
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Качество", candidate.SheetOrPath, null), default);
-        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+            new CreateSourceInput("Качество", candidate.SheetOrPath, null), TestAccess.All, default);
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, TestAccess.All, default);
         Assert.NotNull(preview);
 
         string? Cell(int row, string column) => preview.Rows[row][preview.Columns.ToList().IndexOf(column)];
@@ -126,10 +126,10 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.CertTypeId, "Первый", "{}", CatalogScope.Set, seed.SetId);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows);
+        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows);
 
         await AddDocAsync(scope, seed.CertTypeId, "Второй", "{}", CatalogScope.Set, seed.SetId);
-        Assert.Equal(2, (await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows.Count);
+        Assert.Equal(2, (await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows.Count);
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.CertTypeId, "Чужой", "{}", CatalogScope.Set, otherSet.Id);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var names = preview!.Rows.Select(r => r[preview.Columns.ToList().IndexOf("Наименование")]).ToList();
 
         Assert.Equal(["Общий", "Раздельный", "Свой", "Строечный"], [.. names.Order()]);
@@ -168,7 +168,7 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.CertTypeId, "Комплектный", "{}", CatalogScope.Set, seed.SetId);
 
         var sourceId = await SourceAtAsync(scope, "System", null);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         Assert.Equal("Общий", Assert.Single(preview!.Rows)[preview.Columns.ToList().IndexOf("Наименование")]);
     }
 
@@ -185,7 +185,7 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
             CatalogScope.Set, seed.SetId);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         var row = Assert.Single(preview!.Rows);
         var columns = preview.Columns.ToList();
 
@@ -206,16 +206,16 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Set", seed.SetId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), default);
+            new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), TestAccess.All, default);
         Assert.Equal(1, source.CachedRowCount);
 
         await AddDocAsync(scope, seed.CertTypeId, "Второй", "{}", CatalogScope.System, null);
 
-        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
+        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default)).CachedRowCount);
 
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
-        Assert.Equal(2, (await snapshots.GetSourceAsync(source.Id))!.RowCount);
-        Assert.Equal(2, (await snapshots.GetRowsAsync(source.Id, 0, 50))!.TotalRows);
+        Assert.Equal(2, (await snapshots.GetSourceAsync(source.Id, TestAccess.All))!.RowCount);
+        Assert.Equal(2, (await snapshots.GetRowsAsync(source.Id, 0, 50, TestAccess.All))!.TotalRows);
     }
 
     /// <summary>
@@ -234,11 +234,11 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(SystemDataSets.QualityDocumentsMarker));
         await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
-            SystemDataSets.QualityDocumentsMarker, CatalogScope.Section, null, default));
+            SystemDataSets.QualityDocumentsMarker, CatalogScope.Section, null, TestAccess.All, default));
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Section", null, null), default);
         await Assert.ThrowsAsync<InvalidRequestException>(() => svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), default));
+            new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), TestAccess.All, default));
     }
 
     /// <summary>
@@ -261,7 +261,7 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync();
 
-        var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, default));
+        var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default));
         Assert.Equal(source.Id, listed.Id);
         Assert.Equal(7, listed.CachedRowCount); // запомненное число, а не падение
     }
@@ -277,17 +277,17 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var svc = Svc(scope);
         var seed = await SeedAsync(scope);
 
-        Assert.DoesNotContain(await svc.ListSystemCandidatesAsync("Set", seed.SetId, default),
+        Assert.DoesNotContain(await svc.ListSystemCandidatesAsync("Set", seed.SetId, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.QualityDocumentsMarker);
 
         await AddDocAsync(scope, seed.CertTypeId, "Появился", "{}", CatalogScope.System, null);
 
-        Assert.Contains(await svc.ListSystemCandidatesAsync("Set", seed.SetId, default),
+        Assert.Contains(await svc.ListSystemCandidatesAsync("Set", seed.SetId, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.QualityDocumentsMarker);
         // И на уровнях, где документов комплекта нет и быть не может.
-        Assert.Contains(await svc.ListSystemCandidatesAsync("Construction", seed.ConstructionId, default),
+        Assert.Contains(await svc.ListSystemCandidatesAsync("Construction", seed.ConstructionId, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.QualityDocumentsMarker);
-        Assert.Contains(await svc.ListSystemCandidatesAsync("System", null, default),
+        Assert.Contains(await svc.ListSystemCandidatesAsync("System", null, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.QualityDocumentsMarker);
     }
 }

@@ -24,15 +24,28 @@ public static class SpreadsheetExporter
         _ => SpreadsheetFormat.Xlsx, // xlsx — по умолчанию (приоритетный)
     };
 
+    /// <param name="preamble">
+    /// Строки НАД таблицей — тем же приёмом, что у многолистового отчёта (<see cref="Sheet" />). Сюда
+    /// идёт граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): выгрузка уходит из
+    /// системы и живёт своей жизнью, а «что это за строки и все ли они» по самому файлу не узнать.
+    /// ⚠️ <b>У CSV шапки НЕТ.</b> Своего места под примечание формат не предусматривает, и строка
+    /// легла бы первой записью файла, сдвинув заголовок колонок на вторую, — а такой файл заново
+    /// загружают в систему как набор данных, и разбор увидел бы в заголовке подпись вместо имён
+    /// колонок (нашло ревью PR #1057). ТЗ CORE-24.3 требует подпись в XLSX, и здесь это буквально:
+    /// у XLSX шапка есть, у CSV — нет. Выгрузку в CSV поэтому подписывает не файл, а экран, с
+    /// которого её забирают.
+    /// </param>
     public static (byte[] Bytes, string Extension, string ContentType) Export(
         SpreadsheetFormat format,
         IReadOnlyList<string> columns,
         IReadOnlyList<IReadOnlyList<string?>> rows,
-        string sheetName = "Данные") => format switch
+        string sheetName = "Данные",
+        IReadOnlyList<string>? preamble = null) => format switch
     {
         SpreadsheetFormat.Csv => (Csv(columns, rows), "csv", "text/csv; charset=utf-8"),
-        SpreadsheetFormat.Xls => (Workbook(new HSSFWorkbook(), columns, rows, sheetName), "xls", "application/vnd.ms-excel"),
-        _ => (Workbook(new XSSFWorkbook(), columns, rows, sheetName), "xlsx",
+        SpreadsheetFormat.Xls => (Workbook(new HSSFWorkbook(), columns, rows, sheetName, preamble), "xls",
+            "application/vnd.ms-excel"),
+        _ => (Workbook(new XSSFWorkbook(), columns, rows, sheetName, preamble), "xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     };
 
@@ -107,17 +120,12 @@ public static class SpreadsheetExporter
     }
 
     private static byte[] Workbook(IWorkbook wb, IReadOnlyList<string> columns,
-        IReadOnlyList<IReadOnlyList<string?>> rows, string sheetName)
+        IReadOnlyList<IReadOnlyList<string?>> rows, string sheetName,
+        IReadOnlyList<string>? preamble = null)
     {
-        var sheet = wb.CreateSheet(SafeSheetName(sheetName));
-        var header = sheet.CreateRow(0);
-        for (var c = 0; c < columns.Count; c++) header.CreateCell(c).SetCellValue(columns[c]);
-        for (var r = 0; r < rows.Count; r++)
-        {
-            var row = sheet.CreateRow(r + 1);
-            for (var c = 0; c < columns.Count; c++)
-                row.CreateCell(c).SetCellValue(c < rows[r].Count ? rows[r][c] ?? "" : "");
-        }
+        // Один и тот же приём на одном листе и на многих: шапка пишется WriteSheet (issue #444), и
+        // второй её экземпляр здесь разошёлся бы с ним при первой правке.
+        WriteSheet(wb, new Sheet(sheetName, columns, rows, preamble));
         using var ms = new MemoryStream();
         wb.Write(ms, leaveOpen: true);
         return ms.ToArray();

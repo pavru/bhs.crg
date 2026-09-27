@@ -48,8 +48,8 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         var svc = Svc(scope);
         var file = await svc.UploadFileAsync(
             new UploadFileInput(Encoding.UTF8.GetBytes(csv), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), TestAccess.All, default);
         await svc.SetMaterializationAsync(source.Id, rowTypeId, mapping, discriminator: null, byIdColumn: null, default);
         return source.Id;
     }
@@ -62,7 +62,7 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         var view = DocumentView.From(inst!);
         var entity = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var ctx = await entity.ResolveAsync(view);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, diagnostics, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, diagnostics, default);
         // Второй проход: именно он разворачивает добавленные привязкой ссылки.
         await entity.ResolveContextRefsAsync(ctx, view.DocumentSetId);
         return ctx;
@@ -244,7 +244,7 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         var sourceId = await MaterializedSourceAsync(scope, "A,B\n1,2\n3,4\n", rowType.Id, mapping: new());
         await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
 
-        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
 
         Assert.Equal("error", preview.Mode);
         Assert.Contains("маппинг колонок пуст", preview.Error);
@@ -280,11 +280,11 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
             new Dictionary<string, string> { ["Документ"] = "Ид" });
         await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
 
-        var materialize = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, null, default);
+        var materialize = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, null, TestAccess.All, default);
         Assert.Equal("🔗 АОСР", materialize!.Rows[0]["Документ"]);
         Assert.Equal("документ не найден", materialize.Rows[1]["Документ"]);
 
-        var binding = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+        var binding = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
         var rows = Assert.IsType<List<Dictionary<string, object?>>>(binding.Data);
         Assert.Equal("🔗 АОСР", rows[0]["Документ"]);
         Assert.Equal("документ не найден", rows[1]["Документ"]);

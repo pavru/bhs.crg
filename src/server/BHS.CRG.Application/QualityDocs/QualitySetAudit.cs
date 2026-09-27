@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -52,10 +53,12 @@ public interface IQualitySetAuditRunner
 {
     /// <summary>Прогнать сверку и вернуть отчёт, ничего не сохраняя.</summary>
     /// <param name="onProgress">Обратный вызов «проверено из скольких» для индикатора задач.</param>
-    Task<QualityAuditReport> RunAsync(Guid setId, int limit, Func<int, int, Task>? onProgress, CancellationToken ct);
+    Task<QualityAuditReport> RunAsync(
+        Guid setId, int limit, DataAccess access, Func<int, int, Task>? onProgress, CancellationToken ct);
 
     /// <summary>Прогнать сверку, заменить сохранённый отчёт комплекта и сообщить итог в колокольчик.</summary>
-    Task<QualityAuditReport> RunAndStoreAsync(Guid setId, Guid userId, Func<int, int, Task>? onProgress, CancellationToken ct);
+    Task<QualityAuditReport> RunAndStoreAsync(
+        Guid setId, Guid userId, DataAccess access, Func<int, int, Task>? onProgress, CancellationToken ct);
 }
 
 public class QualitySetAuditRunner(
@@ -73,7 +76,8 @@ public class QualitySetAuditRunner(
     /// </summary>
     public const int DefaultLimit = 100;
 
-    public async Task<QualityAuditReport> RunAsync(Guid setId, int limit, Func<int, int, Task>? onProgress, CancellationToken ct)
+    public async Task<QualityAuditReport> RunAsync(
+        Guid setId, int limit, DataAccess access, Func<int, int, Task>? onProgress, CancellationToken ct)
     {
         // Несуществующий комплект — отказ, а не «проблем нет»: пустой отчёт на опечатку в
         // идентификаторе читается как чистая совесть, и это ровно тот молчаливый ноль, из-за
@@ -96,7 +100,7 @@ public class QualitySetAuditRunner(
             IReadOnlyList<ResolutionDiagnostic> diagnostics;
             // Один нечитаемый документ не должен отменять сверку остальных: комплект собирают
             // месяцами, и сломанный набор в одном документе — обычное состояние работы.
-            try { diagnostics = await validator.ValidateAsync(doc.Id, catalog, ct); }
+            try { diagnostics = await validator.ValidateAsync(doc.Id, catalog, access, ct); }
             // Отмену наружу: клиент ушёл — считать нечего и незачем, а записанная в Failed отмена
             // выглядела бы как «документ сломан» и отправила бы человека искать несуществующий дефект.
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -125,9 +129,10 @@ public class QualitySetAuditRunner(
             Truncated: rows.Count > effectiveLimit);
     }
 
-    public async Task<QualityAuditReport> RunAndStoreAsync(Guid setId, Guid userId, Func<int, int, Task>? onProgress, CancellationToken ct)
+    public async Task<QualityAuditReport> RunAndStoreAsync(
+        Guid setId, Guid userId, DataAccess access, Func<int, int, Task>? onProgress, CancellationToken ct)
     {
-        var report = await RunAsync(setId, DefaultLimit, onProgress, ct);
+        var report = await RunAsync(setId, DefaultLimit, access, onProgress, ct);
         var total = report.MaterialsWithoutDoc + report.ImplausibleDocs;
 
         // Замена, а не накопление: отчёт один на комплект (см. QualityAuditRun). Существующий читается

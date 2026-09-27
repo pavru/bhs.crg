@@ -97,7 +97,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         using (var scope = fixture.Services.CreateScope())
         {
             var e = await Mediator(scope).Send(new UpdateCommonDataEntryCommand(
-                id, "X", Json("{}"), new[] { "новый1", "новый2" }));
+                id, "X", Json("{}"), TestAccess.All, new[] { "новый1", "новый2" }));
             Assert.Equal(new[] { "новый1", "новый2" }, e.Aliases);
         }
     }
@@ -138,7 +138,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
 
         using var scope2 = fixture.Services.CreateScope();
         var updated = await Mediator(scope2).Send(
-            new UpdateCommonDataEntryCommand(entry.Id, "Новое", Json(@"{""inn"":""456""}")));
+            new UpdateCommonDataEntryCommand(entry.Id, "Новое", Json(@"{""inn"":""456""}"), TestAccess.All));
 
         Assert.Equal("Новое", updated.DisplayName);
     }

@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Reconciliation;
 
 namespace BHS.CRG.Application.Reconciliation;
@@ -14,7 +15,7 @@ public interface IReconciliationRunner
 {
     /// <summary>Прогоняет сверку и сохраняет прогон с находками. Ошибка источника не бросается
     /// наружу, а фиксируется в прогоне: пустой журнал молча — хуже, чем видимая неудача.</summary>
-    Task<ReconciliationRun> RunAsync(Guid definitionId, CancellationToken ct = default);
+    Task<ReconciliationRun> RunAsync(Guid definitionId, DataAccess access, CancellationToken ct = default);
 }
 
 /// <summary>Находка с наложенным человеческим решением и признаком устранения.</summary>

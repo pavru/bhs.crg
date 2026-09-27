@@ -138,8 +138,15 @@ public record BindingPreviewDto(
     Guid BindingId, string SourceName, string FileName, string Mode,
     string? TargetFieldKey, int TotalRows, object Data, string? Error);
 
+/// <param name="Boundary">
+/// Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): что именно отдано ЭТОМУ
+/// человеку. Постоянная подпись рядом с данными, а не сообщение об ошибке, и не «12 строк скрыто» —
+/// человек не знает, чего не видит, а две разные цифры, обе выглядящие окончательными, опаснее
+/// одной с оговоркой. null — источник не опубликованный: его границу задаёт сам файл.
+/// </param>
 public record SourcePreviewDto(
-    IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string?>> Rows, int TotalRows);
+    IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string?>> Rows, int TotalRows,
+    string? Boundary = null);
 
 /// <summary>Готовый файл выгрузки табличного источника (CSV/XLS/XLSX) — байты + имя + content-type.</summary>
 public record SourceExportDto(byte[] Content, string FileName, string ContentType);

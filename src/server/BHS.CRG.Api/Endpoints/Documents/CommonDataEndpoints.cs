@@ -1,4 +1,5 @@
-﻿using BHS.CRG.Api.Auth;
+﻿using System.Security.Claims;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
@@ -80,9 +81,11 @@ public static class CommonDataEndpoints
         // держать непроверенную точку записи по общим данным уровня «Система».
 
         // Проверка связок (issue #99): сверка снимка $ref-ссылок со свежим резолвом источника.
-        g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m) =>
+        g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
-            try { return Results.Ok(await m.Send(new CheckCommonDataBindingsQuery(id))); }
+            try { return Results.Ok(await m.Send(new CheckCommonDataBindingsQuery(
+                id, await access.ForAsync(user, ct)))); }
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
@@ -100,9 +103,11 @@ public static class CommonDataEndpoints
                 JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases))));
         });
 
-        edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m) =>
+        edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
             Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
-                id, req.DisplayName, JsonDocument.Parse(req.Data), req.Aliases)))));
+                id, req.DisplayName, JsonDocument.Parse(req.Data),
+                await access.ForAsync(user, ct), req.Aliases)))));
 
         edit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {

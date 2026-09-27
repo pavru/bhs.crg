@@ -74,9 +74,17 @@ public static class ReconciliationEndpoints
 
         // ── Прогоны ─────────────────────────────────────────────────────────────
 
-        g.MapPost("/{id:guid}/run", async (Guid id, IMediator m) =>
+        g.MapPost("/{id:guid}/run", async (Guid id, IMediator m,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
-            try { return Results.Ok(ToDto(await m.Send(new RunReconciliationCommand(id)))); }
+            // Строки обеих сторон читаются правами ЗАПУСТИВШЕГО (ТЗ CORE-24.1, issue #965): у сверки
+            // своей логики отбора нет, и «прогон под правами приложения» стал бы обходом — тем более
+            // что правило сверки пишет сам обладатель права на прогон (см. CorePermissions).
+            // ⚠️ БЕЗ токена запроса, по той же причине, что у выпуска документа (ревью PR #1057):
+            // прогон уже записан как начатый, а `run.Fail(...)` сохраняется тем же токеном — с
+            // отменённым сверка навсегда осталась бы «в работе», без находок и без причины.
+            try { return Results.Ok(ToDto(await m.Send(
+                new RunReconciliationCommand(id, await access.ForAsync(user, ct))))); }
             catch (NotFoundException) { return Results.NotFound(); }
         });
 

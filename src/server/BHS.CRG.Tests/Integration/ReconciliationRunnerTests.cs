@@ -87,7 +87,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         using var scope = fixture.Services.CreateScope();
         var (definitionId, runner) = await SeedAsync(scope);
 
-        var run = await runner.RunAsync(definitionId);
+        var run = await runner.RunAsync(definitionId, TestAccess.All);
         Assert.Equal(ReconciliationRunStatus.Completed, run.Status);
 
         var findings = await FindingsAsync(scope, run.Id);
@@ -117,7 +117,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
     {
         using var scope = fixture.Services.CreateScope();
         var (definitionId, runner) = await SeedAsync(scope);
-        var run = await runner.RunAsync(definitionId);
+        var run = await runner.RunAsync(definitionId, TestAccess.All);
 
         var cable = Assert.Single(await FindingsAsync(scope, run.Id), f => f.LeftValue == 200);
         var left = cable.Provenance.RootElement.GetProperty("left");
@@ -140,14 +140,14 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (definitionId, runner) = await SeedAsync(scope);
 
-        var first = await runner.RunAsync(definitionId);
+        var first = await runner.RunAsync(definitionId, TestAccess.All);
         var mismatch = Assert.Single(await FindingsAsync(scope, first.Id), f => f.Status == FindingStatus.Mismatch);
 
         db.Add(ReconciliationDecision.Create(
             definitionId, mismatch.Key, DecisionKind.Accepted, "Давальческий кабель", "alex"));
         await db.SaveChangesAsync();
 
-        var second = await runner.RunAsync(definitionId);
+        var second = await runner.RunAsync(definitionId, TestAccess.All);
         var again = Assert.Single(await FindingsAsync(scope, second.Id), f => f.Status == FindingStatus.Mismatch);
 
         Assert.Equal(mismatch.Key, again.Key);
@@ -168,7 +168,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (definitionId, runner) = await SeedAsync(scope);
 
-        var before = (await FindingsAsync(scope, (await runner.RunAsync(definitionId)).Id))
+        var before = (await FindingsAsync(scope, (await runner.RunAsync(definitionId, TestAccess.All)).Id))
             .Select(f => f.Key).OrderBy(k => k, StringComparer.Ordinal).ToList();
 
         // Тот же журнал: строки переставлены, и добавлена ведущая колонка с номерами — ровно то, что
@@ -188,7 +188,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
             spec with { Left = spec.Left with { SourceId = newJournal } }, Json));
         await db.SaveChangesAsync();
 
-        var after = (await FindingsAsync(scope, (await runner.RunAsync(definitionId)).Id))
+        var after = (await FindingsAsync(scope, (await runner.RunAsync(definitionId, TestAccess.All)).Id))
             .Select(f => f.Key).OrderBy(k => k, StringComparer.Ordinal).ToList();
 
         Assert.Equal(before, after);
@@ -232,7 +232,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         var runner = scope.ServiceProvider.GetRequiredService<IReconciliationRunner>();
 
         // Без алиаса — две находки-сироты.
-        var before = await FindingsAsync(scope, (await runner.RunAsync(definition.Id)).Id);
+        var before = await FindingsAsync(scope, (await runner.RunAsync(definition.Id, TestAccess.All)).Id);
         Assert.Equal(2, before.Count);
         Assert.Contains(before, f => f.Status == FindingStatus.MissingRight);
 
@@ -244,13 +244,13 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         var alias = ReconciliationAlias.Propose(variant, "Органайзер", canonical, "Hyperline", null, "агент");
         db.Add(alias);
         await db.SaveChangesAsync();
-        Assert.Equal(2, (await FindingsAsync(scope, (await runner.RunAsync(definition.Id)).Id)).Count);
+        Assert.Equal(2, (await FindingsAsync(scope, (await runner.RunAsync(definition.Id, TestAccess.All)).Id)).Count);
 
         alias.Review(AliasStatus.Confirmed, "Одно и то же", "alex");
         db.Update(alias);
         await db.SaveChangesAsync();
 
-        var after = await FindingsAsync(scope, (await runner.RunAsync(definition.Id)).Id);
+        var after = await FindingsAsync(scope, (await runner.RunAsync(definition.Id, TestAccess.All)).Id);
         var merged = Assert.Single(after);
         Assert.Equal(FindingStatus.Match, merged.Status);
         Assert.Equal(10, merged.LeftValue);   // 4 + 6 сложились в одну позицию
@@ -296,7 +296,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         await db.SaveChangesAsync();
 
         var run = await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>()
-            .RunAsync(definition.Id);
+            .RunAsync(definition.Id, TestAccess.All);
         Assert.Equal(ReconciliationRunStatus.Completed, run.Status);
 
         var finding = Assert.Single(await FindingsAsync(scope, run.Id));
@@ -339,7 +339,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         await db.SaveChangesAsync();
 
         var run = await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>()
-            .RunAsync(definition.Id);
+            .RunAsync(definition.Id, TestAccess.All);
 
         Assert.Equal(ReconciliationRunStatus.Completed, run.Status);
         Assert.Equal(FindingStatus.Match, Assert.Single(await FindingsAsync(scope, run.Id)).Status);
@@ -361,7 +361,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         await db.SaveChangesAsync();
 
         var run = await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>()
-            .RunAsync(definition.Id);
+            .RunAsync(definition.Id, TestAccess.All);
 
         Assert.Equal(ReconciliationRunStatus.Failed, run.Status);
         Assert.Contains("не найден", run.Error);

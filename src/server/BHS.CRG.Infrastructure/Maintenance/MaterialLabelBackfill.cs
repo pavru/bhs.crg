@@ -40,6 +40,10 @@ public class MaterialLabelBackfill(
     AppDbContext db,
     IDataSetService bindings)
 {
+    /// <summary>Параметр доступа этого прохода: человека за ним нет (ТЗ WORK-41).</summary>
+    private static readonly DataAccess SystemAccess =
+        DataAccess.OfSystem("дозаполнение подписей материалов");
+
     public async Task<MaterialLabelReport> RunAsync(bool dryRun, CancellationToken ct = default)
     {
         var links = await db.MaterialQualityLinks
@@ -76,8 +80,22 @@ public class MaterialLabelBackfill(
             // Файл мог исчезнуть, набор — перестать разбираться: один сломанный документ не должен
             // отменять дозаполнение остальных. Но и молчать нельзя — иначе «материала больше нет»
             // сказали бы про материал, который просто не удалось прочитать.
-            try { preview = await bindings.PreviewBindingsAsync(ownerId, ct); scanned++; }
+            // ⚠️ Служебное задание — от имени системы (ТЗ WORK-41, CORE-24.1): человека за этим
+            // проходом нет, и «под правами системы» опубликованный набор не читается. Файловые
+            // привязки, из которых дозаполнение и берёт материалы, читаются как прежде; привязка на
+            // опубликованном наборе отвечает отказом.
+            try { preview = await bindings.PreviewBindingsAsync(ownerId, SystemAccess, ct); }
             catch (Exception) { failed++; continue; }
+
+            // ⚠️ Отказ по ОТДЕЛЬНОЙ привязке служба глотает сама и возвращает элемент со статусом
+            // «error» — наружу исключения не бывает (DataSetBindingService.PreviewBindingsAsync).
+            // Поэтому владельца, у которого хоть одна привязка не прочиталась, считаем
+            // непрочитанным: иначе его материалы молча не нашлись бы, а связки уехали бы в отчёт как
+            // «материала больше нет» — тот самый молчаливый ноль, ради которого счётчик и заведён.
+            // Нашло ревью PR #1057: прежний комментарий обещал ровно это поведение, а кода за ним
+            // не было — обещание держалось на том, что отказ якобы дойдёт сюда исключением.
+            if (preview.Any(p => p.Mode == "error")) { failed++; continue; }
+            scanned++;
 
             named += Apply(MaterialsOf(preview, identityKeys), byKey);
 

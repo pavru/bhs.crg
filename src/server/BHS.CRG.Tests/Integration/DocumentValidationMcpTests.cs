@@ -19,9 +19,25 @@ public class DocumentValidationMcpTests(IntegrationTestFixture fixture) : IAsync
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private static DocumentActionTools Tools(IServiceScope s) => new(
-        s.ServiceProvider.GetRequiredService<IMediator>(),
-        s.ServiceProvider.GetRequiredService<IHttpContextAccessor>());
+    /// <summary>
+    /// Инструмент MCP живёт ВНУТРИ запроса: пользователя он берёт из принципала — и для выпуска
+    /// документа (автор файла), и, с issue #965, для параметра доступа к строкам наборов. Прогон
+    /// зовёт инструмент напрямую, поэтому запрос приходится подставить: без него отказ будет про
+    /// отсутствующий контекст, а не про то, что проверяет прогон.
+    /// </summary>
+    private static DocumentActionTools Tools(IServiceScope s)
+    {
+        var http = s.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
+        http.HttpContext ??= new DefaultHttpContext
+        {
+            User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim("sub", Guid.NewGuid().ToString())], "test")),
+        };
+        return new(
+            s.ServiceProvider.GetRequiredService<IMediator>(),
+            s.ServiceProvider.GetRequiredService<BHS.CRG.Api.Auth.DataAccessResolver>(),
+            http);
+    }
 
     private static async Task<Guid> SeedDocumentAsync(IMediator m, string schema)
     {

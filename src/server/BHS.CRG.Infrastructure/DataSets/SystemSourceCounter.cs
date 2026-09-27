@@ -33,33 +33,34 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
     /// штатно. Пустой словарь, если системных наборов в выборке нет.
     /// </summary>
     public async Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
-        IEnumerable<DataSetFile> files, CancellationToken ct)
+        IEnumerable<DataSetFile> files, DataAccess access, CancellationToken ct)
     {
         var states = new Dictionary<Guid, SystemSourceState>();
         foreach (var file in files.Where(f => f.IsSystem))
-            await AddAsync(states, file, file.Sources, ct);
+            await AddAsync(states, file, file.Sources, access, ct);
         return states;
     }
 
     /// <summary>То же для источников, загруженных отдельно от файла.</summary>
     public async Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
-        DataSetFile file, IEnumerable<DataSetSource> sources, CancellationToken ct)
+        DataSetFile file, IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
     {
         var states = new Dictionary<Guid, SystemSourceState>();
-        if (file.IsSystem) await AddAsync(states, file, sources, ct);
+        if (file.IsSystem) await AddAsync(states, file, sources, access, ct);
         return states;
     }
 
     /// <summary>Состояние одного источника; null — набор не системный или маркер неизвестен.</summary>
-    public async Task<SystemSourceState?> StateAsync(DataSetSource source, DataSetFile file, CancellationToken ct)
-        => file.IsSystem ? await StateAsync(source.SheetOrPath, file, ct) : null;
+    public async Task<SystemSourceState?> StateAsync(
+        DataSetSource source, DataSetFile file, DataAccess access, CancellationToken ct)
+        => file.IsSystem ? await StateAsync(source.SheetOrPath, file, access, ct) : null;
 
     private async Task AddAsync(Dictionary<Guid, SystemSourceState> states, DataSetFile file,
-        IEnumerable<DataSetSource> sources, CancellationToken ct)
+        IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
     {
         foreach (var source in sources)
         {
-            var state = await StateAsync(source.SheetOrPath, file, ct);
+            var state = await StateAsync(source.SheetOrPath, file, access, ct);
             if (state is not null) states[source.Id] = state.Value;
         }
     }
@@ -68,13 +69,20 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
     // Маркер без провайдера (консолидацию убрали в новой версии) и источник на уровне, где
     // консолидация неприменима (набор остался от версий до гейта #606), отдают запомненное число —
     // оно хотя бы показывает, чем источник был.
-    private async Task<SystemSourceState?> StateAsync(string marker, DataSetFile file, CancellationToken ct)
+    private async Task<SystemSourceState?> StateAsync(
+        string marker, DataSetFile file, DataAccess access, CancellationToken ct)
     {
         var provider = providers.TryGet(marker);
         if (provider is null) return null;
         try
         {
-            var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, ct);
+            // Ворота (ТЗ CORE-24.1, issue #965) — и здесь: счётчик читает строки целиком, то есть
+            // «сколько строк» отвечает по данным, на которые права может не быть. Отказ ворот —
+            // DomainException, и его глотает тот же catch ниже: список наборов у человека без права
+            // покажет запомненное число вместо живого, а не упадёт целиком. Запомненное число на
+            // источнике лежит с момента создания и уезжает в резервную копию — новой утечки здесь нет.
+            SystemDataSetGate.Ensure(provider.Declaration, access, "");
+            var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
             return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns);
         }
         // Ловим НАШ отказ провайдера («источник доступен только на уровне комплекта» и подобные) —

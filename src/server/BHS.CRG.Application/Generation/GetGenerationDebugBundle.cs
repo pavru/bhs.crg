@@ -1,4 +1,5 @@
-﻿using System.Text.Encodings.Web;
+﻿using BHS.CRG.Application.DataSets;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
@@ -27,7 +28,7 @@ public record GenerationDebugBundle(
     // точка входа реэкспортирует файлы, которых в пакете бы не оказалось.
     IReadOnlyList<UserLibFile> UserLibFiles);
 
-public record GetGenerationDebugBundleQuery(Guid InstanceId) : IRequest<GenerationDebugBundle?>;
+public record GetGenerationDebugBundleQuery(Guid InstanceId, DataAccess Access) : IRequest<GenerationDebugBundle?>;
 
 public class GetGenerationDebugBundleHandler(
     IRepository<DomainObject> instanceRepo,
@@ -66,7 +67,7 @@ public class GetGenerationDebugBundleHandler(
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var view = DocumentView.From(instance);
         var context = await entityResolver.ResolveAsync(view, ct: ct);
-        await dataSetResolver.InjectAsync(context, view, null, ct);
+        await dataSetResolver.InjectAsync(context, view, q.Access, null, ct);
         await entityResolver.ApplyDefaultsAsync(context, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
         await qualityLinkResolver.InjectAsync(context, view, ct);

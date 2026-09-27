@@ -51,7 +51,7 @@ public class CommonDataHandlers(
         // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
         // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
         var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
-            cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, null, ct);
+            cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, cmd.Access, null, ct);
         var data = resolved.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, resolved);
         // ⚠️ Охрана — ПОСЛЕ слияния с привязками, а не над телом запроса: иначе привязка набора
         // пронесла бы мимо охраны что угодно (issue #957).

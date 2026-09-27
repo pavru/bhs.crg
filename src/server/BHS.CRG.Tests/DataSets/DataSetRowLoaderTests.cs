@@ -40,14 +40,21 @@ public class DataSetRowLoaderTests
         public Guid? SeenScopeId;
         public string? SeenMarker;
 
+        /// <summary>Объявление как у настоящих «Документов комплекта» — иначе ворота не пустят.</summary>
+        public SystemDataSetDeclaration Declaration { get; set; } = new(
+            "id", "id.document.read", SystemDataSetIsolation.None, ["Отдаёт документы комплекта"]);
+
         public bool Handles(string marker) => marker == SystemDataSets.SetDocumentsMarker;
 
         public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
             CatalogScope scope, Guid? scopeId, CancellationToken ct) => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
 
+        public DataAccess? SeenAccess;
+
         public Task<DataSetParseResult> ProvideAsync(
-            string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+            string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
         {
+            SeenAccess = access;
             SeenMarker = marker;
             SeenScope = scope;
             SeenScopeId = scopeId;
@@ -80,7 +87,7 @@ public class DataSetRowLoaderTests
         var blob = new FakeBlob(Encoding.UTF8.GetBytes("Имя,Количество\nКабель,10\n"));
         var source = Source(DataSetFormat.Csv, "bucket/file.csv");
 
-        var rows = await Loader(blob).LoadRowsAsync(source, default);
+        var rows = await Loader(blob).LoadRowsAsync(source, TestAccess.All, default);
 
         Assert.Single(rows);
         Assert.Equal("Кабель", rows[0]["Имя"]);
@@ -94,7 +101,7 @@ public class DataSetRowLoaderTests
         var source = Source(DataSetFormat.Pdf, "bucket/file.pdf",
             cachedData: """[{"Колонка":"Значение"}]""");
 
-        var rows = await Loader(blob).LoadRowsAsync(source, default);
+        var rows = await Loader(blob).LoadRowsAsync(source, TestAccess.All, default);
 
         Assert.Single(rows);
         Assert.Equal("Значение", rows[0]["Колонка"]);
@@ -105,9 +112,9 @@ public class DataSetRowLoaderTests
     public async Task PdfSource_EmptyOrBrokenCache_YieldsNoRows()
     {
         var blob = new FakeBlob();
-        Assert.Empty(await Loader(blob).LoadRowsAsync(Source(DataSetFormat.Pdf, "b/p.pdf"), default));
+        Assert.Empty(await Loader(blob).LoadRowsAsync(Source(DataSetFormat.Pdf, "b/p.pdf"), TestAccess.All, default));
         Assert.Empty(await Loader(blob).LoadRowsAsync(
-            Source(DataSetFormat.Pdf, "b/p.pdf", cachedData: "не json"), default));
+            Source(DataSetFormat.Pdf, "b/p.pdf", cachedData: "не json"), TestAccess.All, default));
     }
 
     [Fact]
@@ -118,7 +125,7 @@ public class DataSetRowLoaderTests
         var setId = Guid.NewGuid();
         var source = Source(DataSetFormat.System, "", sheetOrPath: SystemDataSets.SetDocumentsMarker, scopeId: setId);
 
-        var rows = await Loader(blob, provider).LoadRowsAsync(source, default);
+        var rows = await Loader(blob, provider).LoadRowsAsync(source, TestAccess.All, default);
 
         Assert.Single(rows);
         Assert.Equal("АОСР 1", rows[0]["Наименование"]);
@@ -137,7 +144,7 @@ public class DataSetRowLoaderTests
             """{"type":"condition","column":"Наименование","op":"eq","value":"нет такого"}""",
             null, null);
 
-        Assert.Empty(await Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, default));
+        Assert.Empty(await Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, TestAccess.All, default));
     }
 
     [Fact]
@@ -145,6 +152,6 @@ public class DataSetRowLoaderTests
     {
         var source = Source(DataSetFormat.System, "", sheetOrPath: "system:нет-такого");
         await Assert.ThrowsAsync<ConflictException>(
-            () => Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, default));
+            () => Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, TestAccess.All, default));
     }
 }

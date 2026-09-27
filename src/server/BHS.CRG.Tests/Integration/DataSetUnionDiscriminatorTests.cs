@@ -78,8 +78,8 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
         var svc = Svc(scope);
         var file = await svc.UploadFileAsync(
             new UploadFileInput(Encoding.UTF8.GetBytes(csv), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы комплекта", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы комплекта", candidate.SheetOrPath, null), TestAccess.All, default);
         await svc.SetMaterializationAsync(source.Id, typeId, mapping, discriminator, byIdColumn: null, default);
         return source.Id;
     }
@@ -91,7 +91,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
         var view = DocumentView.From(inst!);
         var entity = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var ctx = await entity.ResolveAsync(view);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, diagnostics, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, diagnostics, default);
         await entity.ResolveContextRefsAsync(ctx, view.DocumentSetId);
         return ctx;
     }
@@ -231,7 +231,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
             new MaterializeDiscriminatorConfig("ТипКод", MaterializeDiscriminatorConfig.ByTypeCode,
                 new Dictionary<string, List<Guid>> { ["АОСР"] = [f.AosrTypeId] }));
 
-        var preview = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, null, default);
+        var preview = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, null, TestAccess.All, default);
 
         Assert.NotNull(preview);
         Assert.Null(preview!.Error);
@@ -263,7 +263,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
                 new Dictionary<string, List<Guid>> { ["АОСР"] = [f.AosrTypeId] }));
         await Svc(scope).CreateBindingAsync(new CreateBindingInput(f.ReestrId, sourceId, "Состав", null), default);
 
-        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(f.ReestrId, default));
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(f.ReestrId, TestAccess.All, default));
         var rows = Assert.IsType<List<Dictionary<string, object?>>>(preview.Data);
 
         // Показана одна строка — ровно та, что доедет до документа.
@@ -295,7 +295,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
         var preview = await Svc(scope).MaterializePreviewAsync(
             sourceId, 50, f.UnionTypeId,
             new Dictionary<string, string> { ["АОСР"] = "Ид" },
-            discriminator: null, byIdColumn: null, default);
+            discriminator: null, byIdColumn: null, access: TestAccess.All, ct: default);
 
         Assert.NotNull(preview);
         // Правило не применялось: обе строки на месте, пропущенных нет, варианта у строк нет.

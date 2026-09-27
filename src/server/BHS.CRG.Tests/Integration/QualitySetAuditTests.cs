@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
@@ -40,7 +41,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     {
         using var scope = fx.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IQualitySetAuditRunner>()
-            .RunAsync(setId, QualitySetAuditRunner.DefaultLimit, null, CancellationToken.None);
+            .RunAsync(setId, QualitySetAuditRunner.DefaultLimit, TestAccess.All, null, CancellationToken.None);
     }
 
     private static string Uniq => Guid.NewGuid().ToString("N")[..8];
@@ -172,10 +173,11 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
             return inner.LoadCatalogAsync(ct);
         }
 
-        public Task<IReadOnlyList<ResolutionDiagnostic>> ValidateAsync(Guid instanceId, SchemaCatalog catalog, CancellationToken ct)
+        public Task<IReadOnlyList<ResolutionDiagnostic>> ValidateAsync(
+            Guid instanceId, SchemaCatalog catalog, DataAccess access, CancellationToken ct)
         {
             Validations++;
-            return inner.ValidateAsync(instanceId, catalog, ct);
+            return inner.ValidateAsync(instanceId, catalog, access, ct);
         }
     }
 
@@ -200,7 +202,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
             scope.ServiceProvider.GetRequiredService<INotificationService>());
 
         var progress = new List<string>();
-        var report = await runner.RunAsync(setId, QualitySetAuditRunner.DefaultLimit,
+        var report = await runner.RunAsync(setId, QualitySetAuditRunner.DefaultLimit, TestAccess.All,
             (c, t) => { progress.Add($"{c} из {t}"); return Task.CompletedTask; }, CancellationToken.None);
 
         Assert.Equal(2, report.Documents);
@@ -225,7 +227,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     {
         using var scope = fx.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<IQualitySetAuditRunner>()
-            .RunAndStoreAsync(setId, userId, null, CancellationToken.None);
+            .RunAndStoreAsync(setId, userId, TestAccess.All, null, CancellationToken.None);
     }
 
     /// <summary>

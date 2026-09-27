@@ -83,7 +83,7 @@ public class DomainSnapshotService(
             [.. docs.OrderBy(d => d.SortOrder).Select(d => ToSummary(d, typeMap))]);
     }
 
-    public async Task<DocumentDetail?> GetDocumentAsync(Guid documentId, bool resolveRefs = true,
+    public async Task<DocumentDetail?> GetDocumentAsync(Guid documentId, DataAccess access, bool resolveRefs = true,
         IReadOnlyCollection<string>? fields = null, bool expandDocumentRefs = false,
         CancellationToken ct = default)
     {
@@ -117,7 +117,8 @@ public class DomainSnapshotService(
         // иначе get_document(fields:[…]) разбирал бы все привязанные источники ради ответа, из
         // которого их всё равно выбросят (#596).
         var tableFields = await TableFieldsAsync(
-            doc.Id, doc.CompositeTypeId, requisites, wanted is { Count: > 0 } ? [.. wanted] : null, ct);
+            doc.Id, doc.CompositeTypeId, requisites, wanted is { Count: > 0 } ? [.. wanted] : null,
+            access, ct);
 
         if (wanted is not { Count: > 0 })
             return new DocumentDetail(
@@ -213,7 +214,7 @@ public class DomainSnapshotService(
     /// </summary>
     private async Task<IReadOnlyList<DocumentTableField>> TableFieldsAsync(
         Guid documentId, Guid typeId, JsonElement requisites, IReadOnlyCollection<string>? wanted,
-        CancellationToken ct)
+        DataAccess access, CancellationToken ct)
     {
         var tableFields = DocumentTypeSchemaReader.EffectiveFields(typeId, await AllTypesAsync(ct))
             .Where(f => DocumentTypeSchemaReader.IsMultiValued(f.Type))
@@ -258,7 +259,7 @@ public class DomainSnapshotService(
             int? rowCount = null;
             try
             {
-                rowCount = (await rowLoader.LoadRowsAsync(binding.Source, ct)).Count;
+                rowCount = (await rowLoader.LoadRowsAsync(binding.Source, access, ct)).Count;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

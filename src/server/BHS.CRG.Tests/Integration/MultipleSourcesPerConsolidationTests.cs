@@ -73,15 +73,15 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var (setId, _) = await SeedSetAsync(scope);
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
 
-        Assert.Equal(0, (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single().ExistingCount);
+        Assert.Equal(0, (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single().ExistingCount);
 
-        await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), default);
-        var afterFirst = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, default));
+        await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), TestAccess.All, default);
+        var afterFirst = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default));
         Assert.Equal(Marker, afterFirst.SheetOrPath);
         Assert.Equal(1, afterFirst.ExistingCount);
 
-        await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), default);
-        Assert.Equal(2, (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single().ExistingCount);
+        await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), TestAccess.All, default);
+        Assert.Equal(2, (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single().ExistingCount);
     }
 
     /// <summary>
@@ -97,23 +97,23 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var (setId, _) = await SeedSetAsync(scope);
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
 
-        var acts = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), default);
-        var protocols = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), default);
+        var acts = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), TestAccess.All, default);
+        var protocols = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), TestAccess.All, default);
 
         await svc.SetSourceProcessingAsync(acts.Id,
             new SetSourceProcessingInput(Filter("Наименование", "starts_with", "АОСР"), null, null), default);
         await svc.SetSourceProcessingAsync(protocols.Id,
             new SetSourceProcessingInput(Filter("Наименование", "starts_with", "Протокол"), null, null), default);
 
-        var actsPreview = (await svc.PreviewSourceAsync(acts.Id, 50, default))!;
+        var actsPreview = (await svc.PreviewSourceAsync(acts.Id, 50, TestAccess.All, default))!;
         Assert.Equal("АОСР №1", Assert.Single(actsPreview.Rows)[actsPreview.Columns.ToList().IndexOf("Наименование")]);
-        var protocolsPreview = (await svc.PreviewSourceAsync(protocols.Id, 50, default))!;
+        var protocolsPreview = (await svc.PreviewSourceAsync(protocols.Id, 50, TestAccess.All, default))!;
         Assert.Equal("Протокол №1", Assert.Single(protocolsPreview.Rows)[protocolsPreview.Columns.ToList().IndexOf("Наименование")]);
 
         // Правка одного не трогает другой: снимаем фильтр у актов — протоколы остаются при своём.
         await svc.SetSourceProcessingAsync(acts.Id, new SetSourceProcessingInput(null, null, null), default);
-        Assert.Equal(2, (await svc.PreviewSourceAsync(acts.Id, 50, default))!.Rows.Count);
-        Assert.Single((await svc.PreviewSourceAsync(protocols.Id, 50, default))!.Rows);
+        Assert.Equal(2, (await svc.PreviewSourceAsync(acts.Id, 50, TestAccess.All, default))!.Rows.Count);
+        Assert.Single((await svc.PreviewSourceAsync(protocols.Id, 50, TestAccess.All, default))!.Rows);
     }
 
     /// <summary>
@@ -128,7 +128,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var svc = Svc(scope);
         var (setId, aosrTypeId) = await SeedSetAsync(scope);
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), default);
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), TestAccess.All, default);
 
         var unionType = await M(scope).Send(new CreateDocumentTypeCommand("Документ комплекта", $"U{Guid.NewGuid():N}"[..10],
             DocumentTypeKind.Composite, null,
@@ -157,11 +157,11 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         Assert.Equal([aosrTypeId], copy.MaterializeDiscriminator.Rules["АОСР"]);
         Assert.Contains("registry", copy.Tags!);
         // Фильтр проверяем действием, а не сравнением JSON: важно, что копия отбирает те же строки.
-        Assert.Single((await svc.PreviewSourceAsync(copy.Id, 50, default))!.Rows);
+        Assert.Single((await svc.PreviewSourceAsync(copy.Id, 50, TestAccess.All, default))!.Rows);
 
         // Копия — самостоятельный источник: снятие материализации у неё не задевает оригинал.
         await svc.SetMaterializationAsync(copy.Id, null, null, null, null, default);
-        var original = (await svc.ListSourcesAsync(file.Id, default)).Single(s => s.Id == source.Id);
+        var original = (await svc.ListSourcesAsync(file.Id, TestAccess.All, default)).Single(s => s.Id == source.Id);
         Assert.Equal(unionType.Id, original.MaterializeTypeId);
     }
 
@@ -177,11 +177,11 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var svc = Svc(scope);
         var (setId, _) = await SeedSetAsync(scope);
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
-        var first = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), default);
-        var second = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), default);
+        var first = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", Marker, null), TestAccess.All, default);
+        var second = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), TestAccess.All, default);
 
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
-            svc.CreateSourceAsync(file.Id, new CreateSourceInput("акты", Marker, null), default));
+            svc.CreateSourceAsync(file.Id, new CreateSourceInput("акты", Marker, null), TestAccess.All, default));
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
             svc.DuplicateSourceAsync(first.Id, "Протоколы", default));
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
@@ -211,9 +211,9 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var csv = "A;B\n1;2\n";
         var file = await svc.UploadFileAsync(
             new UploadFileInput(Encoding.UTF8.GetBytes(csv), "d.csv", "text/csv", "Тест", "System", null), default);
-        var marker = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single().SheetOrPath;
-        var first = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Лист", marker, null), default);
-        var second = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Лист (второй)", marker, null), default);
+        var marker = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single().SheetOrPath;
+        var first = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Лист", marker, null), TestAccess.All, default);
+        var second = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Лист (второй)", marker, null), TestAccess.All, default);
 
         // Совпадение имён мимо сервиса — так они и достались бы из наборов до issue #717.
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
@@ -227,7 +227,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         Assert.Equal("Лист", (await svc.RenameSourceAsync(second.Id, "Лист", default))!.Name);
 
         // А занять чужое имя по-прежнему нельзя — послабление касается только неизменного имени.
-        var third = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Третий", marker, null), default);
+        var third = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Третий", marker, null), TestAccess.All, default);
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
             svc.RenameSourceAsync(third.Id, "Лист", default));
         Assert.NotEqual(first.Id, third.Id);

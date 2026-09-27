@@ -26,11 +26,13 @@ public class DataSetRowLoader(
 {
     public async Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
         DataSetSource source,
+        DataAccess access,
         CancellationToken ct)
-        => [.. (await LoadAsync(source, ct)).Rows];
+        => [.. (await LoadAsync(source, access, ct)).Rows];
 
     public async Task<LoadedRows> LoadAsync(
         DataSetSource source,
+        DataAccess access,
         CancellationToken ct)
     {
         List<IReadOnlyDictionary<string, string?>> parsedRows;
@@ -39,6 +41,7 @@ public class DataSetRowLoader(
         // записано при создании. Спрашивать то же второй раз значило бы повторить всю загрузку.
         IReadOnlyList<DataSetColumnInfo>? columns = null;
         string? warning = null;
+        string? boundary = null;
         if (source.File.Format == DataSetFormat.Pdf)
         {
             // Кэш распознавания — сам себе описание: CachedSchema писался тем же проходом, что и
@@ -47,11 +50,20 @@ public class DataSetRowLoader(
         }
         else if (source.File.Format == DataSetFormat.System)
         {
-            var provided = await systemProviders.Get(source.SheetOrPath)
-                .ProvideAsync(source.SheetOrPath, source.File.Scope, source.File.ScopeId, ct);
+            // Ворота стоят ЗДЕСЬ, в единственной точке извлечения строк, а не у каждого из пяти
+            // путей чтения (ТЗ CORE-24.1, issue #965). Пять проверок разошлись бы при первой правке,
+            // и разошлись бы молча: путь, забывший спросить, выглядит работающим.
+            var provider = systemProviders.Get(source.SheetOrPath);
+            SystemDataSetGate.Ensure(provider.Declaration, access, source.Name);
+            var provided = await provider
+                .ProvideAsync(source.SheetOrPath, source.File.Scope, source.File.ScopeId, access, ct);
             parsedRows = provided.Rows.ToList();
             columns = provided.Columns;
             warning = provided.Warning;
+            // Подпись к данным — ПОСТОЯННАЯ, а не сообщение об ошибке (ТЗ CORE-24.3): человек должен
+            // видеть, что именно ему отдали, и в удачном случае тоже. «12 строк скрыто» не годится:
+            // две разные цифры, обе выглядящие окончательными, опаснее одной с оговоркой.
+            boundary = provider.Declaration.BoundaryFor(provided.Boundary);
         }
         else
         {
@@ -71,7 +83,7 @@ public class DataSetRowLoader(
         var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows);
         rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
         rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
-        return new LoadedRows(rows, parsedRows.Count, columns, warning);
+        return new LoadedRows(rows, parsedRows.Count, columns, warning, boundary);
     }
 
     private static List<IReadOnlyDictionary<string, string?>> DeserializeCachedData(string? json)

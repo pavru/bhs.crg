@@ -12,7 +12,8 @@ namespace BHS.CRG.Api.Mcp;
 /// Делегирует в тот же <see cref="IDomainSnapshotService"/>: вторая форма адресации, не вторая логика.
 /// </summary>
 [McpServerResourceType]
-public class DomainSnapshotResources(IDomainSnapshotService domain)
+public class DomainSnapshotResources(
+    IDomainSnapshotService domain, DataAccessResolver access, IHttpContextAccessor http)
 {
     [McpPermission(CorePermissions.ConstructionsRead)]
     [McpServerResource(UriTemplate = "bhs://construction/{constructionId}", Name = "construction",
@@ -33,7 +34,8 @@ public class DomainSnapshotResources(IDomainSnapshotService domain)
         Title = "Документ", MimeType = "application/json")]
     [Description("Реквизиты документа с развёрнутыми ссылками; ключи объясняет схема его типа.")]
     public async Task<ResourceContents> GetDocumentAsync(Guid documentId, CancellationToken ct)
-        => McpJsonResource.Json($"bhs://document/{documentId}", await domain.GetDocumentAsync(documentId, ct: ct));
+        => McpJsonResource.Json($"bhs://document/{documentId}",
+            await domain.GetDocumentAsync(documentId, await access.ForRequestAsync(http, ct), ct: ct));
 
     [McpPermission(CorePermissions.CatalogRead)]
     [McpServerResource(UriTemplate = "bhs://catalog-entry/{entryId}", Name = "catalog-entry",

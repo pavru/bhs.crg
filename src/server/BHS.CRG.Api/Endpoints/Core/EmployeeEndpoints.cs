@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Documents;
@@ -78,7 +79,8 @@ public static class EmployeeEndpoints
         });
 
         edit.MapPut("/{id:guid}", async (
-            Guid id, UpdateEmployeeRequest req, IMediator m, IRepository<DocumentType> types) =>
+            Guid id, UpdateEmployeeRequest req, IMediator m, IRepository<DocumentType> types,
+            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
             var entry = await m.Send(new GetCommonDataEntryQuery(id));
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
@@ -96,7 +98,8 @@ public static class EmployeeEndpoints
                 // Псевдонимы, о которых запрос молчит, ОСТАЮТСЯ: null здесь означает «очистить»
                 // (DomainObject.Update нормализует его в пустой список), и промолчавший клиент
                 // стирал бы их заодно с правкой одного поля.
-                id, req.DisplayName, data, req.Aliases ?? [.. entry.Aliases]))));
+                id, req.DisplayName, data, await access.ForAsync(user, ct),
+                req.Aliases ?? [.. entry.Aliases]))));
         });
 
         edit.MapDelete("/{id:guid}", async (Guid id, IMediator m, IRepository<DocumentType> types) =>

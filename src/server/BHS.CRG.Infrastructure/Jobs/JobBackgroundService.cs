@@ -1,3 +1,4 @@
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
@@ -66,6 +67,14 @@ public class JobBackgroundService(
                 await UpdateJobAsync(jobId, j => j.ReportProgress($"{cur} из {total} {unit}"), ct);
             };
 
+            // Параметр доступа задания (ТЗ CORE-24.1, issue #965): «в правах нажавшего» означает, что
+            // пользователь доходит до поставщика строк, а не только до уведомления. Считается ЛЕНИВО —
+            // он нужен не всякому виду задачи, а учётную запись могли удалить, пока задача стояла в
+            // очереди; тогда отказ обязан касаться только тех задач, которые читают данные её правами,
+            // и не ронять, скажем, плановую копию.
+            Task<DataAccess> AccessAsync() => scope.ServiceProvider
+                .GetRequiredService<IDataAccessResolver>().ForUserAsync(userId, ct);
+
             switch (kind)
             {
                 case JobKind.RecognizeGostSet:
@@ -86,14 +95,16 @@ public class JobBackgroundService(
 
                 case JobKind.AssembleDocumentSet:
                     await scope.ServiceProvider.GetRequiredService<DocumentSetAssemblyService>()
-                        .AssembleAsync(targetId, ParseInstanceIds(payload), userId, ct, (c, t) => report("документов", c, t));
+                        .AssembleAsync(targetId, ParseInstanceIds(payload), userId, await AccessAsync(),
+                            ct, (c, t) => report("документов", c, t));
                     break;
 
                 case JobKind.AuditQualityLinks:
                     // targetId = setId. Итог сохраняется одной строкой на комплект и читается
                     // отдельным запросом — из HTTP-реквеста этот прогон уже не помещался (#628).
                     await scope.ServiceProvider.GetRequiredService<IQualitySetAuditRunner>()
-                        .RunAndStoreAsync(targetId, userId, (c, t) => report("документов", c, t), ct);
+                        .RunAndStoreAsync(targetId, userId, await AccessAsync(),
+                            (c, t) => report("документов", c, t), ct);
                     break;
 
                 case JobKind.CreateBackup:

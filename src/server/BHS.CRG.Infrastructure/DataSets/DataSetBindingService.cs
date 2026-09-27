@@ -16,6 +16,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 public class DataSetBindingService(
     AppDbContext db,
     IDataSetRowLoader rowLoader,
+    SystemDataProviderRegistry systemProviders,
     ILogger<DataSetBindingService> logger)
 {
     public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct)
@@ -153,6 +154,23 @@ public class DataSetBindingService(
             .FirstOrDefaultAsync(s => s.Id == input.SourceId, ct);
         if (source == null) return null;
 
+        // Запреты опубликованного набора (ТЗ CORE-24.2, issue #965) — ЗДЕСЬ, на привязке: это
+        // единственная дверь, которой набор попадает и в запись общих данных, и в печатную форму.
+        if (source.File.IsSystem)
+        {
+            // Владелец — документ или запись общих данных: различает их документная фасета
+            // (DomainObject.IsDocument). Владельца, которого нет вовсе, считаем НЕ документом: у
+            // записи запрет строже, и ошибиться в эту сторону безопаснее.
+            var ownerIsDocument = await db.DomainObjects.AsNoTracking()
+                .AnyAsync(o => o.Id == input.OwnerId && o.Facet != null, ct);
+            SystemDataSetRules.EnsureBindableTo(ownerIsDocument, source.Name);
+
+            // Привязка — это и есть путь набора в печатную форму, поэтому здесь же проверяется, что
+            // набор одинаков для всех, кто вправе его читать.
+            if (systemProviders.TryGet(source.SheetOrPath) is { } provider)
+                SystemDataSetRules.EnsureShared(provider.Declaration, "печатная форма");
+        }
+
         var binding = DataSetBinding.For(input.OwnerId, input.SourceId, input.TargetFieldKey,
             DataSetDtoMapper.SerializeMapping(input.Mapping));
         db.DataSetBindings.Add(binding);
@@ -183,7 +201,8 @@ public class DataSetBindingService(
         return true;
     }
 
-    public async Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid ownerId, CancellationToken ct)
+    public async Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(
+        Guid ownerId, DataAccess access, CancellationToken ct)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
@@ -203,7 +222,7 @@ public class DataSetBindingService(
         {
             try
             {
-                var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+                var rows = await rowLoader.LoadRowsAsync(binding.Source, access, ct);
 
                 // Материализация ссылкой на существующий документ (issue #725) — до маппинга, его в
                 // этом режиме нет. Показываем НАИМЕНОВАНИЯ документов: идентификатор в таблице не

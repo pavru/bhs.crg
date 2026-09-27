@@ -1,4 +1,5 @@
-﻿namespace BHS.CRG.Application.DataSnapshots;
+﻿using BHS.CRG.Application.DataSets;
+namespace BHS.CRG.Application.DataSnapshots;
 
 /// <summary>
 /// Чтение домена для внешнего потребителя (issue #419). Собирает готовые к отдаче формы поверх
@@ -58,7 +59,7 @@ public interface IDomainSnapshotService
     /// «ОсновнойДокумент» несло полную копию акта со всеми его организациями, и реестр работ доходил
     /// до 16 МБ. Копия нужна редко, а стоит дороже всего остального вместе.
     /// </param>
-    Task<DocumentDetail?> GetDocumentAsync(Guid documentId, bool resolveRefs = true,
+    Task<DocumentDetail?> GetDocumentAsync(Guid documentId, DataAccess access, bool resolveRefs = true,
         IReadOnlyCollection<string>? fields = null, bool expandDocumentRefs = false,
         CancellationToken ct = default);
 

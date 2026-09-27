@@ -167,7 +167,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
             Assert.Equal(4, result.PageCount);
 
             // Проверяем через reload, что реестр (CachedData) обновился корректно.
-            var preview = await svc.PreviewSourceAsync(sourceId, 50, default);
+            var preview = await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
             Assert.NotNull(preview);
             Assert.Equal(2, preview!.TotalRows);
             var pathIdx = preview.Columns.ToList().IndexOf("ФайлПуть");
@@ -204,7 +204,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
 
             var first = await svc.ApplyGroupingAsync(fileId,
                 new ApplyGroupingInput([new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "A", [0, 1, 2, 3])]), default);
-            var preview1 = await svc.PreviewSourceAsync(sourceId, 50, default);
+            var preview1 = await svc.PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
             var firstBlobPath = preview1!.Rows[0][preview1.Columns.ToList().IndexOf("ФайлПуть")];
             Assert.True(blobStorage.Exists(firstBlobPath!));
 

@@ -36,6 +36,13 @@ public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository o
         "Комплект", "ИдКомплекта", "Раздел", "ИдРаздела",
     ];
 
+    /// <summary>Тот же модуль и то же право, что у «Документов комплекта»: данные те же, шире
+    /// только охват.</summary>
+    public SystemDataSetDeclaration Declaration { get; } = new(
+        "id", "id.document.read", SystemDataSetIsolation.None,
+        ["Отдаёт документы всех комплектов раздела или стройки — право «видеть документы и "
+         + "комплекты»"]);
+
     public bool Handles(string marker) => marker == SystemDataSets.SubtreeDocumentsMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
@@ -56,7 +63,7 @@ public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository o
     }
 
     public async Task<DataSetParseResult> ProvideAsync(
-        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         if (scope is not (CatalogScope.Section or CatalogScope.Construction) || scopeId is null)
             throw new InvalidRequestException(

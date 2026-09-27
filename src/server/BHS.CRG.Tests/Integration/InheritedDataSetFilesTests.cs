@@ -49,7 +49,7 @@ public class InheritedDataSetFilesTests(IntegrationTestFixture fixture) : IAsync
             default);
 
     private static async Task<string[]> NamesAsync(IServiceScope scope, string level, Guid? levelId, bool inherited) =>
-        [.. (await Svc(scope).ListFilesAsync(level, levelId, inherited, default)).Select(f => f.Name).Order()];
+        [.. (await Svc(scope).ListFilesAsync(level, levelId, inherited, TestAccess.All, default)).Select(f => f.Name).Order()];
 
     [Fact]
     public async Task LevelSeesItsOwnFilesPlusEveryAncestor()
@@ -114,7 +114,7 @@ public class InheritedDataSetFilesTests(IntegrationTestFixture fixture) : IAsync
         await FileAsync(scope, "Журнал чужого комплекта", "Set", t.OtherSetId);
 
         var screen = await NamesAsync(scope, "Set", t.SetId, inherited: true);
-        var picker = (await Svc(scope).ListAvailableFilesAsync(t.SetId, default)).Select(f => f.Name).Order().ToArray();
+        var picker = (await Svc(scope).ListAvailableFilesAsync(t.SetId, TestAccess.All, default)).Select(f => f.Name).Order().ToArray();
 
         Assert.Equal(screen, picker);
     }
@@ -129,7 +129,7 @@ public class InheritedDataSetFilesTests(IntegrationTestFixture fixture) : IAsync
         await FileAsync(scope, "Кабели стройки", "Construction", t.ConstructionId);
         await FileAsync(scope, "Журнал комплекта", "Set", t.SetId);
 
-        var files = await Svc(scope).ListFilesAsync("Set", t.SetId, true, default);
+        var files = await Svc(scope).ListFilesAsync("Set", t.SetId, true, TestAccess.All, default);
 
         var inherited = files.Single(f => f.Name == "Кабели стройки");
         Assert.Equal("Construction", inherited.Scope);

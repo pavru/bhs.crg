@@ -12,28 +12,36 @@ public interface IDataSetService
     /// <summary>Наборы уровня. includeInherited — вместе с наборами родительских уровней
     /// (issue #721): комплект пользуется наборами своего раздела, стройки и системы.</summary>
     Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
-        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct);
-    Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct);
+        string? scope, Guid? scopeId, bool includeInherited, DataAccess access, CancellationToken ct);
+    Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(
+        Guid setId, DataAccess access, CancellationToken ct);
     Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct);
     /// <summary>Создать набор без файла — сырьём служат данные системы (issue #580). Идемпотентно на уровень.</summary>
     Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct);
     /// <summary>Какие консолидации данных системы возможны на уровне — до создания набора (issue #606).</summary>
-    Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(string scope, Guid? scopeId, CancellationToken ct);
+    Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(
+        string scope, Guid? scopeId, DataAccess access, CancellationToken ct);
     Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct);
     Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct);
     Task<bool> DeleteFileAsync(Guid id, CancellationToken ct);
 
     // ── Sources ─────────────────────────────────────────────────────────────────
-    Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct);
+    Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(
+        Guid fileId, DataAccess access, CancellationToken ct);
     /// <summary>Детект кандидатов на источник в сыром файле (без персиста) — подсказки для диалога создания.</summary>
-    Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct);
-    Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct);
+    Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(
+        Guid fileId, DataAccess access, CancellationToken ct);
+    Task<SourcePreviewDto?> PreviewSourceAsync(
+        Guid sourceId, int maxRows, DataAccess access, CancellationToken ct);
     /// <summary>Выгрузка ВСЕХ строк источника (после обработки) в CSV/XLS/XLSX. format: "csv"/"xls"/"xlsx" (по умолчанию xlsx).</summary>
-    Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct);
-    Task<Dictionary<string, string>?> AutoMapAsync(Guid sourceId, IReadOnlyList<FieldInfo> fields, CancellationToken ct);
+    Task<SourceExportDto?> ExportSourceAsync(
+        Guid sourceId, string? format, DataAccess access, CancellationToken ct);
+    Task<Dictionary<string, string>?> AutoMapAsync(
+        Guid sourceId, IReadOnlyList<FieldInfo> fields, DataAccess access, CancellationToken ct);
 
     /// <summary>Ручное создание источника (для XML — единственный способ, авто-детект не используется).</summary>
-    Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct);
+    Task<DataSetSourceDto> CreateSourceAsync(
+        Guid fileId, CreateSourceInput input, DataAccess access, CancellationToken ct);
     /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает;
     /// маппинг, правило выбора варианта (issue #716) и колонка режима «по Ид» (issue #725) задаются
     /// целиком, замещением.</summary>
@@ -46,7 +54,7 @@ public interface IDataSetService
     /// mapping=null → сохранённые на источнике.</summary>
     Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
-        string? byIdColumn, CancellationToken ct);
+        string? byIdColumn, DataAccess access, CancellationToken ct);
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
     /// <summary>Лёгкое переименование источника (issue #43) — только имя, без extraction/кэша; для любого
     /// источника, включая PDF-проекции.</summary>
@@ -172,7 +180,8 @@ public interface IDataSetService
     Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct);
     Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct);
     Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct);
-    Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid ownerId, CancellationToken ct);
+    Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(
+        Guid ownerId, DataAccess access, CancellationToken ct);
 
     // ── Binding templates ─────────────────────────────────────────────────────────
     Task<IReadOnlyList<DataSetBindingTemplateDto>> ListTemplatesAsync(Guid docTypeId, CancellationToken ct);

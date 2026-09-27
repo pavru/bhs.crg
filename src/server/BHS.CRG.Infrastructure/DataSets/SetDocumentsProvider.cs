@@ -32,6 +32,13 @@ public class SetDocumentsProvider(
         "НомерДокумента", "ДатаДокумента", "ДатаГенерации", "КоличествоЛистов", "ПорядокВКомплекте",
     ];
 
+    /// <summary>Документы комплекта — модуль исполнительной документации, право на их чтение у
+    /// него есть, и оно же стоит на адресах комплектов.</summary>
+    public SystemDataSetDeclaration Declaration { get; } = new(
+        "id", "id.document.read", SystemDataSetIsolation.None,
+        ["Отдаёт все документы комплекта, в границах которого живёт набор, — право «видеть "
+         + "документы и комплекты»"]);
+
     public bool Handles(string marker) => marker == SystemDataSets.SetDocumentsMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
@@ -43,7 +50,7 @@ public class SetDocumentsProvider(
     }
 
     public async Task<DataSetParseResult> ProvideAsync(
-        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         if (scope != CatalogScope.Set || scopeId is null)
             throw new InvalidRequestException("Источник «Документы комплекта» доступен только у набора уровня «Комплект».");

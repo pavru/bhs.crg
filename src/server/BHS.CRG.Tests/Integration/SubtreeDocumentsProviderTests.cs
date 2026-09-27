@@ -71,7 +71,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput(level, scopeId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), default);
+            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), TestAccess.All, default);
         return source.Id;
     }
 
@@ -88,7 +88,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.SetB1, seed.TypeId, "Чужой раздел", "И-3");
 
         var sourceId = await SourceAtAsync(scope, "Section", seed.SectionA);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Equal(2, preview!.Rows.Count);
         Assert.Equal("АОСР 1", Cell(preview, 0, "Наименование"));
@@ -116,7 +116,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.SetA1, seed.TypeId, "АВ-1 второй");
 
         var sourceId = await SourceAtAsync(scope, "Construction", seed.ConstructionId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Equal(
             ["АВ-1 первый", "АВ-1 второй", "АВ-2 первый", "ЭОМ первый"],
@@ -144,7 +144,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
 
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Section", seed.SectionA.ToString(), null), default);
-        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, default),
+        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
 
         Assert.Equal("Документы раздела", candidate.Name);
@@ -152,8 +152,8 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         Assert.Contains("Не собрано документов: 2 из 2", candidate.Warning);
 
         // И у самого источника — живой, считается вместе со строками.
-        await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Реестр", candidate.SheetOrPath, null), default);
-        var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, default));
+        await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Реестр", candidate.SheetOrPath, null), TestAccess.All, default);
+        var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default));
         Assert.Contains("Не собрано документов", listed.Warning);
     }
 
@@ -178,14 +178,14 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Section", seed.SectionA.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), default);
+            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), TestAccess.All, default);
 
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
 
-        var summary = Assert.Single((await snapshots.GetDatasetAsync(file.Id))!.Sources);
+        var summary = Assert.Single((await snapshots.GetDatasetAsync(file.Id, TestAccess.All))!.Sources);
         Assert.Contains("Не собрано документов: 2 из 2", summary.Warning);
 
-        var detail = (await snapshots.GetSourceAsync(source.Id))!;
+        var detail = (await snapshots.GetSourceAsync(source.Id, TestAccess.All))!;
         Assert.Contains("Не собрано документов: 2 из 2", detail.Warning);
 
         // Оговорка — не отказ чтения: строки на месте и верны, неизвестна лишь часть данных ВНУТРИ
@@ -204,11 +204,11 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var seed = await SeedAsync(scope);
 
         var sourceId = await SourceAtAsync(scope, "Section", seed.SectionB);
-        var fileId = (await svc.ListFilesAsync("Section", seed.SectionB, false, default)).Single().Id;
+        var fileId = (await svc.ListFilesAsync("Section", seed.SectionB, false, TestAccess.All, default)).Single().Id;
 
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
-        Assert.Null(Assert.Single((await snapshots.GetDatasetAsync(fileId))!.Sources).Warning);
-        Assert.Null((await snapshots.GetSourceAsync(sourceId))!.Warning);
+        Assert.Null(Assert.Single((await snapshots.GetDatasetAsync(fileId, TestAccess.All))!.Sources).Warning);
+        Assert.Null((await snapshots.GetSourceAsync(sourceId, TestAccess.All))!.Warning);
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.SetA1, seed.TypeId, "АОСР 1");
 
         var candidate = Assert.Single(
-            await svc.ListSystemCandidatesAsync("Construction", seed.ConstructionId, default),
+            await svc.ListSystemCandidatesAsync("Construction", seed.ConstructionId, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
         Assert.Equal("Документы стройки", candidate.Name);
     }
@@ -237,7 +237,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var seed = await SeedAsync(scope);
         await AddDocAsync(scope, seed.SetA1, seed.TypeId, "АОСР 1");
 
-        var candidates = await svc.ListSystemCandidatesAsync("Set", seed.SetA1, default);
+        var candidates = await svc.ListSystemCandidatesAsync("Set", seed.SetA1, TestAccess.All, default);
         Assert.Contains(candidates, c => c.SheetOrPath == SystemDataSets.SetDocumentsMarker);
         Assert.DoesNotContain(candidates, c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
     }
@@ -252,10 +252,10 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(SystemDataSets.SubtreeDocumentsMarker));
         await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
-            SystemDataSets.SubtreeDocumentsMarker, CatalogScope.System, null, default));
+            SystemDataSets.SubtreeDocumentsMarker, CatalogScope.System, null, TestAccess.All, default));
 
         // И на уровне «Система» такой кандидат не предлагается — предложить было бы нечего.
-        Assert.DoesNotContain(await Svc(scope).ListSystemCandidatesAsync("System", null, default),
+        Assert.DoesNotContain(await Svc(scope).ListSystemCandidatesAsync("System", null, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
     }
 
@@ -269,12 +269,12 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await AddDocAsync(scope, seed.SetA1, seed.TypeId, "АОСР 1");
 
         var sourceId = await SourceAtAsync(scope, "Section", seed.SectionA);
-        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows);
+        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows);
 
         var fresh = await m.Send(new CreateDocumentSetCommand(seed.SectionA, "АВ-3"));
         await AddDocAsync(scope, fresh.Id, seed.TypeId, "АОСР 3");
 
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         Assert.Equal(2, preview!.Rows.Count);
         Assert.Equal("АВ-3", Cell(preview, 1, "Комплект"));
     }
@@ -290,11 +290,11 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Section", seed.SectionA.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), default);
+            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), TestAccess.All, default);
         Assert.Equal(1, source.CachedRowCount);
 
         await AddDocAsync(scope, seed.SetA2, seed.TypeId, "АОСР 2");
-        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
+        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default)).CachedRowCount);
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         using var scope = fixture.Services.CreateScope();
         var seed = await SeedAsync(scope);
         var candidate = Assert.Single(
-            await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, default),
+            await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
         Assert.Equal(0, candidate.RowCount);
         Assert.Null(candidate.Warning); // строк нет — и оговаривать нечего
@@ -338,7 +338,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         }
 
         var candidate = Assert.Single(
-            await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, default),
+            await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
         Assert.Contains("Не собрано документов: 2 из 3", candidate.Warning);
     }

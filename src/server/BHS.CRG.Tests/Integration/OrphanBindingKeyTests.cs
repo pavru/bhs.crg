@@ -56,8 +56,8 @@ public class OrphanBindingKeyTests(IntegrationTestFixture fixture) : IAsyncLifet
         var svc = Svc(scope);
         var file = await svc.UploadFileAsync(new UploadFileInput(
             Encoding.UTF8.GetBytes("A\nАкт №1\n"), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), TestAccess.All, default);
         await svc.SetMaterializationAsync(source.Id, rowType.Id,
             new Dictionary<string, string> { ["Наименование"] = "A" }, discriminator: null, byIdColumn: null, default);
 
@@ -71,7 +71,7 @@ public class OrphanBindingKeyTests(IntegrationTestFixture fixture) : IAsyncLifet
         var view = DocumentView.From(inst!);
         var entity = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var ctx = await entity.ResolveAsync(view);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, diagnostics, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, diagnostics, default);
         return ctx;
     }
 
@@ -245,8 +245,8 @@ public class OrphanBindingKeyTests(IntegrationTestFixture fixture) : IAsyncLifet
 
         var file = await svc.UploadFileAsync(new UploadFileInput(
             Encoding.UTF8.GetBytes("A\nАкт №1\n"), "docs.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), TestAccess.All, default);
         // Табличная привязка: свой маппинг по полю ТИПА СТРОКИ.
         await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, source.Id, "Строки",
             new Dictionary<string, string> { ["Наименование"] = "A" }), default);

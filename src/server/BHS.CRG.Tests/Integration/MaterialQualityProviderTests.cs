@@ -64,7 +64,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput(level, scopeId?.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Связки", SystemDataSets.MaterialQualityMarker, null), default);
+            new CreateSourceInput("Связки", SystemDataSets.MaterialQualityMarker, null), TestAccess.All, default);
         return source.Id;
     }
 
@@ -85,13 +85,13 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
 
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Set", seed.SetId.ToString(), null), default);
-        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, default),
+        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.MaterialQualityMarker);
         Assert.Equal("Материалы и документы качества", candidate.Name);
 
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Связки", candidate.SheetOrPath, null), default);
-        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+            new CreateSourceInput("Связки", candidate.SheetOrPath, null), TestAccess.All, default);
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, TestAccess.All, default);
         Assert.NotNull(preview);
         Assert.Single(preview.Rows);
 
@@ -125,7 +125,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         await LinkAsync(scope, CatalogScope.Set, seed.SetId, key, narrow.Id, "Кабель ВВГ 3х2.5");
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Single(preview!.Rows);
         Assert.Equal("Сертификат комплекта", Cell(preview, 0, "ДокументНаименование"));
@@ -146,7 +146,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         await LinkAsync(scope, CatalogScope.Set, seed.SetId, key, narrow.Id);
 
         var sourceId = await SourceAtAsync(scope, "Construction", seed.ConstructionId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
 
         Assert.Single(preview!.Rows);
         Assert.Equal("Общий сертификат", Cell(preview, 0, "ДокументНаименование"));
@@ -167,14 +167,14 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         await LinkAsync(scope, CatalogScope.Set, seed.SetId, "материал | 1", doc.Id, "Материал 1");
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows);
+        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows);
 
         // Удаление — в отдельной области: команда чистит связки, а этот DbContext уже держит их
         // из привязки выше. Ограничение стенда, не поведения.
         using (var other = fixture.Services.CreateScope())
             await M(other).Send(new DeleteQualityDocumentCommand(doc.Id));
 
-        Assert.Empty((await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows);
+        Assert.Empty((await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows);
     }
 
     /// <summary>У связки без метки (заведена до #554) материал назван машинным ключом.</summary>
@@ -187,7 +187,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         await LinkAsync(scope, CatalogScope.Set, seed.SetId, "mb15-07-01m-54 | ", doc.Id);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default);
         Assert.Equal("mb15-07-01m-54 | ", Cell(preview!, 0, "Материал"));
     }
 
@@ -201,10 +201,10 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         await LinkAsync(scope, CatalogScope.Set, seed.SetId, "первый | ", doc.Id);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId);
-        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows);
+        Assert.Single((await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows);
 
         await LinkAsync(scope, CatalogScope.System, null, "второй | ", doc.Id);
-        Assert.Equal(2, (await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Rows.Count);
+        Assert.Equal(2, (await Svc(scope).PreviewSourceAsync(sourceId, 50, TestAccess.All, default))!.Rows.Count);
     }
 
     [Fact]
@@ -219,14 +219,14 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         var file = await svc.CreateSystemFileAsync(
             new CreateSystemFileInput("Set", seed.SetId.ToString(), null), default);
         var source = await svc.CreateSourceAsync(file.Id,
-            new CreateSourceInput("Связки", SystemDataSets.MaterialQualityMarker, null), default);
+            new CreateSourceInput("Связки", SystemDataSets.MaterialQualityMarker, null), TestAccess.All, default);
         Assert.Equal(1, source.CachedRowCount);
 
         await LinkAsync(scope, CatalogScope.System, null, "второй | ", doc.Id);
 
-        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
+        Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, TestAccess.All, default)).CachedRowCount);
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
-        Assert.Equal(2, (await snapshots.GetSourceAsync(source.Id))!.RowCount);
+        Assert.Equal(2, (await snapshots.GetSourceAsync(source.Id, TestAccess.All))!.RowCount);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(SystemDataSets.MaterialQualityMarker));
         await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
-            SystemDataSets.MaterialQualityMarker, CatalogScope.Section, null, default));
+            SystemDataSets.MaterialQualityMarker, CatalogScope.Section, null, TestAccess.All, default));
     }
 
     /// <summary>
@@ -275,12 +275,12 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
         var seed = await SeedAsync(scope);
         var doc = await AddDocAsync(scope, seed.CertTypeId, "Сертификат без связок");
 
-        Assert.DoesNotContain(await svc.ListSystemCandidatesAsync("Set", seed.SetId, default),
+        Assert.DoesNotContain(await svc.ListSystemCandidatesAsync("Set", seed.SetId, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.MaterialQualityMarker);
 
         await LinkAsync(scope, CatalogScope.System, null, "появился | ", doc.Id);
 
-        Assert.Contains(await svc.ListSystemCandidatesAsync("Set", seed.SetId, default),
+        Assert.Contains(await svc.ListSystemCandidatesAsync("Set", seed.SetId, TestAccess.All, default),
             c => c.SheetOrPath == SystemDataSets.MaterialQualityMarker);
     }
 }

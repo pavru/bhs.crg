@@ -131,9 +131,9 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
     private async Task<(DataSetFileDto File, DataSetSourceDto Source)> UploadCsvWithSourceAsync(IServiceScope scope)
     {
         var file = await UploadCsvAsync(scope);
-        var candidate = (await Svc(scope).DetectSourceCandidatesAsync(file.Id, default)).Single();
+        var candidate = (await Svc(scope).DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
         var source = await Svc(scope).CreateSourceAsync(
-            file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
+            file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), TestAccess.All, default);
         return (file, source);
     }
 
@@ -147,14 +147,14 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Empty(file.Sources);
 
         // Детект-кандидаты предлагают «весь файл» с колонками A/B — подсказка для явного создания.
-        var candidates = await Svc(scope).DetectSourceCandidatesAsync(file.Id, default);
+        var candidates = await Svc(scope).DetectSourceCandidatesAsync(file.Id, TestAccess.All, default);
         Assert.Single(candidates);
         Assert.Contains(candidates[0].Columns, c => c.Name == "A");
         Assert.Contains(candidates[0].Columns, c => c.Name == "B");
 
         // Явное создание источника из кандидата кэширует те же колонки.
         var source = await Svc(scope).CreateSourceAsync(
-            file.Id, new CreateSourceInput("Данные", candidates[0].SheetOrPath, null), default);
+            file.Id, new CreateSourceInput("Данные", candidates[0].SheetOrPath, null), TestAccess.All, default);
         Assert.Contains("\"A\"", source.CachedSchema);
         Assert.Contains("\"B\"", source.CachedSchema);
     }
@@ -174,7 +174,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal($"{src.Name} — 2", copy.Name);
 
         using var scope2 = fixture.Services.CreateScope();
-        var sources = await Svc(scope2).ListSourcesAsync(file.Id, default); // перечитываем свежим контекстом
+        var sources = await Svc(scope2).ListSourcesAsync(file.Id, TestAccess.All, default); // перечитываем свежим контекстом
         Assert.Equal(2, sources.Count);
     }
 

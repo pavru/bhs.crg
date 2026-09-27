@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using BHS.CRG.Application.DataSets;
+using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
@@ -29,7 +30,7 @@ public sealed record PreviewDocumentResult
 /// несохранённых) реквизитах в PDF. Read-only by contract: НЕ персистит файл, НЕ меняет статус,
 /// НЕ пишет метаданные, НЕ шлёт уведомления — эфемерный рендер для панели предпросмотра.
 /// </summary>
-public sealed record PreviewDocumentQuery(Guid InstanceId, JsonDocument Requisites)
+public sealed record PreviewDocumentQuery(Guid InstanceId, JsonDocument Requisites, DataAccess Access)
     : IRequest<PreviewDocumentResult>;
 
 public class PreviewDocumentHandler(
@@ -80,7 +81,7 @@ public class PreviewDocumentHandler(
             var allDocTypes = await docTypeRepo.GetAllAsync(ct);
             var diagnostics = new List<ResolutionDiagnostic>();
             var context = await entityResolver.ResolveAsync(view, ct: ct);
-            await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
+            await dataSetResolver.InjectAsync(context, view, q.Access, diagnostics, ct);
             await entityResolver.ApplyDefaultsAsync(context, view, ct);
             await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
             await qualityLinkResolver.InjectAsync(context, view, ct);

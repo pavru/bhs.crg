@@ -25,7 +25,16 @@ public record DataSetParseResult(
     IReadOnlyList<DataSetColumnInfo> Columns,
     IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows,
     /// <summary>Оговорка к данным — живая, считается вместе со строками (issue #626).</summary>
-    string? Warning = null
+    string? Warning = null,
+    /// <summary>
+    /// Какой исход отбора применился — строка из объявления набора (ТЗ CORE-24.3, issue #965).
+    ///
+    /// <para>Заполняет только поставщик с построчной изоляцией: он один знает, что именно отобрал —
+    /// «ваши стройки» или «все стройки». Поставщик без изоляции молчит, и берётся единственная
+    /// объявленная строка. Объявил несколько исходов и не выбрал ни одного — отказ: показать первую
+    /// значило бы подписать данные не тем текстом, а это хуже отсутствующей подписи.</para>
+    /// </summary>
+    string? Boundary = null
 );
 
 public interface IDataSetParser

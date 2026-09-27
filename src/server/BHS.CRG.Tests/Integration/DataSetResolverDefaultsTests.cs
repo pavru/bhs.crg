@@ -50,8 +50,8 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var instance = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
 
         var file = await svc.UploadFileAsync(new UploadFileInput(CsvBytes, "test.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), TestAccess.All, default);
 
         // Материализация источника: маппинг покрывает только «Поле» — «ВидДокумента» намеренно не замаплено.
         await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["Поле"] = "A" }, discriminator: null, byIdColumn: null, default);
@@ -66,7 +66,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
 
         var view = DocumentView.From(inst!);
         var ctx = await resolver.ResolveAsync(view);
-        await dataSetResolver.InjectAsync(ctx, view, null, default);
+        await dataSetResolver.InjectAsync(ctx, view, TestAccess.All, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
         Assert.Equal(JsonValueKind.Array, rows.ValueKind);
@@ -99,8 +99,8 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var instance = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
 
         var file = await svc.UploadFileAsync(new UploadFileInput(CsvBytes, "test.csv", "text/csv", "Тест", "System", null), default);
-        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
-        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), TestAccess.All, default);
 
         await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["ВидДокумента"] = "B" }, discriminator: null, byIdColumn: null, default);
         await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, source.Id, "Строки", null), default);
@@ -111,7 +111,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
 
         var view = DocumentView.From(inst!);
         var ctx = await resolver.ResolveAsync(view);
-        await dataSetResolver.InjectAsync(ctx, view, null, default);
+        await dataSetResolver.InjectAsync(ctx, view, TestAccess.All, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
         Assert.Equal("2", rows[0].GetProperty("ВидДокумента").GetString()); // из колонки B, не "дефолт"
