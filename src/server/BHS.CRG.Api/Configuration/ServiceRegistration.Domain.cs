@@ -221,6 +221,10 @@ internal static class DomainRegistration
     // Настройки экземпляра (issue #960, ТЗ CORE-25.3): часовой пояс компании — умолчание для строек.
     builder.Services.AddScoped<BHS.CRG.Application.Settings.IAppSettingsStore,
         BHS.CRG.Infrastructure.Settings.AppSettingsStore>();
+    // Название и логотип экземпляра (issue #967, ТЗ CORE-25.1): логотип живёт системным ассетом
+    // шаблонов, поэтому служба знает и о настройках, и о хранилище.
+    builder.Services.AddScoped<BHS.CRG.Application.Branding.IBrandingService,
+        BHS.CRG.Infrastructure.Branding.BrandingService>();
     // Каталог моделей движков (issue #799). Сам он без состояния — кэш ответов живёт в IMemoryCache,
     // то есть переживает запрос, а HTTP-клиент берётся у фабрики, как у движков распознавания.
     // Клиентов у каталога три — по одному на движок: он спрашивает и Gemini, и Anthropic, и Ollama, а

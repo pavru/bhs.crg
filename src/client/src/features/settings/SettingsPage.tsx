@@ -12,6 +12,7 @@ import { MaterialLabelSection } from './MaterialLabelSection';
 import { BackupSection } from './BackupSection';
 import { GithubSettingsSection } from './GithubSettingsSection';
 import { ProxySettingsSection } from './ProxySettingsSection';
+import { BrandingSection } from './BrandingSection';
 import { useMaxTemplateVersions } from './useMaxTemplateVersions';
 
 // ─── Main settings page ────────────────────────────────────────────────────────
@@ -52,6 +53,9 @@ export function SettingsPage() {
           </div>
         </CollapsibleSection>
       </form>
+
+      {/* ── Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) ─────────── */}
+      <BrandingSection />
 
       {/* ── Прокси для внешних сервисов (issue #936) ─────────────────────────── */}
       <ProxySettingsSection />

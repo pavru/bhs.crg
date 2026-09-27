@@ -23,11 +23,20 @@ public static class AppSettingKeys
     /// </summary>
     public const string CompanyTimeZone = "company.timezone";
 
+    /// <summary>
+    /// Название продукта на этом экземпляре (ТЗ CORE-25.1, issue #967). Пусто — настройки нет, и
+    /// действует нейтральное умолчание <c>BrandingDefaults.ProductName</c>.
+    ///
+    /// <para>Логотип рядом НЕ лежит: он — системный ассет шаблонов, потому что печатная форма
+    /// обязана брать его тем же путём, что остальные картинки (см. <c>IBrandingService</c>).</para>
+    /// </summary>
+    public const string ProductName = "branding.productName";
+
     /// <summary>Предел длины значения: идентификаторы поясов короткие, и снаружи приходит что угодно.</summary>
     public const int MaxValueLength = 128;
 
     /// <summary>Объявлен ли ключ. Незнакомый — отказ, а не молчаливая запись.</summary>
-    public static bool IsKnown(string key) => key == CompanyTimeZone;
+    public static bool IsKnown(string key) => key is CompanyTimeZone or ProductName;
 
     /// <summary>
     /// Разбирается ли идентификатор пояса этой системой. Пустая строка — не пояс: «как у компании»

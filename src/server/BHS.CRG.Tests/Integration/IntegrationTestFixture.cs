@@ -117,11 +117,16 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
             // ⚠️ Сам ограничитель после этого в тестах не проверяется — и не проверялся раньше:
             // теста на него нет ни одного. Появится — ему нужен свой хост с боевыми пределами,
             // иначе он будет зелёным, ничего не проверяя.
+            //
+            // ⚠️ Список имён ДУБЛИРУЕТ приложение и расходится с ним молча: политика, о которой
+            // здесь не знают, даёт 500 «no such policy exists» в каждом тесте, который трогает её
+            // адрес. Наступили на это с политикой branding (ревью PR #1061), поэтому расхождение
+            // теперь ловит RateLimitPolicyCoverageTests — в обе стороны.
             services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
             services.AddRateLimiter(o =>
             {
                 o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report"])
+                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report", "branding"])
                     o.AddPolicy(policy, _ => RateLimitPartition.GetNoLimiter("tests"));
             });
         });
