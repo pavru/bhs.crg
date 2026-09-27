@@ -84,10 +84,14 @@ public class DataSetSortExecutorTests
     }
 
     [Fact]
-    public void MalformedJson_ReturnsRowsUnchanged()
+    public void Испорченное_описание_отказ_а_не_исходный_порядок()
     {
+        // Тот же род отказа, что у отбора (issue #966): до 0.199.1 негодное описание молча
+        // возвращало строки как есть. Для сортировки это не «лишние строки», а произвольный
+        // порядок — в кабельном журнале он выглядит как порядок, заданный настройкой.
         var rows = new List<IReadOnlyDictionary<string, string?>> { Row(("A", "1")) };
-        var result = DataSetSortExecutor.Apply("not-json", rows);
-        Assert.Same(rows, result);
+        var refusal = Assert.Throws<ConflictException>(
+            () => DataSetSortExecutor.Apply("not-json", rows, "Кабели"));
+        Assert.Contains("Кабели", refusal.Message);
     }
 }

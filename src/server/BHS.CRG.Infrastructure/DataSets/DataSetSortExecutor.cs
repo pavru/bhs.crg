@@ -22,14 +22,27 @@ public static class DataSetSortExecutor
 
     public static List<IReadOnlyDictionary<string, string?>> Apply(
         string? sortSpecJson,
-        List<IReadOnlyDictionary<string, string?>> rows)
+        List<IReadOnlyDictionary<string, string?>> rows,
+        string? sourceName = null)
     {
         if (string.IsNullOrWhiteSpace(sortSpecJson)) return rows;
 
         SortColumnDef[]? spec;
         try { spec = JsonSerializer.Deserialize<SortColumnDef[]>(sortSpecJson, JsonOpts); }
-        catch { return rows; }
+        catch (JsonException ex)
+        {
+            // Тот же род отказа, что у отбора (issue #966): прежде испорченное описание молча
+            // возвращало строки как есть. Для сортировки это не лишние строки, а произвольный
+            // порядок — и в кабельном журнале он выглядит как порядок, заданный настройкой.
+            var named = string.IsNullOrWhiteSpace(sourceName) ? "" : $"«{sourceName}» ";
+            throw new ConflictException(
+                $"Сортировка источника {named}не применена: описание порядка не разбирается. Строки не "
+                + "отданы вовсе — порядок, которого не просили, выглядит как заданный. Задайте "
+                + "сортировку заново.", ex);
+        }
 
+        // Ступень без колонки — половина заполненной настройки, а не испорченное описание: такую
+        // пропускаем, как и прежде.
         var levels = (spec ?? []).Where(s => !string.IsNullOrWhiteSpace(s.Column)).ToArray();
         if (levels.Length == 0) return rows;
 
