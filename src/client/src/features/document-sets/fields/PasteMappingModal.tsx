@@ -5,18 +5,24 @@ import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
+import { parseNumberStrict } from '@/shared/utils/parseNumber';
+import { ruPlural } from '@/shared/utils/pluralize';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
-/** Приведение скалярного значения ячейки к типу поля. undefined → пропустить (не парсится). */
+/**
+ * Приведение скалярного значения ячейки к типу поля. `null` → ячейка НЕ разобрана: она остаётся
+ * пустой и называется человеку (issue #1064), а не заполняется догадкой.
+ *
+ * <p>Числа разбираются строго: `parseFloat` брал префикс и менял только первую запятую, поэтому
+ * `1.234,56` уезжало в 1.234 — в тысячу раз меньше, без единого признака на экране, — а `12 шт`
+ * проходило как 12. Правила разбора — в {@link parseNumberStrict}.</p>
+ */
 function coerceScalar(field: SchemaField, raw: string): unknown {
-  if (field.type === 'number') {
-    const n = parseFloat(raw.replace(',', '.').replace(/\s/g, ''));
-    return isNaN(n) ? undefined : n;
-  }
+  if (field.type === 'number') return parseNumberStrict(raw);
   if (field.type === 'boolean') return ['1', 'да', 'true', 'yes', '+', 'y'].includes(raw.toLowerCase());
   if (field.type === 'enum') {
     const opts = (field.options ?? []).filter(o => o !== '');
-    return opts.find(o => o.toLowerCase() === raw.toLowerCase());
+    return opts.find(o => o.toLowerCase() === raw.toLowerCase()) ?? null;
   }
   if (field.type === 'date') {
     const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(raw);
@@ -24,6 +30,12 @@ function coerceScalar(field: SchemaField, raw: string): unknown {
   }
   return raw;
 }
+
+/** Сколько неразобранных ячеек перечислять поимённо: остальные — числом «и ещё N». */
+const REJECTS_SHOWN = 8;
+
+/** Ячейка, не разобранная по типу поля: называется человеку вместе со своим значением. */
+interface RejectedCell { row: number; title: string; raw: string; type: string }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -99,7 +111,9 @@ function PasteMappingModalBody({
   }
   // Резолв идёт на сервере (issue #183): индикатор + промежуточная сводка перед вставкой.
   const [resolving, setResolving] = useState(false);
-  const [pending, setPending] = useState<{ rows: Record<string, unknown>[]; linked: number; inline: number } | null>(null);
+  const [pending, setPending] = useState<{
+    rows: Record<string, unknown>[]; linked: number; inline: number; rejects: RejectedCell[];
+  } | null>(null);
 
   function mapByHeader(headerRow: string[], count: number): Record<string, number> {
     return headerMapping(tableFields, headerRow, count);
@@ -136,6 +150,8 @@ function PasteMappingModalBody({
     const flat: ObjectResolveItem[] = [];
     // На complex-ячейку — диапазон [start, start+count) запросов в flat; фолбэк — куда класть inline.
     const cells: { row: number; fieldKey: string; raw: string; start: number; count: number; fallbackKey?: string }[] = [];
+    // Ячейки, которые не легли в тип поля: остаются пустыми и НАЗЫВАЮТСЯ в сводке (issue #1064).
+    const rejects: RejectedCell[] = [];
 
     dataOnly.forEach((r, ri) => {
       Object.entries(fieldCol).forEach(([fieldKey, ci]) => {
@@ -162,7 +178,8 @@ function PasteMappingModalBody({
           cells.push({ row: ri, fieldKey, raw, start, count: flat.length - start, fallbackKey });
         } else {
           const v = coerceScalar(field, raw);
-          if (v !== undefined) rows[ri][fieldKey] = v;
+          if (v !== null) rows[ri][fieldKey] = v;
+          else rejects.push({ row: ri + 1, title: field.title, raw, type: field.type });
         }
       });
     });
@@ -189,8 +206,10 @@ function PasteMappingModalBody({
       setResolving(false);
     }
 
-    if (inline === 0) { onApply(rows); onOpenChange(false); }
-    else setPending({ rows, linked, inline }); // есть несопоставленные — показываем сводку перед вставкой
+    // Сводка перед вставкой нужна, если есть что назвать: несопоставленные ссылки ИЛИ ячейки,
+    // не разобранные по типу. Молча уехать может только полностью разобранная вставка.
+    if (inline === 0 && rejects.length === 0) { onApply(rows); onOpenChange(false); }
+    else setPending({ rows, linked, inline, rejects });
   }
 
   const selectCls = 'w-full min-w-[140px] border border-stroke-strong rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
@@ -238,12 +257,38 @@ function PasteMappingModalBody({
         }>
         <div className="space-y-3 text-sm">
           <p className="text-fg2">Будет вставлено строк: <span className="font-medium text-fg1">{importCount}</span></p>
-          <ul className="space-y-1.5">
-            <li className="text-fg2">🔗 Связано с каталогом: <span className="font-medium text-fg1">{pending.linked}</span></li>
-            <li className="text-fg2">
-              📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-fg1">{pending.inline}</span>
-            </li>
-          </ul>
+          {pending.linked + pending.inline > 0 && (
+            <ul className="space-y-1.5">
+              <li className="text-fg2">🔗 Связано с каталогом: <span className="font-medium text-fg1">{pending.linked}</span></li>
+              <li className="text-fg2">
+                📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-fg1">{pending.inline}</span>
+              </li>
+            </ul>
+          )}
+          {pending.rejects.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-fg2">
+                ⚠️ Не разобрано: <span className="font-medium text-fg1">{pending.rejects.length}</span>
+                {' '}{ruPlural(pending.rejects.length, 'ячейка', 'ячейки', 'ячеек')}
+                {' '}{ruPlural(pending.rejects.length, 'останется пустой', 'останутся пустыми', 'останутся пустыми')}
+              </p>
+              <ul className="space-y-0.5 max-h-40 overflow-y-auto">
+                {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
+                  <li key={i} className="text-xs text-fg3">
+                    строка {c.row}, «{c.title}»: {c.type === 'number' ? 'не число' : 'нет такого значения'}
+                    {' — '}<span className="font-mono text-fg1">{c.raw}</span>
+                  </li>
+                ))}
+              </ul>
+              {pending.rejects.length > REJECTS_SHOWN && (
+                <p className="text-xs text-fg4">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
+              )}
+              <p className="text-xs text-fg4">
+                Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя:
+                ячейка остаётся пустой — заполните её вручную после вставки либо исправьте источник.
+              </p>
+            </div>
+          )}
           {pending.inline > 0 && (
             <p className="text-xs text-fg4">
               Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
