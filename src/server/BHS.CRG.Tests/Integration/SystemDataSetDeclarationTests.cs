@@ -100,7 +100,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         var refusal = await Assert.ThrowsAsync<ConflictException>(() => svc.PreviewSourceAsync(
             sourceId, 50, DataAccess.OfSystem("плановая копия"), default));
 
-        Assert.Contains("служебным заданием", refusal.Message);
+        Assert.Contains("только по правам человека", refusal.Message);
     }
 
     [Fact]
@@ -121,18 +121,24 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
     }
 
     [Fact]
-    public async Task Задание_без_живого_автора_не_продолжается()
+    public async Task Задание_без_живого_автора_опубликованных_наборов_не_читает()
     {
         _ = fixture.CreateClient();
         using var scope = fixture.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
         var resolver = scope.ServiceProvider.GetRequiredService<DataAccessResolver>();
+        var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
 
-        // «Автора больше нет» — отказ, а не молчаливый переход к правам системы: иначе задача,
-        // поставленная уволенным сотрудником, дочитала бы данные уже ничьими правами.
+        // Учётную запись автора могли удалить, пока задача стояла в очереди. Чьи-то другие права
+        // взять неоткуда, поэтому параметр доступа получается БЕЗ ЧЕЛОВЕКА — и отбираемые по правам
+        // строки такому не отдаются. Причина обязана быть названа: «нет прав» без слов об удалённом
+        // авторе отправило бы администратора выдавать права тому, кого уже нет.
+        var ghost = await resolver.ForUserAsync(Guid.NewGuid(), default);
+        Assert.True(ghost.IsSystem);
+
         var refusal = await Assert.ThrowsAsync<ConflictException>(() =>
-            resolver.ForUserAsync(Guid.NewGuid(), default));
-
-        Assert.Contains("учётной записи больше нет", refusal.Message);
+            svc.PreviewSourceAsync(sourceId, 50, ghost, default));
+        Assert.Contains("автора задачи больше нет", refusal.Message);
     }
 
     // ── Данные прогона ────────────────────────────────────────────────────────

@@ -113,7 +113,7 @@ public class SystemDataSetAccessTests
 
         // Причина названа своими словами: отказ «нет права» отправил бы администратора выдавать
         // права системе, которой их выдать нельзя.
-        Assert.Contains("служебным заданием", refusal.Message);
+        Assert.Contains("только по правам человека", refusal.Message);
         Assert.Contains("плановая копия", refusal.Message);
     }
 

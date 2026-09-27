@@ -115,9 +115,9 @@ public static class SystemDataSetGate
         // модулей вместо настоящего вопроса «зачем служебное задание читает опубликованный набор».
         if (access.IsSystem)
             return new ConflictException(
-                $"{name} не читается служебным заданием ({access.SystemReason}): строки отбираются по " +
-                "правам человека, а у системы их нет. Задание, запущенное человеком, несёт его до " +
-                "поставщика; служебное — опубликованных наборов не читает (ТЗ CORE-24.1).");
+                $"{name} отдаёт строки только по правам человека, а их здесь нет ({access.SystemReason}). " +
+                "Задание, запущенное человеком, несёт его до поставщика; служебное — опубликованных " +
+                "наборов не читает (ТЗ CORE-24.1).");
 
         if (declaration.Module != SystemDataSetDeclaration.CoreModule
             && !access.EnabledModules.Contains(declaration.Module))

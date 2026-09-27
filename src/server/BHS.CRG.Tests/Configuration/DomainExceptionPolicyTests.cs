@@ -53,6 +53,7 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Application/Backup/BackupStorageOptions.cs"] = "негодная настройка каталога копий: отказ на старте, адресованный администратору в журнале, — до пользователя не доходит вовсе",
         ["BHS.CRG.Infrastructure/Backup/CountingStream.cs"] = "счётчик байтов: чтения и перемотки у него нет по устройству, до пользователя это не доходит",
         ["BHS.CRG.Infrastructure/Persistence/MigrationCensus.cs"] = "расхождение переписи справочника при миграции: приложение останавливается на старте (ТЗ CORE-31), отказ адресован администратору в журнале и до пользователя не доходит вовсе (issue #960)",
+        ["BHS.CRG.Application/DataSets/ISystemDataProvider.cs"] = "системный набор объявлен не до конца: приложение не поднимается вовсе (StartupTasks, сторож SystemDataSetDeclarationTests), отказ адресован разработчику и администратору в журнале запуска и до пользователя не доходит (issue #965)",
         ["BHS.CRG.Application/Schema/TagCatalog.cs"] = "два объявления одного кода тэга: реестр разрешается при СТАРТЕ (Program.cs, сторож TagCatalogTests.Реестр_разрешается_на_старте), поэтому приложение просто не поднимается, назвав оба объявления, и до пользователя отказ не доходит вовсе (issue #959)",
     };
 

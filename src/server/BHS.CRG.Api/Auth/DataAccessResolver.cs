@@ -50,11 +50,13 @@ public sealed class DataAccessResolver(
     /// </summary>
     public Task<DataAccess> ForRequestAsync(IHttpContextAccessor http, CancellationToken ct) =>
         ForAsync(
+            // Запроса нет вовсе — это дефект вызывающего, а не отказ пользователю: инструмент MCP
+            // живёт внутри запроса по устройству. Токен БЕЗ «кто это» — другой случай, и его
+            // разбирает ForAsync: пустой набор ключей, все наборы закрыты.
             http.HttpContext?.User
-            // Не «система»: у неё отказ с другой причиной, и он увёл бы разбор к фоновым заданиям.
-            ?? throw new ForbiddenException(
-                "Не удалось определить пользователя: запрос без действительного токена. " +
-                "Строки наборов отдаются в правах спрашивающего, и читать их «ничьими» правами нельзя."),
+            ?? throw new InvalidOperationException(
+                "Параметр доступа запрошен вне HTTP-запроса: инструменты и ресурсы MCP берут " +
+                "пользователя из принципала, и без него читать строки нечьими правами нельзя."),
             ct);
 
     /// <inheritdoc />
@@ -64,12 +66,19 @@ public sealed class DataAccessResolver(
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var effective = scope.ServiceProvider.GetRequiredService<EffectivePermissions>();
 
-        var user = await users.FindByIdAsync(userId.ToString())
-            // Отказ, а не «система»: задание, автора которого больше нет, обязано остановиться.
-            // Продолжить его правами системы значило бы выдать данные от имени того, кого удалили.
-            ?? throw new ConflictException(
-                $"Задача запущена пользователем {userId}, а его учётной записи больше нет: " +
-                "в чьих правах читать данные — неизвестно, и продолжать нельзя.");
+        var user = await users.FindByIdAsync(userId.ToString());
+
+        // Автора больше нет — параметр доступа получается БЕЗ ЧЕЛОВЕКА, и опубликованные наборы
+        // такому не отдаются: у удалённой учётной записи прав нет, а брать чьи-то другие неоткуда.
+        // Прежние файловые источники задание дочитает — как и до появления этого правила, — но
+        // строки, отбираемые по правам, не увидит, и причина будет названа в отказе.
+        //
+        // Не исключение: слой Api отвечает кодами, а не бросает доменные отказы
+        // (DomainExceptionPolicyTests.ApiLayer_DoesNotThrowDomainRefusals), и до пользователя этот
+        // отказ дойдёт текстом самих ворот — там же, где он и уместен.
+        if (user is null)
+            return DataAccess.OfSystem(
+                $"автора задачи больше нет: учётная запись {userId} удалена");
 
         return DataAccess.Of(userId, user.UserName ?? userId.ToString(),
             Keys(await effective.OfAsync(user)), EnabledModules());
