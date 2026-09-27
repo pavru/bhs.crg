@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Branding;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
@@ -120,6 +121,12 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         Assert.Equal(BrandingDefaults.ProductName, branding.GetProperty("productName").GetString());
         Assert.False(branding.GetProperty("isCustom").GetBoolean());
+
+        // И строки настройки не остаётся: пустое значение уехало бы в резервную копию и выглядело
+        // бы там заданной настройкой — «название есть, и оно никакое».
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.AppSettings.AnyAsync(x => x.Key == AppSettingKeys.ProductName));
     }
 
     [Fact]
