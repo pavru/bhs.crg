@@ -9,6 +9,8 @@ import { NotificationsCenter } from '@/features/notifications/NotificationsCente
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { Avatar } from '@/shared/ui/Avatar';
+import { BrandLogo } from '@/shared/ui/Brand';
+import { useProductName } from '@/shared/api/branding';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
@@ -66,6 +68,7 @@ function NavSection({
 export function AppShell() {
   const { user, logout } = useAuth();
   const { data: account } = useAccount();
+  const productName = useProductName();
   // Навигация строится ТОЛЬКО по ответу /api/account/access (ТЗ AUTH-14). Роли здесь больше нет:
   // она приходила из токена, то есть устаревала ровно тогда, когда это опаснее всего — при снятии
   // прав, — и показывала разделы, которые отвечают отказом (issue #952).
@@ -101,9 +104,11 @@ export function AppShell() {
       {/* Navigation rail */}
       <aside className="w-56 flex flex-col border-r border-stroke bg-surface">
         {/* Brand */}
-        <div className="flex items-center px-4 h-12 border-b border-stroke shrink-0">
-          <span className="text-base font-semibold tracking-tight text-brand">
-            BHS.CRG
+        {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. */}
+        <div className="flex items-center gap-2 px-4 h-12 border-b border-stroke shrink-0">
+          <BrandLogo className="w-6 h-6 text-brand" iconSize={18} />
+          <span className="text-base font-semibold tracking-tight text-brand truncate">
+            {productName}
           </span>
         </div>
 

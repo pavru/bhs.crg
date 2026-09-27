@@ -1,9 +1,11 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router';
-import { FileCheck2, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
+import { BrandLogo } from '@/shared/ui/Brand';
+import { useProductName } from '@/shared/api/branding';
 import { useRegistrationOpen, useRegisterFirstAdmin } from '@/shared/api/auth';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
 import { registerErrorText, autoLoginFailedText } from '@/shared/auth/identityErrors';
@@ -29,6 +31,7 @@ const GRID_BG: React.CSSProperties = {
  */
 export function LoginPage() {
   const { data: version } = useAppVersion();
+  const productName = useProductName();
   const { data: registrationOpen, isPending } = useRegistrationOpen();
 
   const versionLabel = version
@@ -50,11 +53,10 @@ export function LoginPage() {
           className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-brand text-white"
           style={GRID_BG}
         >
+          {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
           <div className="flex items-center gap-3">
-            <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white/20">
-              <FileCheck2 size={24} />
-            </span>
-            <span className="text-[22px] font-medium tracking-wide">BHS.CRG</span>
+            <BrandLogo className="w-12 h-12 rounded-2xl bg-white/20" iconSize={24} />
+            <span className="text-[22px] font-medium tracking-wide">{productName}</span>
           </div>
           <div>
             <div className="text-[32px] font-normal leading-tight">Исполнительная документация</div>
@@ -72,11 +74,9 @@ export function LoginPage() {
         <div className="flex-1 flex flex-col justify-center p-8 md:px-12 md:py-14">
           {/* Компактный бренд для узких экранов (панель скрыта) */}
           <div className="flex md:hidden items-center gap-3 mb-6">
-            <span className="flex items-center justify-center w-11 h-11 rounded-lg bg-brand text-white shrink-0"
-              style={{ boxShadow: 'var(--f-shadow4)' }}>
-              <FileCheck2 size={22} />
-            </span>
-            <span className="text-2xl font-semibold text-brand leading-none">BHS.CRG</span>
+            <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-white"
+              style={{ boxShadow: 'var(--f-shadow4)' }} iconSize={22} />
+            <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
           </div>
 
           {/* Пока не знаем, есть ли в системе пользователи, не рисуем НИЧЕГО. Показать вход и
