@@ -6,6 +6,7 @@ import type {
   DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
   GostGrouping, GostGroupingGroup, MaterializeDiscriminator,
 } from './types';
+import { withBlobErrorBody } from '@/shared/utils/apiError';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
 
@@ -592,10 +593,15 @@ export async function downloadDataSetFile(id: string, name: string) {
 }
 
 /** Выгрузка ВСЕХ строк источника (после обработки) в spreadsheet и скачивание в браузере. */
+/**
+ * Выгрузка источника файлом. Отказ ПЕРЕБРАСЫВАЕТСЯ — вызывающий обязан его показать: сервер
+ * отказывает выгрузке с битой настройкой источника (issue #966), и молча не скачавшийся файл
+ * выглядит как «ничего не произошло».
+ */
 export async function exportDataSetSource(sourceId: string, format: 'xlsx' | 'xls' | 'csv') {
-  const response = await apiClient.get(`/datasets/sources/${sourceId}/export`, {
+  const response = await withBlobErrorBody(apiClient.get(`/datasets/sources/${sourceId}/export`, {
     params: { format }, responseType: 'blob',
-  });
+  }));
   const contentDisposition = response.headers['content-disposition'] as string | undefined;
   const filename = filenameFromContentDisposition(contentDisposition, `export.${format}`);
   const url = URL.createObjectURL(response.data as Blob);

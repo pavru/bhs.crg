@@ -80,9 +80,11 @@ public class DataSetRowLoader(
         }
 
         // Transformation (вычисляемые колонки могут понадобиться фильтру/сортировке), затем Filter, затем Sort.
-        var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows);
-        rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
-        rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
+        // Имя источника едет в отказ (issue #966): у документа привязок бывает пять, и «отбор не
+        // разбирается» без имени не говорит, какую из них править. Имя знает только этот слой.
+        var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows, source.Name);
+        rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows, source.Name);
+        rows = DataSetSortExecutor.Apply(source.SortSpec, rows, source.Name);
         return new LoadedRows(rows, parsedRows.Count, columns, warning, boundary);
     }
 

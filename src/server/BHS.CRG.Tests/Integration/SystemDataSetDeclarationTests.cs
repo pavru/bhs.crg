@@ -189,8 +189,10 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         Assert.Contains(expected, rows!.Boundary);
 
         // Номер контракта поднят вместе с полем: пока агент не увидит 10, он не знает, что строки
-        // отбираются по правам, — и сочтёт выборку полной.
-        Assert.Equal(10, rows.ContractVersion);
+        // отбираются по правам, — и сочтёт выборку полной. Сверяем «не ниже», а не «ровно»: контракт
+        // растёт и дальше (11 — причина пустой таблицы у документа), и точное число превращало бы
+        // этот сторож в препятствие следующему полю, ничего при этом не стерегая.
+        Assert.True(rows.ContractVersion >= 10, $"контракт MCP: {rows.ContractVersion}");
     }
 
     [Fact]

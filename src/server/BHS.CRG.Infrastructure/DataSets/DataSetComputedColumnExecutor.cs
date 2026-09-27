@@ -33,13 +33,25 @@ public static class DataSetComputedColumnExecutor
 
     public static List<IReadOnlyDictionary<string, string?>> Apply(
         string? computedColumnsJson,
-        List<IReadOnlyDictionary<string, string?>> rows)
+        List<IReadOnlyDictionary<string, string?>> rows,
+        string? sourceName = null)
     {
         if (string.IsNullOrWhiteSpace(computedColumnsJson)) return rows;
 
         ComputedColumnDef[]? defs;
         try { defs = JsonSerializer.Deserialize<ComputedColumnDef[]>(computedColumnsJson, JsonOpts); }
-        catch { return rows; }
+        catch (JsonException ex)
+        {
+            // Тот же род отказа, что у отбора (issue #966): прежде испорченное описание оставляло
+            // строки без колонки, и шаблон печатал пустое место. Негодно ОПИСАНИЕ целиком — отказ
+            // отдельного выражения на отдельной строке остаётся терпимым (ниже): выражение, честно
+            // падающее на негодных данных, — обычное дело.
+            var named = string.IsNullOrWhiteSpace(sourceName) ? "" : $"«{sourceName}» ";
+            throw new ConflictException(
+                $"Вычисляемые колонки источника {named}не применены: их описание не разбирается. "
+                + "Строки не отданы вовсе — иначе колонка просто отсутствовала бы, а пустое место в "
+                + "печатной форме не отличить от пустого значения. Задайте колонки заново.", ex);
+        }
 
         if (defs == null || defs.Length == 0) return rows;
 

@@ -121,11 +121,73 @@ public class DataSetRowFilterExecutorTests
         Assert.Empty(DataSetRowFilterExecutor.Apply(Group("and", Condition("B", "eq", "x")), rows));
     }
 
-    [Fact]
-    public void MalformedJson_ReturnsRowsUnchanged()
+    // ── Отбор, который нельзя выполнить, отказывает (issue #966) ──────────────────
+    //
+    // До 0.199.1 оба случая «проходили успешно»: испорченное описание возвращало ВСЕ строки, как
+    // будто отбора нет вовсе, а неизвестный оператор считался истиной — то есть условие молча
+    // пропускало строки насквозь. Выдача при этом выглядела обычной, и расхождение с экраном
+    // обнаружилось бы после подписи.
+
+    [Theory]
+    // Ломаный синтаксис. В базе такого не бывает вовсе — колонка jsonb, и негодный текст в неё не
+    // ложится; проверяется потому, что исполнителю всё равно, откуда пришла строка.
+    [InlineData("{ not valid json")]
+    // А ВОТ ЭТО в базе лежать может: JSON годный, а форма чужая — отбор, сохранённый как строка или
+    // как массив условий вместо корневой группы. Именно так «испорченное описание» и выглядит на
+    // живых данных, и ровно этот случай прежде возвращал все строки.
+    [InlineData("\"Тип = Кабель\"")]
+    [InlineData("""[{"type":"condition","column":"Тип","op":"eq","value":"Кабель"}]""")]
+    public void Испорченное_описание_отказ_а_не_все_строки(string json)
     {
-        var rows = Sample();
-        var result = DataSetRowFilterExecutor.Apply("{ not valid json", rows);
-        Assert.Equal(3, result.Count);
+        var refusal = Assert.Throws<ConflictException>(
+            () => DataSetRowFilterExecutor.Apply(json, Sample(), "Материалы"));
+        // Источник назван: у документа привязок бывает пять, и «отбор не разбирается» без имени
+        // не говорит, какой из них править.
+        Assert.Contains("Материалы", refusal.Message);
+    }
+
+    [Fact]
+    public void Неизвестный_оператор_отказ_с_указанием_условия()
+    {
+        var json = Group("and", Condition("Кол", "betwen", "5"));
+        var refusal = Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(json, Sample()));
+        Assert.Contains("betwen", refusal.Message);
+        Assert.Contains("Кол", refusal.Message);
+    }
+
+    [Fact]
+    public void Место_условия_в_отказе_названо_путём()
+    {
+        // Вложенное условие 2.1: колонки в дереве повторяются, и одной колонки для «какое именно
+        // условие» не хватает.
+        var inner = Group("or", Condition("Кол", "betwen", "5"));
+        var json = Group("and", Condition("Тип", "eq", "Кабель"), inner);
+        var refusal = Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(json, Sample()));
+        Assert.Contains("2.1", refusal.Message);
+    }
+
+    [Fact]
+    public void Отказ_приходит_и_на_пустом_наборе_строк()
+    {
+        // Дерево проверяется ДО первой строки. Иначе у источника, который сегодня вернул ноль строк,
+        // битый оператор молчал бы — и сторож оказался бы недостижим ровно в том состоянии, в
+        // котором его труднее всего заметить глазами.
+        var json = Group("and", Condition("Кол", "betwen", "5"));
+        Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(json, []));
+    }
+
+    [Theory]
+    // Опечатка в виде узла: «conditon» прежде считался группой без условий, то есть истиной.
+    [InlineData("""{"type":"conditon","column":"Тип","op":"eq","value":"Кабель"}""", "conditon")]
+    // Логика, которой нет: «xor» прежде молча становился «and».
+    [InlineData("""{"type":"group","logic":"xor","children":[]}""", "xor")]
+    // Условие без колонки: сравнивать не с чем, а прежде сравнивалось с пустой строкой.
+    [InlineData("""{"type":"condition","op":"eq","value":"Кабель"}""", "колонк")]
+    // «null» — описание есть, условий в нём нет: отсутствием отбора это не считается.
+    [InlineData("null", "null")]
+    public void Негодное_описание_отказывает(string json, string expectedInMessage)
+    {
+        var refusal = Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(json, Sample()));
+        Assert.Contains(expectedInMessage, refusal.Message);
     }
 }

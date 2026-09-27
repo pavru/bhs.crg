@@ -147,6 +147,28 @@ public class DataSetRowLoaderTests
         Assert.Empty(await Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, TestAccess.All, default));
     }
 
+    /// <summary>
+    /// Отказ битого отбора приходит из ОБЩЕГО пайплайна и называет источник по имени (issue #966).
+    /// Проверяется здесь, а не только на исполнителе: имя источника знает загрузчик, и если он его
+    /// не передаст, отказ дойдёт до человека безымянным — а исполнитель об этом не узнает.
+    /// Пайплайн один на все пять путей чтения (предпросмотр, выгрузка, генерация, MCP, сверка),
+    /// поэтому отказ появляется во всех сразу.
+    /// </summary>
+    [Fact]
+    public async Task Битый_отбор_отказывает_и_называет_источник()
+    {
+        var blob = new FakeBlob(Encoding.UTF8.GetBytes("Имя,Количество\nКабель,10\n"));
+        var source = Source(DataSetFormat.Csv, "bucket/file.csv");
+        // Оператор, которого нет: годный JSON с негодным условием — так битый отбор и выглядит в
+        // живой базе (колонка jsonb ломаного текста не принимает вовсе).
+        source.SetProcessing("""{"type":"condition","column":"Имя","op":"betwen","value":"5"}""", null, null);
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(
+            () => Loader(blob).LoadRowsAsync(source, TestAccess.All, default));
+
+        Assert.Contains("Источник", refusal.Message);   // имя источника из Source(...)
+    }
+
     [Fact]
     public async Task SystemSource_UnknownMarker_Throws()
     {

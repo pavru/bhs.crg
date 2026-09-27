@@ -83,11 +83,42 @@ public class DataSetSortExecutorTests
         Assert.Equal(["apple", "banana"], result.Select(r => r["A"]));
     }
 
-    [Fact]
-    public void MalformedJson_ReturnsRowsUnchanged()
+    [Theory]
+    [InlineData("descending")]
+    [InlineData("убыв")]
+    [InlineData("des")]
+    public void Негодное_направление_отказ_а_не_возрастание(string direction)
     {
+        // Прежде любое непопадание в «desc» молча означало возрастание: негодная настройка выглядела
+        // выполненной, а журнал, отсортированный не в ту сторону, спорит с экраном только у того,
+        // кто помнит, чего просил (ревью PR #1058).
+        var rows = new List<IReadOnlyDictionary<string, string?>> { Row(("A", "1")), Row(("A", "2")) };
+        var refusal = Assert.Throws<ConflictException>(() => DataSetSortExecutor.Apply(
+            $$"""[{"column":"A","direction":"{{direction}}"}]""", rows, "Кабели"));
+        Assert.Contains(direction, refusal.Message);
+        Assert.Contains("A", refusal.Message);
+    }
+
+    [Fact]
+    public void Направление_не_указано_это_возрастание_а_не_отказ()
+    {
+        // Пустое направление — значение по умолчанию, а не чей-то выбор: отказывать на нём значило бы
+        // запереть половину заполненной настройки.
+        var rows = new List<IReadOnlyDictionary<string, string?>> { Row(("A", "2")), Row(("A", "1")) };
+        Assert.Equal("1", DataSetSortExecutor.Apply("""[{"column":"A"}]""", rows)[0]["A"]);
+        Assert.Equal("1", DataSetSortExecutor.Apply("""[{"column":"A","direction":null}]""", rows)[0]["A"]);
+        Assert.Equal("1", DataSetSortExecutor.Apply("""[{"column":"A","direction":"ASC"}]""", rows)[0]["A"]);
+    }
+
+    [Fact]
+    public void Испорченное_описание_отказ_а_не_исходный_порядок()
+    {
+        // Тот же род отказа, что у отбора (issue #966): до 0.199.1 негодное описание молча
+        // возвращало строки как есть. Для сортировки это не «лишние строки», а произвольный
+        // порядок — в кабельном журнале он выглядит как порядок, заданный настройкой.
         var rows = new List<IReadOnlyDictionary<string, string?>> { Row(("A", "1")) };
-        var result = DataSetSortExecutor.Apply("not-json", rows);
-        Assert.Same(rows, result);
+        var refusal = Assert.Throws<ConflictException>(
+            () => DataSetSortExecutor.Apply("not-json", rows, "Кабели"));
+        Assert.Contains("Кабели", refusal.Message);
     }
 }
