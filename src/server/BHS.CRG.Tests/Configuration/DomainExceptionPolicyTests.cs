@@ -37,7 +37,13 @@ public class DomainExceptionPolicyTests
     private static readonly Dictionary<string, string> DeliberatelyFramework = new()
     {
         ["BHS.CRG.Infrastructure/Generation/TypstGenerator.cs"] = "сбой компилятора Typst: stderr с путями временной папки — диагностика для лога",
-        ["BHS.CRG.Infrastructure/Generation/TypstProcess.cs"] = "Typst не запустился — это нерабочая конфигурация установки",
+        // TypstProcess.cs отсюда УБРАН (issue #1059): «Typst не запустился» перестало быть
+        // framework-отказом. Прежнее решение — «нерабочая конфигурация, текст только в лог» —
+        // держалось, пока этот отказ никуда, кроме ответа, не попадал. А попадал он дальше: места,
+        // которые ловят сбой проверки синтаксиса, НЕ падают, а кладут ex.Message себе в поле
+        // сообщения и показывают на экране — вместе с полным путём к программе на сервере. Теперь
+        // это наш TypstUnavailableException: путь остаётся в журнале, человек получает «проверьте
+        // установку Typst», а тот же текст спокойно проходит через Refusals.TextOr в тех местах.
         ["BHS.CRG.Infrastructure/Generation/DocumentGeneratorFactory.cs"] = "формат вне перечисления — недостижимо снаружи",
         ["BHS.CRG.Infrastructure/Jobs/JobBackgroundService.cs"] = "неизвестный вид фоновой задачи — дефект реестра задач",
         ["BHS.CRG.Infrastructure/Recognition/BuiltInRecognitionProfiles.cs"] = "встроенный профиль отсутствует в коде — дефект",

@@ -47,8 +47,7 @@ public static class TypstProcess
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(limit);
 
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Не удалось запустить Typst");
+        using var process = StartOrRefuse(psi);
 
         // Читать надо ОБА потока и начинать до ожидания. Буфер канала невелик: процесс, написавший
         // в невычитываемый stdout больше буфера, блокируется на записи и не завершается никогда —
@@ -94,6 +93,30 @@ public static class TypstProcess
         }
     }
 
+    /// <summary>
+    /// Запуск программы — с отказом, написанным для человека (issue #691, issue #1059).
+    ///
+    /// Прежде неудача самого <c>Process.Start</c> не оборачивалась ничем: наружу шёл текст Win32 с
+    /// ПОЛНЫМ путём к исполняемому файлу на сервере. И уходил он далеко — места, которые ловят сбой
+    /// проверки синтаксиса, не падают, а кладут текст в своё поле сообщения и показывают на экране.
+    /// Наш отказ называет причину, но не путь; исходное исключение остаётся во <c>inner</c> и
+    /// попадает в журнал вместе с ним.
+    /// </summary>
+    private static Process StartOrRefuse(ProcessStartInfo psi)
+    {
+        try
+        {
+            return Process.Start(psi) ?? throw new TypstUnavailableException(
+                "Не удалось запустить Typst: программа не откликнулась на запуск.");
+        }
+        catch (Exception ex) when (ex is not DomainException)
+        {
+            throw new TypstUnavailableException(
+                "Компилятор Typst не запускается — проверьте его установку на сервере " +
+                "(переменная окружения TYPST_PATH).", ex);
+        }
+    }
+
     private static void Observe(Task task) =>
         _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 }
@@ -107,3 +130,14 @@ public static class TypstProcess
 /// сервера» — ровно там, где подсказка нужнее всего.
 /// </summary>
 public class TypstTimeoutException(string message) : ConflictException(message);
+
+/// <summary>
+/// Typst CLI не запустился: программы нет по указанному пути, нет прав, не хватило ресурсов.
+///
+/// Род тот же, что у срока: запрос правильный, не пускает состояние — только состояние тут не
+/// шаблона, а стенда. Свой тип нужен, чтобы текст доходил до человека дословно (issue #691): он
+/// называет ПРИЧИНУ и переменную, которую надо проверить, вместо пути к файлу на сервере, который
+/// приносил с собой Win32.
+/// </summary>
+public class TypstUnavailableException(string message, Exception? inner = null)
+    : ConflictException(message, inner);

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using BHS.CRG.Application.Generation;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -12,7 +13,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// `--diagnostic-format short` даёт разбираемые строки, которые маппятся на файл и строку блока.
 /// Тот же CLI (env TYPST_PATH) и паттерн запуска процесса, что у TypstGenerator.
 /// </summary>
-public class TypstSyntaxChecker : ITypstSyntaxChecker
+public class TypstSyntaxChecker(ILogger<TypstSyntaxChecker> logger) : ITypstSyntaxChecker
 {
     private static readonly string TypstPath =
         Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
@@ -47,6 +48,14 @@ public class TypstSyntaxChecker : ITypstSyntaxChecker
                         errors.TryAdd((e.File, e.Line, e.Column, e.Message), e);
 
             return errors.Values.ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Сбой инструмента записываем ЗДЕСЬ, у самого инструмента: вызывающие его ГЛОТАЮТ —
+            // проверка блоков не должна падать целиком из-за недоступного CLI, — и без этой строки
+            // причина не осталась бы нигде, а наружу по правилу issue #691 уходит только наш текст.
+            logger.LogWarning(ex, "Проверка синтаксиса Typst не выполнена");
+            throw;
         }
         finally
         {

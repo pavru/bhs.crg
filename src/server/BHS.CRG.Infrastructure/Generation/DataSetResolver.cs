@@ -4,6 +4,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Resolution;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.DataSets;

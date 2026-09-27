@@ -5,11 +5,13 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -25,7 +27,8 @@ public partial class DataSetSourceService(
     IDataSetRowLoader rowLoader,
     SystemDataProviderRegistry systemProviders,
     SystemSourceCounter systemCounts,
-    IRecognitionProfileProvider profiles)
+    IRecognitionProfileProvider profiles,
+    ILogger<DataSetSourceService> logger)
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
 
@@ -398,9 +401,23 @@ public partial class DataSetSourceService(
 
             return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null, variants, skipped);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Закрытый диалог — не отказ. Без этой ветки каждая отмена писалась бы предупреждением
+            // со стеком и разбавляла ровно тот журнал, в который отправляет текст отказа ниже.
+            throw;
+        }
         catch (Exception ex)
         {
-            return new MaterializePreviewDto(effTypeId, 0, [], ex.Message);
+            // Наружу — только наш отказ (правило issue #691). Здесь стоял сырой ex.Message, и в
+            // строку ошибки предпросмотра уезжало всё, обо что споткнулось чтение источника: текст
+            // Npgsql со строкой подключения, ответ хранилища с именем бакета, ошибка разбора файла.
+            // (Вычисляемые колонки, фильтр и сортировка сюда не доходят — они глотают свои ошибки
+            // сами.) Журнала в этой ветке не было вовсе — причина не сохранялась нигде, так что
+            // заменить сообщение на общее, ничего не записав, значило бы её потерять.
+            logger.LogWarning(ex, "Не удалось построить предпросмотр материализации источника {SourceId}", sourceId);
+            return new MaterializePreviewDto(effTypeId, 0, [], Refusals.TextOr(ex,
+                "Не удалось построить предпросмотр материализации — подробности в журнале приложения."));
         }
     }
 
