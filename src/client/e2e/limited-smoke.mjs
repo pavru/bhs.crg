@@ -1,0 +1,205 @@
+// Живой прогон под РОЛЬЮ С ОГРАНИЧЕННЫМИ ПРАВАМИ (issue #975).
+//
+// ЗАЧЕМ ОН ЕСТЬ. Остальные восемь прогонов ходят администратором, а у администратора есть всё:
+// разницы между «право выдано» и «право не нужно» он не видит ВОВСЕ. Значит ни один из них не
+// заметит, что экран сломался у всех, кроме него, — а ломается он именно так. В #974 ревью нашло
+// четыре такие поломки за один PR: статус версии ушёл под право обслуживания и стал отвечать 403 в
+// подвале КАЖДОГО экрана; отправка письма закрылась обслуживанием, а зовут её с экрана
+// пользователей; загрузка вложений закрылась у роли без права на файлы и унесла с собой диалог
+// «сообщить об ошибке» целиком — снимок грузится ДО отправки. Все четыре прошли бы живые прогоны
+// зелёными.
+//
+// ЧТО ПРОВЕРЯЕТСЯ — РАБОТОСПОСОБНОСТЬ, А НЕ ОТКАЗЫ. Отказы под этой же ролью проверяет маршрутный
+// прогон: закрытый раздел отвечает страницей, пункта нет в меню, адрес закрыт правом. Здесь
+// наоборот: всё, на что роль имеет право, обязано открываться и работать, и ни один запрос не
+// должен ответить отказом там, где интерфейс показывает действие. Отказ, пришедший на видимую
+// кнопку, — дефект, даже если сам отказ «правильный».
+//
+// ⚠️ СПИСОК ЭКРАНОВ ЗАПИСАН ЗДЕСЬ РУКАМИ — не выведен из `/api/account/access` и не прочитан из
+// `navConfig`. Выведенный, он подстроился бы под любую потерю права: снял право — пункт исчез из
+// ожиданий ВМЕСТЕ с экраном, и прогон остался бы зелёным, проверив пустоту. Здесь —
+// САМОСТОЯТЕЛЬНОЕ утверждение о роли «Инженер ИД»: вот пять экранов, которые она обязана
+// открывать. Разойдётся с составом роли — узнаем отсюда, а не от пользователя.
+//
+// ⚠️ ГЛАВНАЯ ПРОВЕРКА ЗДЕСЬ — ПОСЛЕДНЯЯ: ни один запрос за весь проход не ответил 403. Она и
+// сторожит «данные пришли»: отбери у роли право на чтение — экран откроется тем же заголовком, но
+// содержимое придёт отказом. Поэтому якоря экранов ниже отвечают только на вопрос «тот ли это
+// экран», а не «полон ли он»: за полноту отвечает счётчик отказов.
+//
+// Пишет: одно сообщение об ошибке — своим же диалогом, и это и есть проверка. Больше ничего.
+//
+// Требует поднятых фронта и бэка и посеянных данных — см. e2e/README.md.
+//
+// Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/limited-smoke.mjs
+// Код возврата: 0 — все проверки прошли, 1 — есть провал.
+
+import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+
+// Учётная запись с ограниченными правами — та же, что заводит посев (e2e/seed.mjs): роль `User`,
+// она же «Инженер ИД». Отдельной заводить незачем; разойдясь, значения дали бы «не вошёл».
+const EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
+const PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
+
+const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
+const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
+const INSTANCE = process.env.SMOKE_INSTANCE_ID || 'b1de57a0-6c14-4bbc-9cad-1dda592c9c66';
+
+/**
+ * Пять экранов роли «Инженер ИД» и по якорю на каждый.
+ *
+ * Якорь — текст, который есть ТОЛЬКО в теле этого экрана. Заголовками пунктов меню сверяться
+ * нельзя: боковая панель видна на каждом экране, и «Документы качества» в ней нашлись бы при
+ * открытии любой страницы — проверка подтверждала бы саму себя (наступали в PR #1000).
+ */
+const SECTIONS = [
+  { path: '/document-sets',   name: 'стройки',            anchor: 'Новая стройка' },
+  { path: '/common-data',     name: 'общие данные',       anchor: 'Общие данные, доступные во всех проектах' },
+  { path: '/datasets',        name: 'наборы данных',      anchor: 'Системные наборы доступны во всех комплектах' },
+  { path: '/quality-docs',    name: 'документы качества', anchor: 'Библиотека сертификатов и деклараций' },
+  { path: '/reconciliations', name: 'сверка',             anchor: 'Сопоставление источников по доменному ключу' },
+];
+
+/** Однопиксельный PNG — вложение к сообщению об ошибке. Собирается кодом, а не лежит бинарём. */
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64');
+
+const browser = await launchBrowser();
+const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
+
+/**
+ * Каждый отказ доступа за весь проход — с адресом и экраном, на котором пришёл.
+ *
+ * Собираем ВСЕ, а не падаем на первом: один неверно закрытый адрес отвечает отказом на каждом
+ * экране, и список «где именно» отличает «закрыли общий адрес» от «закрыли один экран».
+ */
+const denials = [];
+let screen = 'вход';
+page.on('response', r => {
+  if (r.status() !== 403) return;
+  const url = new URL(r.url());
+  denials.push(`${r.request().method()} ${url.pathname}${url.search} — экран ${screen}`);
+});
+
+const { check, summarize } = createChecks();
+
+await login(page, EMAIL, PASSWORD);
+
+try {
+
+/**
+ * Прогон обязан идти НЕ администратором — иначе он второй раз проверяет администратора, и все
+ * проверки ниже ничего не значат. Спрашиваем сам сервер: роль по имени здесь ни при чём (AUTH-14),
+ * а состав прав — то единственное, что различает эти два прохода.
+ */
+await check('limited-account-is-not-an-administrator', async () => {
+  screen = 'проверка учётной записи';
+  await page.goto(`${BASE}/document-sets`);
+  const access = await page.evaluate(async () => {
+    const t = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+    const r = await fetch('/api/account/access', { headers: { Authorization: `Bearer ${t}` } });
+    return r.ok ? r.json() : null;
+  });
+  if (!access) throw new Error('состав прав не прочитан — прогон не знает, под кем идёт');
+  const granted = access.permissions ?? [];
+  for (const admin of ['core.system.manage', 'core.users.manage', 'core.audit.read']) {
+    if (granted.includes(admin))
+      throw new Error(`у учётной записи есть административное право ${admin} — это проход `
+        + 'администратора, а не роли с ограниченными правами');
+  }
+  // И наоборот: без прав своей работы роль открыла бы пустоту, и зелёный проход не значил бы ничего.
+  for (const own of ['id.document.edit', 'core.constructions.read', 'core.catalog.read']) {
+    if (!granted.includes(own))
+      throw new Error(`у учётной записи нет права ${own} — под этой ролью проверять нечего`);
+  }
+});
+
+// ── Экраны роли: каждый открывается и работает ────────────────────────────────
+for (const section of SECTIONS) {
+  await check(`section-opens-${section.path.slice(1)}`, async () => {
+    screen = section.name;
+    await page.goto(`${BASE}${section.path}`);
+    await page.waitForTimeout(2500);
+    const text = await page.locator('body').innerText();
+    // Сначала — про отказ страницей: без этого «якоря нет» сказало бы «экран сломан» там, где
+    // экрана не дали вовсе, и чинить пошли бы не то.
+    //
+    // ⚠️ Образец собран ПО ЧАСТЯМ, а не фразой «раздел недоступен»: между словами стоит название
+    // раздела — «Раздел «Настройки» недоступен» (NoAccessPage, AUTH-15). Первая редакция искала
+    // фразу целиком, не совпадала никогда, и подсадка закрытым разделом краснела не тем сообщением:
+    // «открылся не собой» вместо «отвечает отказом». Проверено подсадкой — она это и нашла.
+    if (/Раздел .* недоступен|Для него нужно право/i.test(text))
+      throw new Error(`экран «${section.name}» отвечает отказом роли, которая имеет на него право`);
+    if (!text.includes(section.anchor))
+      throw new Error(`экран «${section.name}» открылся не собой: якоря «${section.anchor}» нет`);
+  });
+}
+
+// ── Подвал боковой панели: версия видна (issue #974, поломка 1) ───────────────
+//
+// Статус версии читает КАЖДЫЙ экран, поэтому неверно закрытый адрес отвечал отказом всем и всюду.
+// Здесь проверяется видимое следствие; сам отказ поймал бы счётчик ниже.
+await check('sidebar-shows-the-version-label', async () => {
+  screen = 'подвал панели';
+  if (!(await page.getByText(/^v\d+\.\d+\.\d+/).count()))
+    throw new Error('в подвале панели нет строки версии');
+});
+
+// ── Основной экран роли: редактор документа ───────────────────────────────────
+//
+// Самый плотный по запросам экран: типы, схема, реквизиты, наборы данных, документы качества,
+// диагностика ссылок. Ворота, поставленные на любой из них, видны здесь, а не на списке строек.
+await check('document-editor-opens-under-limited-rights', async () => {
+  screen = 'редактор документа';
+  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}?doc=${INSTANCE}`);
+  await page.waitForSelector('[role=dialog]', { timeout: 20000 })
+    .catch(() => { throw new Error('редактор документа не открылся'); });
+  await page.waitForTimeout(2500);
+  const dialog = await page.locator('[role=dialog]').first().innerText();
+  if (!/АОСР/.test(dialog)) throw new Error(`открылось не то: ${dialog.slice(0, 200)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(1000);
+});
+
+// ── «Сообщить об ошибке» со вложением (issue #974, поломка 3) ─────────────────
+//
+// Снимок грузится ДО отправки, поэтому отказ на загрузке файлов ронял диалог целиком — сообщение
+// не уходило никуда. Сегодня отказ на снимке сообщение не роняет, а оговаривает: тост говорит
+// «без снимка экрана». Поэтому тост проверяется ДОСЛОВНО — оговорка и означает, что права на файлы
+// у роли нет, то есть ту самую поломку, только в мягком виде.
+await check('bug-report-with-an-attachment-goes-through', async () => {
+  screen = 'сообщить об ошибке';
+  await page.getByText('Сообщить об ошибке').first().click();
+  await page.waitForSelector('[role=dialog]', { timeout: 10000 });
+  const dialog = page.locator('[role=dialog]').last();
+
+  await dialog.locator('textarea').first().fill(
+    'Проверка живого прогона под ролью с ограниченными правами (issue #975).');
+  await dialog.locator('input[type=file]').setInputFiles(
+    { name: 'shot.png', mimeType: 'image/png', buffer: PNG });
+  await page.waitForTimeout(800);
+  if (!(await dialog.locator('img[alt="Снимок экрана"]').count()))
+    throw new Error('вложение не показано — диалог не принял файл');
+
+  await dialog.locator('button', { hasText: 'Отправить' }).last().click();
+  await page.waitForTimeout(3000);
+
+  const text = await page.locator('body').innerText();
+  if (/без снимка экрана/.test(text))
+    throw new Error('сообщение ушло БЕЗ снимка: загрузка вложений закрыта от этой роли');
+  if (!/Передано администратору/.test(text))
+    throw new Error(`сообщение не ушло: ${text.slice(-300)}`);
+});
+
+// ── Итог прохода: ни одного отказа ────────────────────────────────────────────
+await check('no-request-was-refused', async () => {
+  if (denials.length)
+    throw new Error(`запросов с отказом доступа: ${denials.length}\n      ` + denials.join('\n      '));
+});
+
+} finally {
+  await browser.close();
+}
+
+process.exitCode = summarize('Smoke под ролью с ограниченными правами');
