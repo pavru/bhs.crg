@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
+import { apiError } from '@/shared/utils/apiError';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
 import {
@@ -114,8 +115,19 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
  * сильно расходиться с реальным результатом маппинга).
  */
 function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
-  const { data, isFetching } = usePreviewDataSetSource(sourceId, 1);
+  const { data, isFetching, error } = usePreviewDataSetSource(sourceId, 1);
   if (isFetching && data === undefined) return <Loader2 size={11} className="inline-block ml-2 animate-spin text-fg4" />;
+
+  // Отказ НЕ превращаем в «0 строк» (issue #966): ноль читается как «источник пуст», то есть отказ
+  // приходит сюда переодетым в результат — и переодетым в самом неудачном месте, потому что именно
+  // эта подпись отвечает на вопрос «сколько строк даст источник». Поймано живой проверкой: с битым
+  // отбором строка списка говорила «0 строк», пока предпросмотр отказывал с причиной.
+  if (error) return (
+    <span className="ml-2 font-normal text-danger" title={apiError(error, 'Источник не прочитан')}>
+      не прочитан
+    </span>
+  );
+
   return <span className="ml-2 font-normal text-fg4">{data?.totalRows ?? 0} строк</span>;
 }
 
