@@ -7,6 +7,7 @@ import {
 import { parseSourceColumnNames, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
 import { apiError } from '@/shared/utils/apiError';
+import { useToast } from '@/shared/ui/Toast';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
 import {
@@ -157,6 +158,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
 
   const setProcessing = useSetDataSetSourceProcessing();
   const createTemplate = useCreateProcessingTemplate();
+  const toast = useToast();
   const applyTemplateMutation = useApplyProcessingTemplate();
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
@@ -196,6 +198,14 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       : isPdf && src.sheetOrPath === 'gost-titlepage' ? 'титул'
       : null;
 
+  // Отказ выгрузки обязан дойти до человека (ревью PR #1058): прежде обещание файла просто не
+  // сбывалось — ни файла, ни сообщения, — а сервер отказывает, например, источнику с негодной
+  // настройкой отбора (issue #966). Скачивание запускает браузер, своего места на экране у него
+  // нет, поэтому тост: результат не виден на текущем экране — ровно случай тоста.
+  const runExport = (format: 'xlsx' | 'xls' | 'csv') =>
+    void exportDataSetSource(src.id, format)
+      .catch(e => toast.apiError(e, 'Не удалось выгрузить источник'));
+
   const badge = (n: number) => (n > 0 ? String(n) : undefined);
   const actions: RowAction[] = [
     { key: 'filter', label: 'Фильтрация строк', icon: <Filter size={13} />, onSelect: () => setFilterOpen(true), active: filterCount > 0, badge: badge(filterCount) },
@@ -205,9 +215,9 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       submenu: templates.map(t => ({ key: t.id, label: t.name, onSelect: () => applyTemplate(t.id) })) },
     { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <BookmarkPlus size={13} />, onSelect: () => setSavingTemplate(true) },
     { key: 'export', label: 'Экспорт', icon: <Download size={13} />, submenu: [
-      { key: 'export-xlsx', label: 'XLSX', onSelect: () => void exportDataSetSource(src.id, 'xlsx') },
-      { key: 'export-xls', label: 'XLS', onSelect: () => void exportDataSetSource(src.id, 'xls') },
-      { key: 'export-csv', label: 'CSV', onSelect: () => void exportDataSetSource(src.id, 'csv') },
+      { key: 'export-xlsx', label: 'XLSX', onSelect: () => runExport('xlsx') },
+      { key: 'export-xls', label: 'XLS', onSelect: () => runExport('xls') },
+      { key: 'export-csv', label: 'CSV', onSelect: () => runExport('csv') },
     ] },
     { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => setRenaming(true) },
     { key: 'duplicate', label: 'Создать копию…', icon: <Copy size={13} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },

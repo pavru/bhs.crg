@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
@@ -134,6 +135,25 @@ public class BrokenRowFilterTests(IntegrationTestFixture fixture) : IAsyncLifeti
             () => Svc(scope).ExportSourceAsync(seed.SourceId, "xlsx", TestAccess.All, default));
         Assert.Contains(seed.SourceName, refusal.Message);
     }
+    [Fact]
+    public async Task Агент_видит_ПРИЧИНУ_а_не_пустое_число_строк()
+    {
+        // Табличное поле документа в ответе MCP: прежде отказ чтения и «значения нет» приходили
+        // агенту одинаково — пустым rowCount, — и сверка объявила бы таблицу пустой при живых
+        // строках (ревью PR #1058). Теперь рядом стоит причина.
+        using var scope = fixture.Services.CreateScope();
+        var seed = await SeedAsync(scope, UnknownOp);
+
+        var doc = await scope.ServiceProvider.GetRequiredService<IDomainSnapshotService>()
+            .GetDocumentAsync(seed.InstanceId, TestAccess.All, ct: default);
+
+        var table = Assert.Single(doc!.TableFields, t => t.Key == "Материалы");
+        Assert.Null(table.RowCount);
+        Assert.NotNull(table.RowsError);
+        Assert.Contains("betwen", table.RowsError);          // наш отказ доходит дословно
+        Assert.Contains(seed.SourceName, table.RowsError);
+    }
+
     [Fact]
     public async Task Чужая_форма_описания_тоже_отказ()
     {

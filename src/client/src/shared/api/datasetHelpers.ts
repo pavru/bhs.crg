@@ -1,4 +1,4 @@
-import type { FilterGroup, FilterNode, DataSetBindingPreviewResult, DataOrigin, DataSetStaleReason } from './types';
+import type { FilterGroup, FilterNode, RowFilterDef, DataSetBindingPreviewResult, DataOrigin, DataSetStaleReason } from './types';
 
 /** A column descriptor cached on a DataSetSource. */
 export interface DataSetColumn {
@@ -292,11 +292,31 @@ export function computeStaleReasonByField(
   return byField;
 }
 
-/** Recursively counts non-empty conditions in a filter tree. */
+/**
+ * Число непустых условий в дереве отбора — значок на строке источника.
+ *
+ * ⚠️ Узел НЕ той формы (отбор, сохранённый строкой или массивом) здесь не роняет рендер, а
+ * считается нулём (ревью PR #1058). Такие отборы в базе есть — сервер с 0.199.1 отказывается их
+ * выполнять (issue #966), — но экран обязан остаться открываемым: граница ошибок тут страничная, и
+ * одно исключение уносило ВСЮ страницу наборов данных в экран ошибки. Отказ при этом велит
+ * «исправьте условия отбора» — а исправлять было бы негде.
+ */
 export function countFilterConditions(node: FilterNode | null | undefined): number {
   if (!node) return 0;
   if (node.type === 'condition') return node.column ? 1 : 0;
-  return (node as FilterGroup).children.reduce((sum, c) => sum + countFilterConditions(c), 0);
+  const children = (node as FilterGroup).children;
+  return Array.isArray(children) ? children.reduce((sum, c) => sum + countFilterConditions(c), 0) : 0;
+}
+
+/**
+ * Годится ли сохранённый отбор в корень диалога правки.
+ *
+ * Негодную форму (строка, массив, группа без `children`) диалог принять не может — редактировать в
+ * ней нечего, — но и падать ему нельзя: именно сюда человек приходит по отказу сервера. Поэтому
+ * диалог берёт пустой корень и говорит вслух, что прежний отбор не прочитан и будет заменён.
+ */
+export function isEditableFilterRoot(node: RowFilterDef | null | undefined): boolean {
+  return !!node && node.type === 'group' && Array.isArray(node.children);
 }
 
 /**

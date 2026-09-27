@@ -3,7 +3,7 @@ import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { FilterCondition, FilterGroup, FilterNode, FilterOp, RowFilterDef } from '@/shared/api/types';
 import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
-import { cleanFilterNode } from '@/shared/api/datasetHelpers';
+import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
 
 const ALL_OPS: FilterOp[] = [
   'eq', 'neq', 'contains', 'not_contains',
@@ -261,8 +261,12 @@ export function RowFilterDialog({
   onSave: (filter: RowFilterDef | null) => void;
   onClose: () => void;
 }) {
+  // Негодную форму сохранённого отбора заменяем пустым корнем и говорим об этом вслух (ниже):
+  // редактировать в ней нечего, а падать диалогу нельзя — сюда приходят ПО ОТКАЗУ сервера
+  // «исправьте условия отбора» (issue #966, ревью PR #1058).
+  const unreadable = initial != null && !isEditableFilterRoot(initial);
   const [root, setRoot] = useState<FilterGroup>(
-    initial ?? { type: 'group', logic: 'and', children: [] }
+    () => (isEditableFilterRoot(initial) ? initial! : { type: 'group', logic: 'and', children: [] })
   );
 
   function handleSave() {
@@ -309,6 +313,13 @@ export function RowFilterDialog({
         </div>
       }
     >
+      {unreadable && (
+        <p className="text-xs mb-3 text-danger">
+          Сохранённый отбор не прочитан — он записан не деревом условий. Источник такой отбор не
+          выполняет; заданное здесь заменит его целиком.
+        </p>
+      )}
+
       <p className="text-xs mb-4 text-fg4">
         Строки, не прошедшие фильтр, исключаются до маппинга.
         Вычисляемые колонки (если заданы) доступны для фильтрации.
