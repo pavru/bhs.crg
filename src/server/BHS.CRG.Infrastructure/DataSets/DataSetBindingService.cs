@@ -310,6 +310,12 @@ public class DataSetBindingService(
                             : null));
                 }
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Отмена запроса — не отказ привязки: иначе закрытый экран оставлял бы в журнале
+                // по предупреждению на каждую связку, а собранный ответ всё равно некому показать.
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Не удалось построить предпросмотр привязки {BindingId}", binding.Id);

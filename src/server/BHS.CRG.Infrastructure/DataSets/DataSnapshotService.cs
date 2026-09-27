@@ -4,6 +4,7 @@ using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -11,7 +12,8 @@ namespace BHS.CRG.Infrastructure.DataSets;
 public class DataSnapshotService(
     AppDbContext db,
     IDataSetRowLoader rowLoader,
-    SystemSourceCounter systemCounts) : IDataSnapshotService
+    SystemSourceCounter systemCounts,
+    ILogger<DataSnapshotService> logger) : IDataSnapshotService
 {
     private static readonly JsonSerializerOptions SchemaJson = new() { PropertyNameCaseInsensitive = true };
 
@@ -99,7 +101,12 @@ public class DataSnapshotService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            rowsError = ex.Message;
+            // rowsError уходит наружу — во внешнего агента, ответом MCP-инструмента get_source, —
+            // поэтому текст только наш (правило issue #691). Сырой ex.Message приносил туда
+            // сообщение Npgsql со строкой подключения и ответ хранилища с именем бакета: адресат
+            // этого ответа не администратор и даже не человек. Причина — в журнал, как и везде.
+            logger.LogWarning(ex, "Строки источника {SourceId} не прочитаны для снимка", source.Id);
+            rowsError = Refusals.TextOr(ex, "Строки источника не прочитаны — подробности в журнале приложения.");
         }
 
         // Строки не прочитались — что известно про источник, спрашиваем у провайдера отдельно:
@@ -117,7 +124,9 @@ public class DataSnapshotService(
             try { fallback = await systemCounts.StateAsync(source, source.File, access, ct); }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                rowsError ??= ex.Message;
+                logger.LogWarning(ex, "Состояние системного источника {SourceId} не прочитано", source.Id);
+                rowsError ??= Refusals.TextOr(ex,
+                    "Состояние источника не прочитано — подробности в журнале приложения.");
             }
         }
 
