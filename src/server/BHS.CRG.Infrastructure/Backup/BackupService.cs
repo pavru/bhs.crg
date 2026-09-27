@@ -159,6 +159,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             new("Разделы", manifest.Sections?.Length ?? 0),
             new("Комплекты", manifest.DocumentSets?.Length ?? 0),
             new("Строки плана", manifest.DocumentSetPlans?.Length ?? 0),
+            new("Позиции перечня работ", manifest.WorkPlanItems?.Length ?? 0),
             new("Документы комплектов", manifest.Documents?.Length ?? 0),
             new("Выпущенные файлы", manifest.Documents?.Sum(d => d.GeneratedFiles.Length) ?? 0),
             new("Наборы данных", manifest.DataSetFiles?.Length ?? 0),

@@ -155,6 +155,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "document_facets",
         "domain_objects",
         "document_set_plans",
+        "work_plan_items",
         "document_sets",
         "sections",
         "constructions",

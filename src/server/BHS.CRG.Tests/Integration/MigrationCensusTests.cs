@@ -202,7 +202,7 @@ public class MigrationCensusTests
     public async Task История_поднимает_номенклатуру_над_материалом()
     {
         await using var db = await CreateDatabaseAsync("bhs_crg_census_lift");
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         var unit = await SeedLegacyTypesAsync(db);
 
         var before = await MigrationCensus.ReadAsync(db);
@@ -267,7 +267,7 @@ public class MigrationCensusTests
     public async Task Повторный_прогон_второго_справочника_не_заводит()
     {
         await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_twice");
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
 
@@ -293,11 +293,11 @@ public class MigrationCensusTests
     public async Task Откат_возвращает_поля_строке()
     {
         await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down");
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
 
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
 
         Assert.Equal(0L, await ScalarAsync(db,
             "SELECT count(*) FROM document_types WHERE \"Code\" IN ('Номенклатура', 'ВидРаботы')"));
@@ -335,7 +335,7 @@ public class MigrationCensusTests
     public async Task Чужой_вид_работы_ссылку_не_получает()
     {
         await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_alien");
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await InsertTypeAsync(db, Guid.NewGuid(), "ВидРаботы", "Свой классификатор", "id", "Open",
             """ {"fields":[{"key":"Наименование","title":"Наименование","type":"string"}]} """);
@@ -366,7 +366,7 @@ public class MigrationCensusTests
     public async Task Откат_не_уносит_ссылку_наполненного_классификатора()
     {
         await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down_filled");
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
 
@@ -375,7 +375,7 @@ public class MigrationCensusTests
         await RawAsync(db, "UPDATE document_types SET \"Schema\" = '{\"fields\":[{\"key\":\"Код\"}]}'::jsonb "
             + "WHERE \"Code\" = 'ВидРаботы'");
 
-        await MigrateToPreviousAsync(db);
+        await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
 
         Assert.Equal(1L, await ScalarAsync(db,
             "SELECT count(*) FROM document_types WHERE \"Code\" = 'ВидРаботы'"));
@@ -387,11 +387,22 @@ public class MigrationCensusTests
             "SELECT count(*) FROM document_types WHERE \"Code\" = 'Номенклатура'"));
     }
 
-    /// <summary>Схема ПРЕЖНЕЙ версии: до предпоследней миграции, то есть без проверяемой.</summary>
-    private static async Task MigrateToPreviousAsync(AppDbContext db)
+    /// <summary>
+    /// Схема до НАЗВАННОЙ миграции — для тестов, которые проверяют конкретную, а не «последнюю».
+    ///
+    /// <para>⚠️ Имя здесь прибито НАРОЧНО, в отличие от переписи состава, которая ходит к
+    /// «предпоследней» (<c>all[^2]</c>) прямо в своём тесте. Разница в вопросе: перепись спрашивает «что бы ни добавили последним, состав не
+    /// изменился», а перешивка типов — «сработала ли ВОТ ЭТА миграция». Пока второй вопрос задавался
+    /// через «предпоследнюю», первая же миграция сверху увела эти тесты с их предмета: они начали
+    /// проверять базу, где перешивка уже прошла, и упали все четыре — молчаливым провалом это не
+    /// кончилось только потому, что упали громко.</para>
+    /// </summary>
+    private static async Task MigrateToBeforeAsync(AppDbContext db, string migration)
     {
         var all = db.Database.GetMigrations().ToList();
-        await db.GetService<IMigrator>().MigrateAsync(all[^2]);
+        var index = all.FindIndex(m => m.EndsWith(migration, StringComparison.Ordinal));
+        Assert.True(index > 0, $"Миграции «{migration}» в сборке нет — тест проверяет не то, что назвал.");
+        await db.GetService<IMigrator>().MigrateAsync(all[index - 1]);
     }
 
     /// <summary>

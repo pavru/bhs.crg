@@ -90,7 +90,22 @@ public class OrphanObjectCleanup(
             .ToListAsync(ct);
 
         var candidates = objectIds.Concat(qualityIds).ToHashSet();
-        var held = await DomainObjectReferences.FindHeldTargetsAsync(objRepo, qualityRepo, refIndex, candidates, ct);
+        var held = (await DomainObjectReferences.FindHeldTargetsAsync(
+            objRepo, qualityRepo, refIndex, candidates, ct)).ToHashSet();
+
+        // ⚠️ И ПЕРЕЧЕНЬ РАБОТ (ТЗ CORE-10, issue #964; нашло ревью PR #1056). Позиция ссылается на
+        // запись классификатора и на единицу измерения внешним ключом RESTRICT, а скан выше ищет
+        // только ссылки в JSON («$ref», «_baseRef») и колонки не видит. Сирота, на которую
+        // ссылается позиция, уронила бы удаление ЦЕЛИКОМ — одним отказом базы, — и не убралось бы
+        // НИЧЕГО, включая сирот, к перечню отношения не имеющих: уборка идёт одним ExecuteDelete.
+        foreach (var refs in await db.WorkPlanItems
+            .Where(p => candidates.Contains(p.WorkTypeId) || candidates.Contains(p.UnitId))
+            .Select(p => new { p.WorkTypeId, p.UnitId })
+            .ToListAsync(ct))
+        {
+            if (candidates.Contains(refs.WorkTypeId)) held.Add(refs.WorkTypeId);
+            if (candidates.Contains(refs.UnitId)) held.Add(refs.UnitId);
+        }
 
         var report = new OrphanCleanupReport(
             Objects: objectIds.Count,

@@ -140,6 +140,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["Section"] = nameof(BackupManifest.Sections),
         ["DocumentSet"] = nameof(BackupManifest.DocumentSets),
         ["DocumentSetPlanItem"] = nameof(BackupManifest.DocumentSetPlans),
+        ["WorkPlanItem"] = nameof(BackupManifest.WorkPlanItems),
         // Документы и их фасета едут одной записью: фасета и есть то, чем документ отличается от
         // записи общих данных, и разъехаться им нельзя.
         ["DocumentFacet"] = nameof(BackupManifest.Documents),
@@ -334,6 +335,19 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         db.DomainObjects.Add(DomainObject.RestoreDocument(
             documentId, docTypeId, "Документ покрытия", JsonDocument.Parse("{}"), setId, now, now, null,
             DocumentStatus.Draft, 0, null, null, null, JsonDocument.Parse("{}")));
+
+        // Позиция перечня работ (issue #964): ссылается на стройку, раздел и две записи общих
+        // данных — вид работы и единицу измерения, — поэтому заводится после них.
+        var workTypeObjectId = Guid.NewGuid();
+        var unitObjectId = Guid.NewGuid();
+        db.DomainObjects.Add(DomainObject.Restore(
+            workTypeObjectId, compositeTypeId, "Прокладка кабеля", JsonDocument.Parse("{}"),
+            CatalogScope.System, null, now, now));
+        db.DomainObjects.Add(DomainObject.Restore(
+            unitObjectId, compositeTypeId, "м", JsonDocument.Parse("{}"),
+            CatalogScope.System, null, now, now));
+        db.WorkPlanItems.Add(WorkPlanItem.Restore(
+            Guid.NewGuid(), workTypeObjectId, constructionId, sectionId, unitObjectId, now, now));
 
         db.DataSetFiles.Add(DataSetFile.Restore(dataSetFileId, "Набор", DataSetFormat.Xlsx,
             "datasets/coverage.xlsx", CatalogScope.Set, setId, null, null, null, null, now, now));
