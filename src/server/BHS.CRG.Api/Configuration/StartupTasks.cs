@@ -62,6 +62,17 @@ internal static class StartupTasks
                 pending.Count(), censusBefore?.Describe() ?? "");
         }
 
+        // Схемы включённых модулей (ТЗ CORE-4, задача A2a этапа 2, issue #1072) — сразу за схемой ядра
+        // и до любого сида: модуль вправе рассчитывать, что ядро на месте (CORE-2), а сиды и роли
+        // вправе рассчитывать, что схема применена целиком. Общей транзакции у двух контекстов нет и
+        // быть не может (см. ModuleDbContext), поэтому порядок здесь — единственное, что связывает две
+        // миграции.
+        //
+        // Исключение не ловится намеренно: половинчатый старт запрещён (CORE-31). Модуль, чья схема не
+        // применилась, отвечал бы отказами на каждый запрос — то есть выглядел бы сломанным модулем, а
+        // не незаконченным обновлением.
+        await scope.ServiceProvider.MigrateModuleSchemasAsync(app.Logger);
+
         // Встроенные профили распознавания (issue #406) — идемпотентно; правленые пользователем не трогает.
         await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(db);
 
@@ -95,6 +106,20 @@ internal static class StartupTasks
         foreach (var job in stuckJobs) job.MarkAbandoned();
         if (stuckJobs.Count > 0) await db.SaveChangesAsync();
 
+        // Права, объявленные кодом, — в базу (AUTH-1). ДО ролей: роль ссылается на права, и
+        // справочник обязан быть на месте раньше, чем кто-то начнёт их раздавать.
+        //
+        // ⚠️ Стояло это ниже синхронизации ролей — на двадцать шесть строк позже, — а собственный
+        // комментарий утверждал «до ролей» (найдено разбором при подготовке A2a, issue #1072).
+        // Вреда не было видно только потому, что RoleSynchronizer читает объявления ПРАВ ИЗ КОДА
+        // (PermissionCatalog), а не строки этой таблицы: порядок был неверным, а следствия у него не
+        // было. Порядок поправлен раньше, чем оно понадобилось: второй контекст добавляет в старт
+        // шаг, а шаг добавляют туда, где порядок соответствует написанному.
+        await PermissionSynchronizer.SyncAsync(
+            db,
+            scope.ServiceProvider.GetRequiredService<PermissionCatalog>(),
+            app.Logger);
+
         // ── Роли + миграция существующих пользователей ──────────────────────────────
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         await RoleSynchronizer.SyncAsync(roleManager, scope.ServiceProvider.GetRequiredService<PermissionCatalog>(), app.Logger);
@@ -127,13 +152,6 @@ internal static class StartupTasks
 
         // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
         await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();
-
-        // Права, объявленные кодом, — в базу (AUTH-1). До ролей и до инициализации модулей: роль
-        // ссылается на права, и справочник обязан быть на месте раньше, чем кто-то начнёт их раздавать.
-        await PermissionSynchronizer.SyncAsync(
-            db,
-            scope.ServiceProvider.GetRequiredService<PermissionCatalog>(),
-            app.Logger);
 
         // Первичная инициализация включённых модулей — после миграций и сидов ядра: модуль вправе
         // рассчитывать, что схема базы и справочники ядра на месте.
