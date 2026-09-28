@@ -5,39 +5,18 @@ import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
-import { parseNumber } from '@/shared/utils/parseNumber';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { useLocale, resolveLocale, LOCALE_OPTIONS, SYSTEM_LOCALE } from '@/shared/hooks/useLocale';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
+import { coerceScalar, rejectReason, type CoerceContext } from './pasteCoerce';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
-
-/**
- * Приведение скалярного значения ячейки к типу поля. `null` → ячейка НЕ разобрана: она остаётся
- * пустой и называется человеку (issue #1064), а не заполняется догадкой.
- *
- * <p>Числа разбираются строго и ПО РЕГИОНАЛЬНОЙ НАСТРОЙКЕ — той же, какой они форматируются
- * (issue #953). `parseFloat` брал префикс и менял только первую запятую, поэтому `1.234,56`
- * уезжало в 1.234 — в тысячу раз меньше, без единого признака на экране, — а `12 шт` проходило
- * как 12. Правила разбора — в {@link parseNumber}.</p>
- */
-function coerceScalar(field: SchemaField, raw: string, locale: string): unknown {
-  if (field.type === 'number') return parseNumber(raw, locale);
-  if (field.type === 'boolean') return ['1', 'да', 'true', 'yes', '+', 'y'].includes(raw.toLowerCase());
-  if (field.type === 'enum') {
-    const opts = (field.options ?? []).filter(o => o !== '');
-    return opts.find(o => o.toLowerCase() === raw.toLowerCase()) ?? null;
-  }
-  if (field.type === 'date') {
-    const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(raw);
-    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : raw;
-  }
-  return raw;
-}
 
 /** Сколько неразобранных ячеек перечислять поимённо: остальные — числом «и ещё N». */
 const REJECTS_SHOWN = 8;
 
 /** Ячейка, не разобранная по типу поля: называется человеку вместе со своим значением. */
-interface RejectedCell { row: number; title: string; raw: string; type: string }
+interface RejectedCell { rowIndex: number; line: number; title: string; raw: string; reason: string }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -96,6 +75,11 @@ function PasteMappingModalBody({
   // Числа разбираются по той же региональной настройке, какой они показываются (issue #953):
   // она и решает, что в `12,5` запятая десятичная, а в `1,234` — разделитель тысяч.
   const [locale] = useLocale();
+  // Справочники пользовательских типов и списков — теми же хуками, что и таблица: React Query
+  // отдаёт их из кэша, лишнего запроса вставка не делает.
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
+  const coerceCtx: CoerceContext = { locale, primitiveTypes, enumTypes };
   const [step, setStep] = useState<'input' | 'map'>(initialText.trim() ? 'map' : 'input');
   const [rawText, setRawText] = useState(initialText);
   const [skipHeader, setSkipHeader] = useState(initial.skipHeader);
@@ -118,6 +102,8 @@ function PasteMappingModalBody({
   const [resolving, setResolving] = useState(false);
   const [pending, setPending] = useState<{
     rows: Record<string, unknown>[]; linked: number; inline: number; rejects: RejectedCell[];
+    /** Сколько строк выброшено целиком и какие остались — счёт «пустых ячеек» идёт по оставшимся. */
+    dropped: number; kept: Set<number>;
   } | null>(null);
 
   function mapByHeader(headerRow: string[], count: number): Record<string, number> {
@@ -186,9 +172,9 @@ function PasteMappingModalBody({
           }
           cells.push({ row: ri, fieldKey, raw, start, count: flat.length - start, fallbackKey });
         } else {
-          const v = coerceScalar(field, raw, locale);
+          const v = coerceScalar(field, raw, coerceCtx);
           if (v !== null) rows[ri][fieldKey] = v;
-          else rejects.push({ row: line, title: field.title, raw, type: field.type });
+          else rejects.push({ rowIndex: ri, line, title: field.title, raw, reason: rejectReason(field, coerceCtx) });
         }
       });
     });
@@ -216,14 +202,23 @@ function PasteMappingModalBody({
     }
 
     // Строка, у которой ВСЕ сопоставленные ячейки ушли в отказ, не вставляется вовсе: пустая
-    // строка в таблице — не данные, а мусор, который человеку ещё и удалять руками.
-    const filled = rows.filter(r => Object.keys(r).length > 0);
+    // строка в таблице — не данные, а мусор, который человеку ещё и удалять руками. Отказы по
+    // таким строкам НЕ обещают «пустых ячеек» — обещать их в несуществующей строке нечестно.
+    const keptRows = new Set<number>();
+    rows.forEach((r, i) => { if (Object.keys(r).length > 0) keptRows.add(i); });
+    const filled = rows.filter((_, i) => keptRows.has(i));
+    const dropped = rows.length - filled.length;
 
     // Сводка перед вставкой нужна, если есть что назвать: несопоставленные ссылки ИЛИ ячейки,
     // не разобранные по типу. Молча уехать может только полностью разобранная вставка.
     if (inline === 0 && rejects.length === 0) { onApply(filled); onOpenChange(false); }
-    else setPending({ rows: filled, linked, inline, rejects });
+    else setPending({ rows: filled, linked, inline, rejects, dropped, kept: keptRows });
   }
+
+  // Отказы делятся надвое: в строках, которые вставятся (ячейка останется пустой), и в строках,
+  // которые выброшены целиком — обещать пустую ячейку в невставленной строке нечестно.
+  const keptRejects = pending ? pending.rejects.filter(c => pending.kept.has(c.rowIndex)).length : 0;
+  const numberRejected = !!pending?.rejects.some(c => c.reason === 'не число');
 
   // Отказ по числу необъясним без имени настройки, по которой его разбирали.
   const localeLabel = locale === SYSTEM_LOCALE
@@ -293,12 +288,11 @@ function PasteMappingModalBody({
               <p className="text-fg2">
                 ⚠️ Не разобрано: <span className="font-medium text-fg1">{pending.rejects.length}</span>
                 {' '}{ruPlural(pending.rejects.length, 'ячейка', 'ячейки', 'ячеек')}
-                {' '}{ruPlural(pending.rejects.length, 'останется пустой', 'останутся пустыми', 'останутся пустыми')}
               </p>
               <ul className="space-y-0.5 max-h-40 overflow-y-auto">
                 {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
                   <li key={i} className="text-xs text-fg3">
-                    строка {c.row}, «{c.title}»: {c.type === 'number' ? 'не число' : 'нет такого значения'}
+                    строка {c.line}, «{c.title}»: {c.reason}
                     {' — '}<span className="font-mono text-fg1">{c.raw}</span>
                   </li>
                 ))}
@@ -307,10 +301,11 @@ function PasteMappingModalBody({
                 <p className="text-xs text-fg4">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
               )}
               <p className="text-xs text-fg4">
-                Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя:
-                ячейка остаётся пустой — заполните её вручную после вставки либо исправьте источник.
+                Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя.
+                {keptRejects > 0 && ` Таких ячеек во вставляемых строках: ${keptRejects} — они останутся пустыми, заполните вручную либо исправьте источник.`}
+                {pending.dropped > 0 && ` Строк, где не разобралось ничего: ${pending.dropped} — они не вставятся вовсе.`}
               </p>
-              {pending.rejects.some(c => c.type === 'number') && (
+              {numberRejected && (
                 <p className="text-xs text-fg4">
                   Числа разбираются по региональной настройке (<span className="text-fg3">{localeLabel}</span>):
                   десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.

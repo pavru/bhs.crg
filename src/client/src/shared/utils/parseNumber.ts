@@ -1,22 +1,22 @@
 import { resolveLocale } from '@/shared/hooks/useLocale';
 
 /**
- * Разбор числа из текста, набранного или вставленного человеком (Excel, PDF, буфер) — по той же
- * региональной настройке, какой числа ФОРМАТИРУЮТСЯ (`formatNumber`, issue #953). Зеркало к ней.
+ * Разбор числа из текста, набранного или вставленного человеком (Excel, PDF, буфер) — с оглядкой
+ * на ту же региональную настройку, какой числа ФОРМАТИРУЮТСЯ (`formatNumber`, issue #953).
  *
  * <p>Разбор строгий (issue #1064). Из двух исходов — «не смог разобрать» и «разобрал неверно» —
  * второй дороже на порядок: первый человек видит и правит, второй уезжает в данные. Поэтому
  * значение либо укладывается в число ЦЕЛИКОМ, либо это отказ; разбор префикса, каким занимается
  * `parseFloat` (`parseFloat('12 шт') === 12`, `parseFloat('1.234,56') === 1.234`), запрещён.</p>
  *
- * <p>Неоднозначность снимает локаль, а не догадка. Десятичным считается ТОЛЬКО знак локали:
- * при `ru-RU` это запятая, и `12,5` — двенадцать с половиной; при `en-US` — точка, и `12,5`
- * отказ, потому что в этой записи запятая может быть лишь группирующей, а «5» не группа из трёх
- * цифр. Группируют: пробел (обычный, неразрывный, узкий — их даёт Excel), групповой знак локали
- * и — только рядом с десятичным знаком локали — противоположный знак. Последнее нужно ради
- * `1.234,56`: так числа приходят из выгрузок и PDF, и при явной десятичной запятой точка не
- * может быть ничем, кроме разделителя тысяч. Без неё (`1.234` при `ru-RU`) запись неоднозначна —
- * и это отказ, а не догадка.</p>
+ * <p>Читается запись в два шага. <b>Первый</b> — по локали: её десятичный знак, её разделитель
+ * тысяч и пробелы (обычный, неразрывный, узкий — их даёт Excel). Получилось — ответ найден, и
+ * `1.234` при `de-DE` это 1234, потому что там точка и есть разделитель тысяч. <b>Второй</b>, если
+ * по локали не сложилось, — перебор: десятичным пробуется каждый из `.`/`,` и ни один, остальные
+ * знаки считаются группирующими, а группы проверяются по три цифры. Ровно одно прочтение — оно и
+ * берётся: `1.234,56` из выгрузки и `12.5` из английской таблицы читаются при `ru-RU` однозначно.
+ * Два прочтения — отказ: `1.234` при `ru-RU` это и «тысяча двести тридцать четыре», и «1,234»,
+ * и догадка здесь была бы ровно тем дефектом, ради которого написана функция.</p>
  */
 
 /** Пробелы-разделители тысяч: обычный, неразрывный, узкий неразрывный, тонкий. */
@@ -39,46 +39,29 @@ function separatorsOf(resolved: string): { decimal: string; group: string } {
 }
 
 /**
- * Разбор строки в число по региональной настройке. `null` — отказ: значение не число целиком
- * либо его запись в этой локали неоднозначна. Отказ НЕ нуль и НЕ пустое значение: звать его так
- * и есть дефект, ради которого написана функция.
- *
- * @param storedLocale значение настройки как есть, включая `system` (разрешается внутри).
+ * Одно прочтение записи: какой знак считаем десятичным (`null` — дробной части нет вовсе) и какие
+ * знаки могут группировать. `null` — запись так не читается.
  */
-export function parseNumber(raw: string, storedLocale: string): number | null {
-  const normalized = raw.trim().replace(GROUP_SPACES, ' ');
-  // Только цифры, знак и разделители. Всё прочее (единицы измерения, %, буквы) — отказ.
-  const m = /^([+-]?)([\d ,.]+)$/.exec(normalized);
-  if (!m || !/\d/.test(m[2])) return null;
-  const sign = m[1] === '-' ? -1 : 1;
-  const body = m[2];
-
-  const { decimal, group } = separatorsOf(resolveLocale(storedLocale));
-  const foreign = decimal === ',' ? '.' : ',';
-
-  // Десятичный знак — знак локали, и он может быть только один.
-  const decimalCount = body.split(decimal).length - 1;
-  if (decimalCount > 1) return null;
-
+function readWith(body: string, decimal: string | null, groupChars: Set<string>): number | null {
   let intPart = body;
   let fracPart = '';
-  if (decimalCount === 1) {
-    const i = body.indexOf(decimal);
-    intPart = body.slice(0, i) || '0';
-    fracPart = body.slice(i + 1);
-    if (!/^\d+$/.test(fracPart)) return null;
+  if (decimal) {
+    const count = body.split(decimal).length - 1;
+    if (count > 1) return null; // десятичный знак может быть только один
+    if (count === 1) {
+      const i = body.indexOf(decimal);
+      intPart = body.slice(0, i) || '0';
+      fracPart = body.slice(i + 1);
+      if (!/^\d+$/.test(fracPart)) return null;
+    }
   }
-
-  const groupChars = new Set([' ', group]);
-  // Чужой знак группирует лишь там, где десятичный назван явно: `1.234,56` — да, `1.234` — нет.
-  if (decimalCount === 1) groupChars.add(foreign);
 
   // Целая часть: группы по три цифры, первая — от одной до трёх.
   const chunks: string[] = [];
   let current = '';
   for (const ch of intPart) {
     if (ch >= '0' && ch <= '9') { current += ch; continue; }
-    if (!groupChars.has(ch)) return null; // разделитель, который в этой локали здесь стоять не может
+    if (!groupChars.has(ch)) return null; // знак, который в этом прочтении группировать не может
     chunks.push(current);
     current = '';
   }
@@ -90,5 +73,38 @@ export function parseNumber(raw: string, storedLocale: string): number | null {
   }
 
   const n = Number(`${chunks.join('')}.${fracPart || '0'}`);
-  return Number.isFinite(n) ? sign * n : null;
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Разбор строки в число. `null` — отказ: значение не число целиком либо его запись читается двумя
+ * способами. Отказ НЕ нуль и НЕ пустое значение: звать его так и есть дефект, ради которого
+ * написана функция.
+ *
+ * @param storedLocale значение региональной настройки как есть, включая `system` (разрешается внутри).
+ */
+export function parseNumber(raw: string, storedLocale: string): number | null {
+  const normalized = raw.trim().replace(GROUP_SPACES, ' ');
+  // Только цифры, знак и разделители. Всё прочее (единицы измерения, %, буквы) — отказ.
+  const m = /^([+-]?)([\d ,.]+)$/.exec(normalized);
+  if (!m || !/\d/.test(m[2])) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  const body = m[2];
+
+  const { decimal, group } = separatorsOf(resolveLocale(storedLocale));
+
+  // Шаг 1: прочтение по локали. Оно главнее остальных — настройка для того и задана.
+  const byLocale = readWith(body, decimal, new Set([' ', group]));
+  if (byLocale !== null) return sign * byLocale;
+
+  // Шаг 2: запись не по локали. Берём её, только если читается единственным способом.
+  const values = new Set<number>();
+  for (const candidate of [null, '.', ','] as const) {
+    const groupChars = new Set([' ', '.', ',']);
+    if (candidate) groupChars.delete(candidate);
+    const value = readWith(body, candidate, groupChars);
+    if (value !== null) values.add(value);
+  }
+  if (values.size !== 1) return null;
+  return sign * [...values][0];
 }
