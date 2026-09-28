@@ -41,6 +41,23 @@
     существу: контракт плагинов собирает сторонний разработчик, а контракт модулей обязан остаться
     минимальным.
   -->
+  <!--
+    Провайдер базы — у модуля свой (задача A2a этапа 2, issue #1072): схема `costs`, свой набор
+    миграций, своя история. Контракты ядра дают только EF Core без провайдера — провайдер часть
+    ПОСТАВКИ модуля, и объявляет его тот, кто эти миграции пишет.
+
+    EF Design нужен ради `dotnet ef migrations add` (см. CostsDbContextFactory) и в поставку не
+    едет — PrivateAssets=all. Версии те же, что в инфраструктуре ядра: два провайдера разных версий
+    в одном процессе разошлись бы на первом же различии в генерации SQL.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Modules\BHS.CRG.Modules.csproj" />
     <ProjectReference Include="..\BHS.CRG.Domain\BHS.CRG.Domain.csproj" />

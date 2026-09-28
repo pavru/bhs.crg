@@ -44,6 +44,11 @@ src/
     BHS.CRG.Domain/       — доменные сущности (чистый C#, без зависимостей)
     BHS.CRG.Infrastructure/ — EF Core, MinIO, Typst-генерация, распознавание/поиск, плагины
     BHS.CRG.Plugins/      — контракты плагинов (IDataSourcePlugin)
+    BHS.CRG.Modules/      — КОНТРАКТЫ ядра для модулей: IAppModule, права, порты к данным, ModuleDbContext.
+                            ⚠️ Ни одной ссылки на наши проекты — через него модуль получает ровно то,
+                            что положено (ModuleBoundaryTests падает на любой ProjectReference)
+    BHS.CRG.Modules.Costs/ — модуль «Счета и накладные»: своя схема базы `costs`, свой набор миграций
+                            (Migrations/), ссылки только на контракты и домен
   client/
     package.json          — React SPA (Vite + Tailwind v4)
     src/
@@ -86,13 +91,34 @@ dotnet run --project src/server/BHS.CRG.Api
 # Frontend (dev-сервер на :5173, proxy /api → :5000)
 cd src/client && npm run dev
 
-# Создать EF-миграцию
+# Создать EF-миграцию ЯДРА. ⚠️ Контекст называем ЯВНО: их в решении больше одного — у модуля `costs`
+# своя схема и свой набор миграций (issue #1072). Без --context команда всё равно берёт нужный
+# контекст (его определяет --project), но перепутанный --project тогда молча положит миграцию в чужой
+# набор — и это обнаружится тем, что она не применяется ни при каком старте. С явным контекстом та же
+# перестановка — отказ: «target project doesn't match your migrations assembly» (проверено).
 dotnet ef migrations add <Name> --project src/server/BHS.CRG.Infrastructure \
-                                --startup-project src/server/BHS.CRG.Api
+                                --startup-project src/server/BHS.CRG.Api \
+                                --context AppDbContext
 
-# Ручное применение миграций (обычно не нужно — app мигрирует сам при старте)
+# Создать миграцию МОДУЛЯ (схема `costs`). Проект — сам модуль: его миграции едут с ним, а не с
+# ядром. Хост здесь не нужен — контекст создаёт CostsDbContextFactory, иначе генерация зависела бы от
+# того, включён ли модуль в Modules__Enabled у разработчика.
+dotnet ef migrations add <Name> --project src/server/BHS.CRG.Modules.Costs \
+                                --context CostsDbContext
+# Откатить только что созданную миграцию модуля — с --force: без него remove идёт в базу выяснять,
+# применена ли она, а базы у фабрики нет (см. ниже), и команда падает, оставив файлы на месте.
+dotnet ef migrations remove --force --project src/server/BHS.CRG.Modules.Costs \
+                            --context CostsDbContext
+
+# Ручное применение миграций (обычно не нужно — app мигрирует сам при старте: сначала схема ядра,
+# потом схемы включённых модулей).
+# ⚠️ У МОДУЛЯ базу называет только окружение: фабрика контекста своей строки подключения не имеет.
+# Без переменной команда отказывает адресом-заглушкой — нарочно: с вписанным дев-стендом она молча
+# мигрировала бы не ту базу, что настроена у приложения, и отвечала бы успехом.
 dotnet ef database update --project src/server/BHS.CRG.Infrastructure \
-                          --startup-project src/server/BHS.CRG.Api
+                          --startup-project src/server/BHS.CRG.Api --context AppDbContext
+ConnectionStrings__Postgres="Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Database=bhs_crg" \
+  dotnet ef database update --project src/server/BHS.CRG.Modules.Costs --context CostsDbContext
 
 # TypeScript проверка (ВАЖНО: -b, т.к. корневой tsconfig только ссылки;
 # `tsc --noEmit` на нём ничего не проверяет и всегда «зелёный»)

@@ -198,7 +198,9 @@ internal static class WorkerRegistration
     builder.Services.AddSingleton<BHS.CRG.Application.Notifications.INotificationAudience,
         BHS.CRG.Api.Notifications.PermissionAudience>();
     // Журнал действий — одна служба на весь продукт (ТЗ CORE-28). Scoped: пишет через тот же контекст
-    // базы, что и само действие, и живёт ровно столько же.
+    // базы, что и само действие, и живёт ровно столько же. ⚠️ Для действия МОДУЛЯ контекст другой —
+    // у него своя схема и своя транзакция (задача A2a, issue #1072): порядок «сначала своё, потом
+    // журнал» назван в IActivityLog и в порту модуля.
     builder.Services.AddScoped<IActivityLog, BHS.CRG.Infrastructure.Activity.ActivityLog>();
     // Редактор матрицы ролей (ТЗ AUTH-5): правит роли Identity и пишет в журнал — scoped, как и они.
     builder.Services.AddScoped<BHS.CRG.Api.Auth.RoleEditor>();
