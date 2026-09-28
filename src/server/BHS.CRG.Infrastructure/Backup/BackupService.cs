@@ -273,8 +273,26 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         // Транзакция вызывающего: снимок уже открыт кем-то снаружи, и открывать второй нельзя —
         // но схемы модулей читаются в ЕЙ, а не мимо. Первая редакция здесь просто выходила раньше
         // времени, и копия, снятая внутри чужой транзакции, молча теряла бы данные модулей.
+        //
+        // ⚠️ Уровень изоляции при этом ПРОВЕРЯЕТСЯ (ревью PR #1108). На READ COMMITTED каждая команда
+        // видит свой снимок, то есть копия собирается из разных моментов времени — ровно тот дефект,
+        // ради которого копия открывает транзакцию вообще. Прежде здесь стояло обещание целостности
+        // без проверки, и неверным оно было ещё до схем модулей: таблицы ядра читаются десятками
+        // команд. Отказ дешевле копии, которая выглядит копией: у неё ссылки внутри могут не сходиться,
+        // а узнается это при восстановлении — после аварии.
         if (db.Database.CurrentTransaction is { } outer)
-            return await WithModuleDataAsync(scope, warnings, outer.GetDbTransaction(), ct);
+        {
+            var caller = outer.GetDbTransaction();
+            if (caller.IsolationLevel is not (IsolationLevel.RepeatableRead or IsolationLevel.Serializable
+                or IsolationLevel.Snapshot))
+                throw new InvalidOperationException(
+                    $"Копию просят снять внутри транзакции с уровнем изоляции {caller.IsolationLevel}. " +
+                    "Целостного снимка на этом уровне не бывает: части копии окажутся из разных " +
+                    $"моментов времени. Снимайте копию вне транзакции — тогда её откроет сама копия, " +
+                    $"на {IsolationLevel.RepeatableRead}, — либо откройте свою на том же уровне.");
+
+            return await WithModuleDataAsync(scope, warnings, caller, ct);
+        }
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var manifest = await WithModuleDataAsync(scope, warnings, tx.GetDbTransaction(), ct);

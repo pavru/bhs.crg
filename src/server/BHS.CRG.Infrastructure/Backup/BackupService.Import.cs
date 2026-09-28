@@ -96,8 +96,14 @@ public partial class BackupService
             // Перечень работ — ПОСЛЕ общих данных: позиция ссылается на запись классификатора
             // и на единицу измерения, а это объекты общего типа. До них перечень уехал бы
             // в сироты целиком, с предупреждением «нет вида работы или единицы».
+            // «Данные модулей в копии есть» считается по СТРОКАМ, а не по числу секций (ревью
+            // PR #1108): у модуля costs сегодня ноль таблиц, но секция всё равно есть — и оговорка про
+            // оборванные ссылки модуля выдавалась бы при любом сопоставлении позиции по ключу. Человек
+            // пошёл бы искать то, чего нет, а тревога, звучащая без повода, перестаёт значить что-либо.
+            var moduleRowsInCopy =
+                manifest.ModuleData?.Any(m => m.Tables.Any(t => t.Rows.Length > 0)) == true;
             await RestoreWorkPlanItemsAsync(
-                manifest.WorkPlanItems ?? [], manifest.ModuleData is { Length: > 0 }, stats, warnings, ct);
+                manifest.WorkPlanItems ?? [], moduleRowsInCopy, stats, warnings, ct);
             // Документы комплектов — после типов (тип документа) и после комплектов (носитель).
             await RestoreDocumentsAsync(manifest.Documents ?? [], stats, warnings, ct);
             // После типов документов: шаблон маппинга висит на типе и без него бессмыслен.

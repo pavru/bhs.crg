@@ -28,8 +28,8 @@ namespace BHS.CRG.Api.Modules;
 /// <para><b>⚠️ Общая транзакция здесь есть, и это названное исключение</b> из правила
 /// «нет общей транзакции ядро↔модуль» (<see cref="ModuleDbContext" />). Контекст модуля подключается
 /// к соединению ядра (<c>SetDbConnection</c>) и входит в его транзакцию
-/// (<c>UseTransaction</c>) — ровно на две операции, копию и восстановление. Без этого копия не
-/// снимок: между чтением схемы ядра и схемы модуля уместилась бы чужая запись, и в копию попал бы
+/// (<c>UseTransaction</c>) — ровно на две операции, копию и восстановление, и вместе с ними
+/// исключение КОНЧАЕТСЯ (<see cref="Release" />). Без этого копия не снимок: между чтением схемы ядра и схемы модуля уместилась бы чужая запись, и в копию попал бы
 /// счёт, ссылающийся на объект, которого в той же копии нет. А восстановление, откатившееся на
 /// данных модуля, оставило бы у заказчика ядро из копии и счета прежние — состояние, которое от
 /// исправного не отличить.</para>
@@ -37,6 +37,12 @@ namespace BHS.CRG.Api.Modules;
 public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider scoped)
     : IModuleSchemaBackup
 {
+    /// <summary>
+    /// Сколько строк уходит в базу одной командой. Не про скорость: одна команда на таблицу означала
+    /// бы склейку ВСЕЙ таблицы в одну строку в памяти, рядом с уже лежащими там строками манифеста.
+    /// </summary>
+    private const int RowsPerCommand = 500;
+
     public async Task<BackupModuleSchema[]> ReadAsync(DbTransaction transaction, CancellationToken ct)
     {
         var sections = new List<BackupModuleSchema>();
@@ -44,6 +50,7 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
         foreach (var (module, schema) in WithSchema())
         {
             var (db, ours) = ModuleSchemaMigrator.Resolve(scoped, module.Code, schema);
+            var connection = db.Database.GetConnectionString();
             try
             {
                 Enlist(db, transaction);
@@ -57,6 +64,7 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
             finally
             {
                 if (ours) await db.DisposeAsync();
+                else Release(db, connection);
             }
         }
 
@@ -97,6 +105,7 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
             }
 
             var (db, ours) = ModuleSchemaMigrator.Resolve(scoped, module.Code, schema);
+            var connection = db.Database.GetConnectionString();
             try
             {
                 Enlist(db, transaction);
@@ -120,14 +129,17 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
                         t => string.Equals(t.Table, table.Name, StringComparison.Ordinal))?.Rows ?? [];
                     if (rows.Length == 0) continue;
 
-                    var (created, updated) = await WriteRowsAsync(db, table, rows, ct);
+                    if (await RestoreTableAsync(db, table, rows, module.Code, warnings, ct)
+                        is not { } counts) continue;
+
                     stats.Add(new RestoreSectionStat(
-                        $"Модуль «{module.Code}»: {table.Name}", created, updated));
+                        $"Модуль «{module.Code}»: {table.Name}", counts.Created, counts.Updated));
                 }
             }
             finally
             {
                 if (ours) await db.DisposeAsync();
+                else Release(db, connection);
             }
         }
 
@@ -148,10 +160,37 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
     /// </summary>
     private static void Enlist(ModuleDbContext db, DbTransaction transaction)
     {
-        if (db.Database.CurrentTransaction?.GetDbTransaction() == transaction) return;
-
+        // Транзакцию отпускаем прежде подмены: занятое соединение EF менять отказывается. Своей
+        // транзакции у контекста здесь быть не должно, но копию снимают и из середины запроса.
+        db.Database.UseTransaction(null);
         db.Database.SetDbConnection(transaction.Connection, contextOwnsConnection: false);
         db.Database.UseTransaction(transaction);
+    }
+
+    /// <summary>
+    /// Вернуть контекст модуля СЕБЕ: исключение «одна транзакция» кончается вместе с копией
+    /// (ревью PR #1108).
+    ///
+    /// <para>Контекст из контейнера живёт всю область запроса, а не одну операцию. Оставь его на
+    /// соединении ядра — и всё, что модуль запишет в этой области ПОСЛЕ копии, молча войдёт в
+    /// транзакцию ядра: ровно то, что правило «нет общей транзакции» запрещает, и заметить это нечем —
+    /// запросы работают, данные сохраняются, общая транзакция просто есть.</para>
+    ///
+    /// <para>⚠️ Крах при этом не наступает, и проверять надо было не его: <c>SetDbConnection</c> второй
+    /// раз проходит — своё соединение контекст модуля к тому моменту закрыл (проверено прямо). Дефект
+    /// тихий, поэтому и сторож смотрит на состояние.</para>
+    ///
+    /// <para>⚠️ Строку подключения приходится возвращать ОТДЕЛЬНО: <c>SetDbConnection(null)</c> снимает
+    /// соединение, но к строке из настроек не возвращается — контекст остаётся вовсе без адреса, и
+    /// следующий же его запрос отказывает словами «The ConnectionString property has not been
+    /// initialized» (проверено прогоном: первая редакция этой правки так и падала). Порядок важен:
+    /// транзакцию отпускаем прежде соединения, иначе EF отказывается менять занятое.</para>
+    /// </summary>
+    private static void Release(ModuleDbContext db, string? connectionString)
+    {
+        db.Database.UseTransaction(null);
+        db.Database.SetDbConnection(null);
+        if (connectionString is not null) db.Database.SetConnectionString(connectionString);
     }
 
     /// <summary>
@@ -228,7 +267,7 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
     }
 
     /// <summary>
-    /// Вставить строки таблицы модуля одной командой, обновляя те, что уже есть по первичному ключу.
+    /// Вернуть строки одной таблицы модуля: вставить новые, обновить существующие по первичному ключу.
     ///
     /// <para><b>Что будет при столкновении по ДРУГОМУ уникальному ключу</b> (например номер счёта):
     /// восстановление упадёт, и вся транзакция откатится. Это решение, а не недосмотр: ядро
@@ -240,46 +279,154 @@ public sealed class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider
     ///
     /// <para><c>xmax = 0</c> отличает вставленную строку от обновлённой — так отчёт называет, что
     /// именно сделал, а не «строк: 12».</para>
+    ///
+    /// <para>⚠️ <b>Таблица без первичного ключа не восстанавливается</b>, и об этом говорится вслух
+    /// (ревью PR #1108). Слить её строки не с чем: голая вставка удвоила бы их при каждом повторном
+    /// восстановлении — а повторное восстановление той же копии в работе дело обычное. Из двух
+    /// неверных исходов «не вернулось и сказано» лучше, чем «вернулось дважды и молча»: удвоенные
+    /// строки уже не различить, а копия никуда не делась. Требование к модулю названо в тексте
+    /// оговорки.</para>
+    ///
+    /// <para><c>null</c> в ответе — таблица пропущена, секции в отчёте у неё не будет.</para>
     /// </summary>
-    private static async Task<(int Created, int Updated)> WriteRowsAsync(
-        ModuleDbContext db, ITable table, JsonElement[] rows, CancellationToken ct)
+    private static async Task<(int Created, int Updated)?> RestoreTableAsync(
+        ModuleDbContext db, ITable table, JsonElement[] rows, string code, List<string> warnings,
+        CancellationToken ct)
     {
         var name = $"{Quote(table.Schema!)}.{Quote(table.Name)}";
-        var key = table.PrimaryKey?.Columns.Select(c => c.Name).ToList();
 
-        var sql = new StringBuilder()
-            .Append($"INSERT INTO {name} SELECT * FROM jsonb_populate_recordset(NULL::{name}, CAST(@rows AS jsonb))");
-
-        if (key is { Count: > 0 })
+        if (table.PrimaryKey?.Columns is not { Count: > 0 } keyColumns)
         {
-            var rest = table.Columns.Select(c => c.Name)
-                .Where(c => !key.Contains(c, StringComparer.Ordinal)).ToList();
+            warnings.Add(
+                $"Модуль «{code}»: таблица {table.Name} ({rows.Length}) в копии есть, но у неё нет " +
+                "первичного ключа — строки пропущены. Слить их не с чем, а вставка без слияния удвоила " +
+                "бы их при повторном восстановлении. Чтобы таблица модуля восстанавливалась, у неё " +
+                "должен быть первичный ключ.");
+            return null;
+        }
 
-            sql.Append($" ON CONFLICT ({string.Join(", ", key.Select(Quote))}) DO ");
-            sql.Append(rest.Count > 0
+        var key = keyColumns.Select(c => c.Name).ToList();
+        var columns = table.Columns.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+
+        // Колонки, которые в копии есть, а в нынешней модели модуля их нет. Молчать об этом нельзя:
+        // jsonb_populate_recordset незнакомые ключи просто игнорирует, то есть колонка пропала бы у
+        // ВСЕХ строк, а отчёт назвал бы восстановление успешным (ревью PR #1108). Пропавшая таблица
+        // оговорку получала, пропавшая колонка — нет; асимметрия и была дефектом.
+        var lost = rows[0].EnumerateObject().Select(p => p.Name)
+            .Where(n => !columns.Contains(n))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        if (lost.Count > 0)
+            warnings.Add(
+                $"Модуль «{code}», таблица {table.Name}: в копии есть колонки, которых в нынешней " +
+                $"модели модуля нет — {string.Join(", ", lost)}. Их значения не восстановлены. Так " +
+                "выглядит копия, снятая более новой версией модуля: строки вернулись, часть данных в " +
+                "них — нет.");
+
+        var generated = await ReadGeneratedAsync(db, table, name, ct);
+
+        var rest = table.Columns.Select(c => c.Name)
+            .Where(c => !key.Contains(c, StringComparer.Ordinal)).ToList();
+
+        // OVERRIDING SYSTEM VALUE — только когда у таблицы есть колонка-счётчик: без него вставка
+        // своего значения в колонку GENERATED ALWAYS отказывает, а встречать этот отказ при
+        // восстановлении после аварии незачем. Ставится по ответу базы, а не по модели: объявить
+        // счётчик модуль может и рукописной миграцией.
+        var sql =
+            $"INSERT INTO {name}{(generated.Identity ? " OVERRIDING SYSTEM VALUE" : string.Empty)} " +
+            $"SELECT * FROM jsonb_populate_recordset(NULL::{name}, CAST(@rows AS jsonb)) " +
+            $"ON CONFLICT ({string.Join(", ", key.Select(Quote))}) DO " +
+            (rest.Count > 0
                 ? "UPDATE SET " + string.Join(", ", rest.Select(c => $"{Quote(c)} = EXCLUDED.{Quote(c)}"))
                 // Таблица из одних ключевых колонок (связка «многие ко многим»): обновлять нечего,
                 // а DO NOTHING вместо отказа — то же самое по смыслу, строка уже такая.
-                : "NOTHING");
-        }
-
-        sql.Append(" RETURNING (xmax = 0)");
-
-        await using var cmd = Command(db, sql.ToString());
-        var rowsParam = cmd.CreateParameter();
-        rowsParam.ParameterName = "rows";
-        rowsParam.Value = "[" + string.Join(",", rows.Select(r => r.GetRawText())) + "]";
-        cmd.Parameters.Add(rowsParam);
+                : "NOTHING") +
+            " RETURNING (xmax = 0)";
 
         int created = 0, updated = 0;
+
+        // Порциями, а не всей таблицей одной командой (ревью PR #1108). Строки и так лежат в памяти
+        // целиком — так устроен манифест, и у секций ядра то же самое, — но склейка всей таблицы в
+        // одну строку держала бы РЯДОМ с ними ещё две копии: UTF-16 у нас и UTF-8 у драйвера. Тот же
+        // довод, по которому архив собирается на диске, а не в памяти (см. ExportToFileAsync).
+        foreach (var batch in rows.Chunk(RowsPerCommand))
+        {
+            await using var cmd = Command(db, sql);
+            Param(cmd, "rows", "[" + string.Join(",", batch.Select(r => r.GetRawText())) + "]");
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                if (reader.GetBoolean(0)) created++;
+                else updated++;
+            }
+        }
+
+        await AdvanceSequencesAsync(db, name, generated.Sequences, ct);
+
+        return (created, updated);
+    }
+
+    /// <summary>
+    /// Что у таблицы генерирует база: есть ли колонка-счётчик и какие последовательности стоят за
+    /// колонками (ревью PR #1108).
+    ///
+    /// <para>Спрашивается у БАЗЫ, а не у модели: модуль вправе объявить счётчик и рукописной
+    /// миграцией, а копия обязана возвращаться в ту базу, которая есть.</para>
+    /// </summary>
+    private static async Task<(bool Identity, List<(string Column, string Sequence)> Sequences)>
+        ReadGeneratedAsync(ModuleDbContext db, ITable table, string name, CancellationToken ct)
+    {
+        await using var cmd = Command(db,
+            "SELECT a.attname, a.attidentity <> CAST('' AS \"char\") AS identity, " +
+            "       pg_get_serial_sequence(@table, a.attname) AS sequence " +
+            "FROM pg_attribute a " +
+            "WHERE a.attrelid = CAST(@table AS regclass) AND a.attnum > 0 AND NOT a.attisdropped");
+        Param(cmd, "table", name);
+
+        var identity = false;
+        var sequences = new List<(string, string)>();
+
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            if (reader.GetBoolean(0)) created++;
-            else updated++;
+            if (reader.GetBoolean(1)) identity = true;
+            if (!reader.IsDBNull(2)) sequences.Add((reader.GetString(0), reader.GetString(2)));
         }
 
-        return (created, updated);
+        return (identity, sequences);
+    }
+
+    /// <summary>
+    /// Сдвинуть последовательности за наибольшее восстановленное значение (ревью PR #1108).
+    ///
+    /// <para>Без этого строки возвращаются, а счётчик остаётся там, где стоял на пустой таблице: первая
+    /// же вставка модуля после восстановления отказывает дублем ключа — далеко от восстановления и без
+    /// всякой связи с ним. Так же поступает <c>pg_dump</c>, и по той же причине.</para>
+    ///
+    /// <para>Третий довод <c>setval</c> («счётчик уже использован») снимается на пустой таблице: иначе
+    /// следующее значение оказалось бы вторым, а не первым.</para>
+    /// </summary>
+    private static async Task AdvanceSequencesAsync(
+        ModuleDbContext db, string name, List<(string Column, string Sequence)> sequences,
+        CancellationToken ct)
+    {
+        foreach (var (column, sequence) in sequences)
+        {
+            await using var cmd = Command(db,
+                $"SELECT setval(CAST(@seq AS regclass), COALESCE(max({Quote(column)}), 1), " +
+                $"max({Quote(column)}) IS NOT NULL) FROM {name}");
+            Param(cmd, "seq", sequence);
+            await cmd.ExecuteScalarAsync(ct);
+        }
+    }
+
+    private static void Param(DbCommand cmd, string name, string value)
+    {
+        var parameter = cmd.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        cmd.Parameters.Add(parameter);
     }
 
     private static DbCommand Command(ModuleDbContext db, string sql)

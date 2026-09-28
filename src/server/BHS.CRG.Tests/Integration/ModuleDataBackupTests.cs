@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.IO.Compression;
 using System.Text.Json;
@@ -80,13 +81,19 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         // Порядок таблиц — от независимых к зависимым, а не по имени: по имени «invoice_lines» шло бы
         // ПЕРЕД «invoices», и восстановление упало бы на внешнем ключе внутри схемы модуля. Ключи
         // внутри схемы модуля разрешены — запрещены только сквозные (A2a), — и у счёта позиции будут.
-        Assert.Equal(["invoices", "invoice_lines"], section.Tables.Select(t => t.Table));
-        Assert.Single(section.Tables[0].Rows);
-        Assert.Single(section.Tables[1].Rows);
+        Assert.Equal(["invoices", "probe_log", "invoice_lines"], section.Tables.Select(t => t.Table));
+        Assert.Single(section.Tables.Single(t => t.Table == "invoices").Rows);
+        Assert.Single(section.Tables.Single(t => t.Table == "invoice_lines").Rows);
 
         // Сносим строки модуля — так выглядит потеря, ради которой копия и существует. Объект ядра
         // оставляем: восстановление обязано вернуть ссылку на него, а не завести второй.
-        await ExecuteAsync($"DELETE FROM {ModuleSchemaName}.invoices CASCADE");
+        //
+        // Обе таблицы поимённо и в порядке зависимости. У DELETE в PostgreSQL слова CASCADE НЕТ — оно
+        // садится в позицию алиаса таблицы и не делает ничего (ревью PR #1108): позиции уходили лишь
+        // потому, что EF по соглашению завёл ON DELETE CASCADE у обязательной связи. То есть проверка
+        // держалась на том, чего в её собственном тексте не написано.
+        await ExecuteAsync($"DELETE FROM {ModuleSchemaName}.invoice_lines");
+        await ExecuteAsync($"DELETE FROM {ModuleSchemaName}.invoices");
 
         var report = await ImportAsync(archive);
         Assert.True(report.Success, string.Join("; ", report.Warnings));
@@ -94,6 +101,7 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         var after = await ReadInvoiceAsync(invoiceId);
         Assert.Equal(before.ObjectId, after.ObjectId);
         Assert.Equal(before.Number, after.Number);
+        Assert.Equal(before.Seq, after.Seq);
         Assert.Equal(before.Amount, after.Amount);
         Assert.Equal(before.IssuedAt, after.IssuedAt);
         Assert.Equal(before.Payload!.RootElement.GetRawText(), after.Payload!.RootElement.GetRawText());
@@ -145,6 +153,112 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
             .Where(s => s.Label.EndsWith("invoices", StringComparison.Ordinal)));
         Assert.Equal(0, stat.Created);
         Assert.Equal(1, stat.Updated);
+    }
+
+    /// <summary>
+    /// После копии контекст модуля возвращается СЕБЕ: ни соединения ядра, ни его транзакции
+    /// (ревью PR #1108).
+    ///
+    /// <para>Копия — названное исключение из правила «нет общей транзакции», и оно обязано кончаться
+    /// вместе с копией. Контекст модуля из контейнера живёт всю область запроса; оставь его на
+    /// соединении ядра — и всё, что модуль запишет в этой области ПОСЛЕ копии, молча войдёт в
+    /// транзакцию ядра. Это ровно то, что правило запрещает, и заметить это нечем: запросы работают,
+    /// данные сохраняются, общая транзакция просто есть.</para>
+    ///
+    /// <para>Крах при этом не наступает, и проверять его бессмысленно: <c>SetDbConnection</c> второй
+    /// раз проходит — своё соединение контекст модуля к тому моменту закрыл (проверено прямо,
+    /// двумя копиями в одной области и запросом модуля перед ними). Дефект здесь тихий, поэтому и
+    /// сторож смотрит на состояние, а не на отказ.</para>
+    /// </summary>
+    [Fact]
+    public async Task После_копии_контекст_модуля_не_делит_соединение_с_ядром()
+    {
+        await SeedInvoiceAsync(await SeedCoreObjectAsync());
+
+        using var scope = fixture.Services.CreateScope();
+        await using var probe = ProbeProvider();
+        using var probeScope = probe.CreateScope();
+        var service = Backup(scope, new ModuleSchemaBackup(Registry(), probeScope.ServiceProvider));
+
+        // Контекстом модуля в этой области уже пользовались — так выглядит запрос, который сначала
+        // читает данные модуля, а потом снимает копию.
+        var moduleDb = probeScope.ServiceProvider.GetRequiredService<ProbeInvoiceContext>();
+        _ = await moduleDb.Invoices.CountAsync();
+
+        var first = ReadManifest(await ArchiveAsync(service, BackupScope.Full));
+        var second = ReadManifest(await ArchiveAsync(service, BackupScope.Full));
+
+        Assert.Single(Assert.Single(first.ModuleData!).Tables.Single(t => t.Table == "invoices").Rows);
+        Assert.Single(Assert.Single(second.ModuleData!).Tables.Single(t => t.Table == "invoices").Rows);
+
+        var coreDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Null(moduleDb.Database.CurrentTransaction);
+        Assert.NotSame(coreDb.Database.GetDbConnection(), moduleDb.Database.GetDbConnection());
+        Assert.Equal(1, await moduleDb.Invoices.CountAsync());
+    }
+
+    /// <summary>
+    /// Счётчик таблицы модуля сдвигается за восстановленные значения (ревью PR #1108).
+    ///
+    /// <para>Без этого строки возвращаются, а последовательность остаётся на чистой установке в начале:
+    /// первый же счёт, заведённый модулем после восстановления, отказывает дублем номера — далеко от
+    /// восстановления и без всякой видимой связи с ним. Так же поступает <c>pg_dump</c>, и по той же
+    /// причине.</para>
+    ///
+    /// <para>Счётчик у поддельного счёта уникален нарочно: не будь он уникален, устаревшая
+    /// последовательность дала бы просто повторяющиеся номера — дефект, который не падает, а
+    /// накапливается.</para>
+    /// </summary>
+    [Fact]
+    public async Task Счётчик_таблицы_модуля_сдвигается_после_восстановления()
+    {
+        var objectId = await SeedCoreObjectAsync();
+        await SeedInvoiceAsync(objectId);
+        var (archive, _) = await ExportAsync(BackupScope.Full);
+
+        // Так выглядит восстановление на ЧИСТУЮ установку: таблиц нет строк, счётчики в начале.
+        await ExecuteAsync(
+            $"TRUNCATE {ModuleSchemaName}.invoice_lines, {ModuleSchemaName}.invoices RESTART IDENTITY");
+
+        var report = await ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+
+        // Следующий счёт модуль заводит как обычно. С отставшим счётчиком здесь был бы отказ по
+        // уникальности номера.
+        await SeedInvoiceAsync(objectId, number: "Счёт №2");
+
+        Assert.Equal(2L, await ScalarAsync<long>($"SELECT count(*) FROM {ModuleSchemaName}.invoices"));
+        Assert.Equal(2L, await ScalarAsync<long>(
+            $"SELECT count(DISTINCT seq) FROM {ModuleSchemaName}.invoices"));
+    }
+
+    /// <summary>
+    /// Таблица модуля без первичного ключа не восстанавливается — и об этом сказано (ревью PR #1108).
+    ///
+    /// <para>Слить её строки не с чем, а голая вставка удвоила бы их при повторном восстановлении —
+    /// а повторное восстановление той же копии в работе дело обычное. Из двух неверных исходов выбран
+    /// тот, который называет себя: удвоенные строки уже не различить, а копия никуда не делась.</para>
+    /// </summary>
+    [Fact]
+    public async Task Таблица_модуля_без_первичного_ключа_не_восстанавливается_и_говорит_об_этом()
+    {
+        await SeedInvoiceAsync(await SeedCoreObjectAsync());
+        await ExecuteAsync($"INSERT INTO {ModuleSchemaName}.probe_log (text) VALUES ('след')");
+
+        var (archive, manifest) = await ExportAsync(BackupScope.Full);
+
+        // В копию строка попала — потеря не в снятии, а именно в применении.
+        Assert.Single(Assert.Single(manifest.ModuleData!).Tables.Single(t => t.Table == "probe_log").Rows);
+
+        await ExecuteAsync($"DELETE FROM {ModuleSchemaName}.probe_log");
+        var report = await ImportAsync(archive);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal(0L, await ScalarAsync<long>($"SELECT count(*) FROM {ModuleSchemaName}.probe_log"));
+        Assert.Contains(report.Warnings, w =>
+            w.Contains("probe_log", StringComparison.Ordinal)
+            && w.Contains("нет первичного ключа", StringComparison.Ordinal));
+        Assert.DoesNotContain(report.ProjectSections!, s => s.Label.Contains("probe_log", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -275,6 +389,96 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         Assert.Contains(report.Warnings, w =>
             w.Contains("сопоставлено с уже существующими по естественному ключу", StringComparison.Ordinal)
             && w.Contains("данные модулей", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Копию не снимают внутри чужой транзакции на слабом уровне изоляции — отказ (ревью PR #1108).
+    ///
+    /// <para>На READ COMMITTED каждая команда видит свой снимок, а таблицы ядра читаются десятками
+    /// команд: копия собралась бы из разных моментов времени. Прежде здесь стояло обещание
+    /// целостности без проверки, и неверным оно было ещё до схем модулей. Отказ дешевле копии, которая
+    /// выглядит копией: у неё ссылки внутри могут не сходиться, а узнаётся это при восстановлении.</para>
+    /// </summary>
+    [Fact]
+    public async Task Копия_внутри_чужой_транзакции_на_слабом_уровне_отказывает()
+    {
+        using var scope = fixture.Services.CreateScope();
+        await using var probe = ProbeProvider();
+        using var probeScope = probe.CreateScope();
+        var service = Backup(scope, new ModuleSchemaBackup(Registry(), probeScope.ServiceProvider));
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExportAsync(BackupScope.Full));
+
+        Assert.Contains("ReadCommitted", ex.Message);
+        Assert.Contains("снимка", ex.Message);
+    }
+
+    /// <summary>
+    /// Колонка, которая в копии есть, а в нынешней модели модуля её нет, не теряется молча
+    /// (ревью PR #1108).
+    ///
+    /// <para><c>jsonb_populate_recordset</c> незнакомые ключи просто игнорирует: значения пропали бы у
+    /// ВСЕХ строк, а отчёт назвал бы восстановление успешным. Так выглядит копия, снятая более новой
+    /// версией модуля. Пропавшая ТАБЛИЦА оговорку получала с самого начала — асимметрия и была
+    /// дефектом.</para>
+    /// </summary>
+    [Fact]
+    public async Task Колонка_из_копии_которой_в_модели_нет_не_теряется_молча()
+    {
+        await SeedInvoiceAsync(await SeedCoreObjectAsync());
+        var (_, manifest) = await ExportAsync(BackupScope.Full);
+
+        var invoices = manifest.ModuleData![0].Tables.Single(t => t.Table == "invoices");
+        var withGhost = invoices.Rows
+            .Select(r => JsonDocument.Parse(r.GetRawText().Insert(1, "\"призрак\": 1,")).RootElement.Clone())
+            .ToArray();
+
+        var warnings = new List<string>();
+        using var scope = fixture.Services.CreateScope();
+        await using var probe = ProbeProvider();
+        using var probeScope = probe.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var tx = await db.Database.BeginTransactionAsync();
+
+        await new ModuleSchemaBackup(Registry(), probeScope.ServiceProvider).RestoreAsync(
+            [new BackupModuleSchema(ModuleCode, ModuleSchemaName, [new BackupModuleTable("invoices", withGhost)])],
+            tx.GetDbTransaction(), warnings, default);
+
+        Assert.Contains(warnings, w =>
+            w.Contains("призрак", StringComparison.Ordinal)
+            && w.Contains("не восстановлены", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Пока у модулей нет ни одной строки, тревожной оговорки про их ссылки НЕ БЫВАЕТ
+    /// (ревью PR #1108).
+    ///
+    /// <para>Секция в копии есть у любого модуля со схемой — у <c>costs</c> сегодня она пустая, и это
+    /// утверждает отдельный тест. Считай мы «данные модулей есть» по числу секций, предупреждение про
+    /// оборванные ссылки выдавалось бы при каждом сопоставлении позиции перечня по ключу: человек шёл
+    /// бы искать то, чего нет, а тревога, звучащая без повода, перестаёт значить что-либо.</para>
+    /// </summary>
+    [Fact]
+    public async Task Без_строк_модуля_оговорки_про_ссылки_модуля_нет()
+    {
+        var objectId = await SeedCoreObjectAsync();
+        var key = await SeedWorkPlanItemAsync(objectId, Guid.NewGuid());
+
+        var (archive, manifest) = await ExportAsync(BackupScope.Full);
+        Assert.NotEmpty(manifest.ModuleData!);
+        Assert.All(manifest.ModuleData!, m => Assert.All(m.Tables, t => Assert.Empty(t.Rows)));
+
+        await ExecuteAsync("DELETE FROM work_plan_items");
+        await SeedWorkPlanItemAsync(objectId, Guid.NewGuid(), key.ConstructionId);
+
+        var report = await ImportAsync(archive);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("данные модулей", StringComparison.Ordinal));
     }
 
     // ── Хозяйство ─────────────────────────────────────────────────────────────
@@ -490,6 +694,15 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+            // Таблица без первичного ключа: такой у модуля быть может (журнал, «пиши и читай»), и
+            // восстановить её нечем — проверка на этом и стоит. Строк в ней по умолчанию нет, поэтому
+            // остальным проверкам она не мешает.
+            builder.Entity<ProbeLog>(e =>
+            {
+                e.ToTable("probe_log");
+                e.HasNoKey();
+                e.Property(x => x.Text).HasColumnName("text");
+            });
             builder.Entity<ProbeLine>(e =>
             {
                 e.ToTable("invoice_lines");
@@ -504,12 +717,20 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
                 e.Property(x => x.Id).HasColumnName("id");
                 e.Property(x => x.ObjectId).HasColumnName("object_id");
                 e.Property(x => x.Number).HasColumnName("number");
+                // Номер-счётчик: значение кладёт база. Уникален нарочно — см. проверку счётчика.
+                e.Property(x => x.Seq).HasColumnName("seq").ValueGeneratedOnAdd();
+                e.HasIndex(x => x.Seq).IsUnique();
                 e.Property(x => x.Amount).HasColumnName("amount").HasColumnType("numeric(18,2)");
                 e.Property(x => x.IssuedAt).HasColumnName("issued_at");
                 e.Property(x => x.Payload).HasColumnName("payload").HasColumnType("jsonb");
                 e.Property(x => x.Note).HasColumnName("note");
             });
         }
+    }
+
+    private sealed class ProbeLog
+    {
+        public string Text { get; set; } = string.Empty;
     }
 
     private sealed class ProbeLine
@@ -528,6 +749,8 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         public Guid ObjectId { get; set; }
 
         public string Number { get; set; } = string.Empty;
+
+        public int Seq { get; set; }
 
         public decimal Amount { get; set; }
 
