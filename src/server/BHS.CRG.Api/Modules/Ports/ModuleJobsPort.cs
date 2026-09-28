@@ -1,6 +1,7 @@
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
 
 namespace BHS.CRG.Api.Modules.Ports;
@@ -18,15 +19,14 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// модули, и в этой области служб они все налицо.</para>
 /// </summary>
 public sealed class ModuleJobsPort(
-    IJobService jobs, IActivityActor actor, IEnumerable<IModuleJobHandler> handlers) : IModuleJobs
+    IJobService jobs, IActivityActor actor, ModuleRegistry modules, IEnumerable<IModuleJobHandler> handlers)
+    : IModuleJobs
 {
     public Task<Guid> EnqueueAsync(string operation, Guid targetId, string title, string? payload = null,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(operation))
-            throw new InvalidOperationException("У фоновой операции модуля нет кода: искать исполнителя не по чему.");
-
-        ModuleWorkPayload.EnsureHandled(operation, handlers);
+        ModuleWork.EnsureNamedByModule(operation, modules);
+        ModuleWork.EnsureHandled(operation, handlers);
 
         // Владельца не спрашивают у вызывающего — его берут из запроса, как автора записи журнала.
         // Вне запроса владельца нет вовсе (Guid.Empty): так же поставлена плановая резервная копия, и
@@ -34,19 +34,22 @@ public sealed class ModuleJobsPort(
         var owner = actor.Current.Id ?? Guid.Empty;
 
         return jobs.EnqueueAsync(JobKind.ModuleWork, owner, targetId, title,
-            ModuleWorkPayload.Wrap(operation, payload), ct);
+            ModuleWork.Wrap(operation, payload), ct);
     }
 
     /// <summary>
-    /// Состояние задачи.
+    /// Состояние задачи — БЕЗ проверки владельца, в отличие от личного списка задач человека.
     ///
-    /// ⚠️ Чужую задачу ядро не показывает — ответ <c>null</c>, как и у «нет такой». Правило не наше и
-    /// не здесь: список задач в продукте личный («мои активные»), и порт обязан отвечать так же, иначе
-    /// у модуля получилось бы окно в чужие операции.
+    /// ⚠️ Первая редакция спрашивала задачу правами текущего пользователя, и это была дыра в обещании
+    /// порта (ревью PR #1106): у задачи, поставленной вне запроса, владельца нет вовсе, и модуль,
+    /// показывающий ход по сохранённому идентификатору, навсегда получал «нет такой задачи» — вместо
+    /// идущей или упавшей. То же с задачей, поставленной другим человеком: счёт открывают вдвоём.
+    /// Читаются этим путём ТОЛЬКО работы модулей — ход операций ядра модулю не виден (см.
+    /// <see cref="IJobService.GetModuleWorkAsync" />).
     /// </summary>
     public async Task<ModuleJobState?> GetAsync(Guid jobId, CancellationToken ct = default)
     {
-        var job = await jobs.GetAsync(jobId, actor.Current.Id ?? Guid.Empty, ct);
+        var job = await jobs.GetModuleWorkAsync(jobId, ct);
         if (job is null) return null;
 
         if (!Enum.TryParse<ModuleJobStatus>(job.Status, out var status))

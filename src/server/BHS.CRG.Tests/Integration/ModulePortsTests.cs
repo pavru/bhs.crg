@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json;
+using BHS.CRG.Api.Activity;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
@@ -83,7 +85,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     [Fact]
     public async Task Запись_модуля_доезжает_до_журнала_ядра()
     {
-        var action = new ModuleActivityAction("costs.invoice.paid", "Счёт отмечен оплаченным");
+        var action = ProbeModuleActivity.InvoicePaid;
 
         using var scope = host.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<IModuleActivityLog>()
@@ -101,17 +103,39 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     }
 
     /// <summary>
-    /// Код действия с чужим префиксом — отказ. Вторая половина проверки объявления; первая (три
-    /// части, непустое название) живёт в
-    /// <see cref="Configuration.ModulePortMirrorTests.Действие_журнала_проверяет_свою_форму" />.
+    /// НАЗВАНИЕ действия модуля доезжает до экрана журнала и до отбора по действию.
     ///
-    /// Без этой половины модуль записал бы в журнал действие ядра — и на экране журнала его нельзя
-    /// было бы отличить от настоящего.
+    /// ⚠️ Сторож находки ревью PR #1106. В записи журнала лежит только код, а название берётся из
+    /// каталога при чтении — и каталог ядра для модульного кода возвращал сам код: строка читалась
+    /// «costs.invoice.paid», в отборе модульных действий не было вовсе, то есть название, переданное
+    /// при записи, не доезжало до человека НИКАК. Проверяется тот самый каталог, которым отвечают
+    /// адреса журнала.
+    /// </summary>
+    [Fact]
+    public void Название_действия_модуля_доезжает_до_экрана_журнала()
+    {
+        var catalog = host.Services.GetRequiredService<ActivityActionCatalog>();
+
+        Assert.Equal(ProbeModuleActivity.InvoicePaid.Title, catalog.Title(ProbeModuleActivity.InvoicePaid.Code));
+        Assert.Contains(catalog.All, a => a.Code == ProbeModuleActivity.InvoicePaid.Code);
+        // Действия ядра из каталога не пропали: он общий, а не «вместо».
+        Assert.Contains(catalog.All, a => a.Code == ActivityActions.ModulesChanged.Code);
+    }
+
+    /// <summary>
+    /// Незнакомое действие писать нельзя — в том числе с чужим префиксом.
+    ///
+    /// Первая половина проверки объявления (три части, непустое название) живёт в
+    /// <see cref="Configuration.ModulePortMirrorTests.Действие_журнала_проверяет_свою_форму" />; здесь
+    /// вторая: действие, которого модуль не объявлял, в каталог не попало, и записать его значит
+    /// оставить в журнале строку без названия и без строки в отборе. Действие ядра модулю недоступно
+    /// тем же отказом — иначе на экране журнала его нельзя было бы отличить от настоящего.
     /// </summary>
     [Theory]
-    [InlineData("core.user.deleted", "core")]
-    [InlineData("work.invoice.paid", "work")]
-    public async Task Журнал_отказывает_коду_не_из_модуля(string code, string prefix)
+    [InlineData("core.user.deleted")]
+    [InlineData("work.invoice.paid")]
+    [InlineData("costs.invoice.cancelled")]
+    public async Task Журнал_отказывает_необъявленному_действию(string code)
     {
         using var scope = host.Services.CreateScope();
         var log = scope.ServiceProvider.GetRequiredService<IModuleActivityLog>();
@@ -119,7 +143,52 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
             () => log.RecordAsync(new ModuleActivityAction(code, "Что-то произошло")));
 
-        Assert.Contains(prefix, refusal.Message);
+        Assert.Contains(code, refusal.Message);
+    }
+
+    /// <summary>
+    /// Название, разошедшееся с объявленным, — отказ.
+    ///
+    /// Молча оно означало бы, что на экране стоит одно название, а автор вызова уверен в другом: две
+    /// копии одного действия разъехались бы, и заметить это было бы нечем.
+    /// </summary>
+    [Fact]
+    public async Task Журнал_отказывает_названию_мимо_объявления()
+    {
+        using var scope = host.Services.CreateScope();
+        var log = scope.ServiceProvider.GetRequiredService<IModuleActivityLog>();
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => log.RecordAsync(
+            new ModuleActivityAction(ProbeModuleActivity.InvoicePaid.Code, "Счёт оплатили")));
+
+        Assert.Contains(ProbeModuleActivity.InvoicePaid.Title, refusal.Message);
+    }
+
+    /// <summary>
+    /// Негодное объявление роняет СБОРКУ каталога, а каталог разрешается при старте — то есть отказ
+    /// приходит тому, кто собирал поставку, а не читателю журнала.
+    ///
+    /// Проверяются три способа испортить объявление: чужой префикс (модуль пишет от имени ядра),
+    /// негодная форма кода и повтор кода — последний решал бы молча, как читается уже записанное.
+    /// </summary>
+    [Theory]
+    [InlineData("core.user.deleted", "Удалён пользователь", "core")]
+    [InlineData("costs.paid", "Оплачен", "трёх частей")]
+    [InlineData("costs.invoice.paid", "Другое название", "дважды")]
+    public void Каталог_действий_отказывает_негодному_объявлению(string code, string title, string expected)
+    {
+        var modules = host.Services.GetRequiredService<ModuleRegistry>();
+        IModuleActivityActions[] declarations = [new ProbeModuleActivity(), new BrokenActions(code, title)];
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => new ActivityActionCatalog(declarations, modules));
+
+        Assert.Contains(expected, refusal.Message);
+    }
+
+    private sealed class BrokenActions(string code, string title) : IModuleActivityActions
+    {
+        public IReadOnlyList<ModuleActivityAction> Actions => [new(code, title)];
     }
 
     // ── Файлы ─────────────────────────────────────────────────────────────────
@@ -222,6 +291,26 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         Assert.Null(await catalog.GetAsync(Guid.NewGuid()));
     }
 
+    /// <summary>
+    /// Записи приходят ПО НАЗВАНИЮ — как обещает контракт.
+    ///
+    /// ⚠️ Сторож находки ревью PR #1106: запрос ядра не сортирует вовсе, порядок приходит от базы и
+    /// меняется после правок и уборки. Обещание «по названию» сбывалось бы, пока записи не правили, —
+    /// то есть до первой же правки у заказчика, где список читает человек.
+    /// </summary>
+    [Fact]
+    public async Task Справочник_отдаётся_по_названию()
+    {
+        foreach (var name in (string[])["Яшма", "Берёза", "Ёлка", "Дуб"])
+            await SendAsync(new CreateCatalogEntityCommand(
+                "Project", name, JsonDocument.Parse("{}"), null));
+
+        using var scope = host.Services.CreateScope();
+        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync("Project");
+
+        Assert.Equal(["Берёза", "Дуб", "Ёлка", "Яшма"], entries.Select(e => e.DisplayName));
+    }
+
     // ── Охрана записи ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -247,6 +336,27 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         Assert.Equal("Сумма", refusal.Path);
 
         Assert.Empty(await guard.RefusalsAsync(type.Id, """{"Сумма":1000}""", """{"Сумма":1000}"""));
+    }
+
+    /// <summary>
+    /// Неизвестный тип — отказ, а не пустой список находок.
+    ///
+    /// ⚠️ Сторож находки ревью PR #1106: охрана ядра на отсутствующем типе молча выходит (у её путей
+    /// тип проверен раньше), и через порт это читалось бы как «запись разрешена» — модуль сохранил бы
+    /// данные, тронув запертые поля, без какой-либо охраны. Отказ обязан отличаться от разрешения.
+    /// </summary>
+    [Fact]
+    public async Task Охрана_записи_отказывает_на_неизвестном_типе()
+    {
+        var unknown = Guid.NewGuid();
+
+        using var scope = host.Services.CreateScope();
+        var guard = scope.ServiceProvider.GetRequiredService<IModuleWriteGuard>();
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => guard.RefusalsAsync(unknown, "{}", """{"Сумма":1000}"""));
+
+        Assert.Contains(unknown.ToString(), refusal.Message);
     }
 
     // ── Учётный период ────────────────────────────────────────────────────────
@@ -368,6 +478,87 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.False(await db.Jobs.AnyAsync(j => j.TargetId == target),
             "Отказ пришёл, а задача в очереди осталась — она не выполнится никогда.");
+    }
+
+    /// <summary>
+    /// Задача модуля читается по идентификатору независимо от того, кто её поставил — и «ничейная»
+    /// тоже.
+    ///
+    /// ⚠️ Сторож находки ревью PR #1106: первая редакция спрашивала задачу правами текущего
+    /// пользователя, то есть модуль, показывающий ход по сохранённому идентификатору, получал «нет
+    /// такой задачи» и для задачи по расписанию (владельца нет вовсе), и для задачи, поставленной
+    /// другим человеком (счёт открыли вдвоём). Задача модуля принадлежит ЗАПИСИ, а не человеку:
+    /// привязки данных к пользователю в системе нет вовсе (issue #675).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Задача_модуля_читается_независимо_от_владельца(bool ownerless)
+    {
+        var owner = ownerless ? Guid.Empty : Guid.NewGuid();
+        var jobId = await SeedJobAsync(JobKind.ModuleWork, owner, "Разбор выгрузки");
+
+        using var scope = host.Services.CreateScope();
+        var state = await scope.ServiceProvider.GetRequiredService<IModuleJobs>().GetAsync(jobId);
+
+        Assert.NotNull(state);
+        Assert.Equal("Разбор выгрузки", state!.Title);
+        Assert.Equal(ModuleJobStatus.Queued, state.Status);
+    }
+
+    /// <summary>
+    /// Ход операций ЯДРА модулю не виден: по чужому идентификатору порт отвечает «нет такой задачи».
+    ///
+    /// Половина, без которой предыдущая проверка опасна: сняв проверку владельца, легко снять и
+    /// проверку вида — и тогда модуль, подставив идентификатор, узнавал бы ход резервного копирования
+    /// или распознавания. Такого окна у него нет ни одним другим способом.
+    /// </summary>
+    [Fact]
+    public async Task Операции_ядра_модулю_не_видны()
+    {
+        var jobId = await SeedJobAsync(JobKind.CreateBackup, Guid.NewGuid(), "Резервная копия");
+
+        using var scope = host.Services.CreateScope();
+
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IModuleJobs>().GetAsync(jobId));
+    }
+
+    /// <summary>
+    /// Код операции обязан начинаться с кода включённого модуля.
+    ///
+    /// Без префикса два модуля, назвавшие операцию «import», столкнулись бы — и отказ при постановке
+    /// пришёл бы обоим, не называя, чья операция лишняя. Проверка не доказывает, что операцию ставит
+    /// именно тот модуль (кто вызвал порт, контейнеру неизвестно), и не притворяется этим: она убирает
+    /// столкновение имён.
+    /// </summary>
+    [Theory]
+    [InlineData("проба")]
+    [InlineData("work.проба")]
+    public async Task Операция_обязана_быть_названа_кодом_модуля(string operation)
+    {
+        using var scope = host.Services.CreateScope();
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => scope.ServiceProvider
+            .GetRequiredService<IModuleJobs>()
+            .EnqueueAsync(operation, Guid.NewGuid(), "Проба", null));
+
+        Assert.Contains(operation, refusal.Message);
+        // Именно про префикс, а не «исполнителя нет»: без этой строки тест был бы зелёным и со снятой
+        // проверкой — операцию без обработчика отвергает следующая проверка, другими словами.
+        Assert.Contains("кода модуля", refusal.Message);
+    }
+
+    private async Task<Guid> SeedJobAsync(JobKind kind, Guid owner, string title)
+    {
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Прямо в таблицу, мимо очереди: фоновый цикл иначе подобрал бы задачу и уронил её на
+        // аргументах — а проверяется здесь чтение, а не выполнение.
+        var job = Job.Create(kind, owner, Guid.NewGuid(), title);
+        db.Jobs.Add(job);
+        await db.SaveChangesAsync();
+        return job.Id;
     }
 
     private static async Task<ModuleJobState> WaitForAsync(

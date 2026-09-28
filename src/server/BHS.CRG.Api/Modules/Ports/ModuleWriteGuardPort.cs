@@ -28,6 +28,15 @@ public sealed class ModuleWriteGuardPort(
         using var incoming = Parse(incomingJson, nameof(incomingJson));
         using var stored = storedJson is null ? null : Parse(storedJson, nameof(storedJson));
 
+        // ⚠️ Неизвестный тип — ОТКАЗ, а не пустой список. Охрана ядра на отсутствующем типе молча
+        // выходит: у её путей тип проверен раньше, и выход означает «охранять нечего». Здесь тот же
+        // выход означал бы «разрешено» — то есть модуль сохранил бы данные, тронув запертые поля, и
+        // узнал бы об этом никогда (ревью PR #1106). Отказ обязан отличаться от разрешения.
+        if (await types.GetByIdAsync(typeId, ct) is null)
+            throw new InvalidOperationException(
+                $"Охране записи передан неизвестный тип {typeId}: проверять нечего, а пустой список " +
+                "находок модуль прочитал бы как «запись разрешена».");
+
         try
         {
             await WriteGuard.EnsureAllowedAsync(stored, incoming, typeId, types, primitives, ct);

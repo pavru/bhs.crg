@@ -19,7 +19,13 @@ public sealed class ModuleCatalogPort(IMediator mediator) : IModuleCatalog
         string entityType, CancellationToken ct = default)
     {
         var entries = await mediator.Send(new ListCatalogEntitiesQuery(entityType, null), ct);
-        return [.. entries.Select(Map)];
+
+        // Порядок задаёт ПОРТ. Запрос ядра не сортирует вовсе — порядок приходит от Postgres и
+        // меняется после правок и уборки, — а список каталога на экране сортирует клиент. Обещание
+        // «по названию» в контракте без сортировки здесь было бы ложным: оно сбывалось бы, пока
+        // записи не правили (ревью PR #1106). Сравнение культурное, как у клиента: список читает
+        // человек, и «Ёлка» в нём стоит между «Дубом» и «Жасмином», а не после латиницы.
+        return [.. entries.Select(Map).OrderBy(e => e.DisplayName, StringComparer.CurrentCulture)];
     }
 
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)

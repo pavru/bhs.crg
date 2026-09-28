@@ -44,15 +44,29 @@ public sealed class ModulePortsHost : IntegrationTestFixture
         foreach (var (key, value) in overrides) builder.UseSetting(key, value);
         builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(overrides));
 
-        // Обработчик фоновой операции — ровно та регистрация, которую делает модуль в своём
-        // RegisterServices. Подделки в переходниках при этом нет: очередь, цикл и поиск исполнителя
-        // работают настоящие, поддельна только сама работа.
+        // Обработчик фоновой операции и объявление действий журнала — ровно те регистрации, которые
+        // делает модуль в своём RegisterServices. Подделки в переходниках при этом нет: очередь,
+        // цикл, поиск исполнителя и каталог действий работают настоящие, поддельны только сама работа
+        // и её объявление.
         builder.ConfigureServices(services =>
         {
             services.AddSingleton<ProbeModuleWork>();
             services.AddSingleton<IModuleJobHandler>(sp => sp.GetRequiredService<ProbeModuleWork>());
+            services.AddSingleton<IModuleActivityActions, ProbeModuleActivity>();
         });
     }
+}
+
+/// <summary>
+/// Объявление действий журнала, как его делает модуль. Одно действие — больше для проверки пути не
+/// нужно: названием оно отличается от кода, и именно название обязано доехать до экрана.
+/// </summary>
+public sealed class ProbeModuleActivity : IModuleActivityActions
+{
+    public static readonly ModuleActivityAction InvoicePaid =
+        new("costs.invoice.paid", "Счёт отмечен оплаченным");
+
+    public IReadOnlyList<ModuleActivityAction> Actions => [InvoicePaid];
 }
 
 /// <summary>

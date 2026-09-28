@@ -32,6 +32,11 @@ public static class ModulePorts
 {
     public static IServiceCollection AddModulePorts(this IServiceCollection services)
     {
+        // Каталог действий журнала: ядро плюс объявления включённых модулей. Одиночка — состав
+        // модулей за время работы не меняется, а объявления обязаны быть проверены ОДИН раз и при
+        // старте (разрешается в StartupTasks).
+        services.AddSingleton<Activity.ActivityActionCatalog>();
+
         services.AddScoped<IModuleActivityLog, ModuleActivityLogPort>();
         services.AddScoped<IModuleBlobs, ModuleBlobsPort>();
         services.AddScoped<IModuleNotifications, ModuleNotificationsPort>();

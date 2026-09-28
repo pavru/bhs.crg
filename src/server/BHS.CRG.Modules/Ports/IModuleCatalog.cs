@@ -29,7 +29,10 @@ public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string Displ
 /// </summary>
 public interface IModuleCatalog
 {
-    /// <summary>Все записи вида, по названию. Пусто — таких записей нет; это не отказ.</summary>
+    /// <summary>
+    /// Все записи вида, по названию (сравнение культурное — список читает человек). Пусто — таких
+    /// записей нет; это не отказ.
+    /// </summary>
     Task<IReadOnlyList<ModuleCatalogEntry>> ListAsync(string entityType, CancellationToken ct = default);
 
     /// <summary>Запись по идентификатору; <c>null</c> — нет такой (например, её удалили).</summary>
