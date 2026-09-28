@@ -67,6 +67,15 @@ public class JobService(AppDbContext db, JobQueue queue) : IJobService
         return job is null ? null : Dto(job);
     }
 
+    public async Task<JobDto?> GetModuleWorkAsync(Guid jobId, CancellationToken ct)
+    {
+        // Владельца не спрашиваем (см. интерфейс: задача модуля принадлежит записи, а не человеку),
+        // но вид — обязательно: через этот путь читаются ТОЛЬКО работы модулей.
+        var job = await db.Jobs.AsNoTracking()
+            .FirstOrDefaultAsync(j => j.Id == jobId && j.Kind == JobKind.ModuleWork, ct);
+        return job is null ? null : Dto(job);
+    }
+
     private static JobDto Dto(Job j) => new(
         j.Id, j.Kind.ToString(), j.TargetId, j.Status.ToString(), j.Title, j.Progress, j.CreatedAt,
         j.StartedAt, j.FinishedAt, j.Error);

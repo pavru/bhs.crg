@@ -1,5 +1,6 @@
 using BHS.CRG.Application.DataSets;
 using System.Text.Json;
+using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Jobs;
@@ -122,6 +123,20 @@ public class JobBackgroundService(
                         await emailSvc.SendDocumentAsync(targetId, to, subj, body, userId, ct);
                     else
                         await emailSvc.SendSetAsync(targetId, to, subj, body, userId, ct);
+                    break;
+
+                case JobKind.ModuleWork:
+                    // Работу модуля выполняет его обработчик, а связывает их корень композиции
+                    // (задача M2 этапа 2, issue #1069): сослаться на контракты модулей отсюда нельзя
+                    // — модулем считается любой проект, сославшийся на них.
+                    //
+                    // GetRequiredService, а не проверка с нашим текстом: приложение, подключающее
+                    // модули, регистрирует исполнителя тем же вызовом, что и порты, — то есть ветки
+                    // «модули есть, исполнителя нет» в сборке не существует. Своё сообщение здесь
+                    // выглядело бы сторожем, которому нечего сторожить, а наружу оба отказа уходят
+                    // одинаково: задача падает, текст читает журнал сервера (ревью PR #1106).
+                    await scope.ServiceProvider.GetRequiredService<IModuleWorkRunner>()
+                        .RunAsync(jobId, targetId, userId, payload, report, ct);
                     break;
 
                 default:

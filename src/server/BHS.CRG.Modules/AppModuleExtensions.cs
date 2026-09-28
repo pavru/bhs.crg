@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -66,7 +67,12 @@ public static class AppModuleExtensions
         foreach (var module in enabled)
             module.RegisterServices(services, configuration);
 
-        services.AddSingleton(new ModuleRegistry(enabled, disabled));
+        var registry = new ModuleRegistry(enabled, disabled);
+        services.AddSingleton(registry);
+        // Узкий взгляд на состав поставки — для модулей (ТЗ AUTH-19). Тем же объектом, а не второй
+        // реализацией: два источника истины о составе модулей разошлись бы на первом же экземпляре,
+        // где набор задан не так, как ожидал автор второго.
+        services.AddSingleton<IEnabledModules>(registry);
 
         // Каталог собирается ЗДЕСЬ, а не лениво при первом обращении: негодное объявление права
         // обязано ронять старт, а не первый заход администратора в редактор ролей.

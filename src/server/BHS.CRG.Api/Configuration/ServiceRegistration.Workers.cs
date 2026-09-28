@@ -3,6 +3,7 @@ using BHS.CRG.Api.Updates;
 using BHS.CRG.Application.Updates;
 using BHS.CRG.Infrastructure.Updates;
 using BHS.CRG.Api.Modules;
+using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Application.Common;
@@ -175,6 +176,10 @@ internal static class WorkerRegistration
     // назвали, и отвечает отказом с названной причиной (задача A1, issue #1068).
     builder.Services.AddAppModules(
         builder.Configuration, CorePermissions.All, new IdModule(), new CostsModule());
+    // Порты ядра — то, через что модуль работает с данными, не ссылаясь на слои приложения (задача M2
+    // этапа 2, issue #1069). Сразу за регистрацией модулей: службы модулей их спрашивают, а сами
+    // порты опираются на зарегистрированное выше.
+    builder.Services.AddModulePorts();
     // Реестр функциональных тэгов: ядро + тэги ВКЛЮЧЁННЫХ модулей (ТЗ TYPE-22, issue #959). Сразу за
     // регистрацией модулей — он собирается из их объявлений.
     builder.Services.AddTagCatalog();

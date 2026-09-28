@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Ports;
 using Microsoft.Extensions.Configuration;
 
 namespace BHS.CRG.Modules;
@@ -10,7 +11,7 @@ namespace BHS.CRG.Modules;
 /// Реестр живёт в контейнере как singleton и отвечает на единственный вопрос — «включён ли модуль».
 /// Спрашивают его ворота адресов, инструменты MCP, наборы данных и уведомления.
 /// </summary>
-public sealed class ModuleRegistry
+public sealed class ModuleRegistry : IEnabledModules
 {
     /// <summary>Набор по умолчанию: исполнительная документация. С него начиналась система.</summary>
     public const string DefaultCode = "id";
@@ -36,6 +37,18 @@ public sealed class ModuleRegistry
     /// (OVW-10, AUTH-15, AUTH-19).
     /// </summary>
     public IReadOnlyList<IAppModule> Disabled { get; }
+
+    /// <summary>
+    /// Коды включённых модулей — то же, что <see cref="Enabled" />, но без объектов модулей.
+    ///
+    /// Отдельно потому, что реестр отвечает на вопрос «включён ли» двум разным спрашивающим. Ядру
+    /// нужны сами модули: он перечисляет их права, адреса и тэги. Модулю — только коды, и получить
+    /// вместе с ответом чужой объект он не должен: в нём лежат объявление прав и регистрация
+    /// адресов, то есть ровно то, чем один модуль мог бы влезть в другой. Узкий взгляд на реестр —
+    /// <see cref="IEnabledModules" />, и порт реализует сам реестр: второго источника истины о
+    /// составе поставки в системе быть не может.
+    /// </summary>
+    public IReadOnlyList<string> Codes => [.. Enabled.Select(m => m.Code)];
 
     public bool IsEnabled(string code) => _byCode.ContainsKey(code);
 
