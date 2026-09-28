@@ -3,6 +3,7 @@ using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -117,6 +118,74 @@ public class ModuleSchemaDeclarationTests
     }
 
     /// <summary>
+    /// Контекст, зарегистрированный ФАБРИКОЙ (<c>AddDbContextFactory</c>), считается
+    /// зарегистрированным.
+    ///
+    /// <para>Фабрика — обычный приём EF там, где области запроса нет вовсе: в фоновой работе модуля
+    /// (<c>IModuleJobHandler</c>). Прежняя редакция опознавала только <c>AddDbContext</c>, и модуль с
+    /// фабрикой получал при старте отказ «не зарегистрировал контекст» за правильно написанный код —
+    /// то есть отказ обвинял автора в том, чего он не делал (ревью PR #1107).</para>
+    /// </summary>
+    [Fact]
+    public void Context_registered_by_a_factory_counts_as_registered()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Modules:Enabled"] = "probe" })
+            .Build();
+
+        services.AddAppModules(configuration, new FactoryModule());
+
+        Assert.Contains(services, d => d.ServiceType == typeof(IDbContextFactory<ProbeContext>));
+        // Самого контекста в контейнере нет: сверка опознала его именно по фабрике.
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(ProbeContext));
+    }
+
+    /// <summary>
+    /// Фабрика контекста, которого модуль не объявил, — тот же отказ, что и у самого контекста:
+    /// объявления нет, значит миграций не будет.
+    /// </summary>
+    [Fact]
+    public void Factory_of_an_undeclared_context_stops_startup()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Modules:Enabled"] = "probe" })
+            .Build();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => services.AddAppModules(configuration, new SilentFactoryModule()));
+
+        Assert.Contains("не объявил", ex.Message);
+        Assert.Contains(nameof(ProbeContext), ex.Message);
+    }
+
+    /// <summary>
+    /// Модуль, который в своих регистрациях ЧТО-ТО УБРАЛ, проходит сверку.
+    ///
+    /// <para>Окно «что зарегистрировал этот модуль» задавалось числом служб до вызова, а
+    /// <c>RemoveAll</c>/<c>Replace</c> сдвигает индексы: удалив чужой дескриптор, модуль получал отказ
+    /// «не зарегистрировал контекст», хотя контекст зарегистрировал (ревью PR #1107). Теперь окно —
+    /// разница наборов, и позиция ни на что не влияет.</para>
+    /// </summary>
+    [Fact]
+    public void Module_that_removes_a_registration_still_passes()
+    {
+        var services = new ServiceCollection();
+        // Убираемых больше, чем модуль добавит: под прежней границей-индексом окно становилось пустым
+        // при любом порядке регистраций EF, а не через раз.
+        for (var i = 0; i < 20; i++) services.AddSingleton("чужая служба " + i);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Modules:Enabled"] = "probe" })
+            .Build();
+
+        services.AddAppModules(configuration, new TidyingModule());
+
+        Assert.Contains(services, d => d.ServiceType == typeof(ProbeContext));
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(string));
+    }
+
+    /// <summary>
     /// Контекст соседнего модуля своим не считается: сверка смотрит на то, что зарегистрировал ИМЕННО
     /// этот модуль.
     ///
@@ -167,6 +236,51 @@ public class ModuleSchemaDeclarationTests
 
         public override void RegisterServices(IServiceCollection services, IConfiguration configuration) =>
             services.AddDbContext<ProbeContext>(o => o.UseNpgsql("Host=нет;Database=нет"));
+    }
+
+    /// <summary>
+    /// Регистрирует ТОЛЬКО фабрику контекста, своими руками.
+    ///
+    /// ⚠️ Именно руками, а не <c>AddDbContextFactory</c>/<c>AddPooledDbContextFactory</c>: оба
+    /// помощника EF заводят рядом и сам контекст (проверено прогоном), то есть прежнюю сверку они
+    /// прошли бы. Отказ доставался бы модулю, который завёл фабрику сам — например под фоновую работу,
+    /// где области запроса нет вовсе, — и обвинял бы его в том, чего он не делал.
+    /// </summary>
+    private sealed class FactoryModule : BareModule
+    {
+        public override string Code => "probe";
+        public override ModuleSchema? Schema => new("probe", typeof(ProbeContext));
+
+        public override void RegisterServices(IServiceCollection services, IConfiguration configuration) =>
+            services.AddSingleton<IDbContextFactory<ProbeContext>>(new ProbeContextFactory());
+    }
+
+    /// <summary>Фабрику зарегистрировал, схему объявить забыл.</summary>
+    private sealed class SilentFactoryModule : BareModule
+    {
+        public override string Code => "probe";
+
+        public override void RegisterServices(IServiceCollection services, IConfiguration configuration) =>
+            services.AddSingleton<IDbContextFactory<ProbeContext>>(new ProbeContextFactory());
+    }
+
+    private sealed class ProbeContextFactory : IDbContextFactory<ProbeContext>
+    {
+        public ProbeContext CreateDbContext() => new(
+            new DbContextOptionsBuilder<ProbeContext>().UseNpgsql("Host=нет;Database=нет").Options);
+    }
+
+    /// <summary>Убирает чужую регистрацию и заводит свой контекст — так делает тестовый хост.</summary>
+    private sealed class TidyingModule : BareModule
+    {
+        public override string Code => "probe";
+        public override ModuleSchema? Schema => new("probe", typeof(ProbeContext));
+
+        public override void RegisterServices(IServiceCollection services, IConfiguration configuration)
+        {
+            services.RemoveAll<string>();
+            services.AddDbContext<ProbeContext>(o => o.UseNpgsql("Host=нет;Database=нет"));
+        }
     }
 
     /// <summary>Объявил схему, а контекст регистрировать забыл.</summary>

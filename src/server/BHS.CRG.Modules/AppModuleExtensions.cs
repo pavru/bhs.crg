@@ -70,9 +70,12 @@ public static class AppModuleExtensions
         // модуль. Позже различить его регистрации от соседних нечем.
         foreach (var module in enabled)
         {
-            var registeredBefore = services.Count;
+            // Снимок дескрипторов, а не их число: модуль вправе не только добавлять, но и убирать
+            // (RemoveAll/Replace), а по границе-индексу такое окно перестаёт совпадать с его
+            // регистрациями — и сверка обвинила бы его в том, чего он не делал (ревью PR #1107).
+            var before = services.ToHashSet();
             module.RegisterServices(services, configuration);
-            Data.ModuleDataDeclaration.Ensure(module, services, registeredBefore);
+            Data.ModuleDataDeclaration.Ensure(module, services, before);
         }
 
         var registry = new ModuleRegistry(enabled, disabled);

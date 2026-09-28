@@ -1,4 +1,5 @@
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
@@ -63,6 +64,48 @@ public class ModuleSchemaTests(ModuleSchemaHost host) : IClassFixture<ModuleSche
         Assert.True(await ScalarAsync<bool>(conn,
             "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'costs')"),
             "Схемы «costs» нет: миграция модуля при старте не выполнилась.");
+    }
+
+    /// <summary>
+    /// Пока резервная копия не видит схем модулей, таблиц в них быть не может (храповик до задачи A2b,
+    /// issue #1073; найдено ревью PR #1107).
+    ///
+    /// <para>Копия сущностная и построена на контексте ЯДРА, а сторож против дрейфа
+    /// (<see cref="BackupManifestCoverageTests" />) читает модель того же контекста. Модель контекста
+    /// модуля он не видит вовсе — значит первая таблица счетов (C1, issue #1076) оказалась бы вне
+    /// ЛЮБОЙ копии, и CI остался бы зелёным: сторож молчал бы ровно про ту поломку, ради которой
+    /// написан.</para>
+    ///
+    /// <para>Этот тест — дверь, закрытая до времени. Он падает в тот день, когда у контекста модуля
+    /// появляется первая таблица, и требует решения: либо сначала A2b (схема модуля входит в копию и
+    /// покрытия видят оба контекста), либо осознанная запись здесь о том, почему эта таблица в копии
+    /// не нужна. Снять его молча нельзя — в этом и смысл.</para>
+    /// </summary>
+    [Fact]
+    public void Пока_копия_не_видит_схем_модулей_таблиц_в_них_нет()
+    {
+        using var scope = host.Services.CreateScope();
+        var registry = scope.ServiceProvider.GetRequiredService<ModuleRegistry>();
+
+        var tables = new List<string>();
+        foreach (var module in registry.Enabled)
+        {
+            if (module.Schema is not { } schema) continue;
+            if (scope.ServiceProvider.GetService(schema.ContextType) is not ModuleDbContext db) continue;
+
+            tables.AddRange(db.Model.GetEntityTypes()
+                .Where(e => e.GetTableName() is not null)
+                .Select(e => $"{module.Code}: {e.GetSchema() ?? schema.Name}.{e.GetTableName()}"));
+        }
+
+        Assert.True(tables.Count == 0,
+            "У контекста модуля появились таблицы: " + string.Join(", ", tables) + ".\n" +
+            "Резервная копия их не видит: она сущностная и построена на контексте ядра, а " +
+            "BackupManifestCoverageTests читает модель того же контекста — то есть эти данные не " +
+            "попадут ни в одну копию, и ни один сторож об этом не скажет.\n" +
+            "Сделайте сначала A2b (issue #1073): схема модуля входит в копию, покрытия копии и сброса " +
+            "фикстур видят каждый зарегистрированный контекст. Либо запишите здесь, почему именно эта " +
+            "таблица в копии не нужна.");
     }
 
     /// <summary>

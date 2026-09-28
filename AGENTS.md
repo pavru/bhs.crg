@@ -108,12 +108,20 @@ dotnet ef migrations add <Name> --project src/server/BHS.CRG.Infrastructure \
 # того, включён ли модуль в Modules__Enabled у разработчика.
 dotnet ef migrations add <Name> --project src/server/BHS.CRG.Modules.Costs \
                                 --context CostsDbContext
+# Откатить только что созданную миграцию модуля — с --force: без него remove идёт в базу выяснять,
+# применена ли она, а базы у фабрики нет (см. ниже), и команда падает, оставив файлы на месте.
+dotnet ef migrations remove --force --project src/server/BHS.CRG.Modules.Costs \
+                            --context CostsDbContext
 
 # Ручное применение миграций (обычно не нужно — app мигрирует сам при старте: сначала схема ядра,
-# потом схемы включённых модулей)
+# потом схемы включённых модулей).
+# ⚠️ У МОДУЛЯ базу называет только окружение: фабрика контекста своей строки подключения не имеет.
+# Без переменной команда отказывает адресом-заглушкой — нарочно: с вписанным дев-стендом она молча
+# мигрировала бы не ту базу, что настроена у приложения, и отвечала бы успехом.
 dotnet ef database update --project src/server/BHS.CRG.Infrastructure \
                           --startup-project src/server/BHS.CRG.Api --context AppDbContext
-dotnet ef database update --project src/server/BHS.CRG.Modules.Costs --context CostsDbContext
+ConnectionStrings__Postgres="Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Database=bhs_crg" \
+  dotnet ef database update --project src/server/BHS.CRG.Modules.Costs --context CostsDbContext
 
 # TypeScript проверка (ВАЖНО: -b, т.к. корневой tsconfig только ссылки;
 # `tsc --noEmit` на нём ничего не проверяет и всегда «зелёный»)

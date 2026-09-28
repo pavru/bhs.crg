@@ -1,6 +1,7 @@
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -93,6 +94,53 @@ public class ModuleSchemaIsolationTests
     }
 
     /// <summary>
+    /// Контекст берётся из контейнера, а если там только фабрика — через неё.
+    ///
+    /// <para>Ветка с фабрикой нужна модулю с фоновой работой: области запроса там нет вовсе. Проверяется
+    /// она здесь, потому что у настоящих модулей зарегистрирован сам контекст — сломать ветку в живом
+    /// хосте было бы нечем (ревью PR #1107).</para>
+    ///
+    /// <para>Второе значение — «создали мы»: контекст из фабрики закрывает ядро, полученный из
+    /// области не трогает. Закрой мы чужой — упало бы всё, что идёт в этой области после.</para>
+    /// </summary>
+    [Fact]
+    public void Context_comes_from_the_container_or_from_its_factory()
+    {
+        var schema = new ModuleSchema("probe", typeof(TidyContext));
+
+        var registered = new ServiceCollection()
+            .AddDbContext<TidyContext>(o => o.UseNpgsql("Host=нет;Database=нет"))
+            .BuildServiceProvider();
+        var (fromContainer, ours) = ModuleSchemaMigrator.Resolve(registered, "probe", schema);
+        Assert.False(ours, "Контекст из контейнера закрывает область запроса, а не ядро.");
+        Assert.IsType<TidyContext>(fromContainer);
+
+        var byFactory = new ServiceCollection()
+            .AddSingleton<IDbContextFactory<TidyContext>>(new TidyContextFactory())
+            .BuildServiceProvider();
+        var (fromFactory, oursToo) = ModuleSchemaMigrator.Resolve(byFactory, "probe", schema);
+        Assert.True(oursToo, "Контекст, созданный фабрикой, закрывать ядру.");
+        Assert.IsType<TidyContext>(fromFactory);
+        fromFactory.Dispose();
+    }
+
+    /// <summary>
+    /// Ни контекста, ни фабрики — отказ, называющий оба способа: иначе автор модуля читал бы «в
+    /// контейнере его нет» и не знал бы, что от него хотят.
+    /// </summary>
+    [Fact]
+    public void Neither_context_nor_factory_is_refused()
+    {
+        var empty = new ServiceCollection().BuildServiceProvider();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ModuleSchemaMigrator.Resolve(
+            empty, "probe", new ModuleSchema("probe", typeof(TidyContext))));
+
+        Assert.Contains("ни его, ни его фабрики", ex.Message);
+        Assert.Contains(nameof(TidyContext), ex.Message);
+    }
+
+    /// <summary>
     /// Контекст на строке подключения, которой не существует: к базе никто не идёт — проверяется
     /// модель и настройка, а не данные.
     /// </summary>
@@ -142,6 +190,12 @@ public class ModuleSchemaIsolationTests
             base.OnModelCreating(builder);
             builder.Entity<Tidy>().ToTable("tidies");
         }
+    }
+
+    private sealed class TidyContextFactory : IDbContextFactory<TidyContext>
+    {
+        public TidyContext CreateDbContext() => new(
+            new DbContextOptionsBuilder<TidyContext>().UseNpgsql("Host=нет;Database=нет").Options);
     }
 
     private sealed class Stray

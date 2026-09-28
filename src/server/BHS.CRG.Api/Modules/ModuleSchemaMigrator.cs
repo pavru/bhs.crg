@@ -45,39 +45,75 @@ public static class ModuleSchemaMigrator
                 throw new InvalidOperationException(
                     $"Схема модуля «{module.Code}» негодна, миграция не начата: {problem}");
 
-            if (scoped.GetService(schema.ContextType) is not ModuleDbContext db)
-                throw new InvalidOperationException(
-                    $"Модуль «{module.Code}» объявил схему «{schema.Name}» с контекстом " +
-                    $"«{schema.ContextType.Name}», но в контейнере его нет. Мигрировать нечем.");
-
-            EnsureModelStaysInSchema(module.Code, schema, db);
-            EnsureHistoryStaysInSchema(module.Code, schema, db);
-
-            var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
-            if (pending.Count == 0)
+            var (db, ours) = Resolve(scoped, module.Code, schema);
+            try
             {
-                logger.LogDebug("Схема модуля {Module} в порядке: применять нечего", module.Code);
-                continue;
+                EnsureModelStaysInSchema(module.Code, schema, db);
+                EnsureHistoryStaysInSchema(module.Code, schema, db);
+
+                var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+                if (pending.Count == 0)
+                {
+                    logger.LogDebug("Схема модуля {Module} в порядке: применять нечего", module.Code);
+                    continue;
+                }
+
+                // Перепись до и после — как у ядра (CORE-29), и по той же причине: миграция,
+                // потерявшая строки, не сообщит об этом ничем. Считается только когда есть что
+                // применять: без ожидающих миграций терять данные нечему, а сумма по схеме — это
+                // запрос по каждой её таблице.
+                var before = await MigrationCensus.ReadSchemaAsync(db, schema.Name, ct);
+
+                await db.Database.MigrateAsync(ct);
+
+                var after = await MigrationCensus.ReadSchemaAsync(db, schema.Name, ct);
+                MigrationCensus.EnsureNothingLost(before, after, schema.Name);
+
+                logger.LogInformation(
+                    "Схема модуля {Module} ({Schema}): применено миграций {Count}; {Census}",
+                    module.Code, schema.Name, pending.Count,
+                    before is null
+                        ? "схемы до этого не было — сверять было нечего"
+                        : "данные на месте: " + (after?.Describe() ?? ""));
             }
-
-            // Перепись до и после — как у ядра (CORE-29), и по той же причине: миграция, потерявшая
-            // строки, не сообщит об этом ничем. Считается только когда есть что применять: без
-            // ожидающих миграций терять данные нечему, а сумма по схеме — это запрос по каждой её
-            // таблице.
-            var before = await MigrationCensus.ReadSchemaAsync(db, schema.Name, ct);
-
-            await db.Database.MigrateAsync(ct);
-
-            var after = await MigrationCensus.ReadSchemaAsync(db, schema.Name, ct);
-            MigrationCensus.EnsureNothingLost(before, after, schema.Name);
-
-            logger.LogInformation(
-                "Схема модуля {Module} ({Schema}): применено миграций {Count}; {Census}",
-                module.Code, schema.Name, pending.Count,
-                before is null
-                    ? "схемы до этого не было — сверять было нечего"
-                    : "данные на месте: " + (after?.Describe() ?? ""));
+            finally
+            {
+                // Созданный фабрикой контекст закрываем мы — его жизнью не управляет контейнер.
+                // Полученный из области не трогаем: его закроет область запроса, а закрытый раньше
+                // времени контекст уронил бы всё, что в этой области идёт после.
+                if (ours) await db.DisposeAsync();
+            }
         }
+    }
+
+    /// <summary>
+    /// Взять контекст модуля из контейнера: сам контекст либо его фабрику
+    /// (<see cref="IDbContextFactory{TContext}" />).
+    ///
+    /// <para>Фабрика поддержана наравне с контекстом нарочно: модулю она нужна там, где области
+    /// запроса нет вовсе — в фоновой работе, — и это обычный приём EF, а не обход правил (найдено
+    /// ревью PR #1107). Оговорка та же, что в <c>ModuleDataDeclaration</c>: помощники EF регистрируют
+    /// рядом и сам контекст, так что без этой ветки отказ доставался бы только модулю, который завёл
+    /// фабрику своими руками.</para>
+    /// </summary>
+    /// <returns>Контекст и признак «создали мы» — такой контекст нам же и закрывать.</returns>
+    /// <remarks>Открыт для прогона: ветку с фабрикой иначе нечем было бы сломать — у настоящих модулей
+    /// сегодня зарегистрирован сам контекст, — а непроверяемая ветка ничего не утверждает.</remarks>
+    public static (ModuleDbContext Context, bool Ours) Resolve(
+        IServiceProvider scoped, string code, ModuleSchema schema)
+    {
+        if (scoped.GetService(schema.ContextType) is ModuleDbContext registered) return (registered, false);
+
+        var factoryType = typeof(IDbContextFactory<>).MakeGenericType(schema.ContextType);
+        if (scoped.GetService(factoryType) is { } factory
+            && factoryType.GetMethod(nameof(IDbContextFactory<DbContext>.CreateDbContext))!
+                .Invoke(factory, null) is ModuleDbContext created)
+            return (created, true);
+
+        throw new InvalidOperationException(
+            $"Модуль «{code}» объявил схему «{schema.Name}» с контекстом " +
+            $"«{schema.ContextType.Name}», но в контейнере нет ни его, ни его фабрики " +
+            $"(IDbContextFactory<{schema.ContextType.Name}>). Мигрировать нечем.");
     }
 
     /// <summary>
@@ -85,9 +121,9 @@ public static class ModuleSchemaMigrator
     ///
     /// <para>Зачем проверять то, что базовый контекст и так задаёт схемой по умолчанию. Умолчание
     /// обходится одной строкой — указанием схемы у таблицы, — и обойти его проще всего случайно:
-    /// копированием настройки из ядра. Таблица модуля в схеме ядра попала бы в резервную копию ядра,
-    /// в его историю миграций не попала бы, и при восстановлении по частям оказалась бы либо дважды,
-    /// либо нигде.</para>
+    /// копированием настройки из ядра. Таблица модуля в схеме ядра стояла бы в чужой истории
+    /// миграций и не попадала бы в свою: обновление ядра встретило бы таблицу, которую не создавало,
+    /// а восстановление по частям оставило бы её либо дважды, либо нигде.</para>
     ///
     /// <para>Внешний ключ сквозь границу схем запрещён отдельно: он связал бы два набора миграций и
     /// две копии в одно целое — а общей транзакции у контекстов нет, то есть порядок восстановления
@@ -127,8 +163,9 @@ public static class ModuleSchemaMigrator
         throw new InvalidOperationException(
             $"Контекст модуля «{code}» вышел из своей схемы «{schema.Name}»: " +
             string.Join("; ", strangers) + ".\n" +
-            "Таблицы модуля обязаны лежать в его схеме: по ней снимается и восстанавливается его " +
-            "часть резервной копии, и по ней же видно в базе, чьи это данные. Внешних ключей сквозь " +
+            "Таблицы модуля обязаны лежать в его схеме: по ней видно в базе, чьи это данные, и по ней " +
+            "будет сниматься его часть резервной копии (задача A2b, issue #1073 — сегодня таблиц " +
+            "модуля в копии нет вовсе). Внешних ключей сквозь " +
             "схемы не бывает — общей транзакции у контекстов нет, и связанные ключом схемы нельзя " +
             "восстановить по отдельности. На объект ядра ссылаются идентификатором, целость " +
             "проверяет код.");

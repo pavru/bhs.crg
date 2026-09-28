@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Updates;
 using BHS.CRG.Application.Updates;
 using BHS.CRG.Infrastructure.Updates;

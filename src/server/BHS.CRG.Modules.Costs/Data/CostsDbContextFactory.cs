@@ -12,22 +12,39 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// разработчика, и на обычной сборке (где включён только <c>id</c>) отвечала бы «контекста нет» —
 /// сообщением, по которому причина не угадывается.</para>
 ///
-/// <para>⚠️ Строка подключения здесь нужна только для выбора провайдера: <c>migrations add</c> к базе
-/// не подключается. Значение из окружения (<c>ConnectionStrings__Postgres</c>), иначе дев-стенд —
-/// порт 5433, как везде в решении. Применяет миграции приложение при старте, а не эта фабрика.</para>
+/// <para>⚠️ Строки подключения здесь НЕТ, и это решение, а не пропуск (ревью PR #1107). Первая
+/// редакция подставляла дев-стенд (порт 5433), если переменная окружения не задана, — и тогда
+/// <c>dotnet ef database update</c> для модуля молча мигрировал ЧУЖУЮ базу: не ту, что настроена у
+/// приложения, а ту, что вписана здесь. Отвечал он при этом успехом. Поэтому базу называет только
+/// окружение: <c>ConnectionStrings__Postgres</c>.</para>
+///
+/// <para>Без переменной генерация миграций работает как обычно — <c>migrations add</c> к базе не
+/// подключается, ему нужен лишь провайдер, — а всё, что базу трогает (<c>database update</c>,
+/// <c>migrations list</c>), отказывает с указанием адреса-заглушки. Отказ здесь дешевле успеха не на
+/// той базе: применяет миграции модуля приложение при старте, и обычно руками этого делать не
+/// нужно.</para>
 ///
 /// <para>Команда — в <c>CLAUDE.md</c> и <c>AGENTS.md</c>: у модуля свой <c>--context</c> и свой
 /// <c>--project</c>, и без них миграция уезжает в набор ядра.</para>
 /// </summary>
 public sealed class CostsDbContextFactory : IDesignTimeDbContextFactory<CostsDbContext>
 {
+    /// <summary>
+    /// Адрес-заглушка: не резолвится ни в одну базу. Виден в тексте отказа, поэтому назван так, чтобы
+    /// прочитавший понял, чего не хватает.
+    /// </summary>
+    internal const string NoConnection =
+        "Host=задайте-ConnectionStrings__Postgres;Database=нет;Timeout=1";
+
     public CostsDbContext CreateDbContext(string[] args)
     {
-        var connection = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
-            ?? "Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Database=bhs_crg";
-
         var options = new DbContextOptionsBuilder<CostsDbContext>();
-        CostsDbContext.Configure(options, connection);
+        CostsDbContext.Configure(
+            options,
+            Environment.GetEnvironmentVariable("ConnectionStrings__Postgres") is { Length: > 0 } fromEnv
+                ? fromEnv
+                : NoConnection);
+
         return new CostsDbContext(options.Options);
     }
 }
