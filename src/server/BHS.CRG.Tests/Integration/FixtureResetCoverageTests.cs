@@ -46,6 +46,22 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         ["RefreshTokens"] = "Identity: сессии, уходят вместе с пользователями",
     };
 
+    /// <summary>
+    /// Как сброс фикстуры покрывает КАЖДЫЙ контекст базы решения (задача A2b этапа 2, issue #1073).
+    ///
+    /// <para>Списки выше — про таблицы ЯДРА: их читает модель <c>AppDbContext</c>. Контекст модуля
+    /// они не видят вовсе, поэтому его таблицы не чистились бы между классами тестов, а проявилось бы
+    /// это падением ЧУЖОГО теста со второго прогона — способом, ради которого весь этот файл и
+    /// написан. Требует записи на каждый контекст мета-сторож
+    /// <c>ModuleDbContextInventoryTests</c>.</para>
+    /// </summary>
+    internal static readonly Dictionary<string, string> ContextCoverage = new()
+    {
+        [nameof(AppDbContext)] = "по таблицам: TruncatedTables либо DeliberatelyKept в этом файле",
+        [nameof(BHS.CRG.Modules.Costs.Data.CostsDbContext)] =
+            "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
+    };
+
     [Fact]
     public void EveryTable_IsEitherTruncated_OrExplicitlyKept()
     {

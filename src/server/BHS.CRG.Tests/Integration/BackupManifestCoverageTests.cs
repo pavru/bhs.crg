@@ -14,7 +14,6 @@ using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -107,6 +106,22 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["IdentityUserLogin"] = "Identity",
         ["IdentityUserToken"] = "Identity",
         ["IdentityRoleClaim"] = "Identity",
+    };
+
+    /// <summary>
+    /// Как копия покрывает КАЖДЫЙ контекст базы решения (задача A2b этапа 2, issue #1073).
+    ///
+    /// <para>Уровнем выше карты сущностей: та перечисляет таблицы ЯДРА, а контекстов в решении больше
+    /// одного. Контекст, заведённый третьим, не попал бы ни в один из списков этого файла — их читает
+    /// модель <c>AppDbContext</c>, — и его таблицы выпали бы из копии при зелёном CI. Требует записи
+    /// на каждый контекст мета-сторож <c>ModuleDbContextInventoryTests</c>.</para>
+    /// </summary>
+    internal static readonly Dictionary<string, string> ContextCoverage = new()
+    {
+        [nameof(AppDbContext)] =
+            "посущностно: карта CoveredByManifest плюс список DeliberatelyExcluded в этом файле",
+        [nameof(BHS.CRG.Modules.Costs.Data.CostsDbContext)] =
+            "схема целиком, секцией ModuleData манифеста — состав спрашивается у контекста модуля",
     };
 
     /// <summary>
@@ -222,11 +237,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         BackupManifest manifest;
         using (var scope = fixture.Services.CreateScope())
         {
-            var (zipStream, _) = await new BackupService(
-                scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-                scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-                NullLogger<BackupService>.Instance,
-                scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>()).ExportAsync(BackupScope.Full);
+            var (zipStream, _) = await scope.ServiceProvider
+                .GetRequiredService<BackupService>().ExportAsync(BackupScope.Full);
 
             await using var _zipHandle = zipStream;
             using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);

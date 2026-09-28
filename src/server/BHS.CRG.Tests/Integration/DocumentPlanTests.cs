@@ -12,7 +12,6 @@ using MediatR;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -333,11 +332,7 @@ public class DocumentPlanTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(3, row.PlannedCount);   // вернулось значение из копии, а не осталось правленое
     }
 
-    private static BackupService BackupOf(IServiceScope scope) => new(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-        NullLogger<BackupService>.Instance,
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
+    private static BackupService BackupOf(IServiceScope scope) => scope.ServiceProvider.GetRequiredService<BackupService>();
 
     /// <summary>Комплект удалён — его план уходит с ним: строки без носителя не оставляем.</summary>
     [Fact]

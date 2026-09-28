@@ -5,7 +5,6 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -30,11 +29,7 @@ public partial class BackupServiceTests(IntegrationTestFixture fixture) : IAsync
     private const string AssetBlobPath = "assets/logo.png";
     private static readonly byte[] AssetBytes = [1, 2, 3, 4, 5];
 
-    private BackupService Backup(IServiceScope scope) => new(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-        NullLogger<BackupService>.Instance,
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
+    private static BackupService Backup(IServiceScope scope) => scope.ServiceProvider.GetRequiredService<BackupService>();
 
     /// <summary>Манифест с одними нужными секциями — остальные пустые.</summary>
     private static BackupManifest ManifestWith(

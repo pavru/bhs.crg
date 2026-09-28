@@ -8,7 +8,6 @@ using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -31,11 +30,7 @@ public class BackupWorkPlanTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private BackupService Backup(IServiceScope scope) => new(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-        NullLogger<BackupService>.Instance,
-        scope.ServiceProvider.GetRequiredService<Application.Activity.IActivityLog>());
+    private static BackupService Backup(IServiceScope scope) => scope.ServiceProvider.GetRequiredService<BackupService>();
 
     [Fact]
     public async Task Перечень_переживает_выгрузку_и_восстановление()

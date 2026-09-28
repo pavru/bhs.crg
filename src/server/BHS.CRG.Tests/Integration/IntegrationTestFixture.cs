@@ -1,6 +1,8 @@
 ﻿using BHS.CRG.Application.Common;
+using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Jobs;
+using BHS.CRG.Modules;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.AspNetCore.Builder;
@@ -235,9 +237,54 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
             + " RESTART IDENTITY CASCADE");
 #pragma warning restore EF1003
 
+        await ResetModuleSchemasAsync(scope);
+
         // Настройки интеграций живут ещё и в памяти. Без сброса кеша очистка таблицы даёт ложное
         // чувство изоляции: строки нет, а следующий класс продолжает видеть чужую почту и ключи.
         scope.ServiceProvider.GetRequiredService<IIntegrationSettings>().Invalidate();
+    }
+
+    /// <summary>
+    /// Схемы включённых модулей — по модели их контекстов (задача A2b этапа 2, issue #1073).
+    ///
+    /// <para>Список таблиц здесь НЕ ведётся, в отличие от <see cref="TruncatedTables" />, и это не
+    /// поблажка: ядро не знает состава схемы модуля и узнать его может только у контекста. Список
+    /// пришлось бы править каждой миграцией модуля, а забытая строка выглядела бы как плавающий тест
+    /// — тот самый случай, от которого <see cref="FixtureResetCoverageTests" /> и защищает. Решение
+    /// «этот контекст чистится целиком» записано там же, где решения по таблицам ядра: в карте
+    /// <c>FixtureResetCoverageTests.ContextCoverage</c>, и мета-сторож
+    /// (<c>ModuleDbContextInventoryTests</c>) требует записи на КАЖДЫЙ контекст.</para>
+    ///
+    /// <para>Сегодня у модуля <c>costs</c> таблиц нет, и вызов ничего не делает. Это и есть причина
+    /// завести его сейчас: с первой таблицей счетов (C1, #1076) забытая очистка проявилась бы
+    /// падением ЧУЖОГО теста со второго прогона — способом, при котором ищут не там.</para>
+    /// </summary>
+    internal static async Task ResetModuleSchemasAsync(IServiceScope scope)
+    {
+        var registry = scope.ServiceProvider.GetRequiredService<ModuleRegistry>();
+
+        foreach (var module in registry.Enabled)
+        {
+            if (module.Schema is not { } schema) continue;
+
+            var (db, ours) = ModuleSchemaMigrator.Resolve(scope.ServiceProvider, module.Code, schema);
+            try
+            {
+                var tables = db.Model.GetRelationalModel().Tables
+                    .Select(t => $"\"{t.Schema}\".\"{t.Name}\"")
+                    .ToList();
+                if (tables.Count == 0) continue;
+
+#pragma warning disable EF1003 // склеиваются имена таблиц из модели, а не значения: см. выше
+                await db.Database.ExecuteSqlRawAsync(
+                    "TRUNCATE TABLE " + string.Join(", ", tables) + " RESTART IDENTITY CASCADE");
+#pragma warning restore EF1003
+            }
+            finally
+            {
+                if (ours) await db.DisposeAsync();
+            }
+        }
     }
 }
 
