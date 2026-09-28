@@ -12,11 +12,18 @@ import { registerErrorText, autoLoginFailedText } from '@/shared/auth/identityEr
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 
-/** Фоновая сетка бренд-панели (по макету 2a) — тонкие белые линии 34×34. */
+/**
+ * Фоновая сетка бренд-панели (по макету 2a) — тонкие линии 34×34.
+ *
+ * <p>Цвет линий — `on-brand` с малой прозрачностью, а не прибитый белый (issue #1065): в тёмной
+ * теме бренд СВЕТЛЫЙ (`--f-brand` = светло-голубой, `--f-brand-text` — тёмно-синий), и белые линии
+ * на нём исчезали вместе с белым текстом панели.</p>
+ */
+const GRID_LINE = 'color-mix(in srgb, var(--color-on-brand) 8%, transparent)';
 const GRID_BG: React.CSSProperties = {
   backgroundImage:
-    'linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),' +
-    'linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px)',
+    `linear-gradient(${GRID_LINE} 1px,transparent 1px),` +
+    `linear-gradient(90deg,${GRID_LINE} 1px,transparent 1px)`,
   backgroundSize: '34px 34px',
 };
 
@@ -50,7 +57,7 @@ export function LoginPage() {
       >
         {/* ── Бренд-панель (слева, только на широких экранах) ───────────────── */}
         <div
-          className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-brand text-white"
+          className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-brand text-on-brand"
           style={GRID_BG}
         >
           {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
@@ -60,11 +67,11 @@ export function LoginPage() {
           </div>
           <div>
             <div className="text-[32px] font-normal leading-tight">Исполнительная документация</div>
-            <p className="mt-4 text-[15px] leading-relaxed text-white/70 max-w-[300px]">
+            <p className="mt-4 text-[15px] leading-relaxed text-on-brand/70 max-w-[300px]">
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>
           </div>
-          <div className="text-xs tracking-wide text-white/55"
+          <div className="text-xs tracking-wide text-on-brand/55"
             title={version?.buildDate ? new Date(version.buildDate).toLocaleString('ru-RU') : undefined}>
             {versionLabel || ' '}
           </div>
@@ -74,7 +81,7 @@ export function LoginPage() {
         <div className="flex-1 flex flex-col justify-center p-8 md:px-12 md:py-14">
           {/* Компактный бренд для узких экранов (панель скрыта) */}
           <div className="flex md:hidden items-center gap-3 mb-6">
-            <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-white"
+            <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-on-brand"
               style={{ boxShadow: 'var(--f-shadow4)' }} iconSize={22} />
             <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
           </div>

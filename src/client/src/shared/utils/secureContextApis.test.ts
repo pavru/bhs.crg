@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { offendingLines } from '@/shared/testing/clientSources';
 
 /**
  * Сторож против возврата дефекта #848: прямых обращений к API, которых нет вне ЗАЩИЩЁННОГО
@@ -12,14 +13,13 @@ import { describe, it, expect } from 'vitest';
  * Ищем ТЕКСТОМ, а не разбором синтаксиса, намеренно: так ловятся и `crypto['randomUUID']()`, и
  * `const { randomUUID } = crypto` — оба мимо селектора линтера (проверено).
  *
- * Исходники берём через import.meta.glob, а не через node:fs: клиентский проект собирается без
- * типов Node, и `tsc -b` — то есть сборка — на таком импорте встаёт.
+ * Исходники берём общим охватом (`clientSources`), а не своим `import.meta.glob`: копий этого
+ * глоба стало четыре, и они разошлись — два сторожа видели только `.tsx`, и по их коду догадаться
+ * об этом было нельзя (ревью PR #1067).
  *
  * `crypto.subtle` внесён авансом: сегодня он не используется, но ограничен тем же контекстом, и
  * первый же вызов повторил бы историю — падение только у тех, кто без HTTPS.
  */
-
-const sources = import.meta.glob('../../**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /** Где обращение уместно: сама утилита-обёртка, её тест и этот сторож. */
 const ALLOWED = [/(^|\/)localId\.ts$/, /(^|\/)localId\.test\.ts$/, /secureContextApis\.test\.ts$/];
@@ -29,32 +29,22 @@ const FORBIDDEN: { needle: RegExp; hint: string }[] = [
   { needle: /crypto\s*\??\.\s*subtle/, hint: 'crypto.subtle недоступен по HTTP — решайте задачу на сервере' },
 ];
 
+const isForbidden = (line: string) => FORBIDDEN.some(({ needle }) => needle.test(line));
+
 describe('API защищённого контекста', () => {
   it('вызываются только через обёртку, которая умеет работать по HTTP', () => {
-    const offenders: string[] = [];
-
-    for (const [file, code] of Object.entries(sources)) {
-      if (ALLOWED.some(re => re.test(file))) continue;
-
-      code.split('\n').forEach((line, i) => {
-        for (const { needle, hint } of FORBIDDEN) {
-          if (needle.test(line)) offenders.push(`${file}:${i + 1} — ${line.trim().slice(0, 70)} → ${hint}`);
-        }
-      });
-    }
+    const offenders = offendingLines(isForbidden, ALLOWED);
+    const hints = FORBIDDEN.map(f => f.hint).join('; ');
 
     expect(offenders, offenders.length
-      ? `Эти вызовы упадут на установке по HTTP (issue #848):\n${offenders.join('\n')}`
+      ? ['Эти вызовы упадут на установке по HTTP (issue #848) — ' + hints, ...offenders].join('\n')
       : '').toEqual([]);
   });
 
   it('сам сторож видит нарушение, а не просто молчит', () => {
     // Проверяем не догадкой, а на выдуманном файле: тест, который «зелёный всегда», хуже
     // отсутствующего — он ещё и создаёт уверенность.
-    const fake = { 'src/features/Fake.tsx': 'const id = crypto.randomUUID();' };
-    const found = Object.entries(fake).flatMap(([f, code]) =>
-      FORBIDDEN.filter(({ needle }) => needle.test(code)).map(({ hint }) => `${f} → ${hint}`));
-
-    expect(found).toHaveLength(1);
+    const fake = { '/src/features/Fake.tsx': 'const id = crypto.randomUUID();' };
+    expect(offendingLines(isForbidden, [], fake)).toHaveLength(1);
   });
 });
