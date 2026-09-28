@@ -1,5 +1,6 @@
 using BHS.CRG.Application.DataSets;
 using System.Text.Json;
+using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Jobs;
@@ -122,6 +123,21 @@ public class JobBackgroundService(
                         await emailSvc.SendDocumentAsync(targetId, to, subj, body, userId, ct);
                     else
                         await emailSvc.SendSetAsync(targetId, to, subj, body, userId, ct);
+                    break;
+
+                case JobKind.ModuleWork:
+                    // Работу модуля выполняет его обработчик, а связывает их корень композиции
+                    // (задача M2 этапа 2, issue #1069): сослаться на контракты модулей отсюда нельзя
+                    // — модулем считается любой проект, сославшийся на них.
+                    //
+                    // Отсутствие службы — отказ с названной причиной, а не «сделано»: приложение
+                    // без модулей о таких задачах не знает, и задача, снятая с очереди и никем не
+                    // выполненная, выглядела бы успешной.
+                    await (scope.ServiceProvider.GetService<IModuleWorkRunner>()
+                            ?? throw new InvalidOperationException(
+                                "Задача принадлежит модулю, а выполнять работы модулей это приложение " +
+                                "не умеет: IModuleWorkRunner не зарегистрирована."))
+                        .RunAsync(jobId, targetId, userId, payload, report, ct);
                     break;
 
                 default:
