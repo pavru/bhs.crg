@@ -1,3 +1,7 @@
+using System.IO.Compression;
+using System.Text.Json;
+using BHS.CRG.Application.Backup;
+using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs.Data;
@@ -67,45 +71,44 @@ public class ModuleSchemaTests(ModuleSchemaHost host) : IClassFixture<ModuleSche
     }
 
     /// <summary>
-    /// Пока резервная копия не видит схем модулей, таблиц в них быть не может (храповик до задачи A2b,
-    /// issue #1073; найдено ревью PR #1107).
+    /// Схема модуля названа в резервной копии, снятой ЖИВЫМ хостом (задача A2b, issue #1073).
     ///
-    /// <para>Копия сущностная и построена на контексте ЯДРА, а сторож против дрейфа
-    /// (<see cref="BackupManifestCoverageTests" />) читает модель того же контекста. Модель контекста
-    /// модуля он не видит вовсе — значит первая таблица счетов (C1, issue #1076) оказалась бы вне
-    /// ЛЮБОЙ копии, и CI остался бы зелёным: сторож молчал бы ровно про ту поломку, ради которой
-    /// написан.</para>
+    /// <para>На месте храповика, который стоял здесь до A2b. Тот требовал обратного — чтобы таблиц у
+    /// контекста модуля не было вовсе, — потому что копия их не видела: она сущностная, построена на
+    /// контексте ядра, и сторож против дрейфа (<see cref="BackupManifestCoverageTests" />) читает
+    /// модель того же контекста. Первая таблица счетов (C1, issue #1076) оказалась бы вне ЛЮБОЙ копии
+    /// при зелёном CI. Теперь копия схемы модулей видит, и храповик снят не молча, а заменён на
+    /// проверку того, что он охранял.</para>
     ///
-    /// <para>Этот тест — дверь, закрытая до времени. Он падает в тот день, когда у контекста модуля
-    /// появляется первая таблица, и требует решения: либо сначала A2b (схема модуля входит в копию и
-    /// покрытия видят оба контекста), либо осознанная запись здесь о том, почему эта таблица в копии
-    /// не нужна. Снять его молча нельзя — в этом и смысл.</para>
+    /// <para>Состав сверяется с МОДЕЛЬЮ контекста, а не с числом: сегодня таблиц ноль, и равенство
+    /// «ноль = ноль» ничего не стоит. С первой таблицей то же равенство начнёт требовать, чтобы она в
+    /// копию попала. Круг «снял — восстановил» на настоящих строках проверяет
+    /// <see cref="ModuleDataBackupTests" /> — на поддельном модуле, потому что у <c>costs</c> строк
+    /// пока нет.</para>
     /// </summary>
     [Fact]
-    public void Пока_копия_не_видит_схем_модулей_таблиц_в_них_нет()
+    public async Task Схема_модуля_названа_в_резервной_копии()
     {
         using var scope = host.Services.CreateScope();
-        var registry = scope.ServiceProvider.GetRequiredService<ModuleRegistry>();
 
-        var tables = new List<string>();
-        foreach (var module in registry.Enabled)
-        {
-            if (module.Schema is not { } schema) continue;
-            if (scope.ServiceProvider.GetService(schema.ContextType) is not ModuleDbContext db) continue;
+        var (zip, _) = await scope.ServiceProvider.GetRequiredService<BackupService>()
+            .ExportAsync(BackupScope.Full);
+        await using var handle = zip;
+        using var archive = new ZipArchive(zip, ZipArchiveMode.Read);
+        await using var entry = archive.GetEntry("manifest.json")!.Open();
+        var manifest = (await JsonSerializer.DeserializeAsync<BackupManifest>(entry))!;
 
-            tables.AddRange(db.Model.GetEntityTypes()
-                .Where(e => e.GetTableName() is not null)
-                .Select(e => $"{module.Code}: {e.GetSchema() ?? schema.Name}.{e.GetTableName()}"));
-        }
+        Assert.True(manifest.ModuleData is { Length: 1 },
+            "Копия не назвала схему включённого модуля: его данные не попали бы ни в одну копию.");
+        var section = manifest.ModuleData![0];
+        Assert.Equal("costs", section.Module);
+        Assert.Equal(CostsDbContext.SchemaName, section.Schema);
 
-        Assert.True(tables.Count == 0,
-            "У контекста модуля появились таблицы: " + string.Join(", ", tables) + ".\n" +
-            "Резервная копия их не видит: она сущностная и построена на контексте ядра, а " +
-            "BackupManifestCoverageTests читает модель того же контекста — то есть эти данные не " +
-            "попадут ни в одну копию, и ни один сторож об этом не скажет.\n" +
-            "Сделайте сначала A2b (issue #1073): схема модуля входит в копию, покрытия копии и сброса " +
-            "фикстур видят каждый зарегистрированный контекст. Либо запишите здесь, почему именно эта " +
-            "таблица в копии не нужна.");
+        var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+        Assert.Equal(
+            db.Model.GetRelationalModel().Tables.Count(
+                t => t.Schema == CostsDbContext.SchemaName),
+            section.Tables.Length);
     }
 
     /// <summary>

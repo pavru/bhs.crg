@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Data.Common;
 using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
@@ -6,12 +7,13 @@ using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Backup;
 
 public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger,
-    BHS.CRG.Application.Activity.IActivityLog journal)
+    BHS.CRG.Application.Activity.IActivityLog journal, IModuleSchemaBackup modules)
 {
     // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
     // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.
@@ -169,9 +171,16 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             new("Связки с материалами", manifest.MaterialQualityLinks?.Length ?? 0),
         ];
 
+        // Схемы модулей (issue #1073): состав перечисляется НАЙДЕННЫМ, таблица за таблицей. Имён
+        // таблиц модуля ядро не знает и знать не должно — поэтому строки паспорта строятся из
+        // самой копии, а не из списка выше.
+        BackupSectionCount[] moduleSections = [.. (manifest.ModuleData ?? [])
+            .SelectMany(m => m.Tables.Select(t =>
+                new BackupSectionCount($"Модуль «{m.Module}»: {t.Table}", t.Rows.Length)))];
+
         return new BackupSummary(
             manifest.SchemaVersion, manifest.AppVersion, manifest.CreatedAt,
-            blobCount, sections.Where(s => s.Count > 0).ToArray(),
+            blobCount, sections.Concat(moduleSections).Where(s => s.Count > 0).ToArray(),
             manifest.IncludesProjectData == true,
             warnings.Count > 0 ? warnings.ToArray() : null);
     }
@@ -258,12 +267,42 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
     private async Task<BackupManifest> BuildManifestAsync(
         BackupScope scope, List<string> warnings, CancellationToken ct)
     {
-        if (db.Database.CurrentTransaction is not null || !db.Database.IsRelational())
-            return await ReadManifestAsync(scope, warnings, ct);
+        // Нереляционный провайдер (прогоны на памяти): ни транзакции, ни схем модулей там нет.
+        if (!db.Database.IsRelational()) return await ReadManifestAsync(scope, warnings, ct);
+
+        // Транзакция вызывающего: снимок уже открыт кем-то снаружи, и открывать второй нельзя —
+        // но схемы модулей читаются в ЕЙ, а не мимо. Первая редакция здесь просто выходила раньше
+        // времени, и копия, снятая внутри чужой транзакции, молча теряла бы данные модулей.
+        if (db.Database.CurrentTransaction is { } outer)
+            return await WithModuleDataAsync(scope, warnings, outer.GetDbTransaction(), ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-        var manifest = await ReadManifestAsync(scope, warnings, ct);
+        var manifest = await WithModuleDataAsync(scope, warnings, tx.GetDbTransaction(), ct);
         await tx.CommitAsync(ct);
         return manifest;
+    }
+
+    /// <summary>
+    /// Схемы модулей — в ТОЙ ЖЕ транзакции, что и таблицы ядра (issue #1073).
+    ///
+    /// <para>Это и есть причина, по которой у копии есть названное исключение из правила «нет общей
+    /// транзакции ядро↔модуль»: прочитай мы схему модуля отдельным соединением, между двумя
+    /// чтениями уместилась бы чужая запись — и в копии оказался бы счёт, ссылающийся на объект,
+    /// которого в той же копии нет. Обнаружилось бы это при восстановлении, то есть после аварии.
+    /// Подробности — в <see cref="IModuleSchemaBackup" />.</para>
+    ///
+    /// <para><b>Только в полной копии.</b> Модуль — про проектную работу (счета и накладные идут за
+    /// стройкой), а конфигурационная копия остаётся ровно тем, чем была, и весит столько же.
+    /// Различить внутри схемы модуля «настройку» и «проектное» копия не может: состав таблиц она
+    /// спрашивает у базы, а не знает. Если у модуля появятся СВОИ настройки, которые нужны и в
+    /// конфигурационной копии, разделять их придётся объявлением модуля — не догадкой копии.</para>
+    /// </summary>
+    private async Task<BackupManifest> WithModuleDataAsync(
+        BackupScope scope, List<string> warnings, DbTransaction tx, CancellationToken ct)
+    {
+        var manifest = await ReadManifestAsync(scope, warnings, ct);
+        return scope == BackupScope.Full
+            ? manifest with { ModuleData = await modules.ReadAsync(tx, ct) }
+            : manifest;
     }
 }

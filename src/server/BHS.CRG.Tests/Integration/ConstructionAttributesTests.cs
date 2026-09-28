@@ -11,7 +11,6 @@ using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -150,11 +149,7 @@ public class ConstructionAttributesTests(IntegrationTestFixture fixture)
         // Копия снимается службой, а не адресом: снятие через каталог файлов ничего не добавило бы
         // проверке, а круговой рейс здесь — про содержимое манифеста.
         using var exportScope = fixture.Services.CreateScope();
-        var service = new BackupService(
-            exportScope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            exportScope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-            NullLogger<BackupService>.Instance,
-            exportScope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
+        var service = exportScope.ServiceProvider.GetRequiredService<BackupService>();
         var (archive, _) = await service.ExportAsync(BackupScope.Full);
 
         await fixture.ResetDatabaseAsync();
@@ -167,11 +162,7 @@ public class ConstructionAttributesTests(IntegrationTestFixture fixture)
         archive.Position = 0;
         using (var importScope = fixture.Services.CreateScope())
         {
-            var importer = new BackupService(
-                importScope.ServiceProvider.GetRequiredService<AppDbContext>(),
-                importScope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-                NullLogger<BackupService>.Instance,
-                importScope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
+            var importer = importScope.ServiceProvider.GetRequiredService<BackupService>();
             var report = await importer.ImportAsync(archive);
             Assert.True(report.Success);
         }

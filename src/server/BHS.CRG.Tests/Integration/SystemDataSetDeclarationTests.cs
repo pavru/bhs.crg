@@ -257,10 +257,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         // В резервную копию строки не едут тем же следствием: копия выгружает CachedData источников
         // (иначе восстановленный файловый источник приехал бы пустым), и пустой кеш — единственная
         // причина, по которой строк опубликованного набора там не окажется.
-        var (zip, _) = await new BackupService(
-            db, scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-            NullLogger<BackupService>.Instance,
-            scope.ServiceProvider.GetRequiredService<Application.Activity.IActivityLog>())
+        var (zip, _) = await scope.ServiceProvider.GetRequiredService<BackupService>()
             .ExportAsync(BackupScope.Full);
         await using var _handle = zip;
         using var ms = new MemoryStream();

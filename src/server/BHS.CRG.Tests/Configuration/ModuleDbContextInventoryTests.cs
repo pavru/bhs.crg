@@ -114,6 +114,51 @@ public class ModuleDbContextInventoryTests
         Assert.True(problems.Count == 0, string.Join("\n  ", problems));
     }
 
+    /// <summary>
+    /// Каждый контекст назван в покрытии РЕЗЕРВНОЙ КОПИИ — и ни одного лишнего имени (задача A2b
+    /// этапа 2, issue #1073).
+    ///
+    /// <para>Тот же мета-сторож, что и следующий, и заведены они парой по одной причине: оба покрытия
+    /// читают модель <c>AppDbContext</c> и о втором контексте не знают вовсе. То есть таблицы модуля
+    /// выпали бы и из копии, и из очистки фикстур, а оба покрытия остались бы ЗЕЛЁНЫМИ — молчали бы
+    /// ровно про ту поломку, ради которой написаны. Обратная сторона (имя без контекста) — след
+    /// переименования: запись-решение осталась бы в файле, не действуя ни на что.</para>
+    /// </summary>
+    [Fact]
+    public void Every_context_is_named_in_the_backup_coverage() => AssertCoverage(
+        Integration.BackupManifestCoverageTests.ContextCoverage,
+        "покрытии резервной копии (BackupManifestCoverageTests.ContextCoverage)",
+        "иначе таблицы этого контекста не попадут ни в одну копию, и ни один сторож об этом не скажет");
+
+    /// <summary>
+    /// Каждый контекст назван в покрытии СБРОСА ФИКСТУР — и ни одного лишнего имени.
+    ///
+    /// <para>Пропуск здесь не виден никак: он проявляется падением ЧУЖОГО теста со второго прогона —
+    /// данные предыдущего класса достаются следующему, — и правят при этом упавший тест.</para>
+    /// </summary>
+    [Fact]
+    public void Every_context_is_named_in_the_fixture_reset_coverage() => AssertCoverage(
+        Integration.FixtureResetCoverageTests.ContextCoverage,
+        "покрытии сброса фикстур (FixtureResetCoverageTests.ContextCoverage)",
+        "иначе его таблицы не чистятся между классами тестов, и упадёт не этот тест, а следующий");
+
+    private static void AssertCoverage(
+        Dictionary<string, string> coverage, string where, string consequence)
+    {
+        var contexts = Contexts().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+
+        var missing = contexts.Where(n => !coverage.ContainsKey(n))
+            .Order(StringComparer.Ordinal).ToList();
+        Assert.True(missing.Count == 0,
+            $"Контекст базы не назван в {where}: " + string.Join(", ", missing) + ".\n" +
+            "Впишите его с причиной — " + consequence + ".");
+
+        var stale = coverage.Keys.Where(n => !contexts.Contains(n))
+            .Order(StringComparer.Ordinal).ToList();
+        Assert.True(stale.Count == 0,
+            $"В {where} названы контексты, которых в решении больше нет: " + string.Join(", ", stale));
+    }
+
     private static IEnumerable<Type> Contexts() => Production
         .SelectMany(a => a.GetTypes())
         .Where(t => t is { IsAbstract: false, IsClass: true } && typeof(DbContext).IsAssignableFrom(t));

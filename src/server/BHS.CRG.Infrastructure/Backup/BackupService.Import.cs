@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BHS.CRG.Infrastructure.Backup;
 
@@ -95,7 +96,8 @@ public partial class BackupService
             // Перечень работ — ПОСЛЕ общих данных: позиция ссылается на запись классификатора
             // и на единицу измерения, а это объекты общего типа. До них перечень уехал бы
             // в сироты целиком, с предупреждением «нет вида работы или единицы».
-            await RestoreWorkPlanItemsAsync(manifest.WorkPlanItems ?? [], stats, warnings, ct);
+            await RestoreWorkPlanItemsAsync(
+                manifest.WorkPlanItems ?? [], manifest.ModuleData is { Length: > 0 }, stats, warnings, ct);
             // Документы комплектов — после типов (тип документа) и после комплектов (носитель).
             await RestoreDocumentsAsync(manifest.Documents ?? [], stats, warnings, ct);
             // После типов документов: шаблон маппинга висит на типе и без него бессмыслен.
@@ -119,6 +121,19 @@ public partial class BackupService
             await RestoreMaterialQualityLinksAsync(manifest.MaterialQualityLinks ?? [], stats, warnings, ct);
             await RestoreAppSettingsAsync(manifest.AppSettings ?? [], stats, warnings, ct);
             await RestoreActivityLogAsync(manifest.ActivityLog ?? [], stats, ct);
+            // Схемы модулей — ПОСЛЕДНИМИ и в ЭТОЙ ЖЕ транзакции (issue #1073). Последними потому,
+            // что строка модуля адресует объект ядра идентификатором: до объектов ей ссылаться не на
+            // что. В той же транзакции потому, что отказ на данных модуля обязан откатить
+            // восстановление целиком — иначе у заказчика остаётся ядро из копии и счета прежние, а
+            // отличить это от исправного восстановления нечем (см. IModuleSchemaBackup).
+            //
+            // null — копия снята версией до A2b, схем модулей она не знала; пустой массив — знала, а
+            // модулей со схемой на том экземпляре не было. Обе не требуют ничего, но различать их
+            // нужно: первое молчит, второе означает «данных модуля в копии нет» осознанно.
+            if (manifest.ModuleData is { } moduleData)
+                foreach (var section in await modules.RestoreAsync(
+                             moduleData, tx.GetDbTransaction(), warnings, ct))
+                    stats.Count(section.Label, section.Created, section.Updated);
             await tx.CommitAsync(ct);
 
             return new RestoreReport(true, conversionNotice, warnings,
