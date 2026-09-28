@@ -154,6 +154,50 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Единственное исключение инвентаризации — отказы выключенных модулей — проверяется по существу:
+    /// помеченный адрес обязан принадлежать ВЫКЛЮЧЕННОМУ модулю, лежать под его объявленным путём и
+    /// быть анонимным.
+    ///
+    /// Иначе исключение стало бы дырой в сторожe: пометка на обычном адресе выносила бы его из
+    /// инвентаризации молча — ровно та поломка, против которой инвентаризация и написана.
+    ///
+    /// ⚠️ Сегодня проверка идёт на живых данных: в сборке есть выключенный модуль (`costs` включается
+    /// только настройкой поставки). Станет их ноль — проверять исключение будет не на чем, и это
+    /// повод перенести её туда, где выключенный модуль есть, а не считать её зелёной.
+    /// </summary>
+    [Fact]
+    public void Refusal_endpoints_are_refusals_of_disabled_modules()
+    {
+        _ = fixture.CreateClient();
+        var registry = fixture.Services.GetRequiredService<ModuleRegistry>();
+        var disabled = registry.Disabled.ToDictionary(m => m.Code, m => m.RoutePrefixes);
+
+        var marked = fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Select(e => (Endpoint: e, Mark: e.Metadata.GetMetadata<DisabledModuleEndpoint>()))
+            .Where(x => x.Mark is not null)
+            .ToList();
+
+        var offenders = new List<string>();
+        foreach (var (endpoint, mark) in marked)
+        {
+            var route = Route(endpoint);
+
+            if (!disabled.TryGetValue(mark!.Code, out var prefixes))
+                offenders.Add($"{route} — помечен отказом модуля «{mark.Code}», а тот не выключен");
+            else if (!prefixes.Any(prefix => Matches(route, prefix)))
+                offenders.Add($"{route} — вне объявленных путей модуля «{mark.Code}»");
+
+            if (endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Count > 0)
+                offenders.Add($"{route} — помечен отказом, но требует авторизации");
+        }
+
+        Assert.True(offenders.Count == 0,
+            "Пометка отказа стоит там, где её быть не должно — такой адрес выпал бы из " +
+            "инвентаризации молча:\n  " + string.Join("\n  ", offenders));
+    }
+
+    /// <summary>
     /// Объявленные права, которые пока не открывают ни одного адреса. Зеркало корзины долга: там
     /// адрес без права, здесь право без адреса.
     ///
@@ -235,10 +279,24 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Адреса живого приложения — кроме отказов выключенных модулей.
+    ///
+    /// ⚠️ Единственное исключение по СУЩЕСТВУ, а не по списку путей, и вот почему. За отказом нет ни
+    /// данных, ни служб: он отвечает 501 «модуль не подключён» и анонимен намеренно (ТЗ OVW-10,
+    /// AUTH-15, AUTH-19), а сторож у него свой — <see cref="Configuration.DisabledModuleTests" />,
+    /// который проверяет и код, и текст, и то, что адрес ядра под тем же префиксом продолжает
+    /// работать. Записью в корзине «публичных» это выразить нельзя: корзины ключуются путями, то есть
+    /// строку «/api/costs» пришлось бы завести при появлении модуля (её забудут) и убрать при его
+    /// включении — у включённого модуля этих адресов нет вовсе, и запись, оставшись, стала бы ложной,
+    /// а тест на устаревшие записи покраснел бы с объяснением, уводящим в сторону.
+    /// </summary>
     private IEnumerable<RouteEndpoint> Routes()
     {
         _ = fixture.CreateClient();
-        return fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>();
+        return fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<DisabledModuleEndpoint>() is null);
     }
 
     private static string Route(RouteEndpoint endpoint) =>

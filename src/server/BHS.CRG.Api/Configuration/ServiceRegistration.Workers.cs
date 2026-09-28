@@ -4,6 +4,7 @@ using BHS.CRG.Application.Updates;
 using BHS.CRG.Infrastructure.Updates;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.QualityDocs;
@@ -169,7 +170,11 @@ internal static class WorkerRegistration
     // Единственное место, где ядро знает имена модулей, — и это намеренно корень композиции, а не
     // сканер сборок рядом с приложением: набор модулей на экземпляре обязан быть решением поставки
     // (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
-    builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new IdModule());
+    // ⚠️ Порядок перечисления — порядок ВКЛЮЧЕНИЯ не задаёт: его задаёт Modules__Enabled.
+    // Здесь перечислено то, что ЕСТЬ в сборке; `costs` на экземпляре выключен, пока его не
+    // назвали, и отвечает отказом с названной причиной (задача A1, issue #1068).
+    builder.Services.AddAppModules(
+        builder.Configuration, CorePermissions.All, new IdModule(), new CostsModule());
     // Реестр функциональных тэгов: ядро + тэги ВКЛЮЧЁННЫХ модулей (ТЗ TYPE-22, issue #959). Сразу за
     // регистрацией модулей — он собирается из их объявлений.
     builder.Services.AddTagCatalog();

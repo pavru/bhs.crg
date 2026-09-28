@@ -95,14 +95,14 @@ public static class SystemRoles
             [
                 "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.edit", "costs.waybill.read", "costs.waybill.edit",
-                "costs.allocate", "costs.request.read", "costs.request.edit", "plan.estimate.materials",
+                "costs.allocation.edit", "costs.request.read", "costs.request.edit", "plan.estimate.materials",
             ]),
 
         new("Accountant", "Бухгалтер",
             "Отметка оплаты, реестр счетов, отчёты по затратам",
             [
                 "core.employees.read", "core.period.close", CorePermissions.FilesUse, .. ReferenceReads,
-                "costs.invoice.read", "costs.invoice.pay", "costs.report", "costs.articles.edit",
+                "costs.invoice.read", "costs.invoice.pay", "costs.report.read", "costs.articles.edit",
             ]),
 
         new("WorksManager", "Производитель работ",
