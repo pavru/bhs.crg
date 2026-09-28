@@ -1,4 +1,5 @@
 ﻿using BHS.CRG.Modules;
+using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -172,11 +173,19 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         var registry = fixture.Services.GetRequiredService<ModuleRegistry>();
         var disabled = registry.Disabled.ToDictionary(m => m.Code, m => m.RoutePrefixes);
 
-        var marked = fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints
-            .OfType<RouteEndpoint>()
+        var marked = EndpointInventory.Routes(fixture.Services, includeRefusals: true)
             .Select(e => (Endpoint: e, Mark: e.Metadata.GetMetadata<DisabledModuleEndpoint>()))
             .Where(x => x.Mark is not null)
             .ToList();
+
+        // Исключение, которое не на чем проверить, — это не исключение, а выход из инвентаризации:
+        // пометка, поставленная на обычный незакрытый адрес, унесла бы его отсюда молча. Поэтому
+        // пустой список — отказ, а не «нечего проверять» (приём соседнего теста
+        // Guard_speaks_when_a_gate_is_missing). Если выключенных модулей в сборке не осталось,
+        // переносите проверку туда, где они есть, — а не считайте её зелёной (ревью PR #1105).
+        Assert.True(marked.Count > 0,
+            "В сборке нет ни одного адреса-отказа, то есть нет выключенных модулей: единственное " +
+            "исключение инвентаризации проверять не на чем.");
 
         var offenders = new List<string>();
         foreach (var (endpoint, mark) in marked)
@@ -190,6 +199,13 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
 
             if (endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Count > 0)
                 offenders.Add($"{route} — помечен отказом, но требует авторизации");
+
+            // Именно наличие IAllowAnonymous, а не отсутствие ворот: анонимность здесь обещана
+            // вслух, а снимается она СВОИМ способом — пропажей .AllowAnonymous(), которую проверка
+            // «ворот нет» не заметила бы (ревью PR #1105). Без неё отказ начал бы требовать вход,
+            // то есть прятать состав поставки от того, кто и так увидит его в интерфейсе.
+            if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is null)
+                offenders.Add($"{route} — помечен отказом, но не объявлен анонимным");
         }
 
         Assert.True(offenders.Count == 0,
@@ -227,13 +243,7 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         _ = fixture.CreateClient();
         var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
 
-        var used = Routes()
-            .SelectMany(e => e.Metadata.GetOrderedMetadata<IAuthorizeData>())
-            .Select(a => a.Policy)
-            .Where(p => p is not null
-                && p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase))
-            .Select(p => p![AppPolicies.PermissionPrefix.Length..].Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var used = EndpointInventory.GatingPermissions(Routes());
 
         var silent = catalog.Codes
             .Where(c => !used.Contains(c) && !NotYetUsed.ContainsKey(c))
@@ -280,27 +290,15 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
-    /// Адреса живого приложения — кроме отказов выключенных модулей.
-    ///
-    /// ⚠️ Единственное исключение по СУЩЕСТВУ, а не по списку путей, и вот почему. За отказом нет ни
-    /// данных, ни служб: он отвечает 501 «модуль не подключён» и анонимен намеренно (ТЗ OVW-10,
-    /// AUTH-15, AUTH-19), а сторож у него свой — <see cref="Configuration.DisabledModuleTests" />,
-    /// который проверяет и код, и текст, и то, что адрес ядра под тем же префиксом продолжает
-    /// работать. Записью в корзине «публичных» это выразить нельзя: корзины ключуются путями, то есть
-    /// строку «/api/costs» пришлось бы завести при появлении модуля (её забудут) и убрать при его
-    /// включении — у включённого модуля этих адресов нет вовсе, и запись, оставшись, стала бы ложной,
-    /// а тест на устаревшие записи покраснел бы с объяснением, уводящим в сторону.
+    /// Адреса живого приложения — кроме отказов выключенных модулей (см.
+    /// <see cref="EndpointInventory.Routes" />: правило и причина исключения живут там, потому что
+    /// инвентаризовать приходится два хоста с разным составом модулей).
     /// </summary>
     private IEnumerable<RouteEndpoint> Routes()
     {
         _ = fixture.CreateClient();
-        return fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints
-            .OfType<RouteEndpoint>()
-            .Where(e => e.Metadata.GetMetadata<DisabledModuleEndpoint>() is null);
+        return EndpointInventory.Routes(fixture.Services);
     }
-
-    private static string Route(RouteEndpoint endpoint) =>
-        "/" + (endpoint.RoutePattern.RawText ?? string.Empty).Trim('/');
 
     /// <summary>
     /// Самая длинная подходящая запись: <c>/api/notifications/health</c> обязан выиграть у
@@ -309,18 +307,11 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     private static string? Longest(string route, IEnumerable<string> keys) =>
         keys.Where(k => Matches(route, k)).OrderByDescending(k => k.Length).FirstOrDefault();
 
-    /// <summary>Ворота — политика права или политика модуля. «Вошёл» и роль воротами не считаются.</summary>
-    private static bool IsGated(Endpoint endpoint) =>
-        endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(a =>
-            a.Policy is { } p &&
-            (p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
-             || p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase)));
+    private static string Route(RouteEndpoint endpoint) => EndpointInventory.Route(endpoint);
 
-    /// <summary>Совпадение по границе сегмента: <c>/api/plans</c> не накрывает <c>/api/plans-archive</c>.</summary>
-    private static bool Matches(string route, string prefix) =>
-        route.Equals(prefix, StringComparison.OrdinalIgnoreCase)
-        || route.StartsWith(prefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
+    private static bool IsGated(Endpoint endpoint) => EndpointInventory.IsGated(endpoint);
 
-    private static string Verbs(Endpoint endpoint) =>
-        string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["*"]);
+    private static bool Matches(string route, string prefix) => EndpointInventory.Matches(route, prefix);
+
+    private static string Verbs(Endpoint endpoint) => EndpointInventory.Verbs(endpoint);
 }

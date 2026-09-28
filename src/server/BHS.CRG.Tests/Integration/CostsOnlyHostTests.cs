@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
+using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -109,6 +110,62 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
             Assert.True(row!.IsDeclared, $"Право «{declared.Code}» объявлено, но помечено как невыдаваемое.");
             Assert.Equal(declared.Gives, row.Gives);
         }
+    }
+
+    /// <summary>
+    /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
+    /// <see cref="EndpointGateInventoryTests.Every_declared_permission_opens_a_door_or_is_written_down_as_unused" />,
+    /// ТЗ AUTH-8.2).
+    ///
+    /// <para>Почему тот сторож сюда не достаёт, а этот нужен (ревью PR #1105). Инвентаризация адресов
+    /// идёт на хосте с УМОЛЧАТЕЛЬНЫМ составом модулей, где <c>costs</c> выключен, — а прав
+    /// выключенного модуля в каталоге нет вовсе (AUTH-19). То есть про права этого модуля она молчит
+    /// не потому, что с ними всё в порядке: ей их не видно. На установке <c>Modules__Enabled=costs</c>
+    /// администратор получил бы галки, которые не делают ничего, — ровно то, против чего зеркальный
+    /// храповик и написан.</para>
+    ///
+    /// <para>Сегодня в списке все восемь: у каркаса адресов нет (A1). Список — ратчет, и опустошать
+    /// его обязаны задачи, приносящие адреса: строка, у которой дверь появилась, роняет тест и
+    /// требует себя убрать.</para>
+    /// </summary>
+    [Fact]
+    public void Module_permissions_open_a_door_or_are_named_as_doorless()
+    {
+        _ = host.CreateClient();
+
+        Dictionary<string, string> doorless = new()
+        {
+            ["costs.invoice.read"] = "адреса счёта — C1 (#1076)",
+            ["costs.invoice.edit"] = "адреса счёта — C1 (#1076)",
+            ["costs.invoice.pay"] = "отметка оплаты — C5 (#1082)",
+            ["costs.waybill.read"] = "адреса накладной — D1 (#1083)",
+            ["costs.waybill.edit"] = "адреса накладной и загрузка 1С — D1 (#1083), D3 (#1084)",
+            ["costs.allocation.edit"] = "разноска — F1 (#1085)",
+            ["costs.report.read"] = "реестр и затраты — G4 (#1097), G5 (#1098)",
+            ["costs.articles.edit"] = "справочник статей вне строек — F3 (#1087)",
+        };
+
+        var catalog = host.Services.GetRequiredService<PermissionCatalog>();
+        var used = EndpointInventory.GatingPermissions(EndpointInventory.Routes(host.Services));
+
+        var silent = catalog.Codes
+            .Where(c => c.StartsWith("costs.", StringComparison.Ordinal))
+            .Where(c => !used.Contains(c) && !doorless.ContainsKey(c))
+            .Order(StringComparer.Ordinal).ToList();
+
+        Assert.True(silent.Count == 0,
+            "Право модуля объявлено, но не стоит ни на одном адресе. Галка в редакторе ролей будет " +
+            "выдаваться и не делать ничего. Поставьте право на дверь либо назовите здесь задачу, " +
+            "которая её принесёт:\n  " + string.Join("\n  ", silent));
+
+        var stale = doorless.Keys.Where(used.Contains).Order(StringComparer.Ordinal).ToList();
+        Assert.True(stale.Count == 0,
+            "У этих прав двери уже есть — уберите записи, иначе список перестанет что-либо " +
+            "утверждать, продолжая выглядеть утверждением:\n  " + string.Join("\n  ", stale));
+
+        var unknown = doorless.Keys.Where(c => !catalog.Declares(c)).Order(StringComparer.Ordinal).ToList();
+        Assert.True(unknown.Count == 0,
+            "В списке есть коды, которых модуль не объявляет:\n  " + string.Join("\n  ", unknown));
     }
 
     /// <summary>
