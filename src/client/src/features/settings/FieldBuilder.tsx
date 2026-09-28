@@ -38,10 +38,10 @@ export function JsonPreview({
     null, 2,
   );
   return (
-    <pre
-      className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all"
-      style={{ background: '#161616', color: '#d4d4d4' }}
-    >
+    // Подложка и текст — теми же классами, что у остальных блоков кода в клиенте
+    // (`BugReportsPage`, `ErrorBoundary`): тема здесь такая же, как везде, а не прибитая
+    // тёмная литералами (issue #1065).
+    <pre className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-black/5 dark:bg-white/5 text-fg2">
       {json}
     </pre>
   );

@@ -182,8 +182,11 @@ function ArrayTableModalBody({
     }
   }
 
-  const BORDER = '1px solid #d1d5db';
-  const TH_BG = '#f3f4f6';
+  // Сетка красится токенами темы, а не литералами светлой (issue #1065). Литералы держались
+  // только на светлом фоне: на тёмном оставались светло-серые линии и почти белая шапка — весь
+  // остальной интерфейс тему держит, а единственная редактируемая сетка не держала.
+  const CELL = 'border border-stroke';
+  const TH = `${CELL} bg-muted`;
 
   return (
     <Modal open onOpenChange={onOpenChange}
@@ -223,7 +226,7 @@ function ArrayTableModalBody({
           </colgroup>
           <thead>
             <tr role="row">
-              <th style={{ border: BORDER, background: TH_BG, padding: 0, width: 34 }}>
+              <th className={TH} style={{ padding: 0, width: 34 }}>
                 <span className="flex items-center justify-center" style={{ height: 28 }}>
                   <input type="checkbox" aria-label="Выбрать все строки"
                     checked={rowIds.length > 0 && selected.size === rowIds.length}
@@ -231,12 +234,12 @@ function ArrayTableModalBody({
                     onChange={toggleAll} className="w-4 h-4 accent-brand cursor-pointer" />
                 </span>
               </th>
-              <th role="columnheader" style={{ border: BORDER, background: TH_BG, padding: 0, width: 44 }}>
+              <th role="columnheader" className={TH} style={{ padding: 0, width: 44 }}>
                 <span className="flex items-center justify-center text-xs text-fg4 font-normal" style={{ height: 28 }}>#</span>
               </th>
               {tableFields.map(f => (
-                <th key={f.key} role="columnheader"
-                  style={{ border: BORDER, background: TH_BG, padding: 0, position: 'relative', userSelect: 'none' }}>
+                <th key={f.key} role="columnheader" className={TH}
+                  style={{ padding: 0, position: 'relative', userSelect: 'none' }}>
                   <span className="flex items-center px-2 text-left text-xs font-semibold text-fg2 truncate" style={{ height: 28 }}>
                     {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
                   </span>
@@ -251,7 +254,7 @@ function ArrayTableModalBody({
                     style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', zIndex: 1 }} />
                 </th>
               ))}
-              <th style={{ border: BORDER, background: TH_BG, padding: 0, width: 26 }} />
+              <th className={TH} style={{ padding: 0, width: 26 }} />
             </tr>
           </thead>
           <tbody>
@@ -263,13 +266,13 @@ function ArrayTableModalBody({
                 onDrop={e => { e.preventDefault(); if (dragIdx !== null) moveRow(dragIdx, i); setDragIdx(null); setDropIdx(null); }}
                 style={dragIdx !== null && dropIdx === i && dragIdx !== i
                   ? { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' } : undefined}>
-                <td style={{ border: BORDER, padding: 0, textAlign: 'center' }} className={sel ? 'bg-brand-subtle' : ''}>
+                <td style={{ padding: 0, textAlign: 'center' }} className={`${CELL} ${sel ? 'bg-brand-subtle' : ''}`}>
                   <span className="flex items-center justify-center" style={{ height: 26 }}>
                     <input type="checkbox" checked={sel} onChange={() => toggleSelect(rowIds[i])}
                       aria-label={`Выбрать строку ${i + 1}`} className="w-4 h-4 accent-brand cursor-pointer" />
                   </span>
                 </td>
-                <td role="rowheader" style={{ border: BORDER, padding: 0 }} className={sel ? 'bg-brand-subtle' : 'bg-base'}>
+                <td role="rowheader" style={{ padding: 0 }} className={`${CELL} ${sel ? 'bg-brand-subtle' : 'bg-base'}`}>
                   <div className="flex items-center justify-center gap-0.5" style={{ height: 26 }}>
                     <button type="button" draggable
                       // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
@@ -296,15 +299,15 @@ function ArrayTableModalBody({
                     ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
                   return (
                     <td key={f.key} data-r={i} data-c={ci} role="gridcell"
-                      className={`focus-within:bg-brand-subtle transition-colors ${sel ? 'bg-brand-subtle' : ''}`}
-                      style={{ border: BORDER, padding: 0, height: 26 }}>
+                      className={`${CELL} focus-within:bg-brand-subtle transition-colors ${sel ? 'bg-brand-subtle' : ''}`}
+                      style={{ padding: 0, height: 26 }}>
                       <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
                         compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
                         scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} enumTypeDef={enumDef(f)} />
                     </td>
                   );
                 })}
-                <td style={{ border: BORDER, padding: 0, width: 26 }} className={sel ? 'bg-brand-subtle' : ''}>
+                <td style={{ padding: 0, width: 26 }} className={`${CELL} ${sel ? 'bg-brand-subtle' : ''}`}>
                   <button type="button" onClick={() => removeRow(i)}
                     className="w-full h-full flex items-center justify-center text-stroke-strong hover:text-danger transition-colors"
                     style={{ height: 26 }}>

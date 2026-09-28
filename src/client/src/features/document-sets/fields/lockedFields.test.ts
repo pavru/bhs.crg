@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { clientSources } from '@/shared/testing/clientSources';
 import { isLockedField } from './lockedFields';
 import { isMissing } from './fieldValidation';
 import type { SchemaField } from '@/shared/api/schema';
@@ -39,16 +40,25 @@ describe('замок поля', () => {
  */
 // Путь от корня проекта (ведущий «/»), а не относительный: относительный glob вернул бы соседей
 // по каталогу как «./Имя.tsx», и правило «внутренности модуля полей не форма» их не узнало бы.
-const sources = import.meta.glob('/src/**/*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+// Охват — общий для всех переписей (ревью PR #1067): копии глоба разошлись, и два сторожа
+// видели только `.tsx`, о чём по их коду догадаться было нельзя.
+const sources = clientSources;
 
 /** Внутренности самого модуля полей: вложенные поля составного типа модуль не объявляет. */
 const NOT_A_FORM = /\/fields\//;
+
+/**
+ * Признак формы — контрол РИСУЕТСЯ или импортируется. Раньше хватало упоминания, но с общим
+ * охватом (`.ts` тоже) упоминанием оказался и доккомментарий `fieldDisplay.ts`, который никаких
+ * полей не рисует; «форма» по такому признаку — уже не форма.
+ */
+const DRAWS_FIELD = /<PrimitiveInput|import[^\n]*PrimitiveInput/;
 
 describe('формы по схеме', () => {
   it('все до одной спрашивают про замок', () => {
     const offenders = Object.entries(sources)
       .filter(([file]) => !NOT_A_FORM.test(file))
-      .filter(([, code]) => code.includes('PrimitiveInput'))
+      .filter(([, code]) => DRAWS_FIELD.test(code))
       .filter(([, code]) => !code.includes('isLockedField'))
       .map(([file]) => file)
       .sort();
@@ -59,7 +69,7 @@ describe('формы по схеме', () => {
   it('видит сами формы — иначе проверять было бы нечего', () => {
     const forms = Object.entries(sources)
       .filter(([file]) => !NOT_A_FORM.test(file))
-      .filter(([, code]) => code.includes('PrimitiveInput'))
+      .filter(([, code]) => DRAWS_FIELD.test(code))
       .map(([file]) => file.replace(/^\/src\//, ''))
       .sort();
 

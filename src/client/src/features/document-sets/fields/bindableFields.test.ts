@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { clientSources } from '@/shared/testing/clientSources';
 import { bindableFields } from './bindableFields';
 import type { SchemaField } from '@/shared/api/schema';
 
@@ -35,11 +36,19 @@ describe('поля, открытые источнику данных', () => {
  *
  * Текстом, а не разбором синтаксиса: так же ловится импорт через общий индекс модуля.
  */
-const sources = import.meta.glob('/src/**/*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+// Охват — общий для всех переписей (ревью PR #1067): копии глоба разошлись, и два сторожа
+// видели только `.tsx`, о чём по их коду догадаться было нельзя.
+const sources = clientSources;
 
 describe('вызывающие авто-маппинг', () => {
+  // Зовёт, а не объявляет и не упоминает: с общим охватом (`.ts` тоже) в улов иначе попадают сам
+  // модуль с объявлением хука и этот сторож — оба «вызывающими» не являются.
+  const CALLS = /useAutoMapDataSetSource\(\)/;
+  const DECLARES = /export function useAutoMapDataSetSource/;
+
   const callers = Object.entries(sources)
-    .filter(([, code]) => code.includes('useAutoMapDataSetSource'))
+    .filter(([file]) => !file.endsWith('.test.ts'))
+    .filter(([, code]) => CALLS.test(code) && !DECLARES.test(code))
     .map(([file]) => file.replace(/^\/src\//, ''))
     .sort();
 
