@@ -39,12 +39,19 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// <param name="Duplicates">Счета с тем же поставщиком, номером и датой (ТЗ COST-6.2) — оговорка, а
 /// не запрет: у поставщика бывает два счёта с одним номером в один день, и человек знает об этом
 /// больше нас.</param>
+/// <param name="Lines">Строки счёта в порядке бумаги (C2, issue #1078). Приезжают ВМЕСТЕ со счётом, а
+/// не отдельным запросом: форма показывает шапку и строки одним экраном, и два запроса дали бы два
+/// снимка одного счёта — сверка суммы строк с суммой к оплате считалась бы по разным состояниям.</param>
+/// <param name="Totals">Сверка суммы строк с суммой к оплате (ТЗ COST-6.2) и счётчик строк, ждущих
+/// позиции номенклатуры.</param>
 public sealed record InvoiceView(
     Guid Id,
     Guid DocumentTypeId,
     JsonObject Requisites,
     IReadOnlyList<string> Unconfirmed,
     IReadOnlyList<InvoiceDuplicate> Duplicates,
+    IReadOnlyList<InvoiceLineView> Lines,
+    InvoiceLineTotals Totals,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -52,6 +59,9 @@ public sealed record InvoiceView(
 /// <param name="SupplierName">Название поставщика из справочника ядра; <c>null</c> — поставщик не
 /// выбран либо запись справочника удалили. Второе от первого отличимо по <c>SupplierId</c>: ссылка
 /// есть, названия нет — это потеря, и молчать о ней нельзя.</param>
+/// <param name="LinesWithoutNomenclature">Сколько строк ждёт позиции номенклатуры — счётчик
+/// «Разобрать» (ТЗ COST-6.2). В реестре он нужен затем, чтобы не открывать счёт ради ответа на вопрос
+/// «а с этим что делать».</param>
 public sealed record InvoiceListItem(
     Guid Id,
     string? Number,
@@ -64,7 +74,9 @@ public sealed record InvoiceListItem(
     DateOnly? DueDate,
     string? Purpose,
     int UnconfirmedCount,
-    bool HasScan);
+    bool HasScan,
+    int LinesCount,
+    int LinesWithoutNomenclature);
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
 public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);
@@ -72,16 +84,38 @@ public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedO
 /// <summary>Сборка ответов из записей. Отдельно от адресов: адреса про маршруты и права.</summary>
 public static class InvoiceViews
 {
-    public static InvoiceView Of(Invoice invoice, IReadOnlyList<InvoiceDuplicate> duplicates) => new(
+    /// <param name="names">Названия позиций номенклатуры по идентификаторам. Пустой словарь означает
+    /// «не разрешили» — и строка честно покажет «позиция не найдена»: справочника может не быть вовсе.</param>
+    public static InvoiceView Of(
+        Invoice invoice, IReadOnlyList<InvoiceDuplicate> duplicates,
+        IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?> names) => new(
         invoice.Id,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,
         duplicates,
+        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names))],
+        InvoiceLineTotals.Of(lines),
         invoice.CreatedAt,
         invoice.UpdatedAt);
 
-    public static InvoiceListItem Item(Invoice invoice, string? supplierName) => new(
+    public static InvoiceLineView Line(InvoiceLine line, IReadOnlyDictionary<Guid, string?> names) => new(
+        line.Id,
+        line.Ordinal,
+        line.NomenclatureId,
+        line.NomenclatureId is { } id && names.TryGetValue(id, out var name) ? name : null,
+        line.SupplierText,
+        line.SupplierCode,
+        line.Unit,
+        line.Quantity,
+        line.Price,
+        line.VatRate,
+        line.VatAmount,
+        line.Amount,
+        line.Note);
+
+    public static InvoiceListItem Item(
+        Invoice invoice, string? supplierName, int lines, int withoutNomenclature) => new(
         invoice.Id,
         invoice.Number,
         invoice.IssuedOn,
@@ -93,7 +127,9 @@ public static class InvoiceViews
         invoice.DueDate,
         invoice.Purpose,
         invoice.Unconfirmed.Count,
-        invoice.ScanBlobPath is not null);
+        invoice.ScanBlobPath is not null,
+        lines,
+        withoutNomenclature);
 
     public static InvoiceDuplicate Duplicate(Invoice invoice) =>
         new(invoice.Id, invoice.Number, invoice.IssuedOn, invoice.Total);

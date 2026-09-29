@@ -63,7 +63,13 @@ public static class InvoiceRequisites
     public static IReadOnlySet<string> ColumnKeys { get; } =
         new HashSet<string>(WritableColumnKeys.Concat(ReadOnlyColumnKeys.Keys), StringComparer.Ordinal);
 
-    private const string DateFormat = "yyyy-MM-dd";
+    /// <summary>
+    /// Почему организация — ссылка, а не название текстом. Одной строкой на оба поля: причина у них
+    /// одна, а разойдись формулировки — человек решил бы, что правила у поставщика и плательщика разные.
+    /// </summary>
+    private const string OrganizationWhy =
+        "Организацию выбирают из справочника ядра, а не вписывают названием: по записи справочника " +
+        "счёт находит ИНН, а по нему — сопоставление поставщика.";
 
     /// <summary>
     /// Разобрать присланные реквизиты: колонки — отдельно, остаток схемы — отдельно.
@@ -107,16 +113,16 @@ public static class InvoiceRequisites
         }
 
         var columns = new InvoiceColumns(
-            Number: Text(requisites, NumberKey),
-            IssuedOn: Date(requisites, DateKey),
-            SupplierId: Reference(requisites, SupplierKey),
-            PayerId: Reference(requisites, PayerKey),
-            Purpose: Text(requisites, PurposeKey),
-            Total: Money(requisites, TotalKey),
-            VatTotal: Money(requisites, VatTotalKey),
-            ShippedOn: Date(requisites, ShippedOnKey),
-            DeferralDays: Days(requisites, DeferralKey),
-            DueDate: Date(requisites, DueDateKey));
+            Number: CostsValues.Text(requisites, NumberKey),
+            IssuedOn: CostsValues.Date(requisites, DateKey),
+            SupplierId: CostsValues.Reference(requisites, SupplierKey, OrganizationWhy),
+            PayerId: CostsValues.Reference(requisites, PayerKey, OrganizationWhy),
+            Purpose: CostsValues.Text(requisites, PurposeKey),
+            Total: CostsValues.Money(requisites, TotalKey),
+            VatTotal: CostsValues.Money(requisites, VatTotalKey),
+            ShippedOn: CostsValues.Date(requisites, ShippedOnKey),
+            DeferralDays: CostsValues.Days(requisites, DeferralKey),
+            DueDate: CostsValues.Date(requisites, DueDateKey));
 
         var rest = new JsonObject();
         foreach (var property in requisites.EnumerateObject())
@@ -125,6 +131,31 @@ public static class InvoiceRequisites
 
         return (columns, JsonDocument.Parse(rest.ToJsonString()));
     }
+
+    /// <summary>
+    /// Незаполненные ОБЯЗАТЕЛЬНЫЕ поля счёта — подписями, как они стоят в форме (issue #1078).
+    ///
+    /// <para>Обязательность проверяется на переходе «черновик → разобран» и при печати, а НЕ при
+    /// сохранении (ТЗ COST-6.2): черновик без плательщика и без суммы — штатное состояние счёта,
+    /// который приехал сканом и ждёт человека. Здесь — тот самый переход.</para>
+    ///
+    /// <para>⚠️ Перечень берётся из ОБЪЯВЛЕНИЯ типа (<c>CostsRecordTypes.Invoice</c>), а не переписан
+    /// здесь списком. Перепиши — и добавленное в объявление обязательное поле молча перестало бы
+    /// требоваться: тип показывал бы звёздочку, а переход бы её не замечал.</para>
+    /// </summary>
+    public static IReadOnlyList<string> Missing(Invoice invoice)
+    {
+        var requisites = Merge(invoice);
+
+        return [.. CostsRecordTypes.Invoice.Fields
+            .Where(f => f.Required && IsBlank(requisites[f.Key]))
+            .Select(f => f.Title)];
+    }
+
+    /// <summary>Пусто ли значение: нет вовсе, пустая строка или пробелы.</summary>
+    private static bool IsBlank(JsonNode? value) =>
+        value is null || (value is JsonValue text && text.TryGetValue(out string? s)
+            && string.IsNullOrWhiteSpace(s));
 
     /// <summary>
     /// Собрать реквизиты записи: колонки плюс остаток схемы. Это то, что видит форма, печать и
@@ -246,7 +277,7 @@ public static class InvoiceRequisites
     }
 
     private static JsonNode? DateNode(DateOnly? date) =>
-        date is { } value ? JsonValue.Create(value.ToString(DateFormat, CultureInfo.InvariantCulture)) : null;
+        date is { } value ? JsonValue.Create(value.ToString(CostsValues.DateFormat, CultureInfo.InvariantCulture)) : null;
 
     private static JsonNode? ReferenceNode(Guid? id) => id is { } value
         ? new JsonObject { ["$ref"] = "catalog", ["entryId"] = value.ToString() }
@@ -267,87 +298,4 @@ public static class InvoiceRequisites
             ["size"] = JsonValue.Create(invoice.ScanSize),
         }
         : null;
-
-    private static string? Text(JsonElement requisites, string key) => Value(requisites, key) switch
-    {
-        null => null,
-        { ValueKind: JsonValueKind.String } value => value.GetString() is { Length: > 0 } text ? text : null,
-        var other => throw Wrong(key, other, "строку"),
-    };
-
-    private static DateOnly? Date(JsonElement requisites, string key) => Value(requisites, key) switch
-    {
-        null => null,
-        { ValueKind: JsonValueKind.String } value =>
-            value.GetString() is { Length: > 0 } text
-                ? DateOnly.TryParseExact(text, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None,
-                    out var date)
-                    ? date
-                    : throw new InvalidRequestException(
-                        $"Поле «{key}»: дата «{text}» не разобрана. Ожидается «{DateFormat}» — так её " +
-                        "хранят все даты системы, и так её присылает форма.")
-                : null,
-        var other => throw Wrong(key, other, "дату строкой «" + DateFormat + "»"),
-    };
-
-    private static decimal? Money(JsonElement requisites, string key) => Value(requisites, key) switch
-    {
-        null => null,
-        { ValueKind: JsonValueKind.Number } value => value.GetDecimal(),
-        // Строку принимаем: числа приходят строками и из распознавания, и из вставки из буфера, а
-        // отказ на «1 234,56» человек прочтёт как «система не понимает сумм».
-        { ValueKind: JsonValueKind.String } value => Parse(key, value.GetString()),
-        var other => throw Wrong(key, other, "число"),
-    };
-
-    private static decimal? Parse(string key, string? text)
-    {
-        if (text is not { Length: > 0 }) return null;
-
-        var normalized = text.Replace(" ", string.Empty, StringComparison.Ordinal)
-            .Replace(" ", string.Empty, StringComparison.Ordinal)
-            .Replace(',', '.');
-
-        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : throw new InvalidRequestException(
-                $"Поле «{key}»: «{text}» — не число. Разделителем дробной части понимается и точка, и " +
-                "запятая, пробелы внутри числа не мешают; всё остальное разобрать нечем.");
-    }
-
-    private static int? Days(JsonElement requisites, string key) => Money(requisites, key) switch
-    {
-        null => null,
-        { } value when value == decimal.Truncate(value) && value is >= 0 and < 3651 => (int)value,
-        { } value => throw new InvalidRequestException(
-            $"Поле «{key}»: «{value}» — не срок в днях. Ожидается целое число от 0 до 3650 " +
-            "(десять лет): отсрочка в полдня и отсрочка в век — это опечатка, а не условие поставщика."),
-    };
-
-    private static Guid? Reference(JsonElement requisites, string key)
-    {
-        if (Value(requisites, key) is not { } value) return null;
-
-        if (value.ValueKind != JsonValueKind.Object)
-            throw Wrong(key, value, "ссылку на запись справочника {\"$ref\":\"catalog\",\"entryId\":\"…\"}");
-
-        // Вид значения проверяется ДО GetString(): у числа он бросает InvalidOperationException, а в
-        // отказ его никто не отображает — ответом был бы 500 вместо «поле такое-то не разобрано».
-        if (!value.TryGetProperty("entryId", out var entry) || entry.ValueKind != JsonValueKind.String
-            || !Guid.TryParse(entry.GetString(), out var id))
-            throw new InvalidRequestException(
-                $"Поле «{key}»: в ссылке нет «entryId» со строкой-идентификатором записи справочника. " +
-                "Организацию выбирают из справочника ядра, а не вписывают названием: по записи " +
-                "справочника счёт находит ИНН, а по нему — сопоставление поставщика.");
-
-        return id;
-    }
-
-    private static JsonElement? Value(JsonElement requisites, string key) =>
-        requisites.TryGetProperty(key, out var value) && value.ValueKind is not JsonValueKind.Null
-            ? value
-            : null;
-
-    private static InvalidRequestException Wrong(string key, JsonElement? value, string expected) =>
-        new($"Поле «{key}»: ожидается {expected}, пришло {value?.ValueKind.ToString() ?? "ничего"}.");
 }

@@ -14,9 +14,10 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// строкой при записи — правка названия не доехала бы до старых записей, а расхождение названий порт
 /// отвергает.</para>
 ///
-/// <para>⚠️ Чего здесь НЕТ: «разобран», «отклонён», «оплачен», «разнесён». Каждое приезжает со своей
-/// задачей (C2, C5, F1), и объявленное заранее действие означало бы фильтр на экране журнала, по
-/// которому никогда ничего не находится.</para>
+/// <para>⚠️ Чего здесь НЕТ: «отклонён», «оплачен», «разнесён». Каждое приезжает со своей задачей
+/// (C5, F1), и объявленное заранее действие означало бы фильтр на экране журнала, по которому никогда
+/// ничего не находится. «Разобран» приехал задачей C2 (issue #1078) — вместе с адресом, который его
+/// записывает.</para>
 /// </summary>
 public sealed class InvoiceActions : IModuleActivityActions
 {
@@ -34,5 +35,24 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction ScanAttached =
         new("costs.invoice.scanned", "К счёту приложен скан");
 
-    public IReadOnlyList<ModuleActivityAction> Actions => [Created, Changed, Confirmed, ScanAttached];
+    /// <summary>
+    /// Правка строк — отдельно от правки счёта (C2, issue #1078): строки меняют вставкой из буфера
+    /// сразу десятками, и в журнале это должно читаться как одно действие с числом строк, а не
+    /// растворяться в «счёт изменён».
+    /// </summary>
+    public static readonly ModuleActivityAction LinesChanged =
+        new("costs.invoice.lines", "Строки счёта изменены");
+
+    /// <summary>«Разобран»: человек сверил счёт с бумагой (ТЗ COST-9).</summary>
+    public static readonly ModuleActivityAction Parsed = new("costs.invoice.parsed", "Счёт разобран");
+
+    /// <summary>
+    /// Возврат в черновик. Пишется и когда человек решил сам, и когда правка строк сняла последнюю
+    /// позицию: во втором случае это единственный след того, почему счёт перестал быть разобранным.
+    /// </summary>
+    public static readonly ModuleActivityAction Draft =
+        new("costs.invoice.draft", "Счёт возвращён в черновик");
+
+    public IReadOnlyList<ModuleActivityAction> Actions =>
+        [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft];
 }

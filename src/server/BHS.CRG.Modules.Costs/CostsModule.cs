@@ -201,7 +201,9 @@ public sealed class CostsModule : IAppModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         InvoiceEndpoints.MapInvoices(endpoints);
+        InvoiceLineEndpoints.MapInvoiceLines(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
+        NomenclatureEndpoints.MapNomenclature(endpoints);
     }
 
     /// <summary>

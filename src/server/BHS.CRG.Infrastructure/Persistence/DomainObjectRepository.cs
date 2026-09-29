@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -68,5 +69,37 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
             .ToListAsync(ct);
 
         return rows.ToDictionary(r => (r.SetId, r.TypeId), r => r.Count);
+    }
+
+    public async Task<IReadOnlyList<CommonDataRef>> FindCommonDataRefsAsync(
+        IReadOnlyCollection<Guid> typeIds, string? search, IReadOnlyCollection<Guid>? ids, int? limit,
+        CancellationToken ct = default)
+    {
+        if (typeIds.Count == 0) return [];
+
+        // Только общие данные: документная фасета здесь ни при чём — у записи справочника её нет, а
+        // без этого условия в выбор позиции попали бы документы комплектов.
+        var query = Db.Set<DomainObject>()
+            .AsNoTracking()
+            .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId));
+
+        if (ids is { Count: > 0 }) query = query.Where(o => ids.Contains(o.Id));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            // ⚠️ Знаки образца обезврежены: «%» в набранном тексте иначе означал бы «что угодно», то
+            // есть поиск «100%» показывал бы всё подряд и выглядел бы исправной работой.
+            var pattern = "%" + search.Trim().Replace("!", "!!").Replace("%", "!%").Replace("_", "!_") + "%";
+            query = query.Where(o => EF.Functions.ILike(o.DisplayName!, pattern, "!"));
+        }
+
+        // Сортировка ДО отсечения — иначе «первые N по названию» означало бы «произвольные N»
+        // (контракт метода). Сравнение здесь базы, окончательный порядок задаёт тот, кто показывает.
+        var ordered = query.OrderBy(o => o.DisplayName).AsQueryable();
+        if (limit is > 0) ordered = ordered.Take(limit.Value);
+
+        return await ordered
+            .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName))
+            .ToListAsync(ct);
     }
 }

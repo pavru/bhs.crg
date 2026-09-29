@@ -411,6 +411,35 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             entries.Where(e => e.DisplayName is "Яшма" or "Берёза" or "Ёлка" or "Дуб").Select(e => e.DisplayName));
     }
 
+    /// <summary>
+    /// Узкие ответы порта (issue #1078): поиск по части названия, названия выбранных записей и
+    /// культурный порядок — те же три ответа, что у списка.
+    ///
+    /// <para>⚠️ Главное здесь — <b>ноль на неизвестный вид</b>: его не проверить через модуль, у которого
+    /// типы посеяны. А выбирать между «опечатка в коде вида» и «записей ещё не завели» человеку по пустому
+    /// выпадающему списку нечем.</para>
+    /// </summary>
+    [Fact]
+    public async Task Узкие_ответы_порта_ищут_отбирают_и_молчат_о_неизвестном_виде()
+    {
+        var first = await OrganizationAsync("Кабель-Торг (поиск)", "{}");
+        await OrganizationAsync("Ёлка (поиск)", "{}");
+
+        using var scope = host.Services.CreateScope();
+        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+
+        var found = await catalog.SearchAsync("Организация", "кабель-торг (поиск", 10);
+        Assert.Equal("Кабель-Торг (поиск)", Assert.Single(found!).DisplayName);
+
+        // Ссылка на выбранное: спрашиваем два, существует один — ненайденное в ответ НЕ попадает, и
+        // разбираться с этим обязан звавший (иначе «ссылка есть, записи нет» прошло бы молча).
+        var refs = await catalog.RefsAsync("Организация", [first, Guid.NewGuid()]);
+        Assert.Equal(first, Assert.Single(refs!).Id);
+
+        Assert.Null(await catalog.SearchAsync("ТипаТакогоНет", null, 10));
+        Assert.Null(await catalog.RefsAsync("ТипаТакогоНет", [first]));
+    }
+
     // ── Охрана записи ─────────────────────────────────────────────────────────
 
     /// <summary>

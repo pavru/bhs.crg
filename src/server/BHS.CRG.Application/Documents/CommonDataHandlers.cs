@@ -10,6 +10,7 @@ namespace BHS.CRG.Application.Documents;
 
 public class CommonDataHandlers(
     IRepository<DomainObject> repo,
+    IDomainObjectRepository objects,
     IRepository<DocumentType> typeRepo,
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<DocumentSet> setRepo,
@@ -25,6 +26,7 @@ public class CommonDataHandlers(
     IRequestHandler<DeleteCommonDataEntryCommand>,
     IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<DomainObject>>,
     IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
+    IRequestHandler<ListCommonDataRefsQuery, IReadOnlyList<CommonDataRef>>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
@@ -112,6 +114,14 @@ public class CommonDataHandlers(
             (!scopeId.HasValue || e.ScopeId == scopeId.Value) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
     }
+
+    /// <summary>
+    /// Ссылки на записи справочника (issue #1078): выбор позиции из справочника, у которого записей
+    /// много. Ленивое создание профиля уровня здесь НЕ трогается — оно про открытие общих данных
+    /// уровня, а этот запрос отбирает по виду и названию и об уровнях не спрашивает.
+    /// </summary>
+    public async Task<IReadOnlyList<CommonDataRef>> Handle(ListCommonDataRefsQuery q, CancellationToken ct)
+        => await objects.FindCommonDataRefsAsync(q.TypeIds, q.Search, q.Ids, q.Limit, ct);
 
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)

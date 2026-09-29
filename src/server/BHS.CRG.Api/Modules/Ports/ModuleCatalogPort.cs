@@ -59,6 +59,41 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
             .OrderBy(e => e.DisplayName, StringComparer.CurrentCulture)];
     }
 
+    public async Task<IReadOnlyList<ModuleCatalogRef>?> SearchAsync(
+        string entityType, string? query, int limit, CancellationToken ct = default)
+        => await RefsAsync(entityType, ids: null, query, limit, ct);
+
+    public async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
+        string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+        => ids.Count == 0 ? [] : await RefsAsync(entityType, ids, query: null, limit: null, ct);
+
+    /// <summary>
+    /// Ссылки на записи вида — узким запросом ядра, БЕЗ данных записи (issue #1078).
+    ///
+    /// <para>Отдельным запросом, а не отбором из <see cref="ListAsync" />: тот тянет записи целиком, и
+    /// у номенклатуры это мегабайты картинок на список (issue #1015) — то есть выпадающий список
+    /// грузил бы провод тем, что сам не показывает. Повод сузить назван в контракте порта, и это
+    /// он.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
+        string entityType, IReadOnlyCollection<Guid>? ids, string? query, int? limit, CancellationToken ct)
+    {
+        var all = await types.GetAllAsync(ct);
+
+        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
+        if (root is null) return null;
+
+        var codes = Family(root, all);
+        var refs = await mediator.Send(new ListCommonDataRefsQuery(codes.Keys, query, ids, limit), ct);
+
+        // Порядок задаёт ПОРТ, как и в списке: в базе сортировка своя (ею отсекается limit), а список
+        // читает человек — «Ёлка» в нём стоит между «Дубом» и «Жасмином», а не после латиницы.
+        return [.. refs
+            .Select(r => new ModuleCatalogRef(
+                r.Id, codes.TryGetValue(r.CompositeTypeId, out var code) ? code : string.Empty, r.DisplayName))
+            .OrderBy(r => r.DisplayName, StringComparer.CurrentCulture)];
+    }
+
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)
     {
         var entry = await mediator.Send(new GetCommonDataEntryQuery(id), ct);
