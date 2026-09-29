@@ -409,6 +409,10 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: http://localhost:5055
+          # Модули прогона: `id` — умолчание, `costs` нужен форме счёта (issue #1076). Без него
+          # экран счетов закрыт воротами модуля, и прогон счетов отказывает с названной причиной —
+          # молча зелёным он не станет.
+          Modules__Enabled: id,costs
           ConnectionStrings__Postgres: Host=localhost;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
           # Ключ подписи — одноразовый и живёт ровно столько, сколько работа. Секретом он не
           # является: база и адрес существуют только внутри этого прогона.
@@ -440,6 +444,40 @@ jobs:
           set -o pipefail
           node e2e/seed.mjs | tee ${{ runner.temp }}/seed.out
           grep '^SMOKE_' ${{ runner.temp }}/seed.out >> "$GITHUB_ENV"
+
+      # ⚠️ ПЕРЕЗАПУСК ПОСЛЕ ПОСЕВА — не перестраховка, без него форма счёта не проверяется вовсе.
+      # Тип «СчётНаОплату» ссылается полями «Поставщик» и «Плательщик» на тип «Организация», а его
+      # заводит ЧЕЛОВЕК (ни ядро, ни миграция его не создают) — то есть на чистой базе его создаёт
+      # посев, уже после старта сервера. Проекция типов модуля идёт ОДИН раз, при запуске: к нему
+      # цели ещё нет, тип счёта пропускается с записью в журнал, и адреса счёта отвечают отказом
+      # «тип не заведён». Ровно это и обещает сообщение о пропуске — «появится при следующем
+      # запуске»; здесь этот следующий запуск и делается.
+      - name: Перезапуск сервера после посева
+        working-directory: ${{ runner.temp }}/api
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          ASPNETCORE_URLS: http://localhost:5055
+          ConnectionStrings__Postgres: Host=localhost;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
+          Modules__Enabled: id,costs
+          BlobStorage__Endpoint: 127.0.0.1:3900
+          BlobStorage__AccessKey: GK0123456789abcdef01234567
+          BlobStorage__SecretKey: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          BlobStorage__Bucket: bhs-crg-e2e
+          AllowedOrigins: http://localhost:4173
+          App__PublicUrl: http://localhost:4173
+          TYPST_PATH: /usr/local/bin/typst
+        run: |
+          pkill -f 'BHS.CRG.Api.dll' || true
+          for i in $(seq 1 20); do pgrep -f 'BHS.CRG.Api.dll' >/dev/null || break; sleep 1; done
+          nohup dotnet ./BHS.CRG.Api.dll >> ${{ runner.temp }}/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:5055/api/version; then
+              echo "сервер поднялся заново"; exit 0
+            fi
+            sleep 2
+          done
+          echo "сервер не поднялся за две минуты"; tail -n 50 ${{ runner.temp }}/api.log; exit 1
 
       # Прогоны идут по СОБРАННОМУ клиенту, а не по dev-серверу: проверять надо то, что поедет
       # в продакшн. Прокси на API у preview свой — адрес берётся из API_TARGET.

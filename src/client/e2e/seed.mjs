@@ -287,7 +287,7 @@ async function ensureInvoices(supplierId, payerId) {
     console.log('  + второй счёт с тем же номером и датой (дубликат)');
   }
 
-  return { recognizedId: recognized.id, duplicateId: duplicate.id };
+  return { number: 'СЧ-104', recognizedId: recognized.id, duplicateId: duplicate.id };
 }
 
 // ── Файлы-фикстуры ────────────────────────────────────────────────────────────
@@ -1025,10 +1025,10 @@ async function main() {
   console.log(`SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`);
   // Счета печатаются только если модуль включён. Пустое значение прогон счетов встречает ОТКАЗОМ, а
   // не пропуском: проверять форму счёта, не открыв счёта, — это отчёт о работе, которой не было.
-  if (invoices) {
-    console.log(`SMOKE_INVOICE_ID=${invoices.recognizedId}`);
-    console.log(`SMOKE_INVOICE_DUPLICATE_ID=${invoices.duplicateId}`);
-  }
+  // ⚠️ Счета переменных прогону НЕ дают, и это осознанно: свои счета он заводит сам, потому что
+  // проверки снимают метки — на посеянных второй запуск проверял бы пустоту. Посеянные счета живут
+  // здесь ради человека, который откроет стенд глазами.
+  if (invoices) console.log(`  · счета для стенда: ${invoices.number} и его двойник`);
   // ⚠️ `SMOKE_PDF_FILE_ID` здесь НЕ печатается, и это осознанно. Набора с распознанными страницами
   // посев не создаёт (распознаёт их ИИ-движок), но объявляет это не он, а сама работа CI —
   // переменной уровня работы. Причина в порядке сильнее-слабее: переменная работы перекрывает
