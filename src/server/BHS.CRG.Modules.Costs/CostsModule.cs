@@ -198,7 +198,11 @@ public sealed class CostsModule : IAppModule
     /// ворота модуля уже стоят: доступ к модулю и право заводить счета — разные вещи, и у бухгалтера
     /// есть первое без второго.</para>
     /// </summary>
-    public void MapEndpoints(IEndpointRouteBuilder endpoints) => InvoiceEndpoints.MapInvoices(endpoints);
+    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        InvoiceEndpoints.MapInvoices(endpoints);
+        OrganizationEndpoints.MapOrganizations(endpoints);
+    }
 
     /// <summary>
     /// Инициализировать нечего: своих справочников у каркаса нет, системные роли «Снабженец» и

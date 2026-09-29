@@ -22,6 +22,8 @@
 // `ci.yml` (сегодня там `SMOKE_BASE`): переменная работы сильнее дописанной в `$GITHUB_ENV`, и
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
+import { seedInvoices } from './seed-invoices.mjs';
+
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 const ADMIN_PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
@@ -789,6 +791,12 @@ async function main() {
   }
 
   await ensureCatalogEntries(orgTypeId, personTypeId);
+
+  /**
+   * Организации и счета модуля — своим файлом (храповик размера): здесь остаётся вызов, а всё, что
+   * знает про счета, живёт в `seed-invoices.mjs`.
+   */
+  await seedInvoices({ api, findType, ensureEntry, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
   await ensureSystemDataSet();
 
   // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
@@ -918,6 +926,11 @@ async function main() {
   console.log(`SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`);
   console.log(`SMOKE_DATASET_FILE=${NAME.datasetFile}`);
   console.log(`SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`);
+  // Счета печатаются только если модуль включён. Пустое значение прогон счетов встречает ОТКАЗОМ, а
+  // не пропуском: проверять форму счёта, не открыв счёта, — это отчёт о работе, которой не было.
+  // ⚠️ Счета переменных прогону НЕ дают, и это осознанно: свои счета он заводит сам, потому что
+  // проверки снимают метки — на посеянных второй запуск проверял бы пустоту. Посеянные счета живут
+  // ради человека, который откроет стенд глазами, и о них печатает сам `seed-invoices.mjs`.
   // ⚠️ `SMOKE_PDF_FILE_ID` здесь НЕ печатается, и это осознанно. Набора с распознанными страницами
   // посев не создаёт (распознаёт их ИИ-движок), но объявляет это не он, а сама работа CI —
   // переменной уровня работы. Причина в порядке сильнее-слабее: переменная работы перекрывает

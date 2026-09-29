@@ -14,6 +14,7 @@ using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,11 +88,14 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
 
         await scope.ServiceProvider.ProjectModuleTypesAsync();
 
-        supplier = await OrganizationAsync("ООО «Кабель-Торг»");
-        payer = await OrganizationAsync("ООО «Наша компания»");
+        supplier = await OrganizationAsync(SupplierName);
+        payer = await OrganizationAsync(PayerName);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
+
+    private const string SupplierName = "ООО «Кабель-Торг»";
+    private const string PayerName = "ООО «Наша компания»";
 
     // ── Сторожа задачи ────────────────────────────────────────────────────────
 
@@ -622,6 +626,42 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    /// <summary>
+    /// В реестре у счёта стоит НАЗВАНИЕ поставщика, а не пустота.
+    ///
+    /// <para>⚠️ Сторож находки ревью второго PR: порт справочников читал прежнюю таблицу
+    /// (<c>catalog_entities</c>), в которую не пишет ни один экран, а ссылка на организацию ведёт в
+    /// общие данные. То есть у КАЖДОГО настоящего поставщика название приходило бы пустым — а пустое
+    /// название у нас означает «ссылка есть, записи нет», то есть потерю. Прежний тест этого не видел:
+    /// организацию он заводил в ту же прежнюю таблицу.</para>
+    /// </summary>
+    [Fact]
+    public async Task Название_поставщика_в_реестре_берётся_из_общих_данных()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var id = (await CreateAsync(client, Requisites(number: "СЧ-35"))).GetProperty("id").GetGuid();
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices");
+        var item = list.EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == id);
+
+        Assert.Equal(SupplierName, item.GetProperty("supplierName").GetString());
+    }
+
+    /// <summary>Выбор организаций для формы: свой узкий адрес отдаёт то же, что видит реестр.</summary>
+    [Fact]
+    public async Task Организации_для_формы_приходят_списком()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+
+        var organizations = await client.GetFromJsonAsync<JsonElement>("/api/costs/organizations");
+        var names = organizations.EnumerateArray().Select(o => o.GetProperty("name").GetString()).ToList();
+
+        Assert.Contains(SupplierName, names);
+        Assert.Contains(PayerName, names);
+        Assert.All(organizations.EnumerateArray(),
+            o => Assert.Equal(CostsRecordTypes.OrganizationCode, o.GetProperty("type").GetString()));
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     private object Requisites(
@@ -695,18 +735,25 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     private static string[] Unconfirmed(JsonElement view) =>
         [.. view.GetProperty("unconfirmed").EnumerateArray().Select(k => k.GetString()!).Order(StringComparer.Ordinal)];
 
+    /// <summary>
+    /// Организация — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: запись общих данных типа «Организация».
+    ///
+    /// <para>⚠️ Прежде помощник заводил запись прежней модели (<c>CatalogEntity</c>), и тест сходился
+    /// сам с собой: модуль читал ТУ ЖЕ таблицу, в которую писал помощник. А раздел «Общие данные»
+    /// пишет в другую, и ссылка на запись справочника разрешается по ней же — значит на живых данных
+    /// название поставщика не пришло бы ни разу. Сойдя с дороги экрана, тест снова начнёт подтверждать
+    /// сам себя.</para>
+    /// </summary>
     private async Task<Guid> OrganizationAsync(string name)
     {
         using var scope = host.Services.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IRepository<CatalogEntity>>();
+        var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+        var typeId = (await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Single().Id;
 
-        // Вид записи — КОД ТИПА, как в живой базе («Организация»), а не английское имя: по нему
-        // модуль и ищет поставщиков.
-        var entity = CatalogEntity.Create(CostsRecordTypes.OrganizationCode, name,
-            JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""));
-        await repo.AddAsync(entity);
-        await repo.SaveChangesAsync();
-        return entity.Id;
+        var created = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(
+            new CreateCommonDataEntryCommand(name, typeId,
+                JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""), CatalogScope.System, null, null));
+        return created.Id;
     }
 
     private async Task<(HttpClient Client, Guid Id)> SignInAsync(string role)
