@@ -10,6 +10,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
@@ -352,6 +353,34 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
 
         Assert.Null(await catalog.ListAsync("Органиазция"));
         Assert.Empty((await catalog.ListAsync(await CodeOfAsync(empty)))!);
+    }
+
+    /// <summary>
+    /// ДОКУМЕНТ не выдаётся за запись справочника.
+    ///
+    /// <para>Документы и общие данные лежат в одной таблице и различаются фасетой. Список её
+    /// отбирает, а чтение по идентификатору — нет: подставь модуль идентификатор документа, и получил
+    /// бы его реквизиты под видом записи справочника, без единого отказа. Найдено ревизией второго
+    /// PR; продуктовых вызовов у <c>GetAsync</c> пока нет, значит ни один прогон это не показал бы.</para>
+    /// </summary>
+    [Fact]
+    public async Task Документ_не_выдаётся_за_запись_справочника()
+    {
+        var typeId = await TypeIdAsync("Организация");
+        var document = DomainObject.RestoreDocument(
+            Guid.CreateVersion7(), typeId, "Документ, а не организация", JsonDocument.Parse("{}"),
+            Guid.NewGuid(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null,
+            DocumentStatus.Draft, 0, null, null, null, JsonDocument.Parse("{}"));
+
+        using var scope = host.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+        await repo.AddAsync(document);
+        await repo.SaveChangesAsync();
+
+        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+
+        Assert.Null(await catalog.GetAsync(document.Id));
+        Assert.DoesNotContain(await catalog.ListAsync("Организация") ?? [], e => e.Id == document.Id);
     }
 
     /// <summary>Код типа по идентификатору — чтобы спросить порт тем же словом, каким тип заведён.</summary>

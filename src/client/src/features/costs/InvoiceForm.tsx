@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { CheckCheck, Copy, Save, Sparkles } from 'lucide-react';
+import { CheckCheck, Copy, Save, Sparkles, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
+import { apiError } from '@/shared/utils/apiError';
 import {
   useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
@@ -35,9 +36,12 @@ import { ScanUploadButton } from './InvoiceScanPanel';
  * со сбросом состояния — он рисует лишний кадр с чужими правками, и в этом кадре номер одного счёта
  * стоит в форме другого.
  */
-export function InvoiceForm({ view, organizations, onOpenInvoice, scanSlot }: {
+export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot }: {
   view: InvoiceView;
   organizations: CostsOrganization[];
+  /** Отказ чтения справочника организаций, если он был. ⚠️ Пустой список и «справочник не
+   *  прочитан» — разные вещи: сервер их различает нарочно, и терять это различие на клиенте нельзя. */
+  organizationsError?: unknown;
   onOpenInvoice: (id: string) => void;
   /** Замена панели скана на узком экране — рисует страница, она знает ширину. */
   scanSlot?: ReactNode;
@@ -97,11 +101,24 @@ export function InvoiceForm({ view, organizations, onOpenInvoice, scanSlot }: {
           </Button>
         </div>
 
+        {organizationsError != null && (
+          <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-subtle
+            px-3 py-2 text-xs text-danger">
+            <TriangleAlert size={14} className="shrink-0 mt-0.5" />
+            <span>
+              Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}.
+              Поставщика и плательщика выбрать не из чего — остальные поля правятся и сохраняются.
+              ⚠️ Это НЕ «организаций нет»: их список сюда не доехал.
+            </span>
+          </div>
+        )}
+
         {view.duplicates.length > 0 && <DuplicateNote view={view} onOpenInvoice={onOpenInvoice} />}
         {scanSlot}
 
         <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-4"
-          view={view} edits={edits} organizations={organizations} value={value} set={set}
+          view={view} edits={edits} organizations={organizations}
+          organizationsUnread={organizationsError != null} value={value} set={set}
           onConfirm={confirmBlock} confirming={confirm.isPending} />
       </div>
 
@@ -110,7 +127,8 @@ export function InvoiceForm({ view, organizations, onOpenInvoice, scanSlot }: {
         {BLOCKS.slice(1).map(block => (
           <section key={block.id} className="space-y-3">
             <BlockFields block={block} columns="sm:grid-cols-2" titled
-              view={view} edits={edits} organizations={organizations} value={value} set={set}
+              view={view} edits={edits} organizations={organizations}
+              organizationsUnread={organizationsError != null} value={value} set={set}
               onConfirm={confirmBlock} confirming={confirm.isPending} />
           </section>
         ))}
@@ -132,10 +150,12 @@ export function InvoiceForm({ view, organizations, onOpenInvoice, scanSlot }: {
 }
 
 function BlockFields({
-  block, columns, titled, view, edits, organizations, value, set, onConfirm, confirming,
+  block, columns, titled, view, edits, organizations, organizationsUnread, value, set,
+  onConfirm, confirming,
 }: {
   block: InvoiceBlock; columns: string; titled?: boolean;
   view: InvoiceView; edits: Record<string, unknown>; organizations: CostsOrganization[];
+  organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
   onConfirm: (block: InvoiceBlock) => void; confirming: boolean;
 }) {
@@ -160,16 +180,16 @@ function BlockFields({
       <div className={`grid grid-cols-1 ${columns} gap-3`}>
         {block.fields.map(key => (
           <Field key={key} fieldKey={key} view={view} edits={edits} organizations={organizations}
-            value={value} set={set} />
+            organizationsUnread={organizationsUnread} value={value} set={set} />
         ))}
       </div>
     </>
   );
 }
 
-function Field({ fieldKey, view, edits, organizations, value, set }: {
+function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set }: {
   fieldKey: string; view: InvoiceView; edits: Record<string, unknown>;
-  organizations: CostsOrganization[];
+  organizations: CostsOrganization[]; organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
 }) {
   const marked = isMarked(fieldKey, view.unconfirmed, edits);
@@ -182,16 +202,32 @@ function Field({ fieldKey, view, edits, organizations, value, set }: {
 
   switch (fieldKey) {
     case K.supplier:
-    case K.payer:
+    case K.payer: {
+      const entryId = refEntryId(current);
+
+      // Ссылка есть, а записи нет — организацию удалили. Radix показал бы такое значение
+      // ПЛЕЙСХОЛДЕРОМ «Выберите организацию», то есть соврал бы: поле выглядело бы незаполненным, и
+      // человек, ничего не трогая, сохранил бы счёт со ссылкой в пустоту. Реестр в том же случае
+      // честно пишет «организация не найдена» — форма обязана говорить то же самое.
+      const lost = entryId !== null && !organizations.some(o => o.id === entryId);
+
       return (
-        <div className={frame}>
-          <Select label={fieldKey === K.supplier ? 'Поставщик' : 'Плательщик'} hint={hint}
-            value={refEntryId(current) ?? ''} placeholder="Выберите организацию"
-            onValueChange={id => set(fieldKey, id ? catalogRef(id) : null)}>
+        <div className={lost ? 'rounded-md ring-1 ring-danger-border' : frame}>
+          <Select label={fieldKey === K.supplier ? 'Поставщик' : 'Плательщик'}
+            disabled={organizationsUnread}
+            hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
+              : lost ? 'Ссылка есть, а записи нет: организацию удалили' : hint}
+            value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
+            onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
+            {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
+                отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
+            <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
+            {lost && <SelectItem value={entryId}>организация не найдена ({entryId.slice(0, 8)}…)</SelectItem>}
             {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </Select>
         </div>
       );
+    }
 
     case K.date:
     case K.shippedOn:
@@ -228,6 +264,9 @@ function Field({ fieldKey, view, edits, organizations, value, set }: {
     }
   }
 }
+
+/** Значение пункта «не выбрано»: пустую строку Radix не принимает, а ссылку снимать чем-то надо. */
+const NOT_CHOSEN = 'не-выбрано';
 
 const LABELS: Record<string, string> = {
   [K.number]: 'Номер',

@@ -28,6 +28,18 @@ export async function seedInvoices({ api, findType, ensureEntry, field, apiBase,
   });
   if (existing === null) return null;
 
+  // ⚠️ Тип счёта может быть ещё НЕ ЗАВЕДЁН, и это нормальный ход событий, а не сбой. Тип объявляет
+  // модуль, но ссылается он на тип «Организация», который заводит человек — здесь его только что
+  // завёл посев, уже после старта приложения. Проекция типов модуля идёт один раз, при запуске,
+  // поэтому счёт появится со следующего. Скажем это вслух и выйдем: уронив посев, мы остановили бы
+  // и всё остальное, что он сеет, — а счета прогону не нужны, он заводит свои.
+  if (!(await invoiceTypeReady(api))) {
+    console.log('  · счета пока не сеются: тип «СчётНаОплату» появится при следующем запуске '
+      + 'приложения (он ссылается на тип «Организация», который завёл этот же посев). '
+      + 'Перезапустите приложение и повторите посев, если счета нужны на стенде глазами.');
+    return null;
+  }
+
   const ref = id => ({ $ref: 'catalog', entryId: id });
   const requisites = {
     'Номер': 'СЧ-104',
@@ -61,6 +73,15 @@ export async function seedInvoices({ api, findType, ensureEntry, field, apiBase,
       { requisites: { ...requisites, 'Назначение': 'Тот же счёт, второй файл' } });
 
   return { number: 'СЧ-104', recognizedId: recognized.id, duplicateId: duplicate.id };
+}
+
+/**
+ * Заведён ли тип счёта. Спрашиваем ПРЯМО — списком типов, а не по отказу создания: отказ пришлось бы
+ * разбирать по тексту, а текст меняют.
+ */
+async function invoiceTypeReady(api) {
+  const all = await api('GET', '/document-types');
+  return all.some(t => t.code === 'СчётНаОплату');
 }
 
 /**

@@ -206,7 +206,30 @@ try {
     await page.getByRole('button', { name: 'Во весь экран' }).waitFor({ timeout: 10_000 });
   });
 
-  // ── 5. Дубликат — оговорка со ссылкой, а не запрет ──────────────────────────
+  // ── 5. Поставщика можно СНЯТЬ ───────────────────────────────────────────────
+  //
+  // Выпадающий список пустого значения не отдаёт, поэтому без отдельного пункта «не выбрано» снять
+  // ссылку нечем: ошибочно распознанный плательщик остался бы в счёте навсегда. Проверяется
+  // перезагрузкой — сохранилось ли снятие, а не как выглядит поле.
+  await check('поставщика можно снять, и снятие сохраняется', async () => {
+    const number = `СЧ-С${stamp}-2`;
+    await api('POST', '/costs/invoices', { requisites: requisites(number, 'Снятие поставщика') });
+
+    await open(number);
+    await page.getByLabel('Поставщик').click();
+    await page.getByRole('option', { name: '— не выбрано —' }).click();
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await open(number);
+
+    const list = await api('GET', '/costs/invoices');
+    const saved = list.find(i => i.number === number);
+    if (saved.supplierId !== null)
+      throw new Error(`поставщик остался: ${saved.supplierId}`);
+  });
+
+  // ── 6. Дубликат — оговорка со ссылкой, а не запрет ──────────────────────────
   await check('оговорка о дубликате ведёт на тот счёт и не мешает сохранению', async () => {
     const number = `СЧ-Д${stamp}`;
     await api('POST', '/costs/invoices', { requisites: requisites(number, 'Счёт первый') });
@@ -224,11 +247,17 @@ try {
     const save = page.getByRole('button', { name: 'Сохранить' });
     if (await save.isDisabled()) throw new Error('сохранение заблокировано дубликатом');
     await save.click();
-    // Сохранилось — когда кнопка погасла: гаснет она ровно тогда, когда сохранять больше нечего.
-    await named('правка при дубликате не сохранилась', () => page.waitForFunction(
-      () => !!Array.from(document.querySelectorAll('button'))
-        .find(b => b.textContent.trim() === 'Сохранить' && b.disabled),
-      null, { timeout: 10_000 }));
+
+    // ⚠️ Сохранение проверяется ПЕРЕЗАГРУЗКОЙ, а не погасшей кнопкой. Кнопка гаснет и на время
+    // самого запроса (`disabled || loading`), поэтому ожидание «погасла» срабатывало бы ДО ответа
+    // сервера — то есть проверка не могла упасть вовсе, даже если сохранение отказало.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: new RegExp(number) }).first().click();
+    await page.getByRole('button', { name: 'Сохранить' }).waitFor({ timeout: 10_000 });
+
+    const saved = await page.getByLabel('Назначение').inputValue();
+    if (saved !== 'Правка при дубликате')
+      throw new Error(`правка при дубликате не сохранилась: в поле «${saved}»`);
 
     // Ссылка ведёт на ТОТ счёт — узнаём его по назначению, оно у счетов разное.
     await page.locator('button', { hasText: new RegExp(`${number} от`) }).first().click();

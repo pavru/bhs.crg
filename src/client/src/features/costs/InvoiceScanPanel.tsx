@@ -13,12 +13,16 @@ import { loadInvoiceScan } from '@/shared/api/invoices';
  * места в первой версии нет — и поэтому же отменена проверка «отдаёт ли профиль координаты полей»:
  * ответ ничего не менял бы.</p>
  */
-export function InvoiceScanPanel({ invoiceId, fileName, mimeType }: {
+export function InvoiceScanPanel({ invoiceId, blobPath, fileName, mimeType }: {
   invoiceId: string;
+  /** Путь файла в хранилище. ⚠️ Нужен ИМЕННО здесь: после «Заменить скан» счёт тот же, а файл
+   *  другой — панель, зависящая от одного счёта, показывала бы ПРЕЖНЮЮ бумагу, и человек сверял бы
+   *  форму не с тем документом. Хуже того: PDF, заменивший картинку, рисовался бы как картинка. */
+  blobPath: string | null;
   fileName: string | null;
   mimeType: string | null;
 }) {
-  const { url, failed } = useScan(invoiceId);
+  const { url, failed } = useScan(invoiceId, blobPath);
 
   if (failed) {
     return (
@@ -76,6 +80,10 @@ export function ScanTooNarrow({ invoiceId, width }: { invoiceId: string; width: 
             try {
               const { url } = await loadInvoiceScan(invoiceId);
               window.open(url, '_blank');
+              // Отзываем с отсрочкой: окно уже открыто, но браузеру нужна живая ссылка, пока он
+              // читает файл. Не отозвав вовсе, мы держали бы в памяти страницы весь скан — а рядом
+              // стоит комментарий, объявляющий отзыв обязательным.
+              setTimeout(() => URL.revokeObjectURL(url), 60_000);
             } finally { setBusy(false); }
           }}>
           Открыть скан отдельным окном
@@ -119,8 +127,9 @@ function Note({ children }: { children: React.ReactNode }) {
  * ⚠️ `URL.revokeObjectURL` в уборке обязателен: без него каждое открытие счёта оставляет в памяти
  * страницы файл целиком, а замечают такое на сотом счёте у заказчика.
  */
-function useScan(invoiceId: string) {
-  const [loaded, setLoaded] = useState<{ id: string; url: string | null; failed: boolean } | null>(null);
+function useScan(invoiceId: string, blobPath: string | null) {
+  const [loaded, setLoaded] = useState<{ key: string; url: string | null; failed: boolean } | null>(null);
+  const key = `${invoiceId}|${blobPath ?? ''}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -130,18 +139,18 @@ function useScan(invoiceId: string) {
       .then(({ url }) => {
         objectUrl = url;
         if (cancelled) { URL.revokeObjectURL(url); return; }
-        setLoaded({ id: invoiceId, url, failed: false });
+        setLoaded({ key, url, failed: false });
       })
-      .catch(() => { if (!cancelled) setLoaded({ id: invoiceId, url: null, failed: true }); });
+      .catch(() => { if (!cancelled) setLoaded({ key, url: null, failed: true }); });
 
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [invoiceId]);
+  }, [invoiceId, key]);
 
-  // Ответ считается своим только по совпадению счёта. Сбрасывать состояние в эффекте нельзя (лишний
-  // кадр), а без сверки идентификатора при переключении счёта на миг показался бы ЧУЖОЙ скан —
-  // человек решил бы, что бумага приложена не та.
-  return loaded?.id === invoiceId ? loaded : { url: null, failed: false };
+  // Ответ считается своим только по совпадению счёта И файла. Сбрасывать состояние в эффекте нельзя
+  // (лишний кадр), а без сверки при переключении счёта или замене скана на миг показалась бы ЧУЖАЯ
+  // бумага — человек решил бы, что приложено не то.
+  return loaded?.key === key ? loaded : { url: null, failed: false };
 }

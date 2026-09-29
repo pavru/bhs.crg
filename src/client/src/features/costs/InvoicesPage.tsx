@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
+import { apiError } from '@/shared/utils/apiError';
 import {
   useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem,
@@ -77,10 +78,25 @@ export function InvoicesPage() {
         </>
       }
       detail={
-        !selected || !view.data ? (
+        // ⚠️ Три состояния, а не одно. «Ничего не выбрано», «счёт грузится» и «счёт не пришёл» —
+        // разные вещи: отказ чтения, показанный приглашением выбрать счёт, выглядит как будто человек
+        // никуда не нажимал, и повторное нажатие по той же строке ничего не меняет.
+        !selected ? (
           <div className="flex-1 grid place-items-center">
             <EmptyState icon={<FileText size={28} />} title="Выберите счёт"
               description="Или заведите новый — черновик сохранится пустым." />
+          </div>
+        ) : view.isPending ? (
+          <div className="flex-1 grid place-items-center text-xs text-fg3">Счёт загружается…</div>
+        ) : view.isError || !view.data ? (
+          <div className="flex-1 grid place-items-center p-6">
+            <div className="max-w-md text-center space-y-2">
+              <p className="text-sm text-danger">Счёт не открылся: {apiError(view.error, 'сервер отказал')}</p>
+              <p className="text-xs text-fg3">
+                Это отказ чтения, а не пустой счёт — сам счёт в списке остался.
+              </p>
+              <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
+            </div>
           </div>
         ) : (
           <div className="flex-1 min-h-0 flex">
@@ -88,6 +104,7 @@ export function InvoicesPage() {
               key={view.data.id}
               view={view.data}
               organizations={organizations.data ?? []}
+              organizationsError={organizations.isError ? organizations.error : undefined}
               onOpenInvoice={setSelected}
               scanSlot={hasScan && !wide
                 ? <ScanTooNarrow invoiceId={view.data.id} width={window.innerWidth} />
@@ -99,6 +116,7 @@ export function InvoicesPage() {
               <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
                 <InvoiceScanPanel
                   invoiceId={view.data.id}
+                  blobPath={fileProp(scan, 'blobPath')}
                   fileName={fileProp(scan, 'fileName')}
                   mimeType={fileProp(scan, 'mimeType')}
                 />

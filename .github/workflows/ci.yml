@@ -468,12 +468,29 @@ jobs:
           App__PublicUrl: http://localhost:4173
           TYPST_PATH: /usr/local/bin/typst
         run: |
+          # ⚠️ Сначала УБЕДИТЬСЯ, что прежний умер, и только потом поднимать новый. Иначе второй
+          # экземпляр падает на занятом порту, а `curl /api/version` отвечает от СТАРОГО сервера —
+          # шаг печатает «поднялся заново» и зеленеет на сервере без типа счёта. Красный прогон
+          # счетов после такого разбирают как поломку формы.
           pkill -f 'BHS.CRG.Api.dll' || true
-          for i in $(seq 1 20); do pgrep -f 'BHS.CRG.Api.dll' >/dev/null || break; sleep 1; done
+          for i in $(seq 1 30); do pgrep -f 'BHS.CRG.Api.dll' >/dev/null || break; sleep 1; done
+          if pgrep -f 'BHS.CRG.Api.dll' >/dev/null; then
+            echo "прежний сервер не остановился за 30 с — перезапуск отменён"; exit 1
+          fi
+          # Порт тоже обязан освободиться: процесс уходит раньше, чем ядро закрывает сокет.
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:5055/api/version || break; sleep 1; done
+          if curl -sf -o /dev/null http://localhost:5055/api/version; then
+            echo "на 5055 всё ещё кто-то отвечает — новый сервер не поднять"; exit 1
+          fi
+
           nohup dotnet ./BHS.CRG.Api.dll >> ${{ runner.temp }}/api.log 2>&1 &
+          started=$!
           for i in $(seq 1 60); do
+            if ! kill -0 "$started" 2>/dev/null; then
+              echo "сервер завершился, не ответив"; tail -n 50 ${{ runner.temp }}/api.log; exit 1
+            fi
             if curl -sf -o /dev/null http://localhost:5055/api/version; then
-              echo "сервер поднялся заново"; exit 0
+              echo "сервер поднялся заново (pid $started)"; exit 0
             fi
             sleep 2
           done

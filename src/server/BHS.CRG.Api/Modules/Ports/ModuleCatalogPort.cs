@@ -44,6 +44,11 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
         foreach (var id in codes.Keys)
             entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(null, null, id), ct));
 
+        // ⚠️ Записи приезжают ЦЕЛИКОМ, с данными: так объявлен контракт порта (`DataJson`), и модулю
+        // они нужны — сопоставление поставщика ищет по ИНН. Цена названа: у вида с картинкой в поле
+        // это мегабайты на список (issue #1015). Поводом сузить будет первый вид, где такое поле
+        // появится; менять придётся запрос ядра, а не порт — проекции по полям у него нет.
+
         // Порядок задаёт ПОРТ. Запрос ядра не сортирует вовсе — порядок приходит от Postgres и
         // меняется после правок и уборки, — а список каталога на экране сортирует клиент. Обещание
         // «по названию» в контракте без сортировки здесь было бы ложным: оно сбывалось бы, пока
@@ -57,7 +62,12 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)
     {
         var entry = await mediator.Send(new GetCommonDataEntryQuery(id), ct);
-        if (entry is null) return null;
+
+        // ⚠️ Документ записью справочника НЕ считается. Чтение по идентификатору фасету не отбирает
+        // (в отличие от списка), а идентификатор у документа и у записи общих данных живёт в одной
+        // таблице: подставь модуль идентификатор документа — и получил бы его реквизиты под видом
+        // справочника, без единого отказа.
+        if (entry is null || entry.IsDocument) return null;
 
         var all = await types.GetAllAsync(ct);
         return Map(entry, all.ToDictionary(t => t.Id, t => t.Code));
