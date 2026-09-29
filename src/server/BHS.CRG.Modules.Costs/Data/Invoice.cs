@@ -116,6 +116,13 @@ public sealed class Invoice
     public string? ScanMimeType { get; private set; }
 
     /// <summary>
+    /// Размер скана в байтах. Колонкой, а не вопросом к хранилищу: размер едет в значении файлового
+    /// поля, значение собирается на каждое чтение — и на чтении реестра это был бы запрос к хранилищу
+    /// на каждую строку. Ставится вместе с путём и без пути не бывает.
+    /// </summary>
+    public long? ScanSize { get; private set; }
+
+    /// <summary>
     /// Ключи полей, которые заполнило распознавание и человек ещё не подтвердил (решение владельца
     /// продукта 29.09.2026, вариант C).
     ///
@@ -176,7 +183,17 @@ public sealed class Invoice
     /// «метка снимается с того поля, которое изменилось» считается сравнением ДО и ПОСЛЕ — то есть
     /// требует видеть все значения сразу.</para>
     /// </summary>
-    public void Apply(InvoiceColumns columns, JsonDocument data)
+    /// <param name="dueDateByHand">
+    /// Правит ли срок ЧЕЛОВЕК. Признак «срок задан вручную» помнится навсегда: правило подстановки
+    /// (<c>C4</c>) обязано обходить такой срок стороной, а из самого значения это не выводится никак.
+    ///
+    /// <para>⚠️ Параметром, а не «значение отличается от лежащего». Отличается оно и при СОЗДАНИИ —
+    /// лежащего там нет, и любой присланный срок не равен пустому. Выведи мы признак из разницы, счёт,
+    /// заведённый распознаванием, оказался бы помечен ручным навсегда: «оплатить до» стоит в бумаге
+    /// поставщика, то есть правило подстановки обходило бы стороной ровно те счета, ради которых
+    /// заводится, а сбросить признак нечем.</para>
+    /// </param>
+    public void Apply(InvoiceColumns columns, JsonDocument data, bool dueDateByHand)
     {
         Number = columns.Number;
         IssuedOn = columns.IssuedOn;
@@ -189,9 +206,7 @@ public sealed class Invoice
         DeferralDays = columns.DeferralDays;
         Data = data;
 
-        // Ручную правку срока помним навсегда: правило подстановки (C4) обязано обходить такой срок
-        // стороной, а «человек правил» из самого значения не выводится никак.
-        if (columns.DueDate != DueDate) DueDateManual = true;
+        if (dueDateByHand && columns.DueDate != DueDate) DueDateManual = true;
         DueDate = columns.DueDate;
 
         Touch();
@@ -205,11 +220,12 @@ public sealed class Invoice
     private void Touch() => UpdatedAt = DateTimeOffset.UtcNow;
 
     /// <summary>Скан счёта: пришёл файлом или сканом (ТЗ COST-5).</summary>
-    public void AttachScan(string blobPath, string fileName, string mimeType)
+    public void AttachScan(string blobPath, string fileName, string mimeType, long size)
     {
         ScanBlobPath = blobPath;
         ScanFileName = fileName;
         ScanMimeType = mimeType;
+        ScanSize = size;
         Touch();
     }
 

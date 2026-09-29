@@ -322,11 +322,15 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     }
 
     /// <summary>
-    /// Состояния правкой не задаются: их двигают действия (ТЗ COST-9). Отказ, а не тихий пропуск —
+    /// Состояния правкой не МЕНЯЮТСЯ: их двигают действия (ТЗ COST-9). Отказ, а не тихий пропуск —
     /// пропущенное значение выглядело бы записанным.
+    ///
+    /// <para>Присланное «как лежит» при этом проходит, и обязано: форма возвращает запись целиком
+    /// (<c>Ответ_счёта_принимается_правкой_без_изъятий</c>). Правило то же, что у охраны записи
+    /// ядра, — сравнение значений, а не наличия ключа.</para>
     /// </summary>
     [Fact]
-    public async Task Состояние_счёта_правкой_не_задаётся()
+    public async Task Состояние_счёта_правкой_не_меняется()
     {
         var (client, _) = await SignInAsync("Supplier");
         var id = (await CreateAsync(client, Requisites(number: "СЧ-21"))).GetProperty("id").GetGuid();
@@ -518,9 +522,110 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    /// <summary>
+    /// Что отдал сервер — то он и принимает правкой, БЕЗ ИЗЪЯТИЙ.
+    ///
+    /// <para>Зачем тест на такую очевидность: состояния и скан сервер отдаёт ВСЕГДА, а отказывал прежде
+    /// на любом их упоминании в правке — то есть круг «прочитать → поправить → сохранить» не проходил
+    /// ни разу. Запись модуля рисует общая форма по схеме типа и возвращает её целиком; другой формы у
+    /// неё нет. В тестах это было не видно, потому что помощник <c>Writable</c> вырезал те же три ключа
+    /// перед каждой правкой — здесь он нарочно не зовётся.</para>
+    /// </summary>
+    [Fact]
+    public async Task Ответ_счёта_принимается_правкой_без_изъятий()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var id = (await CreateAsync(client, Requisites(number: "СЧ-30", total: 100m)))
+            .GetProperty("id").GetGuid();
+        await AttachAsync(client, id, "скан.pdf", "бумага поставщика");
+
+        var read = await client.GetAsync($"/api/costs/invoices/{id}");
+        await OkAsync(read);
+        var requisites = (await read.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("requisites");
+
+        // Именно они и ломали круг: сервер их присылает, форма возвращает.
+        Assert.True(requisites.TryGetProperty("Состояние", out _));
+        Assert.True(requisites.TryGetProperty("Скан", out _));
+
+        var saved = await UpdateAsync(client, id, requisites);
+
+        Assert.Equal("Черновик", saved.GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.Equal("скан.pdf",
+            saved.GetProperty("requisites").GetProperty("Скан").GetProperty("fileName").GetString());
+    }
+
+    /// <summary>
+    /// Размер скана приходит в значении поля. Форма показывает его рядом с именем файла и в признак
+    /// «это файл» не включает: значение без размера рисуется как «NaN ГБ» — поломка видна человеку, а
+    /// причина не видна никому.
+    /// </summary>
+    [Fact]
+    public async Task Размер_скана_приходит_в_значении_поля()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var id = (await CreateAsync(client, Requisites(number: "СЧ-31"))).GetProperty("id").GetGuid();
+
+        const string body = "бумага поставщика";
+        await AttachAsync(client, id, "скан.pdf", body);
+
+        var read = await client.GetAsync($"/api/costs/invoices/{id}");
+        await OkAsync(read);
+        var scan = (await read.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("requisites").GetProperty("Скан");
+
+        Assert.Equal(Encoding.UTF8.GetByteCount(body), scan.GetProperty("size").GetInt64());
+    }
+
+    /// <summary>
+    /// Срок, пришедший из РАСПОЗНАВАНИЯ, ручным не считается, а вписанный человеком — считается.
+    ///
+    /// <para>Признак помнится навсегда и правилу подстановки (<c>C4</c>, issue #1080) велит обходить
+    /// такой срок стороной. Отличить одно от другого можно только меткой: «оплатить до» стоит в бумаге
+    /// поставщика, то есть при выводе признака из разницы значений распознанный счёт был бы помечен
+    /// ручным навсегда — и правило обходило бы стороной ровно те счета, ради которых заводится.</para>
+    /// </summary>
+    [Fact]
+    public async Task Срок_из_распознавания_ручным_не_считается()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+
+        var recognized = (await CreateAsync(client, Requisites(number: "СЧ-32", dueDate: "2026-10-01"),
+            unconfirmed: ["Срок"])).GetProperty("id").GetGuid();
+        var byHand = (await CreateAsync(client, Requisites(number: "СЧ-33", dueDate: "2026-10-01")))
+            .GetProperty("id").GetGuid();
+
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+
+        Assert.False((await db.Invoices.AsNoTracking().SingleAsync(i => i.Id == recognized)).DueDateManual);
+        Assert.True((await db.Invoices.AsNoTracking().SingleAsync(i => i.Id == byHand)).DueDateManual);
+    }
+
+    /// <summary>
+    /// Ссылка с нестроковым «entryId» — отказ с текстом, а не 500. Вид значения проверяется до чтения:
+    /// иначе разбор роняет запрос исключением, которое в отказ не отображается ничем, и клиент видит
+    /// «внутренняя ошибка» там, где сервер точно знает, что именно ему не понравилось.
+    /// </summary>
+    [Fact]
+    public async Task Ссылка_с_нестроковым_идентификатором_отказывает()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var requisites = new Dictionary<string, object?>
+        {
+            ["Дата"] = "2026-09-03",
+            ["Поставщик"] = new Dictionary<string, object?> { ["$ref"] = "catalog", ["entryId"] = 123 },
+            ["Плательщик"] = Reference(payer),
+        };
+
+        var response = await client.PostAsJsonAsync("/api/costs/invoices", new { requisites });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
-    private object Requisites(string? number = null, decimal? total = null, string? basis = null) =>
+    private object Requisites(
+        string? number = null, decimal? total = null, string? basis = null, string? dueDate = null) =>
         new Dictionary<string, object?>
         {
             ["Номер"] = number,
@@ -529,6 +634,7 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
             ["Плательщик"] = Reference(payer),
             ["Итого"] = total,
             ["Основание"] = basis,
+            ["Срок"] = dueDate,
         };
 
     /// <summary>

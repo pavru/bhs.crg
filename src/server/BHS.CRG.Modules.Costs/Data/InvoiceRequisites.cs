@@ -72,7 +72,18 @@ public static class InvoiceRequisites
     /// разошлись в понимании поля, и молча записанный <c>null</c> выглядел бы как «человек стёр
     /// сумму».</para>
     /// </summary>
-    public static (InvoiceColumns Columns, JsonDocument Extra) Split(JsonElement requisites)
+    /// <param name="stored">
+    /// Реквизиты, КАК ОНИ ЛЕЖАТ (<see cref="Merge" />), или <c>null</c> при создании. Нужны затем,
+    /// чтобы у полей, которые ведёт код, правило было ТЕМ ЖЕ, что у охраны записи ядра: присылать
+    /// можно, менять нельзя.
+    ///
+    /// <para>⚠️ Требовать, чтобы их не присылали вовсе, нельзя. Запись модуля рисует общая форма по
+    /// схеме типа и возвращает её целиком — ровно то, что отдал <see cref="Merge" />, вместе с
+    /// состояниями и сканом. Прежнее правило на таком запросе отказывало ВСЕГДА: круг «прочитать →
+    /// поправить → сохранить» не проходил ни разу, а в тестах это было не видно, потому что помощник
+    /// вырезал те же три ключа перед каждой правкой.</para>
+    /// </param>
+    public static (InvoiceColumns Columns, JsonDocument Extra) Split(JsonElement requisites, JsonObject? stored)
     {
         if (requisites.ValueKind != JsonValueKind.Object)
             throw new InvalidRequestException(
@@ -80,10 +91,20 @@ public static class InvoiceRequisites
                 $"{requisites.ValueKind}. Схему полей задаёт тип «{CostsRecordTypes.InvoiceCode}».");
 
         foreach (var (key, why) in ReadOnlyColumnKeys)
-            if (requisites.TryGetProperty(key, out _))
-                throw new InvalidRequestException(
-                    $"Поле «{key}» правкой счёта не задаётся: {why}. Уберите его из реквизитов — " +
-                    "иначе непонятно, чего ждать: молча пропущенное значение выглядело бы записанным.");
+        {
+            if (!requisites.TryGetProperty(key, out var sent)) continue;
+
+            // Сравнение ЗНАЧЕНИЙ, как у охраны ядра: присланное «как лежит» — не правка, и отказывать
+            // на нём нечему. При создании лежащего нет, поэтому пройдёт только пустое значение — и
+            // это верно: запертое поле нельзя заполнить даже впервые.
+            var now = JsonNode.Parse(sent.GetRawText());
+            var was = stored is not null && stored.TryGetPropertyValue(key, out var value) ? value : null;
+            if (JsonNode.DeepEquals(was, now)) continue;
+
+            throw new InvalidRequestException(
+                $"Поле «{key}» правкой счёта не меняется: {why}. Пришлите его значение как есть или " +
+                "не присылайте вовсе — молча пропущенная правка выглядела бы записанной.");
+        }
 
         var columns = new InvoiceColumns(
             Number: Text(requisites, NumberKey),
@@ -231,6 +252,11 @@ public static class InvoiceRequisites
         ? new JsonObject { ["$ref"] = "catalog", ["entryId"] = value.ToString() }
         : null;
 
+    /// <summary>
+    /// Скан — значением файлового поля общего контракта. ⚠️ <c>size</c> в нём обязателен: форма
+    /// показывает размер вложения рядом с именем и в свой признак «это файл» его не включает —
+    /// значение без размера рисуется как «NaN ГБ», а не как файл без размера.
+    /// </summary>
     private static JsonNode? ScanNode(Invoice invoice) => invoice.ScanBlobPath is { } path
         ? new JsonObject
         {
@@ -238,6 +264,7 @@ public static class InvoiceRequisites
             ["blobPath"] = path,
             ["fileName"] = invoice.ScanFileName,
             ["mimeType"] = invoice.ScanMimeType,
+            ["size"] = JsonValue.Create(invoice.ScanSize),
         }
         : null;
 
@@ -304,9 +331,12 @@ public static class InvoiceRequisites
         if (value.ValueKind != JsonValueKind.Object)
             throw Wrong(key, value, "ссылку на запись справочника {\"$ref\":\"catalog\",\"entryId\":\"…\"}");
 
-        if (!value.TryGetProperty("entryId", out var entry) || !Guid.TryParse(entry.GetString(), out var id))
+        // Вид значения проверяется ДО GetString(): у числа он бросает InvalidOperationException, а в
+        // отказ его никто не отображает — ответом был бы 500 вместо «поле такое-то не разобрано».
+        if (!value.TryGetProperty("entryId", out var entry) || entry.ValueKind != JsonValueKind.String
+            || !Guid.TryParse(entry.GetString(), out var id))
             throw new InvalidRequestException(
-                $"Поле «{key}»: в ссылке нет «entryId» с идентификатором записи справочника. " +
+                $"Поле «{key}»: в ссылке нет «entryId» со строкой-идентификатором записи справочника. " +
                 "Организацию выбирают из справочника ядра, а не вписывают названием: по записи " +
                 "справочника счёт находит ИНН, а по нему — сопоставление поставщика.");
 

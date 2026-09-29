@@ -69,6 +69,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.ScanBlobPath).HasColumnName("scan_blob_path");
         invoice.Property(i => i.ScanFileName).HasColumnName("scan_file_name");
         invoice.Property(i => i.ScanMimeType).HasColumnName("scan_mime_type");
+        invoice.Property(i => i.ScanSize).HasColumnName("scan_size");
 
         // Метки «распознано, не подтверждено» — массивом текста: это множество ключей полей, и
         // отдельная таблица на него завела бы вторую сущность там, где нет ни одной своей колонки

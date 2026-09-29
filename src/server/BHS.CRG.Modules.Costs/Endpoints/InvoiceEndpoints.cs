@@ -102,12 +102,17 @@ public static class InvoiceEndpoints
                 "приложения — причину пропуска он называет в журнале запуска (обычно код или имя " +
                 "типа занял другой тип).");
 
-        var (columns, rest) = InvoiceRequisites.Split(body.Requisites);
+        var (columns, rest) = InvoiceRequisites.Split(body.Requisites, stored: null);
         await EnsureAllowedAsync(guard, typeId, stored: null, body.Requisites.GetRawText(), ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
-        invoice.Apply(columns, rest);
-        if (body.Unconfirmed is { Count: > 0 } marks) invoice.MarkUnconfirmed(marks);
+        var marks = body.Unconfirmed ?? [];
+
+        // Срок, пришедший из распознавания, ручным не считается — и отличим он ровно меткой: «оплатить
+        // до» стоит в бумаге поставщика, а правило подстановки (C4) обходит стороной только тот срок,
+        // который вписал человек.
+        invoice.Apply(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));
+        if (marks.Count > 0) invoice.MarkUnconfirmed(marks);
 
         db.Invoices.Add(invoice);
         await db.SaveChangesAsync(ct);
@@ -143,13 +148,15 @@ public static class InvoiceEndpoints
         var invoice = await FindAsync(db, id, ct);
         var before = InvoiceRequisites.Merge(invoice);
 
-        var (columns, rest) = InvoiceRequisites.Split(body.Requisites);
+        var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
         await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
             InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
 
         var changed = InvoiceRequisites.Changed(before, body.Requisites);
 
-        invoice.Apply(columns, rest);
+        // Правка — всегда человек: метки этот адрес не принимает (отказ выше), то есть фоновому
+        // заполнению сюда дороги нет.
+        invoice.Apply(columns, rest, dueDateByHand: true);
         invoice.Confirm(changed);
 
         await db.SaveChangesAsync(ct);
@@ -214,7 +221,7 @@ public static class InvoiceEndpoints
         var path = await blobs.PutAsync(
             file.FileName, content, file.ContentType ?? "application/octet-stream", ct);
 
-        invoice.AttachScan(path, file.FileName, file.ContentType ?? "application/octet-stream");
+        invoice.AttachScan(path, file.FileName, file.ContentType ?? "application/octet-stream", file.Length);
         await db.SaveChangesAsync(ct);
 
         // Прежний скан убираем из хранилища — ПОСЛЕ того, как запись о новом сохранилась. Порядок
