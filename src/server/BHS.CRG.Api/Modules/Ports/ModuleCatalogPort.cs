@@ -1,6 +1,5 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
-using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
@@ -26,15 +25,17 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// </summary>
 public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentType> types) : IModuleCatalog
 {
-    public async Task<IReadOnlyList<ModuleCatalogEntry>> ListAsync(
+    public async Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
         string entityType, CancellationToken ct = default)
     {
         var all = await types.GetAllAsync(ct);
-        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase))
-            ?? throw new NotFoundException(
-                $"Вида записей «{entityType}» в системе нет: типа с таким кодом не существует. " +
-                "Проверьте код вида в модуле — пустой список на этом месте означал бы, что записей " +
-                "нет вовсе, и различить опечатку от пустого справочника было бы нечем.");
+
+        // Вида нет — ноль, а не пустой список: «типа с таким кодом не заведено» и «записей такого
+        // вида ещё нет» — разные ответы, и выбирает между ними модуль. Отказом отсюда отвечать
+        // нельзя и по букве: слой API отвечает кодами, доменные отказы бросает тот, кто знает, что
+        // они означают на экране (`DomainExceptionPolicyTests`).
+        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
+        if (root is null) return null;
 
         // Вид — это тип И его подтипы: подтип организации остаётся организацией, и поставщиком
         // заказчика может быть любой из них. Считаем так же, как ядро в `isSubtypeOf`.

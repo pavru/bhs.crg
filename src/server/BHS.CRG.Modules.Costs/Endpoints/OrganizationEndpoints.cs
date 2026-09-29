@@ -35,7 +35,12 @@ public static class OrganizationEndpoints
     private static async Task<Ok<IReadOnlyList<CostsOrganization>>> ListAsync(
         IModuleCatalog catalog, CancellationToken ct)
     {
-        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct);
+        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct)
+            ?? throw new ConflictException(
+                $"Тип «{CostsRecordTypes.OrganizationCode}» в системе не заведён, поэтому выбрать " +
+                "поставщика не из чего. Этот тип ведёт человек — заведите его в разделе типов, и " +
+                "счета заработают со следующего запуска приложения. Пустой список здесь означал бы " +
+                "«организаций ещё не завели», а это другое.");
 
         return TypedResults.Ok<IReadOnlyList<CostsOrganization>>(
             [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType))]);

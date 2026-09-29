@@ -22,6 +22,8 @@
 // `ci.yml` (сегодня там `SMOKE_BASE`): переменная работы сильнее дописанной в `$GITHUB_ENV`, и
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
+import { seedInvoices } from './seed-invoices.mjs';
+
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 const ADMIN_PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
@@ -199,95 +201,6 @@ async function ensureType({ code, name, kind, schema, group, parentId = null }) 
   if (group) await api('PUT', `/document-types/${created.id}/group`, { group });
   console.log(`  + тип «${name}»`);
   return created.id;
-}
-
-// ── Счета модуля «Счета и накладные» ─────────────────────────────────────────
-
-/**
- * Тип, который нужен ТОЛЬКО существованием: заводим, если его нет, а найденный НЕ ТРОГАЕМ.
- *
- * ⚠️ Отличие от `ensureType` тут принципиальное, и цена ошибки высока. Тип с кодом «Организация»
- * заводит человек, и в рабочей базе он есть — со схемой заказчика. Доведи мы его «до нужного
- * состояния», как делает `ensureType`, посев ПЕРЕПИСАЛ БЫ схему живого справочника организаций,
- * а README зовёт натравливать посев на свою базу. Счёту же нужен не состав полей, а сам тип:
- * поля «Поставщик» и «Плательщик» ссылаются на него по коду.
- */
-async function ensureTypeExists({ code, name, schema }) {
-  const found = await findType(code);
-  if (found) return found.id;
-
-  const created = await api('POST', '/document-types', {
-    name, code, kind: 'Composite', parentId: null,
-    schema: JSON.stringify(schema), isAbstract: false, module: 'core',
-  });
-  console.log(`  + тип «${name}» (код «${code}»)`);
-  return created.id;
-}
-
-/**
- * Счета для живых прогонов. Возвращает адреса или `null`, если модуля `costs` в приложении нет.
- *
- * ⚠️ Отсутствие модуля НЕ считается нормой и не проходит молча: посев говорит об этом вслух, а сам
- * прогон счетов на пустом значении падает с названной причиной. Молчаливый пропуск здесь стоил бы
- * дорого — пять проверок формы выглядели бы «пройденными», не открыв ни одного счёта.
- */
-async function ensureInvoices(supplierId, payerId) {
-  const ref = id => ({ $ref: 'catalog', entryId: id });
-
-  const existing = await api('GET', '/costs/invoices').catch(e => {
-    console.log(`  ! счета не сеются: модуль costs недоступен (${e.message})`);
-    return null;
-  });
-  if (existing === null) return null;
-
-  const requisites = {
-    'Номер': 'СЧ-104',
-    'Дата': '2026-09-03',
-    'Поставщик': ref(supplierId),
-    'Плательщик': ref(payerId),
-    'Итого': 128400.5,
-    'ВТомЧислеНДС': 21400.08,
-    'Срок': '2026-10-03',
-    'Основание': 'Договор поставки 17/26',
-    'Назначение': 'Кабель для пожарной сигнализации',
-  };
-
-  const find = number => existing.find(i => i.number === number) ?? null;
-
-  // Распознанный черновик: метки приезжают ВМЕСТЕ с полями — так его и создаёт фоновая задача.
-  // Именно поэтому они и должны переживать повторное открытие: человек открывает счёт потом.
-  let recognized = find('СЧ-104');
-  if (!recognized) {
-    recognized = await api('POST', '/costs/invoices', {
-      requisites, unconfirmed: ['Номер', 'Итого', 'Срок'],
-    });
-    console.log('  + счёт СЧ-104 с метками «распознано, не подтверждено»');
-  }
-
-  // Скан — картинкой: PDF в CI не нужен, панель показывает и то и другое, а собранный здесь PNG
-  // заведомо синтетический (репозиторий публичный).
-  if (!recognized.hasScan && !(recognized.requisites ?? {})['Скан']) {
-    const form = new FormData();
-    form.append('file', new Blob([Buffer.from(LOGO_PNG_BASE64, 'base64')], { type: 'image/png' }),
-      'скан-счёта.png');
-    const put = await fetch(`${API}/api/costs/invoices/${recognized.id}/scan`,
-      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
-    if (!put.ok) throw new Error(`скан счёта не приложился: ${put.status} ${await put.text()}`);
-    console.log('  + скан к счёту СЧ-104');
-  }
-
-  // Дубликат: тот же поставщик, номер и дата. Заводится ВТОРЫМ, чтобы оговорка была видна у обоих —
-  // отбор дубликатов исключает сам счёт, но не порядок создания.
-  let duplicate = find('СЧ-104-копия') ?? existing.find(
-    i => i.number === 'СЧ-104' && i.id !== recognized.id) ?? null;
-  if (!duplicate) {
-    duplicate = await api('POST', '/costs/invoices', {
-      requisites: { ...requisites, 'Итого': 128400.5, 'Назначение': 'Тот же счёт, второй файл' },
-    });
-    console.log('  + второй счёт с тем же номером и датой (дубликат)');
-  }
-
-  return { number: 'СЧ-104', recognizedId: recognized.id, duplicateId: duplicate.id };
 }
 
 // ── Файлы-фикстуры ────────────────────────────────────────────────────────────
@@ -880,20 +793,10 @@ async function main() {
   await ensureCatalogEntries(orgTypeId, personTypeId);
 
   /**
-   * Организации для счёта — записи ОБЩИХ ДАННЫХ типа с кодом «Организация»: именно этот код называют
-   * целью поля «Поставщик», и именно по общим данным разрешается ссылка на запись справочника.
+   * Организации и счета модуля — своим файлом (храповик размера): здесь остаётся вызов, а всё, что
+   * знает про счета, живёт в `seed-invoices.mjs`.
    */
-  const supplierTypeId = await ensureTypeExists({
-    // Имя — не «Организация (посев)»: оно занято типом `ORG_SEED` (имена уникальны наравне с
-    // кодами). Важен здесь КОД: по нему поле счёта называет цель.
-    code: 'Организация', name: 'Организация ядра (посев)',
-    schema: { fields: [field('Наименование', 'Наименование', 'string'), field('ИНН', 'ИНН', 'string')] },
-  });
-  const invoiceSupplierId = await ensureEntry(supplierTypeId, 'ООО «Кабель-Торг» (посев)',
-    { Наименование: 'ООО «Кабель-Торг»', ИНН: '7701000010' });
-  const invoicePayerId = await ensureEntry(supplierTypeId, 'ООО «Наша компания» (посев)',
-    { Наименование: 'ООО «Наша компания»', ИНН: '7701000011' });
-  const invoices = await ensureInvoices(invoiceSupplierId, invoicePayerId);
+  await seedInvoices({ api, findType, ensureEntry, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
   await ensureSystemDataSet();
 
   // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
@@ -1027,8 +930,7 @@ async function main() {
   // не пропуском: проверять форму счёта, не открыв счёта, — это отчёт о работе, которой не было.
   // ⚠️ Счета переменных прогону НЕ дают, и это осознанно: свои счета он заводит сам, потому что
   // проверки снимают метки — на посеянных второй запуск проверял бы пустоту. Посеянные счета живут
-  // здесь ради человека, который откроет стенд глазами.
-  if (invoices) console.log(`  · счета для стенда: ${invoices.number} и его двойник`);
+  // ради человека, который откроет стенд глазами, и о них печатает сам `seed-invoices.mjs`.
   // ⚠️ `SMOKE_PDF_FILE_ID` здесь НЕ печатается, и это осознанно. Набора с распознанными страницами
   // посев не создаёт (распознаёт их ИИ-движок), но объявляет это не он, а сама работа CI —
   // переменной уровня работы. Причина в порядке сильнее-слабее: переменная работы перекрывает

@@ -325,7 +325,10 @@ public static class InvoiceEndpoints
         // Вид записи — КОД ТИПА, тот же, которым названа цель поля «Поставщик». В списке приходят и
         // записи подтипов: подтип организации — организация, и живые поставщики заказчика лежат
         // именно подтипом.
+        // Вида нет (ноль) — значит и организаций нет: реестр остаётся реестром, а не превращается в
+        // отказ. Счёт со ссылкой на организацию при этом покажет «организация не найдена» — что
+        // правда: тип, на который он ссылается, из системы исчез.
         var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct);
-        return organizations.ToDictionary(o => o.Id, o => o.DisplayName);
+        return organizations?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
     }
 }

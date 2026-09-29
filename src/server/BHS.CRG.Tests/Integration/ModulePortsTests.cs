@@ -332,21 +332,34 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     }
 
     /// <summary>
-    /// Неизвестный вид — ОТКАЗ, а не пустой список.
+    /// «Вида нет» отличимо от «записей нет»: ноль против пустого списка.
     ///
-    /// <para>Опечатка в коде вида и «записей такого вида нет» иначе выглядят одинаково: у человека на
-    /// экране пустой выпадающий список, и выбирать между двумя объяснениями приходится ему. Именно так
-    /// и жил этот порт: в контракте стояли английские имена, по которым список приходил пустым.</para>
+    /// <para>Сведи мы эти два ответа, опечатка в коде вида и «организаций ещё не завели» выглядели бы
+    /// одинаково — пустым выпадающим списком, и выбирать между объяснениями пришлось бы человеку.
+    /// Именно так и жил этот порт: в контракте стояли английские имена видов, по которым список
+    /// приходил пустым, и ни одного отказа при этом не случалось.</para>
+    ///
+    /// <para>Отказом порт не отвечает нарочно: тип-справочник заводит человек, и его отсутствие —
+    /// состояние установки, а не промах модуля. Что показать, решает модуль.</para>
     /// </summary>
     [Fact]
-    public async Task Неизвестный_вид_записей_отказывает()
+    public async Task Нет_вида_и_нет_записей_это_разные_ответы()
     {
+        var empty = await TypeIdAsync($"ВидБезЗаписей{Guid.NewGuid():N}");
+
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var refusal = await Assert.ThrowsAsync<NotFoundException>(() => catalog.ListAsync("Органиазция"));
+        Assert.Null(await catalog.ListAsync("Органиазция"));
+        Assert.Empty((await catalog.ListAsync(await CodeOfAsync(empty)))!);
+    }
 
-        Assert.Contains("Органиазция", refusal.Message);
+    /// <summary>Код типа по идентификатору — чтобы спросить порт тем же словом, каким тип заведён.</summary>
+    private async Task<string> CodeOfAsync(Guid typeId)
+    {
+        using var scope = host.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+        return (await repo.GetByIdAsync(typeId))!.Code;
     }
 
     /// <summary>
