@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Plus, Sparkles, TriangleAlert } from 'lucide-react';
+import { FileText, ListChecks, Plus, Sparkles, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -22,14 +22,15 @@ import { K, formatDate, formatMoney, scanFitsBeside } from './invoiceFields';
  * что не начато.</p>
  */
 export function InvoicesPage() {
-  const invoices = useInvoices();
+  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [needsParsing, setNeedsParsing] = useState(false);
+  const wide = useWideEnoughForScan();
+
+  const invoices = useInvoices(needsParsing);
   const organizations = useCostsOrganizations();
   const create = useCreateInvoice();
   const toast = useToast();
-
-  const [selected, setSelected] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const wide = useWideEnoughForScan();
 
   const view = useInvoice(selected ?? undefined);
   const items = (invoices.data ?? []).filter(i => matches(i, query));
@@ -58,6 +59,15 @@ export function InvoicesPage() {
       nav={
         <>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
+          {/* Отбор «Разобрать» (ТЗ COST-6.2) — рабочая очередь снабженца: счета, у которых строки ждут
+              позиции номенклатуры. Отбирает СЕРВЕР: считать «ждут позиции» по загруженному списку
+              можно, а вот утверждать по нему, что других таких счетов нет, — нельзя. */}
+          <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg3 cursor-pointer">
+            <input type="checkbox" checked={needsParsing}
+              onChange={e => setNeedsParsing(e.target.checked)} />
+            <ListChecks size={13} />
+            Только «Разобрать»
+          </label>
           <div className="flex-1 overflow-y-auto">
             {invoices.isPending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
             {invoices.isError && (
@@ -67,7 +77,11 @@ export function InvoicesPage() {
             )}
             {!invoices.isPending && !invoices.isError && items.length === 0 && (
               <p className="px-3 py-2 text-xs text-fg3">
-                {query ? 'Ничего не найдено.' : 'Счетов пока нет.'}
+                {query ? 'Ничего не найдено.'
+                  : needsParsing
+                    ? 'Разбирать нечего: строк, ждущих позиции номенклатуры, нет ни у одного счёта. '
+                      + 'Счета без строк вовсе в этот отбор не входят — это другая работа.'
+                    : 'Счетов пока нет.'}
               </p>
             )}
             {items.map(item => (
@@ -148,6 +162,14 @@ function ListRow({ item, active, onClick }: {
           <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
             title="Распознано, не подтверждено">
             <Sparkles size={11} />{item.unconfirmedCount}
+          </span>
+        )}
+        {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
+            Строки БЕЗ ожидающих не показываем вовсе: число «0» у каждой строки читается как шум. */}
+        {item.linesWithoutNomenclature > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
+            title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
+            <ListChecks size={11} />{item.linesWithoutNomenclature}
           </span>
         )}
       </div>

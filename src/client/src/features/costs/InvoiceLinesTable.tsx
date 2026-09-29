@@ -1,0 +1,277 @@
+import { useState } from 'react';
+import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
+import { Button } from '@/shared/ui/Button';
+import { useToast } from '@/shared/ui/Toast';
+import { useInvoiceState, useReplaceInvoiceLines, type InvoiceView } from '@/shared/api/invoices';
+import { K, formatMoney } from './invoiceFields';
+import {
+  emptyDraft, mismatch, preview, toDrafts, toPayload, totals, type LineDraft,
+} from './invoiceLines';
+import { InvoiceLinesPaste } from './InvoiceLinesPaste';
+import { NomenclaturePicker } from './NomenclaturePicker';
+
+/**
+ * Строки счёта (задача C2, issue #1078, ТЗ COST-7, COST-7.2, COST-6.2).
+ *
+ * <p><b>Сверка суммы строк с суммой к оплате — всегда на виду и не запрет.</b> Расхождение показано
+ * числом: у поставщика бывает округление, скидка строкой и доставка, не попавшая в таблицу, — и человек
+ * знает об этом больше нас. Запрет означал бы, что счёт нельзя завести, пока он не сойдётся, а заводят
+ * его как раз затем, чтобы разбираться.</p>
+ *
+ * <p><b>Строка без позиции номенклатуры сохраняется.</b> Обязательность проверяется на переходе
+ * «разобран», а не при сохранении: наименования в бумаге — слова поставщика, и сопоставить их может
+ * только человек или таблица соответствий (C3).</p>
+ *
+ * <p>⚠️ <b>«Разобран» не отключается, даже когда заведомо откажет.</b> Приглушённая кнопка молчит о
+ * причине, а причин пять (нет строк, ждут позиции, не заполнено обязательное, счёт отклонён), и знает
+ * их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.</p>
+ *
+ * <p>⚠️ Правки строк прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ (`key={view.id}` у формы) — тем же
+ * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
+ * счёта стоят в другом.</p>
+ */
+export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
+  const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
+  const [dirty, setDirty] = useState(false);
+  const replace = useReplaceInvoiceLines();
+  const state = useInvoiceState();
+  const toast = useToast();
+
+  const sums = totals(drafts);
+  const paper = view.requisites[K.total];
+  const difference = mismatch(paper, sums.amount, sums.count);
+  const parsed = view.requisites[K.state] === 'Разобран';
+
+  function edit(key: string, patch: Partial<LineDraft>) {
+    setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
+    setDirty(true);
+  }
+
+  function add(added: LineDraft[]) {
+    setDrafts(prev => [...prev, ...added]);
+    setDirty(true);
+  }
+
+  function remove(key: string) {
+    setDrafts(prev => prev.filter(draft => draft.key !== key));
+    setDirty(true);
+  }
+
+  async function save() {
+    try {
+      const saved = await replace.mutateAsync({ id: view.id, lines: toPayload(drafts) });
+      // Строки перечитываем ИЗ ОТВЕТА: сервер вернул досчитанные суммы и идентификаторы новых строк,
+      // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
+      setDrafts(toDrafts(saved.lines));
+      setDirty(false);
+    } catch (e) {
+      toast.apiError(e, 'Строки не сохранены');
+    }
+  }
+
+  async function move(to: 'parsed' | 'draft') {
+    try { await state.mutateAsync({ id: view.id, to }); }
+    catch (e) { toast.apiError(e, to === 'parsed' ? 'Счёт не разобран' : 'Счёт не возвращён в черновик'); }
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
+        <div className="flex-1" />
+        <InvoiceLinesPaste onAdd={add} />
+        <Button size="sm" variant="outlined" icon={<Plus size={13} />} onClick={() => add([emptyDraft()])}>
+          Добавить строку
+        </Button>
+        <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
+          loading={replace.isPending} onClick={save}>
+          Сохранить строки
+        </Button>
+      </div>
+
+      {drafts.length === 0
+        ? (
+          <p className="text-xs text-fg4">
+            Строк нет. Черновик живёт и без них — заведите их с клавиатуры или вставьте таблицу из
+            счёта. «Разобран» без строк не проходит, и это единственное, чего они стоят.
+          </p>
+        )
+        : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[60rem] text-xs">
+              <thead className="text-fg4">
+                <tr className="text-left">
+                  <th className="w-8 font-normal py-1">№</th>
+                  <th className="w-56 font-normal py-1">Позиция номенклатуры</th>
+                  <th className="w-56 font-normal py-1">Наименование в счёте</th>
+                  <th className="w-24 font-normal py-1">Артикул</th>
+                  <th className="w-16 font-normal py-1">Ед.</th>
+                  <th className="w-20 font-normal py-1 text-right">Кол-во</th>
+                  <th className="w-24 font-normal py-1 text-right">Цена</th>
+                  <th className="w-16 font-normal py-1 text-right">НДС&nbsp;%</th>
+                  <th className="w-24 font-normal py-1 text-right">Сумма НДС</th>
+                  <th className="w-28 font-normal py-1 text-right">Сумма</th>
+                  <th className="w-40 font-normal py-1">Примечание</th>
+                  <th className="w-8 py-1" />
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((draft, index) => (
+                  <Row key={draft.key} draft={draft} number={index + 1}
+                    onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+      <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty} />
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {parsed
+          ? (
+            <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
+              onClick={() => move('draft')}>
+              Вернуть в черновик
+            </Button>
+          )
+          : (
+            <Button size="sm" variant="outlined" icon={<CircleCheck size={13} />}
+              loading={state.isPending} onClick={() => move('parsed')}>
+              Разобран
+            </Button>
+          )}
+        <span className="text-xs text-fg4">
+          {parsed
+            ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены.'
+            : 'Разобран — это утверждение человека, что счёт сверен с бумагой. Условия проверит сервер '
+              + 'и назовёт, чего не хватает.'}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Сверка. Показывает ЧЕТЫРЕ числа: сумму строк, НДС по строкам, сумму к оплате из бумаги и
+ * расхождение. Ни одно из них не запрет.
+ *
+ * <p>⚠️ Пока строки не сохранены, числа посчитаны ЗДЕСЬ, и об этом сказано: после сохранения их
+ * возвращает сервер, и они могут разойтись с нашими на копейку округления. Молчаливое «сумма 4850»,
+ * которое после сохранения стало «4850,01», читалось бы как ошибка ввода.</p>
+ */
+function Reconciliation({ sums, paper, difference, unsaved }: {
+  sums: { count: number; withoutNomenclature: number; amount: number; vat: number };
+  paper: unknown;
+  difference: number | null;
+  unsaved: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-stroke
+      bg-surface2 px-3 py-2 text-xs">
+      <span className="text-fg2">Строк: <b>{sums.count}</b></span>
+
+      {sums.withoutNomenclature > 0 && (
+        <span className="text-warning">ждут позиции: <b>{sums.withoutNomenclature}</b></span>
+      )}
+
+      <span className="text-fg2">Сумма строк: <b>{formatMoney(sums.amount)}</b></span>
+      <span className="text-fg4">в том числе НДС: {formatMoney(sums.vat)}</span>
+
+      {typeof paper === 'number' && (
+        <span className="text-fg4">к оплате по счёту: {formatMoney(paper)}</span>
+      )}
+
+      {difference !== null && (
+        <span className="text-warning">
+          расхождение: <b>{formatMoney(difference)}</b> — сохранить всё равно можно
+        </span>
+      )}
+
+      {unsaved && <span className="text-fg4">(посчитано в форме — строки ещё не сохранены)</span>}
+    </div>
+  );
+}
+
+function Row({ draft, number, onEdit, onRemove }: {
+  draft: LineDraft;
+  number: number;
+  onEdit: (patch: Partial<LineDraft>) => void;
+  onRemove: () => void;
+}) {
+  const shown = preview(draft);
+  // Ссылка есть, а названия нет — позицию удалили. Это потеря, и выглядеть она обязана иначе, чем
+  // «позиция не выбрана»: второе чинит человек за формой, первое — справочник.
+  const lost = draft.nomenclatureId !== null && draft.nomenclatureName === null;
+
+  return (
+    <tr className="border-t border-stroke align-top">
+      <td className="py-1 text-fg4">{number}</td>
+      <td className="py-1 pr-2">
+        <NomenclaturePicker name={draft.nomenclatureName} lost={lost}
+          onPick={(id, name) => onEdit({ nomenclatureId: id, nomenclatureName: name })}
+          onClear={() => onEdit({ nomenclatureId: null, nomenclatureName: null })} />
+      </td>
+      <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${number}`}
+        onChange={value => onEdit({ supplierText: value })} />
+      <Cell value={draft.supplierCode} label={`Артикул, строка ${number}`}
+        onChange={value => onEdit({ supplierCode: value })} />
+      <Cell value={draft.unit} label={`Единица, строка ${number}`}
+        onChange={value => onEdit({ unit: value })} />
+      <Cell value={draft.quantity} label={`Количество, строка ${number}`} numeric
+        onChange={value => onEdit({ quantity: value })} />
+      <Cell value={draft.price} label={`Цена, строка ${number}`} numeric
+        onChange={value => onEdit({ price: value })} />
+      <Cell value={draft.vatRate} label={`Ставка НДС, строка ${number}`} numeric
+        onChange={value => onEdit({ vatRate: value })} />
+      <Cell value={draft.vatAmount} label={`Сумма НДС, строка ${number}`} numeric
+        placeholder={shown.vat === null ? '' : formatNumber(shown.vat)}
+        onChange={value => onEdit({ vatAmount: value })} />
+      <Cell value={draft.amount} label={`Сумма, строка ${number}`} numeric
+        placeholder={shown.amount === null ? '' : formatNumber(shown.amount)}
+        onChange={value => onEdit({ amount: value })} />
+      <Cell value={draft.note} label={`Примечание, строка ${number}`}
+        onChange={value => onEdit({ note: value })} />
+      <td className="py-1">
+        <button type="button" onClick={onRemove} title={`Удалить строку ${number}`}
+          className="text-fg4 hover:text-danger p-0.5">
+          <Trash2 size={13} />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * Клетка таблицы — своим полем, а не общим `TextField`: тот рисует подпись над полем, а в таблице
+ * подпись стоит в шапке колонки, и повторять её двенадцать раз значит потерять таблицу.
+ *
+ * <p>Подпись при этом есть — невидимая (`aria-label`): без неё поле не имеет имени ни для чтения с
+ * экрана, ни для живого прогона, который ищет клетку по имени.</p>
+ *
+ * <p>⚠️ Подсказка в пустом числовом поле — это ПОСЧИТАННОЕ значение («48,50»), а не пример. Так видно,
+ * что сумму можно не набирать: её досчитают по количеству и цене. Набранное значение подсказку
+ * перекрывает, и досчитанного тогда нет — присланное не пересчитывается.</p>
+ */
+function Cell({ value, label, numeric, placeholder, onChange }: {
+  value: string;
+  label: string;
+  numeric?: boolean;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <td className="py-1 pr-2">
+      <input value={value} aria-label={label} placeholder={placeholder}
+        inputMode={numeric ? 'decimal' : undefined}
+        onChange={e => onChange(e.target.value)}
+        className={`w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg
+          outline-none focus:border-primary placeholder:text-fg4
+          ${numeric ? 'text-right tabular-nums' : ''}`} />
+    </td>
+  );
+}
+
+function formatNumber(value: number): string {
+  return value.toFixed(2).replace('.', ',');
+}

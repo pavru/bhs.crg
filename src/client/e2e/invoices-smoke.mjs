@@ -91,11 +91,17 @@ async function named(what, run) {
   catch (e) { throw new Error(`${what} (${e.message.split('\n')[0]})`); }
 }
 
-/** Открыть счёт списка по номеру и дождаться формы. */
+/**
+ * Открыть счёт списка по номеру и дождаться формы.
+ *
+ * ⚠️ Кнопка ищется ТОЧНЫМ совпадением имени: на форме их теперь две — «Сохранить» у шапки и
+ * «Сохранить строки» у таблицы строк (C2, issue #1078). По подстроке находились бы обе, и прогон
+ * падал бы строгим режимом Playwright, виня форму.
+ */
 async function open(number) {
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
-  await page.getByRole('button', { name: 'Сохранить' }).waitFor({ timeout: 10_000 });
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
 }
 
 /** Сколько меток видно на форме. */
@@ -133,11 +139,11 @@ try {
   await check('черновик заводится пустым и сохраняется с одним номером', async () => {
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: 'Новый счёт' }).click();
-    await page.getByRole('button', { name: 'Сохранить' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
 
     const number = `СЧ-Ч${stamp}`;
     await page.getByLabel('Номер', { exact: true }).fill(number);
-    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
 
     // Сохранилось — если счёт появился в списке под своим номером.
     await page.getByRole('button', { name: new RegExp(number) }).first()
@@ -218,7 +224,7 @@ try {
     await open(number);
     await page.getByLabel('Поставщик').click();
     await page.getByRole('option', { name: '— не выбрано —' }).click();
-    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
 
     await page.reload({ waitUntil: 'networkidle' });
     await open(number);
@@ -239,12 +245,12 @@ try {
     // создания, оба по убыванию. Даты у пары одинаковые, значит порядок решает создание.
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
-    await page.getByRole('button', { name: 'Сохранить' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
     await page.getByText('Похоже на дубликат').waitFor({ timeout: 10_000 });
 
     // Сохранение НЕ заблокировано: правка проходит при живой оговорке.
     await page.getByLabel('Назначение').fill('Правка при дубликате');
-    const save = page.getByRole('button', { name: 'Сохранить' });
+    const save = page.getByRole('button', { name: 'Сохранить', exact: true });
     if (await save.isDisabled()) throw new Error('сохранение заблокировано дубликатом');
     await save.click();
 
@@ -253,7 +259,7 @@ try {
     // сервера — то есть проверка не могла упасть вовсе, даже если сохранение отказало.
     await page.reload({ waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
-    await page.getByRole('button', { name: 'Сохранить' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
 
     const saved = await page.getByLabel('Назначение').inputValue();
     if (saved !== 'Правка при дубликате')

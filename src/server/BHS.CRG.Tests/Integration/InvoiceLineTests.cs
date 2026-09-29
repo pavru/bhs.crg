@@ -260,7 +260,8 @@ public class InvoiceLineTests(InvoiceLineHost host) : IClassFixture<InvoiceLineH
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("нет в справочнике", await response.Content.ReadAsStringAsync());
+        // Падеж — часть утверждения: «у строки 1», а не «у строка 1». Сообщение читает человек.
+        Assert.Contains("нет в справочнике у строки 1", await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>
@@ -341,8 +342,13 @@ public class InvoiceLineTests(InvoiceLineHost host) : IClassFixture<InvoiceLineH
         var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var text = await response.Content.ReadAsStringAsync();
-        Assert.Contains("строка 2", text);
+        Assert.Contains("строка 2 ждёт позиции номенклатуры", text);
         Assert.Contains("Разобрать", text);
+
+        // ⚠️ Проверяется ЦЕЛАЯ фраза, а не подстрока «строка 2». Первая версия сообщения склеивала
+        // «ждут строки» с «строка 2» и выдавала «ждут строки строка 2» — подстрока в этой кашице есть,
+        // и сторож её пропустил. Нашёл живой прогон, читающий текст глазами человека.
+        Assert.DoesNotContain("строки строка", text);
     }
 
     [Fact]

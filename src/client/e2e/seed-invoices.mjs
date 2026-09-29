@@ -16,6 +16,7 @@
  */
 export async function seedInvoices({ api, findType, ensureEntry, field, apiBase, token, png }) {
   const typeId = await ensureOrganizationType({ api, findType, field });
+  await seedNomenclature({ findType, ensureEntry });
 
   const supplierId = await ensureEntry(typeId, 'ООО «Кабель-Торг» (посев)',
     { Наименование: 'ООО «Кабель-Торг»', ИНН: '7701000010' });
@@ -73,6 +74,29 @@ export async function seedInvoices({ api, findType, ensureEntry, field, apiBase,
       { requisites: { ...requisites, 'Назначение': 'Тот же счёт, второй файл' } });
 
   return { number: 'СЧ-104', recognizedId: recognized.id, duplicateId: duplicate.id };
+}
+
+/**
+ * Позиции номенклатуры для строк счёта (C2, issue #1078) — чтобы на стенде выбор позиции работал
+ * глазами, а не только в прогоне.
+ *
+ * ⚠️ Тип «Номенклатура» посев НЕ ЗАВОДИТ. Его поднимает миграция ядра — и только там, где был
+ * «Материал» (issue #963): справочник материалов ведёт человек, и синтетический тип с тем же кодом
+ * встал бы на его место. Нет типа — говорим вслух и идём дальше: строки без позиции — штатное
+ * состояние, счёт от этого не перестаёт заводиться.
+ */
+async function seedNomenclature({ findType, ensureEntry }) {
+  const type = await findType('Номенклатура');
+  if (!type) {
+    console.log('  · позиции номенклатуры не сеются: типа «Номенклатура» в базе нет (его поднимает '
+      + 'миграция ядра там, где есть «Материал»). Строки счёта будут ждать позиции — это штатно.');
+    return;
+  }
+
+  for (const name of ['Кабель ВВГнг-LS 3х2,5 (посев)', 'Труба гофрированная 20 мм (посев)',
+    'Лоток лестничный 100х50 (посев)']) {
+    await ensureEntry(type.id, name, {});
+  }
 }
 
 /**

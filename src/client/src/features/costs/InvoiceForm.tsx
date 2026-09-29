@@ -15,6 +15,7 @@ import {
   isMarked, moneyInput, refEntryId, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
   type InvoiceBlock,
 } from './invoiceFields';
+import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { ScanUploadButton } from './InvoiceScanPanel';
 
 /**
@@ -140,9 +141,11 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
+        <InvoiceLinesTable view={view} />
+
         <p className="text-xs text-fg4">
-          Строки счёта, разноска по объектам, переход «разобран» и отметка оплаты — отдельные задачи
-          этапа. Сохранение их не ждёт: черновик уже в реестре.
+          Разноска по объектам и отметка оплаты — отдельные задачи этапа. Сохранение их не ждёт:
+          черновик уже в реестре.
         </p>
       </div>
     </div>
