@@ -43,7 +43,16 @@ public static class ModuleTypeProjector
 
         foreach (var module in registry.Enabled)
             foreach (var declared in module.RecordTypes)
-                await mediator.Send(new ProjectModuleTypeCommand(Translate(module.Code, declared)), ct);
+            {
+                var spec = Translate(module.Code, declared);
+
+                // Пропуск типа МОДУЛЯ тоже называется вслух (issue #1076). Прежде здесь ответ команды
+                // не смотрели вовсе: у модулей не было ни одного типа с послаблением, и пропуск был
+                // недостижим. С первым же таким типом молчание означало бы «модуль включён, а его
+                // записей в системе нет», и объяснения этому не нашлось бы ни в журнале, ни на экране.
+                if (await mediator.Send(new ProjectModuleTypeCommand(spec), ct) is null)
+                    await LogSkipAsync(services, spec, ct);
+            }
     }
 
     /// <summary>
@@ -118,8 +127,10 @@ public static class ModuleTypeProjector
 
     private static ModuleTypeSpec Translate(string moduleCode, ModuleRecordType declared) => new(
         moduleCode, declared.Code, declared.Name, Level(declared.Level),
-        [.. declared.Fields.Select(f => new ModuleFieldSpec(f.Key, f.Title, f.Type, f.Tags, f.Required, f.Locked))],
-        declared.Group);
+        [.. declared.Fields.Select(f =>
+            new ModuleFieldSpec(f.Key, f.Title, f.Type, f.Tags, f.Required, f.Locked, f.Target))],
+        declared.Group, Storage: Storage(declared.Storage),
+        SkipWhenBlocked: declared.SkipWhenBlocked);
 
     /// <summary>
     /// Зеркало уровней. Переключатель, а не приведение по числу: значения совпадают по именам, и
@@ -133,5 +144,14 @@ public static class ModuleTypeProjector
         ModuleSchemaLevel.Closed => SchemaEditLevel.Closed,
         _ => throw new InvalidOperationException(
             $"Неизвестный уровень правки схемы «{level}» — зеркало разошлось с доменным перечислением."),
+    };
+
+    /// <summary>Зеркало носителей — тем же переключателем и по той же причине, что уровни (issue #1076).</summary>
+    private static TypeStorage Storage(ModuleStorage storage) => storage switch
+    {
+        ModuleStorage.SharedObject => TypeStorage.SharedObject,
+        ModuleStorage.ModuleTable => TypeStorage.ModuleTable,
+        _ => throw new InvalidOperationException(
+            $"Неизвестный носитель данных «{storage}» — зеркало разошлось с доменным перечислением."),
     };
 }
