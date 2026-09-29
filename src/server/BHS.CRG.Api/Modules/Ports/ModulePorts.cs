@@ -43,6 +43,7 @@ public static class ModulePorts
         services.AddScoped<IModuleJobs, ModuleJobsPort>();
         services.AddScoped<IModuleUser, ModuleUserPort>();
         services.AddScoped<IModuleCatalog, ModuleCatalogPort>();
+        services.AddScoped<IModuleTypes, ModuleTypesPort>();
         services.AddScoped<IModuleWriteGuard, ModuleWriteGuardPort>();
 
         // Закрытых периодов пока не бывает — служба закрытия приезжает задачей E1a (issue #1081).

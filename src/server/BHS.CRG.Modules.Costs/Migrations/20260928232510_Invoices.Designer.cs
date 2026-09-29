@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Modules.Costs.Migrations
 {
     [DbContext(typeof(CostsDbContext))]
-    partial class CostsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928232510_Invoices")]
+    partial class Invoices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -94,10 +97,6 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.Property<string>("ScanMimeType")
                         .HasColumnType("text")
                         .HasColumnName("scan_mime_type");
-
-                    b.Property<long?>("ScanSize")
-                        .HasColumnType("bigint")
-                        .HasColumnName("scan_size");
 
                     b.Property<DateOnly?>("ShippedOn")
                         .HasColumnType("date")
