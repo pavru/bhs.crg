@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -26,6 +26,10 @@ export const workNav: NavItem[] = [
   { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read' },
   { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read' },
   { to: '/quality-docs',    label: 'Документы качества',  icon: ShieldCheck, module: 'id' },
+  // Право И модуль: доступ к модулю и право заводить счета — разные вещи (у бухгалтера есть первое
+  // без второго), а пункт обязан закрываться тем же правом, что стоит на группе адресов экрана.
+  { to: '/invoices',        label: 'Счета',               icon: ReceiptText, module: 'costs',
+    permission: 'costs.invoice.read' },
   { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run' },
 ];
 
