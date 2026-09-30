@@ -24,12 +24,31 @@ internal static class CostsValues
     /// <summary>Формат даты — тот, которым даты хранит и присылает вся система.</summary>
     internal const string DateFormat = "yyyy-MM-dd";
 
-    internal static string? Text(JsonElement source, string key, string? label = null) => Value(source, key) switch
+    /// <summary>
+    /// Строка поля — или <c>null</c>, если поля нет либо оно пустое.
+    /// </summary>
+    /// <param name="limit">Предел длины, если у колонки он есть. Проверяется ЗДЕСЬ, а не в базе:
+    /// перебор ловит PostgreSQL внутри <c>SaveChangesAsync</c>, где доменных отказов не бывает, и
+    /// наружу уходит 500 без имени поля. Отказ называет поле, предел и присланную длину — по 500
+    /// человек не догадается ни о том, ни о другом.</param>
+    internal static string? Text(JsonElement source, string key, string? label = null, int? limit = null)
     {
-        null => null,
-        { ValueKind: JsonValueKind.String } value => value.GetString() is { Length: > 0 } text ? text : null,
-        var other => throw Wrong(label ?? key, other, "строку"),
-    };
+        var text = Value(source, key) switch
+        {
+            null => null,
+            { ValueKind: JsonValueKind.String } value => value.GetString() is { Length: > 0 } found
+                ? found
+                : null,
+            var other => throw Wrong(label ?? key, other, "строку"),
+        };
+
+        if (limit is { } max && text is { } sent && sent.Length > max)
+            throw new InvalidRequestException(
+                $"Поле «{label ?? key}»: {sent.Length} знаков, а вмещается {max}. Сократите значение — " +
+                "длиннее хранить негде, и молча обрезать его нельзя: обрезанное разошлось бы с бумагой.");
+
+        return text;
+    }
 
     internal static DateOnly? Date(JsonElement source, string key) => Value(source, key) switch
     {

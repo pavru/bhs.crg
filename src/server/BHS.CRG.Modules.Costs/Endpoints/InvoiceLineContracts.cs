@@ -27,6 +27,20 @@ public sealed record InvoiceLineView(
     int Ordinal,
     Guid? NomenclatureId,
     string? NomenclatureName,
+    /// <summary>
+    /// Ссылка есть, а записи справочника по ней НЕТ — позицию удалили. Это потеря, и она обязана
+    /// выглядеть иначе, чем «позиция не выбрана» (чинит человек за формой) и чем «позиция без
+    /// названия» (законная запись, у которой имя не заполнено).
+    ///
+    /// <para>⚠️ Считает СЕРВЕР, потому что только он знает разницу. У формы на все три случая один
+    /// признак — пустое название, — и она объявляла бы потерей выбранную только что позицию без
+    /// имени; снять такую ссылку было нечем, и строка не сохранялась вовсе (нашло ревью PR #1117).</para>
+    ///
+    /// <para>⚠️ «Справочника нет вовсе» потерей НЕ считается: <c>false</c> здесь означает «не знаем»,
+    /// а не «на месте». Выдай мы «потеряно» на ненайденный вид, каждая ссылка в установке без типа
+    /// «Номенклатура» выглядела бы битой.</para>
+    /// </summary>
+    bool NomenclatureLost,
     string? SupplierText,
     string? SupplierCode,
     string? Unit,
@@ -106,8 +120,9 @@ public static class InvoiceLineRequests
             NomenclatureId: CostsValues.Reference(line, NomenclatureKey, NomenclatureWhy,
                 $"Позиция номенклатуры, строка {number}"),
             SupplierText: CostsValues.Text(line, "supplierText", $"Наименование в счёте, строка {number}"),
-            SupplierCode: CostsValues.Text(line, "supplierCode", $"Артикул поставщика, строка {number}"),
-            Unit: CostsValues.Text(line, "unit", $"Единица измерения, строка {number}"),
+            SupplierCode: CostsValues.Text(line, "supplierCode", $"Артикул поставщика, строка {number}",
+                InvoiceLine.SupplierCodeLength),
+            Unit: CostsValues.Text(line, "unit", $"Единица измерения, строка {number}", InvoiceLine.UnitLength),
             Quantity: CostsValues.Money(line, "quantity", $"Количество, строка {number}"),
             Price: CostsValues.Money(line, "price", $"Цена, строка {number}"),
             VatRate: Rate(line, number),

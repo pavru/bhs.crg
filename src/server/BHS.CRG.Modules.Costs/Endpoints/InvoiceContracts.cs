@@ -84,11 +84,12 @@ public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedO
 /// <summary>Сборка ответов из записей. Отдельно от адресов: адреса про маршруты и права.</summary>
 public static class InvoiceViews
 {
-    /// <param name="names">Названия позиций номенклатуры по идентификаторам. Пустой словарь означает
-    /// «не разрешили» — и строка честно покажет «позиция не найдена»: справочника может не быть вовсе.</param>
+    /// <param name="names">Названия позиций номенклатуры по идентификаторам, либо <c>null</c> — «вида
+    /// нет вовсе, прочитать нечем». Разница важна: отсутствие в СЛОВАРЕ — потеря записи, отсутствие
+    /// СЛОВАРЯ — незнание, и выдавать второе за первое нельзя (см. <c>InvoiceLineView</c>).</param>
     public static InvoiceView Of(
         Invoice invoice, IReadOnlyList<InvoiceDuplicate> duplicates,
-        IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?> names) => new(
+        IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names) => new(
         invoice.Id,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
@@ -99,11 +100,14 @@ public static class InvoiceViews
         invoice.CreatedAt,
         invoice.UpdatedAt);
 
-    public static InvoiceLineView Line(InvoiceLine line, IReadOnlyDictionary<Guid, string?> names) => new(
+    public static InvoiceLineView Line(InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names) => new(
         line.Id,
         line.Ordinal,
         line.NomenclatureId,
-        line.NomenclatureId is { } id && names.TryGetValue(id, out var name) ? name : null,
+        line.NomenclatureId is { } id && names is not null && names.TryGetValue(id, out var name)
+            ? name
+            : null,
+        line.NomenclatureId is { } missing && names is not null && !names.ContainsKey(missing),
         line.SupplierText,
         line.SupplierCode,
         line.Unit,

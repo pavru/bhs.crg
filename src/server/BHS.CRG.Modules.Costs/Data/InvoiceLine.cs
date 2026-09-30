@@ -21,6 +21,13 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// </summary>
 public sealed class InvoiceLine
 {
+    /// <summary>Пределы длины — те же числа, что у колонок базы. Почему одним местом — см.
+    /// <see cref="Invoice.NumberLength"/>.</summary>
+    public const int SupplierCodeLength = 100;
+
+    /// <inheritdoc cref="SupplierCodeLength"/>
+    public const int UnitLength = 50;
+
     /// <summary>Для EF.</summary>
     private InvoiceLine() { }
 

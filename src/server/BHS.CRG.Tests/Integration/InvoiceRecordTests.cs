@@ -662,6 +662,30 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
             o => Assert.Equal(CostsRecordTypes.OrganizationCode, o.GetProperty("type").GetString()));
     }
 
+    /// <summary>
+    /// Номер длиннее колонки — отказ с именем поля, а НЕ пятисотый.
+    ///
+    /// <para>⚠️ Сторож находки ревью. Перебор длины ловит PostgreSQL (22001) внутри
+    /// <c>SaveChangesAsync</c>, а там доменных отказов не бывает: наружу уходит «внутренняя ошибка
+    /// сервера» с идентификатором запроса и без единого слова о поле. Проверено живьём до правки —
+    /// номер в 140 знаков давал ровно 500.</para>
+    /// </summary>
+    [Fact]
+    public async Task Номер_длиннее_колонки_отказывает_с_именем_поля()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+
+        var response = await client.PostAsJsonAsync("/api/costs/invoices",
+            new { requisites = Requisites(number: new string('Н', Invoice.NumberLength + 1)) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Номер", text);
+        // Отказ называет и предел, и присланную длину: без них человек не знает, насколько сократить.
+        Assert.Contains($"{Invoice.NumberLength + 1} знаков", text);
+        Assert.Contains($"вмещается {Invoice.NumberLength}", text);
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     private object Requisites(
