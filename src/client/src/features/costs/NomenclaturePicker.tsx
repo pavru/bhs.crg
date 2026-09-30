@@ -22,10 +22,15 @@ import { useNomenclature } from '@/shared/api/invoices';
  * <c>core.nomenclature.edit</c>, которого у снабженца может не быть. Кнопка «завести», отказывающая
  * правами, обещала бы то, чего нет.</p>
  */
-export function NomenclaturePicker({ name, lost, onPick, onClear }: {
-  /** Название выбранной позиции; `null` — позиция не выбрана. */
+export function NomenclaturePicker({ chosen, name, lost, onPick, onClear }: {
+  /**
+   * Ссылка на позицию ЕСТЬ. Отдельно от названия: пустое название бывает и у выбранной позиции —
+   * записи справочника без имени законны, и пикер их показывает.
+   */
+  chosen: boolean;
+  /** Название выбранной позиции; `null` — имени у записи нет либо позиция не выбрана. */
   name: string | null;
-  /** Ссылка есть, а записи нет — позицию удалили. Это ПОТЕРЯ, и молчать о ней нельзя. */
+  /** Ссылка есть, а записи справочника НЕТ — позицию удалили. Считает сервер, см. `InvoiceLineView`. */
   lost?: boolean;
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
@@ -38,10 +43,15 @@ export function NomenclaturePicker({ name, lost, onPick, onClear }: {
         <button type="button" onClick={() => setOpen(true)}
           className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
             ${lost ? 'border-danger-border text-danger'
-              : name ? 'border-stroke text-fg' : 'border-warning-border text-warning'}`}>
-          {lost ? 'позиция не найдена' : name ?? 'выбрать позицию'}
+              : chosen ? 'border-stroke text-fg' : 'border-warning-border text-warning'}`}>
+          {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
+              но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
+          {lost ? 'позиция не найдена' : chosen ? name ?? 'позиция без названия' : 'выбрать позицию'}
         </button>
-        {name !== null && !lost && (
+        {/* ⚠️ Снять ссылку можно ВСЕГДА, пока она есть, — и особенно когда позиция потеряна: сервер
+            отказывает сохранять строку с битой ссылкой, а спрятанная кнопка не оставляла человеку
+            вообще никакого выхода (ревью PR #1117). */}
+        {chosen && (
           <button type="button" onClick={onClear} title="Снять позицию"
             className="shrink-0 text-fg4 hover:text-fg p-0.5">
             <X size={12} />

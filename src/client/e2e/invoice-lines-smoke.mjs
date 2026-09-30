@@ -301,6 +301,45 @@ try {
 
     await page.getByText(/подходящих больше/).waitFor({ timeout: 10_000 });
   });
+  // ── 8. Удалённую позицию есть чем снять ──────────────────────────────────────
+  //
+  // ⚠️ Сторож находки ревью, и находка была ТУПИКОМ. Форма считала потерей любое пустое название, а
+  // кнопку снятия у такой клетки прятала. Сервер же отказывается сохранять строку с битой ссылкой —
+  // значит строку нельзя было ни сохранить, ни починить: счёт застревал целиком. Теперь потерю
+  // называет сервер, а снять ссылку можно всегда, пока она есть.
+  await check('удалённая позиция названа потерей, и ссылку есть чем снять', async () => {
+    const doomed = await position(`Позиция под снос ${stamp}`);
+
+    const number = `СЧ-У${stamp}`;
+    await invoice(number);
+    await open(number);
+
+    await addRow(1);
+    await cell('Количество', 1).fill('1');
+    await cell('Цена', 1).fill('10');
+    await page.getByRole('button', { name: 'выбрать позицию' }).click();
+    await page.getByPlaceholder('часть наименования').fill(`Позиция под снос ${stamp}`);
+    await page.getByRole('button', { name: `Позиция под снос ${stamp}` }).click();
+    await saveLines();
+
+    // Позицию удаляют из справочника — так бывает, и строка счёта об этом узнаёт только перечитав.
+    await api('DELETE', `/common-data/${doomed}`);
+    await page.reload({ waitUntil: 'networkidle' });
+    await open(number);
+
+    await page.getByRole('button', { name: 'позиция не найдена' }).waitFor({ timeout: 10_000 });
+
+    // Главное: выход есть. Снимаем ссылку и сохраняем — до правки сервер отказывал, а снять было нечем.
+    await page.getByRole('button', { name: 'Снять позицию' }).first().click();
+    await saveLines();
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await open(number);
+    await page.getByRole('button', { name: 'выбрать позицию' }).first().waitFor({ timeout: 10_000 });
+    if ((await page.getByRole('button', { name: 'позиция не найдена' }).count()) !== 0)
+      throw new Error('после снятия ссылки строка всё ещё считает позицию потерянной');
+  });
+
 } finally {
   await browser.close();
 }

@@ -12,6 +12,7 @@ function line(overrides: Partial<InvoiceLineView> = {}): InvoiceLineView {
     ordinal: 1,
     nomenclatureId: null,
     nomenclatureName: null,
+    nomenclatureLost: false,
     supplierText: null,
     supplierCode: null,
     unit: null,
@@ -184,5 +185,112 @@ describe('числа из набранного', () => {
   it('пустое и мусор — не число', () => {
     expect(toNumber('')).toBeNull();
     expect(toNumber('кабель')).toBeNull();
+  });
+});
+
+// ── Находки ревью PR #1117: каждая роняла числа молча ────────────────────────
+//
+// Общая черта у всех четырёх: они не ломали вставку, а СДВИГАЛИ смысл. Цена, попавшая в количество,
+// даёт правдоподобную сумму; НДС размером во всю строку сходится со сверкой. Заметить это можно было
+// только по расхождению с бумагой — то есть не заметить.
+describe('разбор вставки не сдвигает смысл', () => {
+  it('точка с запятой внутри ячейки таб-таблицы колонок не добавляет', () => {
+    const table = parseTable([
+      'Кабель ВВГнг-LS 3х2,5\t100\t48,50',
+      'Труба 20; ГОСТ 55000\t50\t12,00',
+    ].join('\n'));
+
+    expect(table.map(row => row.length)).toEqual([3, 3]);
+    expect(table[1][0]).toBe('Труба 20; ГОСТ 55000');
+
+    const rows = fromTable(table, guessRoles(table));
+    expect(rows[0].quantity).toBe('100');
+    expect(rows[0].price).toBe('48,50');
+  });
+
+  it('точка с запятой делит там, где табуляции нет вовсе', () => {
+    expect(parseTable('Кабель;100;48,50')).toEqual([['Кабель', '100', '48,50']]);
+  });
+
+  it('пустая колонка роль числа не забирает', () => {
+    // Два таба подряд — обычный результат извлечения таблицы из PDF: колонка есть, данных в ней нет.
+    const table = parseTable('Кабель\t\t10\t5');
+    const rows = fromTable(table, guessRoles(table));
+
+    expect(rows[0].quantity).toBe('10');
+    expect(rows[0].price).toBe('5');
+  });
+
+  it('«Предмет поставки» — наименование, а не единица измерения', () => {
+    const table = parseTable([
+      'Наименование\tПредмет поставки\tКол-во\tЦена',
+      'Кабель\tпоставка по договору № 17/2026 от 01.02.2026 силового кабеля\t10\t5',
+    ].join('\n'));
+    const roles = guessRoles(table);
+
+    expect(roles).not.toContain('unit');
+    expect(fromTable(table, roles)[0].unit).toBe('');
+  });
+
+  it('«Ед.» единицей остаётся', () => {
+    const table = parseTable('Наименование\tЕд.\tКол-во\tЦена\nКабель\tм\t10\t5');
+    expect(fromTable(table, guessRoles(table))[0].unit).toBe('м');
+  });
+
+  it('«Сумма с НДС» — итог строки, а не сумма НДС', () => {
+    const table = parseTable([
+      'Наименование\tКол-во\tЦена\tСумма с НДС',
+      'Кабель\t10\t100\t1000',
+    ].join('\n'));
+    const rows = fromTable(table, guessRoles(table));
+
+    expect(rows[0].amount).toBe('1000');
+    expect(rows[0].vatAmount).toBe('');
+  });
+
+  it('«Сумма НДС» суммой НДС и остаётся', () => {
+    const table = parseTable('Наименование\tКол-во\tЦена\tСумма НДС\nКабель\t10\t100\t200');
+    expect(fromTable(table, guessRoles(table))[0].vatAmount).toBe('200');
+  });
+
+  it('две колонки на одну роль: вторая пропускается, а шапка остаётся шапкой', () => {
+    const table = parseTable([
+      'Наименование\tСумма без НДС\tСумма с НДС',
+      'Кабель\t800\t1000',
+    ].join('\n'));
+
+    // Шапка узнана — значит в счёт она не поедет строкой с числами в примечании.
+    expect(hasHeader(table)).toBe(true);
+
+    const roles = guessRoles(table);
+    expect(roles.filter(role => role === 'amount')).toHaveLength(1);
+
+    const rows = fromTable(table, roles);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].note).toBe('');
+    expect(rows[0].supplierText).toBe('Кабель');
+  });
+});
+
+describe('потеря позиции приходит от сервера', () => {
+  it('позиция без названия потерянной не считается', () => {
+    const [draft] = toDrafts([line({
+      nomenclatureId: 'c0ffee00-0000-0000-0000-000000000009',
+      nomenclatureName: null,
+      nomenclatureLost: false,
+    })]);
+
+    expect(draft.nomenclatureId).not.toBeNull();
+    expect(draft.nomenclatureLost).toBe(false);
+  });
+
+  it('потеря доезжает до правки как есть', () => {
+    const [draft] = toDrafts([line({
+      nomenclatureId: 'c0ffee00-0000-0000-0000-000000000009',
+      nomenclatureName: null,
+      nomenclatureLost: true,
+    })]);
+
+    expect(draft.nomenclatureLost).toBe(true);
   });
 });

@@ -27,6 +27,16 @@ export interface LineDraft {
   nomenclatureId: string | null;
   /** Название выбранной позиции — чтобы показать её, не спрашивая справочник заново. */
   nomenclatureName: string | null;
+  /**
+   * Позиции, на которую ссылается строка, в справочнике НЕТ — её удалили.
+   *
+   * <p>⚠️ Приходит от сервера, а не выводится из пустого названия: пустым оно бывает и у законной
+   * записи без имени, и у выбранной только что позиции. Выведи мы потерю сами — такая строка краснела
+   * бы «позиция не найдена» сразу после выбора (нашло ревью PR #1117).</p>
+   *
+   * <p>У новой строки — <c>false</c>: ссылки ещё нет, терять нечего.</p>
+   */
+  nomenclatureLost: boolean;
   supplierText: string;
   supplierCode: string;
   unit: string;
@@ -48,6 +58,7 @@ export function emptyDraft(): LineDraft {
     id: null,
     nomenclatureId: null,
     nomenclatureName: null,
+    nomenclatureLost: false,
     supplierText: '',
     supplierCode: '',
     unit: '',
@@ -67,6 +78,7 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
     id: line.id,
     nomenclatureId: line.nomenclatureId,
     nomenclatureName: line.nomenclatureName,
+    nomenclatureLost: line.nomenclatureLost,
     supplierText: line.supplierText ?? '',
     supplierCode: line.supplierCode ?? '',
     unit: line.unit ?? '',
@@ -185,12 +197,18 @@ export const PASTE_ROLES: readonly { role: PasteRole; title: string }[] = [
  * «кабель ВВГ 3х2,5» — это одна ячейка, и разбей мы её по пробелам, наименование рассыпалось бы на
  * четыре колонки у каждой строки.</p>
  *
+ * <p>⚠️ <b>Разделитель ОДИН на всю вставку, а не какой попадётся в строке.</b> Есть табуляция — делим
+ * только по ней; нет — по точке с запятой. Иначе точка с запятой ВНУТРИ ячейки таб-таблицы («Труба 20;
+ * ГОСТ 55000») добавляет этой строке лишнюю колонку, а лишняя колонка сдвигает роли у ВСЕЙ таблицы:
+ * цена уезжает в количество и даёт правдоподобную сумму. Нашло ревью PR #1117.</p>
+ *
  * <p>Пустые строки выброшены — ими отделяют разделы в бумаге.</p>
  */
 export function parseTable(clipboard: string): string[][] {
+  const separator = clipboard.includes('\t') ? '\t' : ';';
   return clipboard
     .split(/\r?\n/)
-    .map(line => line.split(/\t|;/).map(cell => cell.trim()))
+    .map(line => line.split(separator).map(cell => cell.trim()))
     .filter(cells => cells.some(cell => cell.length > 0));
 }
 
@@ -208,9 +226,14 @@ export function guessRoles(table: readonly string[][]): PasteRole[] {
   const header = headerRoles(table[0] ?? [], width);
   if (header) return header;
 
-  const numeric = Array.from({ length: width }, (_, column) =>
-    table.every(row => row[column] === undefined || row[column] === ''
-      || toNumber(row[column]) !== null));
+  // ⚠️ Числовой — та колонка, где ЕСТЬ хотя бы одно число, а не та, где нет ничего нечислового.
+  // Пустая колонка (два таба подряд — обычный результат извлечения таблицы из PDF) проходила как
+  // числовая и забирала роль из очереди «количество, цена, сумма»: количество терялось, цена
+  // становилась количеством, сумма — ценой. Нашло ревью PR #1117.
+  const numeric = Array.from({ length: width }, (_, column) => {
+    const filled = table.map(row => row[column]).filter(cell => cell !== undefined && cell !== '');
+    return filled.length > 0 && filled.every(cell => toNumber(cell) !== null);
+  });
 
   const byOrder: PasteRole[] = ['quantity', 'price', 'amount'];
   let next = 0;
@@ -228,21 +251,36 @@ export function guessRoles(table: readonly string[][]): PasteRole[] {
 
 /** Роли из шапки таблицы — по словам, которыми колонки подписывает бумага. */
 function headerRoles(row: readonly string[], width: number): PasteRole[] | null {
+  // ⚠️ Слова ищутся ЦЕЛИКОМ, а не как попало внутри слова: «ед» без границ совпадало с «прЕДмет», и
+  // колонка «Предмет поставки» становилась единицей измерения — фразой на семьдесят знаков, которую
+  // сервер отвергал (а до правки отвечал пятисотым). Нашло ревью PR #1117.
+  //
+  // ⚠️ И порядок здесь — часть смысла: «сумма НДС» обязана проверяться ДО «суммы», но по ТОЧНОЙ
+  // фразе. Прежнее «или просто НДС» ловило «Сумма с НДС» — то есть ИТОГ строки уезжал в сумму НДС, а
+  // итог сервер досчитывал сам, и сверка «в том числе НДС» сходилась при НДС размером во всю строку.
   const words: [PasteRole, RegExp][] = [
     ['supplierCode', /артикул|код/i],
-    ['supplierText', /наимен|товар|услуг|описан/i],
-    ['unit', /ед\.?|единиц/i],
+    ['supplierText', /наимен|товар|услуг|описан|предмет/i],
+    ['unit', /(^|[\s.,(])ед\.?([\s.,)]|$)|единиц/i],
     ['quantity', /кол-?в|количест/i],
     ['vatRate', /ставк|ндс,? ?%|% ?ндс/i],
-    ['vatAmount', /сумма ндс|в т\.?ч\.? ндс|ндс/i],
+    ['vatAmount', /сумма,? ?ндс|ндс,? ?сумма|в ?т\.?ч\.? ?ндс|^ндс\b/i],
     ['price', /цена|стоимость единиц/i],
     ['amount', /сумма|всего|итого/i],
     ['note', /примеч/i],
   ];
 
+  // ⚠️ Роль не занимают ДВАЖДЫ. «Сумма без НДС | Сумма с НДС» просили одну и ту же роль, и второе
+  // число молча перетирало первое (а у текстовых ролей — склеивалось с ним). Вторая колонка получает
+  // «пропустить»: это видно человеку зачёркнутой колонкой в разборе, и он вправе назвать роль сам.
+  // Молчаливая же потеря числа не видна вовсе — сумма просто оказывается не той.
+  const taken = new Set<PasteRole>();
   const roles = Array.from({ length: width }, (_, column) => {
     const cell = row[column] ?? '';
-    return words.find(([, pattern]) => pattern.test(cell))?.[0] ?? 'skip';
+    const found = words.find(([, pattern]) => pattern.test(cell))?.[0];
+    if (found === undefined || taken.has(found)) return 'skip';
+    taken.add(found);
+    return found;
   });
 
   // Шапкой считаем только то, где узнано наименование И хотя бы одно число: иначе первая строка

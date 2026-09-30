@@ -24,15 +24,20 @@ export interface InvoiceDuplicate {
 /**
  * Строка счёта (C2, issue #1078, ТЗ COST-7).
  *
- * ⚠️ `nomenclatureName` пустое при заполненном `nomenclatureId` означает ПОТЕРЮ: ссылка есть, записи
- * нет — позицию удалили. От «строка ждёт позиции» это отличается ровно наличием ссылки, и путать их
- * нельзя: первое чинит справочник, второе — человек за формой.
+ * ⚠️ Пустое `nomenclatureName` при заполненном `nomenclatureId` потерей НЕ является — потерю называет
+ * `nomenclatureLost`, и считает её сервер. Пустым имя бывает у законной записи справочника без имени
+ * (такие в базе есть) и там, где справочника нет вовсе; выведи мы потерю из пустоты — законная позиция
+ * краснела бы «не найдена» сразу после выбора, а снять такую ссылку было нечем (ревью PR #1117).
+ *
+ * ⚠️ Потеря отличается от «строка ждёт позиции» ровно наличием ссылки, и путать их нельзя: первое
+ * чинит справочник, второе — человек за формой.
  */
 export interface InvoiceLineView {
   id: string;
   ordinal: number;
   nomenclatureId: string | null;
   nomenclatureName: string | null;
+  nomenclatureLost: boolean;
   supplierText: string | null;
   supplierCode: string | null;
   unit: string | null;

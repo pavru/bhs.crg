@@ -200,17 +200,22 @@ function Row({ draft, number, onEdit, onRemove }: {
   onRemove: () => void;
 }) {
   const shown = preview(draft);
-  // Ссылка есть, а названия нет — позицию удалили. Это потеря, и выглядеть она обязана иначе, чем
-  // «позиция не выбрана»: второе чинит человек за формой, первое — справочник.
-  const lost = draft.nomenclatureId !== null && draft.nomenclatureName === null;
 
   return (
     <tr className="border-t border-stroke align-top">
       <td className="py-1 text-fg4">{number}</td>
       <td className="py-1 pr-2">
-        <NomenclaturePicker name={draft.nomenclatureName} lost={lost}
-          onPick={(id, name) => onEdit({ nomenclatureId: id, nomenclatureName: name })}
-          onClear={() => onEdit({ nomenclatureId: null, nomenclatureName: null })} />
+        {/* Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
+            только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
+            ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится. */}
+        <NomenclaturePicker chosen={draft.nomenclatureId !== null} name={draft.nomenclatureName}
+          lost={draft.nomenclatureLost}
+          onPick={(id, name) => onEdit({
+            nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false,
+          })}
+          onClear={() => onEdit({
+            nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false,
+          })} />
       </td>
       <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${number}`}
         onChange={value => onEdit({ supplierText: value })} />
