@@ -326,10 +326,10 @@ public static class InvoiceEndpoints
     /// сам, часть из них однажды вернула бы счёт без строк, и форма получила бы пустую таблицу там, где
     /// строки есть. Ошибка была бы видна только на одном действии из шести.</para>
     ///
-    /// <para>⚠️ Названия позиций номенклатуры берутся ОДНИМ обращением к справочнику на весь счёт;
-    /// «вида нет вовсе» на чтении не отказ, а пустой словарь — тип «Номенклатура» есть не в каждой
-    /// установке, а счёт со строками от этого не перестаёт существовать. Строка тогда честно покажет
-    /// «позиция не найдена»: ссылка есть, а прочитать её нечем.</para>
+    /// <para>⚠️ Названия позиций номенклатуры берутся ОДНИМ обращением к справочнику на весь счёт, и
+    /// «вида нет вовсе» на чтении не отказ: тип «Номенклатура» есть не в каждой установке, а счёт со
+    /// строками от этого не перестаёт существовать. Но и потерей это не считается — незнание
+    /// доезжает до формы незнанием (<c>InvoiceLineView.NomenclatureLost</c>).</para>
     /// </summary>
     internal static async Task<InvoiceView> ViewAsync(
         CostsDbContext db, IModuleCatalog catalog, Invoice invoice, CancellationToken ct)
@@ -343,14 +343,22 @@ public static class InvoiceEndpoints
             await NomenclatureNamesAsync(catalog, lines, ct));
     }
 
-    private static async Task<IReadOnlyDictionary<Guid, string?>> NomenclatureNamesAsync(
+    /// <summary>
+    /// Названия позиций номенклатуры одним обращением на весь счёт — либо <c>null</c>, если вида
+    /// «Номенклатура» в системе нет вовсе.
+    ///
+    /// <para>⚠️ Пустой словарь и <c>null</c> — РАЗНОЕ. Пустой означает «спросили, ничего не нашлось»
+    /// (позиции удалены), <c>null</c> — «спрашивать не у кого». Сведи их в одно, и в установке без
+    /// типа «Номенклатура» каждая ссылка счёта выглядела бы битой.</para>
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<Guid, string?>?> NomenclatureNamesAsync(
         IModuleCatalog catalog, IReadOnlyList<InvoiceLine> lines, CancellationToken ct)
     {
         var ids = lines.Select(l => l.NomenclatureId).OfType<Guid>().Distinct().ToList();
         if (ids.Count == 0) return new Dictionary<Guid, string?>();
 
         var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);
-        return refs?.ToDictionary(r => r.Id, r => r.DisplayName) ?? [];
+        return refs?.ToDictionary(r => r.Id, r => r.DisplayName);
     }
 
     internal static async Task<Invoice> FindAsync(CostsDbContext db, Guid id, CancellationToken ct) =>

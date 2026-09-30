@@ -10,9 +10,11 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Data;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -31,49 +33,8 @@ namespace BHS.CRG.Tests.Integration;
 /// длинных файлов решения, а файл-склад читают ЦЕЛИКОМ ради одной правки (храповик размера, #1041).</para>
 /// </summary>
 [Collection("Integration")]
-public class InvoiceLineTests(InvoiceLineHost host) : IClassFixture<InvoiceLineHost>, IAsyncLifetime
+public class InvoiceLineTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
-    private const string Password = "Test#12345";
-
-    // Статические по той же причине, что у C1: xUnit создаёт новый экземпляр класса на каждый тест, а
-    // посев (типы, организации, позиции номенклатуры) обязан случиться один раз.
-    private static readonly SemaphoreSlim SeedGate = new(1, 1);
-    private static Guid supplier;
-    private static Guid payer;
-    private static Guid cable;
-    private static Guid conduit;
-
-    /// <summary>
-    /// Посев: типы «Организация» и «Номенклатура» заводит ЧЕЛОВЕК (первый) и миграция ядра там, где есть
-    /// материалы (второй) — на чистой базе нет ни того, ни другого. Заводим оба, повторяем проекцию типов
-    /// модуля (она идемпотентна) и кладём две организации и две позиции номенклатуры.
-    /// </summary>
-    public async Task InitializeAsync()
-    {
-        await SeedGate.WaitAsync();
-        try
-        {
-            if (supplier != Guid.Empty) return;
-
-            var organizations = await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация");
-            var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
-
-            using (var scope = host.Services.CreateScope())
-                await scope.ServiceProvider.ProjectModuleTypesAsync();
-
-            supplier = await EntryAsync(organizations, "ООО «Кабель-Торг»");
-            payer = await EntryAsync(organizations, "ООО «Наша компания»");
-            cable = await EntryAsync(nomenclature, "Кабель ВВГнг-LS 3х2,5");
-            conduit = await EntryAsync(nomenclature, "Труба гофрированная 20 мм");
-        }
-        finally
-        {
-            SeedGate.Release();
-        }
-    }
-
-    public Task DisposeAsync() => Task.CompletedTask;
-
     [Fact]
     public async Task Строки_сохраняются_набором_и_приезжают_со_счётом()
     {
@@ -119,48 +80,6 @@ public class InvoiceLineTests(InvoiceLineHost host) : IClassFixture<InvoiceLineH
         Assert.Contains("Позицию выбирают из справочника номенклатуры", text);
         // Отказ называет ПРИШЕДШЕЕ: «пришло String» отсылало бы человека искать, что именно он вписал.
         Assert.Contains("Кабель ВВГнг-LS 3х2,5", text);
-    }
-
-    [Fact]
-    public async Task Строка_без_позиции_живёт_и_счёт_виден_в_отборе_разобрать()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client);
-
-        var view = await LinesAsync(client, invoice, [
-            Line(cable, quantity: 10, price: 100m),
-            Line(null, quantity: 5, price: 20m, text: "Лоток металлический 100х50 (в справочнике нет)"),
-        ]);
-
-        var totals = view.GetProperty("totals");
-        Assert.Equal(2, totals.GetProperty("count").GetInt32());
-        Assert.Equal(1, totals.GetProperty("withoutNomenclature").GetInt32());
-        Assert.Equal("Лоток металлический 100х50 (в справочнике нет)",
-            view.GetProperty("lines")[1].GetProperty("supplierText").GetString());
-
-        var queue = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
-        var found = queue.EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice);
-        Assert.Equal(1, found.GetProperty("linesWithoutNomenclature").GetInt32());
-        Assert.Equal(2, found.GetProperty("linesCount").GetInt32());
-    }
-
-    /// <summary>
-    /// Счёт, у которого все строки разобраны, в очереди «Разобрать» не стоит — иначе очередь перестала
-    /// бы быть очередью и стала бы вторым реестром.
-    /// </summary>
-    [Fact]
-    public async Task Разобранные_строки_из_отбора_уходят()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client);
-
-        await LinesAsync(client, invoice, [Line(null, quantity: 1, price: 1m, text: "ждёт")]);
-        var before = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
-        Assert.Contains(invoice, before.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
-
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 1m)]);
-        var after = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
-        Assert.DoesNotContain(invoice, after.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
     }
 
     /// <summary>
@@ -328,108 +247,6 @@ public class InvoiceLineTests(InvoiceLineHost host) : IClassFixture<InvoiceLineH
     }
 
     [Fact]
-    public async Task Разобран_отказывает_пока_строка_ждёт_позиции()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
-
-        await LinesAsync(client, invoice, [
-            Line(cable, quantity: 1, price: 1m),
-            Line(null, quantity: 1, price: 1m, text: "ждёт разбора"),
-        ]);
-
-        var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var text = await response.Content.ReadAsStringAsync();
-        Assert.Contains("строка 2", text);
-        Assert.Contains("Разобрать", text);
-    }
-
-    [Fact]
-    public async Task Разобран_отказывает_без_строк()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
-
-        var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("строк нет", await response.Content.ReadAsStringAsync());
-    }
-
-    /// <summary>
-    /// Обязательные поля проверяются ЗДЕСЬ, а не при сохранении (ТЗ COST-6.2): черновик без плательщика
-    /// живёт, разобранный счёт — нет. Перечень берётся из объявления типа, а не переписан в коде.
-    /// </summary>
-    [Fact]
-    public async Task Разобран_отказывает_без_обязательных_полей()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client);
-
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 1m)]);
-
-        var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("«Плательщик»", await response.Content.ReadAsStringAsync());
-    }
-
-    [Fact]
-    public async Task Разобран_проходит_и_состояние_видно_в_реестре()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
-
-        var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
-        await OkAsync(response);
-
-        var view = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Разобран", view.GetProperty("requisites").GetProperty("Состояние").GetString());
-
-        var list = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices");
-        var item = list.EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice);
-        Assert.Equal("Разобран", item.GetProperty("state").GetString());
-    }
-
-    /// <summary>
-    /// Правка строк, оставившая строку без позиции, САМА возвращает счёт в черновик — иначе «разобран»
-    /// осталось бы утверждением, перестав быть правдой, и отбор «Разобрать» такой счёт не показал бы.
-    /// </summary>
-    [Fact]
-    public async Task Правка_строк_возвращает_разобранный_счёт_в_черновик()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
-        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
-
-        var view = await LinesAsync(client, invoice, [
-            Line(cable, quantity: 1, price: 100m),
-            Line(null, quantity: 1, price: 1m, text: "дописали строку, позиции ещё нет"),
-        ]);
-
-        Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
-
-        var queue = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
-        Assert.Contains(invoice, queue.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
-    }
-
-    [Fact]
-    public async Task Возврат_в_черновик_решением_человека()
-    {
-        var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
-        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
-
-        var response = await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null);
-        await OkAsync(response);
-
-        var view = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
-    }
-
-    [Fact]
     public async Task Поиск_номенклатуры_находит_по_части_названия()
     {
         var (client, _) = await SignInAsync("Admin");
@@ -510,157 +327,78 @@ public class InvoiceLineTests(InvoiceLineHost host) : IClassFixture<InvoiceLineH
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
-    // ── Помощники ─────────────────────────────────────────────────────────────
-
-    /// <summary>Строка счёта так, как её присылает форма.</summary>
-    private static Dictionary<string, object?> Line(
-        Guid? nomenclature, decimal quantity, decimal price, decimal? rate = null, string? text = null,
-        decimal? amount = null, decimal? vat = null, Guid? id = null) =>
-        new()
-        {
-            ["id"] = id?.ToString(),
-            ["nomenclature"] = nomenclature is { } value ? Reference(value) : null,
-            ["supplierText"] = text,
-            ["quantity"] = quantity,
-            ["price"] = price,
-            ["vatRate"] = rate,
-            ["vatAmount"] = vat,
-            ["amount"] = amount,
-        };
-
-    private static Dictionary<string, object?> Reference(Guid id) =>
-        new() { ["$ref"] = "catalog", ["entryId"] = id.ToString() };
-
-    private static async Task<JsonElement> LinesAsync(
-        HttpClient client, Guid invoice, object[] lines)
+    /// <summary>
+    /// Единица и артикул длиннее своих колонок — отказ с именем поля, а НЕ пятисотый.
+    ///
+    /// <para>⚠️ Сторож находки ревью, и попасть туда проще, чем кажется: длинную единицу приносит не
+    /// опечатка, а вставка из буфера — колонка «Предмет поставки» угадывается единицей, и в поле
+    /// ложится фраза на семьдесят знаков. Перебор ловил PostgreSQL (22001) внутри
+    /// <c>SaveChangesAsync</c>, где доменных отказов не бывает: наружу уходило «внутренняя ошибка
+    /// сервера» без единого слова о поле. Проверено живьём до правки — ровно 500.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("unit", InvoiceLine.UnitLength, "Единица измерения")]
+    [InlineData("supplierCode", InvoiceLine.SupplierCodeLength, "Артикул поставщика")]
+    public async Task Текст_длиннее_колонки_отказывает_с_именем_поля(string key, int limit, string label)
     {
-        var response = await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/lines", new { lines });
-        await OkAsync(response);
-        return await response.Content.ReadFromJsonAsync<JsonElement>();
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client);
+
+        var line = Line(cable, quantity: 1, price: 10m);
+        line[key] = new string('ш', limit + 1);
+
+        var response = await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/lines",
+            new { lines = new object[] { line } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.Contains(label, text);
+        // Номер строки, предел и присланная длина: без них человек не знает ни где, ни насколько.
+        Assert.Contains("строка 1", text);
+        Assert.Contains($"{limit + 1} знаков", text);
+        Assert.Contains($"вмещается {limit}", text);
     }
 
     /// <summary>
-    /// Завести счёт. <paramref name="complete" /> — со всеми обязательными полями: такой счёт годится
-    /// для перехода «разобран», а без них переход отказывает (и это отдельный тест).
+    /// Позиция БЕЗ НАЗВАНИЯ потерянной не считается.
+    ///
+    /// <para>⚠️ Сторож находки ревью. Запись справочника без имени — состояние законное и живое (в
+    /// рабочей базе такие есть), а пикер такие позиции показывает. Форма же различала случаи по
+    /// пустому названию: выбранная только что позиция краснела как «не найдена», кнопка снятия у такой
+    /// клетки скрыта — и строка не сохранялась вовсе, потому что ссылку было нечем убрать. Разницу
+    /// знает только сервер, он её и присылает.</para>
     /// </summary>
-    private static async Task<Guid> CreateAsync(HttpClient client, bool complete = false)
+    [Fact]
+    public async Task Позиция_без_названия_потерянной_не_считается()
     {
-        var requisites = new Dictionary<string, object?>
-        {
-            ["Номер"] = $"СЧ-{Guid.NewGuid().ToString()[..6]}",
-            ["Дата"] = "2026-09-29",
-            ["Поставщик"] = Reference(supplier),
-            ["Плательщик"] = complete ? Reference(payer) : null,
-        };
+        var (client, _) = await SignInAsync("Admin");
+        var nameless = await NamelessAsync();
+        var invoice = await CreateAsync(client);
 
-        var response = await client.PostAsJsonAsync("/api/costs/invoices", new { requisites });
-        await OkAsync(response);
-        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-    }
+        var view = await LinesAsync(client, invoice, [Line(nameless, quantity: 1, price: 10m)]);
 
-    /// <summary>Сколько записей «строки счёта изменены» стоит в журнале у этого счёта.</summary>
-    private async Task<int> RecordsAsync(Guid invoice)
-    {
-        using var scope = host.Services.CreateScope();
-        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = await journal.ReadAsync(0, 200, "costs.invoice.lines");
-        return records.Count(r => r.TargetId == invoice.ToString());
-    }
-
-    private static async Task<JsonElement> ReadAsync(HttpClient client, Guid invoice) =>
-        await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{invoice}");
-
-    private static async Task OkAsync(HttpResponseMessage response) =>
-        Assert.True(response.IsSuccessStatusCode,
-            $"{(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-
-    private async Task<Guid> TypeAsync(string code, string name)
-    {
-        using var scope = host.Services.CreateScope();
-        var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
-
-        var found = await types.FindAsync(t => t.Code == code);
-        if (found.Count > 0) return found[0].Id;
-
-        var created = DocumentType.Create(name, code, DocumentTypeKind.Composite, null,
-            JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
-        await types.AddAsync(created);
-        await types.SaveChangesAsync();
-        return created.Id;
+        var line = view.GetProperty("lines")[0];
+        Assert.Equal(JsonValueKind.Null, line.GetProperty("nomenclatureName").ValueKind);
+        Assert.False(line.GetProperty("nomenclatureLost").GetBoolean());
     }
 
     /// <summary>
-    /// Запись справочника — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: общие данные (<c>domain_objects</c>). Сойдя с
-    /// дороги экрана, тест снова начал бы подтверждать сам себя — ровно это и случилось в C1, когда
-    /// помощник писал в таблицу прежней модели, из которой читал порт.
+    /// Позиция УДАЛЕНА из справочника — это потеря, и она названа потерей. Ссылка при этом остаётся:
+    /// стирать её за человека нельзя, он единственный, кто знает, чем заменить.
     /// </summary>
-    /// <para>⚠️ Заводится, только если такой записи ещё нет. База между прогонами НЕ сбрасывается (как и
-    /// у C1), а статические поля класса — да: посев без этой проверки на втором прогоне давал бы вторую
-    /// «Трубу гофрированную», и тест поиска падал бы на дубле, которого в коде нет.</para>
-    private async Task<Guid> EntryAsync(Guid typeId, string name)
+    [Fact]
+    public async Task Удалённая_позиция_названа_потерянной()
     {
-        using var scope = host.Services.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var (client, _) = await SignInAsync("Admin");
+        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+            $"Позиция под удаление {Guid.NewGuid().ToString()[..6]}");
+        var invoice = await CreateAsync(client);
+        await LinesAsync(client, invoice, [Line(doomed, quantity: 1, price: 10m)]);
 
-        var known = await mediator.Send(new ListCommonDataRefsQuery([typeId], name));
-        if (known.FirstOrDefault(r => r.DisplayName == name) is { } found) return found.Id;
+        await ForgetAsync(doomed);
 
-        var created = await mediator.Send(new CreateCommonDataEntryCommand(name, typeId,
-            JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""), CatalogScope.System, null, null));
-        return created.Id;
-    }
-
-    private async Task<(HttpClient Client, Guid Id)> SignInAsync(string role)
-    {
-        var email = $"line_{Guid.NewGuid():N}@test.local";
-        Guid id;
-
-        using (var scope = host.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, role)).Succeeded);
-            id = user.Id;
-        }
-
-        var client = host.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
-        login.EnsureSuccessStatusCode();
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>())
-            .GetProperty("accessToken").GetString()!;
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return (client, id);
-    }
-}
-
-/// <summary>
-/// Хост со включённым модулем счетов и своей базой (C2, issue #1078) — по той же причине, что у
-/// <see cref="InvoiceHost" />: состав системных ролей приводится при старте к объявленному, и хост с
-/// другим набором модулей менял бы права ролям у соседних классов.
-/// </summary>
-public sealed class InvoiceLineHost : IntegrationTestFixture
-{
-    private static string ConnectionString { get; } = Dedicated();
-
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_lines";
-        return builder.ConnectionString;
-    }
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-
-        var overrides = new Dictionary<string, string?>
-        {
-            ["Modules:Enabled"] = "id,costs",
-            ["ConnectionStrings:Postgres"] = ConnectionString,
-        };
-
-        foreach (var (key, value) in overrides) builder.UseSetting(key, value);
-        builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(overrides));
+        var line = (await ReadAsync(client, invoice)).GetProperty("lines")[0];
+        Assert.Equal(doomed, line.GetProperty("nomenclatureId").GetGuid());
+        Assert.True(line.GetProperty("nomenclatureLost").GetBoolean());
     }
 }

@@ -51,7 +51,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
         invoice.Property(i => i.Id).HasColumnName("id");
         invoice.Property(i => i.DocumentTypeId).HasColumnName("document_type_id");
-        invoice.Property(i => i.Number).HasColumnName("number").HasMaxLength(100);
+        invoice.Property(i => i.Number).HasColumnName("number").HasMaxLength(Invoice.NumberLength);
         invoice.Property(i => i.IssuedOn).HasColumnName("issued_on");
         invoice.Property(i => i.SupplierId).HasColumnName("supplier_id");
         invoice.Property(i => i.PayerId).HasColumnName("payer_id");
@@ -119,8 +119,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         line.Property(l => l.Ordinal).HasColumnName("ordinal");
         line.Property(l => l.NomenclatureId).HasColumnName("nomenclature_id");
         line.Property(l => l.SupplierText).HasColumnName("supplier_text");
-        line.Property(l => l.SupplierCode).HasColumnName("supplier_code").HasMaxLength(100);
-        line.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(50);
+        line.Property(l => l.SupplierCode).HasColumnName("supplier_code").HasMaxLength(InvoiceLine.SupplierCodeLength);
+        line.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(InvoiceLine.UnitLength);
 
         // Количество — три знака после запятой: кабель мерят метрами с сантиметрами, и «7,25 м» в
         // бумаге обязано остаться «7,25 м». Деньги — две, как у счёта, и по той же причине (не double).

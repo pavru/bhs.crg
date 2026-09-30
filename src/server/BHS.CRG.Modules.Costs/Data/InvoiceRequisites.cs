@@ -113,7 +113,7 @@ public static class InvoiceRequisites
         }
 
         var columns = new InvoiceColumns(
-            Number: CostsValues.Text(requisites, NumberKey),
+            Number: CostsValues.Text(requisites, NumberKey, limit: Invoice.NumberLength),
             IssuedOn: CostsValues.Date(requisites, DateKey),
             SupplierId: CostsValues.Reference(requisites, SupplierKey, OrganizationWhy),
             PayerId: CostsValues.Reference(requisites, PayerKey, OrganizationWhy),
