@@ -50,24 +50,39 @@ public sealed record LineAllocationView(
     decimal? UnallocatedAmount,
     bool Balanced);
 
+/// <summary>
+/// Разноска счёта целиком суммой — у счёта без строк (задача F2, issue #1086, ТЗ COST-11).
+/// </summary>
+/// <param name="UnallocatedAmount">«Не разнесено» от суммы к оплате; <c>null</c> — у счёта есть строки
+/// или нет суммы к оплате. Остаток есть и у документа целиком, как у строки (ТЗ COST-13).</param>
+/// <param name="Pending">Строки у счёта появились, а части счёта остались: разноска ждёт пересчёта по
+/// строкам, и «разнесён» до него не наступает.</param>
+public sealed record DocumentAllocationView(
+    IReadOnlyList<AllocationPartView> Parts,
+    decimal? UnallocatedAmount,
+    bool Pending,
+    bool Balanced);
+
 /// <summary>Разноска счёта целиком: признак «разнесён» и чего ему не хватает.</summary>
 /// <param name="Allocated">«Разнесён» (ТЗ COST-9): все строки разнесены, цели на месте, расхождение с
-/// суммой к оплате в допуске. Ровно это условие проверяет переход «разобран».</param>
+/// суммой к оплате в допуске, разноска счёта без строк не ждёт пересчёта. Ровно это условие проверяет
+/// переход «разобран».</param>
 /// <param name="Unbalanced">Номера строк, разнесённых не полностью (или с частями не того вида).</param>
 /// <param name="Lost">Сколько частей указывают на удалённую стройку или раздел.</param>
 /// <param name="Discrepancy">Сумма к оплате минус сумма строк; <c>null</c> — суммы к оплате нет.</param>
 /// <param name="Tolerance">Допуск расхождения. Приезжает от сервера, а не зашит в форму: по ТЗ это
 /// настройка, и форма, знающая число сама, разошлась бы с ней на первой же правке.</param>
+/// <param name="Stamp">Отметка версии разноски счёта: число частей и время последней правки. Её присылает
+/// запись матрицы — набор, собранный по устаревшему виду, отвергается, а не возвращает удалённые части.</param>
 public sealed record AllocationSummaryView(
     bool Allocated,
     IReadOnlyList<int> Unbalanced,
     int Lost,
     decimal? Discrepancy,
     decimal Tolerance,
-    bool WithinTolerance)
-{
-    public static readonly AllocationSummaryView Empty = new(true, [], 0, null, AllocationMath.Tolerance, true);
-}
+    bool WithinTolerance,
+    DocumentAllocationView Document,
+    string Stamp);
 
 /// <summary>
 /// Разноска счёта, прочитанная и посчитанная: то, что нужно ответу, переходу «разобран» и журналу.
@@ -103,14 +118,15 @@ public static class InvoiceAllocations
     /// разобранный счёт сам возвращается в черновик. Один помощник на все правки (строки, части строки,
     /// шапка счёта): разойдись они — правка строк и правка разноски отвечали бы на один вопрос по-разному.
     ///
-    /// <para>Строки — как они лягут; части — из базы, кроме частей строки <paramref name="replaced" />:
-    /// их заменяет <paramref name="replacement" /> из памяти. Части строк, которых среди
-    /// <paramref name="lines" /> нет, в счёт не идут: их унесёт каскад вместе со строкой. Сумма к оплате
-    /// берётся у <paramref name="invoice" /> — тоже как ляжет.</para>
+    /// <para>Строки — как они лягут; части — из базы, кроме частей тех строк, что отмечает
+    /// <paramref name="replaced" /> (<c>null</c> в нём — части счёта целиком): их заменяет
+    /// <paramref name="replacement" /> из памяти. Части строк, которых среди <paramref name="lines" /> нет,
+    /// в счёт не идут: их унесёт каскад вместе со строкой. Сумма к оплате берётся у
+    /// <paramref name="invoice" /> — тоже как ляжет.</para>
     /// </summary>
     public static async Task<bool> AllocatedAfterAsync(
         CostsDbContext db, IModuleConstructions sites, Invoice invoice, IReadOnlyList<AllocationLine> lines,
-        CancellationToken ct, Guid? replaced = null, IReadOnlyList<InvoiceAllocation>? replacement = null)
+        CancellationToken ct, Func<Guid?, bool>? replaced = null, IReadOnlyList<InvoiceAllocation>? replacement = null)
     {
         var kept = lines.Select(l => l.Id).ToHashSet();
         var stored = await db.InvoiceAllocations.AsNoTracking()
@@ -118,7 +134,8 @@ public static class InvoiceAllocations
             .ToListAsync(ct);
 
         List<InvoiceAllocation> parts =
-            [.. stored.Where(a => kept.Contains(a.LineId) && a.LineId != replaced), .. replacement ?? []];
+            [.. stored.Where(a => (a.LineId is not { } line || kept.Contains(line)) && replaced?.Invoke(a.LineId) != true),
+             .. replacement ?? []];
 
         var known = parts.Count == 0 ? [] : await sites.ListAsync(ct);
         return Read(invoice, lines, parts, known).Summary.Allocated;
@@ -140,14 +157,29 @@ public static class InvoiceAllocations
             l.UnallocatedAmount,
             l.Balanced));
 
+        var document = new DocumentAllocationView(
+            [.. balance.Document.Parts.Select(share => View(byId[share.Id], share, sites))],
+            balance.Document.UnallocatedAmount,
+            balance.Document.Pending,
+            balance.Document.Balanced);
+
         return new InvoiceAllocationRead(views, new AllocationSummaryView(
             balance.Allocated && lost == 0,
             balance.Unbalanced,
             lost,
             balance.Discrepancy,
             balance.Tolerance,
-            balance.WithinTolerance));
+            balance.WithinTolerance,
+            document,
+            Stamp(parts)));
     }
+
+    /// <summary>
+    /// Отметка версии разноски: сколько частей и когда правлена последняя. Удалили часть — меняется число;
+    /// добавили или поправили — время (запись ставит его каждой положенной части).
+    /// </summary>
+    public static string Stamp(IReadOnlyCollection<InvoiceAllocation> parts) =>
+        parts.Count == 0 ? "0" : $"{parts.Count}:{parts.Max(p => p.UpdatedAt).UtcTicks}";
 
     public static AllocationLine Line(InvoiceLine line) => new(line.Id, line.Ordinal, line.Quantity, line.Amount);
 
@@ -155,7 +187,7 @@ public static class InvoiceAllocations
         new(part.Id, part.LineId, part.Ordinal, part.Quantity, part.Amount);
 
     /// <summary>Идентификатор присланной части: есть — правим её, нет — заводим новую.</summary>
-    public static Guid? Id(JsonElement part, int number) => Guid(part, "id", $"Часть {number}: идентификатор");
+    public static Guid? Id(JsonElement part, int number) => Identifier(part, "id", $"Часть {number}: идентификатор");
 
     /// <summary>
     /// Значения присланной части — разобранные по тому, как разносится строка.
@@ -171,12 +203,12 @@ public static class InvoiceAllocations
             throw new InvalidRequestException(
                 $"Часть {number} прислана как {part.ValueKind}, а ожидается объект с полями части.");
 
-        var construction = Guid(part, ConstructionKey, $"Стройка, часть {number}")
+        var construction = Identifier(part, ConstructionKey, $"Стройка, часть {number}")
             ?? throw new InvalidRequestException(
                 $"Часть {number}: стройка не выбрана. Часть разноски — это «сколько и куда», и без «куда» " +
                 "её деньги не относятся ни к чему. Раздел можно не указывать, стройку — нельзя.");
 
-        var section = Guid(part, SectionKey, $"Раздел, часть {number}");
+        var section = Identifier(part, SectionKey, $"Раздел, часть {number}");
         var quantity = CostsValues.Money(part, "quantity", $"Количество, часть {number}");
         var amount = CostsValues.Money(part, "amount", $"Сумма, часть {number}");
 
@@ -288,7 +320,7 @@ public static class InvoiceAllocations
         _ => "none",
     };
 
-    private static Guid? Guid(JsonElement source, string key, string label) =>
+    internal static Guid? Identifier(JsonElement source, string key, string label) =>
         CostsValues.Value(source, key) switch
         {
             null => null,

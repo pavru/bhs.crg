@@ -100,6 +100,22 @@ export interface AllocationSummaryView {
   /** Допуск расхождения — приезжает от сервера: по ТЗ это настройка, повторять её в форме нельзя. */
   tolerance: number;
   withinTolerance: boolean;
+  /** Разноска счёта целиком суммой — у счёта без строк (F2, ТЗ COST-11). */
+  document: DocumentAllocationView;
+  /** Отметка версии разноски — её присылает запись матрицы, чтобы устаревший набор был отвергнут. */
+  stamp: string;
+}
+
+/**
+ * Разноска счёта целиком суммой (F2, issue #1086). Живёт, пока строк нет; появились строки — ждёт
+ * пересчёта (`pending`), и «разнесён» до него не наступает.
+ */
+export interface DocumentAllocationView {
+  parts: AllocationPartView[];
+  /** «Не разнесено» от суммы к оплате; `null` — у счёта есть строки или нет суммы к оплате. */
+  unallocatedAmount: number | null;
+  pending: boolean;
+  balanced: boolean;
 }
 
 export interface CostsSection {
@@ -178,7 +194,7 @@ export interface NomenclatureSearchResult {
   more: boolean;
 }
 
-const QK = 'costs-invoices';
+export const QK = 'costs-invoices';
 
 export const INVOICES_KEY = [QK] as const;
 

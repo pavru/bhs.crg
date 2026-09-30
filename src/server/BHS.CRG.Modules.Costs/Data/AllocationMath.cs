@@ -16,8 +16,8 @@ public enum AllocationMode
 /// <summary>Строка — то, что арифметике нужно от неё знать.</summary>
 public sealed record AllocationLine(Guid Id, int Ordinal, decimal? Quantity, decimal? Amount);
 
-/// <summary>Часть разноски — то, что ввёл человек.</summary>
-public sealed record AllocationPart(Guid Id, Guid LineId, int Ordinal, decimal? Quantity, decimal? Amount);
+/// <summary>Часть разноски — то, что ввёл человек. <c>LineId = null</c> — часть счёта целиком (F2).</summary>
+public sealed record AllocationPart(Guid Id, Guid? LineId, int Ordinal, decimal? Quantity, decimal? Amount);
 
 /// <summary>Посчитанная часть.</summary>
 /// <param name="Amount">Сумма части, со всеми поправками. <c>null</c> — посчитать нечем: у строки
@@ -45,11 +45,28 @@ public sealed record AllocationLineBalance(
     decimal? UnallocatedAmount,
     bool Balanced);
 
+/// <summary>
+/// Разноска счёта целиком — суммой, пока строк нет (задача F2, issue #1086, ТЗ COST-11).
+/// </summary>
+/// <param name="UnallocatedAmount">Сумма к оплате минус разнесённое; <c>null</c> — считать не от чего:
+/// у счёта есть строки (разносятся они) или нет суммы к оплате.</param>
+/// <param name="Pending">Части счёта есть, а у счёта уже появились строки: разноска ждёт пересчёта по
+/// строкам. Пока она ждёт, счёт не «разнесён» — деньги лежат на стройках суммой, а строки не разнесены
+/// никуда, и сложи их вместе — счёт посчитался бы дважды.</param>
+/// <param name="Balanced">Разноска счёта сходится: строк нет и разнесена вся сумма к оплате, либо
+/// строки есть и частей счёта не осталось.</param>
+public sealed record AllocationDocumentBalance(
+    IReadOnlyList<AllocationShare> Parts,
+    decimal? UnallocatedAmount,
+    bool Pending,
+    bool Balanced);
+
 /// <summary>Баланс счёта целиком.</summary>
 /// <param name="Discrepancy">Сумма к оплате минус сумма строк; <c>null</c> — суммы к оплате в счёте
-/// нет, сверять не с чем.</param>
+/// нет или нет строк: сверять не с чем.</param>
 public sealed record AllocationBalance(
     IReadOnlyList<AllocationLineBalance> Lines,
+    AllocationDocumentBalance Document,
     decimal? Discrepancy,
     decimal Tolerance,
     bool WithinTolerance)
@@ -61,7 +78,7 @@ public sealed record AllocationBalance(
     /// «Разнесён» (ТЗ COST-9): каждая строка разнесена полностью, и расхождение с суммой к оплате — в
     /// пределах допуска.
     /// </summary>
-    public bool Allocated => Lines.All(l => l.Balanced) && WithinTolerance;
+    public bool Allocated => Lines.All(l => l.Balanced) && Document.Balanced && WithinTolerance;
 }
 
 /// <summary>
@@ -99,8 +116,13 @@ public static class AllocationMath
         var balances = ordered
             .Select(l => Line(l, [.. byLine[l.Id].OrderBy(p => p.Ordinal)]))
             .ToList();
+        var document = Document(ordered.Count > 0, [.. byLine[null].OrderBy(p => p.Ordinal)], total);
 
-        var discrepancy = total is { } paper ? paper - ordered.Sum(l => l.Amount ?? 0m) : (decimal?)null;
+        // Строк нет — сверять сумму к оплате не с чем: «расхождение» в размере всего счёта было бы не
+        // расхождением, а отсутствием строк, о котором и так сказано.
+        var discrepancy = total is { } paper && ordered.Count > 0
+            ? paper - ordered.Sum(l => l.Amount ?? 0m)
+            : (decimal?)null;
         var within = discrepancy is not { } d || Math.Abs(d) <= tolerance;
 
         // Расхождение с суммой к оплате уходит в ПОСЛЕДНЮЮ часть счёта (ТЗ COST-13) — и только когда
@@ -110,7 +132,25 @@ public static class AllocationMath
         if (discrepancy is { } gap && gap != 0 && within && balances.All(b => b.Balanced))
             Absorb(balances, gap);
 
-        return new AllocationBalance(balances, discrepancy, tolerance, within);
+        return new AllocationBalance(balances, document, discrepancy, tolerance, within);
+    }
+
+    /// <summary>
+    /// Разноска счёта целиком (F2, ТЗ COST-11). Без строк части счёта — вся разноска, и остаток считается
+    /// от суммы к оплате. Со строками они — ожидание пересчёта: считать их разнесённым нельзя.
+    /// </summary>
+    public static AllocationDocumentBalance Document(bool hasLines, IReadOnlyList<AllocationPart> parts, decimal? total)
+    {
+        var shares = parts
+            .Select(p => new AllocationShare(p.Id, p.Amount, 0m, 0m, Mismatched: p.Amount is null))
+            .ToList();
+
+        if (hasLines)
+            return new AllocationDocumentBalance(shares, null, Pending: parts.Count > 0, Balanced: parts.Count == 0);
+
+        var rest = total is { } whole ? whole - parts.Sum(p => p.Amount ?? 0m) : (decimal?)null;
+        return new AllocationDocumentBalance(shares, rest, Pending: false,
+            Balanced: parts.Count > 0 && rest == 0 && parts.All(p => p.Amount is not null));
     }
 
     /// <summary>

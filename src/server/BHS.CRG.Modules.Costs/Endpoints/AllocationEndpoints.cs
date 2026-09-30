@@ -100,7 +100,7 @@ public static class AllocationEndpoints
         // части этой строки — те, что сейчас лягут.
         var returned = invoice.State == InvoiceState.Parsed
             && !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
-                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, line.Id, now);
+                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, id => id == line.Id, now);
         if (returned) invoice.ReturnToDraft();
 
         await db.SaveChangesAsync(ct);
@@ -131,7 +131,7 @@ public static class AllocationEndpoints
     /// −200 на строке в 100 ₽ дают те же 100, но одна стройка получила бы 300 ₽ затрат из ниоткуда, а
     /// другая — отрицательные.</para>
     /// </summary>
-    private static void EnsureNotOver(InvoiceLine line, IReadOnlyList<AllocationValues> parts)
+    internal static void EnsureNotOver(InvoiceLine line, IReadOnlyList<AllocationValues> parts)
     {
         if (line.Quantity is > 0 and var quantity)
         {

@@ -154,7 +154,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     }
 
     /// <summary>
-    /// Части разноски строк (задача F1, issue #1085, ТЗ COST-10). Хранится введённое человеком —
+    /// Части разноски строк (задача F1, issue #1085, ТЗ COST-10) и счёта без строк (F2, issue #1086). Хранится введённое человеком —
     /// количество или сумма, — посчитанное не хранится (см. <see cref="InvoiceAllocation" />).
     /// </summary>
     private static void MapAllocations(ModelBuilder builder)
@@ -196,6 +196,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // Индекса по стройке здесь нет нарочно: отбирать части по стройке будут затраты (G5), и индекс
         // приедет с тем запросом, которому он нужен.
         part.HasIndex(a => new { a.InvoiceId, a.LineId, a.Ordinal }).HasDatabaseName("ix_invoice_allocations_order");
+
+        // Часть счёта целиком (без строки, F2) — только суммой: делить количество не из чего. Ограничением
+        // базы, а не одной проверкой разбора: часть счёта с метрами разнесла бы ничто, и узнали бы об этом
+        // по отчёту, где у стройки не хватает денег.
+        part.ToTable(t => t.HasCheckConstraint("ck_invoice_allocations_document_amount",
+            "line_id IS NOT NULL OR (quantity IS NULL AND amount IS NOT NULL)"));
     }
 
     /// <summary>
