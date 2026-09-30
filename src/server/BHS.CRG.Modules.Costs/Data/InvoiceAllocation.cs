@@ -30,7 +30,12 @@ public sealed class InvoiceAllocation
     /// </summary>
     public Guid InvoiceId { get; private set; }
 
-    public Guid LineId { get; private set; }
+    /// <summary>
+    /// Строка счёта; <c>null</c> — часть <b>счёта целиком</b> (задача F2, issue #1086, ТЗ COST-11): счёт
+    /// без строк разносится суммой на сумму к оплате. Такая часть хранит только сумму, и живёт она, пока
+    /// строк нет: появились строки — разноска пересчитывается по ним, а части счёта уходят.
+    /// </summary>
+    public Guid? LineId { get; private set; }
 
     /// <summary>
     /// Порядок части в строке. Хранится, потому что на него опирается арифметика: копейки округления
@@ -54,7 +59,7 @@ public sealed class InvoiceAllocation
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public static InvoiceAllocation Create(Guid invoiceId, Guid lineId) => new()
+    public static InvoiceAllocation Create(Guid invoiceId, Guid? lineId) => new()
     {
         Id = Guid.CreateVersion7(),
         InvoiceId = invoiceId,

@@ -267,13 +267,4 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
             found.GetProperty("sections").EnumerateArray().Select(s => s.GetProperty("name").GetString()));
         Assert.Contains(sections[0], found.GetProperty("sections").EnumerateArray().Select(s => s.GetProperty("id").GetGuid()));
     }
-
-    /// <summary>Реквизиты счёта, как их отдаёт сервер, с одним изменённым полем.</summary>
-    private static async Task<JsonElement> RequisitesWithAsync(HttpClient client, Guid invoice, string key, object value)
-    {
-        var requisites = (await ReadAsync(client, invoice)).GetProperty("requisites");
-        var patched = JsonSerializer.Deserialize<Dictionary<string, object?>>(requisites.GetRawText())!;
-        patched[key] = value;
-        return JsonSerializer.SerializeToElement(patched);
-    }
 }

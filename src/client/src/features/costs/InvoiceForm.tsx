@@ -16,6 +16,7 @@ import {
   type InvoiceBlock,
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
+import { InvoiceObject } from './InvoiceObject';
 import { ScanUploadButton } from './InvoiceScanPanel';
 
 /**
@@ -121,6 +122,10 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           view={view} edits={edits} organizations={organizations}
           organizationsUnread={organizationsError != null} value={value} set={set}
           onConfirm={confirmBlock} confirming={confirm.isPending} />
+
+        {/* Объект — в шапке, без прокрутки (ТЗ COST-6.2): для большинства счетов разноска на нём и
+            заканчивается. */}
+        <InvoiceObject view={view} />
       </div>
 
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
@@ -144,8 +149,9 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         <InvoiceLinesTable view={view} />
 
         <p className="text-xs text-fg4">
-          Разноска по объектам — в колонке «Разноска» у каждой строки; отметка оплаты — отдельная задача
-          этапа. Сохранение их не ждёт: черновик уже в реестре.
+          Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
+          по отдельности — колонка «Разноска». Отметка оплаты — отдельная задача этапа. Сохранение их не
+          ждёт: черновик уже в реестре.
         </p>
       </div>
     </div>

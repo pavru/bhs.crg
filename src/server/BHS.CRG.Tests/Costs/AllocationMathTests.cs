@@ -199,4 +199,32 @@ public class AllocationMathTests
         Assert.True(balance.Allocated);
         Assert.Null(balance.Discrepancy);
     }
+
+    /// <summary>Счёт без строк (F2): разноска суммой сходится, когда разнесена вся сумма к оплате.</summary>
+    [Fact]
+    public void Счёт_без_строк_разнесён_когда_разнесена_вся_сумма_к_оплате()
+    {
+        AllocationPart Document(decimal amount) => new(Guid.NewGuid(), null, 1, null, amount);
+
+        var half = AllocationMath.Of([], [Document(400m)], 1_000m);
+        Assert.Equal(600m, half.Document.UnallocatedAmount);
+        Assert.False(half.Allocated);
+        Assert.Null(half.Discrepancy);
+
+        Assert.True(AllocationMath.Of([], [Document(400m), Document(600m)], 1_000m).Allocated);
+    }
+
+    /// <summary>
+    /// Строки появились, а разноска суммой осталась — ждёт пересчёта и «разнесён» не даёт, даже если
+    /// строки разнесены сами: сложи их — счёт посчитался бы дважды.
+    /// </summary>
+    [Fact]
+    public void Разноска_суммой_при_строках_ждёт_пересчёта()
+    {
+        var balance = AllocationMath.Of([Line(1, 100m)], [ByQuantity(1, 1), new(Guid.NewGuid(), null, 1, null, 100m)], 100m);
+
+        Assert.True(balance.Document.Pending);
+        Assert.True(balance.Lines[0].Balanced);
+        Assert.False(balance.Allocated);
+    }
 }

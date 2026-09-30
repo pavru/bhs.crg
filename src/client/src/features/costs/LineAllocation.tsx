@@ -3,6 +3,7 @@ import { Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
+import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import {
   useCostsConstructions, useReplaceAllocation,
   type AllocationSummaryView, type InvoiceLineView,
@@ -31,6 +32,8 @@ export function LineAllocationCell({ invoiceId, line, number, blocked }: {
   blocked: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const { data: access = NO_ACCESS } = useAccess();
+  const canEdit = hasPermission(access, 'costs.allocation.edit');
 
   if (!line || blocked)
     return (
@@ -50,7 +53,7 @@ export function LineAllocationCell({ invoiceId, line, number, blocked }: {
         className={`text-left underline decoration-dotted underline-offset-2 disabled:no-underline ${tone}`}>
         {status.text}
       </button>
-      {open && <LineAllocationDialog invoiceId={invoiceId} line={line} number={number}
+      {open && <LineAllocationDialog invoiceId={invoiceId} line={line} number={number} canEdit={canEdit}
         onClose={() => setOpen(false)} />}
     </td>
   );
@@ -63,10 +66,12 @@ export function LineAllocationCell({ invoiceId, line, number, blocked }: {
  * <p>⚠️ Строка «не разнесено» стоит ВСЕГДА, в том числе при нуле (ТЗ COST-13): исчезающая строка
  * остатка не отличима от забытой.</p>
  */
-function LineAllocationDialog({ invoiceId, line, number, onClose }: {
+function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
   invoiceId: string;
   line: InvoiceLineView;
   number: number;
+  /** Без права разноски диалог — только для чтения: ни полей, ни «Сохранить», а не кнопка с отказом. */
+  canEdit: boolean;
   onClose: () => void;
 }) {
   const { mode } = line.allocation;
@@ -112,10 +117,12 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
                 + '. Делится количество, сумма части считается.'
               : `Количества у строки нет — делится сумма ${formatMoney(line.amount ?? 0)}.`}
           </span>
-          <Button variant="text" onClick={onClose}>Отмена</Button>
-          <Button variant="filled" icon={<Save size={13} />} loading={replace.isPending} onClick={save}>
-            Сохранить разноску
-          </Button>
+          <Button variant="text" onClick={onClose}>{canEdit ? 'Отмена' : 'Закрыть'}</Button>
+          {canEdit && (
+            <Button variant="filled" icon={<Save size={13} />} loading={replace.isPending} onClick={save}>
+              Сохранить разноску
+            </Button>
+          )}
         </>
       )}>
       <table className="w-full text-xs">
@@ -135,7 +142,7 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
             return (
               <tr key={draft.key} className="border-t border-stroke align-top">
                 <td className="py-1 pr-2">
-                  <select value={draft.constructionId} aria-label={`Стройка, часть ${index + 1}`}
+                  <select value={draft.constructionId} aria-label={`Стройка, часть ${index + 1}`} disabled={!canEdit}
                     onChange={e => edit(draft.key, { constructionId: e.target.value, sectionId: '' })}
                     className={FIELD}>
                     <option value="">— выберите —</option>
@@ -149,7 +156,7 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
                   {/* Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
                       и без своего пункта поле показало бы «вся стройка», а уехал бы удалённый раздел. */}
                   <select value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
-                    disabled={!site || (site.sections.length === 0 && !draft.sectionId)}
+                    disabled={!canEdit || !site || (site.sections.length === 0 && !draft.sectionId)}
                     onChange={e => edit(draft.key, { sectionId: e.target.value })} className={FIELD}>
                     <option value="">— вся стройка —</option>
                     {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
@@ -159,7 +166,7 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
                   </select>
                 </td>
                 <td className="py-1 pr-2">
-                  <input value={draft.value} inputMode="decimal"
+                  <input value={draft.value} inputMode="decimal" disabled={!canEdit}
                     aria-label={`${byQuantity ? 'Количество' : 'Сумма'}, часть ${index + 1}`}
                     onChange={e => edit(draft.key, { value: e.target.value })}
                     className={`${FIELD} text-right tabular-nums`} />
@@ -182,11 +189,11 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
                   </td>
                 )}
                 <td className="py-1">
-                  <button type="button" title={`Удалить часть ${index + 1}`}
+                  {canEdit && <button type="button" title={`Удалить часть ${index + 1}`}
                     onClick={() => { setDrafts(prev => prev.filter(d => d.key !== draft.key)); setDirty(true); }}
                     className="text-fg4 hover:text-danger p-0.5">
                     <Trash2 size={13} />
-                  </button>
+                  </button>}
                 </td>
               </tr>
             );
@@ -208,12 +215,12 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
         </tbody>
       </table>
 
-      <div className="mt-2">
+      {canEdit && <div className="mt-2">
         <Button size="sm" variant="outlined" icon={<Plus size={13} />}
           onClick={() => { setDrafts(prev => [...prev, emptyPart()]); setDirty(true); }}>
           Добавить стройку
         </Button>
-      </div>
+      </div>}
     </Modal>
   );
 }
@@ -236,6 +243,8 @@ export function AllocationSummary({ allocation }: { allocation: AllocationSummar
     problems.push(allocation.unbalanced.length === 1
       ? `строка ${allocation.unbalanced[0]} разнесена не полностью`
       : `строки ${allocation.unbalanced.join(', ')} разнесены не полностью`);
+  if (allocation.document.pending)
+    problems.push('разноска суммой, сделанная до строк, ждёт пересчёта по строкам («Объект» → матрица)');
   if (allocation.lost > 0) problems.push(`частей на удалённую стройку: ${allocation.lost}`);
   if (!allocation.withinTolerance && allocation.discrepancy !== null)
     problems.push(`расхождение с суммой к оплате ${formatMoney(allocation.discrepancy)} больше допуска ${formatMoney(allocation.tolerance)}`);

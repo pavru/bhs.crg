@@ -29,6 +29,9 @@ const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 const ADMIN_PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
 const USER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
+// Бухгалтер — чтение счетов БЕЗ права разноски (F2, issue #1086): под ним прогон матрицы проверяет, что
+// матрица открывается только для чтения и кнопок «поровну» и «по %» нет вовсе.
+const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
 
 let token = null;
 
@@ -81,16 +84,17 @@ async function ensureAdmin() {
   token = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
 }
 
-/** Не-администратор нужен ровно одной проверке: раздел настроек обязан его не пускать. */
-async function ensureUser() {
+/**
+ * Не-администраторы: «Инженер ИД» (раздел настроек обязан его не пускать) и «Бухгалтер» (матрица разноски
+ * обязана открываться ему только для чтения).
+ */
+async function ensureUser(email = USER_EMAIL, displayName = 'Пётр Петров', role = 'User') {
   const users = await api('GET', '/users');
   const list = Array.isArray(users) ? users : users.items ?? [];
-  if (list.some(u => (u.email ?? '').toLowerCase() === USER_EMAIL.toLowerCase())) return;
-  await api('POST', '/users', {
-    // Роли СПИСКОМ (issue #984): адрес назначения один и принимает перечень.
-    email: USER_EMAIL, displayName: 'Пётр Петров', password: USER_PASSWORD, roles: ['User'],
-  });
-  console.log(`  + пользователь ${USER_EMAIL}`);
+  if (list.some(u => (u.email ?? '').toLowerCase() === email.toLowerCase())) return;
+  // Роли СПИСКОМ (issue #984): адрес назначения один и принимает перечень.
+  await api('POST', '/users', { email, displayName, password: USER_PASSWORD, roles: [role] });
+  console.log(`  + пользователь ${email}`);
 }
 
 // Сверять здесь нечего: стройка ищется по имени, а имя — единственное её поле. Как только у
@@ -485,6 +489,7 @@ async function main() {
 
   await ensureAdmin();
   await ensureUser();
+  await ensureUser(ACCOUNTANT_EMAIL, 'Анна Бухгалтерова', 'Accountant');
   const constructionId = await ensureConstruction();
   const primitiveTypeId = await ensurePrimitiveType();
   await ensureEnumType();

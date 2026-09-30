@@ -198,6 +198,15 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     protected static async Task<JsonElement> ReadAsync(HttpClient client, Guid invoice) =>
         await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{invoice}");
 
+    /// <summary>Реквизиты счёта, как их отдаёт сервер, с одним изменённым полем.</summary>
+    protected static async Task<JsonElement> RequisitesWithAsync(HttpClient client, Guid invoice, string key, object value)
+    {
+        var requisites = (await ReadAsync(client, invoice)).GetProperty("requisites");
+        var patched = JsonSerializer.Deserialize<Dictionary<string, object?>>(requisites.GetRawText())!;
+        patched[key] = value;
+        return JsonSerializer.SerializeToElement(patched);
+    }
+
     protected static async Task OkAsync(HttpResponseMessage response) =>
         Assert.True(response.IsSuccessStatusCode,
             $"{(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
