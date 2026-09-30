@@ -28,6 +28,11 @@ export interface MatrixLine {
 export interface MatrixState {
   lines: MatrixLine[];
   document: MatrixPart[];
+  /**
+   * Отметка версии разноски, с которой матрица ОТКРЫТА (`allocation.stamp` счёта). Кладёт её форма, а не
+   * предпросмотр: сосед правил разноску, пока матрица была открыта, — запись откажет, а не вернёт удалённое.
+   */
+  stamp?: string;
 }
 
 /** Клетка, в которую ушёл остаток округления. `line: null` — счёт целиком. */

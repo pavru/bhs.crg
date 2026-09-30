@@ -126,6 +126,76 @@ public class InvoiceAllocationMatrixTests(InvoiceLineHost host) : InvoiceLineTes
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
     }
 
+    /// <summary>
+    /// Разноска суммой неполная (из 1 000 на объект — 300): пересчёт оставляет нерешённое нерешённым, а не
+    /// раздаёт его выбранному объекту.
+    /// </summary>
+    [Fact]
+    public async Task Пересчёт_неполной_разноски_суммой_оставляет_нерешённое()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await TotalAsync(client, 1_000m);
+        var sites = await SitesAsync(1);
+
+        await ApplyAsync(client, invoice, JsonSerializer.SerializeToElement(new
+        {
+            lines = Array.Empty<object>(), document = new[] { Part(sites[0], amount: 300m) },
+        }));
+        await LinesAsync(client, invoice, [Line(cable, quantity: 50, price: 20m)]);
+
+        var recount = await PreviewAsync(client, invoice, "document", []);
+        var line = recount.GetProperty("lines").EnumerateObject().Single().Value;
+
+        Assert.Equal(15m, line.GetProperty("parts")[0].GetProperty("quantity").GetDecimal());
+        Assert.Equal(35m, line.GetProperty("unallocatedQuantity").GetDecimal());
+    }
+
+    /// <summary>Корректировочный счёт (к оплате −1 000): пересчёт берёт пропорцию по модулю, а не отказывает.</summary>
+    [Fact]
+    public async Task Пересчёт_счёта_с_отрицательной_суммой_к_оплате()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await TotalAsync(client, -1_000m);
+        var sites = await SitesAsync(2);
+
+        await ApplyAsync(client, invoice, JsonSerializer.SerializeToElement(new
+        {
+            lines = Array.Empty<object>(),
+            document = new[] { Part(sites[0], amount: -400m), Part(sites[1], amount: -600m) },
+        }));
+        await LinesAsync(client, invoice, [new Dictionary<string, object?>
+        {
+            ["nomenclature"] = Reference(conduit), ["supplierText"] = "Скидка", ["amount"] = -1_000m,
+        }]);
+
+        var recount = await PreviewAsync(client, invoice, "document", []);
+        Assert.Equal([-400m, -600m], recount.GetProperty("apply").GetProperty("lines")[0].GetProperty("parts")
+            .EnumerateArray().Select(p => p.GetProperty("amount").GetDecimal()));
+    }
+
+    /// <summary>
+    /// Матрица открыта, сосед тем временем удалил часть — запись набора по устаревшему виду отвергается, а не
+    /// возвращает удалённое.
+    /// </summary>
+    [Fact]
+    public async Task Набор_по_устаревшему_виду_отвергается()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        var view = await LinesAsync(client, invoice, [Line(cable, quantity: 10, price: 1m)]);
+        var sites = await SitesAsync(2);
+
+        var preview = await PreviewAsync(client, invoice, "equal", [.. sites.Select(s => Target(s))]);
+        view = await ApplyAsync(client, invoice, preview.GetProperty("apply"));
+        var opened = view.GetProperty("allocation").GetProperty("stamp").GetString();
+
+        await AllocateAsync(client, invoice, LineId(view, 1), [Part(sites[0], quantity: 5)]);
+
+        var stale = await ApplyRawAsync(client, invoice, preview.GetProperty("apply"), opened);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Contains("изменили, пока матрица была открыта", await stale.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task Набор_без_одной_из_строк_отвергается()
     {
@@ -174,6 +244,16 @@ public class InvoiceAllocationMatrixTests(InvoiceLineHost host) : InvoiceLineTes
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    private static async Task<Guid> TotalAsync(HttpClient client, decimal total)
+    {
+        var invoice = await CreateAsync(client, complete: true);
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new
+        {
+            requisites = await RequisitesWithAsync(client, invoice, "Итого", total),
+        }));
+        return invoice;
+    }
+
     private async Task<Guid[]> SitesAsync(int count)
     {
         var sites = new Guid[count];
@@ -196,13 +276,27 @@ public class InvoiceAllocationMatrixTests(InvoiceLineHost host) : InvoiceLineTes
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    /// <summary>
+    /// Записать набор матрицы с отметкой версии, которую форма взяла бы из открытого счёта. Без
+    /// <paramref name="stamp" /> — нынешняя отметка счёта.
+    /// </summary>
+    private static async Task<HttpResponseMessage> ApplyRawAsync(HttpClient client, Guid invoice, JsonElement state, string? stamp = null)
+    {
+        stamp ??= await StampAsync(client, invoice);
+        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(state.GetRawText())!;
+        body["stamp"] = JsonSerializer.SerializeToElement(stamp);
+        return await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/allocation", body);
+    }
+
     private static async Task<JsonElement> ApplyAsync(HttpClient client, Guid invoice, JsonElement state)
     {
-        var response = await client.PutAsync($"/api/costs/invoices/{invoice}/allocation",
-            new StringContent(state.GetRawText(), System.Text.Encoding.UTF8, "application/json"));
+        var response = await ApplyRawAsync(client, invoice, state);
         await OkAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
+
+    private static async Task<string> StampAsync(HttpClient client, Guid invoice) =>
+        (await ReadAsync(client, invoice)).GetProperty("allocation").GetProperty("stamp").GetString()!;
 
     /// <summary>
     /// Клетки разноски строки текстом — то, что рисует форма, без временных идентификаторов.

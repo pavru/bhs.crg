@@ -1,7 +1,10 @@
 namespace BHS.CRG.Modules.Costs.Data;
 
 /// <summary>Цель быстрой разноски и её вес: процент, поровну — единица, пересчёт — прежняя сумма.</summary>
-public sealed record SplitTarget(Guid ConstructionId, Guid? SectionId, decimal Weight);
+/// <param name="Unallocated">Не цель, а «не разнесено»: доля, которую человек не отдал никому. Её доля
+/// считается наравне с целями, но частью не становится — так пересчёт неполной разноски суммой не
+/// раздаёт нерешённое выбранным объектам.</param>
+public sealed record SplitTarget(Guid ConstructionId, Guid? SectionId, decimal Weight, bool Unallocated = false);
 
 /// <summary>Предложенная часть: куда, сколько — и ушёл ли в неё остаток округления.</summary>
 /// <param name="LineId">Строка; <c>null</c> — часть счёта целиком (счёт без строк).</param>
@@ -54,13 +57,20 @@ public static class AllocationSplit
 
         for (var index = 0; index < weights.Count - 1; index++)
         {
-            shares[index] = decimal.Round(whole * weights[index] / sum, digits, MidpointRounding.ToZero);
+            shares[index] = Share(whole, weights[index], sum, digits);
             spent += shares[index];
         }
 
         shares[^1] = whole - spent;
         return shares;
     }
+
+    /// <summary>
+    /// Доля одной части — округлённая К НУЛЮ. Одним местом: по ней же видно, досталось ли последней больше
+    /// своей доли, то есть ушёл ли в неё остаток, — и поменяй округление здесь, пометка поменяется вместе.
+    /// </summary>
+    private static decimal Share(decimal whole, decimal weight, decimal sum, int digits) =>
+        decimal.Round(whole * weight / sum, digits, MidpointRounding.ToZero);
 
     /// <summary>
     /// Разложить счёт по целям: каждую строку — её количеством (или суммой, если количества нет); счёт
@@ -94,17 +104,17 @@ public static class AllocationSplit
         IReadOnlyList<decimal> weights)
     {
         var shares = Split(whole, weights, digits);
+        var sum = weights.Sum();
 
         for (var index = 0; index < targets.Count; index++)
         {
-            if (shares[index] == 0) continue;
-
             var target = targets[index];
+            if (shares[index] == 0 || target.Unallocated) continue;
+
             // Остаток есть, когда последняя получила больше, чем дало бы ей то же округление, что у всех.
-            var own = decimal.Round(whole * weights[index] / weights.Sum(), digits, MidpointRounding.ToZero);
             yield return new SplitPart(lineId, target.ConstructionId, target.SectionId,
                 amount ? null : shares[index], amount ? shares[index] : null,
-                Remainder: index == targets.Count - 1 && shares[index] != own);
+                Remainder: index == targets.Count - 1 && shares[index] != Share(whole, weights[index], sum, digits));
         }
     }
 }

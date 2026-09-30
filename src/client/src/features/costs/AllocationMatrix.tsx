@@ -33,7 +33,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   total: number | null;
   canEdit: boolean;
   /** Предпросмотр, с которым матрица открывается (выбор объекта в шапке поверх прежней разноски). */
-  initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[] };
+  initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string };
   onClose: () => void;
 }) {
   const sites = useCostsConstructions();
@@ -52,6 +52,8 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
     ? cellsFromState(rows, initialPreview.targets, initialPreview.preview.apply)
     : cellsOf(rows, targets, allocationsOf(view, null)));
   const [dirty, setDirty] = useState(false);
+  // Версия разноски, с которой матрица открыта: запись пошлёт её, и набор по устаревшему виду откажет.
+  const [stamp, setStamp] = useState(() => initialPreview?.stamp ?? view.allocation.stamp);
 
   const allocations = allocationsOf(view, preview);
   const editable = canEdit && preview === null;
@@ -64,6 +66,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
     setCells(cellsOf(rowsOf(next, total), columns, allocationsOf(next, null)));
     setPreview(null);
     setDirty(false);
+    setStamp(next.allocation.stamp);
   }
 
   async function split(method: SplitMethod) {
@@ -87,7 +90,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
 
   async function save() {
     try {
-      const state = preview ? preview.apply : toState(rows, targets, cells);
+      const state = { ...(preview ? preview.apply : toState(rows, targets, cells)), stamp };
       reset(await replace.mutateAsync({ id: view.id, state }));
     } catch (e) {
       toast.apiError(e, 'Разноска не записана');
@@ -212,6 +215,12 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                             aria-label={`${row.title}, ${targetName(target, sites.data)}`}
                             onChange={e => edit(row.key, target.key, e.target.value)}
                             className={`${FIELD} text-right`} />
+                        )}
+                        {partAt(allocation, target)?.mismatched && (
+                          <div className="text-right text-warning"
+                            title="У строки сменился вид (появилось или пропало количество): такая часть не разносит ничего">
+                            часть не того вида — уйдёт при сохранении
+                          </div>
                         )}
                         {!dirty && (
                           <div className="text-right text-fg2">

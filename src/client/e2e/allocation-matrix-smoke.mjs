@@ -162,6 +162,7 @@ await check('remainder-is-written-and-stays-visible', async () => {
   await api('PUT', `/costs/invoices/${wideId}/allocation`, {
     lines: [{ line: view.lines[0].id, parts: sites.map(s => ({ construction: s.id, quantity: 10 })) }],
     document: [],
+    stamp: view.allocation.stamp,
   });
 
   await page.setViewportSize({ width: 1100, height: 900 });

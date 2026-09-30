@@ -102,6 +102,8 @@ export interface AllocationSummaryView {
   withinTolerance: boolean;
   /** Разноска счёта целиком суммой — у счёта без строк (F2, ТЗ COST-11). */
   document: DocumentAllocationView;
+  /** Отметка версии разноски — её присылает запись матрицы, чтобы устаревший набор был отвергнут. */
+  stamp: string;
 }
 
 /**

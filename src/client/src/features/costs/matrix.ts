@@ -211,12 +211,10 @@ export function targetName(target: { construction: string; section: string | nul
  * матрицы.
  */
 export function headerObject(view: InvoiceView): { kind: 'none' } | { kind: 'one'; construction: string; complete: boolean } | { kind: 'many'; count: number } {
-  const targets = targetsOf(view);
-  if (targets.length === 0) return { kind: 'none' };
-
-  const constructions = new Set(targets.map(t => t.construction));
-  if (constructions.size > 1)
-    return { kind: 'many', count: targets.length };
-
-  return { kind: 'one', construction: targets[0].construction, complete: view.allocation.allocated };
+  // Колонки матрицы здесь не заводятся: шапка рисуется часто, а ей нужны только стройки.
+  const constructions = [...new Set([...view.lines.flatMap(l => l.allocation.parts), ...view.allocation.document.parts]
+    .map(p => p.constructionId))];
+  if (constructions.length === 0) return { kind: 'none' };
+  if (constructions.length > 1) return { kind: 'many', count: constructions.length };
+  return { kind: 'one', construction: constructions[0], complete: view.allocation.allocated };
 }

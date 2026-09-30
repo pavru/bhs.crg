@@ -81,6 +81,18 @@ public class AllocationSplitTests
         Assert.Equal([13.333m, 13.333m, 13.334m], parts.Select(p => p.Quantity!.Value));
     }
 
+    /// <summary>Доля «не разнесено» считается наравне с целями, но частью не становится.</summary>
+    [Fact]
+    public void Нерешённая_доля_частью_не_становится()
+    {
+        var parts = AllocationSplit.Plan([new AllocationLine(Guid.NewGuid(), 1, 50m, 1_000m)], null,
+            [new SplitTarget(A, null, 300m), new SplitTarget(Guid.Empty, null, 700m, Unallocated: true)], wholeUnits: false);
+
+        var only = Assert.Single(parts);
+        Assert.Equal(15m, only.Quantity);
+        Assert.False(only.Remainder);
+    }
+
     [Fact]
     public void Счёт_без_строк_делится_суммой_к_оплате()
     {

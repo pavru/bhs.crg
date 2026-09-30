@@ -108,6 +108,15 @@ public static class AllocationMatrixEndpoints
         var document = ParseDocument(body.Document ?? [], invoice, lines.Count, known);
 
         var existing = await db.InvoiceAllocations.Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
+        if (body.Stamp is null)
+            throw new InvalidRequestException(
+                "Отметка версии разноски («stamp») не прислана. Набор заменяет разноску всего счёта, и без отметки " +
+                "не отличить свежий набор от собранного по устаревшему виду. Берётся из «allocation.stamp» счёта.");
+        if (body.Stamp != InvoiceAllocations.Stamp(existing))
+            throw new ConflictException(
+                $"{InvoiceEndpoints.Label(invoice)}: разноску изменили, пока матрица была открыта. Перечитайте счёт " +
+                "и повторите — записанный сейчас набор молча вернул бы удалённые части и стёр бы добавленные.");
+
         var was = Describe(lines, existing.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot()), known);
         var now = new List<InvoiceAllocation>();
 
@@ -117,9 +126,9 @@ public static class AllocationMatrixEndpoints
 
         db.InvoiceAllocations.RemoveRange(existing.Except(now));
 
+        // Заменяется разноска ВСЕГО счёта — сохранённые части в расчёт не идут, и читать их снова незачем.
         var returned = invoice.State == InvoiceState.Parsed
-            && !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
-                [.. lines.Select(InvoiceAllocations.Line)], ct, _ => true, now);
+            && !InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), now, known).Summary.Allocated;
         if (returned) invoice.ReturnToDraft();
 
         await db.SaveChangesAsync(ct);
@@ -198,18 +207,27 @@ public static class AllocationMatrixEndpoints
                 "сделанную суммой, пока строк не было, на появившиеся строки — а здесь " +
                 (lines.Count == 0 ? "строк ещё нет." : "разноски суммой нет."));
 
+        // Вес — модуль суммы: у корректировочного счёта (к оплате −1 000) части отрицательны, а пропорция та же.
+        // Знак у всех частей один — его держит запись (знак части — знак суммы к оплате).
         var targets = parts
             .GroupBy(p => (p.ConstructionId, p.SectionId))
-            .Select(g => new SplitTarget(g.Key.ConstructionId, g.Key.SectionId, g.Sum(p => p.Amount ?? 0m)))
+            .Select(g => new SplitTarget(g.Key.ConstructionId, g.Key.SectionId, Math.Abs(g.Sum(p => p.Amount ?? 0m))))
             .ToList();
 
         InvoiceAllocations.EnsureTargets(
             [.. targets.Select(t => new AllocationValues(t.ConstructionId, t.SectionId, null, null))], known);
 
-        if (targets.Any(t => t.Weight <= 0))
+        if (targets.Any(t => t.Weight == 0))
             throw new InvalidRequestException(
-                $"{InvoiceEndpoints.Label(invoice)}: у разноски суммой есть объект с нулевой или отрицательной " +
-                "суммой — пропорции из неё не получить. Разнесите строки поровну или по процентам.");
+                $"{InvoiceEndpoints.Label(invoice)}: у разноски суммой есть объект с нулевой суммой — пропорции из " +
+                "неё не получить. Разнесите строки поровну или по процентам.");
+
+        // ⚠️ Разноска суммой бывает НЕПОЛНОЙ: к оплате 1 000, на объект A — 300, остальное человек ещё не решил.
+        // Нормируй веса по разнесённому — A получил бы все строки, то есть 1 000 вместо 300, и нерешённое
+        // легло бы на него молча. Нерешённое остаётся нерешённым: своей долей «не разнесено».
+        var spent = targets.Sum(t => t.Weight);
+        if (invoice.Total is { } total && Math.Abs(total) > spent)
+            targets.Add(new SplitTarget(Guid.Empty, null, Math.Abs(total) - spent, Unallocated: true));
 
         return targets;
     }

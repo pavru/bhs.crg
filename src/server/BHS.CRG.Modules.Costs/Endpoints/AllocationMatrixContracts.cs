@@ -17,7 +17,11 @@ public sealed record AllocationPreviewRequest(string? Method, IReadOnlyList<Json
 /// </summary>
 /// <param name="Lines">Строки: <c>line</c> — идентификатор строки, <c>parts</c> — её части.</param>
 /// <param name="Document">Части счёта целиком — только у счёта без строк.</param>
-public sealed record AllocationMatrixRequest(IReadOnlyList<JsonElement>? Lines, IReadOnlyList<JsonElement>? Document);
+/// <param name="Stamp">Отметка версии разноски (<see cref="AllocationSummaryView.Stamp" />), с которой матрица
+/// открыта. Не совпала с нынешней — отказ: набор заменяет разноску целиком, и собранный по устаревшему виду
+/// вернул бы удалённое соседом и стёр бы добавленное.</param>
+public sealed record AllocationMatrixRequest(
+    IReadOnlyList<JsonElement>? Lines, IReadOnlyList<JsonElement>? Document, string? Stamp);
 
 /// <summary>Часть в наборе матрицы — те же поля, что принимает запись.</summary>
 public sealed record MatrixPart(Guid Construction, Guid? Section, decimal? Quantity, decimal? Amount);

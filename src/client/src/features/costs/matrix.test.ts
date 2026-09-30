@@ -28,6 +28,7 @@ function invoice(lines: InvoiceLineView[], documentParts: AllocationPartView[] =
     allocation: {
       allocated: false, unbalanced: [], lost: 0, discrepancy: null, tolerance: 1, withinTolerance: true,
       document: { parts: documentParts, unallocatedAmount: null, pending: documentParts.length > 0 && lines.length > 0, balanced: false },
+      stamp: '0',
     },
   } as unknown as InvoiceView;
 }
@@ -99,5 +100,8 @@ describe('объект в шапке', () => {
     expect(headerObject(invoice([line('l1', {})])).kind).toBe('none');
     expect(headerObject(invoice([line('l1', { parts: [part('A')] })]))).toEqual({ kind: 'one', construction: 'A', complete: false });
     expect(headerObject(invoice([line('l1', { parts: [part('A'), part('B')] })]))).toEqual({ kind: 'many', count: 2 });
+    // Разделы одной стройки — всё ещё один объект, и счёт объектов — по стройкам.
+    const sections = invoice([line('l1', { parts: [part('A', { sectionId: '1' }), part('A', { sectionId: '2' }), part('B')] })]);
+    expect(headerObject(sections)).toEqual({ kind: 'many', count: 2 });
   });
 });
