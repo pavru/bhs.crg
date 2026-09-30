@@ -144,7 +144,6 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
             ["costs.invoice.pay"] = "отметка оплаты — C5 (#1082)",
             ["costs.waybill.read"] = "адреса накладной — D1 (#1083)",
             ["costs.waybill.edit"] = "адреса накладной и загрузка 1С — D1 (#1083), D3 (#1084)",
-            ["costs.allocation.edit"] = "разноска — F1 (#1085)",
             ["costs.report.read"] = "реестр и затраты — G4 (#1097), G5 (#1098)",
             ["costs.articles.edit"] = "справочник статей вне строек — F3 (#1087)",
         };
