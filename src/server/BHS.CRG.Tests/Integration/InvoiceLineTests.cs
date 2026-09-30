@@ -179,7 +179,9 @@ public class InvoiceLineTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("нет в справочнике", await response.Content.ReadAsStringAsync());
+        // Падеж — часть утверждения: «у строки 1», а не «у строка 1». Сообщение читает человек,
+        // и по нему он решает, что делать; подстрока «нет в справочнике» это расхождение пропускала.
+        Assert.Contains("нет в справочнике у строки 1", await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>
@@ -198,7 +200,7 @@ public class InvoiceLineTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("нет в справочнике", await response.Content.ReadAsStringAsync());
+        Assert.Contains("нет в справочнике у строки 1", await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>

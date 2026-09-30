@@ -21,6 +21,42 @@ export interface InvoiceDuplicate {
   total: number | null;
 }
 
+/**
+ * Строка счёта (C2, issue #1078, ТЗ COST-7).
+ *
+ * ⚠️ Пустое `nomenclatureName` при заполненном `nomenclatureId` потерей НЕ является — потерю называет
+ * `nomenclatureLost`, и считает её сервер. Пустым имя бывает у законной записи справочника без имени
+ * (такие в базе есть) и там, где справочника нет вовсе; выведи мы потерю из пустоты — законная позиция
+ * краснела бы «не найдена» сразу после выбора, а снять такую ссылку было нечем (ревью PR #1117).
+ *
+ * ⚠️ Потеря отличается от «строка ждёт позиции» ровно наличием ссылки, и путать их нельзя: первое
+ * чинит справочник, второе — человек за формой.
+ */
+export interface InvoiceLineView {
+  id: string;
+  ordinal: number;
+  nomenclatureId: string | null;
+  nomenclatureName: string | null;
+  nomenclatureLost: boolean;
+  supplierText: string | null;
+  supplierCode: string | null;
+  unit: string | null;
+  quantity: number | null;
+  price: number | null;
+  vatRate: number | null;
+  vatAmount: number | null;
+  amount: number | null;
+  note: string | null;
+}
+
+/** Сверка суммы строк с суммой к оплате и счётчик ждущих позицию (ТЗ COST-6.2). */
+export interface InvoiceLineTotals {
+  count: number;
+  withoutNomenclature: number;
+  amount: number;
+  vat: number;
+}
+
 export interface InvoiceView {
   id: string;
   documentTypeId: string;
@@ -28,6 +64,8 @@ export interface InvoiceView {
   /** Ключи полей, заполненных распознаванием и не подтверждённых человеком. */
   unconfirmed: string[];
   duplicates: InvoiceDuplicate[];
+  lines: InvoiceLineView[];
+  totals: InvoiceLineTotals;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +84,9 @@ export interface InvoiceListItem {
   purpose: string | null;
   unconfirmedCount: number;
   hasScan: boolean;
+  linesCount: number;
+  /** Сколько строк ждёт позиции номенклатуры — счётчик «Разобрать». */
+  linesWithoutNomenclature: number;
 }
 
 export interface CostsOrganization {
@@ -54,14 +95,40 @@ export interface CostsOrganization {
   type: string;
 }
 
+/** Позиция номенклатуры в выборе строки. */
+export interface NomenclatureItem {
+  id: string;
+  name: string | null;
+  type: string;
+}
+
+/**
+ * Найденное и оговорка о неполноте.
+ *
+ * ⚠️ `more` обязана доехать до человека словами. Неполный список, выданный за полный, читается как
+ * «такой позиции нет» — и человек заводит вторую такую же позицию номенклатуры.
+ */
+export interface NomenclatureSearchResult {
+  items: NomenclatureItem[];
+  more: boolean;
+}
+
 const QK = 'costs-invoices';
 
 export const INVOICES_KEY = [QK] as const;
 
-export function useInvoices() {
+/**
+ * Реестр счетов. `needsParsing` — отбор «Разобрать»: счета, у которых есть строки без позиции.
+ *
+ * ⚠️ Отбор входит в ключ запроса. Без этого React Query отдал бы отобранному списку кэш полного (и
+ * наоборот), и «счёт есть, а в списке его нет» стало бы поведением.
+ */
+export function useInvoices(needsParsing = false) {
   return useQuery({
-    queryKey: INVOICES_KEY,
-    queryFn: () => apiClient.get<InvoiceListItem[]>('/costs/invoices').then(r => r.data),
+    queryKey: [QK, 'list', needsParsing] as const,
+    queryFn: () => apiClient
+      .get<InvoiceListItem[]>('/costs/invoices', { params: needsParsing ? { needsParsing: true } : {} })
+      .then(r => r.data),
   });
 }
 
@@ -132,6 +199,62 @@ export function useAttachInvoiceScan() {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+  });
+}
+
+/**
+ * Строки счёта — НАБОРОМ (C2, issue #1078): присланное и есть новое состояние.
+ *
+ * ⚠️ У сохранённых строк обязан уехать их `id`. Тот же набор без `id` означает для сервера «удали эти
+ * строки и заведи новые»: на строку будет ссылаться разноска по количеству (F1), и потерянный `id`
+ * рвал бы ссылку молча. Собирает набор `toPayload` — там же это правило и записано.
+ */
+export function useReplaceInvoiceLines() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lines }: { id: string; lines: Record<string, unknown>[] }) =>
+      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines }).then(r => r.data),
+    onSuccess: view => {
+      qc.setQueryData([QK, view.id], view);
+      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+    },
+  });
+}
+
+/**
+ * «Разобран» и «вернуть в черновик» — переходы состояния (ТЗ COST-9).
+ *
+ * Одним хуком на два адреса: действие у них одно и то же по устройству — послать и перечитать, — а
+ * различаются они словом в адресе. Два почти одинаковых хука расходились бы обработкой отказа.
+ */
+export function useInvoiceState() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, to }: { id: string; to: 'parsed' | 'draft' }) =>
+      apiClient.post<InvoiceView>(`/costs/invoices/${id}/${to}`).then(r => r.data),
+    onSuccess: view => {
+      qc.setQueryData([QK, view.id], view);
+      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+    },
+  });
+}
+
+/**
+ * Поиск позиции номенклатуры для строки.
+ *
+ * ⚠️ Списком целиком справочник НЕ отдаётся: он самый большой в системе, и в данных записи лежат
+ * картинки. Поэтому здесь поиск, ответ ограничен, а неполноту сервер называет признаком `more` —
+ * показать его человеку обязана форма.
+ */
+export function useNomenclature(query: string) {
+  return useQuery({
+    queryKey: ['costs-nomenclature', query] as const,
+    queryFn: () => apiClient
+      .get<NomenclatureSearchResult>('/costs/nomenclature', { params: query ? { query } : {} })
+      .then(r => r.data),
+    // Прошлый ответ показываем, пока едет новый: иначе список мигает пустотой на каждой набранной
+    // букве, и человек читает это как «ничего не нашлось».
+    placeholderData: previous => previous,
   });
 }
 
