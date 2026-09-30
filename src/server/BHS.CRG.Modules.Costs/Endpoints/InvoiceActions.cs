@@ -14,10 +14,10 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// строкой при записи — правка названия не доехала бы до старых записей, а расхождение названий порт
 /// отвергает.</para>
 ///
-/// <para>⚠️ Чего здесь НЕТ: «отклонён», «оплачен», «разнесён». Каждое приезжает со своей задачей
-/// (C5, F1), и объявленное заранее действие означало бы фильтр на экране журнала, по которому никогда
-/// ничего не находится. «Разобран» приехал задачей C2 (issue #1078) — вместе с адресом, который его
-/// записывает.</para>
+/// <para>⚠️ Чего здесь НЕТ: «отклонён», «оплачен». Каждое приезжает со своей задачей (C5), и
+/// объявленное заранее действие означало бы фильтр на экране журнала, по которому никогда ничего не
+/// находится. «Разобран» приехал задачей C2 (issue #1078), правка разноски — задачей F1 (issue #1085),
+/// каждое вместе с адресом, который его записывает.</para>
 /// </summary>
 public sealed class InvoiceActions : IModuleActivityActions
 {
@@ -53,6 +53,14 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction Draft =
         new("costs.invoice.draft", "Счёт возвращён в черновик");
 
+    /// <summary>
+    /// Правка разноски строки (ТЗ COST-15): пишется с ПРЕЖНИМ и НОВЫМ распределением — разноску правят
+    /// и после «разобран», и без прежнего распределения запись «разноска изменена» не отвечала бы на
+    /// единственный вопрос, ради которого её читают: откуда ушли деньги.
+    /// </summary>
+    public static readonly ModuleActivityAction AllocationChanged =
+        new("costs.invoice.allocation", "Разноска счёта изменена");
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft];
+        [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft, AllocationChanged];
 }

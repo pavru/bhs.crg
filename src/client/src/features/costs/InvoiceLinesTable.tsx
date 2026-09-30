@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
-import { useInvoiceState, useReplaceInvoiceLines, type InvoiceView } from '@/shared/api/invoices';
+import {
+  useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
+} from '@/shared/api/invoices';
 import { K, formatMoney } from './invoiceFields';
 import {
   emptyDraft, mismatch, preview, toDrafts, toPayload, totals, type LineDraft,
 } from './invoiceLines';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { AllocationSummary, LineAllocationCell } from './LineAllocation';
 
 /**
  * Строки счёта (задача C2, issue #1078, ТЗ COST-7, COST-7.2, COST-6.2).
@@ -23,8 +26,8 @@ import { NomenclaturePicker } from './NomenclaturePicker';
  * только человек или таблица соответствий (C3).</p>
  *
  * <p>⚠️ <b>«Разобран» не отключается, даже когда заведомо откажет.</b> Приглушённая кнопка молчит о
- * причине, а причин пять (нет строк, ждут позиции, не заполнено обязательное, счёт отклонён), и знает
- * их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.</p>
+ * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска,
+ * счёт отклонён), и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.</p>
  *
  * <p>⚠️ Правки строк прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ (`key={view.id}` у формы) — тем же
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
@@ -98,7 +101,7 @@ export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
         )
         : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[60rem] text-xs">
+            <table className="w-full min-w-[68rem] text-xs">
               <thead className="text-fg4">
                 <tr className="text-left">
                   <th className="w-8 font-normal py-1">№</th>
@@ -112,12 +115,15 @@ export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
                   <th className="w-24 font-normal py-1 text-right">Сумма НДС</th>
                   <th className="w-28 font-normal py-1 text-right">Сумма</th>
                   <th className="w-40 font-normal py-1">Примечание</th>
+                  <th className="w-32 font-normal py-1">Разноска</th>
                   <th className="w-8 py-1" />
                 </tr>
               </thead>
               <tbody>
                 {drafts.map((draft, index) => (
-                  <Row key={draft.key} draft={draft} number={index + 1}
+                  <Row key={draft.key} draft={draft} number={index + 1} invoiceId={view.id}
+                    line={view.lines.find(line => line.id === draft.id)}
+                    blocked={dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null}
                     onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
                 ))}
               </tbody>
@@ -141,9 +147,15 @@ export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
               Разобран
             </Button>
           )}
+        {/* У разобранного — тоже, если разноска не сходится: счёт, разобранный до F1 (#1085), разноски
+            не имеет, и фраза «разноска сходится» ниже была бы про него неправдой. */}
+        {(!parsed || !view.allocation.allocated) && view.lines.length > 0
+          && <AllocationSummary allocation={view.allocation} />}
         <span className="text-xs text-fg4">
           {parsed
-            ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены.'
+            ? view.allocation.allocated
+              ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены, разноска сходится.'
+              : 'Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.'
             : 'Разобран — это утверждение человека, что счёт сверен с бумагой. Условия проверит сервер '
               + 'и назовёт, чего не хватает.'}
         </span>
@@ -193,9 +205,13 @@ function Reconciliation({ sums, paper, difference, unsaved }: {
   );
 }
 
-function Row({ draft, number, onEdit, onRemove }: {
+function Row({ draft, number, invoiceId, line, blocked, onEdit, onRemove }: {
   draft: LineDraft;
   number: number;
+  invoiceId: string;
+  /** Строка, как её вернул сервер, — с разноской; у новой строки её нет. */
+  line: InvoiceLineView | undefined;
+  blocked: string | null;
   onEdit: (patch: Partial<LineDraft>) => void;
   onRemove: () => void;
 }) {
@@ -237,6 +253,7 @@ function Row({ draft, number, onEdit, onRemove }: {
         onChange={value => onEdit({ amount: value })} />
       <Cell value={draft.note} label={`Примечание, строка ${number}`}
         onChange={value => onEdit({ note: value })} />
+      <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={blocked} />
       <td className="py-1">
         <button type="button" onClick={onRemove} title={`Удалить строку ${number}`}
           className="text-fg4 hover:text-danger p-0.5">

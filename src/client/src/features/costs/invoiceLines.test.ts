@@ -22,6 +22,7 @@ function line(overrides: Partial<InvoiceLineView> = {}): InvoiceLineView {
     vatAmount: null,
     amount: null,
     note: null,
+    allocation: { mode: 'none', parts: [], unallocatedQuantity: null, unallocatedAmount: null, balanced: true },
     ...overrides,
   };
 }

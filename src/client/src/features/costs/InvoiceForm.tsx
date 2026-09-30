@@ -144,8 +144,8 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         <InvoiceLinesTable view={view} />
 
         <p className="text-xs text-fg4">
-          Разноска по объектам и отметка оплаты — отдельные задачи этапа. Сохранение их не ждёт:
-          черновик уже в реестре.
+          Разноска по объектам — в колонке «Разноска» у каждой строки; отметка оплаты — отдельная задача
+          этапа. Сохранение их не ждёт: черновик уже в реестре.
         </p>
       </div>
     </div>

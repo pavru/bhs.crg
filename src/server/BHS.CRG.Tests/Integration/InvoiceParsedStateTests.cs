@@ -132,7 +132,7 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
     {
         var (client, _) = await SignInAsync("Admin");
         var invoice = await CreateAsync(client, complete: true);
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
 
         var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
         await OkAsync(response);
@@ -154,7 +154,7 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
     {
         var (client, _) = await SignInAsync("Admin");
         var invoice = await CreateAsync(client, complete: true);
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
 
         var view = await LinesAsync(client, invoice, [
@@ -173,7 +173,7 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
     {
         var (client, _) = await SignInAsync("Admin");
         var invoice = await CreateAsync(client, complete: true);
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
 
         var response = await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null);

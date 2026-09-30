@@ -111,10 +111,10 @@ public static class InvoiceEndpoints
     }
 
     private static async Task<Ok<InvoiceView>> GetAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, CancellationToken ct)
+        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleConstructions sites, CancellationToken ct)
     {
         var invoice = await FindAsync(db, id, ct);
-        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
+        return TypedResults.Ok(await ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>
@@ -127,7 +127,8 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Created<InvoiceView>> CreateAsync(
         InvoiceSaveRequest body, CostsDbContext db, IModuleTypes types, IModuleUser user,
-        IModuleActivityLog log, IModuleWriteGuard guard, IModuleCatalog catalog, CancellationToken ct)
+        IModuleActivityLog log, IModuleWriteGuard guard, IModuleCatalog catalog,
+        IModuleConstructions sites, CancellationToken ct)
     {
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
             ?? throw new ConflictException(
@@ -158,7 +159,7 @@ public static class InvoiceEndpoints
 
         return TypedResults.Created(
             $"/api/costs/invoices/{invoice.Id}",
-            await ViewAsync(db, catalog, invoice, ct));
+            await ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>
@@ -171,7 +172,8 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> UpdateAsync(
         Guid id, InvoiceSaveRequest body, CostsDbContext db, IModuleActivityLog log,
-        IModuleWriteGuard guard, IModuleCatalog catalog, CancellationToken ct)
+        IModuleWriteGuard guard, IModuleCatalog catalog, IModuleConstructions sites,
+        CancellationToken ct)
     {
         if (body.Unconfirmed is not null)
             throw new InvalidRequestException(
@@ -193,13 +195,29 @@ public static class InvoiceEndpoints
         invoice.Apply(columns, rest, dueDateByHand: true);
         invoice.Confirm(changed);
 
+        // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
+        // при правке строк и разноски. Шапка задевает условие дважды: обязательным полем, которое
+        // стёрли, и суммой к оплате — с F1 (#1085) от неё зависит, сходится ли разноска.
+        var reason = invoice.State != InvoiceState.Parsed ? null
+            : InvoiceRequisites.Missing(invoice) is { Count: > 0 } missing
+                ? "не заполнено обязательное — " + string.Join(", ", missing.Select(m => $"«{m}»"))
+            : !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct)
+                ? "баланс разноски не сходится"
+            : null;
+        if (reason is not null) invoice.ReturnToDraft();
+
         await db.SaveChangesAsync(ct);
 
         if (changed.Count > 0)
             await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
                 before: string.Join(", ", changed), ct: ct);
 
-        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
+        if (reason is not null)
+            await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
+                after: $"правка счёта: {reason}", ct: ct);
+
+        return TypedResults.Ok(await ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>
@@ -211,7 +229,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ConfirmAsync(
         Guid id, InvoiceConfirmRequest body, CostsDbContext db, IModuleActivityLog log,
-        IModuleCatalog catalog, CancellationToken ct)
+        IModuleCatalog catalog, IModuleConstructions sites, CancellationToken ct)
     {
         if (body.Fields is not { Count: > 0 })
             throw new InvalidRequestException(
@@ -229,7 +247,7 @@ public static class InvoiceEndpoints
                 after: string.Join(", ", body.Fields), ct: ct);
         }
 
-        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
+        return TypedResults.Ok(await ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>
@@ -241,7 +259,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> AttachScanAsync(
         Guid id, IFormFile file, CostsDbContext db, IModuleBlobs blobs, IModuleActivityLog log,
-        IModuleCatalog catalog, CancellationToken ct)
+        IModuleCatalog catalog, IModuleConstructions sites, CancellationToken ct)
     {
         if (file.Length == 0)
             throw new InvalidRequestException(
@@ -269,7 +287,7 @@ public static class InvoiceEndpoints
         await log.RecordAsync(InvoiceActions.ScanAttached, invoice.Id.ToString(), Label(invoice),
             after: file.FileName, ct: ct);
 
-        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
+        return TypedResults.Ok(await ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>
@@ -332,7 +350,7 @@ public static class InvoiceEndpoints
     /// доезжает до формы незнанием (<c>InvoiceLineView.NomenclatureLost</c>).</para>
     /// </summary>
     internal static async Task<InvoiceView> ViewAsync(
-        CostsDbContext db, IModuleCatalog catalog, Invoice invoice, CancellationToken ct)
+        CostsDbContext db, IModuleCatalog catalog, IModuleConstructions sites, Invoice invoice, CancellationToken ct)
     {
         var lines = await db.InvoiceLines.AsNoTracking()
             .Where(l => l.InvoiceId == invoice.Id)
@@ -340,7 +358,8 @@ public static class InvoiceEndpoints
             .ToListAsync(ct);
 
         return InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct), lines,
-            await NomenclatureNamesAsync(catalog, lines, ct));
+            await NomenclatureNamesAsync(catalog, lines, ct),
+            await InvoiceAllocations.ReadAsync(db, sites, invoice, lines, ct));
     }
 
     /// <summary>

@@ -46,6 +46,7 @@ public static class InvoiceLineEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, InvoiceLinesRequest body, CostsDbContext db, IModuleCatalog catalog,
+        IModuleConstructions sites,
         IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Lines is null)
@@ -103,9 +104,15 @@ public static class InvoiceLineEndpoints
         // двух сторон — «разобран отказывает, пока строка ждёт позиции» и «правка строк возвращает
         // счёт в черновик».
         var count = parsed.Count;
-        var returned = invoice.State == InvoiceState.Parsed
-            && (count == 0 || parsed.Any(p => p.Values.NomenclatureId is null));
-        if (returned) invoice.ReturnToDraft();
+        var reason = invoice.State != InvoiceState.Parsed ? null
+            : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
+                ? "позиция номенклатуры есть не у всех строк"
+            : !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+                [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
+                ct)
+                ? "баланс разноски не сходится"
+            : null;
+        if (reason is not null) invoice.ReturnToDraft();
 
         await db.SaveChangesAsync(ct);
 
@@ -113,12 +120,11 @@ public static class InvoiceLineEndpoints
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"строк: {count}", ct: ct);
 
-        if (returned)
+        if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
-                InvoiceEndpoints.Label(invoice),
-                after: "правка строк: позиция номенклатуры есть не у всех строк", ct: ct);
+                InvoiceEndpoints.Label(invoice), after: $"правка строк: {reason}", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>
@@ -128,12 +134,12 @@ public static class InvoiceLineEndpoints
     /// сверен с бумагой. Случись оно само — «разобран» означало бы «поля заполнились», и сверять было бы
     /// нечего.</para>
     ///
-    /// <para>⚠️ Баланс разноски по стройкам в условие НЕ входит, хотя ТЗ его называет: разноски в системе
-    /// ещё нет (F1, issue #1085). Добавь мы условие сейчас — оно проверяло бы пустоту и всегда сходилось,
-    /// то есть выглядело бы работающим сторожем, не будучи им.</para>
+    /// <para>С F1 (issue #1085) в условие входит и <b>«разнесён»</b>: каждая строка разнесена по стройкам
+    /// полностью, цели на месте, расхождение суммы строк с суммой к оплате — в пределах допуска.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> ParsedAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleActivityLog log, CancellationToken ct)
+        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleConstructions sites,
+        IModuleActivityLog log, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
 
@@ -170,17 +176,20 @@ public static class InvoiceLineEndpoints
                 "затраты, ни связать материал с документом качества. Пока они ждут, счёт остаётся " +
                 "черновиком и виден в отборе «Разобрать».");
 
+        EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, sites, invoice, lines, ct)).Summary);
+
         invoice.MarkParsed();
         await db.SaveChangesAsync(ct);
         await log.RecordAsync(InvoiceActions.Parsed, invoice.Id.ToString(),
             InvoiceEndpoints.Label(invoice), after: $"строк: {lines.Count}", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
     }
 
     /// <summary>Вернуть счёт в черновик — решением человека (см. <see cref="Invoice.ReturnToDraft" />).</summary>
     private static async Task<Ok<InvoiceView>> DraftAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleActivityLog log, CancellationToken ct)
+        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleConstructions sites,
+        IModuleActivityLog log, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
 
@@ -192,8 +201,42 @@ public static class InvoiceLineEndpoints
                 InvoiceEndpoints.Label(invoice), after: "решением человека", ct: ct);
         }
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
     }
+
+    /// <summary>
+    /// «Разнесён» (ТЗ COST-9, COST-13) — последнее условие перехода «разобран». Отказ называет ВСЁ, чего
+    /// не хватает, а не первое: иначе человек разносил бы строку, чтобы узнать о расхождении суммы.
+    /// </summary>
+    private static void EnsureAllocated(Invoice invoice, AllocationSummaryView allocation)
+    {
+        if (allocation.Allocated) return;
+
+        var problems = new List<string>();
+
+        if (allocation.Unbalanced.Count > 0)
+            problems.Add($"{Subject(allocation.Unbalanced)} " +
+                $"{(allocation.Unbalanced.Count == 1 ? "разнесена" : "разнесены")} по стройкам не полностью — " +
+                "остаток виден строкой «не разнесено»");
+
+        if (allocation.Lost > 0)
+            problems.Add($"частей разноски на удалённую стройку или раздел: {allocation.Lost} — выберите цель заново");
+
+        if (!allocation.WithinTolerance && allocation.Discrepancy is { } gap)
+            problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} ₽ при допуске " +
+                $"{allocation.Tolerance:0.00} ₽ — расхождение в пределах допуска уходит в последнюю часть " +
+                "разноски, сверх него нужно разобраться: скидка, доставка или строка, которой нет в таблице");
+
+        throw new InvalidRequestException(
+            $"{InvoiceEndpoints.Label(invoice)}: {string.Join("; ", problems)}. «Разобран» означает, что " +
+            "деньги счёта легли на стройки целиком: иначе затраты по стройке не сойдутся со счетами.");
+    }
+
+    /// <summary>Строки счёта, как они лежат, — в том виде, в каком их считает разноска.</summary>
+    internal static async Task<IReadOnlyList<AllocationLine>> StoredLinesAsync(
+        CostsDbContext db, Invoice invoice, CancellationToken ct) =>
+        [.. (await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct))
+            .Select(InvoiceAllocations.Line)];
 
     private static InvoiceLine Added(CostsDbContext db, Guid invoiceId)
     {

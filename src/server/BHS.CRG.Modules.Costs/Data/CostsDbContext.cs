@@ -35,6 +35,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// </summary>
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
 
+    public DbSet<InvoiceAllocation> InvoiceAllocations => Set<InvoiceAllocation>();
+
     /// <summary>
     /// Раскладка таблицы счёта. Вручную, а не соглашениями EF: имена таблиц и колонок здесь — это
     /// то, что увидит человек в отчёте резервной копии и в запросе к базе, а соглашение по умолчанию
@@ -98,6 +100,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.HasIndex(i => new { i.Payment, i.DueDate }).HasDatabaseName("ix_invoices_due");
 
         MapLines(builder);
+        MapAllocations(builder);
     }
 
     /// <summary>
@@ -148,6 +151,51 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         line.HasIndex(l => l.InvoiceId)
             .HasDatabaseName("ix_invoice_lines_unmatched")
             .HasFilter("nomenclature_id IS NULL");
+    }
+
+    /// <summary>
+    /// Части разноски строк (задача F1, issue #1085, ТЗ COST-10). Хранится введённое человеком —
+    /// количество или сумма, — посчитанное не хранится (см. <see cref="InvoiceAllocation" />).
+    /// </summary>
+    private static void MapAllocations(ModelBuilder builder)
+    {
+        var part = builder.Entity<InvoiceAllocation>();
+        part.ToTable("invoice_allocations");
+        part.HasKey(a => a.Id);
+
+        part.Property(a => a.Id).HasColumnName("id");
+        part.Property(a => a.InvoiceId).HasColumnName("invoice_id");
+        part.Property(a => a.LineId).HasColumnName("line_id");
+        part.Property(a => a.Ordinal).HasColumnName("ordinal");
+        part.Property(a => a.ConstructionId).HasColumnName("construction_id");
+        part.Property(a => a.SectionId).HasColumnName("section_id");
+
+        // Те же точности, что у строки: часть количества не бывает точнее самой строки, а часть суммы —
+        // точнее копейки. Пусти мы точнее, база округлила бы молча, и баланс, сошедшийся при сохранении,
+        // разошёлся бы на первом чтении. Поэтому лишние знаки отвергает разбор, а не режет база.
+        part.Property(a => a.Quantity).HasColumnName("quantity").HasPrecision(18, 3);
+        part.Property(a => a.Amount).HasColumnName("amount").HasPrecision(18, 2);
+
+        part.Property(a => a.CreatedAt).HasColumnName("created_at");
+        part.Property(a => a.UpdatedAt).HasColumnName("updated_at");
+
+        // Удалили строку — уходят и её части: разноска строки без строки — это деньги ниоткуда. Строки
+        // при правке набора правятся на месте (C2), так что каскад срабатывает только на настоящем
+        // удалении строки.
+        part.HasOne<InvoiceLine>()
+            .WithMany()
+            .HasForeignKey(a => a.LineId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        part.HasOne<Invoice>()
+            .WithMany()
+            .HasForeignKey(a => a.InvoiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Разноску читают счётом целиком и в порядке частей строки.
+        // Индекса по стройке здесь нет нарочно: отбирать части по стройке будут затраты (G5), и индекс
+        // приедет с тем запросом, которому он нужен.
+        part.HasIndex(a => new { a.InvoiceId, a.LineId, a.Ordinal }).HasDatabaseName("ix_invoice_allocations_order");
     }
 
     /// <summary>

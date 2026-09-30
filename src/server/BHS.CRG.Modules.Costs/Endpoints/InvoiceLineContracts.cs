@@ -49,7 +49,9 @@ public sealed record InvoiceLineView(
     decimal? VatRate,
     decimal? VatAmount,
     decimal? Amount,
-    string? Note);
+    string? Note,
+    /// <summary>Разноска строки по стройкам и остаток «не разнесено» (F1, issue #1085).</summary>
+    LineAllocationView Allocation);
 
 /// <summary>
 /// Сверка: сумма строк против суммы к оплате (ТЗ COST-6.2 — «всегда на виду, числом и не запретом»).
