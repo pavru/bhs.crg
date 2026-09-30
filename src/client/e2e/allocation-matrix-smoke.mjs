@@ -196,10 +196,14 @@ await check('matrix-under-read-only-right', async () => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const reader = await context.newPage();
   const denials = [];
-  reader.on('response', r => { if (r.status() === 403) denials.push(`${r.request().method()} ${r.url()}`); });
 
   try {
     await login(reader, ACCOUNTANT_EMAIL, ACCOUNTANT_PASSWORD);
+    // Отказы считаются с того места, где начинаются счета: стартовая страница — список строек — у
+    // бухгалтера сама запрашивает сводки сверок и планов без права на них. Это дефект оболочки, а не
+    // матрицы; успей он ответить до перехода — проверка краснела бы через раз (так и было в CI).
+    await reader.waitForLoadState('networkidle');
+    reader.on('response', r => { if (r.status() === 403) denials.push(`${r.request().method()} ${r.url()}`); });
     const matrix = await openMatrix(reader, first, 'разноска по объектам');
 
     const text = (await cells(matrix)).flat().join(' ');
