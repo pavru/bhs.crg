@@ -107,7 +107,9 @@ public static class InvoiceLineEndpoints
         var reason = invoice.State != InvoiceState.Parsed ? null
             : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
                 ? "позиция номенклатуры есть не у всех строк"
-            : !await AllocatedAfterAsync(db, sites, invoice, now, ct)
+            : !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+                [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
+                ct)
                 ? "баланс разноски не сходится"
             : null;
         if (reason is not null) invoice.ReturnToDraft();
@@ -230,30 +232,11 @@ public static class InvoiceLineEndpoints
             "деньги счёта легли на стройки целиком: иначе затраты по стройке не сойдутся со счетами.");
     }
 
-    /// <summary>
-    /// Сойдётся ли разноска после правки строк — по ПРИСЛАННЫМ строкам и частям, которые у них уже
-    /// есть. Уменьшили количество строки после разноски, убрали его вовсе, поменяли цену так, что
-    /// сумма строк ушла от суммы к оплате сверх допуска, — «разобран» перестаёт быть правдой.
-    ///
-    /// <para>Части удалённых строк в счёт не идут: их унесёт каскад вместе со строкой.</para>
-    /// </summary>
-    private static async Task<bool> AllocatedAfterAsync(
-        CostsDbContext db, IModuleConstructions sites, Invoice invoice,
-        IReadOnlyList<(Guid Id, InvoiceLineValues Values)> lines, CancellationToken ct)
-    {
-        var kept = lines.Select(l => l.Id).ToHashSet();
-        var parts = (await db.InvoiceAllocations.AsNoTracking()
-                .Where(a => a.InvoiceId == invoice.Id)
-                .ToListAsync(ct))
-            .Where(a => kept.Contains(a.LineId))
-            .ToList();
-
-        var known = parts.Count == 0 ? [] : await sites.ListAsync(ct);
-        var shape = lines.Select((l, index) =>
-            new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount));
-
-        return InvoiceAllocations.Read(invoice, shape, parts, known).Summary.Allocated;
-    }
+    /// <summary>Строки счёта, как они лежат, — в том виде, в каком их считает разноска.</summary>
+    internal static async Task<IReadOnlyList<AllocationLine>> StoredLinesAsync(
+        CostsDbContext db, Invoice invoice, CancellationToken ct) =>
+        [.. (await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct))
+            .Select(InvoiceAllocations.Line)];
 
     private static InvoiceLine Added(CostsDbContext db, Guid invoiceId)
     {

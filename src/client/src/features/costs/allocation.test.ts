@@ -42,6 +42,11 @@ describe('набор частей для сервера', () => {
     expect(toPartDrafts(allocation({ mode: 'amount', parts: [part({ quantity: null, amount: 1500 })] }))[0].value)
       .toBe('1500');
   });
+
+  it('у строки суммой расхождение со счётом в черновик не попадает — его отдал сервер, а не человек', () => {
+    const view = allocation({ mode: 'amount', parts: [part({ quantity: null, amount: 1000.5, discrepancy: 0.5 })] });
+    expect(toPartDrafts(view)[0].value).toBe('1000');
+  });
 });
 
 describe('остаток до сохранения', () => {

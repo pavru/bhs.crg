@@ -98,7 +98,33 @@ public static class InvoiceAllocations
         return Read(invoice, lines.Select(Line), parts, known);
     }
 
-    /// <summary>Посчитать разноску по уже прочитанному — так её считает и правка строк, до сохранения.</summary>
+    /// <summary>
+    /// Сойдётся ли разноска счёта ПОСЛЕ правки, которая ещё не сохранена, — условие, по которому
+    /// разобранный счёт сам возвращается в черновик. Один помощник на все правки (строки, части строки,
+    /// шапка счёта): разойдись они — правка строк и правка разноски отвечали бы на один вопрос по-разному.
+    ///
+    /// <para>Строки — как они лягут; части — из базы, кроме частей строки <paramref name="replaced" />:
+    /// их заменяет <paramref name="replacement" /> из памяти. Части строк, которых среди
+    /// <paramref name="lines" /> нет, в счёт не идут: их унесёт каскад вместе со строкой. Сумма к оплате
+    /// берётся у <paramref name="invoice" /> — тоже как ляжет.</para>
+    /// </summary>
+    public static async Task<bool> AllocatedAfterAsync(
+        CostsDbContext db, IModuleConstructions sites, Invoice invoice, IReadOnlyList<AllocationLine> lines,
+        CancellationToken ct, Guid? replaced = null, IReadOnlyList<InvoiceAllocation>? replacement = null)
+    {
+        var kept = lines.Select(l => l.Id).ToHashSet();
+        var stored = await db.InvoiceAllocations.AsNoTracking()
+            .Where(a => a.InvoiceId == invoice.Id)
+            .ToListAsync(ct);
+
+        List<InvoiceAllocation> parts =
+            [.. stored.Where(a => kept.Contains(a.LineId) && a.LineId != replaced), .. replacement ?? []];
+
+        var known = parts.Count == 0 ? [] : await sites.ListAsync(ct);
+        return Read(invoice, lines, parts, known).Summary.Allocated;
+    }
+
+    /// <summary>Посчитать разноску по уже прочитанному.</summary>
     public static InvoiceAllocationRead Read(
         Invoice invoice, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
         IReadOnlyList<ModuleConstruction> sites)

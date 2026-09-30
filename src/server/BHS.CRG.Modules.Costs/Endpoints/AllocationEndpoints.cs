@@ -99,7 +99,8 @@ public static class AllocationEndpoints
         // Возврат в черновик — ДО сохранения, по состоянию после правки: части прочих строк из базы,
         // части этой строки — те, что сейчас лягут.
         var returned = invoice.State == InvoiceState.Parsed
-            && !await AllocatedAfterAsync(db, invoice, line.Id, now, known, ct);
+            && !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, line.Id, now);
         if (returned) invoice.ReturnToDraft();
 
         await db.SaveChangesAsync(ct);
@@ -124,23 +125,12 @@ public static class AllocationEndpoints
         TypedResults.Ok(await sites.ListAsync(ct));
 
     /// <summary>
-    /// Сойдётся ли разноска счёта после правки одной строки. Части правленой строки берутся из ПАМЯТИ,
-    /// а не из базы: в базе ещё прежние.
+    /// Разнесено больше, чем есть в строке, — отказ (см. <see cref="ReplaceAsync" />).
+    ///
+    /// <para>⚠️ У строки суммой знак каждой части — знак строки. Сверки одной суммы частей мало: +300 и
+    /// −200 на строке в 100 ₽ дают те же 100, но одна стройка получила бы 300 ₽ затрат из ниоткуда, а
+    /// другая — отрицательные.</para>
     /// </summary>
-    private static async Task<bool> AllocatedAfterAsync(
-        CostsDbContext db, Invoice invoice, Guid lineId, IReadOnlyList<InvoiceAllocation> now,
-        IReadOnlyList<ModuleConstruction> sites, CancellationToken ct)
-    {
-        var lines = await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
-        var others = await db.InvoiceAllocations.AsNoTracking()
-            .Where(a => a.InvoiceId == invoice.Id && a.LineId != lineId)
-            .ToListAsync(ct);
-
-        return InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), [.. others, .. now], sites)
-            .Summary.Allocated;
-    }
-
-    /// <summary>Разнесено больше, чем есть в строке, — отказ (см. <see cref="ReplaceAsync" />).</summary>
     private static void EnsureNotOver(InvoiceLine line, IReadOnlyList<AllocationValues> parts)
     {
         if (line.Quantity is > 0 and var quantity)
@@ -155,6 +145,14 @@ public static class AllocationEndpoints
 
         if (line.Amount is { } amount)
         {
+            var opposite = parts.Select((p, index) => (Number: index + 1, p.Amount))
+                .FirstOrDefault(p => p.Amount is { } value && Math.Sign(value) != Math.Sign(amount));
+            if (opposite.Amount is not null)
+                throw new InvalidRequestException(
+                    $"Часть {opposite.Number}: {opposite.Amount:0.00} ₽ при сумме строки {amount:0.00} ₽. Знак " +
+                    "части — знак строки: часть с обратным знаком позволила бы разнести на одну стройку больше, " +
+                    "чем стоит строка, списав разницу с другой.");
+
             var spent = parts.Sum(p => p.Amount ?? 0m);
             if (Math.Abs(spent) > Math.Abs(amount))
                 throw new InvalidRequestException(

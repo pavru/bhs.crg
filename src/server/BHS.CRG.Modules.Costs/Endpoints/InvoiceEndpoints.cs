@@ -195,11 +195,27 @@ public static class InvoiceEndpoints
         invoice.Apply(columns, rest, dueDateByHand: true);
         invoice.Confirm(changed);
 
+        // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
+        // при правке строк и разноски. Шапка задевает условие дважды: обязательным полем, которое
+        // стёрли, и суммой к оплате — с F1 (#1085) от неё зависит, сходится ли разноска.
+        var reason = invoice.State != InvoiceState.Parsed ? null
+            : InvoiceRequisites.Missing(invoice) is { Count: > 0 } missing
+                ? "не заполнено обязательное — " + string.Join(", ", missing.Select(m => $"«{m}»"))
+            : !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct)
+                ? "баланс разноски не сходится"
+            : null;
+        if (reason is not null) invoice.ReturnToDraft();
+
         await db.SaveChangesAsync(ct);
 
         if (changed.Count > 0)
             await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
                 before: string.Join(", ", changed), ct: ct);
+
+        if (reason is not null)
+            await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
+                after: $"правка счёта: {reason}", ct: ct);
 
         return TypedResults.Ok(await ViewAsync(db, catalog, sites, invoice, ct));
     }

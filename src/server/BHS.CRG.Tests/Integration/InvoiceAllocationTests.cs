@@ -148,6 +148,29 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal(-50m, allocation.GetProperty("unallocatedQuantity").GetDecimal());
     }
 
+    /// <summary>
+    /// Сумму к оплате разобранного счёта увели сверх допуска — счёт тоже возвращается в черновик: с F1
+    /// от неё зависит, сходится ли разноска, и правка шапки обязана это заметить, как правка строк.
+    /// </summary>
+    [Fact]
+    public async Task Правка_суммы_к_оплате_сверх_допуска_возвращает_в_черновик()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
+
+        var response = await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new
+        {
+            requisites = await RequisitesWithAsync(client, invoice, "Итого", 150m),
+        });
+        await OkAsync(response);
+        var view = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.False(view.GetProperty("allocation").GetProperty("allocated").GetBoolean());
+    }
+
     /// <summary>Правка разноски разобранного счёта (ТЗ COST-15) пишется в журнал с прежним и новым распределением.</summary>
     [Fact]
     public async Task Правка_разноски_пишется_в_журнал_и_возвращает_в_черновик()
@@ -192,6 +215,12 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
         var allocation = view.GetProperty("lines")[0].GetProperty("allocation");
         Assert.Equal("amount", allocation.GetProperty("mode").GetString());
         Assert.True(allocation.GetProperty("balanced").GetBoolean());
+
+        // Сумма частей та же 1 500, но одна стройка получила бы больше строки, а другая — минус.
+        var response = await AllocateRawAsync(client, invoice, LineId(view, 1),
+            [Part(a, amount: 2_000m), Part(b, amount: -500m)]);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Знак части", await response.Content.ReadAsStringAsync());
     }
 
     [Theory]

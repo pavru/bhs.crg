@@ -146,10 +146,15 @@ function LineAllocationDialog({ invoiceId, line, number, onClose }: {
                   </select>
                 </td>
                 <td className="py-1 pr-2">
+                  {/* Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
+                      и без своего пункта поле показало бы «вся стройка», а уехал бы удалённый раздел. */}
                   <select value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
-                    disabled={!site || site.sections.length === 0}
+                    disabled={!site || (site.sections.length === 0 && !draft.sectionId)}
                     onChange={e => edit(draft.key, { sectionId: e.target.value })} className={FIELD}>
                     <option value="">— вся стройка —</option>
+                    {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
+                      <option value={draft.sectionId}>раздел удалён</option>
+                    )}
                     {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </td>

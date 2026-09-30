@@ -26,13 +26,21 @@ export function emptyPart(constructionId = ''): PartDraft {
   return { key: `новая-часть-${sequence}`, id: null, constructionId, sectionId: '', value: '' };
 }
 
+/**
+ * Черновик частей из ответа сервера.
+ *
+ * ⚠️ У строки суммой в черновик идёт сумма части БЕЗ расхождения со счётом. Сервер отдаёт её уже с
+ * расхождением, ушедшим в последнюю часть, а хранит — без: прими форма число ответа, повторное
+ * сохранение записало бы расхождение в саму часть, и разнесено оказалось бы больше, чем стоит строка.
+ */
 export function toPartDrafts(allocation: LineAllocationView): PartDraft[] {
   return allocation.parts.map((part: AllocationPartView) => ({
     key: part.id,
     id: part.id,
     constructionId: part.constructionId,
     sectionId: part.sectionId ?? '',
-    value: formatPlain(allocation.mode === 'amount' ? part.amount : part.quantity),
+    value: formatPlain(allocation.mode !== 'amount' ? part.quantity
+      : part.amount === null ? null : round(part.amount - part.discrepancy, 2)),
   }));
 }
 
