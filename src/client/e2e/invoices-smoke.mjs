@@ -303,4 +303,6 @@ try {
   await browser.close();
 }
 
-process.exit(summarize('Форма счёта'));
+// Код возврата, а не process.exit(): тот обрывает недописанный stdout, и при перенаправлении
+// вывода в файл последние строки итога теряются.
+process.exitCode = summarize('Форма счёта');
