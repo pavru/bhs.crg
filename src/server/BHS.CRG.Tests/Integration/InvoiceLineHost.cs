@@ -136,6 +136,65 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         return records.Count(r => r.TargetId == invoice.ToString());
     }
 
+    /// <summary>
+    /// Стройка с разделами — своя на каждый тест: разноска ссылается на неё, а посев общий статический,
+    /// и чужая стройка, удалённая соседним тестом, выглядела бы здесь потерей.
+    /// </summary>
+    protected async Task<(Guid Site, Guid[] Sections)> SiteAsync(string name, params string[] sections)
+    {
+        using var scope = host.Services.CreateScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        var site = await mediator.Send(new CreateConstructionCommand($"{name} {Guid.NewGuid().ToString()[..6]}", Guid.NewGuid()));
+        var created = new List<Guid>();
+        foreach (var section in sections)
+            created.Add((await mediator.Send(new CreateSectionCommand(site.Id, section))).Id);
+
+        return (site.Id, [.. created]);
+    }
+
+    protected static Dictionary<string, object?> Part(
+        Guid site, decimal? quantity = null, decimal? amount = null, Guid? section = null, Guid? id = null) =>
+        new()
+        {
+            ["id"] = id?.ToString(),
+            ["construction"] = site.ToString(),
+            ["section"] = section?.ToString(),
+            ["quantity"] = quantity,
+            ["amount"] = amount,
+        };
+
+    protected static Task<HttpResponseMessage> AllocateRawAsync(
+        HttpClient client, Guid invoice, Guid line, object[] parts) =>
+        client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/lines/{line}/allocation", new { parts });
+
+    protected static async Task<JsonElement> AllocateAsync(HttpClient client, Guid invoice, Guid line, object[] parts)
+    {
+        var response = await AllocateRawAsync(client, invoice, line, parts);
+        await OkAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    /// <summary>
+    /// Строки, каждая разнесённая целиком на одну стройку, — счёт, которому до «разобран» (F1) не
+    /// хватает только решения человека. Строки — с количеством.
+    /// </summary>
+    protected async Task<JsonElement> AllocatedLinesAsync(HttpClient client, Guid invoice, object[] lines)
+    {
+        var view = await LinesAsync(client, invoice, lines);
+        var (site, _) = await SiteAsync("Стройка");
+
+        foreach (var line in view.GetProperty("lines").EnumerateArray().ToList())
+            view = await AllocateAsync(client, invoice, line.GetProperty("id").GetGuid(),
+                [Part(site, quantity: line.GetProperty("quantity").GetDecimal())]);
+
+        return view;
+    }
+
+    /// <summary>Идентификатор строки счёта по её номеру в ответе.</summary>
+    protected static Guid LineId(JsonElement view, int ordinal) =>
+        view.GetProperty("lines")[ordinal - 1].GetProperty("id").GetGuid();
+
     protected static async Task<JsonElement> ReadAsync(HttpClient client, Guid invoice) =>
         await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{invoice}");
 

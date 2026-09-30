@@ -202,6 +202,7 @@ public sealed class CostsModule : IAppModule
     {
         InvoiceEndpoints.MapInvoices(endpoints);
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
+        AllocationEndpoints.MapAllocation(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
     }

@@ -47,6 +47,70 @@ export interface InvoiceLineView {
   vatAmount: number | null;
   amount: number | null;
   note: string | null;
+  /** Разноска строки по стройкам и остаток «не разнесено» (F1, issue #1085). */
+  allocation: LineAllocationView;
+}
+
+/**
+ * Часть разноски строки (F1, issue #1085, ТЗ COST-10).
+ *
+ * ⚠️ `amount` у строки с количеством ПОСЧИТАН сервером (доля суммы строки), а не введён: форма его
+ * только показывает. `rounding` и `discrepancy` не нуль у той части, в которую ушли копейки округления
+ * и расхождение с суммой к оплате, — её форма помечает, иначе «33,34» среди «33,33» выглядело бы
+ * опечаткой.
+ */
+export interface AllocationPartView {
+  id: string;
+  ordinal: number;
+  constructionId: string;
+  constructionName: string | null;
+  sectionId: string | null;
+  sectionName: string | null;
+  /** Стройку или раздел удалили в ядре — потеря, а не «не выбрано». */
+  targetLost: boolean;
+  quantity: number | null;
+  amount: number | null;
+  rounding: number;
+  discrepancy: number;
+  /** Часть не того вида, что строка (у строки убрали количество) — не разносит ничего. */
+  mismatched: boolean;
+}
+
+/**
+ * Разноска строки. `mode` решает сервер по самой строке: есть количество — делится количество, нет —
+ * сумма; форма не выбирает, иначе предлагала бы метры строке, которую сервер разносит рублями.
+ */
+export interface LineAllocationView {
+  mode: 'quantity' | 'amount' | 'none';
+  parts: AllocationPartView[];
+  unallocatedQuantity: number | null;
+  unallocatedAmount: number | null;
+  balanced: boolean;
+}
+
+/** «Разнесён» — ровно то условие, которое проверяет переход «разобран» (ТЗ COST-9, COST-13). */
+export interface AllocationSummaryView {
+  allocated: boolean;
+  /** Номера строк, разнесённых не полностью. */
+  unbalanced: number[];
+  /** Частей на удалённую стройку или раздел. */
+  lost: number;
+  /** Сумма к оплате минус сумма строк; `null` — суммы к оплате нет. */
+  discrepancy: number | null;
+  /** Допуск расхождения — приезжает от сервера: по ТЗ это настройка, повторять её в форме нельзя. */
+  tolerance: number;
+  withinTolerance: boolean;
+}
+
+export interface CostsSection {
+  id: string;
+  name: string;
+}
+
+export interface CostsConstruction {
+  id: string;
+  name: string;
+  sections: CostsSection[];
 }
 
 /** Сверка суммы строк с суммой к оплате и счётчик ждущих позицию (ТЗ COST-6.2). */
@@ -66,6 +130,7 @@ export interface InvoiceView {
   duplicates: InvoiceDuplicate[];
   lines: InvoiceLineView[];
   totals: InvoiceLineTotals;
+  allocation: AllocationSummaryView;
   createdAt: string;
   updatedAt: string;
 }
@@ -227,6 +292,33 @@ export function useReplaceInvoiceLines() {
  * Одним хуком на два адреса: действие у них одно и то же по устройству — послать и перечитать, — а
  * различаются они словом в адресе. Два почти одинаковых хука расходились бы обработкой отказа.
  */
+/** Стройки с разделами — цели разноски. Узким списком модуля, как организации. */
+export function useCostsConstructions() {
+  return useQuery({
+    queryKey: ['costs-constructions'],
+    queryFn: () => apiClient.get<CostsConstruction[]>('/costs/constructions').then(r => r.data),
+  });
+}
+
+/**
+ * Части разноски строки — НАБОРОМ (F1, issue #1085). Часть с `id` правится на месте.
+ *
+ * ⚠️ У строки с количеством уезжает `quantity`, без количества — `amount`, и никогда оба: сумму части
+ * строки с количеством считает сервер, и присланная сумма была бы отвергнута.
+ */
+export function useReplaceAllocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lineId, parts }: { id: string; lineId: string; parts: Record<string, unknown>[] }) =>
+      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines/${lineId}/allocation`, { parts })
+        .then(r => r.data),
+    onSuccess: view => {
+      qc.setQueryData([QK, view.id], view);
+      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+    },
+  });
+}
+
 export function useInvoiceState() {
   const qc = useQueryClient();
   return useMutation({

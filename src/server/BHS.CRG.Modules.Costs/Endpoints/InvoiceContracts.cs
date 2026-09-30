@@ -44,6 +44,8 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// снимка одного счёта — сверка суммы строк с суммой к оплате считалась бы по разным состояниям.</param>
 /// <param name="Totals">Сверка суммы строк с суммой к оплате (ТЗ COST-6.2) и счётчик строк, ждущих
 /// позиции номенклатуры.</param>
+/// <param name="Allocation">«Разнесён» и чего ему не хватает (F1, issue #1085) — то самое условие,
+/// которое проверяет переход «разобран»: считай форма его сама, кнопка и отказ расходились бы.</param>
 public sealed record InvoiceView(
     Guid Id,
     Guid DocumentTypeId,
@@ -52,6 +54,7 @@ public sealed record InvoiceView(
     IReadOnlyList<InvoiceDuplicate> Duplicates,
     IReadOnlyList<InvoiceLineView> Lines,
     InvoiceLineTotals Totals,
+    AllocationSummaryView Allocation,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -89,18 +92,21 @@ public static class InvoiceViews
     /// СЛОВАРЯ — незнание, и выдавать второе за первое нельзя (см. <c>InvoiceLineView</c>).</param>
     public static InvoiceView Of(
         Invoice invoice, IReadOnlyList<InvoiceDuplicate> duplicates,
-        IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names) => new(
+        IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
+        InvoiceAllocationRead allocation) => new(
         invoice.Id,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,
         duplicates,
-        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names))],
+        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id]))],
         InvoiceLineTotals.Of(lines),
+        allocation.Summary,
         invoice.CreatedAt,
         invoice.UpdatedAt);
 
-    public static InvoiceLineView Line(InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names) => new(
+    public static InvoiceLineView Line(
+        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation) => new(
         line.Id,
         line.Ordinal,
         line.NomenclatureId,
@@ -116,7 +122,8 @@ public static class InvoiceViews
         line.VatRate,
         line.VatAmount,
         line.Amount,
-        line.Note);
+        line.Note,
+        allocation);
 
     public static InvoiceListItem Item(
         Invoice invoice, string? supplierName, int lines, int withoutNomenclature) => new(

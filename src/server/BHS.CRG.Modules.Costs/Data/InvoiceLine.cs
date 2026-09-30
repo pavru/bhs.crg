@@ -204,5 +204,5 @@ public sealed record InvoiceLineValues(
     /// округление (по умолчанию у .NET) даёт на половинке другой ответ, и расхождение в копейку
     /// объяснить человеку нечем.
     /// </summary>
-    private static decimal Money(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
+    internal static decimal Money(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
 }
