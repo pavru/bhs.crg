@@ -30,6 +30,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     public DbSet<Invoice> Invoices => Set<Invoice>();
 
     /// <summary>
+    /// Строки счёта (C2, issue #1078). Своим набором, а не полем счёта: на строку опирается код —
+    /// отбор «ждёт номенклатуры», сверка сумм, разноска по количеству (F1).
+    /// </summary>
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+
+    /// <summary>
     /// Раскладка таблицы счёта. Вручную, а не соглашениями EF: имена таблиц и колонок здесь — это
     /// то, что увидит человек в отчёте резервной копии и в запросе к базе, а соглашение по умолчанию
     /// дало бы «Invoices» и «IssuedOn» в схеме, где всё остальное названо по-русски и через
@@ -45,7 +51,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
         invoice.Property(i => i.Id).HasColumnName("id");
         invoice.Property(i => i.DocumentTypeId).HasColumnName("document_type_id");
-        invoice.Property(i => i.Number).HasColumnName("number").HasMaxLength(100);
+        invoice.Property(i => i.Number).HasColumnName("number").HasMaxLength(Invoice.NumberLength);
         invoice.Property(i => i.IssuedOn).HasColumnName("issued_on");
         invoice.Property(i => i.SupplierId).HasColumnName("supplier_id");
         invoice.Property(i => i.PayerId).HasColumnName("payer_id");
@@ -90,6 +96,58 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // Реестр счетов отбирается по сроку и состоянию оплаты (ТЗ COST-9.1: отбор «без срока»,
         // «просрочен»), и отбирается он на каждом открытии экрана.
         invoice.HasIndex(i => new { i.Payment, i.DueDate }).HasDatabaseName("ix_invoices_due");
+
+        MapLines(builder);
+    }
+
+    /// <summary>
+    /// Раскладка строк счёта (C2, issue #1078).
+    ///
+    /// <para>⚠️ Внешний ключ ЕСТЬ — в отличие от ссылок на ядро. Разница принципиальная: строка и счёт
+    /// лежат в ОДНОЙ схеме и едут одним набором миграций, то есть ключ здесь ничего не связывает между
+    /// модулем и ядром. А без него удаление счёта оставляло бы строки сиротами, и находились бы они
+    /// только запросом в базу.</para>
+    /// </summary>
+    private static void MapLines(ModelBuilder builder)
+    {
+        var line = builder.Entity<InvoiceLine>();
+        line.ToTable("invoice_lines");
+        line.HasKey(l => l.Id);
+
+        line.Property(l => l.Id).HasColumnName("id");
+        line.Property(l => l.InvoiceId).HasColumnName("invoice_id");
+        line.Property(l => l.Ordinal).HasColumnName("ordinal");
+        line.Property(l => l.NomenclatureId).HasColumnName("nomenclature_id");
+        line.Property(l => l.SupplierText).HasColumnName("supplier_text");
+        line.Property(l => l.SupplierCode).HasColumnName("supplier_code").HasMaxLength(InvoiceLine.SupplierCodeLength);
+        line.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(InvoiceLine.UnitLength);
+
+        // Количество — три знака после запятой: кабель мерят метрами с сантиметрами, и «7,25 м» в
+        // бумаге обязано остаться «7,25 м». Деньги — две, как у счёта, и по той же причине (не double).
+        line.Property(l => l.Quantity).HasColumnName("quantity").HasPrecision(18, 3);
+        line.Property(l => l.Price).HasColumnName("price").HasPrecision(18, 2);
+        line.Property(l => l.VatRate).HasColumnName("vat_rate").HasPrecision(5, 2);
+        line.Property(l => l.VatAmount).HasColumnName("vat_amount").HasPrecision(18, 2);
+        line.Property(l => l.Amount).HasColumnName("amount").HasPrecision(18, 2);
+
+        line.Property(l => l.Note).HasColumnName("note");
+        line.Property(l => l.CreatedAt).HasColumnName("created_at");
+        line.Property(l => l.UpdatedAt).HasColumnName("updated_at");
+
+        line.HasOne<Invoice>()
+            .WithMany()
+            .HasForeignKey(l => l.InvoiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Строки читаются ТОЛЬКО счётом и всегда в порядке бумаги — это и есть индекс.
+        line.HasIndex(l => new { l.InvoiceId, l.Ordinal }).HasDatabaseName("ix_invoice_lines_order");
+
+        // Отбор «Разобрать» (ТЗ COST-6.2) ищет строки БЕЗ позиции номенклатуры, и ищет на каждом
+        // открытии реестра. Индекс частичный: строк с позицией со временем станет подавляющее
+        // большинство, и держать их в этом индексе незачем.
+        line.HasIndex(l => l.InvoiceId)
+            .HasDatabaseName("ix_invoice_lines_unmatched")
+            .HasFilter("nomenclature_id IS NULL");
     }
 
     /// <summary>

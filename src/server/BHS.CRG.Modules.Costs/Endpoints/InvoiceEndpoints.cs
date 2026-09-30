@@ -61,26 +61,60 @@ public static class InvoiceEndpoints
     /// «счёт есть, а в списке его нет» стало бы поведением, на которое кто-нибудь успел бы
     /// опереться.</para>
     /// </summary>
+    /// <param name="needsParsing">Отбор «Разобрать» (ТЗ COST-6.2): только счета, у которых есть строки
+    /// без позиции номенклатуры. Отбором, а не сортировкой: это рабочая очередь снабженца, и счета,
+    /// которые разбирать не надо, в ней мешают.
+    ///
+    /// <para>⚠️ Счёт БЕЗ строк вовсе в этот отбор НЕ попадает, хотя разбирать его тоже надо. Причина:
+    /// «строк нет» и «строки ждут позиции» — разные работы, и вторую делают по скану, который уже
+    /// разобран наполовину. Очередь «строк нет вовсе» — это отбор по состоянию «черновик», он приезжает
+    /// с сеткой реестра (G4, issue #1097) вместе с остальными сохранёнными представлениями.</para></param>
     private static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
-        CostsDbContext db, IModuleCatalog catalog, CancellationToken ct)
+        CostsDbContext db, IModuleCatalog catalog, CancellationToken ct, bool needsParsing = false)
     {
+        // Счётчики строк — ОДНИМ группирующим запросом на весь реестр, без чтения самих строк: на экране
+        // нужны два числа на счёт, а не строки. Запрос на счёт превратил бы открытие реестра в сотню
+        // обращений — той же ценой, что уже названа у названий поставщиков.
+        var counters = await db.InvoiceLines
+            .AsNoTracking()
+            .GroupBy(l => l.InvoiceId)
+            .Select(g => new
+            {
+                InvoiceId = g.Key,
+                Count = g.Count(),
+                Unmatched = g.Count(l => l.NomenclatureId == null),
+            })
+            .ToListAsync(ct);
+
+        // Словарём «счёт → (строк, ждут позиции)». Сумм здесь нет НАРОЧНО: реестру они не нужны, а
+        // подставленный нуль в поле суммы — это неправда, на которую кто-нибудь однажды сошлётся.
+        var lines = counters.ToDictionary(c => c.InvoiceId, c => (Count: c.Count, Unmatched: c.Unmatched));
+
         var invoices = await db.Invoices
             .AsNoTracking()
             .OrderByDescending(i => i.IssuedOn)
             .ThenByDescending(i => i.CreatedAt)
             .ToListAsync(ct);
 
+        if (needsParsing)
+            invoices = [.. invoices.Where(
+                i => lines.TryGetValue(i.Id, out var counted) && counted.Unmatched > 0)];
+
         var names = await SupplierNamesAsync(catalog, invoices, ct);
 
         return TypedResults.Ok<IReadOnlyList<InvoiceListItem>>(
             [.. invoices.Select(i => InvoiceViews.Item(
-                i, i.SupplierId is { } id && names.TryGetValue(id, out var name) ? name : null))]);
+                i,
+                i.SupplierId is { } id && names.TryGetValue(id, out var name) ? name : null,
+                lines.TryGetValue(i.Id, out var counted) ? counted.Count : 0,
+                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0))]);
     }
 
-    private static async Task<Ok<InvoiceView>> GetAsync(Guid id, CostsDbContext db, CancellationToken ct)
+    private static async Task<Ok<InvoiceView>> GetAsync(
+        Guid id, CostsDbContext db, IModuleCatalog catalog, CancellationToken ct)
     {
         var invoice = await FindAsync(db, id, ct);
-        return TypedResults.Ok(InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct)));
+        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
     }
 
     /// <summary>
@@ -93,7 +127,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Created<InvoiceView>> CreateAsync(
         InvoiceSaveRequest body, CostsDbContext db, IModuleTypes types, IModuleUser user,
-        IModuleActivityLog log, IModuleWriteGuard guard, CancellationToken ct)
+        IModuleActivityLog log, IModuleWriteGuard guard, IModuleCatalog catalog, CancellationToken ct)
     {
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
             ?? throw new ConflictException(
@@ -124,7 +158,7 @@ public static class InvoiceEndpoints
 
         return TypedResults.Created(
             $"/api/costs/invoices/{invoice.Id}",
-            InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct)));
+            await ViewAsync(db, catalog, invoice, ct));
     }
 
     /// <summary>
@@ -137,7 +171,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> UpdateAsync(
         Guid id, InvoiceSaveRequest body, CostsDbContext db, IModuleActivityLog log,
-        IModuleWriteGuard guard, CancellationToken ct)
+        IModuleWriteGuard guard, IModuleCatalog catalog, CancellationToken ct)
     {
         if (body.Unconfirmed is not null)
             throw new InvalidRequestException(
@@ -165,7 +199,7 @@ public static class InvoiceEndpoints
             await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
                 before: string.Join(", ", changed), ct: ct);
 
-        return TypedResults.Ok(InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct)));
+        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
     }
 
     /// <summary>
@@ -177,7 +211,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ConfirmAsync(
         Guid id, InvoiceConfirmRequest body, CostsDbContext db, IModuleActivityLog log,
-        CancellationToken ct)
+        IModuleCatalog catalog, CancellationToken ct)
     {
         if (body.Fields is not { Count: > 0 })
             throw new InvalidRequestException(
@@ -195,7 +229,7 @@ public static class InvoiceEndpoints
                 after: string.Join(", ", body.Fields), ct: ct);
         }
 
-        return TypedResults.Ok(InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct)));
+        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
     }
 
     /// <summary>
@@ -207,7 +241,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> AttachScanAsync(
         Guid id, IFormFile file, CostsDbContext db, IModuleBlobs blobs, IModuleActivityLog log,
-        CancellationToken ct)
+        IModuleCatalog catalog, CancellationToken ct)
     {
         if (file.Length == 0)
             throw new InvalidRequestException(
@@ -235,7 +269,7 @@ public static class InvoiceEndpoints
         await log.RecordAsync(InvoiceActions.ScanAttached, invoice.Id.ToString(), Label(invoice),
             after: file.FileName, ct: ct);
 
-        return TypedResults.Ok(InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct)));
+        return TypedResults.Ok(await ViewAsync(db, catalog, invoice, ct));
     }
 
     /// <summary>
@@ -285,7 +319,49 @@ public static class InvoiceEndpoints
                 r => r.Path is { Length: > 0 } path ? $"«{path}»: {r.Message}" : r.Message)));
     }
 
-    private static async Task<Invoice> FindAsync(CostsDbContext db, Guid id, CancellationToken ct) =>
+    /// <summary>
+    /// Счёт целиком: реквизиты, метки, дубликаты, строки и сверка сумм (C2, issue #1078).
+    ///
+    /// <para>Одним помощником на все адреса — и это не про экономию строк: собери ответ каждый адрес
+    /// сам, часть из них однажды вернула бы счёт без строк, и форма получила бы пустую таблицу там, где
+    /// строки есть. Ошибка была бы видна только на одном действии из шести.</para>
+    ///
+    /// <para>⚠️ Названия позиций номенклатуры берутся ОДНИМ обращением к справочнику на весь счёт, и
+    /// «вида нет вовсе» на чтении не отказ: тип «Номенклатура» есть не в каждой установке, а счёт со
+    /// строками от этого не перестаёт существовать. Но и потерей это не считается — незнание
+    /// доезжает до формы незнанием (<c>InvoiceLineView.NomenclatureLost</c>).</para>
+    /// </summary>
+    internal static async Task<InvoiceView> ViewAsync(
+        CostsDbContext db, IModuleCatalog catalog, Invoice invoice, CancellationToken ct)
+    {
+        var lines = await db.InvoiceLines.AsNoTracking()
+            .Where(l => l.InvoiceId == invoice.Id)
+            .OrderBy(l => l.Ordinal)
+            .ToListAsync(ct);
+
+        return InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct), lines,
+            await NomenclatureNamesAsync(catalog, lines, ct));
+    }
+
+    /// <summary>
+    /// Названия позиций номенклатуры одним обращением на весь счёт — либо <c>null</c>, если вида
+    /// «Номенклатура» в системе нет вовсе.
+    ///
+    /// <para>⚠️ Пустой словарь и <c>null</c> — РАЗНОЕ. Пустой означает «спросили, ничего не нашлось»
+    /// (позиции удалены), <c>null</c> — «спрашивать не у кого». Сведи их в одно, и в установке без
+    /// типа «Номенклатура» каждая ссылка счёта выглядела бы битой.</para>
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<Guid, string?>?> NomenclatureNamesAsync(
+        IModuleCatalog catalog, IReadOnlyList<InvoiceLine> lines, CancellationToken ct)
+    {
+        var ids = lines.Select(l => l.NomenclatureId).OfType<Guid>().Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<Guid, string?>();
+
+        var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);
+        return refs?.ToDictionary(r => r.Id, r => r.DisplayName);
+    }
+
+    internal static async Task<Invoice> FindAsync(CostsDbContext db, Guid id, CancellationToken ct) =>
         await db.Invoices.FirstOrDefaultAsync(i => i.Id == id, ct)
         ?? throw new NotFoundException("Счёт не найден.");
 
