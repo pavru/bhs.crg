@@ -1,4 +1,5 @@
 using System.Globalization;
+using BHS.CRG.Application.Common;
 
 namespace BHS.CRG.Application.Backup;
 
@@ -94,9 +95,7 @@ public sealed class BackupStorageOptions
         try
         {
             System.IO.Directory.CreateDirectory(Directory);
-            var probe = Path.Combine(Directory, ".write-probe");
-            File.WriteAllText(probe, string.Empty);
-            File.Delete(probe);
+            DirectoryWriteProbe.Run(Directory);
         }
         catch (Exception ex)
         {
