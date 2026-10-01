@@ -304,6 +304,36 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
         Assert.All(preview.Variants!, Assert.Null);
     }
 
+    /// <summary>
+    /// Колонки предпросмотра union-привязки — ВСЕ размеченные варианты, а не ключи первой строки
+    /// (задача G1a, issue #1088). Строка union несёт ключ ОДНОГО варианта, и клиент, бравший состав
+    /// из первой строки, терял колонку второго варианта целиком — его строки рисовались пустыми.
+    /// </summary>
+    [Fact]
+    public async Task BindingPreview_ColumnsCoverEveryVariant_NotTheFirstRow()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var f = await SeedAsync(scope);
+
+        var csv = $"Ид,ТипКод\n{f.AosrId},{f.AosrCode}\n{f.WorkRegistryId},{f.WorkRegistryCode}\n";
+        var sourceId = await SourceAsync(scope, csv, f.UnionTypeId,
+            new Dictionary<string, string> { ["АОСР"] = "Ид", ["РеестрРабот"] = "Ид" },
+            new MaterializeDiscriminatorConfig("ТипКод", MaterializeDiscriminatorConfig.ByTypeCode,
+                new Dictionary<string, List<Guid>>
+                {
+                    ["АОСР"] = [f.AosrTypeId],
+                    ["РеестрРабот"] = [f.WorkRegistryTypeId],
+                }));
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(f.ReestrId, sourceId, "Состав", null), default);
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(f.ReestrId, TestAccess.All, default));
+        var rows = Assert.IsType<List<Dictionary<string, object?>>>(preview.Data);
+
+        Assert.Equal(["АОСР"], rows[0].Keys);
+        Assert.Equal(["АОСР", "РеестрРабот"], preview.Columns!.Select(c => c.Key));
+        Assert.All(preview.Columns!, c => Assert.Null(c.Unavailable));
+    }
+
     /// <summary>Настройка, которую валидатор не должен пропустить, до источника не доезжает.</summary>
     [Fact]
     public async Task ContradictoryConfiguration_IsRejectedOnSave()

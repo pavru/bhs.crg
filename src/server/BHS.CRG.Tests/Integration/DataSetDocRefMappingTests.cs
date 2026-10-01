@@ -4,6 +4,7 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.DataSets;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -218,6 +219,40 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         var docRef = Assert.IsType<JsonElement>(ctx.Data["Основание"]);
         Assert.False(docRef.TryGetProperty("$ref", out _), "ссылка осталась неразрешённой");
         Assert.Equal("17", docRef.GetProperty("Номер").GetString());
+    }
+
+    /// <summary>
+    /// Поле убрали из типа строки, а разметка на него осталась (задача G1a, issue #1088): предпросмотр
+    /// показывает такую колонку С ПРИЧИНОЙ, а не теряет её. Пропавшая колонка выглядела бы так, будто
+    /// всё размечено верно, — а ради этого вопроса предпросмотр и открывают.
+    /// </summary>
+    [Fact]
+    public async Task BindingPreview_KeepsTheColumnOfARemovedField_WithItsReason()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null,
+            J("{'fields':[{'key':'Поле','type':'string','title':'Поле строки'},{'key':'Второе','type':'string'}]}")));
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+
+        var (_, reestrId, _) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+        var sourceId = await MaterializedSourceAsync(scope, "A,B\n1,2\n", rowType.Id,
+            new Dictionary<string, string> { ["Поле"] = "A", ["Второе"] = "B" });
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
+
+        await m.Send(new UpdateDocumentTypeSchemaCommand(rowType.Id,
+            J("{'fields':[{'key':'Поле','type':'string','title':'Поле строки'}]}")));
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
+
+        Assert.Collection(preview.Columns!,
+            c => { Assert.Equal("Поле строки", c.Label); Assert.Null(c.Unavailable); },
+            c => { Assert.Equal("Второе", c.Key); Assert.Equal(BindingPreviewColumns.Removed, c.Unavailable); });
     }
 
     /// <summary>

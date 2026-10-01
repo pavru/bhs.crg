@@ -4,6 +4,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -218,6 +219,9 @@ public class DataSetBindingService(
             .FirstOrDefaultAsync(o => o.Id == ownerId, ct);
         var ownerSetId = owner is { IsDocument: true, ScopeLevel: CatalogScope.Set } ? owner.ScopeId : null;
 
+        // Типы — один раз на весь предпросмотр: по ним выводится тип строки и состав колонок (#1088).
+        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+
         var results = new List<BindingPreviewDto>();
         foreach (var binding in bindings)
         {
@@ -278,7 +282,8 @@ public class DataSetBindingService(
                     await DocRefPreviewLabeler.LabelAsync(db, [data], owner?.CompositeTypeId, ownerSetId, ct);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
-                        "scalar", null, rows.Count, data, null));
+                        "scalar", null, rows.Count, data, null,
+                        BindingPreviewColumns.Build(MappedKeys(mapping), FieldsOf(owner?.CompositeTypeId, typesById))));
                 }
                 else
                 {
@@ -298,8 +303,8 @@ public class DataSetBindingService(
                     // Тип строки: у материализованного источника — его тип, иначе — тип элемента
                     // целевого поля. Без этого doc-ref-ячейки остались бы сырыми идентификаторами
                     // на экране, куда идут проверять, ТЕ ЛИ документы приедут.
-                    await DocRefPreviewLabeler.LabelAsync(db, mapped,
-                        await RowTypeIdAsync(binding, owner?.CompositeTypeId, ct), ownerSetId, ct);
+                    var rowTypeId = RowTypeId(binding, owner?.CompositeTypeId, typesById);
+                    await DocRefPreviewLabeler.LabelAsync(db, mapped, rowTypeId, ownerSetId, ct);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "tabular", binding.TargetFieldKey, mapped.Count, mapped,
@@ -307,7 +312,8 @@ public class DataSetBindingService(
                         // это то, ради чего сюда и смотрят.
                         skipped > 0
                             ? $"Строк пропущено при материализации: {skipped} — их тип документа не назначен ни одному варианту."
-                            : null));
+                            : null,
+                        BindingPreviewColumns.Build(MappedKeys(mapping), FieldsOf(rowTypeId, typesById))));
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -374,7 +380,8 @@ public class DataSetBindingService(
                   .Select(p => $"{p.Value} — {MaterializeSkipReason.Describe(p.Key)}"));
 
         return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
-            "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning);
+            "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning,
+            [new BindingPreviewColumnDto("Документ", "Документ")]);
     }
 
     /// <summary>
@@ -382,7 +389,8 @@ public class DataSetBindingService(
     /// источника — его тип материализации (маппинг взят оттуда), иначе — тип элемента целевого поля.
     /// null — вывести не удалось (тип владельца неизвестен либо поле не найдено).
     /// </summary>
-    private async Task<Guid?> RowTypeIdAsync(DataSetBinding binding, Guid? ownerTypeId, CancellationToken ct)
+    private static Guid? RowTypeId(
+        DataSetBinding binding, Guid? ownerTypeId, IReadOnlyDictionary<Guid, DocumentType> typesById)
     {
         if (binding.Source.MaterializeTypeId is { } materialized
             && DataSetMappingValue.IsEmptyMapping(binding.Mapping))
@@ -390,9 +398,17 @@ public class DataSetBindingService(
 
         if (ownerTypeId is not { } typeId || binding.TargetFieldKey is null) return null;
 
-        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         return DocumentTypeSchemaReader.Field(typeId, binding.TargetFieldKey, typesById)?.TypeId;
     }
+
+    /// <summary>Поля, которым маппинг назначил колонку: пустое назначение предпросмотр не заполняет.</summary>
+    private static IEnumerable<string> MappedKeys(Dictionary<string, string> mapping) =>
+        mapping.Where(p => !string.IsNullOrEmpty(p.Value)).Select(p => p.Key);
+
+    /// <summary>Поля типа строки; null — тип неизвестен или исчез (тогда колонки без пометок).</summary>
+    private static IReadOnlyList<SchemaFieldInfo>? FieldsOf(
+        Guid? typeId, IReadOnlyDictionary<Guid, DocumentType> typesById) =>
+        typeId is { } id && typesById.ContainsKey(id) ? DocumentTypeSchemaReader.EffectiveFields(id, typesById) : null;
 
     /// <summary>Тот же выбор варианта, что у генерации (issue #716); null — правила нет.</summary>
     private async Task<MaterializeVariantSelector?> BuildVariantSelectorAsync(

@@ -134,9 +134,23 @@ public record DataSetProcessingTemplateDto(
     object? RowFilter, object? ComputedColumns, object? SortSpec,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+/// <param name="Columns">
+/// Колонки предпросмотра — из СХЕМЫ типа строки, а не из первой строки (задача G1a этапа 2, issue
+/// #1088): строки собираются только из размеченных полей, и у union разные строки несут разные ключи —
+/// состав по первой строке терял колонки остальных. null — колонок нет (отказ привязки).
+/// </param>
 public record BindingPreviewDto(
     Guid BindingId, string SourceName, string FileName, string Mode,
-    string? TargetFieldKey, int TotalRows, object Data, string? Error);
+    string? TargetFieldKey, int TotalRows, object Data, string? Error,
+    IReadOnlyList<BindingPreviewColumnDto>? Columns = null);
+
+/// <param name="Unavailable">
+/// Почему значения колонки не доедут, или null — доедут. Сегодня одна причина — <c>removed</c>: в
+/// маппинге поле есть, а в типе его уже нет. Причина — кодом, а не текстом: текст на экране
+/// выбирает общая сетка клиента, и у каждой причины он свой — иначе разные причины выглядели бы одним
+/// дефисом.
+/// </param>
+public record BindingPreviewColumnDto(string Key, string Label, string? Unavailable = null);
 
 /// <param name="Boundary">
 /// Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): что именно отдано ЭТОМУ
