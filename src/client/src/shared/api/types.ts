@@ -697,4 +697,9 @@ export interface DataSetBindingPreviewResult {
   /** Значение ячейки — строка (обычный/ref-маппинг) или FileAttachment-объект (файловый маппинг). */
   data: Record<string, unknown> | Record<string, unknown>[];
   error: string | null;
+  /**
+   * Колонки — из схемы типа строки, а не из первой строки (G1a, issue #1088). `unavailable` — код
+   * причины, по которой значения колонки не доедут (`removed` — поля нет в типе). null у отказа.
+   */
+  columns: { key: string; label: string; unavailable: string | null }[] | null;
 }

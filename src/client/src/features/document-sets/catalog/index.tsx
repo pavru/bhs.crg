@@ -27,6 +27,8 @@ import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
+import { DataGrid } from '@/shared/ui/DataGrid';
+import { gridColumnsOf } from '@/shared/ui/dataGridColumns';
 import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognizedFieldKeys, computeStaleFieldKeys, computeStaleReasonByField, staleReasonText
 } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
@@ -451,7 +453,10 @@ export function CatalogEntryForm({
 
           if (isBoundArray) {
             const rows = Array.isArray(val) ? val as Record<string, unknown>[] : [];
-            const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
+            // Колонки — по всем строкам и схеме типа элемента, а не по первой строке (G1a, #1088):
+            // у union первая строка несёт один вариант, и колонки остальных пропадали.
+            const itemType = field.typeId ? allDocTypes.find(t => t.id === field.typeId) : undefined;
+            const columns = gridColumnsOf(rows, itemType ? resolveEffectiveFields(itemType, allDocTypes) : null);
             return (
               <div key={field.key}>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
@@ -459,28 +464,7 @@ export function CatalogEntryForm({
                   <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} plural
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
-                <div className="rounded-md border border-stroke overflow-x-auto bg-muted">
-                  {rows.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-fg4">Нет данных из источника</p>
-                  ) : (
-                    <table className="text-xs w-full">
-                      <thead>
-                        <tr className="bg-base">
-                          {cols.map(k => <th key={k} className="px-3 py-1.5 text-left font-medium whitespace-nowrap text-fg3">{k}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((row, i) => (
-                          <tr key={i} className="border-t border-stroke">
-                            {cols.map(k => (
-                              <td key={k} className="px-3 py-1.5 whitespace-nowrap text-fg1">{String(row[k] ?? '')}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                <DataGrid columns={columns} rows={rows} />
               </div>
             );
           }
