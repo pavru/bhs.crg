@@ -65,6 +65,15 @@ public static class SystemDataSetDeclarations
                            "ни среди модулей сборки");
         }
 
+        // Ключи КОЛОНОК таблиц модулей (G1b, issue #1089). Ключ самой таблицы проверен выше — у неё
+        // свой поставщик набора. Ключ колонки с опечаткой никому не выдан, и колонка сумм пришла бы
+        // «нет права на суммы» даже администратору.
+        foreach (var entry in services.GetRequiredService<BHS.CRG.Modules.Tables.ModuleTableCatalog>().All)
+        foreach (var column in entry.Table.Columns.Where(c => c.Requires is not null))
+            if (!IsKnownKey(column.Requires!, known, permissions))
+                broken.Add($"таблица «{entry.Address}», колонка «{column.Key}»: ключа доступа " +
+                           $"«{column.Requires}» нет ни в справочнике прав, ни среди модулей сборки");
+
         if (broken.Count == 0) return;
 
         throw new InvalidOperationException(
@@ -81,12 +90,16 @@ public static class SystemDataSetDeclarations
     /// самый важный его случай — ВЫКЛЮЧЕННЫЙ модуль, а хост прогона поднимается с включённым.</para>
     /// </summary>
     public static bool KeyIsKnown(
-        SystemDataSetDeclaration declaration, ISet<string> knownModules, PermissionCatalog permissions)
-    {
-        if (permissions.Declares(declaration.Requires)) return true;
-        if (knownModules.Contains(declaration.Requires)) return true;
+        SystemDataSetDeclaration declaration, ISet<string> knownModules, PermissionCatalog permissions) =>
+        IsKnownKey(declaration.Requires, knownModules, permissions);
 
-        var dot = declaration.Requires.IndexOf('.');
-        return dot > 0 && knownModules.Contains(declaration.Requires[..dot]);
+    /// <inheritdoc cref="KeyIsKnown(SystemDataSetDeclaration, ISet{string}, PermissionCatalog)" />
+    public static bool IsKnownKey(string key, ISet<string> knownModules, PermissionCatalog permissions)
+    {
+        if (permissions.Declares(key)) return true;
+        if (knownModules.Contains(key)) return true;
+
+        var dot = key.IndexOf('.');
+        return dot > 0 && knownModules.Contains(key[..dot]);
     }
 }

@@ -82,7 +82,7 @@ public partial class DataSetSourceService(
             foreach (var provider in systemProviders.All)
             {
                 if (!SystemDataSetGate.Allows(provider.Declaration, access)) continue;
-                candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, ct))
+                candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, access, ct))
                     .Select(c => c with { ExistingCount = existingMarkers.Count(m => m == c.SheetOrPath) }));
             }
             return candidates;

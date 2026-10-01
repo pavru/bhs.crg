@@ -62,6 +62,12 @@ public static class DataSetRowFilterExecutor
         ["is_not_empty"] = (val, _) => !string.IsNullOrEmpty(val),
     };
 
+    /// <summary>
+    /// Что исполнитель умеет. Наружу — ради сторожа: состав обязан совпадать с общим списком
+    /// операторов таблиц (<c>TableOperators</c>, G1b), который предлагает условия экрану.
+    /// </summary>
+    public static IReadOnlyCollection<string> Operators => Ops.Keys;
+
     /// <param name="sourceName">
     /// Имя источника для текста отказа. У документа привязок бывает пять, и «отбор не разбирается»
     /// без имени не говорит, какую из них править.

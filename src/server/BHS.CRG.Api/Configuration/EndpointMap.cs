@@ -62,6 +62,8 @@ internal static class EndpointMap
     // Сотрудники — справочник ядра (CORE-7, issue #962). Дверь тонкая: хранение общее с каталогом,
     // своя она ради отдельного права core.employees.*.
     app.MapEmployeeEndpoints();
+    // Таблицы модулей (ТЗ CORE-33, G1b, issue #1089): ключ проверяет служба по объявлению таблицы.
+    app.MapTableEndpoints();
     app.MapGenerationEndpoints();
 
     // Адреса включённых модулей — каждый в своей группе (см. AppModuleExtensions.MapAppModules).

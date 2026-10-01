@@ -27,7 +27,7 @@ public class SystemDataSetAccessTests
         public bool Handles(string marker) => marker == SystemDataSets.SetDocumentsMarker;
 
         public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-            CatalogScope scope, Guid? scopeId, CancellationToken ct)
+            CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
 
         public Task<DataSetParseResult> ProvideAsync(

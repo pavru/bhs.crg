@@ -850,6 +850,12 @@ DELETE /api/employees/{id}
                                     /api/common-data, пока пути чтения не разведены (STG-11).
                                     Поле связи с учётной записью заперто: значение кладёт код,
                                     а действия «связать» в этапе 1 нет.
+GET    /api/tables                          → таблицы модулей, открытые спрашивающему (CORE-33, #1089)
+GET    /api/tables/{модуль.таблица}?columns=a,b → колонки с видом, операторами и причиной + строки
+                                    Ключ проверяет объявление таблицы, а не группа. Колонка без
+                                    права, исчезнувшая из типа или выключенного модуля приходит
+                                    С ПРИЧИНОЙ (no-right / removed / module-off), а не пропадает.
+                                    Та же таблица — системный набор `system:table:модуль.таблица`.
 
 GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved }
 PUT    /api/settings/company                { timeZoneId }  — null снимает настройку
