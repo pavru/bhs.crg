@@ -96,7 +96,7 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
     private static TableSql<Invoice> Sql(Dictionary<Guid, string> names) =>
-        new TableSql<Invoice>(InvoiceTable.Declaration)
+        TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
             .Lookup(InvoiceRequisites.SupplierKey, i => i.SupplierId, names)
@@ -109,7 +109,7 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
             .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
             .Lookup(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Lookup(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
-            .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString());
+            .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
 
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open)

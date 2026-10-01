@@ -101,6 +101,66 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         // Поле схемы с числами и текстом: числа по значению, не-числа и пустые — после них.
         var byWeight = await Order($"{seed.Weight}:desc,Номер");
         Assert.Equal(["5", "1", "3", "4"], byWeight[..4]);
+
+        // Справочник-перечисление (в базе код строкой): по НАЗВАНИЮ — «Не оплачен», «Оплачен»,
+        // «Частично оплачен», — а не по коду и не по порядку значений перечисления.
+        Assert.Equal(["1", "4", "5", "7", "8", "2", "6", "3"], await Order("СостояниеОплаты,Номер"));
+    }
+
+    /// <summary>
+    /// В строках едут только ЗАПРОШЕННЫЕ колонки. Отбирать и сортировать при этом можно по любой
+    /// открытой — в том числе по той, которой на экране нет.
+    /// </summary>
+    [Fact]
+    public async Task В_строках_только_запрошенные_колонки_а_отбор_идёт_по_любой_открытой()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var seed = await SeedAsync(client);
+        var filter = Uri.EscapeDataString(
+            $$"""{"type":"group","logic":"and","children":[{"type":"condition","column":"Номер","op":"starts_with","value":"{{seed.Tag}}"},{"type":"condition","column":"Итого","op":"gt","value":"1000"}]}""");
+
+        var table = await ReadAsync(client, $"columns=Номер,Срок&sort=Итого:desc&filter={filter}");
+
+        var rows = table.GetProperty("rows").EnumerateArray().ToList();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, r => Assert.Equal(
+            ["Номер", "Срок"], r.EnumerateObject().Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal)));
+        Assert.EndsWith("-3", rows[0].GetProperty("Номер").GetString());   // 5000 раньше 1500
+    }
+
+    /// <summary>
+    /// Длинный отбор идёт телом запроса: в адресе он упирается в потолок длины строки запроса, который
+    /// ставит сервер перед приложением, — и отказ пришёл бы без причины.
+    /// </summary>
+    [Fact]
+    public async Task Длинный_отбор_идёт_телом_запроса()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var seed = await SeedAsync(client);
+        var many = Enumerable.Range(0, 400).Select(i => $"Поставщик с очень длинным названием № {i}")
+            .Append("ООО «Наша компания»");
+        var filter = JsonSerializer.Serialize(new
+        {
+            type = "group", logic = "and",
+            children = new object[]
+            {
+                new { type = "condition", column = "Номер", op = "starts_with", value = seed.Tag },
+                new { type = "condition", column = "Поставщик", op = "in", values = many },
+            },
+        });
+        Assert.True(Uri.EscapeDataString(filter).Length > 16_000);
+
+        var response = await client.PostAsJsonAsync($"/api/tables/{Address}/query", new
+        {
+            columns = new[] { "Номер" }, filter, sort = new[] { new { column = "Номер", descending = false } },
+            limit = 5, totals = new[] { "Итого" },
+        });
+        await OkAsync(response);
+        var table = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(1, table.GetProperty("count").GetInt32());
+        Assert.EndsWith("-6", table.GetProperty("rows")[0].GetProperty("Номер").GetString());
+        Assert.Equal(1500m, table.GetProperty("totals").GetProperty("Итого").GetProperty("sum").GetDecimal());
     }
 
     [Fact]
@@ -128,6 +188,8 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
     [InlineData("""{"type":"condition","column":"Итого","op":"gt","value":"много"}""", "не число")]
     [InlineData("""{"type":"condition","column":"Срок","op":"lt","value":"01.05.2026"}""", "не дата")]
     [InlineData("""{"type":"condition","column":"Срок","op":"between","values":["2026-05-01"]}""", "две границы")]
+    [InlineData("""{"type":"condition","column":"Номер","op":"in","values":[null]}""", "пустое место")]
+    [InlineData("""{"type":"condition","column":"Номер","op":"eq","values":["а","б"]}""", "одно значение")]
     [InlineData("""{"type":"condition","column":"Номер","op":"похоже","value":"1"}""", "которого нет")]
     [InlineData("""["не дерево"]""", "не разбирается")]
     public async Task Битый_отбор_отказывает(string filter, string reason)

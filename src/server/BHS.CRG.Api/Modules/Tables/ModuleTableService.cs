@@ -78,8 +78,12 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
             .ToList();
         var marked = Mark(columns, requested).ToList();
 
+        // Два множества, и путать их нельзя. ОТКРЫТЫЕ — всё, что человеку можно: по ним идут отбор,
+        // сортировка и итог, даже если колонки нет на экране. ПОКАЗАННЫЕ — открытые из запрошенных:
+        // только они едут в строках, иначе `?columns=Номер` тащил бы в каждой строке всю таблицу.
         var open = columns.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
-        var (query, refusal) = ModuleTableQueries.Build(table.Title, columns, open, request, access.UserId!.Value);
+        var shown = marked.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+        var (query, refusal) = ModuleTableQueries.Build(table.Title, columns, open, shown, request, access.UserId!.Value);
         if (query is null) return (null, refusal);
 
         var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
@@ -87,7 +91,7 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
 
         // Вычистка — здесь, а не в службе модуля: служба вправе не считать закрытое, но гарантия
         // обязана стоять в одном месте. Забытое службой значение суммы иначе ушло бы наружу.
-        return (Dto(entry, marked, [.. page.Rows.Select(r => Only(r, open))]) with
+        return (Dto(entry, marked, [.. page.Rows.Select(r => Only(r, shown))]) with
         {
             Count = page.Count,
             Offset = request.Offset,
@@ -134,7 +138,8 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
 
     /// <summary>Системные колонки модуля — то, что лежит в его коде, без схемы заказчика.</summary>
     private static List<TableColumnDto> Declared(ModuleTable table) => [.. table.Columns
-        .Select(c => new TableColumnDto(c.Key, c.Title, KindOf(c.Kind), TableOperators.For(KindOf(c.Kind)), true))];
+        .Select(c => new TableColumnDto(
+            c.Key, c.Title, TableKinds.Name(c.Kind), TableOperators.For(TableKinds.Name(c.Kind)), true))];
 
     /// <summary>
     /// Запрошенные колонки в запрошенном порядке; ключ, которого нет, — колонка с причиной «поле
@@ -168,14 +173,6 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         ModuleTableEntry entry, IReadOnlyList<TableColumnDto> columns,
         IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string? state = null) =>
         new(entry.Address, entry.Table.Title, entry.Table.Grain, entry.Table.Boundary, columns, rows, state);
-
-    public static string KindOf(ModuleTableColumnKind kind) => kind switch
-    {
-        ModuleTableColumnKind.Number => TableOperators.Number,
-        ModuleTableColumnKind.Date => TableOperators.Date,
-        ModuleTableColumnKind.Boolean => TableOperators.Boolean,
-        _ => TableOperators.Text,
-    };
 
     /// <summary>
     /// Вид поля схемы (или базы примитива) → вид колонки. Перечисление, строка, текст — текстом: в

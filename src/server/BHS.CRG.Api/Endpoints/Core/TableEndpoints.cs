@@ -30,19 +30,36 @@ public static class TableEndpoints
             string address, string? columns, string? filter, string? sort, string? totals, int? offset, int? limit,
             ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
         {
-            // Страница есть ВСЕГДА: экран, забывший её попросить, получил бы таблицу целиком.
-            var request = new TableRequest(
-                List(columns), filter,
-                [.. (List(sort) ?? []).Select(SortOf)],
-                Math.Max(offset ?? 0, 0),
-                Math.Clamp(limit ?? DefaultPage, 1, MaxPage),
-                List(totals));
-            var (table, refusal) = await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct);
-            return table is not null
-                ? Results.Ok(table)
-                : Results.Json(new { error = refusal!.Error }, statusCode: refusal.Status);
+            var request = Paged(
+                List(columns), filter, [.. (List(sort) ?? []).Select(SortOf)], offset, limit, List(totals));
+            return Answer(await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct));
+        });
+
+        // То же телом запроса. Дерево условий в адресе упирается в потолок длины строки запроса —
+        // а его ставит сервер перед приложением, и отказ пришёл бы без причины: перечень из
+        // семидесяти поставщиков кириллицей — уже около 8 КБ. Экран с длинным отбором идёт сюда.
+        g.MapPost("/{address}/query", async (
+            string address, TableQueryBody body,
+            ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
+        {
+            var request = Paged(body.Columns, body.Filter, body.Sort ?? [], body.Offset, body.Limit, body.Totals);
+            return Answer(await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct));
         });
     }
+
+    /// <summary>Запрос к таблице телом. <c>Filter</c> — строка с JSON, как и отбор источника набора.</summary>
+    public sealed record TableQueryBody(
+        string[]? Columns, string? Filter, TableSortRequest[]? Sort, int? Offset, int? Limit, string[]? Totals);
+
+    /// <summary>Страница есть ВСЕГДА: экран, забывший её попросить, получил бы таблицу целиком.</summary>
+    private static TableRequest Paged(
+        IReadOnlyList<string>? columns, string? filter, IReadOnlyList<TableSortRequest> sort,
+        int? offset, int? limit, IReadOnlyList<string>? totals) => new(
+        columns, filter, sort, Math.Max(offset ?? 0, 0), Math.Clamp(limit ?? DefaultPage, 1, MaxPage), totals);
+
+    private static IResult Answer((TableDto? Table, TableRefusal? Refusal) read) => read.Table is not null
+        ? Results.Ok(read.Table)
+        : Results.Json(new { error = read.Refusal!.Error }, statusCode: read.Refusal.Status);
 
     private const int DefaultPage = 100;
     private const int MaxPage = 1000;

@@ -132,32 +132,74 @@ public class TableConditionsTests
         Assert.Equal(TableConditions.DatePattern, TableSqlRules.DatePattern);
     }
 
-    private sealed class Probe
-    {
-        public string? Number { get; set; }
-    }
-
     /// <summary>
-    /// Запросу описаны ВСЕ объявленные колонки. Забытая ушла бы в поля схемы, отбор по ней искал бы
-    /// ключ в данных записи и отвечал «ничего не найдено» — отказом, переодетым в результат.
+    /// Запросу описаны ВСЕ объявленные колонки — и проверяется это при СБОРКЕ описания, то есть на любом
+    /// чтении таблицы. Забытая ушла бы в поля схемы, отбор по ней искал бы ключ в данных записи и
+    /// отвечал «ничего не найдено»; а проверка «при первом отборе» молчала бы, пока таблицу только читают.
     /// </summary>
     [Fact]
-    public void Запрос_без_описания_объявленной_колонки_отказывает_и_называет_её()
+    public void Описание_без_объявленной_колонки_отказывает_при_сборке_и_называет_её()
     {
         var table = new ModuleTable(
             "probe", "Проба", "запись", "probe", ModuleTableIsolation.None, "Отдаёт всё",
-            [new("Номер", "Номер", ModuleTableColumnKind.Text), new("Сумма", "Сумма", ModuleTableColumnKind.Number)],
+            [
+                new("Номер", "Номер", ModuleTableColumnKind.Text),
+                new("Сумма", "Сумма", ModuleTableColumnKind.Number),
+                new("Срочно", "Срочно", ModuleTableColumnKind.Boolean),
+            ],
             typeof(object));
-        var sql = new TableSql<Probe>(table).Text("Номер", p => p.Number).Fields(_ => p => p.Number);
-        var condition = new TableFilterCondition("Сумма", ModuleTableColumnKind.Number, "gt", ["1"], _ => true);
 
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            sql.Where(Array.Empty<Probe>().AsQueryable(), condition));
-        Assert.Contains("«Сумма»", error.Message);
+        var missing = Assert.Throws<InvalidOperationException>(() => TableSql<Probe>.Describe(table, sql => sql
+            .Text("Номер", p => p.Number).Flag("Срочно", p => p.Urgent).Fields(_ => p => p.Number)));
+        Assert.Contains("«Сумма»", missing.Message);
+        Assert.DoesNotContain("«Номер»", missing.Message);
 
-        // И колонка, описанная не тем видом, — тоже: число, описанное текстом, сравнивалось бы строками.
-        var wrong = new TableSql<Probe>(table).Text("Номер", p => p.Number).Text("Сумма", p => p.Number);
-        Assert.Contains("«Сумма»", Assert.Throws<InvalidOperationException>(() =>
-            wrong.Where(Array.Empty<Probe>().AsQueryable(), condition)).Message);
+        // Колонка, описанная не тем видом, — тоже: число, описанное текстом, сравнивалось бы строками.
+        var wrong = Assert.Throws<InvalidOperationException>(() => TableSql<Probe>.Describe(table, sql => sql
+            .Text("Номер", p => p.Number).Text("Сумма", p => p.Number).Flag("Срочно", p => p.Urgent)));
+        Assert.Contains("«Сумма»", wrong.Message);
+
+        // Полное описание собирается — в том числе колонка-флаг: у каждого объявляемого вида есть чем её описать.
+        TableSql<Probe>.Describe(table, sql => sql
+            .Text("Номер", p => p.Number).Number("Сумма", p => p.Total).Flag("Срочно", p => p.Urgent));
+    }
+
+    private sealed class Probe
+    {
+        public string? Number { get; set; }
+        public decimal? Total { get; set; }
+        public bool? Urgent { get; set; }
+    }
+
+    // ── Число значений — одна проверка на оба режима ──────────────────────────
+
+    /// <summary>
+    /// «Равно» с двумя значениями (перепутали с перечнем) отказывает и у файлового набора: иначе
+    /// сравнение шло бы с первым значением, строки второго пропадали бы, а выдача выглядела бы правильной.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"type":"condition","column":"К","op":"eq","values":["а","б"]}""", "одно значение")]
+    [InlineData("""{"type":"condition","column":"К","op":"is_empty","values":["а"]}""", "значения не принимает")]
+    [InlineData("""{"type":"condition","column":"К","op":"in","values":[null]}""", "пустое место")]
+    [InlineData("""{"type":"condition","column":"К","op":"contains","values":[null]}""", "пустое место")]
+    [InlineData("""{"type":"condition","column":"К","op":"eq","value":"а","values":["б"]}""", "дважды")]
+    public void Негодное_число_значений_отказывает_в_обоих_режимах(string filter, string reason)
+    {
+        var byGuess = Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(filter, Rows("К", "а")));
+        Assert.Contains(reason, byGuess.Message);
+
+        var byKind = Assert.Throws<ConflictException>(() =>
+            DataSetRowFilterExecutor.Apply(filter, Rows("К", "а"), "т", Typed("К", TableOperators.Text)));
+        Assert.Contains(reason, byKind.Message);
+    }
+
+    /// <summary>Отборы, сохранённые до G1c, несут пустое «value» у «пусто» — и обязаны работать.</summary>
+    [Fact]
+    public void Прежняя_запись_условия_без_значения_работает()
+    {
+        var rows = Rows("К", "а", "", null);
+
+        Assert.Equal(2, DataSetRowFilterExecutor.Apply(One("К", "is_empty", ""), rows).Count);
+        Assert.Equal(2, DataSetRowFilterExecutor.Apply("""{"type":"condition","column":"К","op":"eq"}""", rows).Count);
     }
 }

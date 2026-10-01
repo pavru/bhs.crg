@@ -86,6 +86,25 @@ public static class TableOperators
         _ => 1,
     };
 
+    /// <summary>
+    /// Что не так с числом значений условия; null — годно. ОДНА проверка на оба режима исполнителя
+    /// (по догадке и по виду) и на экран таблицы: у каждого своя разошлась бы текстом и строгостью —
+    /// «равно» с двумя значениями один режим отверг бы, а другой молча сравнил бы с первым.
+    /// </summary>
+    public static string? ArityProblem(string op, IReadOnlyList<string?> values)
+    {
+        if (values.Any(v => v is null)) return $"среди значений оператора «{op}» есть пустое место (null)";
+
+        return Arity(op) switch
+        {
+            0 when values.Count != 0 => $"оператор «{op}» значения не принимает, а их задано {values.Count}",
+            1 when values.Count != 1 => $"оператору «{op}» нужно одно значение, а задано {values.Count}",
+            2 when values.Count != 2 => $"оператору «{op}» нужны две границы, а значений задано {values.Count}",
+            < 0 when values.Count == 0 => $"оператору «{op}» нужен список значений, а он пуст",
+            _ => null,
+        };
+    }
+
     public static IReadOnlyList<string> For(string kind) =>
         ByKind.TryGetValue(kind, out var ops)
             ? ops

@@ -96,7 +96,8 @@ public static class DataSetRowFilterExecutor
         DataSetColumnTypes? types = null)
     {
         if (Parse(rowFilterJson, sourceName, types) is not { } root) return rows;
-        return rows.Where(row => Evaluate(root, row, types)).ToList();
+        var test = Compile(root, types);
+        return rows.Where(test).ToList();
     }
 
     /// <summary>
@@ -155,16 +156,16 @@ public static class DataSetRowFilterExecutor
                     $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}», "
                     + "которого нет.");
 
+            // Значение — в одном месте: «value» и «values» разом — это два разных условия в одном
+            // узле, и какое из них имел в виду автор, исполнитель не знает.
+            if (node.Value is not null && node.Values is { Length: > 0 })
+                throw Refuse(sourceName,
+                    $"{Place("условие", path)} по колонке «{node.Column}» несёт значение дважды — и в "
+                    + "«value», и в «values».");
+
             var values = ValuesOf(node);
-            var arity = TableOperators.Arity(op);
-            if (arity == 2 && values.Count != 2)
-                throw Refuse(sourceName,
-                    $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}»: ему "
-                    + $"нужны две границы, а значений задано {values.Count}.");
-            if (arity < 0 && values.Count == 0)
-                throw Refuse(sourceName,
-                    $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}»: ему "
-                    + "нужен список значений, а он пуст.");
+            if (TableOperators.ArityProblem(op, values) is { } arity)
+                throw Refuse(sourceName, $"{Place("условие", path)} по колонке «{node.Column}»: {arity}.");
 
             // Колонка, пришедшая без значений (нет права на суммы): у пустых клеток отбор вернул бы
             // «ничего не нашлось» — человек без права получил бы пустой набор вместо отказа.
@@ -208,29 +209,31 @@ public static class DataSetRowFilterExecutor
             inner);
     }
 
-    static bool Evaluate(FilterNode node, IReadOnlyDictionary<string, string?> row, DataSetColumnTypes? types)
+    /// <summary>
+    /// Дерево, готовое к строкам: колонка, оператор и значения каждого условия разобраны ОДИН раз, а
+    /// не на каждой строке. Дерево обязано быть проверенным (<see cref="Validate" />).
+    /// </summary>
+    static Func<IReadOnlyDictionary<string, string?>, bool> Compile(FilterNode node, DataSetColumnTypes? types)
     {
         if (node.Type == "condition")
-            return Match(node, row, types);
+        {
+            var column = node.Column ?? "";
+            var op = node.Op ?? "eq";
+            var values = ValuesOf(node);
+
+            // Колонка с объявленным видом — по виду; остальные (файл, вычисляемая колонка) — по догадке.
+            Func<string?, bool> test = types is not null && types.Kinds.TryGetValue(column, out var kind)
+                ? TableConditions.Compile(kind, op, values)
+                : cell => Ops[op](cell ?? "", values);
+            return row => test(row.TryGetValue(column, out var cell) ? cell : null);
+        }
 
         // group — вид узла и логика уже проверены (Validate), так что иных ветвей здесь нет.
-        var children = node.Children ?? [];
-        if (children.Length == 0) return true;   // группа без условий ничего не ограничивает
+        var children = (node.Children ?? []).Select(c => Compile(c, types)).ToArray();
+        if (children.Length == 0) return _ => true;   // группа без условий ничего не ограничивает
         return node.Logic == "or"
-            ? children.Any(c => Evaluate(c, row, types))
-            : children.All(c => Evaluate(c, row, types));
-    }
-
-    static bool Match(FilterNode cond, IReadOnlyDictionary<string, string?> row, DataSetColumnTypes? types)
-    {
-        var col = cond.Column ?? "";
-        var cell = row.TryGetValue(col, out var v) ? v : null;
-        var op = cond.Op ?? "eq";
-
-        // Колонка с объявленным видом — по виду; остальные (файл, вычисляемая колонка) — по догадке.
-        return types is not null && types.Kinds.TryGetValue(col, out var kind)
-            ? TableConditions.Matches(kind, op, ValuesOf(cond), cell)
-            : Ops[op](cell ?? "", ValuesOf(cond));
+            ? row => children.Any(c => c(row))
+            : row => children.All(c => c(row));
     }
 
     static int CompareNumOrStr(string a, string b)

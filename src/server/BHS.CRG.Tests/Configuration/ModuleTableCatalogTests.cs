@@ -204,12 +204,18 @@ public class ModuleTableCatalogTests
             DataSetRowFilterExecutor.Operators.OrderBy(o => o, StringComparer.Ordinal));
     }
 
-    /// <summary>У каждого вида колонки модуля есть операторы — иначе колонку нечем отбирать.</summary>
+    /// <summary>
+    /// У каждого вида колонки модуля есть имя для потребителя, операторы — и обратный перевод даёт тот
+    /// же вид. Вид, забытый в таблице соответствия, иначе молча стал бы текстом.
+    /// </summary>
     [Fact]
-    public void У_каждого_вида_колонки_есть_операторы()
+    public void У_каждого_вида_колонки_есть_операторы_и_перевод_в_обе_стороны()
     {
         foreach (var kind in Enum.GetValues<ModuleTableColumnKind>())
-            Assert.NotEmpty(TableOperators.For(BHS.CRG.Api.Modules.Tables.ModuleTableService.KindOf(kind)));
+        {
+            Assert.NotEmpty(TableOperators.For(TableKinds.Name(kind)));
+            Assert.Equal(kind, TableKinds.Parse(TableKinds.Name(kind)));
+        }
     }
 
     /// <summary>Зеркало вида отбора совпадает с исходным по составу — см. <see cref="ModuleTableIsolation" />.</summary>

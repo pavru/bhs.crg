@@ -21,18 +21,35 @@ public static class TableSqlRules
 /// запрос пишет тот, кто знает свою базу, а смысл операторов остаётся один на все модули: «содержит»
 /// не различает регистр, «не равно» включает пустые клетки, сравнение числа не трогает клетку с текстом.</para>
 ///
-/// <para><b>Описать надо КАЖДУЮ объявленную колонку</b> — проверяется перед первым запросом. Забытая
+/// <para><b>Описать надо КАЖДУЮ объявленную колонку</b> — проверяется при сборке
+/// (<see cref="Describe" />), то есть на ЛЮБОМ чтении таблицы, а не на первом отборе. Забытая
 /// системная колонка иначе ушла бы в поля схемы, отбор по ней искал бы ключ в данных записи, не нашёл
-/// бы — и ответил «ничего не найдено», а не отказом.</para>
+/// бы — и ответил «ничего не найдено», а не отказом; а проверка «при первом отборе» молчала бы, пока
+/// таблицу только читают.</para>
 ///
 /// <para>Правило, добавленное сюда и забытое у исполнителя в памяти (или наоборот), роняет парный
 /// тест: один отбор на одних данных обязан вернуть одни строки.</para>
 /// </summary>
-public sealed partial class TableSql<T>(ModuleTable declaration) where T : class
+public sealed partial class TableSql<T> where T : class
 {
+    private readonly ModuleTable declaration;
     private readonly Dictionary<string, Column> _columns = new(StringComparer.Ordinal);
     private Func<string, Expression<Func<T, string?>>>? _field;
-    private bool _checked;
+
+    private TableSql(ModuleTable declaration) => this.declaration = declaration;
+
+    /// <summary>
+    /// Описать колонки таблицы. Описание проверяется ЗДЕСЬ: каждая объявленная колонка обязана быть
+    /// описана, и тем же видом. Негодное описание не даёт прочитать таблицу вовсе — его ловит первый
+    /// же тест, читающий таблицу, а не первый пользователь, нажавший «сортировать».
+    /// </summary>
+    public static TableSql<T> Describe(ModuleTable declaration, Action<TableSql<T>> columns)
+    {
+        var sql = new TableSql<T>(declaration);
+        columns(sql);
+        sql.EnsureComplete();
+        return sql;
+    }
 
     /// <summary>Текстовая колонка.</summary>
     public TableSql<T> Text(string key, Expression<Func<T, string?>> value) => Add(key, new TextColumn(value));
@@ -43,6 +60,9 @@ public sealed partial class TableSql<T>(ModuleTable declaration) where T : class
 
     /// <summary>Колонка-дата.</summary>
     public TableSql<T> Date(string key, Expression<Func<T, DateOnly?>> value) => Add(key, new DateColumn(value));
+
+    /// <summary>Колонка-флаг.</summary>
+    public TableSql<T> Flag(string key, Expression<Func<T, bool?>> value) => Add(key, new FlagColumn(value));
 
     /// <summary>
     /// Колонка-справочник: в базе ссылка (или код), человеку — название. Отбор и сортировка идут по
@@ -102,7 +122,6 @@ public sealed partial class TableSql<T>(ModuleTable declaration) where T : class
 
     private Column Resolve(string key, ModuleTableColumnKind kind)
     {
-        EnsureComplete();
         if (_columns.TryGetValue(key, out var column)) return column;
         if (_field is null)
             throw new InvalidOperationException(
@@ -119,8 +138,6 @@ public sealed partial class TableSql<T>(ModuleTable declaration) where T : class
 
     private void EnsureComplete()
     {
-        if (_checked) return;
-
         var broken = declaration.Columns
             .Where(c => !_columns.TryGetValue(c.Key, out var column) || column.Kind != c.Kind)
             .Select(c => $"«{c.Key}»")
@@ -130,6 +147,5 @@ public sealed partial class TableSql<T>(ModuleTable declaration) where T : class
                 $"Таблица «{declaration.Code}»: колонки {string.Join(", ", broken)} объявлены, а запросу не " +
                 "описаны (или описаны другим видом). Отбор по такой колонке искал бы её среди полей схемы " +
                 "и отвечал бы «ничего не найдено».");
-        _checked = true;
     }
 }

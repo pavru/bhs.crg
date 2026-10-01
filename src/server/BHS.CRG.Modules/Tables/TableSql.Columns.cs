@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -24,30 +25,47 @@ public sealed partial class TableSql<T>
         public abstract IOrderedQueryable<T> Order(IQueryable<T> rows, bool descending, bool first);
         public abstract Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct);
 
-        protected static bool IsEmptyOp(string op) => op is "is_empty" or "is_null";
-        protected static bool IsNotEmptyOp(string op) => op is "is_not_empty" or "is_not_null";
+        /// <summary>
+        /// Операторы, общие всем видам: «пусто», равенство и перечень. Отрицания — именно «не подошло
+        /// под положительное», поэтому «не равно» включает пустые клетки. null — оператор не из общих,
+        /// его переводит сама колонка.
+        /// </summary>
+        protected static Expression<Func<T, bool>>? Common(
+            TableFilterCondition condition, Expression<Func<T, bool>> isEmpty,
+            Func<string, Expression<Func<T, bool>>> equalTo) => condition.Op switch
+        {
+            "is_empty" or "is_null" => isEmpty,
+            "is_not_empty" or "is_not_null" => Not(isEmpty),
+            "eq" => equalTo(condition.Values[0]),
+            "neq" => Not(equalTo(condition.Values[0])),
+            "in" => condition.Values.Select(equalTo).Aggregate(Or),
+            "not_in" => Not(condition.Values.Select(equalTo).Aggregate(Or)),
+            _ => null,
+        };
+
+        protected static InvalidOperationException Unknown(TableFilterCondition condition) =>
+            new($"Оператора «{condition.Op}» у колонки «{condition.Column}» запрос к базе не умеет.");
     }
 
     /// <summary>Текст: регистр не различается, пустая клетка — пустая строка.</summary>
     private sealed class TextColumn(Expression<Func<T, string?>> value) : Column
     {
+        private readonly Expression<Func<T, string>> _upper = Compose(value, s => (s ?? "").ToUpper());
+
         public override ModuleTableColumnKind Kind => ModuleTableColumnKind.Text;
 
         public override Expression<Func<T, bool>> Test(TableFilterCondition condition)
         {
-            var upper = Compose(value, s => (s ?? "").ToUpper());
+            if (Common(condition, Compose(value, TextIsEmpty), v => With(v, (s, text) => s == text)) is { } common)
+                return common;
+
+            var value0 = condition.Values[0];
             return condition.Op switch
             {
-                _ when IsEmptyOp(condition.Op) => Compose(value, TextIsEmpty),
-                _ when IsNotEmptyOp(condition.Op) => Not(Compose(value, TextIsEmpty)),
-                "eq" => Equal(upper, Upper(condition.Values[0])),
-                "neq" => Not(Equal(upper, Upper(condition.Values[0]))),
-                "in" => AnyOf(condition.Values.Select(v => Equal(upper, Upper(v)))),
-                "not_in" => Not(AnyOf(condition.Values.Select(v => Equal(upper, Upper(v))))),
-                "contains" => Contains(upper, Upper(condition.Values[0])),
-                "not_contains" => Not(Contains(upper, Upper(condition.Values[0]))),
-                "starts_with" => StartsWith(upper, Upper(condition.Values[0])),
-                "ends_with" => EndsWith(upper, Upper(condition.Values[0])),
+                "contains" => With(value0, (s, text) => s.Contains(text)),
+                "not_contains" => Not(With(value0, (s, text) => s.Contains(text))),
+                "starts_with" => With(value0, (s, text) => s.StartsWith(text)),
+                "ends_with" => With(value0, (s, text) => s.EndsWith(text)),
                 _ => throw Unknown(condition),
             };
         }
@@ -58,19 +76,12 @@ public sealed partial class TableSql<T>
         public override async Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct) =>
             new(await rows.LongCountAsync(Not(Compose(value, TextIsEmpty)), ct), 0);
 
-        private static string Upper(string text) => text.ToUpperInvariant();
-
-        private static Expression<Func<T, bool>> Equal(Expression<Func<T, string>> cell, string text) =>
-            Compose(cell, s => s == text);
-
-        private static Expression<Func<T, bool>> Contains(Expression<Func<T, string>> cell, string text) =>
-            Compose(cell, s => s.Contains(text));
-
-        private static Expression<Func<T, bool>> StartsWith(Expression<Func<T, string>> cell, string text) =>
-            Compose(cell, s => s.StartsWith(text));
-
-        private static Expression<Func<T, bool>> EndsWith(Expression<Func<T, string>> cell, string text) =>
-            Compose(cell, s => s.EndsWith(text));
+        /// <summary>Правило над клеткой без регистра и значением условия без регистра.</summary>
+        private Expression<Func<T, bool>> With(string text, Expression<Func<string, string, bool>> rule)
+        {
+            var upper = text.ToUpperInvariant();
+            return Compose(_upper, Bind(rule, upper));
+        }
     }
 
     /// <summary>
@@ -86,27 +97,18 @@ public sealed partial class TableSql<T>
 
         public override Expression<Func<T, bool>> Test(TableFilterCondition condition)
         {
-            decimal At(int index) => decimal.Parse(condition.Values[index], System.Globalization.CultureInfo.InvariantCulture);
-            Expression<Func<T, bool>> EqualTo(decimal number) => Compose(value, n => n == number);
+            static decimal Parse(string text) => decimal.Parse(text, CultureInfo.InvariantCulture);
 
-            switch (condition.Op)
-            {
-                case var op when IsEmptyOp(op): return IsEmpty;
-                case var op when IsNotEmptyOp(op): return Not(IsEmpty);
-                case "eq": return EqualTo(At(0));
-                case "neq": return Not(EqualTo(At(0)));
-                case "in": return AnyOf(condition.Values.Select((_, i) => EqualTo(At(i))));
-                case "not_in": return Not(AnyOf(condition.Values.Select((_, i) => EqualTo(At(i)))));
-            }
+            if (Common(condition, IsEmpty, v => With(Parse(v), (n, x) => n == x)) is { } common) return common;
 
-            var (a, b) = (At(0), condition.Values.Count > 1 ? At(1) : 0m);
+            var a = Parse(condition.Values[0]);
             return condition.Op switch
             {
-                "gt" => Compose(value, n => n > a),
-                "gte" => Compose(value, n => n >= a),
-                "lt" => Compose(value, n => n < a),
-                "lte" => Compose(value, n => n <= a),
-                "between" => Compose(value, n => n >= a && n <= b),
+                "gt" => With(a, (n, x) => n > x),
+                "gte" => With(a, (n, x) => n >= x),
+                "lt" => With(a, (n, x) => n < x),
+                "lte" => With(a, (n, x) => n <= x),
+                "between" => And(With(a, (n, x) => n >= x), With(Parse(condition.Values[1]), (n, x) => n <= x)),
                 _ => throw Unknown(condition),
             };
         }
@@ -116,17 +118,24 @@ public sealed partial class TableSql<T>
 
         public override async Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct)
         {
-            var numbers = rows.Select(value).Where(n => n != null);
-            var count = await numbers.LongCountAsync(ct);
-            // Не число и не пусто — «не учтено». У настоящей числовой колонки таких не бывает.
-            var skipped = raw is null
-                ? 0
-                : await rows.LongCountAsync(And(Not(IsEmpty), Compose(value, n => n == null)), ct);
-            if (count == 0) return new(0, skipped);
+            // Один запрос на колонку. «Не учтено» — не число и не пусто; у настоящей числовой колонки
+            // текста нет, и таких не бывает.
+            var total = await rows.Select(Pair(value, raw)).GroupBy(_ => 1).Select(g => new
+            {
+                Count = g.LongCount(c => c.Value != null),
+                Skipped = g.LongCount(c => c.Value == null && c.Raw != null && c.Raw != ""),
+                Sum = g.Sum(c => c.Value),
+                Min = g.Min(c => c.Value),
+                Max = g.Max(c => c.Value),
+            }).FirstOrDefaultAsync(ct);
 
-            return new(count, skipped,
-                await numbers.SumAsync(ct), await numbers.MinAsync(ct), await numbers.MaxAsync(ct));
+            return total is null ? new(0, 0)
+                : total.Count == 0 ? new(0, total.Skipped)
+                : new(total.Count, total.Skipped, total.Sum, total.Min, total.Max);
         }
+
+        private Expression<Func<T, bool>> With(decimal number, Expression<Func<decimal?, decimal, bool>> rule) =>
+            Compose(value, Bind(rule, number));
     }
 
     /// <summary>Дата в колонке базы.</summary>
@@ -136,28 +145,19 @@ public sealed partial class TableSql<T>
 
         public override Expression<Func<T, bool>> Test(TableFilterCondition condition)
         {
-            DateOnly At(int index) => DateOnly.ParseExact(
-                condition.Values[index], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-            Expression<Func<T, bool>> EqualTo(DateOnly date) => Compose(value, d => d == date);
+            static DateOnly Parse(string text) => DateOnly.ParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-            switch (condition.Op)
-            {
-                case var op when IsEmptyOp(op): return Compose(value, d => d == null);
-                case var op when IsNotEmptyOp(op): return Compose(value, d => d != null);
-                case "eq": return EqualTo(At(0));
-                case "neq": return Not(EqualTo(At(0)));
-                case "in": return AnyOf(condition.Values.Select((_, i) => EqualTo(At(i))));
-                case "not_in": return Not(AnyOf(condition.Values.Select((_, i) => EqualTo(At(i)))));
-            }
+            if (Common(condition, Compose(value, d => d == null), v => With(Parse(v), (d, x) => d == x)) is { } common)
+                return common;
 
-            var (a, b) = (At(0), condition.Values.Count > 1 ? At(1) : default);
+            var a = Parse(condition.Values[0]);
             return condition.Op switch
             {
-                "gt" => Compose(value, d => d > a),
-                "gte" => Compose(value, d => d >= a),
-                "lt" => Compose(value, d => d < a),
-                "lte" => Compose(value, d => d <= a),
-                "between" => Compose(value, d => d >= a && d <= b),
+                "gt" => With(a, (d, x) => d > x),
+                "gte" => With(a, (d, x) => d >= x),
+                "lt" => With(a, (d, x) => d < x),
+                "lte" => With(a, (d, x) => d <= x),
+                "between" => And(With(a, (d, x) => d >= x), With(Parse(condition.Values[1]), (d, x) => d <= x)),
                 _ => throw Unknown(condition),
             };
         }
@@ -167,12 +167,12 @@ public sealed partial class TableSql<T>
 
         public override async Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct)
         {
-            var dates = rows.Select(value).Where(d => d != null);
-            var count = await dates.LongCountAsync(ct);
-            return count == 0
-                ? new(0, 0)
-                : new(count, 0, Min: await dates.MinAsync(ct), Max: await dates.MaxAsync(ct));
+            var (count, skipped, min, max) = await RangeAsync(rows, value, null, ct);
+            return count == 0 ? new(0, skipped) : new(count, skipped, Min: min, Max: max);
         }
+
+        private Expression<Func<T, bool>> With(DateOnly date, Expression<Func<DateOnly?, DateOnly, bool>> rule) =>
+            Compose(value, Bind(rule, date));
     }
 
     /// <summary>
@@ -187,26 +187,19 @@ public sealed partial class TableSql<T>
 
         public override Expression<Func<T, bool>> Test(TableFilterCondition condition)
         {
-            Expression<Func<T, bool>> EqualTo(string date) => Compose(_date, d => d == date);
+            if (Common(condition, Compose(raw, TextIsEmpty), v => With(v, (d, x) => d == x)) is { } common)
+                return common;
 
-            switch (condition.Op)
-            {
-                case var op when IsEmptyOp(op): return Compose(raw, TextIsEmpty);
-                case var op when IsNotEmptyOp(op): return Not(Compose(raw, TextIsEmpty));
-                case "eq": return EqualTo(condition.Values[0]);
-                case "neq": return Not(EqualTo(condition.Values[0]));
-                case "in": return AnyOf(condition.Values.Select(EqualTo));
-                case "not_in": return Not(AnyOf(condition.Values.Select(EqualTo)));
-            }
-
-            var (a, b) = (condition.Values[0], condition.Values.Count > 1 ? condition.Values[1] : "");
+            var a = condition.Values[0];
             return condition.Op switch
             {
-                "gt" => Compose(_date, d => string.Compare(d, a) > 0),
-                "gte" => Compose(_date, d => string.Compare(d, a) >= 0),
-                "lt" => Compose(_date, d => string.Compare(d, a) < 0),
-                "lte" => Compose(_date, d => string.Compare(d, a) <= 0),
-                "between" => Compose(_date, d => string.Compare(d, a) >= 0 && string.Compare(d, b) <= 0),
+                "gt" => With(a, (d, x) => string.Compare(d, x) > 0),
+                "gte" => With(a, (d, x) => string.Compare(d, x) >= 0),
+                "lt" => With(a, (d, x) => string.Compare(d, x) < 0),
+                "lte" => With(a, (d, x) => string.Compare(d, x) <= 0),
+                "between" => And(
+                    With(a, (d, x) => string.Compare(d, x) >= 0),
+                    With(condition.Values[1], (d, x) => string.Compare(d, x) <= 0)),
                 _ => throw Unknown(condition),
             };
         }
@@ -216,14 +209,29 @@ public sealed partial class TableSql<T>
 
         public override async Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct)
         {
-            var dates = rows.Select(_date).Where(d => d != null);
-            var count = await dates.LongCountAsync(ct);
-            var skipped = await rows.LongCountAsync(
-                And(Not(Compose(raw, TextIsEmpty)), Compose(_date, d => d == null)), ct);
-            return count == 0
-                ? new(0, skipped)
-                : new(count, skipped, Min: await dates.MinAsync(ct), Max: await dates.MaxAsync(ct));
+            var (count, skipped, min, max) = await RangeAsync(rows, _date, raw, ct);
+            return count == 0 ? new(0, skipped) : new(count, skipped, Min: min, Max: max);
         }
+
+        private Expression<Func<T, bool>> With(string date, Expression<Func<string?, string, bool>> rule) =>
+            Compose(_date, Bind(rule, date));
+    }
+
+    /// <summary>Флаг. Значение условия — «true» или «false».</summary>
+    private sealed class FlagColumn(Expression<Func<T, bool?>> value) : Column
+    {
+        public override ModuleTableColumnKind Kind => ModuleTableColumnKind.Boolean;
+
+        public override Expression<Func<T, bool>> Test(TableFilterCondition condition) =>
+            Common(condition, Compose(value, b => b == null),
+                v => Compose(value, Bind<bool?, bool, bool>((b, x) => b == x, v == "true")))
+            ?? throw Unknown(condition);
+
+        public override IOrderedQueryable<T> Order(IQueryable<T> rows, bool descending, bool first) =>
+            By(By(rows, Compose(value, b => b == null), false, first), value, descending, false);
+
+        public override async Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct) =>
+            new(await rows.LongCountAsync(Compose(value, b => b != null), ct), 0);
     }
 
     /// <summary>Справочник: ссылка в базе, название у человека.</summary>
@@ -255,7 +263,7 @@ public sealed partial class TableSql<T>
         public override IOrderedQueryable<T> Order(IQueryable<T> rows, bool descending, bool first)
         {
             var ordered = labels.Where(l => l.Value.Length > 0)
-                .OrderBy(l => l.Value, StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), true))
+                .OrderBy(l => l.Value, StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true))
                 .Select(l => (TKey?)l.Key).ToArray();
             return By(By(rows, Not(Known), false, first), Compose(id, key => Array.IndexOf(ordered, key)), descending, false);
         }
@@ -264,8 +272,44 @@ public sealed partial class TableSql<T>
             new(await rows.LongCountAsync(Known, ct), 0);
     }
 
-    private static InvalidOperationException Unknown(TableFilterCondition condition) =>
-        new($"Оператора «{condition.Op}» у колонки «{condition.Column}» запрос к базе не умеет.");
+    // ── Итоги ───────────────────────────────────────────────────────────────────
+
+    /// <summary>Значение колонки рядом с текстом клетки — чтобы итог и «не учтено» считал один запрос.</summary>
+    private sealed class Cell<TValue>
+    {
+        public TValue Value { get; init; } = default!;
+        public string? Raw { get; init; }
+    }
+
+    private static Expression<Func<T, Cell<TValue>>> Pair<TValue>(
+        Expression<Func<T, TValue>> value, Expression<Func<T, string?>>? raw)
+    {
+        var row = value.Parameters[0];
+        Expression text = raw is null
+            ? Expression.Constant(null, typeof(string))
+            : new Swap(raw.Parameters[0], row).Visit(raw.Body);
+        return Expression.Lambda<Func<T, Cell<TValue>>>(
+            Expression.MemberInit(
+                Expression.New(typeof(Cell<TValue>)),
+                Expression.Bind(typeof(Cell<TValue>).GetProperty(nameof(Cell<TValue>.Value))!, value.Body),
+                Expression.Bind(typeof(Cell<TValue>).GetProperty(nameof(Cell<TValue>.Raw))!, text)),
+            row);
+    }
+
+    /// <summary>Количество, «не учтено», минимум и максимум — одним запросом; для дат в обоих хранениях.</summary>
+    private static async Task<(long Count, long Skipped, object? Min, object? Max)> RangeAsync<TValue>(
+        IQueryable<T> rows, Expression<Func<T, TValue>> value, Expression<Func<T, string?>>? raw, CancellationToken ct)
+    {
+        var range = await rows.Select(Pair(value, raw)).GroupBy(_ => 1).Select(g => new
+        {
+            Count = g.LongCount(c => c.Value != null),
+            Skipped = g.LongCount(c => c.Value == null && c.Raw != null && c.Raw != ""),
+            Min = g.Min(c => c.Value),
+            Max = g.Max(c => c.Value),
+        }).FirstOrDefaultAsync(ct);
+
+        return range is null ? (0, 0, null, null) : (range.Count, range.Skipped, range.Min, range.Max);
+    }
 
     // ── Сборка выражений ────────────────────────────────────────────────────────
 
@@ -275,15 +319,29 @@ public sealed partial class TableSql<T>
         Expression.Lambda<Func<T, TOut>>(
             new Swap(rule.Parameters[0], column.Body).Visit(rule.Body), column.Parameters);
 
+    /// <summary>
+    /// Правило от клетки и значения условия → правило от клетки. Значение уходит в запрос ПАРАМЕТРОМ
+    /// (обращением к полю объекта), а не текстом: иначе на каждое новое значение отбора у провайдера
+    /// копился бы свой разобранный запрос.
+    /// </summary>
+    private static Expression<Func<TIn, TOut>> Bind<TIn, TArg, TOut>(Expression<Func<TIn, TArg, TOut>> rule, TArg argument)
+    {
+        var held = Expression.Property(Expression.Constant(new Held<TArg>(argument)), nameof(Held<TArg>.Value));
+        return Expression.Lambda<Func<TIn, TOut>>(
+            new Swap(rule.Parameters[1], held).Visit(rule.Body), rule.Parameters[0]);
+    }
+
+    private sealed class Held<TArg>(TArg value)
+    {
+        public TArg Value { get; } = value;
+    }
+
     private static Expression<Func<T, bool>> Not(Expression<Func<T, bool>> test) =>
         Expression.Lambda<Func<T, bool>>(Expression.Not(test.Body), test.Parameters);
 
     private static Expression<Func<T, bool>> And(Expression<Func<T, bool>> a, Expression<Func<T, bool>> b) => Join(a, b, false);
 
     private static Expression<Func<T, bool>> Or(Expression<Func<T, bool>> a, Expression<Func<T, bool>> b) => Join(a, b, true);
-
-    private static Expression<Func<T, bool>> AnyOf(IEnumerable<Expression<Func<T, bool>>> tests) =>
-        tests.Aggregate(Or);
 
     private static Expression<Func<T, bool>> Join(Expression<Func<T, bool>> a, Expression<Func<T, bool>> b, bool any)
     {

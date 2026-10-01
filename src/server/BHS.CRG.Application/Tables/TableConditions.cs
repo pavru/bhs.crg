@@ -41,13 +41,7 @@ public static partial class TableConditions
         if (!TableOperators.All.Contains(op)) return $"оператора «{op}» нет";
         if (!TableOperators.IsPresence(op) && !TableOperators.For(kind).Contains(op))
             return $"оператор «{op}» к колонке вида «{kind}» не применяется";
-
-        var arity = TableOperators.Arity(op);
-        if (arity >= 0 && values.Count != arity)
-            return arity == 0
-                ? $"оператор «{op}» значения не принимает, а их задано {values.Count}"
-                : $"оператору «{op}» нужно значений: {arity}, а задано {values.Count}";
-        if (arity < 0 && values.Count == 0) return $"оператору «{op}» нужен список значений, а он пуст";
+        if (TableOperators.ArityProblem(op, values) is { } arity) return arity;
 
         foreach (var value in values)
         {
@@ -63,37 +57,53 @@ public static partial class TableConditions
     }
 
     /// <summary>Подходит ли клетка под условие. Условие обязано быть годным (<see cref="Problem" />).</summary>
-    public static bool Matches(string kind, string op, IReadOnlyList<string> values, string? cell)
+    public static bool Matches(string kind, string op, IReadOnlyList<string> values, string? cell) =>
+        Compile(kind, op, values)(cell);
+
+    /// <summary>
+    /// Условие, готовое к строкам: значения разобраны ОДИН раз. Набор данных читает таблицу целиком, и
+    /// разбирать «110» заново на каждой из десятков тысяч строк незачем. Условие обязано быть годным.
+    /// </summary>
+    public static Func<string?, bool> Compile(string kind, string op, IReadOnlyList<string> values)
     {
         switch (op)
         {
-            case "is_empty" or "is_null": return string.IsNullOrEmpty(cell);
-            case "is_not_empty" or "is_not_null": return !string.IsNullOrEmpty(cell);
+            case "is_empty" or "is_null": return string.IsNullOrEmpty;
+            case "is_not_empty" or "is_not_null": return cell => !string.IsNullOrEmpty(cell);
             // Отрицания — именно «не подошло под положительное»: клетка без значения или с мусором
             // «не равна 5» и «не входит в список». Иначе «равно» и «не равно» вместе не давали бы всех строк.
-            case "neq": return !Matches(kind, "eq", values, cell);
-            case "not_in": return !Matches(kind, "in", values, cell);
-            case "not_contains": return !Matches(kind, "contains", values, cell);
-            case "in": return values.Any(v => Matches(kind, "eq", [v], cell));
+            case "neq": return Not(Compile(kind, "eq", values));
+            case "not_in": return Not(Compile(kind, "in", values));
+            case "not_contains": return Not(Compile(kind, "contains", values));
+            case "in":
+                var any = values.Select(v => Compile(kind, "eq", [v])).ToArray();
+                return cell => any.Any(test => test(cell));
         }
 
-        return kind switch
+        switch (kind)
         {
-            TableOperators.Number => Number(cell) is { } n && Compare(op, values, v => n.CompareTo(Number(v)!.Value)),
-            TableOperators.Date => Date(cell) is { } d && Compare(op, values, v => string.CompareOrdinal(d, v)),
-            _ => TextMatches(op, Upper(cell), Upper(values[0])),
-        };
+            case TableOperators.Number:
+                var numbers = values.Select(v => Number(v)!.Value).ToArray();
+                return cell => Number(cell) is { } n && Compare(op, i => n.CompareTo(numbers[i]));
+            case TableOperators.Date:
+                return cell => Date(cell) is { } d && Compare(op, i => string.CompareOrdinal(d, values[i]));
+            default:
+                var value = Upper(values[0]);
+                return cell => TextMatches(op, Upper(cell), value);
+        }
     }
 
-    /// <summary>Сравнения порядка и равенство — через одно сравнение клетки со значением условия.</summary>
-    private static bool Compare(string op, IReadOnlyList<string> values, Func<string, int> cellVersus) => op switch
+    private static Func<string?, bool> Not(Func<string?, bool> test) => cell => !test(cell);
+
+    /// <summary>Сравнения порядка и равенство — через одно сравнение клетки со значением условия по его номеру.</summary>
+    private static bool Compare(string op, Func<int, int> cellVersus) => op switch
     {
-        "eq" => cellVersus(values[0]) == 0,
-        "gt" => cellVersus(values[0]) > 0,
-        "gte" => cellVersus(values[0]) >= 0,
-        "lt" => cellVersus(values[0]) < 0,
-        "lte" => cellVersus(values[0]) <= 0,
-        "between" => cellVersus(values[0]) >= 0 && cellVersus(values[1]) <= 0,
+        "eq" => cellVersus(0) == 0,
+        "gt" => cellVersus(0) > 0,
+        "gte" => cellVersus(0) >= 0,
+        "lt" => cellVersus(0) < 0,
+        "lte" => cellVersus(0) <= 0,
+        "between" => cellVersus(0) >= 0 && cellVersus(1) <= 0,
         _ => false,
     };
 

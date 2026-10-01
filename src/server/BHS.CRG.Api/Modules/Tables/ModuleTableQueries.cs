@@ -23,7 +23,7 @@ public static class ModuleTableQueries
 {
     public static (ModuleTableQuery? Query, TableRefusal? Refusal) Build(
         string tableTitle, IReadOnlyList<TableColumnDto> columns, IReadOnlySet<string> open,
-        TableRequest request, Guid userId)
+        IReadOnlySet<string> shown, TableRequest request, Guid userId)
     {
         var byKey = columns.ToDictionary(c => c.Key, StringComparer.Ordinal);
 
@@ -37,7 +37,7 @@ public static class ModuleTableQueries
         foreach (var by in request.Sort ?? [])
         {
             if (Usable(by.Column, byKey, "сортировка", out var column) is { } problem) return (null, problem);
-            sort.Add(new TableSort(column!.Key, KindOf(column.Kind), by.Descending));
+            sort.Add(new TableSort(column!.Key, TableKinds.Parse(column.Kind), by.Descending));
         }
 
         // Итог по колонке, которой нет или которая закрыта, не считается молча: сама колонка приходит
@@ -45,9 +45,9 @@ public static class ModuleTableQueries
         var totals = (request.Totals ?? [])
             .Distinct(StringComparer.Ordinal)
             .Where(open.Contains)
-            .ToDictionary(key => key, key => KindOf(byKey[key].Kind), StringComparer.Ordinal);
+            .ToDictionary(key => key, key => TableKinds.Parse(byKey[key].Kind), StringComparer.Ordinal);
 
-        return (new ModuleTableQuery(open, userId, filter, sort, request.Offset, request.Limit, totals), null);
+        return (new ModuleTableQuery(shown, userId, filter, sort, request.Offset, request.Limit, totals), null);
     }
 
     /// <summary>Итог модуля → итог для потребителя: с названной причиной неучтённых значений.</summary>
@@ -86,7 +86,7 @@ public static class ModuleTableQueries
         }
 
         return new TableFilterCondition(
-            column.Key, KindOf(kind), op, values, cell => TableConditions.Matches(kind, op, values, cell));
+            column.Key, TableKinds.Parse(kind), op, values, TableConditions.Compile(kind, op, values));
     }
 
     /// <summary>Есть ли колонка и открыта ли она; null — годится.</summary>
@@ -103,12 +103,24 @@ public static class ModuleTableQueries
             : new(StatusCodes.Status403Forbidden,
                 $"Не применено: {what} стоит на колонке «{column.Label}», а она закрыта — {column.Reason}.");
     }
+}
 
-    private static ModuleTableColumnKind KindOf(string kind) => kind switch
-    {
-        TableOperators.Number => ModuleTableColumnKind.Number,
-        TableOperators.Date => ModuleTableColumnKind.Date,
-        TableOperators.Boolean => ModuleTableColumnKind.Boolean,
-        _ => ModuleTableColumnKind.Text,
-    };
+/// <summary>
+/// Вид колонки в двух записях — перечислением у модуля и строкой у потребителя — и ОДНА таблица
+/// соответствия на оба направления. Два отдельных перевода разошлись бы на новом виде: забытый в
+/// одном из них молча стал бы текстом.
+/// </summary>
+public static class TableKinds
+{
+    private static readonly (ModuleTableColumnKind Kind, string Name)[] Map =
+    [
+        (ModuleTableColumnKind.Text, TableOperators.Text),
+        (ModuleTableColumnKind.Number, TableOperators.Number),
+        (ModuleTableColumnKind.Date, TableOperators.Date),
+        (ModuleTableColumnKind.Boolean, TableOperators.Boolean),
+    ];
+
+    public static string Name(ModuleTableColumnKind kind) => Map.First(m => m.Kind == kind).Name;
+
+    public static ModuleTableColumnKind Parse(string name) => Map.First(m => m.Name == name).Kind;
 }
