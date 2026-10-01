@@ -17,7 +17,7 @@ import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCreateSection } from '@/shared/api/constructions';
-import { NO_ACCESS, hasModule, useAccess } from '@/shared/api/access';
+import { useCan } from '@/shared/api/access';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -36,8 +36,10 @@ export function ConstructionDetail() {
   const { data: problems } = useProblemSummary('Construction', constructionId);
   const { data: plan } = usePlanSummary('Construction', constructionId);
   // Счётчик комплектов у раздела — число модуля ИД (issue #1128): без модуля его нет, а не ноль.
-  const { data: access = NO_ACCESS } = useAccess();
-  const idOn = hasModule(access, 'id');
+  // Правка стройки и её разделов — право core.constructions.edit: без него кнопки отвечали бы 403.
+  const can = useCan();
+  const idOn = can.module('id');
+  const canEdit = can.permission('core.constructions.edit');
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
@@ -88,10 +90,12 @@ export function ConstructionDetail() {
             onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
         );
       })}
-      <button type="button" onClick={() => setAddSectionOpen(true)}
-        className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
-        <Plus size={16} className="shrink-0" /> Добавить раздел
-      </button>
+      {canEdit && (
+        <button type="button" onClick={() => setAddSectionOpen(true)}
+          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+          <Plus size={16} className="shrink-0" /> Добавить раздел
+        </button>
+      )}
       <NavSection label="Эта стройка" />
       <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
       <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
@@ -101,11 +105,13 @@ export function ConstructionDetail() {
 
   const headerAction = (
     <div className="flex items-center gap-2 shrink-0">
-      <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
-      <RowActionsMenu ariaLabel="Действия стройки" actions={[
-        { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
-        { key: 'delete', label: 'Удалить стройку', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
-      ]} />
+      {canEdit && <>
+        <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+        <RowActionsMenu ariaLabel="Действия стройки" actions={[
+          { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
+          { key: 'delete', label: 'Удалить стройку', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+        ]} />
+      </>}
     </div>
   );
 

@@ -17,7 +17,7 @@ import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameSection, useDeleteSection, useCreateDocumentSet } from '@/shared/api/constructions';
-import { NO_ACCESS, hasModule, useAccess } from '@/shared/api/access';
+import { useCan } from '@/shared/api/access';
 
 // ── Экран раздела ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -39,8 +39,12 @@ export function SectionDetail() {
   // «Добавить комплект» не рисуются ВОВСЕ, а не пустым «Нет комплектов»: каждая дверь открывалась
   // отказом 403, а пустой список читался бы как «комплектов нет». Пока доступ не пришёл — тоже
   // не рисуем (NO_ACCESS): показать и убрать хуже, чем показать позже.
-  const { data: access = NO_ACCESS } = useAccess();
-  const idOn = hasModule(access, 'id');
+  const can = useCan();
+  const idOn = can.module('id');
+  // Создать комплект — право правки документов ИД, а не доступ к модулю: у роли с одним чтением
+  // кнопка отвечала бы 403. Правка раздела — право правки строек, по той же причине.
+  const canAddSet = can.permission('id.document.edit');
+  const canEdit = can.permission('core.constructions.edit');
 
   const [addSetOpen, setAddSetOpen] = useState(false);
   const [newSetName, setNewSetName] = useState('');
@@ -103,10 +107,12 @@ export function SectionDetail() {
               onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
           );
         })}
-        <button type="button" onClick={() => setAddSetOpen(true)}
-          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
-          <Plus size={16} className="shrink-0" /> Добавить комплект
-        </button>
+        {canAddSet && (
+          <button type="button" onClick={() => setAddSetOpen(true)}
+            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+            <Plus size={16} className="shrink-0" /> Добавить комплект
+          </button>
+        )}
       </>}
       <NavSection label="Этот раздел" />
       <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
@@ -117,11 +123,13 @@ export function SectionDetail() {
 
   const headerAction = (
     <div className="flex items-center gap-2 shrink-0">
-      {idOn && <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
-      <RowActionsMenu ariaLabel="Действия раздела" actions={[
-        { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },
-        { key: 'delete', label: 'Удалить раздел', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
-      ]} />
+      {canAddSet && <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
+      {canEdit && (
+        <RowActionsMenu ariaLabel="Действия раздела" actions={[
+          { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },
+          { key: 'delete', label: 'Удалить раздел', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+        ]} />
+      )}
     </div>
   );
 

@@ -47,3 +47,19 @@ export function hasPermission(access: AccessInfo, code: string): boolean {
 export function hasModule(access: AccessInfo, code: string): boolean {
   return access.modules.some(m => m.code === code && m.available);
 }
+
+/**
+ * Что можно этому пользователю — одним хуком на экран (issue #1128): модули и права по коду.
+ *
+ * ⚠️ Пока ответ не пришёл, всё закрыто (NO_ACCESS). Пустоты при этом не бывает: экраны под
+ * `RequireAccess`, а он не рисует раздел, пока доступ грузится, и показывает «Раздел недоступен»,
+ * если доступ не загрузился вовсе.
+ */
+export function useCan() {
+  const { data: access = NO_ACCESS } = useAccess();
+  return {
+    access,
+    module: (code: string) => hasModule(access, code),
+    permission: (code: string) => hasPermission(access, code),
+  };
+}
