@@ -203,7 +203,10 @@ await check('matrix-under-read-only-right', async () => {
     // Отказы считаются С ВХОДА, и стартовой странице дают догрузиться: она — список строек — запрашивала
     // у бухгалтера сводки сверок и планов без права на них (issue #1125). Не дождись прогон её запросов,
     // переход к счетам обрывал бы их, и проверка была бы зелёной через раз — так и было в CI.
-    await reader.waitForLoadState('networkidle');
+    // ⚠️ Открываем её ЗАНОВО, а не ждём `waitForLoadState('networkidle')`: вход уводит на неё
+    // клиентским переходом, документ прежний, и состояние «сеть затихла» у него наступило ещё на
+    // странице входа — ожидание вернулось бы сразу, не дождавшись ничего.
+    await reader.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
     const matrix = await openMatrix(reader, first, 'разноска по объектам');
 
     const text = (await cells(matrix)).flat().join(' ');

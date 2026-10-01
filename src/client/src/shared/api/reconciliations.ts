@@ -239,17 +239,18 @@ export interface RelatedProblems {
 }
 
 /**
- * Право читать сводки сверки (issue #1125). Сводки зовут экраны строек, разделов и комплектов, а их
- * открывает и тот, у кого сверки нет вовсе («Бухгалтер»), — без этой проверки каждый такой экран
- * получал бы 403 фоном. Пока доступ не пришёл, запроса нет: «ещё не знаем» — не повод спрашивать.
+ * Право на сверку — и на её сводки, и на замечания анализа (issue #1125): все они за одними воротами
+ * сервера. Зовут их экраны строек, разделов, комплектов и документа, а их открывает и тот, у кого
+ * сверки нет вовсе («Бухгалтер»), — без этой проверки каждый такой экран получал бы 403 фоном. Пока
+ * доступ не пришёл, запроса нет: «ещё не знаем» — не повод спрашивать.
  */
-function useCanReadProblems(): boolean {
+export function useCanReconcile(): boolean {
   const { data: access = NO_ACCESS } = useAccess();
   return hasPermission(access, 'core.reconciliation.run');
 }
 
 export function useRelatedProblems(scope: 'Construction' | 'Section' | 'Set', scopeId: string | undefined) {
-  const allowed = useCanReadProblems();
+  const allowed = useCanReconcile();
   return useQuery({
     queryKey: [...KEY, 'related', scope, scopeId ?? null],
     enabled: allowed && !!scopeId,
@@ -276,7 +277,7 @@ export interface ProblemSummary {
 export function useProblemSummary(
   scope: 'System' | 'Construction' | 'Section' | 'Set', scopeId?: string,
 ) {
-  const allowed = useCanReadProblems();
+  const allowed = useCanReconcile();
   return useQuery({
     queryKey: [...KEY, 'summary', scope, scopeId ?? null],
     enabled: allowed && (scope === 'System' || !!scopeId),
