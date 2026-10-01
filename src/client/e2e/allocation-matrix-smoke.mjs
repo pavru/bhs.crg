@@ -1,12 +1,14 @@
 // Живой прогон МАТРИЦЫ РАЗНОСКИ (задача F2 этапа 2, issue #1086, ТЗ COST-6.2, COST-11, COST-12).
 //
-// ЗАЧЕМ ОН ЕСТЬ. Четыре утверждения задачи — про экран целиком, и юнит-тестом их не проверить:
+// ЗАЧЕМ ОН ЕСТЬ. Утверждения задач F2 и F3 — про экран целиком, и юнит-тестом их не проверить:
 //   1. `preview-matches-applied` — числа, показанные до применения, посимвольно равны числам после, И
 //      при нажатии «Поровну» ушёл запрос. ⚠️ Одного сравнения мало: посчитай раскладку клиент — оно
 //      сравнивало бы клиент с клиентом и было бы зелено всегда. Запрос доказывает, что считал сервер.
 //   2. `kopeck-goes-to-a-named-part` — 100 ₽ на три объекта: ровно 100,00, клетка с остатком помечена.
 //   3. `remainder-is-written-and-stays-visible` — «не разнесено» пишет ноль, а не пустоту, и при восьми
 //      объектах остаётся на виду после горизонтальной прокрутки (закреплённая колонка).
+//   3a. `invoice-goes-to-article` — счёт «на склад» разносится в шапке на статью вне строек (F3, issue
+//      #1087): статья стоит в выборе своей группой, не среди строек, и часть ложится на статью.
 //   4. `matrix-under-read-only-right` — под «Бухгалтером» (чтение счетов без права разноски) матрица
 //      открывается, но полей и кнопок «поровну» и «по %» НЕТ, и ни один запрос не получил отказа —
 //      а не «кнопки есть и получают 403».
@@ -189,6 +191,37 @@ await check('remainder-is-written-and-stays-visible', async () => {
 
   const rest = (await cells(matrix))[0].at(-1);
   if (rest !== '0 м') throw new Error(`«не разнесено» у разнесённой на восемь объектов строки: «${rest}», ожидалось «0 м»`);
+});
+
+// ── 3a. Счёт «на склад» — на статью вне строек, а не на стройку (F3, issue #1087, ТЗ COST-10.1) ─────
+await check('invoice-goes-to-article', async () => {
+  const name = 'Склад прогона матрицы';
+  const article = (await api('GET', '/costs/articles')).find(a => a.name === name)
+    ?? await api('POST', '/costs/articles', { name });
+
+  const number = `МТР-С-${stamp}`;
+  const id = await invoice(number, [{ supplierText: 'Кабель на склад', unit: 'м', quantity: 5, price: 2 }], 10);
+
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: new RegExp(number) }).first().click();
+  const select = page.getByLabel('Объект счёта', { exact: true });
+
+  // Статья — в своей группе: «Склад» среди строек читался бы стройкой.
+  const groups = await select.evaluate(s => Object.fromEntries(
+    [...s.querySelectorAll('optgroup')].map(g => [g.label, [...g.children].map(o => o.textContent)])));
+  if (!groups['Вне строек']?.includes(name)) throw new Error(`статьи нет в группе «Вне строек»: ${JSON.stringify(groups)}`);
+  if (groups['Стройки']?.includes(name)) throw new Error('статья стоит среди строек');
+
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${id}/allocation`) && r.request().method() === 'PUT'),
+    select.selectOption({ label: name }),
+  ]);
+
+  const part = (await api('GET', `/costs/invoices/${id}`)).lines[0].allocation.parts[0];
+  if (part?.articleId !== article.id || part.constructionId !== null)
+    throw new Error(`часть легла не на статью: ${JSON.stringify(part)}`);
+  await page.getByText('весь счёт на этот объект').waitFor({ timeout: 5_000 });
 });
 
 // ── 4. Бухгалтер: матрица только для чтения, и ни одного отказа ───────────────────────────────────

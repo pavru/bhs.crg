@@ -62,11 +62,15 @@ export interface InvoiceLineView {
 export interface AllocationPartView {
   id: string;
   ordinal: number;
-  constructionId: string;
+  /** Стройка; `null` — часть легла на статью вне строек (F3, issue #1087). */
+  constructionId: string | null;
   constructionName: string | null;
   sectionId: string | null;
   sectionName: string | null;
-  /** Стройку или раздел удалили в ядре — потеря, а не «не выбрано». */
+  /** Статья вне строек — «Склад», «Общие расходы»; `null` — часть легла на стройку. Ровно одно из двух. */
+  articleId: string | null;
+  articleName: string | null;
+  /** Стройку, раздел или статью удалили — потеря, а не «не выбрано». */
   targetLost: boolean;
   quantity: number | null;
   amount: number | null;

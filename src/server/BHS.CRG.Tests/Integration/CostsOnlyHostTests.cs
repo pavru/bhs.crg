@@ -140,12 +140,11 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
         {
             // costs.invoice.read и costs.invoice.edit ушли отсюда в C1 (issue #1076): у них появились
             // двери — адреса счёта. Храповик сработал ровно так, как написан: строки уронили тест и
-            // потребовали себя убрать.
+            // потребовали себя убрать. costs.articles.edit ушло в F3 (issue #1087) — справочник статей.
             ["costs.invoice.pay"] = "отметка оплаты — C5 (#1082)",
             ["costs.waybill.read"] = "адреса накладной — D1 (#1083)",
             ["costs.waybill.edit"] = "адреса накладной и загрузка 1С — D1 (#1083), D3 (#1084)",
             ["costs.report.read"] = "реестр и затраты — G4 (#1097), G5 (#1098)",
-            ["costs.articles.edit"] = "справочник статей вне строек — F3 (#1087)",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();

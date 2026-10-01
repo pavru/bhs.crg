@@ -41,11 +41,11 @@ public static class AllocationMatrixEndpoints
     /// у того, кто записать не может, быть не должно вовсе, а не «нажиматься и получать отказ».</para>
     /// </summary>
     private static async Task<Ok<AllocationPreview>> PreviewAsync(
-        Guid id, AllocationPreviewRequest body, CostsDbContext db, IModuleConstructions sites, CancellationToken ct)
+        Guid id, AllocationPreviewRequest body, CostsDbContext db, AllocationPlacesSource places, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
-        var known = await sites.ListAsync(ct);
+        var known = await places.LoadAsync(ct);
 
         var targets = body.Method switch
         {
@@ -75,7 +75,8 @@ public static class AllocationMatrixEndpoints
             [.. plan.Where(p => p.LineId is null).Select(Matrix)]);
 
         return TypedResults.Ok(new AllocationPreview(state, read.Lines, read.Summary,
-            [.. plan.Where(p => p.Remainder).Select(p => new RemainderCell(p.LineId, p.ConstructionId, p.SectionId))]));
+            [.. plan.Where(p => p.Remainder)
+                .Select(p => new RemainderCell(p.LineId, p.Target.ConstructionId, p.Target.SectionId, p.Target.ArticleId))]));
     }
 
     /// <summary>
@@ -90,7 +91,7 @@ public static class AllocationMatrixEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, AllocationMatrixRequest body, CostsDbContext db, IModuleCatalog catalog,
-        IModuleConstructions sites, IModuleActivityLog log, CancellationToken ct)
+        AllocationPlacesSource places, IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Lines is null)
             throw new InvalidRequestException(
@@ -102,7 +103,7 @@ public static class AllocationMatrixEndpoints
             .Where(l => l.InvoiceId == invoice.Id)
             .OrderBy(l => l.Ordinal)
             .ToListAsync(ct);
-        var known = await sites.ListAsync(ct);
+        var known = await places.LoadAsync(ct);
 
         var byLine = ParseLines(body.Lines, lines, known);
         var document = ParseDocument(body.Document ?? [], invoice, lines.Count, known);
@@ -142,12 +143,12 @@ public static class AllocationMatrixEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: "правка разноски: баланс не сходится", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
     }
 
     /// <summary>Цели «поровну» и «по %». Проценты обязаны дать ровно 100 — иначе делить нечего и не на что.</summary>
     private static IReadOnlyList<SplitTarget> Targets(
-        IReadOnlyList<JsonElement>? sent, IReadOnlyList<ModuleConstruction> known, bool percent)
+        IReadOnlyList<JsonElement>? sent, AllocationPlaces known, bool percent)
     {
         if (sent is not { Count: > 0 })
             throw new InvalidRequestException(
@@ -160,15 +161,13 @@ public static class AllocationMatrixEndpoints
             if (target.ValueKind != JsonValueKind.Object)
                 throw new InvalidRequestException($"Объект {number} прислан как {target.ValueKind}, а ожидается объект.");
 
-            var construction = InvoiceAllocations.Identifier(target, "construction", $"Стройка, объект {number}")
-                ?? throw new InvalidRequestException($"Объект {number}: стройка не выбрана.");
-            var section = InvoiceAllocations.Identifier(target, "section", $"Раздел, объект {number}");
+            var place = InvoiceAllocations.Target(target, $"Объект {number}");
             var weight = percent ? Percent(CostsValues.Money(target, "percent", $"Процент, объект {number}"), number) : 1m;
-            return new SplitTarget(construction, section, weight);
+            return new SplitTarget(place, weight);
         }).ToList();
 
         InvoiceAllocations.EnsureTargets(
-            [.. targets.Select(t => new AllocationValues(t.ConstructionId, t.SectionId, null, null))], known);
+            [.. targets.Select(t => new AllocationValues(t.Target, null, null))], known);
 
         if (percent && targets.Sum(t => t.Weight) is var sum && sum != 100m)
             throw new InvalidRequestException(
@@ -194,7 +193,7 @@ public static class AllocationMatrixEndpoints
     /// </summary>
     private static async Task<IReadOnlyList<SplitTarget>> DocumentTargetsAsync(
         CostsDbContext db, Invoice invoice, IReadOnlyList<AllocationLine> lines,
-        IReadOnlyList<ModuleConstruction> known, CancellationToken ct)
+        AllocationPlaces known, CancellationToken ct)
     {
         var parts = await db.InvoiceAllocations.AsNoTracking()
             .Where(a => a.InvoiceId == invoice.Id && a.LineId == null)
@@ -210,12 +209,12 @@ public static class AllocationMatrixEndpoints
         // Вес — модуль суммы: у корректировочного счёта (к оплате −1 000) части отрицательны, а пропорция та же.
         // Знак у всех частей один — его держит запись (знак части — знак суммы к оплате).
         var targets = parts
-            .GroupBy(p => (p.ConstructionId, p.SectionId))
-            .Select(g => new SplitTarget(g.Key.ConstructionId, g.Key.SectionId, Math.Abs(g.Sum(p => p.Amount ?? 0m))))
+            .GroupBy(p => p.Target)
+            .Select(g => new SplitTarget(g.Key, Math.Abs(g.Sum(p => p.Amount ?? 0m))))
             .ToList();
 
         InvoiceAllocations.EnsureTargets(
-            [.. targets.Select(t => new AllocationValues(t.ConstructionId, t.SectionId, null, null))], known);
+            [.. targets.Select(t => new AllocationValues(t.Target, null, null))], known);
 
         if (targets.Any(t => t.Weight == 0))
             throw new InvalidRequestException(
@@ -227,14 +226,14 @@ public static class AllocationMatrixEndpoints
         // легло бы на него молча. Нерешённое остаётся нерешённым: своей долей «не разнесено».
         var spent = targets.Sum(t => t.Weight);
         if (invoice.Total is { } total && Math.Abs(total) > spent)
-            targets.Add(new SplitTarget(Guid.Empty, null, Math.Abs(total) - spent, Unallocated: true));
+            targets.Add(new SplitTarget(default, Math.Abs(total) - spent, Unallocated: true));
 
         return targets;
     }
 
     /// <summary>Строки набора: каждая строка счёта ровно один раз, части — по правилам разноски строки.</summary>
     private static Dictionary<Guid, IReadOnlyList<AllocationValues>> ParseLines(
-        IReadOnlyList<JsonElement> sent, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<ModuleConstruction> known)
+        IReadOnlyList<JsonElement> sent, IReadOnlyList<InvoiceLine> lines, AllocationPlaces known)
     {
         var byLine = new Dictionary<Guid, IReadOnlyList<AllocationValues>>();
 
@@ -269,7 +268,7 @@ public static class AllocationMatrixEndpoints
     }
 
     private static IReadOnlyList<AllocationValues> OfLine(
-        InvoiceLine line, IReadOnlyList<JsonElement> parts, IReadOnlyList<ModuleConstruction> known)
+        InvoiceLine line, IReadOnlyList<JsonElement> parts, AllocationPlaces known)
     {
         try
         {
@@ -290,7 +289,7 @@ public static class AllocationMatrixEndpoints
     /// больше её (ТЗ COST-11, COST-13).
     /// </summary>
     private static IReadOnlyList<AllocationValues> ParseDocument(
-        IReadOnlyList<JsonElement> sent, Invoice invoice, int lineCount, IReadOnlyList<ModuleConstruction> known)
+        IReadOnlyList<JsonElement> sent, Invoice invoice, int lineCount, AllocationPlaces known)
     {
         if (sent.Count == 0) return [];
 
@@ -342,8 +341,7 @@ public static class AllocationMatrixEndpoints
         for (var index = 0; index < values.Count; index++)
         {
             var value = values[index];
-            var part = existing.FirstOrDefault(a => a.LineId == lineId && a.ConstructionId == value.ConstructionId
-                    && a.SectionId == value.SectionId && !now.Contains(a))
+            var part = existing.FirstOrDefault(a => a.LineId == lineId && a.Target == value.Target && !now.Contains(a))
                 ?? Added(db, invoiceId, lineId);
 
             part.Apply(index + 1, value);
@@ -361,16 +359,16 @@ public static class AllocationMatrixEndpoints
     private static InvoiceAllocation Transient(Guid invoiceId, SplitPart part, int ordinal)
     {
         var entity = InvoiceAllocation.Create(invoiceId, part.LineId);
-        entity.Apply(ordinal, new AllocationValues(part.ConstructionId, part.SectionId, part.Quantity, part.Amount));
+        entity.Apply(ordinal, new AllocationValues(part.Target, part.Quantity, part.Amount));
         return entity;
     }
 
     private static MatrixPart Matrix(SplitPart part) =>
-        new(part.ConstructionId, part.SectionId, part.Quantity, part.Amount);
+        new(part.Target.ConstructionId, part.Target.SectionId, part.Target.ArticleId, part.Quantity, part.Amount);
 
     /// <summary>Разноска всего счёта текстом для журнала (ТЗ COST-15): «строка 1: …; счёт целиком: …».</summary>
     private static string Describe(
-        IReadOnlyList<InvoiceLine> lines, ILookup<Guid?, AllocationValues> parts, IReadOnlyList<ModuleConstruction> known)
+        IReadOnlyList<InvoiceLine> lines, ILookup<Guid?, AllocationValues> parts, AllocationPlaces known)
     {
         var text = lines
             .Where(l => parts[l.Id].Any())

@@ -12,7 +12,7 @@ public class AllocationSplitTests
     private static readonly Guid B = Guid.NewGuid();
     private static readonly Guid C = Guid.NewGuid();
 
-    private static SplitTarget[] Equal(params Guid[] sites) => [.. sites.Select(s => new SplitTarget(s, null, 1m))];
+    private static SplitTarget[] Equal(params Guid[] sites) => [.. sites.Select(s => new SplitTarget(AllocationTarget.Site(s), 1m))];
 
     [Fact]
     public void Десять_штук_на_три_объекта_целыми_и_остаток_у_последней()
@@ -75,7 +75,8 @@ public class AllocationSplitTests
     public void Пересчёт_держит_деньги_объектов_а_не_целые_единицы()
     {
         var parts = AllocationSplit.Plan([new AllocationLine(Guid.NewGuid(), 1, 40m, 800m)], null,
-            [new SplitTarget(A, null, 333.33m), new SplitTarget(B, null, 333.33m), new SplitTarget(C, null, 333.34m)],
+            [new SplitTarget(AllocationTarget.Site(A), 333.33m), new SplitTarget(AllocationTarget.Site(B), 333.33m),
+             new SplitTarget(AllocationTarget.Site(C), 333.34m)],
             wholeUnits: false);
 
         Assert.Equal([13.333m, 13.333m, 13.334m], parts.Select(p => p.Quantity!.Value));
@@ -86,7 +87,7 @@ public class AllocationSplitTests
     public void Нерешённая_доля_частью_не_становится()
     {
         var parts = AllocationSplit.Plan([new AllocationLine(Guid.NewGuid(), 1, 50m, 1_000m)], null,
-            [new SplitTarget(A, null, 300m), new SplitTarget(Guid.Empty, null, 700m, Unallocated: true)], wholeUnits: false);
+            [new SplitTarget(AllocationTarget.Site(A), 300m), new SplitTarget(default, 700m, Unallocated: true)], wholeUnits: false);
 
         var only = Assert.Single(parts);
         Assert.Equal(15m, only.Quantity);
@@ -96,7 +97,8 @@ public class AllocationSplitTests
     [Fact]
     public void Счёт_без_строк_делится_суммой_к_оплате()
     {
-        var parts = AllocationSplit.Plan([], 1_000m, [new SplitTarget(A, null, 25m), new SplitTarget(B, null, 75m)]);
+        var parts = AllocationSplit.Plan([], 1_000m,
+            [new SplitTarget(AllocationTarget.Site(A), 25m), new SplitTarget(AllocationTarget.Site(B), 75m)]);
 
         Assert.All(parts, p => Assert.Null(p.LineId));
         Assert.Equal([250m, 750m], parts.Select(p => p.Amount!.Value));

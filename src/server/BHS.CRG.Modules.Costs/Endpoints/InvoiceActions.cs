@@ -61,6 +61,18 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction AllocationChanged =
         new("costs.invoice.allocation", "Разноска счёта изменена");
 
+    // Справочник статей вне строек (F3, issue #1087): статья меняет то, куда попадут новые затраты, и
+    // «кто убрал «Склад»» — вопрос, на который журнал обязан отвечать.
+    public static readonly ModuleActivityAction ArticleCreated =
+        new("costs.article.created", "Статья вне строек заведена");
+
+    public static readonly ModuleActivityAction ArticleRenamed =
+        new("costs.article.renamed", "Статья вне строек переименована");
+
+    public static readonly ModuleActivityAction ArticleDeleted =
+        new("costs.article.deleted", "Статья вне строек убрана");
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft, AllocationChanged];
+        [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft, AllocationChanged,
+         ArticleCreated, ArticleRenamed, ArticleDeleted];
 }

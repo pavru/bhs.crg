@@ -3,7 +3,7 @@ import { Calculator, Check, Divide, Percent, Plus, Save, Trash2, X } from 'lucid
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
-import { useCostsConstructions, type InvoiceView } from '@/shared/api/invoices';
+import type { InvoiceView } from '@/shared/api/invoices';
 import {
   usePreviewAllocation, useReplaceMatrix, type AllocationPreview, type SplitMethod,
 } from '@/shared/api/allocationMatrix';
@@ -13,6 +13,8 @@ import {
   allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, newTarget, partAt, restText, rowsOf,
   targetName, targetsOf, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
+import { PlaceSelect } from './PlaceSelect';
+import { chosen, placeOfPart, samePlace, usePlaces, type Places } from './places';
 
 /**
  * Матрица разноски «строки × объекты» (задача F2, issue #1086, ТЗ COST-6.2, COST-11, COST-12).
@@ -36,7 +38,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string };
   onClose: () => void;
 }) {
-  const sites = useCostsConstructions();
+  const places = usePlaces();
   const previewing = usePreviewAllocation();
   const replace = useReplaceMatrix();
   const toast = useToast();
@@ -77,9 +79,9 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
       // Пересчёт приносит цели прежней разноски суммой — им нужны колонки.
       const columns = [...targets];
       for (const part of [...result.apply.document, ...result.apply.lines.flatMap(l => l.parts)])
-        if (!columns.some(t => t.construction === part.construction && t.section === part.section))
-          columns.push(newTarget(part.construction, part.section));
-      setTargets(columns.filter(t => t.construction));
+        if (!columns.some(t => samePlace(t, part)))
+          columns.push(newTarget({ construction: part.construction, section: part.section, article: part.article }));
+      setTargets(columns.filter(chosen));
       setCells(cellsFromState(rows, columns, result.apply));
       setPreview(result);
       setDirty(false);
@@ -117,7 +119,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   }
 
   const remainder = (row: MatrixRow, target: MatrixTarget) => preview?.remainders.some(r =>
-    r.line === row.lineId && r.construction === target.construction && r.section === target.section) ?? false;
+    r.line === row.lineId && samePlace(r, target)) ?? false;
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разноска по объектам" fullScreen
@@ -175,7 +177,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
           </div>
         )}
 
-        {pending && <PendingNote view={view} sites={sites.data} />}
+        {pending && <PendingNote view={view} places={places} />}
 
         <div className="overflow-auto max-h-[65vh] border border-stroke rounded">
           <table className="text-xs border-separate border-spacing-0">
@@ -185,9 +187,9 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                 {targets.map((target, index) => (
                   <th key={target.key} className="border-b border-stroke px-2 py-1.5 font-normal min-w-44">
                     {editable
-                      ? <TargetHeader target={target} number={index + 1} sites={sites.data}
+                      ? <TargetHeader target={target} number={index + 1} places={places}
                           onChange={patch => retarget(target.key, patch)} onRemove={() => remove(target.key)} />
-                      : <span className="text-fg2">{targetName(target, sites.data)}</span>}
+                      : <span className="text-fg2">{targetName(target, places)}</span>}
                   </th>
                 ))}
                 <th className={`${STICKY_RIGHT} font-normal`}>Не разнесено</th>
@@ -212,7 +214,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                       <td key={target.key} className="border-b border-stroke px-2 py-1 tabular-nums">
                         {editable && row.mode !== 'none' && (
                           <input value={cells[row.key]?.[target.key] ?? ''} inputMode="decimal" placeholder="0"
-                            aria-label={`${row.title}, ${targetName(target, sites.data)}`}
+                            aria-label={`${row.title}, ${targetName(target, places)}`}
                             onChange={e => edit(row.key, target.key, e.target.value)}
                             className={`${FIELD} text-right`} />
                         )}
@@ -250,23 +252,19 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
 }
 
 /** Заголовок колонки: стройка, раздел, процент для «по %» и удаление колонки. */
-function TargetHeader({ target, number, sites, onChange, onRemove }: {
+function TargetHeader({ target, number, places, onChange, onRemove }: {
   target: MatrixTarget;
   number: number;
-  sites: ReturnType<typeof useCostsConstructions>['data'];
+  places: Places;
   onChange: (patch: Partial<MatrixTarget>) => void;
   onRemove: () => void;
 }) {
-  const site = sites?.find(s => s.id === target.construction);
+  const site = places.sites?.find(s => s.id === target.construction);
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1">
-        <select value={target.construction} aria-label={`Объект ${number}`} className={FIELD}
-          onChange={e => onChange({ construction: e.target.value, section: null })}>
-          <option value="">— объект —</option>
-          {target.construction && !site && <option value={target.construction}>стройка удалена</option>}
-          {sites?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        <PlaceSelect value={target} places={places} label={`Объект ${number}`} placeholder="— объект —"
+          className={FIELD} onChange={onChange} />
         <button type="button" title={`Убрать объект ${number}`} onClick={onRemove}
           className="text-fg4 hover:text-danger p-0.5">
           <Trash2 size={13} />
@@ -290,12 +288,12 @@ function TargetHeader({ target, number, sites, onChange, onRemove }: {
 }
 
 /** Разноска суммой, сделанная до строк, — видна, пока ждёт пересчёта (ТЗ COST-11). */
-function PendingNote({ view, sites }: { view: InvoiceView; sites: ReturnType<typeof useCostsConstructions>['data'] }) {
+function PendingNote({ view, places }: { view: InvoiceView; places: Places }) {
   const parts = view.allocation.document.parts;
   return (
     <p className="text-xs text-warning">
       Счёт разнесён суммой, пока строк не было:{' '}
-      {parts.map(p => `${targetName({ construction: p.constructionId, section: p.sectionId }, sites)} — ${formatMoney(p.amount ?? 0)}`).join('; ')}.
+      {parts.map(p => `${targetName(placeOfPart(p), places)} —${formatMoney(p.amount ?? 0)}`).join('; ')}.
       Строки появились — пересчитайте разноску по ним: до пересчёта счёт не разнесён.
     </p>
   );

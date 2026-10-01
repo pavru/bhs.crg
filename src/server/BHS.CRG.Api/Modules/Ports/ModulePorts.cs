@@ -43,6 +43,7 @@ public static class ModulePorts
         services.AddScoped<IModuleJobs, ModuleJobsPort>();
         services.AddScoped<IModuleUser, ModuleUserPort>();
         services.AddScoped<IModuleCatalog, ModuleCatalogPort>();
+        services.AddScoped<IModuleOwnCatalog, ModuleOwnCatalogPort>();
         services.AddScoped<IModuleConstructions, ModuleConstructionsPort>();
         services.AddScoped<IModuleTypes, ModuleTypesPort>();
         services.AddScoped<IModuleWriteGuard, ModuleWriteGuardPort>();

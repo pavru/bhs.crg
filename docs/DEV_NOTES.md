@@ -908,7 +908,9 @@ PUT    /api/costs/invoices/{id}/lines/{lineId}/allocation  { parts: [...] }   co
                                       (сумма части считается), без количества — только amount;
                                       перебор сверх строки, раздел чужой стройки, две части на одну
                                       цель = 400. Баланс и остаток «не разнесено» — в ответе счёта
-                                      (lines[].allocation, allocation у счёта)
+                                      (lines[].allocation, allocation у счёта). Цель части — construction
+                                      (+ section) ИЛИ article — статья вне строек (F3); обе сразу или ни
+                                      одной = 400, это же держит ограничение базы
 POST   /api/costs/invoices/{id}/allocation/preview  { method, targets }   costs.allocation.edit
                                       быстрая разноска (F2) — ПРЕДПРОСМОТР, ничего не пишет: method =
                                       equal | percent (targets: construction, section?, percent; сумма
@@ -927,6 +929,13 @@ POST   /api/costs/invoices/{id}/parsed     → «разобран»: строк�
 POST   /api/costs/invoices/{id}/draft      → вернуть в черновик (правка строк и разноски делает это
                                       сама, если условие «разобран» перестало выполняться — с записью в журнал)
 GET    /api/costs/constructions     → стройки с разделами — цели разноски         costs.invoice.read
+GET    /api/costs/articles          → статьи вне строек («Склад», «Общие расходы») costs.invoice.read
+POST   /api/costs/articles          { name }                                     costs.articles.edit
+PUT    /api/costs/articles/{id}     { name }  — переименовать
+DELETE /api/costs/articles/{id}     → занятую (на неё разнесено) — 409 с числом частей и счетов (F3).
+                                      Статьи — тип модуля «СтатьяВнеСтроек» в ОБЩЕЙ таблице (класс A):
+                                      пишутся портом IModuleOwnCatalog, который сверяет тип записи;
+                                      «Общие данные» правят их тоже — под core.catalog.edit
 GET    /api/costs/organizations     → выбор поставщика и плательщика для формы  costs.invoice.read
 GET    /api/costs/nomenclature?query=  → ПОИСК позиции для строки (25 позиций + признак «more»)
                                       списком целиком не отдаётся: справочник самый большой в системе

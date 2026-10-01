@@ -1,15 +1,14 @@
-import type {
-  AllocationPartView, CostsConstruction, InvoiceView, LineAllocationView,
-} from '@/shared/api/invoices';
+import type { AllocationPartView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
 import { formatMoney } from './invoiceFields';
 import { formatPlain } from './allocation';
 import { toNumber } from './invoiceLines';
+import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
 
 /**
  * Матрица разноски «строки × объекты» (F2, issue #1086, ТЗ COST-6.2, COST-12) — всё, что не рисование.
  *
- * <p><b>Клетка — это строка и объект</b> (стройка, возможно с разделом). Идентификатор части клетке не
+ * <p><b>Клетка — это строка и объект</b> (стройка, возможно с разделом, или статья вне строек — F3). Идентификатор части клетке не
  * нужен: у строки не бывает двух частей на одну цель (F1), и запись правит часть той же цели на месте.</p>
  *
  * <p>⚠️ <b>Числа клеток форма не считает.</b> Показанное до записи — ответ предпросмотра, после записи —
@@ -20,11 +19,9 @@ import { toNumber } from './invoiceLines';
 /** Строка счёта целиком — у счёта без строк (ТЗ COST-11). */
 export const DOCUMENT_ROW = 'document';
 
-export interface MatrixTarget {
+export interface MatrixTarget extends Place {
   /** Ключ КОЛОНКИ — постоянный: смена стройки в заголовке не должна терять набранное в клетках. */
   key: string;
-  construction: string;
-  section: string | null;
   /** Процент для «по %» — текстом, как набран. */
   percent: string;
 }
@@ -44,15 +41,11 @@ export interface MatrixRow {
 /** Черновик клеток: строка → цель → число, как набрано. */
 export type MatrixCells = Record<string, Record<string, string>>;
 
-export function targetKey(construction: string, section: string | null): string {
-  return `${construction}/${section ?? ''}`;
-}
-
 let columns = 0;
 
-export function newTarget(construction = '', section: string | null = null): MatrixTarget {
+export function newTarget(place: Place = NO_PLACE): MatrixTarget {
   columns += 1;
-  return { key: `колонка-${columns}`, construction, section, percent: '' };
+  return { key: `колонка-${columns}`, ...place, percent: '' };
 }
 
 /** Строки матрицы: строки счёта или, пока их нет, одна строка «счёт целиком». */
@@ -96,16 +89,14 @@ export function targetsOf(view: InvoiceView): MatrixTarget[] {
   const parts = [...view.lines.flatMap(l => l.allocation.parts), ...view.allocation.document.parts];
   const seen = new Map<string, MatrixTarget>();
   for (const part of parts) {
-    const key = targetKey(part.constructionId, part.sectionId);
-    if (!seen.has(key)) seen.set(key, newTarget(part.constructionId, part.sectionId));
+    const place = placeOfPart(part);
+    if (!seen.has(placeKey(place))) seen.set(placeKey(place), newTarget(place));
   }
   return [...seen.values()];
 }
 
-export function partAt(
-  allocation: LineAllocationView | undefined, target: { construction: string; section: string | null },
-): AllocationPartView | undefined {
-  return allocation?.parts.find(p => p.constructionId === target.construction && p.sectionId === target.section);
+export function partAt(allocation: LineAllocationView | undefined, target: Place): AllocationPartView | undefined {
+  return allocation?.parts.find(p => samePlace(placeOfPart(p), target));
 }
 
 /**
@@ -130,7 +121,7 @@ export function cellsFromState(rows: MatrixRow[], targets: MatrixTarget[], state
     : state.lines.find(l => l.line === row.lineId)?.parts ?? [];
 
   return Object.fromEntries(rows.map(row => [row.key, Object.fromEntries(targets.flatMap(target => {
-    const part = partsOf(row).find(p => p.construction === target.construction && p.section === target.section);
+    const part = partsOf(row).find(p => samePlace(p, target));
     return part ? [[target.key, formatPlain(part.quantity ?? part.amount)]] : [];
   }))]));
 }
@@ -149,6 +140,7 @@ export function toState(rows: MatrixRow[], targets: MatrixTarget[], cells: Matri
     .map(({ target, value }) => ({
       construction: target.construction,
       section: target.section,
+      article: target.article,
       quantity: row.mode === 'quantity' ? value : null,
       amount: row.mode === 'quantity' ? null : value,
     }));
@@ -162,9 +154,10 @@ export function toState(rows: MatrixRow[], targets: MatrixTarget[], cells: Matri
 
 /** Цели для быстрой разноски. Процент уезжает только у «по %». */
 export function toSplitTargets(targets: MatrixTarget[], withPercent: boolean): SplitTarget[] {
-  return targets.filter(t => t.construction).map(t => ({
+  return targets.filter(chosen).map(t => ({
     construction: t.construction,
     section: t.section,
+    article: t.article,
     percent: withPercent ? toNumber(t.percent) : null,
   }));
 }
@@ -198,11 +191,8 @@ export function restText(row: MatrixRow, allocation: LineAllocationView | undefi
 }
 
 /** Название цели для заголовка колонки и для шапки счёта. */
-export function targetName(target: { construction: string; section: string | null }, sites: CostsConstruction[] | undefined): string {
-  const site = sites?.find(s => s.id === target.construction);
-  if (!site) return target.construction ? 'стройка удалена' : 'объект не выбран';
-  if (!target.section) return site.name;
-  return `${site.name} / ${site.sections.find(s => s.id === target.section)?.name ?? 'раздел удалён'}`;
+export function targetName(target: Place, places: Places): string {
+  return placeName(target, places);
 }
 
 /**
@@ -210,11 +200,17 @@ export function targetName(target: { construction: string; section: string | nul
  * у одного вопроса «на что разнесён счёт» было бы два ответа, и расходились бы они на первой правке
  * матрицы.
  */
-export function headerObject(view: InvoiceView): { kind: 'none' } | { kind: 'one'; construction: string; complete: boolean } | { kind: 'many'; count: number } {
-  // Колонки матрицы здесь не заводятся: шапка рисуется часто, а ей нужны только стройки.
-  const constructions = [...new Set([...view.lines.flatMap(l => l.allocation.parts), ...view.allocation.document.parts]
-    .map(p => p.constructionId))];
-  if (constructions.length === 0) return { kind: 'none' };
-  if (constructions.length > 1) return { kind: 'many', count: constructions.length };
-  return { kind: 'one', construction: constructions[0], complete: view.allocation.allocated };
+export function headerObject(
+  view: InvoiceView,
+): { kind: 'none' } | { kind: 'one'; place: Place; complete: boolean } | { kind: 'many'; count: number } {
+  // Колонки матрицы здесь не заводятся: шапка рисуется часто. Объект — стройка ЦЕЛИКОМ (разделы одной
+  // стройки — всё ещё один объект) или статья вне строек.
+  const objects = new Map<string, Place>();
+  for (const part of [...view.lines.flatMap(l => l.allocation.parts), ...view.allocation.document.parts]) {
+    const place = { ...placeOfPart(part), section: null };
+    objects.set(placeKey(place), place);
+  }
+  if (objects.size === 0) return { kind: 'none' };
+  if (objects.size > 1) return { kind: 'many', count: objects.size };
+  return { kind: 'one', place: [...objects.values()][0], complete: view.allocation.allocated };
 }

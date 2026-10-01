@@ -13,8 +13,10 @@ export interface PartDraft {
   /** Ключ строки таблицы: `id` сохранённой части или временный у новой. */
   key: string;
   id: string | null;
+  /** Стройка или статья вне строек (F3) — одно из двух; пустая строка — не выбрано. */
   constructionId: string;
   sectionId: string;
+  articleId: string;
   /** Количество у строки с количеством, сумма — у строки без него. Текстом, как набрано. */
   value: string;
 }
@@ -23,7 +25,7 @@ let sequence = 0;
 
 export function emptyPart(constructionId = ''): PartDraft {
   sequence += 1;
-  return { key: `новая-часть-${sequence}`, id: null, constructionId, sectionId: '', value: '' };
+  return { key: `новая-часть-${sequence}`, id: null, constructionId, sectionId: '', articleId: '', value: '' };
 }
 
 /**
@@ -37,8 +39,9 @@ export function toPartDrafts(allocation: LineAllocationView): PartDraft[] {
   return allocation.parts.map((part: AllocationPartView) => ({
     key: part.id,
     id: part.id,
-    constructionId: part.constructionId,
+    constructionId: part.constructionId ?? '',
     sectionId: part.sectionId ?? '',
+    articleId: part.articleId ?? '',
     value: formatPlain(allocation.mode !== 'amount' ? part.quantity
       : part.amount === null ? null : round(part.amount - part.discrepancy, 2)),
   }));
@@ -58,6 +61,7 @@ export function toPartsPayload(
     id: draft.id,
     construction: draft.constructionId || null,
     section: draft.sectionId || null,
+    article: draft.articleId || null,
     [mode === 'amount' ? 'amount' : 'quantity']: toNumber(draft.value),
   }));
 }
@@ -102,7 +106,8 @@ export function allocationStatus(
       ? { text: 'нечего разносить', tone: 'muted' }
       : { text: 'части не того вида', tone: 'warning' };
 
-  if (allocation.parts.some(p => p.targetLost)) return { text: 'стройка удалена', tone: 'warning' };
+  const lost = allocation.parts.find(p => p.targetLost);
+  if (lost) return { text: lost.articleId ? 'статья удалена' : 'стройка удалена', tone: 'warning' };
   if (allocation.parts.some(p => p.mismatched)) return { text: 'части не того вида', tone: 'warning' };
   if (allocation.balanced) return { text: 'разнесено', tone: 'ok' };
   if (allocation.parts.length === 0) return { text: 'не разнесено', tone: 'warning' };

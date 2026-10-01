@@ -13,7 +13,9 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed record AllocationRequest(IReadOnlyList<JsonElement>? Parts);
 
 /// <summary>Часть разноски в ответе.</summary>
-/// <param name="TargetLost">Стройки (или раздела в ней) больше нет — удалили в ядре. Потеря, и
+/// <param name="ConstructionId">Стройка; <c>null</c> — часть легла на статью вне строек.</param>
+/// <param name="ArticleId">Статья вне строек (F3, issue #1087); <c>null</c> — часть легла на стройку.</param>
+/// <param name="TargetLost">Стройки (раздела в ней, статьи) больше нет — удалили. Потеря, и
 /// выглядеть она обязана иначе, чем «цель не выбрана»: деньги этой части сейчас не относятся ни к
 /// чему, и «разобран» с ней не проходит.</param>
 /// <param name="Quantity">Количество части — у строки, разносимой количеством.</param>
@@ -28,10 +30,12 @@ public sealed record AllocationRequest(IReadOnlyList<JsonElement>? Parts);
 public sealed record AllocationPartView(
     Guid Id,
     int Ordinal,
-    Guid ConstructionId,
+    Guid? ConstructionId,
     string? ConstructionName,
     Guid? SectionId,
     string? SectionName,
+    Guid? ArticleId,
+    string? ArticleName,
     bool TargetLost,
     decimal? Quantity,
     decimal? Amount,
@@ -96,20 +100,21 @@ public static class InvoiceAllocations
 {
     private const string ConstructionKey = "construction";
     private const string SectionKey = "section";
+    private const string ArticleKey = "article";
 
     /// <summary>
-    /// Прочитать и посчитать разноску счёта. Стройки спрашиваются только если частей больше нуля:
-    /// счёт без разноски — самый частый случай, и список строек ему не нужен.
+    /// Прочитать и посчитать разноску счёта. Стройки и статьи спрашиваются только если частей больше нуля:
+    /// счёт без разноски — самый частый случай, и списки целей ему не нужны.
     /// </summary>
     public static async Task<InvoiceAllocationRead> ReadAsync(
-        CostsDbContext db, IModuleConstructions sites, Invoice invoice, IReadOnlyList<InvoiceLine> lines,
+        CostsDbContext db, AllocationPlacesSource places, Invoice invoice, IReadOnlyList<InvoiceLine> lines,
         CancellationToken ct)
     {
         var parts = await db.InvoiceAllocations.AsNoTracking()
             .Where(a => a.InvoiceId == invoice.Id)
             .ToListAsync(ct);
 
-        var known = parts.Count == 0 ? [] : await sites.ListAsync(ct);
+        var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
         return Read(invoice, lines.Select(Line), parts, known);
     }
 
@@ -125,7 +130,7 @@ public static class InvoiceAllocations
     /// <paramref name="invoice" /> — тоже как ляжет.</para>
     /// </summary>
     public static async Task<bool> AllocatedAfterAsync(
-        CostsDbContext db, IModuleConstructions sites, Invoice invoice, IReadOnlyList<AllocationLine> lines,
+        CostsDbContext db, AllocationPlacesSource places, Invoice invoice, IReadOnlyList<AllocationLine> lines,
         CancellationToken ct, Func<Guid?, bool>? replaced = null, IReadOnlyList<InvoiceAllocation>? replacement = null)
     {
         var kept = lines.Select(l => l.Id).ToHashSet();
@@ -137,14 +142,14 @@ public static class InvoiceAllocations
             [.. stored.Where(a => (a.LineId is not { } line || kept.Contains(line)) && replaced?.Invoke(a.LineId) != true),
              .. replacement ?? []];
 
-        var known = parts.Count == 0 ? [] : await sites.ListAsync(ct);
+        var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
         return Read(invoice, lines, parts, known).Summary.Allocated;
     }
 
     /// <summary>Посчитать разноску по уже прочитанному.</summary>
     public static InvoiceAllocationRead Read(
         Invoice invoice, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        IReadOnlyList<ModuleConstruction> sites)
+        AllocationPlaces sites)
     {
         var balance = AllocationMath.Of(lines, parts.Select(Part), invoice.Total);
         var byId = parts.ToDictionary(p => p.Id);
@@ -203,12 +208,7 @@ public static class InvoiceAllocations
             throw new InvalidRequestException(
                 $"Часть {number} прислана как {part.ValueKind}, а ожидается объект с полями части.");
 
-        var construction = Identifier(part, ConstructionKey, $"Стройка, часть {number}")
-            ?? throw new InvalidRequestException(
-                $"Часть {number}: стройка не выбрана. Часть разноски — это «сколько и куда», и без «куда» " +
-                "её деньги не относятся ни к чему. Раздел можно не указывать, стройку — нельзя.");
-
-        var section = Identifier(part, SectionKey, $"Раздел, часть {number}");
+        var target = Target(part, $"Часть {number}");
         var quantity = CostsValues.Money(part, "quantity", $"Количество, часть {number}");
         var amount = CostsValues.Money(part, "amount", $"Сумма, часть {number}");
 
@@ -218,13 +218,13 @@ public static class InvoiceAllocations
                 $"Часть {number}: у строки есть количество, поэтому разносится количество, а сумма части " +
                 "считается — количество × цена строки. Присланную сумму принять нельзя: она стала бы вторым " +
                 "ответом на тот же вопрос и разошлась бы с первым на копейки."),
-            AllocationMode.Quantity => new AllocationValues(construction, section,
+            AllocationMode.Quantity => new AllocationValues(target,
                 Positive(quantity, 3, $"Количество, часть {number}"), null),
 
             AllocationMode.Amount when quantity is not null => throw new InvalidRequestException(
                 $"Часть {number}: у строки нет количества — это доставка, услуга или «1 компл.», — поэтому " +
                 "разносится сумма. Количество части делить не из чего."),
-            AllocationMode.Amount => new AllocationValues(construction, section, null,
+            AllocationMode.Amount => new AllocationValues(target, null,
                 Nonzero(amount, $"Сумма, часть {number}")),
 
             _ => throw new InvalidRequestException(
@@ -234,62 +234,107 @@ public static class InvoiceAllocations
     }
 
     /// <summary>
-    /// Стройки и разделы, на которые ссылаются части, обязаны существовать, а раздел — принадлежать
+    /// Цель — стройка (и раздел) ИЛИ статья вне строек, ровно одно (ТЗ COST-10.1). <paramref name="who" /> —
+    /// «Часть 2» или «Объект 1»: цель разбирают и часть, и быстрая разноска.
+    ///
+    /// <para>⚠️ Обе цели сразу — отказ, а не «берём стройку»: часть легла бы в затраты дважды, и какую из двух
+    /// выбрать молча, сказать нечем. Раздел у статьи — тоже отказ: разделы бывают только у строек.</para>
+    /// </summary>
+    internal static AllocationTarget Target(JsonElement source, string who)
+    {
+        var construction = Identifier(source, ConstructionKey, $"Стройка, {Lower(who)}");
+        var section = Identifier(source, SectionKey, $"Раздел, {Lower(who)}");
+        var article = Identifier(source, ArticleKey, $"Статья, {Lower(who)}");
+
+        return (construction, article) switch
+        {
+            ({ }, { }) => throw new InvalidRequestException(
+                $"{who}: выбраны и стройка, и статья вне строек. Цель — одно из двух: иначе деньги легли бы в " +
+                "затраты дважды. Оставьте стройку или статью."),
+            (null, not null) when section is not null => throw new InvalidRequestException(
+                $"{who}: раздел указан у статьи вне строек. Разделы бывают только у строек."),
+            (null, { } id) => AllocationTarget.Article(id),
+            ({ } site, null) => AllocationTarget.Site(site, section),
+            _ => throw new InvalidRequestException(
+                $"{who}: не выбрано, куда. Часть разноски — это «сколько и куда», и без «куда» её деньги не " +
+                "относятся ни к чему. Выберите стройку (раздел можно не указывать) или статью вне строек."),
+        };
+    }
+
+    private static string Lower(string who) => char.ToLowerInvariant(who[0]) + who[1..];
+
+    /// <summary>
+    /// Стройки, разделы и статьи, на которые ссылаются части, обязаны существовать, а раздел — принадлежать
     /// своей стройке. Раздел чужой стройки — не опечатка, которую можно простить: затраты легли бы
     /// на одну стройку, а в разрезе разделов — на другую.
     /// </summary>
-    public static void EnsureTargets(IReadOnlyList<AllocationValues> parts, IReadOnlyList<ModuleConstruction> sites)
+    public static void EnsureTargets(IReadOnlyList<AllocationValues> parts, AllocationPlaces places)
     {
         for (var index = 0; index < parts.Count; index++)
         {
-            var part = parts[index];
-            var site = sites.FirstOrDefault(s => s.Id == part.ConstructionId)
+            var target = parts[index].Target;
+            if (target.ArticleId is { } article)
+            {
+                if (places.Article(article) is null)
+                    throw new InvalidRequestException(
+                        $"Часть {index + 1}: такой статьи вне строек нет. Так бывает, когда статью убрали из " +
+                        "справочника, пока форма была открыта. Выберите цель заново.");
+                continue;
+            }
+
+            var site = places.Site(target.ConstructionId)
                 ?? throw new InvalidRequestException(
                     $"Часть {index + 1}: такой стройки нет. Так бывает, когда стройку удалили, пока форма была " +
                     "открыта. Выберите стройку заново — разнести деньги на несуществующую стройку значило бы " +
                     "потерять их из затрат.");
 
-            if (part.SectionId is { } section && site.Sections.All(s => s.Id != section))
+            if (target.SectionId is { } section && site.Sections.All(s => s.Id != section))
                 throw new InvalidRequestException(
                     $"Часть {index + 1}: раздела нет у стройки «{site.Name}». Раздел выбирают внутри стройки — " +
                     "иначе затраты легли бы на одну стройку, а в разрезе разделов на другую.");
         }
 
         var repeated = parts
-            .Select((p, index) => (Number: index + 1, Target: (p.ConstructionId, p.SectionId)))
+            .Select((p, index) => (Number: index + 1, p.Target))
             .GroupBy(p => p.Target)
             .FirstOrDefault(g => g.Count() > 1);
 
         if (repeated is not null)
             throw new InvalidRequestException(
                 $"Части {string.Join(" и ", repeated.Select(p => p.Number))} идут на одну и ту же цель. " +
-                "Сложите их в одну часть: две части на одну стройку и раздел читаются в отчёте как два " +
-                "разных решения, а решение одно.");
+                "Сложите их в одну часть: две части на одну цель читаются в отчёте как два разных решения, а " +
+                "решение одно.");
     }
 
-    /// <summary>Разноска текстом для журнала: «Стройка / раздел — 100 м; …» (ТЗ COST-15).</summary>
-    public static string Describe(IReadOnlyList<AllocationValues> parts, IReadOnlyList<ModuleConstruction> sites, string? unit)
+    /// <summary>Разноска текстом для журнала: «Стройка / раздел — 100 м; статья «Склад» — 5 м» (ТЗ COST-15).</summary>
+    public static string Describe(IReadOnlyList<AllocationValues> parts, AllocationPlaces places, string? unit)
     {
         if (parts.Count == 0) return "не разнесена";
 
         return string.Join("; ", parts.Select(p =>
         {
-            var site = sites.FirstOrDefault(s => s.Id == p.ConstructionId);
-            var target = site?.Name ?? $"стройка {p.ConstructionId}";
-            if (p.SectionId is { } id)
-                target += " / " + (site?.Sections.FirstOrDefault(s => s.Id == id)?.Name ?? $"раздел {id}");
-
             var size = p.Quantity is { } quantity
                 ? $"{quantity:0.###} {unit}".TrimEnd()
                 : $"{p.Amount:0.00} ₽";
-            return $"{target} — {size}";
+            return $"{TargetText(p.Target, places)} — {size}";
         }));
     }
 
-    private static AllocationPartView View(
-        InvoiceAllocation part, AllocationShare share, IReadOnlyList<ModuleConstruction> sites)
+    private static string TargetText(AllocationTarget target, AllocationPlaces places)
     {
-        var site = sites.FirstOrDefault(s => s.Id == part.ConstructionId);
+        if (target.ArticleId is { } article)
+            return $"статья «{places.Article(article)?.Name ?? article.ToString()}»";
+
+        var site = places.Site(target.ConstructionId);
+        var text = site?.Name ?? $"стройка {target.ConstructionId}";
+        if (target.SectionId is { } id)
+            text += " / " + (site?.Sections.FirstOrDefault(s => s.Id == id)?.Name ?? $"раздел {id}");
+        return text;
+    }
+
+    private static AllocationPartView View(InvoiceAllocation part, AllocationShare share, AllocationPlaces places)
+    {
+        var site = places.Site(part.ConstructionId);
         var section = part.SectionId is { } id ? site?.Sections.FirstOrDefault(s => s.Id == id) : null;
 
         return new AllocationPartView(
@@ -299,7 +344,9 @@ public static class InvoiceAllocations
             site?.Name,
             part.SectionId,
             section?.Name,
-            Lost(part, sites),
+            part.ArticleId,
+            places.Article(part.ArticleId)?.Name,
+            Lost(part, places),
             part.Quantity,
             share.Amount,
             share.Rounding,
@@ -307,9 +354,10 @@ public static class InvoiceAllocations
             share.Mismatched);
     }
 
-    private static bool Lost(InvoiceAllocation part, IReadOnlyList<ModuleConstruction> sites)
+    private static bool Lost(InvoiceAllocation part, AllocationPlaces places)
     {
-        var site = sites.FirstOrDefault(s => s.Id == part.ConstructionId);
+        if (part.ArticleId is { } article) return places.Article(article) is null;
+        var site = places.Site(part.ConstructionId);
         return site is null || (part.SectionId is { } id && site.Sections.All(s => s.Id != id));
     }
 

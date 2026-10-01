@@ -24,7 +24,7 @@ public sealed record AllocationMatrixRequest(
     IReadOnlyList<JsonElement>? Lines, IReadOnlyList<JsonElement>? Document, string? Stamp);
 
 /// <summary>Часть в наборе матрицы — те же поля, что принимает запись.</summary>
-public sealed record MatrixPart(Guid Construction, Guid? Section, decimal? Quantity, decimal? Amount);
+public sealed record MatrixPart(Guid? Construction, Guid? Section, Guid? Article, decimal? Quantity, decimal? Amount);
 
 /// <summary>Строка в наборе матрицы.</summary>
 public sealed record MatrixLine(Guid Line, IReadOnlyList<MatrixPart> Parts);
@@ -33,7 +33,7 @@ public sealed record MatrixLine(Guid Line, IReadOnlyList<MatrixPart> Parts);
 public sealed record MatrixState(IReadOnlyList<MatrixLine> Lines, IReadOnlyList<MatrixPart> Document);
 
 /// <summary>Клетка, в которую ушёл остаток округления: строка (<c>null</c> — счёт целиком) и цель.</summary>
-public sealed record RemainderCell(Guid? Line, Guid Construction, Guid? Section);
+public sealed record RemainderCell(Guid? Line, Guid? Construction, Guid? Section, Guid? Article);
 
 /// <summary>
 /// Предпросмотр быстрой разноски — посчитанный СЕРВЕРОМ и ничего не записавший.

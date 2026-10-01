@@ -227,7 +227,7 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
     [InlineData("amount", "считается")]
     [InlineData("over", "Разнести больше, чем куплено")]
     [InlineData("foreignSection", "раздела нет у стройки")]
-    [InlineData("noSite", "стройка не выбрана")]
+    [InlineData("noSite", "не выбрано, куда")]
     [InlineData("twice", "идут на одну и ту же цель")]
     [InlineData("precise", "точнее тысячной")]
     public async Task Неверная_разноска_отвергается_с_причиной(string kind, string expected)
