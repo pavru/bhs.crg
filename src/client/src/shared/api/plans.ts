@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { NO_ACCESS, hasModule, useAccess } from './access';
 
 /**
  * План по документам (issue #796).
@@ -58,9 +59,13 @@ export function invalidatePlans(qc: QueryClient) {
 }
 
 export function usePlanSummary(scope: PlanScope, scopeId?: string) {
+  // План — часть модуля исполнительной документации: его адреса стоят за воротами модуля `id` (issue
+  // #1125). Список строек открывает и тот, у кого этого модуля нет («Бухгалтер»), — без проверки
+  // каждый вход приносил бы ему 403 фоном.
+  const { data: access = NO_ACCESS } = useAccess();
   return useQuery({
     queryKey: [...KEY, 'summary', scope, scopeId ?? null],
-    enabled: scope === 'System' || !!scopeId,
+    enabled: hasModule(access, 'id') && (scope === 'System' || !!scopeId),
     queryFn: async () => (await apiClient.get<PlanSummary>('/plans/summary', {
       params: { scope, scopeId },
     })).data,
