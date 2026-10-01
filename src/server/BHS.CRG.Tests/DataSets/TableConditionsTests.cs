@@ -25,6 +25,81 @@ public class TableConditionsTests
     private static DataSetColumnTypes Typed(string column, string kind) =>
         new(new Dictionary<string, string> { [column] = kind }, new Dictionary<string, string>());
 
+    // ── Перечень: условие по дочернему зерну ───────────────────────────────────
+
+    /// <summary>
+    /// «Есть в перечне такой» — у положительных операторов; отрицание — «нет НИ ОДНОГО такого», а не
+    /// «есть хоть один другой»: счёт, разнесённый на А и на Б, под «объект не А» не попадает.
+    /// </summary>
+    [Fact]
+    public void Условие_по_перечню_спрашивает_есть_ли_такой_элемент()
+    {
+        var types = Typed("О", TableOperators.List);
+        var rows = Rows("О", "Комарова 36, 4 эт.\nСклад", "Склад", "Ливнёвка", null);
+
+        int Count(string filter) => DataSetRowFilterExecutor.Apply(filter, rows, "набор", types).Count;
+
+        Assert.Equal(2, Count(One("О", "eq", "склад")));
+        Assert.Equal(2, Count(One("О", "neq", "склад")));
+        Assert.Equal(1, Count(One("О", "contains", "КОМАР")));
+        Assert.Equal(3, Count(One("О", "not_contains", "комар")));
+        Assert.Equal(1, Count(One("О", "starts_with", "лив")));
+        Assert.Equal(3, Count(Many("О", "in", "Ливнёвка", "Склад")));
+        Assert.Equal(1, Count(Many("О", "not_in", "Ливнёвка", "Склад")));
+        Assert.Equal(1, Count("""{"type":"condition","column":"О","op":"is_empty"}"""));
+        Assert.Equal(3, Count("""{"type":"condition","column":"О","op":"is_not_empty"}"""));
+
+        // Запятая — часть названия, а не разделитель: перечень делит перевод строки.
+        Assert.Equal(1, Count(One("О", "eq", "Комарова 36, 4 эт.")));
+        Assert.Equal(0, Count(One("О", "eq", "Комарова 36")));
+    }
+
+    [Fact]
+    public void Клетка_перечня_собирается_и_разбирается_одним_разделителем()
+    {
+        Assert.Equal(["Комарова 36, 4 эт.", "Склад"], TableConditions.Items(TableConditions.Join(["Комарова 36, 4 эт.", "Склад"])));
+        Assert.Null(TableConditions.Join([]));
+        Assert.Empty(TableConditions.Items(null));
+    }
+
+    // ── Какие объекты отбор НАЗЫВАЕТ ───────────────────────────────────────────
+
+    private static TableFilterCondition On(string column, string op, params string[] values) =>
+        new(column, ModuleTableColumnKind.List, op, values, TableConditions.Compile(TableOperators.List, op, values));
+
+    private static TableFilterGroup All(params TableFilter[] children) => new(false, children);
+
+    private static TableFilterGroup Any(params TableFilter[] children) => new(true, children);
+
+    /// <summary>
+    /// Долю счёта считают на объекты, которые отбор назвал, — и названо только то, без чего строка в
+    /// отбор не попала бы. Иначе «доля на А» появилась бы у счёта, на А не разнесённого.
+    /// </summary>
+    [Fact]
+    public void Отбор_называет_объект_только_когда_без_него_строка_не_попала_бы_в_отбор()
+    {
+        var a = On("О", "eq", "А");
+        var b = On("О", "in", "Б", "В");
+        var other = On("Номер", "contains", "1");
+
+        Assert.Equal([a], TableFilters.Naming(a, "О"));
+        Assert.Equal([a], TableFilters.Naming(All(other, a), "О"));
+        Assert.Equal([a, b], TableFilters.Naming(All(a, All(other, b)), "О"));
+        Assert.Equal([a, b], TableFilters.Naming(All(other, Any(a, b)), "О"));
+
+        // «А или что-то ещё» объекта не называет: в отборе есть строки без А.
+        Assert.Empty(TableFilters.Naming(Any(a, other), "О"));
+        Assert.Empty(TableFilters.Naming(All(other, Any(a, other)), "О"));
+        // Отрицание и «пусто» не называют ничего.
+        Assert.Empty(TableFilters.Naming(On("О", "neq", "А"), "О"));
+        Assert.Empty(TableFilters.Naming(On("О", "not_in", "А", "Б"), "О"));
+        Assert.Empty(TableFilters.Naming(On("О", "is_not_empty"), "О"));
+        // Нет отбора или условие по другой колонке.
+        Assert.Empty(TableFilters.Naming(null, "О"));
+        Assert.Empty(TableFilters.Naming(other, "О"));
+        Assert.Empty(TableFilters.Naming(Any(), "О"));
+    }
+
     // ── Узлы у файловых наборов: та же догадка, что у остальных сравнений ──────
 
     [Fact]

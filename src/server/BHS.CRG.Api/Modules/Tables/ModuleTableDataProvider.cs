@@ -68,9 +68,14 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
         if (table is null)
             throw new InvalidOperationException(
                 $"Ворота набора пропустили к таблице «{entry.Address}», а служба таблиц отказала: {refusal!.Error}");
-        var rows = table.Rows.Select(Strings).ToList();
+        // Колонка, чьё значение зависит от отбора, в набор не едет: набор отбирает строки САМ, уже
+        // после чтения, и «доля по разноске» посчиталась бы здесь без отбора — полной суммой под
+        // именем доли. В наборе остаётся колонка с постоянным смыслом.
+        var kept = table.Columns.Where(c => !c.DependsOnFilter).ToList();
+        var keys = kept.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+        var rows = table.Rows.Select(r => Strings(r, keys)).ToList();
 
-        var columns = table.Columns
+        var columns = kept
             .Select(c => new DataSetColumnInfo(c.Key, [.. rows
                 .Select(r => r.GetValueOrDefault(c.Key))
                 .OfType<string>().Where(v => v.Length > 0).Distinct().Take(3)]))
@@ -78,7 +83,7 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
 
         // Закрытые колонки остаются колонками; почему они пусты — говорит оговорка. Перечисляем
         // заголовками: ключ «ВТомЧислеНДС» человеку ничего не говорит.
-        var closed = table.Columns.Where(c => c.Unavailable is not null).ToList();
+        var closed = kept.Where(c => c.Unavailable is not null).ToList();
         var warning = closed.Count == 0
             ? null
             : string.Join("; ", closed.GroupBy(c => c.Reason).Select(g =>
@@ -88,14 +93,15 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
         // Виды колонок едут с данными: отбор источника сравнивает по виду — так же, как запрос к
         // базе у экрана таблицы. По закрытой колонке отбор отказывает, а не находит «ничего».
         var types = new DataSetColumnTypes(
-            table.Columns.Where(c => c.Unavailable is null).ToDictionary(c => c.Key, c => c.Kind, StringComparer.Ordinal),
+            kept.Where(c => c.Unavailable is null).ToDictionary(c => c.Key, c => c.Kind, StringComparer.Ordinal),
             closed.ToDictionary(c => c.Key, c => c.Reason ?? "", StringComparer.Ordinal));
 
         return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning), Types: types);
     }
 
-    private static IReadOnlyDictionary<string, string?> Strings(IReadOnlyDictionary<string, object?> row) =>
-        row.ToDictionary(p => p.Key, p => Text(p.Value), StringComparer.Ordinal);
+    private static IReadOnlyDictionary<string, string?> Strings(
+        IReadOnlyDictionary<string, object?> row, HashSet<string> keys) =>
+        row.Where(p => keys.Contains(p.Key)).ToDictionary(p => p.Key, p => Text(p.Value), StringComparer.Ordinal);
 
     /// <summary>Значения наборов — строки; числа и даты — в неизменном виде, а не в виде сервера.</summary>
     private static string? Text(object? value) => value switch
@@ -104,6 +110,8 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
         decimal d => d.ToString(CultureInfo.InvariantCulture),
         DateOnly d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         bool b => b ? "true" : "false",
+        // Перечень — одной клеткой, тем разделителем, каким её разберёт условие отбора.
+        IEnumerable<string> items => TableConditions.Join(items),
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString(),
     };

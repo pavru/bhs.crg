@@ -1,13 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Infrastructure.DataSets;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -20,8 +18,6 @@ namespace BHS.CRG.Tests.Integration;
 /// </summary>
 public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSeededTests(host)
 {
-    private const string Address = "costs.invoices";
-
     [Fact]
     public async Task Итог_считается_по_всему_отбору_а_не_по_странице()
     {
@@ -291,17 +287,5 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         var response = await client.GetAsync($"/api/tables/{Address}?{query}");
         await OkAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
-    }
-
-    /// <summary>Своя роль с одним правом — системных ролей «модуль есть, счетов нет» не бывает.</summary>
-    private async Task<string> RoleAsync(string permission)
-    {
-        var name = $"Narrow_{Guid.NewGuid():N}";
-        using var scope = host.Services.CreateScope();
-        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-        var role = new IdentityRole<Guid>(name);
-        Assert.True((await roles.CreateAsync(role)).Succeeded);
-        Assert.True((await roles.AddClaimAsync(role, new Claim(RoleSynchronizer.PermissionClaim, permission))).Succeeded);
-        return name;
     }
 }
