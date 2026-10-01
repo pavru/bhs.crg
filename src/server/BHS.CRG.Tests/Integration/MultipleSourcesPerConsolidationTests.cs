@@ -101,9 +101,9 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var protocols = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", Marker, null), TestAccess.All, default);
 
         await svc.SetSourceProcessingAsync(acts.Id,
-            new SetSourceProcessingInput(Filter("Наименование", "starts_with", "АОСР"), null, null), default);
+            new SetSourceProcessingInput(Filter("Наименование", "starts_with", "АОСР"), null, null), TestAccess.All, default);
         await svc.SetSourceProcessingAsync(protocols.Id,
-            new SetSourceProcessingInput(Filter("Наименование", "starts_with", "Протокол"), null, null), default);
+            new SetSourceProcessingInput(Filter("Наименование", "starts_with", "Протокол"), null, null), TestAccess.All, default);
 
         var actsPreview = (await svc.PreviewSourceAsync(acts.Id, 50, TestAccess.All, default))!;
         Assert.Equal("АОСР №1", Assert.Single(actsPreview.Rows)[actsPreview.Columns.ToList().IndexOf("Наименование")]);
@@ -111,7 +111,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         Assert.Equal("Протокол №1", Assert.Single(protocolsPreview.Rows)[protocolsPreview.Columns.ToList().IndexOf("Наименование")]);
 
         // Правка одного не трогает другой: снимаем фильтр у актов — протоколы остаются при своём.
-        await svc.SetSourceProcessingAsync(acts.Id, new SetSourceProcessingInput(null, null, null), default);
+        await svc.SetSourceProcessingAsync(acts.Id, new SetSourceProcessingInput(null, null, null), TestAccess.All, default);
         Assert.Equal(2, (await svc.PreviewSourceAsync(acts.Id, 50, TestAccess.All, default))!.Rows.Count);
         Assert.Single((await svc.PreviewSourceAsync(protocols.Id, 50, TestAccess.All, default))!.Rows);
     }
@@ -137,7 +137,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
             "Ид", MaterializeDiscriminatorConfig.ByDocumentId, new() { ["АОСР"] = [aosrTypeId] });
 
         await svc.SetSourceProcessingAsync(source.Id,
-            new SetSourceProcessingInput(Filter("Наименование", "starts_with", "АОСР"), null, null), default);
+            new SetSourceProcessingInput(Filter("Наименование", "starts_with", "АОСР"), null, null), TestAccess.All, default);
         await svc.SetMaterializationAsync(source.Id, unionType.Id, new() { ["АОСР"] = "Ид" }, discriminator, byIdColumn: null, default);
         // Тэги источника ставятся не через IDataSetService (у обычных источников их проставляет
         // распознавание) — для проверки копирования пишем их прямо в хранилище.

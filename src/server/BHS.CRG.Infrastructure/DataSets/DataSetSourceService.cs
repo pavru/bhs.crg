@@ -781,40 +781,4 @@ public partial class DataSetSourceService(
 
         return new ExpressionPreviewDto(rowCount, samples);
     }
-
-    public async Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-
-        source.SetProcessing(
-            DataSetDtoMapper.SerializeJson(input.RowFilter), DataSetDtoMapper.SerializeJson(input.ComputedColumns), DataSetDtoMapper.SerializeJson(input.SortSpec));
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
-
-    public async Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-
-        var template = await db.DataSetProcessingTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == templateId, ct)
-            ?? throw new NotFoundException($"DataSetProcessingTemplate {templateId} not found");
-
-        // Extraction в шаблоне — опциональна: если задана, пере-парсим файл (имя источника не
-        // трогаем — оно своё у каждого источника, не часть рецепта). У системного источника
-        // extraction — это ВЫБОР КОНСОЛИДАЦИИ, а не лист файла: подменять его рецептом нельзя
-        // (парсера у формата System нет — прежде здесь падало «Нет парсера для формата System»).
-        // Обработку при этом переносим: фильтр/колонки/сортировка к живым строкам применимы (#613).
-        if (!string.IsNullOrWhiteSpace(template.SheetOrPath) && !source.File.IsSystem)
-        {
-            var (schema, rowCount) = await ParseForDefinitionAsync(
-                source.File.BlobPath, source.File.Format, template.SheetOrPath, template.ColumnExpressions, ct);
-            source.UpdateDefinition(source.Name, template.SheetOrPath, template.ColumnExpressions);
-            source.UpdateCache(DataSetDtoMapper.SerializeSchema(schema), rowCount);
-        }
-        source.SetProcessing(template.RowFilter, template.ComputedColumns, template.SortSpec);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
 }

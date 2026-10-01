@@ -403,12 +403,13 @@ public static class DataSetEndpoints
 
         // Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
-            Guid sourceId, ProcessingRequest req, IDataSetService svc, CancellationToken ct) =>
+            Guid sourceId, ProcessingRequest req, ClaimsPrincipal user, DataAccessResolver access,
+            IDataSetService svc, CancellationToken ct) =>
         {
             try
             {
                 var input = new SetSourceProcessingInput(req.RowFilter, req.ComputedColumns, req.SortSpec);
-                var result = await svc.SetSourceProcessingAsync(sourceId, input, ct);
+                var result = await svc.SetSourceProcessingAsync(sourceId, input, await access.ForAsync(user, ct), ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
@@ -417,11 +418,12 @@ public static class DataSetEndpoints
         // Применить шаблон (Extraction, если задана в шаблоне, + Filter/Transformation/Sort) —
         // copy-on-apply, единожды; Extraction триггерит пере-парсинг файла.
         g.MapPost("/sources/{sourceId:guid}/apply-template/{templateId:guid}", async (
-            Guid sourceId, Guid templateId, IDataSetService svc, CancellationToken ct) =>
+            Guid sourceId, Guid templateId, ClaimsPrincipal user, DataAccessResolver access,
+            IDataSetService svc, CancellationToken ct) =>
         {
             try
             {
-                var result = await svc.ApplyProcessingTemplateAsync(sourceId, templateId, ct);
+                var result = await svc.ApplyProcessingTemplateAsync(sourceId, templateId, await access.ForAsync(user, ct), ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }

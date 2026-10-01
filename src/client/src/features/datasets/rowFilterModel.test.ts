@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { FILTER_OP_LABELS } from '@/shared/api/types';
 import {
-  UNTYPED_OPS, conditionProblem, filterColumns, fromDraft, hasProblems, newCondition, newGroup, opArity,
+  UNTYPED_OPS, conditionProblem, filterColumns, fromDraft, newCondition, newGroup, opArity,
   opLabel, operatorsFor, toDraft, valueFits, withColumn, withOperator, type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 
@@ -164,14 +164,6 @@ describe('conditionProblem', () => {
     expect(conditionProblem(cond({ column: '', op: 'in', value: undefined, values: [] }), columns)).toBeNull();
   });
 
-  it('негодное условие в глубине дерева находится', () => {
-    const tree: FilterGroup = {
-      type: 'group', logic: 'and',
-      children: [cond({}), { type: 'group', logic: 'or', children: [cond({ op: 'contains', value: '1' })] }],
-    };
-    expect(hasProblems(tree, columns)).toBe(true);
-    expect(hasProblems({ ...tree, children: [cond({})] }, columns)).toBe(false);
-  });
 });
 
 describe('valueFits', () => {
@@ -218,7 +210,7 @@ describe('черновик диалога', () => {
     const bare = { type: 'condition', column: 'Итого', value: '5' } as unknown as FilterCondition;
     const draft = toDraft({ type: 'group', logic: 'and', children: [bare] }) as DraftGroup;
     expect(draft.children[0]).toMatchObject({ column: 'Итого', op: 'eq', value: '5' });
-    expect(hasProblems(draft, columns)).toBe(false);
+    expect(conditionProblem(draft.children[0] as FilterCondition, columns)).toBeNull();
   });
 
   it('условие без колонки и группа без детей диалог не роняют', () => {
@@ -229,6 +221,7 @@ describe('черновик диалога', () => {
     const draft = toDraft(broken) as DraftGroup;
     expect(draft.children.slice(0, 2)).toMatchObject([{ column: '' }, { column: '' }]);
     expect(draft.children[2]).toMatchObject({ children: [] });
-    expect(hasProblems(draft, columns)).toBe(false);
+    for (const child of draft.children.slice(0, 2))
+      expect(conditionProblem(child as FilterCondition, columns)).toBeNull();
   });
 });

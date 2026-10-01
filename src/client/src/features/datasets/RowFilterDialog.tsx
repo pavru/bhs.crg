@@ -3,8 +3,9 @@ import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { FilterCondition, FilterGroup, FilterOp, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
+import { apiError } from '@/shared/utils/apiError';
 import {
-  conditionProblem, fromDraft, hasProblems, newCondition, newGroup, operatorsFor, opLabel, toDraft,
+  conditionProblem, fromDraft, newCondition, newGroup, operatorsFor, opLabel, toDraft,
   withColumn, withOperator, type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
@@ -57,6 +58,8 @@ function FilterConditionRow({
   // остаётся в списке и назван: молча подменить его значило бы переписать чужое условие.
   const allowed = operatorsFor(column);
   const ops = allowed.includes(cond.op) ? allowed : [cond.op, ...allowed];
+  // Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
+  // то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор.
   const problem = conditionProblem(cond, columns);
   // Колонка условия, которой в источнике уже нет, тоже остаётся в списке: иначе выбор показал бы
   // «— колонка —» у условия, которое в базе стоит на конкретной колонке.
@@ -118,7 +121,7 @@ function FilterConditionRow({
           <Trash2 size={12} />
         </button>
       </div>
-      {problem && <p className="mt-0.5 text-xs text-danger">Условие не выполнится: {problem}.</p>}
+      {problem && <p className="mt-0.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
     </div>
   );
 }
@@ -258,7 +261,11 @@ export function RowFilterDialog({
   /** Колонки источника с их видами; без них (шаблон обработки) колонка вписывается текстом. */
   columns?: FilterColumn[];
   initial: RowFilterDef | null;
-  onSave: (filter: RowFilterDef | null) => void;
+  /**
+   * Сохранение. Обещание ждём: отказ сервера («такой отбор источник не выполнит») показываем здесь
+   * же, и диалог остаётся открытым — исправить условие можно только в нём.
+   */
+  onSave: (filter: RowFilterDef | null) => void | Promise<unknown>;
   onClose: () => void;
 }) {
   // Негодную форму сохранённого отбора заменяем пустым корнем и говорим об этом вслух (ниже):
@@ -269,21 +276,25 @@ export function RowFilterDialog({
     () => (isEditableFilterRoot(initial) ? toDraft(initial!) as DraftGroup : newGroup())
   );
 
-  function handleSave() {
-    const cleaned = cleanFilterNode(fromDraft(root)) as FilterGroup | null;
-    onSave(cleaned);
-    onClose();
+  const [saving, setSaving] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  async function commit(filter: RowFilterDef | null) {
+    setSaving(true);
+    setRefusal(null);
+    try {
+      await onSave(filter);
+      onClose();
+    } catch (e) {
+      setRefusal(apiError(e, 'Не удалось сохранить отбор'));
+      setSaving(false);
+    }
   }
 
-  function handleReset() {
-    onSave(null);
-    onClose();
-  }
+  const handleSave = () => commit(cleanFilterNode(fromDraft(root)) as FilterGroup | null);
+  const handleReset = () => commit(null);
 
   const hasAny = root.children.length > 0;
-  // Отбор с условием, которое сервер не выполнит, не сохраняем: отказ пришёл бы уже после — чтением
-  // источника, и не там, где человек ошибся.
-  const blocked = hasProblems(root, columns ?? []);
 
   return (
     <Modal
@@ -295,11 +306,10 @@ export function RowFilterDialog({
         <div className="flex gap-2 items-center">
           <button
             onClick={handleSave}
-            disabled={blocked}
-            title={blocked ? 'Исправьте отмеченные условия: такой отбор источник не выполнит' : undefined}
+            disabled={saving}
             className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
-            Сохранить
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <button
             onClick={onClose}
@@ -310,7 +320,8 @@ export function RowFilterDialog({
           {hasAny && (
             <button
               onClick={handleReset}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+              disabled={saving}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
             >
               Сбросить фильтр
             </button>
@@ -334,12 +345,16 @@ export function RowFilterDialog({
       <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
-          onChange={setRoot}
+          // Отказ сервера — про отбор, который отправляли. Тронули условие — он уже про другое
+          // дерево, и висеть рядом с исправленным условием ему нельзя.
+          onChange={next => { setRoot(next); setRefusal(null); }}
           onRemove={undefined}
           depth={0}
           columns={columns ?? []}
         />
       </div>
+
+      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
     </Modal>
   );
 }

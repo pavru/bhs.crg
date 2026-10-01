@@ -109,8 +109,10 @@ const KIND_NAMES: Record<string, string> = {
 };
 
 /**
- * Почему сервер это условие не выполнит; null — возражений нет. Говорим ДО сохранения: отказ сервера
- * приходит уже после него, чтением источника, и человек видит его не там, где ошибся.
+ * Почему сервер это условие, скорее всего, не выполнит; null — возражений нет. Это ПОДСКАЗКА под
+ * условием, а не запрет: решает сервер при сохранении (issue #1137), и его отказ диалог показывает
+ * сам. Копия правил здесь нужна, чтобы назвать причину сразу и у самого условия; запирать сохранение
+ * ей нельзя — разойдясь с сервером, она заперла бы годный отбор (так было с «пусто» у даты).
  *
  * Сохранённое негодное условие здесь не чинится и не прячется: оно показывается как есть и названо.
  */
@@ -165,13 +167,6 @@ function isDate(value: string): boolean {
   const date = new Date(0);
   date.setUTCFullYear(year, month - 1, day);
   return year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
-/** Есть ли в дереве условие, которое сервер не выполнит. */
-export function hasProblems(node: FilterNode, columns: FilterColumn[]): boolean {
-  return node.type === 'condition'
-    ? conditionProblem(node, columns) !== null
-    : node.children.some(c => hasProblems(c, columns));
 }
 
 /**
