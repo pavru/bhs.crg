@@ -1,4 +1,6 @@
 using System.Text.Json;
+using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Tables;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -36,6 +38,12 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// отсутствующего исполнителю нечем: состава колонок он не объявляет — это появится вместе с
 /// табличным представлением (CORE-33, этап 2). Пустое значение в условии тоже законно: с пустой
 /// ячейкой сравнивают намеренно.</para>
+///
+/// <para><b>Два режима сравнения</b> (G1c, issue #1090). У файловых наборов вида колонок нет, и
+/// сравнение идёт по догадке — как было всегда, и менять его нельзя: на нём стоят сохранённые отборы.
+/// У набора, чей поставщик объявил виды колонок (таблица модуля), условие по такой колонке сравнивает
+/// ПО ВИДУ — правилами <see cref="TableConditions" />, теми же, что запрос к базе у экрана таблицы.
+/// Иначе один сохранённый отбор давал бы на экране одни строки, а в наборе данных другие.</para>
 /// </summary>
 public static class DataSetRowFilterExecutor
 {
@@ -46,21 +54,29 @@ public static class DataSetRowFilterExecutor
     /// при добавлении оператора, и разошлись бы в сторону молчания: проверка пропустила бы то, чего
     /// выполнение не умеет.
     /// </summary>
-    static readonly Dictionary<string, Func<string, string, bool>> Ops = new(StringComparer.Ordinal)
+    static readonly Dictionary<string, Func<string, IReadOnlyList<string>, bool>> Ops = new(StringComparer.Ordinal)
     {
-        ["eq"]           = (val, exp) => string.Equals(val, exp, StringComparison.OrdinalIgnoreCase),
-        ["neq"]          = (val, exp) => !string.Equals(val, exp, StringComparison.OrdinalIgnoreCase),
-        ["contains"]     = (val, exp) => val.Contains(exp, StringComparison.OrdinalIgnoreCase),
-        ["not_contains"] = (val, exp) => !val.Contains(exp, StringComparison.OrdinalIgnoreCase),
-        ["starts_with"]  = (val, exp) => val.StartsWith(exp, StringComparison.OrdinalIgnoreCase),
-        ["ends_with"]    = (val, exp) => val.EndsWith(exp, StringComparison.OrdinalIgnoreCase),
-        ["gt"]           = (val, exp) => CompareNumOrStr(val, exp) > 0,
-        ["gte"]          = (val, exp) => CompareNumOrStr(val, exp) >= 0,
-        ["lt"]           = (val, exp) => CompareNumOrStr(val, exp) < 0,
-        ["lte"]          = (val, exp) => CompareNumOrStr(val, exp) <= 0,
+        ["eq"]           = (val, exp) => Same(val, exp[0]),
+        ["neq"]          = (val, exp) => !Same(val, exp[0]),
+        ["contains"]     = (val, exp) => val.Contains(exp[0], StringComparison.OrdinalIgnoreCase),
+        ["not_contains"] = (val, exp) => !val.Contains(exp[0], StringComparison.OrdinalIgnoreCase),
+        ["starts_with"]  = (val, exp) => val.StartsWith(exp[0], StringComparison.OrdinalIgnoreCase),
+        ["ends_with"]    = (val, exp) => val.EndsWith(exp[0], StringComparison.OrdinalIgnoreCase),
+        ["gt"]           = (val, exp) => CompareNumOrStr(val, exp[0]) > 0,
+        ["gte"]          = (val, exp) => CompareNumOrStr(val, exp[0]) >= 0,
+        ["lt"]           = (val, exp) => CompareNumOrStr(val, exp[0]) < 0,
+        ["lte"]          = (val, exp) => CompareNumOrStr(val, exp[0]) <= 0,
+        // Узлы G1c — у файловых наборов той же догадкой, что и остальные сравнения.
+        ["between"]      = (val, exp) => CompareNumOrStr(val, exp[0]) >= 0 && CompareNumOrStr(val, exp[1]) <= 0,
+        ["in"]           = (val, exp) => exp.Any(e => Same(val, e)),
+        ["not_in"]       = (val, exp) => !exp.Any(e => Same(val, e)),
         ["is_empty"]     = (val, _) => string.IsNullOrEmpty(val),
         ["is_not_empty"] = (val, _) => !string.IsNullOrEmpty(val),
+        ["is_null"]      = (val, _) => string.IsNullOrEmpty(val),
+        ["is_not_null"]  = (val, _) => !string.IsNullOrEmpty(val),
     };
+
+    static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Что исполнитель умеет. Наружу — ради сторожа: состав обязан совпадать с общим списком
@@ -72,12 +88,25 @@ public static class DataSetRowFilterExecutor
     /// Имя источника для текста отказа. У документа привязок бывает пять, и «отбор не разбирается»
     /// без имени не говорит, какую из них править.
     /// </param>
+    /// <param name="types">Виды колонок, если поставщик их объявил; null — сравнение по догадке.</param>
     public static List<IReadOnlyDictionary<string, string?>> Apply(
         string? rowFilterJson,
         List<IReadOnlyDictionary<string, string?>> rows,
-        string? sourceName = null)
+        string? sourceName = null,
+        DataSetColumnTypes? types = null)
     {
-        if (string.IsNullOrWhiteSpace(rowFilterJson)) return rows;
+        if (Parse(rowFilterJson, sourceName, types) is not { } root) return rows;
+        return rows.Where(row => Evaluate(root, row, types)).ToList();
+    }
+
+    /// <summary>
+    /// Разобранный и ПРОВЕРЕННЫЙ отбор; null — отбора нет. Наружу — для экрана таблицы: он исполняет
+    /// то же дерево запросом к базе, и разбирать его вторым способом значило бы завести второй язык
+    /// отборов (ТЗ CORE-33).
+    /// </summary>
+    public static FilterNode? Parse(string? rowFilterJson, string? sourceName = null, DataSetColumnTypes? types = null)
+    {
+        if (string.IsNullOrWhiteSpace(rowFilterJson)) return null;
 
         FilterNode? root;
         try { root = JsonSerializer.Deserialize<FilterNode>(rowFilterJson, JsonOpts); }
@@ -93,9 +122,18 @@ public static class DataSetRowFilterExecutor
                 "описание отбора записано значением «null»: условий в нём нет, и отсутствием отбора "
                 + "это не считается.");
 
-        Validate(root, "", sourceName);
+        Validate(root, "", sourceName, types);
+        return root;
+    }
 
-        return rows.Where(row => Evaluate(root, row)).ToList();
+    /// <summary>
+    /// Значения условия. У оператора с одним значением оно лежит в <c>value</c> (и пустое законно —
+    /// с пустой ячейкой сравнивают намеренно); у «in» и «between» — списком в <c>values</c>.
+    /// </summary>
+    public static IReadOnlyList<string> ValuesOf(FilterNode condition)
+    {
+        if (condition.Values is { Length: > 0 } list) return list;
+        return TableOperators.Arity(condition.Op ?? "eq") == 1 ? [condition.Value ?? ""] : [];
     }
 
     /// <summary>
@@ -103,7 +141,7 @@ public static class DataSetRowFilterExecutor
     /// второго узла корня): колонки в дереве повторяются, и одной колонки для «какое именно условие»
     /// не хватает.
     /// </summary>
-    static void Validate(FilterNode node, string path, string? sourceName)
+    static void Validate(FilterNode node, string path, string? sourceName, DataSetColumnTypes? types)
     {
         if (node.Type == "condition")
         {
@@ -116,6 +154,28 @@ public static class DataSetRowFilterExecutor
                 throw Refuse(sourceName,
                     $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}», "
                     + "которого нет.");
+
+            var values = ValuesOf(node);
+            var arity = TableOperators.Arity(op);
+            if (arity == 2 && values.Count != 2)
+                throw Refuse(sourceName,
+                    $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}»: ему "
+                    + $"нужны две границы, а значений задано {values.Count}.");
+            if (arity < 0 && values.Count == 0)
+                throw Refuse(sourceName,
+                    $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}»: ему "
+                    + "нужен список значений, а он пуст.");
+
+            // Колонка, пришедшая без значений (нет права на суммы): у пустых клеток отбор вернул бы
+            // «ничего не нашлось» — человек без права получил бы пустой набор вместо отказа.
+            if (types is not null && types.Closed.TryGetValue(node.Column, out var reason))
+                throw Refuse(sourceName,
+                    $"{Place("условие", path)} стоит на колонке «{node.Column}», а она пришла без "
+                    + $"значений: {reason}.");
+
+            if (types is not null && types.Kinds.TryGetValue(node.Column, out var kind)
+                && TableConditions.Problem(kind, op, values) is { } problem)
+                throw Refuse(sourceName, $"{Place("условие", path)} по колонке «{node.Column}»: {problem}.");
             return;
         }
 
@@ -133,7 +193,7 @@ public static class DataSetRowFilterExecutor
 
         var children = node.Children ?? [];
         for (var i = 0; i < children.Length; i++)
-            Validate(children[i], path.Length == 0 ? $"{i + 1}" : $"{path}.{i + 1}", sourceName);
+            Validate(children[i], path.Length == 0 ? $"{i + 1}" : $"{path}.{i + 1}", sourceName, types);
     }
 
     static string Place(string kind, string path)
@@ -148,26 +208,29 @@ public static class DataSetRowFilterExecutor
             inner);
     }
 
-    static bool Evaluate(FilterNode node, IReadOnlyDictionary<string, string?> row)
+    static bool Evaluate(FilterNode node, IReadOnlyDictionary<string, string?> row, DataSetColumnTypes? types)
     {
         if (node.Type == "condition")
-            return Match(node, row);
+            return Match(node, row, types);
 
         // group — вид узла и логика уже проверены (Validate), так что иных ветвей здесь нет.
         var children = node.Children ?? [];
         if (children.Length == 0) return true;   // группа без условий ничего не ограничивает
         return node.Logic == "or"
-            ? children.Any(c => Evaluate(c, row))
-            : children.All(c => Evaluate(c, row));
+            ? children.Any(c => Evaluate(c, row, types))
+            : children.All(c => Evaluate(c, row, types));
     }
 
-    static bool Match(FilterNode cond, IReadOnlyDictionary<string, string?> row)
+    static bool Match(FilterNode cond, IReadOnlyDictionary<string, string?> row, DataSetColumnTypes? types)
     {
         var col = cond.Column ?? "";
-        var val = row.TryGetValue(col, out var v) ? v ?? "" : "";
-        var expected = cond.Value ?? "";
+        var cell = row.TryGetValue(col, out var v) ? v : null;
+        var op = cond.Op ?? "eq";
 
-        return Ops[cond.Op ?? "eq"](val, expected);
+        // Колонка с объявленным видом — по виду; остальные (файл, вычисляемая колонка) — по догадке.
+        return types is not null && types.Kinds.TryGetValue(col, out var kind)
+            ? TableConditions.Matches(kind, op, ValuesOf(cond), cell)
+            : Ops[op](cell ?? "", ValuesOf(cond));
     }
 
     static int CompareNumOrStr(string a, string b)

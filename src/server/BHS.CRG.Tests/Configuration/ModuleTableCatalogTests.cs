@@ -227,9 +227,8 @@ public class ModuleTableCatalogTests
 
     private sealed class ProbeRows : IModuleTableRows
     {
-        public Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> ReadAsync(
-            ModuleTableQuery query, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, object?>>>([]);
+        public Task<ModuleTablePage> ReadAsync(ModuleTableQuery query, CancellationToken ct) =>
+            Task.FromResult(new ModuleTablePage([], 0, new Dictionary<string, TableTotal>()));
     }
 
     private sealed class ProbeModule(ModuleTable table, bool registerReader = true) : IAppModule

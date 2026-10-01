@@ -141,21 +141,3 @@ public sealed record ModuleTable(
         return problems;
     }
 }
-
-/// <summary>Что спрашивают у службы строк.</summary>
-/// <param name="Columns">Колонки, которые спрашивающему ОТКРЫТЫ. Остальные служба вправе не считать
-/// вовсе; ядро всё равно вычистит их из ответа — гарантия стоит в одном месте, а не в каждой
-/// службе.</param>
-/// <param name="UserId">От чьего имени читаем: нужен таблице с построчной изоляцией.</param>
-public sealed record ModuleTableQuery(IReadOnlySet<string> Columns, Guid UserId);
-
-/// <summary>
-/// Служба модуля, которая отбирает строки таблицы (ТЗ CORE-24.1: «строки отбирает та же служба
-/// модуля, которая отвечает API»). Значения — по виду колонки: число <c>decimal</c>, дата
-/// <c>DateOnly</c>, флаг <c>bool</c>, остальное строкой; пустое — <c>null</c>.
-/// </summary>
-public interface IModuleTableRows
-{
-    Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> ReadAsync(
-        ModuleTableQuery query, CancellationToken ct);
-}

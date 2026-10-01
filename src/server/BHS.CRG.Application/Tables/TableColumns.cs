@@ -48,22 +48,43 @@ public static class TableOperators
     public const string Boolean = "boolean";
 
     private static readonly string[] Presence = ["is_empty", "is_not_empty"];
+    private static readonly string[] Undefined = ["is_null", "is_not_null"];
     private static readonly string[] Equality = ["eq", "neq"];
     private static readonly string[] Order = ["gt", "gte", "lt", "lte"];
+    private static readonly string[] Membership = ["in", "not_in"];
 
-    /// <summary>Вид → допустимые операторы, в порядке, в каком их предлагать.</summary>
+    /// <summary>
+    /// Вид → операторы, в порядке, в каком их предлагать.
+    ///
+    /// <para>У типизированных видов «пусто» называется «не определён» (<c>is_null</c>): у даты и числа
+    /// пустой строки не бывает, бывает отсутствие значения — «счёт без срока» (G1c, issue #1090).
+    /// Исполнители при этом принимают оба имени у любого вида (<see cref="IsPresence" />): отборы,
+    /// сохранённые до G1c, спрашивали <c>is_empty</c> у числа, и менять им смысл нельзя.</para>
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ByKind =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
         {
-            [Text] = [.. Equality, "contains", "not_contains", "starts_with", "ends_with", .. Presence],
-            [Number] = [.. Equality, .. Order, .. Presence],
-            [Date] = [.. Equality, .. Order, .. Presence],
-            [Boolean] = [.. Equality, .. Presence],
+            [Text] = [.. Equality, "contains", "not_contains", "starts_with", "ends_with", .. Membership, .. Presence],
+            [Number] = [.. Equality, .. Order, "between", .. Membership, .. Undefined],
+            [Date] = [.. Equality, .. Order, "between", .. Membership, .. Undefined],
+            [Boolean] = [.. Equality, .. Undefined],
         };
 
     /// <summary>Все операторы, какие бывают.</summary>
     public static IReadOnlySet<string> All { get; } =
         ByKind.Values.SelectMany(o => o).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>«Значения нет» — под обоими именами, у любого вида.</summary>
+    public static bool IsPresence(string op) => op is "is_empty" or "is_not_empty" or "is_null" or "is_not_null";
+
+    /// <summary>Сколько значений несёт условие: 0 — ни одного, 1, 2 (границы), -1 — список из одного и более.</summary>
+    public static int Arity(string op) => op switch
+    {
+        _ when IsPresence(op) => 0,
+        "between" => 2,
+        "in" or "not_in" => -1,
+        _ => 1,
+    };
 
     public static IReadOnlyList<string> For(string kind) =>
         ByKind.TryGetValue(kind, out var ops)
@@ -86,12 +107,44 @@ public record TableColumnDto(
 /// <summary>Таблица модуля со строками.</summary>
 /// <param name="Address">Адрес таблицы: <c>costs.invoices</c>.</param>
 /// <param name="State">Состояние таблицы целиком: <see cref="TableColumnReasons.ModuleOff" /> или null.</param>
-/// <param name="Rows">Строки. Значений закрытых колонок в них нет вовсе — ключа нет, а не null.</param>
+/// <param name="Rows">Строки страницы. Значений закрытых колонок в них нет вовсе — ключа нет, а не null.</param>
+/// <param name="Count">Сколько строк в отборе ВСЕГО, а не на странице.</param>
+/// <param name="Offset">С какой строки отбора начинается страница.</param>
+/// <param name="Limit">Размер страницы; null — отданы все строки отбора.</param>
+/// <param name="Totals">Итоги по запрошенным колонкам — по всему отбору, а не по странице.</param>
 public record TableDto(
     string Address, string Title, string Grain, string Boundary,
     IReadOnlyList<TableColumnDto> Columns,
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
-    string? State = null);
+    string? State = null,
+    int Count = 0, int Offset = 0, int? Limit = null,
+    IReadOnlyDictionary<string, TableTotalDto>? Totals = null);
+
+/// <summary>
+/// Итог по колонке (ТЗ CORE-33): у числа сумма, среднее, минимум и максимум; у даты минимум и
+/// максимум; у остального количество.
+/// </summary>
+/// <param name="Count">Сколько значений учтено.</param>
+/// <param name="Skipped">Сколько значений НЕ учтено: в клетке лежит не то, что обещает вид колонки.</param>
+/// <param name="SkippedReason">Почему не учтены: «не число», «не дата». null — учтены все.</param>
+public record TableTotalDto(
+    long Count, long Skipped, string? SkippedReason,
+    decimal? Sum = null, decimal? Average = null, object? Min = null, object? Max = null);
+
+/// <summary>Что потребитель просит у таблицы.</summary>
+/// <param name="Columns">Колонки представления; null — все объявленные.</param>
+/// <param name="Filter">Отбор — дерево условий в том же виде, что у источника набора данных.</param>
+/// <param name="Sort">Сортировка по порядку важности.</param>
+/// <param name="Limit">Размер страницы; null — все строки (так таблицу читает набор данных).</param>
+/// <param name="Totals">Колонки, по которым нужен итог.</param>
+public record TableRequest(
+    IReadOnlyList<string>? Columns = null,
+    string? Filter = null,
+    IReadOnlyList<TableSortRequest>? Sort = null,
+    int Offset = 0, int? Limit = null,
+    IReadOnlyList<string>? Totals = null);
+
+public record TableSortRequest(string Column, bool Descending);
 
 /// <summary>Таблица в перечне — без строк.</summary>
 public record TableListItemDto(string Address, string Title, string Grain, string Module);

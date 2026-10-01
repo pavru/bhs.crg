@@ -42,6 +42,7 @@ public class DataSetRowLoader(
         IReadOnlyList<DataSetColumnInfo>? columns = null;
         string? warning = null;
         string? boundary = null;
+        DataSetColumnTypes? types = null;
         if (source.File.Format == DataSetFormat.Pdf)
         {
             // Кэш распознавания — сам себе описание: CachedSchema писался тем же проходом, что и
@@ -60,6 +61,7 @@ public class DataSetRowLoader(
             parsedRows = provided.Rows.ToList();
             columns = provided.Columns;
             warning = provided.Warning;
+            types = provided.Types;
             // Подпись к данным — ПОСТОЯННАЯ, а не сообщение об ошибке (ТЗ CORE-24.3): человек должен
             // видеть, что именно ему отдали, и в удачном случае тоже. «12 строк скрыто» не годится:
             // две разные цифры, обе выглядящие окончательными, опаснее одной с оговоркой.
@@ -83,7 +85,7 @@ public class DataSetRowLoader(
         // Имя источника едет в отказ (issue #966): у документа привязок бывает пять, и «отбор не
         // разбирается» без имени не говорит, какую из них править. Имя знает только этот слой.
         var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows, source.Name);
-        rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows, source.Name);
+        rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows, source.Name, types);
         rows = DataSetSortExecutor.Apply(source.SortSpec, rows, source.Name);
         return new LoadedRows(rows, parsedRows.Count, columns, warning, boundary);
     }
