@@ -11,6 +11,48 @@ public abstract record TableFilter;
 /// <summary>Группа условий: все разом (<c>Any = false</c>) или любое. Пустая группа ничего не ограничивает.</summary>
 public sealed record TableFilterGroup(bool Any, IReadOnlyList<TableFilter> Children) : TableFilter;
 
+/// <summary>Вопросы к дереву отбора, одинаковые у всех модулей.</summary>
+public static class TableFilters
+{
+    /// <summary>Отрицания: «не подошло под положительное» — у перечня это «нет ни одного такого».</summary>
+    public static bool IsNegative(string op) => op is "neq" or "not_in" or "not_contains";
+
+    /// <summary>«Значения нет» и «значение есть» — под обоими именами.</summary>
+    public static bool IsPresence(string op) => op is "is_empty" or "is_not_empty" or "is_null" or "is_not_null";
+
+    /// <summary>
+    /// Условия, которыми отбор НАЗЫВАЕТ значения колонки: «объект равен X», «объект из списка». Пусто —
+    /// отбор колонку не называет, и её значениями строки не ограничены.
+    ///
+    /// <para>Нужно колонке, чей смысл зависит от отбора (<see cref="ModuleTableColumn.DependsOnFilter" />):
+    /// долю счёта считают на те объекты, которые отбор назвал. Поэтому правило строгое — названо только
+    /// то, без чего строка в отбор НЕ ПОПАЛА БЫ:</para>
+    /// <list type="bullet">
+    /// <item>положительное условие по колонке на пути из одних групп «все разом»;</item>
+    /// <item>группа «любое», в которой КАЖДАЯ ветка называет колонку: «объект X или объект Y»;</item>
+    /// <item>отрицание («объект не X»), «пусто» и группа «объект X или поставщик Y» не называют ничего:
+    /// под ними в отборе есть строки, у которых на X нет ни одной части, и «доля на X» у них — выдумка.</item>
+    /// </list>
+    /// </summary>
+    public static IReadOnlyList<TableFilterCondition> Naming(TableFilter? filter, string column)
+    {
+        switch (filter)
+        {
+            case TableFilterCondition condition:
+                return condition.Column == column && !IsNegative(condition.Op) && !IsPresence(condition.Op)
+                    ? [condition]
+                    : [];
+            case TableFilterGroup { Any: false } all:
+                return [.. all.Children.SelectMany(c => Naming(c, column))];
+            case TableFilterGroup { Children.Count: > 0 } any:
+                var branches = any.Children.Select(c => Naming(c, column)).ToList();
+                return branches.All(b => b.Count > 0) ? [.. branches.SelectMany(b => b)] : [];
+            default:
+                return [];
+        }
+    }
+}
+
 /// <summary>Условие по колонке.</summary>
 /// <param name="Column">Ключ колонки.</param>
 /// <param name="Kind">Вид колонки по объявлению таблицы или схеме типа.</param>
@@ -52,10 +94,14 @@ public sealed record ModuleTableQuery(
 /// <param name="Rows">Строки страницы.</param>
 /// <param name="Count">Сколько строк в отборе ВСЕГО — не на странице.</param>
 /// <param name="Totals">Итоги по запрошенным колонкам, по всему отбору.</param>
+/// <param name="Notes">Что колонка значит ПОД ЭТИМ ОТБОРОМ — подписью к её заголовку: «доля: Комарова
+/// 36». Только у колонок, объявленных зависящими от отбора
+/// (<see cref="ModuleTableColumn.DependsOnFilter" />), и только когда смысл действительно сменился.</param>
 public sealed record ModuleTablePage(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     int Count,
-    IReadOnlyDictionary<string, TableTotal> Totals);
+    IReadOnlyDictionary<string, TableTotal> Totals,
+    IReadOnlyDictionary<string, string>? Notes = null);
 
 /// <summary>
 /// Итог по колонке — по всему отбору (ТЗ CORE-33).
@@ -76,7 +122,8 @@ public sealed record TableTotal(long Count, long Skipped, decimal? Sum = null, o
 /// <summary>
 /// Служба модуля, которая отбирает строки таблицы (ТЗ CORE-24.1: «строки отбирает та же служба
 /// модуля, которая отвечает API»). Значения — по виду колонки: число <c>decimal</c>, дата
-/// <c>DateOnly</c>, флаг <c>bool</c>, остальное строкой; пустое — <c>null</c>.
+/// <c>DateOnly</c>, флаг <c>bool</c>, перечень — списком строк (пустой список, если элементов нет),
+/// остальное строкой; пустое — <c>null</c>.
 ///
 /// <para>Отбор, сортировку и страницу исполняет ОНА — запросом к своей базе: общего запроса по
 /// произвольным данным ядро не пишет, иначе таблица стала бы вторым обходом изоляции (ТЗ CORE-33).</para>

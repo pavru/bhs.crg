@@ -47,6 +47,13 @@ public static class TableOperators
     public const string Date = "date";
     public const string Boolean = "boolean";
 
+    /// <summary>
+    /// Перечень — поле нижнего зерна, свёрнутое в строку верхнего: объекты счёта (G1c, issue #1090).
+    /// Операторы те же, что у текста, а спрашивают они «есть ли в перечне такой»; отрицание — «нет ни
+    /// одного такого».
+    /// </summary>
+    public const string List = "list";
+
     private static readonly string[] Presence = ["is_empty", "is_not_empty"];
     private static readonly string[] Undefined = ["is_null", "is_not_null"];
     private static readonly string[] Equality = ["eq", "neq"];
@@ -68,6 +75,7 @@ public static class TableOperators
             [Number] = [.. Equality, .. Order, "between", .. Membership, .. Undefined],
             [Date] = [.. Equality, .. Order, "between", .. Membership, .. Undefined],
             [Boolean] = [.. Equality, .. Undefined],
+            [List] = [.. Equality, "contains", "not_contains", "starts_with", "ends_with", .. Membership, .. Presence],
         };
 
     /// <summary>Все операторы, какие бывают.</summary>
@@ -119,9 +127,14 @@ public static class TableOperators
 /// <param name="System">Системная колонка модуля (true) или поле схемы типа (false).</param>
 /// <param name="Unavailable">Код причины из <see cref="TableColumnReasons" />; null — колонка открыта.</param>
 /// <param name="Reason">Та же причина словами: «нет права на суммы».</param>
+/// <param name="DependsOnFilter">Значение колонки зависит от самого отбора (ТЗ CORE-33): сумма под
+/// отбором по стройке — доля по разноске. По такой колонке не отбирают и не сортируют — операторов у
+/// неё нет, — и в набор данных она не едет.</param>
+/// <param name="Note">Что колонка значит ПОД ЭТИМ ОТБОРОМ — подписью к заголовку: «доля: Комарова
+/// 36». null — смысл обычный.</param>
 public record TableColumnDto(
     string Key, string Label, string Kind, IReadOnlyList<string> Operators, bool System,
-    string? Unavailable = null, string? Reason = null);
+    string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null);
 
 /// <summary>Таблица модуля со строками.</summary>
 /// <param name="Address">Адрес таблицы: <c>costs.invoices</c>.</param>

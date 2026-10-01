@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Tables;
 using Microsoft.EntityFrameworkCore;
@@ -17,10 +18,26 @@ namespace BHS.CRG.Modules.Costs.Tables;
 ///
 /// <para>⚠️ Это значит, что номер, поставщик и назначение счёта видны и без права на счета — решение
 /// принято вслух, и закрывается оно здесь же: колонке достаточно назвать право.</para>
+///
+/// <para><b>Отбор по объекту меняет смысл суммы, и таблица это говорит</b> (ТЗ CORE-33, COST-20.1;
+/// задача G1c, issue #1090). «Объект» — перечень строек и статей, на которые разнесён счёт; условие
+/// по нему — «есть часть на этот объект». Под таким отбором «Сумма» показывает ДОЛЮ счёта по разноске
+/// на названные объекты и приходит с подписью «доля: …»; полная сумма остаётся в «Сумма к оплате».
+/// Без отбора по объекту обе суммы равны.</para>
 /// </summary>
 public static class InvoiceTable
 {
     public const string Code = "invoices";
+
+    /// <summary>
+    /// Объекты разноски. Ключи двух колонок, за которыми НЕ стоит поле типа, — нарочно не похожие на
+    /// ключ поля, которое заказчик допишет в тип: «Объект» и «Сумма» он допишет скорее всего, и поле с
+    /// тем же ключом молча спряталось бы за системной колонкой.
+    /// </summary>
+    public const string ObjectsKey = "ОбъектыРазноски";
+
+    /// <summary>Сумма по отбору: вся сумма счёта либо его доля на названные отбором объекты.</summary>
+    public const string AmountKey = "СуммаПоОтбору";
 
     private const string Amounts = "суммы";
 
@@ -38,6 +55,9 @@ public static class InvoiceTable
             new(InvoiceRequisites.SupplierKey, "Поставщик", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.PayerKey, "Плательщик", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.PurposeKey, "Назначение", ModuleTableColumnKind.Text),
+            new(ObjectsKey, "Объект", ModuleTableColumnKind.List),
+            new(AmountKey, "Сумма", ModuleTableColumnKind.Number, "costs.invoice.read", Amounts,
+                DependsOnFilter: true),
             new(InvoiceRequisites.TotalKey, "Сумма к оплате", ModuleTableColumnKind.Number,
                 "costs.invoice.read", Amounts),
             new(InvoiceRequisites.VatTotalKey, "В том числе НДС", ModuleTableColumnKind.Number,
@@ -56,7 +76,8 @@ public static class InvoiceTable
 /// Строки таблицы счетов. Поля, которые заказчик дописал в тип, лежат в <see cref="Invoice.Data" /> и
 /// приходят теми же ключами — их колонки ядро берёт из схемы типа.
 /// </summary>
-public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) : IModuleTableRows
+public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places)
+    : IModuleTableRows
 {
     private static readonly IReadOnlyDictionary<InvoiceState, string> States =
         Enum.GetValues<InvoiceState>().ToDictionary(s => s, InvoiceRequisites.Label);
@@ -71,12 +92,27 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
         var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))
             ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
 
-        var sql = Sql(names);
+        // Объекты разноски — стройки и статьи вне строек одним списком названий: цель части — ровно
+        // одно из двух. Раздел стройки в перечень не идёт: отбор «по стройке» — по стройке целиком.
+        var known = await places.LoadAsync(ct);
+        var shares = new InvoiceShares(known.Sites.Select(s => (s.Id, s.Name))
+            .Concat(known.Articles.Select(a => (a.Id, a.Name)))
+            .ToDictionary(o => o.Id, o => o.Name));
+
+        var sql = Sql(names, shares.Labels);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
+
+        // Отбор НАЗЫВАЕТ объекты — «Сумма» становится долей счёта на них (ТЗ CORE-33). Иначе это сумма
+        // счёта целиком, и считает её запрос, как любую числовую колонку.
+        var naming = TableFilters.Naming(query.Filter, InvoiceTable.ObjectsKey);
+        var shareTotal = naming.Count > 0 && query.Totals?.ContainsKey(InvoiceTable.AmountKey) == true;
+        var shareCells = naming.Count > 0 && query.Columns.Contains(InvoiceTable.AmountKey);
 
         // Итог и число строк — по всему отбору, ДО страницы (ТЗ CORE-33).
         var count = await selected.CountAsync(ct);
-        var totals = await sql.TotalsAsync(selected, query.Totals, ct);
+        var totals = new Dictionary<string, TableTotal>(await sql.TotalsAsync(selected,
+            shareTotal ? query.Totals!.Where(t => t.Key != InvoiceTable.AmountKey).ToDictionary() : query.Totals,
+            ct), StringComparer.Ordinal);
 
         // Порядок по умолчанию — свежие сверху; он же довершает любую сортировку, иначе строки с
         // равными значениями менялись бы местами от страницы к странице.
@@ -88,20 +124,44 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
         if (query.Limit is { } limit) page = page.Take(limit);
 
         var invoices = await page.ToListAsync(ct);
-        return new([.. invoices.Select(i => Row(i, names, query.Columns))], count, totals);
+
+        // Разноску читаем по счетам СТРАНИЦЫ; по всему отбору — только ради итога доли: он обязан
+        // считаться по всему отбору, а посчитать долю запросом нельзя (см. InvoiceShares).
+        var ids = invoices.Select(i => i.Id).ToList();
+        var scope = shareTotal ? selected : db.Invoices.AsNoTracking().Where(i => ids.Contains(i.Id));
+        var parts = shareTotal || shareCells || query.Columns.Contains(InvoiceTable.ObjectsKey)
+            ? await db.InvoiceAllocations.AsNoTracking()
+                .Where(a => scope.Select(i => i.Id).Contains(a.InvoiceId)).ToListAsync(ct)
+            : [];
+        var amounts = shareTotal || shareCells
+            ? await InvoiceShares.ReadAsync(db, scope, parts, p => naming.Any(c => c.Matches(shares.Label(p))), ct)
+            : null;
+        if (shareTotal) totals[InvoiceTable.AmountKey] = InvoiceShares.Total(amounts!.Values);
+
+        var objects = shares.Objects(parts);
+        return new(
+            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts))], count, totals,
+            naming.Count == 0 ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = shares.Note(naming) });
     }
 
     /// <summary>
     /// Где лежит каждая колонка таблицы. Описаны ВСЕ объявленные — это проверяет сам построитель;
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
-    private static TableSql<Invoice> Sql(Dictionary<Guid, string> names) =>
+    private TableSql<Invoice> Sql(Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects) =>
         TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
             .Lookup(InvoiceRequisites.SupplierKey, i => i.SupplierId, names)
             .Lookup(InvoiceRequisites.PayerKey, i => i.PayerId, names)
             .Text(InvoiceRequisites.PurposeKey, i => i.Purpose)
+            // Условие по дочернему зерну: в базе это EXISTS по частям разноски счёта.
+            .List(InvoiceTable.ObjectsKey,
+                i => db.InvoiceAllocations.Where(a => a.InvoiceId == i.Id).Select(a => a.ConstructionId ?? a.ArticleId),
+                objects, InvoiceShares.Lost)
+            // Без отбора по объекту «Сумма» — сумма счёта, и итог по ней считает запрос. Отбирать и
+            // сортировать по ней ядро не даёт: колонка объявлена зависящей от отбора.
+            .Number(InvoiceTable.AmountKey, i => i.Total)
             .Number(InvoiceRequisites.TotalKey, i => i.Total)
             .Number(InvoiceRequisites.VatTotalKey, i => i.VatTotal)
             .Date(InvoiceRequisites.ShippedOnKey, i => i.ShippedOn)
@@ -111,8 +171,11 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
             .Lookup(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
 
+    /// <param name="amounts">Доли счетов на названные отбором объекты; null — отбор объектов не называет,
+    /// и «Сумма» — сумма счёта целиком.</param>
     private static IReadOnlyDictionary<string, object?> Row(
-        Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open)
+        Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -121,6 +184,7 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
             [InvoiceRequisites.SupplierKey] = Name(invoice.SupplierId, names),
             [InvoiceRequisites.PayerKey] = Name(invoice.PayerId, names),
             [InvoiceRequisites.PurposeKey] = invoice.Purpose,
+            [InvoiceTable.ObjectsKey] = objects.GetValueOrDefault(invoice.Id) ?? [],
             [InvoiceRequisites.ShippedOnKey] = invoice.ShippedOn,
             [InvoiceRequisites.DeferralKey] = invoice.DeferralDays is { } days ? (decimal)days : null,
             [InvoiceRequisites.DueDateKey] = invoice.DueDate,
@@ -132,6 +196,8 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) 
         // считать и выбрасывать.
         if (open.Contains(InvoiceRequisites.TotalKey)) row[InvoiceRequisites.TotalKey] = invoice.Total;
         if (open.Contains(InvoiceRequisites.VatTotalKey)) row[InvoiceRequisites.VatTotalKey] = invoice.VatTotal;
+        if (open.Contains(InvoiceTable.AmountKey))
+            row[InvoiceTable.AmountKey] = amounts is null ? invoice.Total : amounts.GetValueOrDefault(invoice.Id);
 
         foreach (var field in invoice.Data.RootElement.EnumerateObject())
             if (!row.ContainsKey(field.Name)) row[field.Name] = Scalar(field.Value);
