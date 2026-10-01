@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { FileText, ListChecks, Plus, Sparkles, TriangleAlert } from 'lucide-react';
+import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
+import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem,
 } from '@/shared/api/invoices';
+import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, formatDate, formatMoney, scanFitsBeside } from './invoiceFields';
@@ -26,6 +28,8 @@ export function InvoicesPage() {
   const [query, setQuery] = useState('');
   const [needsParsing, setNeedsParsing] = useState(false);
   const wide = useWideEnoughForScan();
+  const { data: access = NO_ACCESS } = useAccess();
+  const [articlesOpen, setArticlesOpen] = useState(false);
 
   const invoices = useInvoices(needsParsing);
   const organizations = useCostsOrganizations();
@@ -52,9 +56,19 @@ export function InvoicesPage() {
       title="Счета на оплату"
       subtitle="Черновик сохраняется без строк и сразу попадает в список"
       headerAction={
-        <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
-          Новый счёт
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Справочник статей вне строек (F3) — у того, кто его ведёт, а не у всех: остальным он виден
+              только в выборе цели разноски. */}
+          {hasPermission(access, 'costs.articles.edit') && (
+            <Button variant="outlined" icon={<Tags size={16} />} onClick={() => setArticlesOpen(true)}>
+              Статьи вне строек
+            </Button>
+          )}
+          <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
+            Новый счёт
+          </Button>
+          {articlesOpen && <ArticlesDialog onClose={() => setArticlesOpen(false)} />}
+        </div>
       }
       nav={
         <>

@@ -5,7 +5,7 @@ import { allocationStatus, estimateRemainder, toPartDrafts, toPartsPayload, type
 function part(overrides: Partial<AllocationPartView> = {}): AllocationPartView {
   return {
     id: 'p1', ordinal: 1, constructionId: 's1', constructionName: 'Стройка', sectionId: null, sectionName: null,
-    targetLost: false, quantity: 100, amount: 4850, rounding: 0, discrepancy: 0, mismatched: false,
+    articleId: null, articleName: null, targetLost: false, quantity: 100, amount: 4850, rounding: 0, discrepancy: 0, mismatched: false,
     ...overrides,
   };
 }
@@ -18,18 +18,18 @@ function allocation(overrides: Partial<LineAllocationView> = {}): LineAllocation
 }
 
 function draft(value: string, id: string | null = null): PartDraft {
-  return { key: id ?? value, id, constructionId: 's1', sectionId: '', value };
+  return { key: id ?? value, id, constructionId: 's1', sectionId: '', articleId: '', value };
 }
 
 describe('набор частей для сервера', () => {
   it('у строки с количеством уезжает количество и никогда сумма', () => {
     const [payload] = toPartsPayload([draft('7,25', 'p1')], 'quantity');
-    expect(payload).toEqual({ id: 'p1', construction: 's1', section: null, quantity: 7.25 });
+    expect(payload).toEqual({ id: 'p1', construction: 's1', section: null, article: null, quantity: 7.25 });
   });
 
   it('у строки без количества уезжает сумма', () => {
     const [payload] = toPartsPayload([draft('1 000,50')], 'amount');
-    expect(payload).toEqual({ id: null, construction: 's1', section: null, amount: 1000.5 });
+    expect(payload).toEqual({ id: null, construction: 's1', section: null, article: null, amount: 1000.5 });
   });
 
   it('невыбранная стройка уезжает пустой — отказ сервера назовёт часть, а не потеряет её', () => {

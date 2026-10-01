@@ -8,7 +8,7 @@ import {
 function part(construction: string, overrides: Partial<AllocationPartView> = {}): AllocationPartView {
   return {
     id: `${construction}-part`, ordinal: 1, constructionId: construction, constructionName: construction,
-    sectionId: null, sectionName: null, targetLost: false, quantity: 3, amount: 145, rounding: 0,
+    sectionId: null, sectionName: null, articleId: null, articleName: null, targetLost: false, quantity: 3, amount: 145, rounding: 0,
     discrepancy: 0, mismatched: false, ...overrides,
   };
 }
@@ -33,7 +33,15 @@ function invoice(lines: InvoiceLineView[], documentParts: AllocationPartView[] =
   } as unknown as InvoiceView;
 }
 
-const quantityRow: MatrixRow = { key: 'l1', lineId: 'l1', title: '1. Кабель', mode: 'quantity', unit: 'шт', whole: 10, amount: 483.3 };
+const site = (construction: string) => ({ construction, section: null, article: null });
+const article = (id: string) => ({ construction: null, section: null, article: id });
+
+/** Часть на статью вне строек (F3): стройки у неё нет. */
+function articlePart(id: string, overrides: Partial<AllocationPartView> = {}): AllocationPartView {
+  return part('', { constructionId: null, constructionName: null, articleId: id, articleName: id, ...overrides });
+}
+
+const quantityRow: MatrixRow ={ key: 'l1', lineId: 'l1', title: '1. Кабель', mode: 'quantity', unit: 'шт', whole: 10, amount: 483.3 };
 
 describe('колонки матрицы', () => {
   it('объекты по первому появлению — строки, потом разноска суммой, без повторов', () => {
@@ -75,21 +83,21 @@ describe('набор для записи', () => {
   it('каждая строка — в наборе, пустые и нулевые клетки частей не дают, набранное не-число уезжает пустым', () => {
     const view = invoice([line('l1', {}), line('l2', {}, { quantity: null, amount: 50 })]);
     const rows = rowsOf(view, null);
-    const [a, b] = [{ key: 'a', construction: 'A', section: null, percent: '' }, { key: 'b', construction: 'B', section: null, percent: '' }];
+    const [a, b] = [{ key: 'a', ...site('A'), percent: '' }, { key: 'b', ...site('B'), percent: '' }];
 
     const state = toState(rows, [a, b], { l1: { a: '4', b: '0' }, l2: { a: 'abc' } });
 
     expect(state.lines).toEqual([
-      { line: 'l1', parts: [{ construction: 'A', section: null, quantity: 4, amount: null }] },
-      { line: 'l2', parts: [{ construction: 'A', section: null, quantity: null, amount: null }] },
+      { line: 'l1', parts: [{ ...site('A'), quantity: 4, amount: null }] },
+      { line: 'l2', parts: [{ ...site('A'), quantity: null, amount: null }] },
     ]);
     expect(state.document).toEqual([]);
   });
 
   it('предпросмотр раскладывается по колонкам своих целей', () => {
     const rows = rowsOf(invoice([line('l1', {})]), null);
-    const cells = cellsFromState(rows, [{ key: 'x', construction: 'A', section: null, percent: '' }], {
-      lines: [{ line: 'l1', parts: [{ construction: 'A', section: null, quantity: 3, amount: null }] }], document: [],
+    const cells = cellsFromState(rows, [{ key: 'x', ...site('A'), percent: '' }], {
+      lines: [{ line: 'l1', parts: [{ ...site('A'), quantity: 3, amount: null }] }], document: [],
     });
     expect(cells.l1.x).toBe('3');
   });
@@ -98,10 +106,36 @@ describe('набор для записи', () => {
 describe('объект в шапке', () => {
   it('выведен из разноски: нет, один (полностью или нет), несколько', () => {
     expect(headerObject(invoice([line('l1', {})])).kind).toBe('none');
-    expect(headerObject(invoice([line('l1', { parts: [part('A')] })]))).toEqual({ kind: 'one', construction: 'A', complete: false });
+    expect(headerObject(invoice([line('l1', { parts: [part('A')] })]))).toEqual({ kind: 'one', place: site('A'), complete: false });
     expect(headerObject(invoice([line('l1', { parts: [part('A'), part('B')] })]))).toEqual({ kind: 'many', count: 2 });
     // Разделы одной стройки — всё ещё один объект, и счёт объектов — по стройкам.
     const sections = invoice([line('l1', { parts: [part('A', { sectionId: '1' }), part('A', { sectionId: '2' }), part('B')] })]);
     expect(headerObject(sections)).toEqual({ kind: 'many', count: 2 });
+  });
+});
+
+describe('статья вне строек (F3)', () => {
+  it('статья — своя колонка, и её часть не путается со стройкой', () => {
+    const view = invoice([line('l1', { parts: [part('A'), articlePart('склад')] })]);
+    const targets = targetsOf(view);
+    expect(targets.map(({ construction, section, article: a }) => ({ construction, section, article: a })))
+      .toEqual([site('A'), article('склад')]);
+
+    const rows = rowsOf(view, null);
+    const cells = cellsOf(rows, targets, { l1: view.lines[0].allocation });
+    expect(Object.keys(cells.l1)).toHaveLength(2);
+  });
+
+  it('в набор записи статья уезжает статьёй, без стройки', () => {
+    const rows = rowsOf(invoice([line('l1', {})]), null);
+    const state = toState(rows, [{ key: 's', ...article('склад'), percent: '' }], { l1: { s: '2' } });
+    expect(state.lines[0].parts).toEqual([{ construction: null, section: null, article: 'склад', quantity: 2, amount: null }]);
+  });
+
+  it('счёт на склад — в шапке один объект, и это статья', () => {
+    expect(headerObject(invoice([line('l1', { parts: [articlePart('склад')] })])))
+      .toEqual({ kind: 'one', place: article('склад'), complete: false });
+    expect(headerObject(invoice([line('l1', { parts: [part('A'), articlePart('склад')] })])))
+      .toEqual({ kind: 'many', count: 2 });
   });
 });

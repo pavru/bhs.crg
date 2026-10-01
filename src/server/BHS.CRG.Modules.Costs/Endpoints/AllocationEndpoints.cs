@@ -45,7 +45,7 @@ public static class AllocationEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, Guid lineId, AllocationRequest body, CostsDbContext db, IModuleCatalog catalog,
-        IModuleConstructions sites, IModuleActivityLog log, CancellationToken ct)
+        AllocationPlacesSource places, IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Parts is null)
             throw new InvalidRequestException(
@@ -66,7 +66,7 @@ public static class AllocationEndpoints
             .ToList();
 
         EnsureIdsDistinct(parsed.Select(p => p.Id));
-        var known = await sites.ListAsync(ct);
+        var known = await places.LoadAsync(ct);
         var values = parsed.Select(p => p.Values).ToList();
         InvoiceAllocations.EnsureTargets(values, known);
         EnsureNotOver(line, values);
@@ -99,7 +99,7 @@ public static class AllocationEndpoints
         // Возврат в черновик — ДО сохранения, по состоянию после правки: части прочих строк из базы,
         // части этой строки — те, что сейчас лягут.
         var returned = invoice.State == InvoiceState.Parsed
-            && !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+            && !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
                 await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, id => id == line.Id, now);
         if (returned) invoice.ReturnToDraft();
 
@@ -116,7 +116,7 @@ public static class AllocationEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: "правка разноски: баланс не сходится", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
     }
 
     /// <summary>Стройки с разделами — для выбора цели части. Узким списком модуля, как организации.</summary>

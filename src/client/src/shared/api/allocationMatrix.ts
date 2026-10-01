@@ -11,10 +11,18 @@ import {
  * «предпросмотр совпадает с применённым» сравнивал бы форму с формой и был бы зелен всегда.
  */
 
-/** Часть в наборе матрицы — ровно то, что принимает запись. */
-export interface MatrixPart {
-  construction: string;
+/**
+ * Цель разноски: стройка (и, необязательно, раздел) ИЛИ статья вне строек — ровно одно (F3, issue #1087,
+ * ТЗ COST-10.1). Сервер отвергает и обе цели сразу, и ни одной.
+ */
+export interface Place {
+  construction: string | null;
   section: string | null;
+  article: string | null;
+}
+
+/** Часть в наборе матрицы — ровно то, что принимает запись. */
+export interface MatrixPart extends Place {
   quantity: number | null;
   amount: number | null;
 }
@@ -36,10 +44,8 @@ export interface MatrixState {
 }
 
 /** Клетка, в которую ушёл остаток округления. `line: null` — счёт целиком. */
-export interface RemainderCell {
+export interface RemainderCell extends Place {
   line: string | null;
-  construction: string;
-  section: string | null;
 }
 
 /**
@@ -56,9 +62,7 @@ export interface AllocationPreview {
 
 export type SplitMethod = 'equal' | 'percent' | 'document';
 
-export interface SplitTarget {
-  construction: string;
-  section: string | null;
+export interface SplitTarget extends Place {
   percent?: number | null;
 }
 

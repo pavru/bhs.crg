@@ -4,14 +4,13 @@ import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
-import {
-  useCostsConstructions, useReplaceAllocation,
-  type AllocationSummaryView, type InvoiceLineView,
-} from '@/shared/api/invoices';
+import { useReplaceAllocation, type AllocationSummaryView, type InvoiceLineView } from '@/shared/api/invoices';
 import { formatMoney } from './invoiceFields';
 import {
   allocationStatus, emptyPart, estimateRemainder, formatPlain, toPartDrafts, toPartsPayload, type PartDraft,
 } from './allocation';
+import { PlaceSelect } from './PlaceSelect';
+import { usePlaces } from './places';
 
 /**
  * Разноска строки счёта по стройкам (задача F1, issue #1085, ТЗ COST-10, COST-11, COST-13).
@@ -80,7 +79,7 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
     return saved.length > 0 ? saved : [emptyPart()];
   });
   const [dirty, setDirty] = useState(false);
-  const sites = useCostsConstructions();
+  const places = usePlaces();
   const replace = useReplaceAllocation();
   const toast = useToast();
 
@@ -128,7 +127,7 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
       <table className="w-full text-xs">
         <thead className="text-fg4">
           <tr className="text-left">
-            <th className="font-normal py-1">Стройка</th>
+            <th className="font-normal py-1">Куда</th>
             <th className="font-normal py-1">Раздел</th>
             <th className="w-28 font-normal py-1 text-right">{byQuantity ? `Кол-во${unit ? `, ${unit}` : ''}` : 'Сумма'}</th>
             {byQuantity && <th className="w-32 font-normal py-1 text-right">Сумма части</th>}
@@ -138,19 +137,16 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
         <tbody>
           {drafts.map((draft, index) => {
             const saved = line.allocation.parts.find(p => p.id === draft.id);
-            const site = sites.data?.find(s => s.id === draft.constructionId);
+            const site = places.sites?.find(s => s.id === draft.constructionId);
             return (
               <tr key={draft.key} className="border-t border-stroke align-top">
                 <td className="py-1 pr-2">
-                  <select value={draft.constructionId} aria-label={`Стройка, часть ${index + 1}`} disabled={!canEdit}
-                    onChange={e => edit(draft.key, { constructionId: e.target.value, sectionId: '' })}
-                    className={FIELD}>
-                    <option value="">— выберите —</option>
-                    {saved?.targetLost && draft.constructionId === saved.constructionId && !site && (
-                      <option value={saved.constructionId}>стройка удалена</option>
-                    )}
-                    {sites.data?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  {/* Стройка или статья вне строек (F3) — одним выбором двумя группами. */}
+                  <PlaceSelect value={{ construction: draft.constructionId || null, section: null, article: draft.articleId || null }}
+                    places={places} label={`Куда, часть ${index + 1}`} disabled={!canEdit} className={FIELD}
+                    onChange={place => edit(draft.key, {
+                      constructionId: place.construction ?? '', articleId: place.article ?? '', sectionId: '',
+                    })} />
                 </td>
                 <td className="py-1 pr-2">
                   {/* Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
@@ -218,7 +214,7 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
       {canEdit && <div className="mt-2">
         <Button size="sm" variant="outlined" icon={<Plus size={13} />}
           onClick={() => { setDrafts(prev => [...prev, emptyPart()]); setDirty(true); }}>
-          Добавить стройку
+          Добавить часть
         </Button>
       </div>}
     </Modal>

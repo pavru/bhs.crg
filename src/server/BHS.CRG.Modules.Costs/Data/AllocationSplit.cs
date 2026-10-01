@@ -4,14 +4,14 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// <param name="Unallocated">Не цель, а «не разнесено»: доля, которую человек не отдал никому. Её доля
 /// считается наравне с целями, но частью не становится — так пересчёт неполной разноски суммой не
 /// раздаёт нерешённое выбранным объектам.</param>
-public sealed record SplitTarget(Guid ConstructionId, Guid? SectionId, decimal Weight, bool Unallocated = false);
+public sealed record SplitTarget(AllocationTarget Target, decimal Weight, bool Unallocated = false);
 
 /// <summary>Предложенная часть: куда, сколько — и ушёл ли в неё остаток округления.</summary>
 /// <param name="LineId">Строка; <c>null</c> — часть счёта целиком (счёт без строк).</param>
 /// <param name="Remainder">В эту часть ушёл остаток округления (ТЗ COST-12): экран её помечает, иначе
 /// «4» среди «3» выглядело бы опечаткой.</param>
 public sealed record SplitPart(
-    Guid? LineId, Guid ConstructionId, Guid? SectionId, decimal? Quantity, decimal? Amount, bool Remainder);
+    Guid? LineId, AllocationTarget Target, decimal? Quantity, decimal? Amount, bool Remainder);
 
 /// <summary>
 /// Быстрая разноска счёта одной пропорцией (задача F2, issue #1086, ТЗ COST-12) — чистая, без базы.
@@ -112,7 +112,7 @@ public static class AllocationSplit
             if (shares[index] == 0 || target.Unallocated) continue;
 
             // Остаток есть, когда последняя получила больше, чем дало бы ей то же округление, что у всех.
-            yield return new SplitPart(lineId, target.ConstructionId, target.SectionId,
+            yield return new SplitPart(lineId, target.Target,
                 amount ? null : shares[index], amount ? shares[index] : null,
                 Remainder: index == targets.Count - 1 && shares[index] != Share(whole, weights[index], sum, digits));
         }

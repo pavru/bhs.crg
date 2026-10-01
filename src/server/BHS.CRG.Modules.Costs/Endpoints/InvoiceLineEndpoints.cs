@@ -46,7 +46,7 @@ public static class InvoiceLineEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, InvoiceLinesRequest body, CostsDbContext db, IModuleCatalog catalog,
-        IModuleConstructions sites,
+        AllocationPlacesSource places,
         IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Lines is null)
@@ -107,7 +107,7 @@ public static class InvoiceLineEndpoints
         var reason = invoice.State != InvoiceState.Parsed ? null
             : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
                 ? "позиция номенклатуры есть не у всех строк"
-            : !await InvoiceAllocations.AllocatedAfterAsync(db, sites, invoice,
+            : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
                 [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
                 ct)
                 ? "баланс разноски не сходится"
@@ -124,7 +124,7 @@ public static class InvoiceLineEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"правка строк: {reason}", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
     }
 
     /// <summary>
@@ -138,7 +138,7 @@ public static class InvoiceLineEndpoints
     /// полностью, цели на месте, расхождение суммы строк с суммой к оплате — в пределах допуска.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> ParsedAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleConstructions sites,
+        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places,
         IModuleActivityLog log, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
@@ -176,19 +176,19 @@ public static class InvoiceLineEndpoints
                 "затраты, ни связать материал с документом качества. Пока они ждут, счёт остаётся " +
                 "черновиком и виден в отборе «Разобрать».");
 
-        EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, sites, invoice, lines, ct)).Summary);
+        EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, places, invoice, lines, ct)).Summary);
 
         invoice.MarkParsed();
         await db.SaveChangesAsync(ct);
         await log.RecordAsync(InvoiceActions.Parsed, invoice.Id.ToString(),
             InvoiceEndpoints.Label(invoice), after: $"строк: {lines.Count}", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
     }
 
     /// <summary>Вернуть счёт в черновик — решением человека (см. <see cref="Invoice.ReturnToDraft" />).</summary>
     private static async Task<Ok<InvoiceView>> DraftAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleConstructions sites,
+        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places,
         IModuleActivityLog log, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
@@ -201,7 +201,7 @@ public static class InvoiceLineEndpoints
                 InvoiceEndpoints.Label(invoice), after: "решением человека", ct: ct);
         }
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, sites, invoice, ct));
+        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
     }
 
     /// <summary>

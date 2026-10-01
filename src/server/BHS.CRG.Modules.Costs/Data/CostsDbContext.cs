@@ -169,6 +169,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         part.Property(a => a.Ordinal).HasColumnName("ordinal");
         part.Property(a => a.ConstructionId).HasColumnName("construction_id");
         part.Property(a => a.SectionId).HasColumnName("section_id");
+        part.Property(a => a.ArticleId).HasColumnName("article_id");
+        part.Ignore(a => a.Target);
 
         // Те же точности, что у строки: часть количества не бывает точнее самой строки, а часть суммы —
         // точнее копейки. Пусти мы точнее, база округлила бы молча, и баланс, сошедшийся при сохранении,
@@ -202,6 +204,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // по отчёту, где у стройки не хватает денег.
         part.ToTable(t => t.HasCheckConstraint("ck_invoice_allocations_document_amount",
             "line_id IS NOT NULL OR (quantity IS NULL AND amount IS NOT NULL)"));
+
+        // Цель части — стройка ИЛИ статья вне строек, ровно одно (F3, issue #1087, ТЗ COST-10.1); раздел —
+        // только внутри стройки. Ограничением базы по той же причине: часть с двумя целями легла бы в
+        // затраты дважды, без цели — никуда, и отчёт разошёлся бы со счётом молча.
+        part.ToTable(t => t.HasCheckConstraint("ck_invoice_allocations_one_target",
+            "(construction_id IS NULL) <> (article_id IS NULL) AND (section_id IS NULL OR construction_id IS NOT NULL)"));
     }
 
     /// <summary>

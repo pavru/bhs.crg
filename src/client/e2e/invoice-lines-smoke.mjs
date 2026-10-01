@@ -273,7 +273,7 @@ try {
 
     // Разноска — через диалог строки: стройка из посева, всё количество.
     await page.getByRole('button', { name: 'Разноска, строка 1' }).click();
-    await page.getByLabel('Стройка, часть 1', { exact: true }).selectOption({ label: 'Демо-стройка' });
+    await page.getByLabel('Куда, часть 1', { exact: true }).selectOption({ label: 'Демо-стройка' });
     await page.getByLabel('Количество, часть 1', { exact: true }).fill('2');
     const allocated = page.waitForResponse(
       r => r.request().method() === 'PUT' && r.url().endsWith('/allocation'), { timeout: 15_000 });
