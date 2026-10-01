@@ -44,7 +44,12 @@ type SetPanel = 'documents' | 'catalog' | 'datasets' | 'subscribers' | 'issues' 
 export function SetDetail() {
   const { constructionId, setId, panel } = useParams<{ constructionId: string; setId: string; panel?: string }>();
   const navigate = useNavigate();
-  const activePanel: SetPanel = (['catalog', 'datasets', 'subscribers', 'issues', 'plan'].includes(panel ?? '') ? panel : 'documents') as SetPanel;
+  const { data: access = NO_ACCESS } = useAccess();
+  // «Проблемы» — по праву сверки (issue #1125): без него вкладка читала бы пустоту и писала
+  // «Всё разобрано.», то есть отказ выглядел бы результатом. Ссылка на вкладку ведёт к документам.
+  const canReconcile = hasPermission(access, 'core.reconciliation.run');
+  const panels = ['catalog', 'datasets', 'subscribers', 'plan', ...(canReconcile ? ['issues'] : [])];
+  const activePanel: SetPanel = (panels.includes(panel ?? '') ? panel : 'documents') as SetPanel;
   const { data: set, isLoading } = useGetDocumentSet(setId);
   const { data: construction } = useGetConstruction(constructionId!);
   const { data: allConstructions = [] } = useListConstructions();
@@ -82,7 +87,6 @@ export function SetDetail() {
   // Кнопка отправки — по ПРАВУ, а не по имени роли (ТЗ ID-4.1, issue #989). Состав роли меняют в
   // редакторе, а имя остаётся прежним: проверка по имени означала, что носитель заведённой
   // администратором роли с правом рассылки кнопки не увидит, хотя сервер его пропускает.
-  const { data: access = NO_ACCESS } = useAccess();
   const canSend = hasPermission(access, 'id.document.send');
   const emailSet = useEmailSet();
   const toast = useToast();
@@ -233,9 +237,11 @@ export function SetDetail() {
         progress={plan?.own.percent ?? null}
         active={activePanel === 'plan'} onClick={() => goPanel('plan')} />
       {/* Проблемы живут здесь, а не в разделе «Сверка»: комплект — тот уровень, где их разбирают. */}
-      <NavItem icon={<AlertTriangle size={17} />} label="Проблемы"
-        count={problems?.needsAttention || undefined}
-        active={activePanel === 'issues'} onClick={() => goPanel('issues')} />
+      {canReconcile && (
+        <NavItem icon={<AlertTriangle size={17} />} label="Проблемы"
+          count={problems?.needsAttention || undefined}
+          active={activePanel === 'issues'} onClick={() => goPanel('issues')} />
+      )}
     </div>
   );
 

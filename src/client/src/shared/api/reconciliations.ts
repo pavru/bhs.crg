@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { filenameFromContentDisposition } from './attachments';
+import { NO_ACCESS, hasPermission, useAccess } from './access';
 
 /**
  * Сверка на непротиворечивость (issue #414, фаза Ф1).
@@ -237,10 +238,22 @@ export interface RelatedProblems {
   reconciliations: RelatedReconciliation[];
 }
 
+/**
+ * Право на сверку — и на её сводки, и на замечания анализа (issue #1125): все они за одними воротами
+ * сервера. Зовут их экраны строек, разделов, комплектов и документа, а их открывает и тот, у кого
+ * сверки нет вовсе («Бухгалтер»), — без этой проверки каждый такой экран получал бы 403 фоном. Пока
+ * доступ не пришёл, запроса нет: «ещё не знаем» — не повод спрашивать.
+ */
+export function useCanReconcile(): boolean {
+  const { data: access = NO_ACCESS } = useAccess();
+  return hasPermission(access, 'core.reconciliation.run');
+}
+
 export function useRelatedProblems(scope: 'Construction' | 'Section' | 'Set', scopeId: string | undefined) {
+  const allowed = useCanReconcile();
   return useQuery({
     queryKey: [...KEY, 'related', scope, scopeId ?? null],
-    enabled: !!scopeId,
+    enabled: allowed && !!scopeId,
     queryFn: async () => (await apiClient.get<RelatedProblems>('/reconciliations/related', {
       params: { scope, scopeId },
     })).data,
@@ -264,9 +277,10 @@ export interface ProblemSummary {
 export function useProblemSummary(
   scope: 'System' | 'Construction' | 'Section' | 'Set', scopeId?: string,
 ) {
+  const allowed = useCanReconcile();
   return useQuery({
     queryKey: [...KEY, 'summary', scope, scopeId ?? null],
-    enabled: scope === 'System' || !!scopeId,
+    enabled: allowed && (scope === 'System' || !!scopeId),
     queryFn: async () => (await apiClient.get<ProblemSummary>('/reconciliations/summary', {
       params: { scope, scopeId },
     })).data,
