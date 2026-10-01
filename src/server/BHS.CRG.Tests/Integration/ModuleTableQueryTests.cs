@@ -277,6 +277,13 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         Assert.Contains("between", Operators("Срок"));
         Assert.Contains("contains", Operators("Номер"));
         Assert.DoesNotContain("gt", Operators("Номер"));
+
+        // Перечень (#1090) — тоже колонка с видом: без операторов диалог предложил бы ей общий
+        // список, в том числе «больше», которого у перечня нет.
+        Assert.Contains("contains", Operators("ОбъектыРазноски"));
+        Assert.DoesNotContain("gt", Operators("ОбъектыРазноски"));
+        // Колонка, чьё значение зависит от отбора, в набор не едет — значит, и отбирать по ней нечего.
+        Assert.DoesNotContain(schema.EnumerateArray(), c => c.GetProperty("name").GetString() == "СуммаПоОтбору");
     }
 
     private static string Own(Seed seed) => Uri.EscapeDataString(
