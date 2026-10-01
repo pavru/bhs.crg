@@ -1,20 +1,13 @@
 import { useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import type { FilterCondition, FilterGroup, FilterNode, FilterOp, RowFilterDef } from '@/shared/api/types';
+import type { FilterCondition, FilterGroup, FilterOp, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
 import {
-  conditionProblem, hasProblems, operatorsFor, opLabel, withColumn, withOperator, type FilterColumn,
+  conditionProblem, fromDraft, hasProblems, newCondition, newGroup, operatorsFor, opLabel, toDraft,
+  withColumn, withOperator, type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
-
-function makeCondition(): FilterCondition {
-  return { type: 'condition', column: '', op: 'eq', value: '' };
-}
-
-function makeGroup(): FilterGroup {
-  return { type: 'group', logic: 'and', children: [] };
-}
 
 // Reused field styling for condition selects/inputs.
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
@@ -141,8 +134,8 @@ function FilterGroupEditor({
   depth,
   columns,
 }: {
-  group: FilterGroup;
-  onChange: (g: FilterGroup) => void;
+  group: DraftGroup;
+  onChange: (g: DraftGroup) => void;
   onRemove?: () => void;
   depth: number;
   columns: FilterColumn[];
@@ -152,15 +145,19 @@ function FilterGroupEditor({
   }
 
   function addCondition() {
-    onChange({ ...group, children: [...group.children, makeCondition()] });
+    onChange({ ...group, children: [...group.children, newCondition()] });
   }
 
   function addSubGroup() {
-    onChange({ ...group, children: [...group.children, makeGroup()] });
+    onChange({ ...group, children: [...group.children, newGroup()] });
   }
 
-  function updateChild(i: number, node: FilterNode) {
-    onChange({ ...group, children: group.children.map((c, idx) => idx === i ? node : c) });
+  // Ключ строки возвращаем узлу здесь: строка условия о ключах не знает и отдаёт обычный узел дерева.
+  function updateChild(i: number, node: FilterCondition | DraftGroup) {
+    onChange({
+      ...group,
+      children: group.children.map((c, idx) => (idx === i ? { ...node, key: c.key } as typeof c : c)),
+    });
   }
 
   function removeChild(i: number) {
@@ -206,10 +203,12 @@ function FilterGroupEditor({
       {group.children.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           {group.children.map((child, i) => {
+            // Ключ — свой у строки, а не её номер: строка помнит недобранное значение списка и вид
+            // поля, и при удалении условия это не должно переехать к следующему.
             if (child.type === 'condition') {
               return (
                 <FilterConditionRow
-                  key={i}
+                  key={child.key}
                   cond={child}
                   columns={columns}
                   onChange={c => updateChild(i, c)}
@@ -219,7 +218,7 @@ function FilterGroupEditor({
             }
             return (
               <FilterGroupEditor
-                key={i}
+                key={child.key}
                 group={child}
                 depth={depth + 1}
                 columns={columns}
@@ -266,12 +265,12 @@ export function RowFilterDialog({
   // редактировать в ней нечего, а падать диалогу нельзя — сюда приходят ПО ОТКАЗУ сервера
   // «исправьте условия отбора» (issue #966, ревью PR #1058).
   const unreadable = initial != null && !isEditableFilterRoot(initial);
-  const [root, setRoot] = useState<FilterGroup>(
-    () => (isEditableFilterRoot(initial) ? initial! : { type: 'group', logic: 'and', children: [] })
+  const [root, setRoot] = useState<DraftGroup>(
+    () => (isEditableFilterRoot(initial) ? toDraft(initial!) as DraftGroup : newGroup())
   );
 
   function handleSave() {
-    const cleaned = cleanFilterNode(root) as FilterGroup | null;
+    const cleaned = cleanFilterNode(fromDraft(root)) as FilterGroup | null;
     onSave(cleaned);
     onClose();
   }

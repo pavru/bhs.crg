@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { FILTER_OP_LABELS } from '@/shared/api/types';
 import {
-  UNTYPED_OPS, conditionProblem, filterColumns, hasProblems, opArity, opLabel, operatorsFor,
-  valueFits, withColumn, withOperator, type FilterColumn,
+  UNTYPED_OPS, conditionProblem, filterColumns, fromDraft, hasProblems, newCondition, newGroup, opArity,
+  opLabel, operatorsFor, toDraft, valueFits, withColumn, withOperator, type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 
 /**
@@ -63,6 +63,12 @@ describe('withOperator', () => {
     expect(one).toEqual({ type: 'condition', column: 'Итого', op: 'gt', value: '5' });
   });
 
+  it('у «между» с одной верхней границей введённое — она: пустое «от» значением не считается', () => {
+    const upper = cond({ op: 'between', value: undefined, values: ['', '10'] });
+    expect(withOperator(upper, 'lte')).toMatchObject({ op: 'lte', value: '10' });
+    expect(withOperator(upper, 'in').values).toEqual(['10']);
+  });
+
   it('оператор без значения не несёт ни value, ни values', () => {
     const none = withOperator(cond({ op: 'in', value: undefined, values: ['5'] }), 'is_null');
     expect(none).toEqual({ type: 'condition', column: 'Итого', op: 'is_null' });
@@ -83,8 +89,31 @@ describe('withOperator', () => {
 
 describe('withColumn', () => {
   it('оператор, не подходящий новой колонке, заменяется первым подходящим', () => {
-    const moved = withColumn(cond({ column: 'Номер', op: 'contains', value: 'мтр' }), 'Итого', columns);
-    expect(moved).toMatchObject({ column: 'Итого', op: 'eq', value: 'мтр' });
+    const moved = withColumn(cond({ column: 'Номер', op: 'contains', value: '15' }), 'Итого', columns);
+    expect(moved).toMatchObject({ column: 'Итого', op: 'eq', value: '15' });
+  });
+
+  it('значение, которое у новой колонки не разбирается, не переносится — поле появится своего вида', () => {
+    expect(withColumn(cond({ value: '5' }), 'Срок', columns)).toMatchObject({ column: 'Срок', op: 'eq', value: '' });
+    expect(withColumn(cond({ column: 'Номер', op: 'contains', value: 'мтр' }), 'Итого', columns).value).toBe('');
+    // Границы остаются на своих местах, список теряет только негодное.
+    expect(withColumn(cond({ op: 'between', value: undefined, values: ['5', '2026-05-31'] }), 'Срок', columns).values)
+      .toEqual(['', '2026-05-31']);
+    expect(withColumn(cond({ op: 'in', value: undefined, values: ['5', '2026-05-31'] }), 'Срок', columns).values)
+      .toEqual(['2026-05-31']);
+    // У текста и у колонки без вида годится любое значение.
+    expect(withColumn(cond({ value: '5' }), 'Расчёт', columns).value).toBe('5');
+  });
+
+  it('«пусто» переезжает тем же вопросом под именем новой колонки', () => {
+    expect(withColumn(cond({ column: 'Номер', op: 'is_empty', value: undefined }), 'Срок', columns).op).toBe('is_null');
+    expect(withColumn(cond({ op: 'is_not_null', value: undefined }), 'Расчёт', columns).op).toBe('is_not_empty');
+  });
+
+  it('границы «между» при смене колонки местами не меняются', () => {
+    const upper = cond({ op: 'between', value: undefined, values: ['', '10'] });
+    expect(withColumn(upper, 'Срок', columns).values).toEqual(['', '']);
+    expect(withColumn({ ...upper, column: 'Срок' }, 'Итого', columns).values).toEqual(['', '10']);
   });
 
   it('подходящий оператор остаётся', () => {
@@ -104,6 +133,13 @@ describe('conditionProblem', () => {
   it('оператор, не подходящий к виду, назван — сохранённое условие не прячется', () => {
     expect(conditionProblem(cond({ op: 'contains', value: '1' }), columns))
       .toBe('«содержит» к колонке вида «число» не применяется');
+  });
+
+  it('«пусто» и «не определено» годятся колонке любого вида — сервер принимает оба имени', () => {
+    for (const op of ['is_empty', 'is_not_empty', 'is_null', 'is_not_null'] as const) {
+      expect(conditionProblem(cond({ column: 'Срок', op, value: undefined }), columns)).toBeNull();
+      expect(conditionProblem(cond({ column: 'Номер', op, value: undefined }), columns)).toBeNull();
+    }
   });
 
   it('колонка без значений названа причиной', () => {
@@ -144,6 +180,9 @@ describe('valueFits', () => {
     expect(['1,5', '1e3', '12 шт', '.5', ''].some(v => valueFits('number', v))).toBe(false);
     expect(valueFits('date', '2026-05-01')).toBe(true);
     expect(valueFits('date', '2026-05-01T00:00:00')).toBe(false);
+    // Дата обязана существовать: сервер разбирает её, а не сверяет с образцом.
+    expect(['2026-02-30', '2026-13-01', '2026-00-10', '2025-02-29', '0000-01-01'].some(v => valueFits('date', v))).toBe(false);
+    expect(['2024-02-29', '0099-12-31', '9999-12-31'].every(v => valueFits('date', v))).toBe(true);
     expect(valueFits('boolean', 'да')).toBe(false);
     expect(valueFits('text', '')).toBe(true);
     expect(valueFits(undefined, 'что угодно')).toBe(true);
@@ -156,5 +195,40 @@ describe('filterColumns', () => {
     expect(result.map(c => c.name)).toEqual(['Номер', 'Итого', 'Расчёт']);
     expect(result[1].kind).toBe('number');
     expect(result[2].kind).toBeUndefined();
+  });
+});
+
+describe('черновик диалога', () => {
+  const saved: FilterGroup = {
+    type: 'group', logic: 'or',
+    children: [cond({}), { type: 'group', logic: 'and', children: [cond({ op: 'between', value: undefined, values: ['1', '2'] })] }],
+  };
+
+  it('у каждой строки свой ключ, и на сервер он не уходит', () => {
+    const draft = toDraft(saved) as DraftGroup;
+    const inner = draft.children[1] as DraftGroup;
+    const keys = [draft.key, draft.children[0].key, inner.key, inner.children[0].key, newCondition().key, newGroup().key];
+    expect(new Set(keys).size).toBe(keys.length);
+
+    expect(fromDraft(draft)).toEqual(saved);
+    expect(JSON.stringify(fromDraft({ ...draft, children: [...draft.children, newCondition()] }))).not.toContain('key');
+  });
+
+  it('условие без оператора — это «равно»: так его читает сервер', () => {
+    const bare = { type: 'condition', column: 'Итого', value: '5' } as unknown as FilterCondition;
+    const draft = toDraft({ type: 'group', logic: 'and', children: [bare] }) as DraftGroup;
+    expect(draft.children[0]).toMatchObject({ column: 'Итого', op: 'eq', value: '5' });
+    expect(hasProblems(draft, columns)).toBe(false);
+  });
+
+  it('условие без колонки и группа без детей диалог не роняют', () => {
+    const broken = {
+      type: 'group', logic: 'and',
+      children: [{ type: 'condition', op: 'eq', value: '1' }, { type: 'condition', column: null, op: 'eq' }, { type: 'group', logic: 'or' }],
+    } as unknown as FilterGroup;
+    const draft = toDraft(broken) as DraftGroup;
+    expect(draft.children.slice(0, 2)).toMatchObject([{ column: '' }, { column: '' }]);
+    expect(draft.children[2]).toMatchObject({ children: [] });
+    expect(hasProblems(draft, columns)).toBe(false);
   });
 });

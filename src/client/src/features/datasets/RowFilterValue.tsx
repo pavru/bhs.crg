@@ -13,19 +13,26 @@ const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface tex
  * спрятать его значило бы показать условие пустым, хотя в базе оно есть. Решается это один раз, при
  * появлении поля, а не на каждом нажатии: иначе поле меняло бы вид посреди ввода («1.» — ещё не число).
  */
-function ValueInput({ kind, value, onChange, placeholder, onEnter }: {
+function ValueInput({ kind, value, onChange, placeholder, onEnter, onBlur }: {
   kind?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   onEnter?: () => void;
+  onBlur?: () => void;
 }) {
   const cls = `${FIELD_CLS} flex-1 min-w-0`;
-  const [typed] = useState(() => value === '' || valueFits(kind, value));
+  const [typed, setTyped] = useState(() => value === '' || valueFits(kind, value));
+
+  // Негодное значение стёрли — показывать текстом больше нечего, и поле становится полем своего вида.
+  function change(next: string) {
+    if (next === '') setTyped(true);
+    onChange(next);
+  }
 
   if (kind === 'boolean' && typed)
     return (
-      <select value={value} onChange={e => onChange(e.target.value)} className={cls} aria-label={placeholder}>
+      <select value={value} onChange={e => change(e.target.value)} onBlur={onBlur} className={cls} aria-label={placeholder}>
         <option value="">— значение —</option>
         <option value="true">да</option>
         <option value="false">нет</option>
@@ -37,8 +44,9 @@ function ValueInput({ kind, value, onChange, placeholder, onEnter }: {
       type={typed && kind === 'number' ? 'number' : typed && kind === 'date' ? 'date' : 'text'}
       step="any"
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onChange={e => change(e.target.value)}
       onKeyDown={e => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
+      onBlur={onBlur}
       placeholder={placeholder}
       aria-label={placeholder}
       className={cls}
@@ -46,7 +54,12 @@ function ValueInput({ kind, value, onChange, placeholder, onEnter }: {
   );
 }
 
-/** Список значений: введённое добавляется по Enter или кнопкой, каждое убирается своим крестиком. */
+/**
+ * Список значений: введённое добавляется по Enter или кнопкой, каждое убирается своим крестиком.
+ *
+ * Набранное, но не добавленное значение добавляется и при уходе из поля. Иначе «набрал второе
+ * значение и нажал „Сохранить“» сохраняло отбор без него — уже́ задуманного и без единого сигнала.
+ */
 function ValueList({ kind, values, onChange }: {
   kind?: string;
   values: string[];
@@ -77,7 +90,8 @@ function ValueList({ kind, values, onChange }: {
         </span>
       ))}
       <div className="flex items-center gap-1 flex-1" style={{ minWidth: '120px' }}>
-        <ValueInput kind={kind} value={draft} onChange={setDraft} placeholder="Добавить значение" onEnter={add} />
+        <ValueInput kind={kind} value={draft} onChange={setDraft} placeholder="Добавить значение"
+          onEnter={add} onBlur={add} />
         <button
           type="button"
           onClick={add}

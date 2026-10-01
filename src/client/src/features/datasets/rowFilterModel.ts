@@ -1,4 +1,4 @@
-import type { FilterCondition, FilterNode, FilterOp } from '@/shared/api/types';
+import type { FilterCondition, FilterGroup, FilterNode, FilterOp } from '@/shared/api/types';
 import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
 import type { DataSetColumn } from '@/shared/api/datasetHelpers';
 
@@ -57,7 +57,9 @@ export function opLabel(op: string): string {
  */
 export function withOperator(cond: FilterCondition, op: FilterOp): FilterCondition {
   const { value, values, ...rest } = cond;
-  const entered = [...(values ?? []), ...(value ? [value] : [])];
+  // Пустые места введённым не считаются: у «между» с одной только верхней границей первое из
+  // введённого — она, а не пустое «от».
+  const entered = [...(values ?? []), value ?? ''].filter(v => v !== '');
 
   switch (opArity(op)) {
     case 'none':
@@ -67,18 +69,39 @@ export function withOperator(cond: FilterCondition, op: FilterOp): FilterConditi
     case 'two':
       return { ...rest, op, values: [entered[0] ?? '', entered[1] ?? ''] };
     case 'list':
-      return { ...rest, op, values: entered.filter(v => v !== '') };
+      return { ...rest, op, values: entered };
   }
 }
 
+/** «Значения нет» под двумя именами: «пусто» у текста и колонки без вида, «не определено» — у остальных. */
+const PRESENCE_TWIN: Partial<Record<FilterOp, FilterOp>> = {
+  is_empty: 'is_null', is_null: 'is_empty', is_not_empty: 'is_not_null', is_not_null: 'is_not_empty',
+};
+
 /**
- * Сменить колонку. Оператор, который новой колонке не подходит, заменяется первым подходящим:
- * условие только что начато заново, и оставить его заведомо негодным было бы хуже.
+ * Сменить колонку. Оператор, который новой колонке не подходит, заменяется: «пусто» — тем же
+ * вопросом под именем новой колонки, прочее — первым подходящим. Условие только что начато заново,
+ * и оставить его заведомо негодным было бы хуже.
+ *
+ * Значение, которое у новой колонки не разбирается («5» у даты), не переносится. Оставь его — поле
+ * даты показало бы чужое «5» текстом, и дату пришлось бы набирать руками вместо выбора.
  */
 export function withColumn(cond: FilterCondition, name: string, columns: FilterColumn[]): FilterCondition {
-  const allowed = operatorsFor(columns.find(c => c.name === name));
-  const next = { ...cond, column: name };
-  return allowed.includes(cond.op) || allowed.length === 0 ? next : withOperator(next, allowed[0]);
+  const column = columns.find(c => c.name === name);
+  const allowed = operatorsFor(column);
+  const twin = PRESENCE_TWIN[cond.op];
+  const op = allowed.includes(cond.op) || allowed.length === 0 ? cond.op
+    : twin && allowed.includes(twin) ? twin : allowed[0];
+  const renamed = { ...cond, column: name };
+  const moved = op === cond.op ? renamed : withOperator(renamed, op);
+
+  const fits = (v: string) => valueFits(column?.kind, v);
+  if (moved.value !== undefined) return fits(moved.value) ? moved : { ...moved, value: '' };
+  if (moved.values === undefined) return moved;
+  return {
+    ...moved,
+    values: opArity(op) === 'two' ? moved.values.map(v => (fits(v) ? v : '')) : moved.values.filter(fits),
+  };
 }
 
 const KIND_NAMES: Record<string, string> = {
@@ -98,7 +121,9 @@ export function conditionProblem(cond: FilterCondition, columns: FilterColumn[])
   if (column?.unavailable)
     return `колонка пришла без значений — ${column.unavailable}; отбирать по ней нельзя`;
 
-  if (column?.operators && !column.operators.includes(cond.op))
+  // «Пусто» и «не определено» сервер принимает у колонки любого вида, под обоими именами: отборы,
+  // сохранённые до #1090, спрашивали «пусто» у числа и даты, и они исполняются.
+  if (column?.operators && opArity(cond.op) !== 'none' && !column.operators.includes(cond.op))
     return `«${opLabel(cond.op)}» к колонке вида «${KIND_NAMES[column.kind ?? ''] ?? column.kind}» не применяется`;
 
   const arity = opArity(cond.op);
@@ -119,16 +144,27 @@ const VALUE_NAMES: Record<string, string> = { number: 'число', date: 'да�
 
 /**
  * Разберёт ли сервер значение у колонки этого вида. Запись та же, что у него: число — цифры, точка и
- * знак (запятая и «1e3» числом не считаются), дата — ГГГГ-ММ-ДД. Поля ввода дают её сами; проверка
- * нужна значению, сохранённому раньше или пришедшему мимо диалога.
+ * знак (запятая и «1e3» числом не считаются), дата — ГГГГ-ММ-ДД и существующая: «2026-02-30» сервер
+ * датой не считает. Поля ввода дают такую запись сами; проверка нужна значению, сохранённому раньше
+ * или пришедшему мимо диалога.
  */
 export function valueFits(kind: string | undefined, value: string): boolean {
   switch (kind) {
     case 'number': return /^-?[0-9]+(\.[0-9]+)?$/.test(value);
-    case 'date': return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value);
+    case 'date': return isDate(value);
     case 'boolean': return value === 'true' || value === 'false';
     default: return true;
   }
+}
+
+function isDate(value: string): boolean {
+  const parts = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value);
+  if (!parts) return false;
+  const [year, month, day] = [Number(parts[1]), Number(parts[2]), Number(parts[3])];
+  // Через setUTCFullYear, а не конструктор: тот читает годы 0–99 как 1900-е.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  return year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /** Есть ли в дереве условие, которое сервер не выполнит. */
@@ -146,4 +182,49 @@ export function hasProblems(node: FilterNode, columns: FilterColumn[]): boolean 
 export function filterColumns(source: DataSetColumn[], computedAliases: string[]): FilterColumn[] {
   const known = new Set(source.map(c => c.name));
   return [...source, ...[...new Set(computedAliases)].filter(a => a && !known.has(a)).map(name => ({ name }))];
+}
+
+// ─── Черновик диалога ─────────────────────────────────────────────────────────
+
+/**
+ * Узел дерева, пока он открыт в диалоге: тот же узел плюс ключ строки. Без ключа строки условий
+ * различались бы порядковым номером, и при удалении условия следующее заняло бы его место вместе с
+ * тем, что строка помнит сама, — недобранным значением списка и видом поля.
+ */
+export type DraftCondition = FilterCondition & { key: number };
+export type DraftGroup = Omit<FilterGroup, 'children'> & { key: number; children: DraftNode[] };
+export type DraftNode = DraftCondition | DraftGroup;
+
+let lastKey = 0;
+const nextKey = () => ++lastKey;
+
+export function newCondition(): DraftCondition {
+  return { type: 'condition', column: '', op: 'eq', value: '', key: nextKey() };
+}
+
+export function newGroup(children: DraftNode[] = []): DraftGroup {
+  return { type: 'group', logic: 'and', children, key: nextKey() };
+}
+
+/**
+ * Сохранённое дерево — в черновик. Заодно приводится то, что сервер читает по умолчанию, а диалог
+ * иначе не показал бы: условие без оператора — это «равно». Условие без колонки сервер отвергает;
+ * здесь оно становится условием с невыбранной колонкой — его видно, и его есть чем исправить
+ * (сохранение условия без колонки выбрасывает). Сюда приходят именно по отказу сервера, поэтому
+ * упасть на таком дереве диалогу нельзя.
+ */
+export function toDraft(node: FilterNode): DraftNode {
+  if (node.type === 'group')
+    return { ...node, key: nextKey(), children: (Array.isArray(node.children) ? node.children : []).map(toDraft) };
+  return { ...node, column: typeof node.column === 'string' ? node.column : '', op: node.op ?? 'eq', key: nextKey() };
+}
+
+/** Черновик — обратно в дерево, которое уходит на сервер: без ключей строк. */
+export function fromDraft(node: DraftNode): FilterNode {
+  if (node.type === 'group') {
+    const { key, ...group } = node;
+    return { ...group, children: node.children.map(fromDraft) };
+  }
+  const { key, ...condition } = node;
+  return condition;
 }
