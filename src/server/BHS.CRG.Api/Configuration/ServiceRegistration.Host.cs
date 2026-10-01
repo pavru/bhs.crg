@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -135,9 +136,7 @@ internal static class HostRegistration
     // пользователя, остаётся принадлежать root (лечится разовым chown, см. docs/DEPLOYMENT.md §8).
     try
     {
-        var probe = Path.Combine(dpKeysPath, ".write-probe");
-        File.WriteAllText(probe, string.Empty);
-        File.Delete(probe);
+        DirectoryWriteProbe.Run(dpKeysPath);
     }
     catch (Exception ex)
     {
