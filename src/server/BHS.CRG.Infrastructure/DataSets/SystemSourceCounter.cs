@@ -24,8 +24,10 @@ namespace BHS.CRG.Infrastructure.DataSets;
 public class SystemSourceCounter(SystemDataProviderRegistry providers)
 {
     /// <summary>Что известно про системный источник на момент чтения.</summary>
+    /// <param name="Types">Виды колонок, если поставщик их объявил (таблица модуля): по ним диалог
+    /// отбора предлагает колонке её операторы (issue #1133).</param>
     public readonly record struct SystemSourceState(
-        int RowCount, string? Warning, IReadOnlyList<DataSetColumnInfo> Columns);
+        int RowCount, string? Warning, IReadOnlyList<DataSetColumnInfo> Columns, DataSetColumnTypes? Types = null);
 
     /// <summary>
     /// Состояние по id источника для системных наборов из выборки (источники берутся из
@@ -83,7 +85,7 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
             // источнике лежит с момента создания и уезжает в резервную копию — новой утечки здесь нет.
             SystemDataSetGate.Ensure(provider.Declaration, access, "");
             var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
-            return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns);
+            return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns, provided.Types);
         }
         // Ловим НАШ отказ провайдера («источник доступен только на уровне комплекта» и подобные) —
         // для счётчика это просто «состояния нет». Чужое исключение сюда попадать не должно: оно

@@ -1,24 +1,13 @@
 import { useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import type { FilterCondition, FilterGroup, FilterNode, FilterOp, RowFilterDef } from '@/shared/api/types';
-import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
+import type { FilterCondition, FilterGroup, FilterOp, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
-
-const ALL_OPS: FilterOp[] = [
-  'eq', 'neq', 'contains', 'not_contains',
-  'starts_with', 'ends_with',
-  'gt', 'gte', 'lt', 'lte',
-  'is_empty', 'is_not_empty',
-];
-
-function makeCondition(): FilterCondition {
-  return { type: 'condition', column: '', op: 'eq', value: '' };
-}
-
-function makeGroup(): FilterGroup {
-  return { type: 'group', logic: 'and', children: [] };
-}
+import {
+  conditionProblem, fromDraft, hasProblems, newCondition, newGroup, operatorsFor, opLabel, toDraft,
+  withColumn, withOperator, type DraftGroup, type FilterColumn,
+} from './rowFilterModel';
+import { RowFilterValue } from './RowFilterValue';
 
 // Reused field styling for condition selects/inputs.
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
@@ -59,73 +48,77 @@ function FilterConditionRow({
   onRemove,
 }: {
   cond: FilterCondition;
-  columns: string[];
+  columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
 }) {
-  const noValue = FILTER_OPS_NO_VALUE.includes(cond.op);
+  const column = columns.find(c => c.name === cond.column);
+  // Колонке — её операторы (issue #1133). Оператор сохранённого условия, который к ней не подходит,
+  // остаётся в списке и назван: молча подменить его значило бы переписать чужое условие.
+  const allowed = operatorsFor(column);
+  const ops = allowed.includes(cond.op) ? allowed : [cond.op, ...allowed];
+  const problem = conditionProblem(cond, columns);
+  // Колонка условия, которой в источнике уже нет, тоже остаётся в списке: иначе выбор показал бы
+  // «— колонка —» у условия, которое в базе стоит на конкретной колонке.
+  const missing = cond.column !== '' && !column;
 
   return (
-    <div className="flex items-center gap-1.5 group/cond">
-      {/* Column */}
-      {columns.length > 0 ? (
+    <div>
+      <div className="flex items-start gap-1.5 group/cond">
+        {/* Column */}
+        {columns.length > 0 ? (
+          <select
+            value={cond.column}
+            onChange={e => onChange(withColumn(cond, e.target.value, columns))}
+            className={FIELD_CLS}
+            style={{ minWidth: '120px', maxWidth: '160px' }}
+          >
+            <option value="">— колонка —</option>
+            {missing && <option value={cond.column}>{cond.column}</option>}
+            {columns.map(c => (
+              <option key={c.name} value={c.name} disabled={!!c.unavailable && c.name !== cond.column}>
+                {c.unavailable ? `${c.name} — ${c.unavailable}` : c.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={cond.column}
+            onChange={e => onChange({ ...cond, column: e.target.value })}
+            placeholder="Колонка"
+            className={FIELD_CLS}
+            style={{ width: '120px' }}
+          />
+        )}
+
+        {/* Operator */}
         <select
-          value={cond.column}
-          onChange={e => onChange({ ...cond, column: e.target.value })}
-          className={FIELD_CLS}
-          style={{ minWidth: '120px', maxWidth: '160px' }}
+          value={cond.op}
+          // Значение НЕ сбрасываем при смене оператора (issue #401): оно перекладывается туда, где его
+          // ждёт сервер, — одно в value, границы и список в values (withOperator).
+          onChange={e => onChange(withOperator(cond, e.target.value as FilterOp))}
+          className={`${FIELD_CLS} shrink-0`}
+          style={{ width: '148px' }}
         >
-          <option value="">— колонка —</option>
-          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+          {ops.map(op => (
+            <option key={op} value={op}>{opLabel(op)}</option>
+          ))}
         </select>
-      ) : (
-        <input
-          value={cond.column}
-          onChange={e => onChange({ ...cond, column: e.target.value })}
-          placeholder="Колонка"
-          className={FIELD_CLS}
-          style={{ width: '120px' }}
-        />
-      )}
 
-      {/* Operator */}
-      <select
-        value={cond.op}
-        // Значение НЕ сбрасываем при смене оператора (issue #401) — очищаем только при переходе
-        // на оператор без значения (isEmpty и т.п.), чтобы не тащить мусор в сериализацию.
-        onChange={e => {
-          const op = e.target.value as FilterOp;
-          onChange({ ...cond, op, ...(FILTER_OPS_NO_VALUE.includes(op) ? { value: undefined } : {}) });
-        }}
-        className={`${FIELD_CLS} shrink-0`}
-        style={{ width: '148px' }}
-      >
-        {ALL_OPS.map(op => (
-          <option key={op} value={op}>{FILTER_OP_LABELS[op]}</option>
-        ))}
-      </select>
+        {/* Value */}
+        <RowFilterValue cond={cond} kind={column?.kind} onChange={onChange} />
 
-      {/* Value */}
-      {!noValue ? (
-        <input
-          value={cond.value ?? ''}
-          onChange={e => onChange({ ...cond, value: e.target.value })}
-          placeholder="Значение"
-          className={`${FIELD_CLS} flex-1 min-w-0`}
-        />
-      ) : (
-        <div className="flex-1" />
-      )}
-
-      {/* Remove */}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
-        title="Удалить условие"
-      >
-        <Trash2 size={12} />
-      </button>
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
+          title="Удалить условие"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+      {problem && <p className="mt-0.5 text-xs text-danger">Условие не выполнится: {problem}.</p>}
     </div>
   );
 }
@@ -141,26 +134,30 @@ function FilterGroupEditor({
   depth,
   columns,
 }: {
-  group: FilterGroup;
-  onChange: (g: FilterGroup) => void;
+  group: DraftGroup;
+  onChange: (g: DraftGroup) => void;
   onRemove?: () => void;
   depth: number;
-  columns: string[];
+  columns: FilterColumn[];
 }) {
   function setLogic(l: 'and' | 'or') {
     onChange({ ...group, logic: l });
   }
 
   function addCondition() {
-    onChange({ ...group, children: [...group.children, makeCondition()] });
+    onChange({ ...group, children: [...group.children, newCondition()] });
   }
 
   function addSubGroup() {
-    onChange({ ...group, children: [...group.children, makeGroup()] });
+    onChange({ ...group, children: [...group.children, newGroup()] });
   }
 
-  function updateChild(i: number, node: FilterNode) {
-    onChange({ ...group, children: group.children.map((c, idx) => idx === i ? node : c) });
+  // Ключ строки возвращаем узлу здесь: строка условия о ключах не знает и отдаёт обычный узел дерева.
+  function updateChild(i: number, node: FilterCondition | DraftGroup) {
+    onChange({
+      ...group,
+      children: group.children.map((c, idx) => (idx === i ? { ...node, key: c.key } as typeof c : c)),
+    });
   }
 
   function removeChild(i: number) {
@@ -206,10 +203,12 @@ function FilterGroupEditor({
       {group.children.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           {group.children.map((child, i) => {
+            // Ключ — свой у строки, а не её номер: строка помнит недобранное значение списка и вид
+            // поля, и при удалении условия это не должно переехать к следующему.
             if (child.type === 'condition') {
               return (
                 <FilterConditionRow
-                  key={i}
+                  key={child.key}
                   cond={child}
                   columns={columns}
                   onChange={c => updateChild(i, c)}
@@ -219,7 +218,7 @@ function FilterGroupEditor({
             }
             return (
               <FilterGroupEditor
-                key={i}
+                key={child.key}
                 group={child}
                 depth={depth + 1}
                 columns={columns}
@@ -256,7 +255,8 @@ export function RowFilterDialog({
   onSave,
   onClose,
 }: {
-  columns?: string[];
+  /** Колонки источника с их видами; без них (шаблон обработки) колонка вписывается текстом. */
+  columns?: FilterColumn[];
   initial: RowFilterDef | null;
   onSave: (filter: RowFilterDef | null) => void;
   onClose: () => void;
@@ -265,12 +265,12 @@ export function RowFilterDialog({
   // редактировать в ней нечего, а падать диалогу нельзя — сюда приходят ПО ОТКАЗУ сервера
   // «исправьте условия отбора» (issue #966, ревью PR #1058).
   const unreadable = initial != null && !isEditableFilterRoot(initial);
-  const [root, setRoot] = useState<FilterGroup>(
-    () => (isEditableFilterRoot(initial) ? initial! : { type: 'group', logic: 'and', children: [] })
+  const [root, setRoot] = useState<DraftGroup>(
+    () => (isEditableFilterRoot(initial) ? toDraft(initial!) as DraftGroup : newGroup())
   );
 
   function handleSave() {
-    const cleaned = cleanFilterNode(root) as FilterGroup | null;
+    const cleaned = cleanFilterNode(fromDraft(root)) as FilterGroup | null;
     onSave(cleaned);
     onClose();
   }
@@ -281,6 +281,9 @@ export function RowFilterDialog({
   }
 
   const hasAny = root.children.length > 0;
+  // Отбор с условием, которое сервер не выполнит, не сохраняем: отказ пришёл бы уже после — чтением
+  // источника, и не там, где человек ошибся.
+  const blocked = hasProblems(root, columns ?? []);
 
   return (
     <Modal
@@ -292,7 +295,9 @@ export function RowFilterDialog({
         <div className="flex gap-2 items-center">
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
+            disabled={blocked}
+            title={blocked ? 'Исправьте отмеченные условия: такой отбор источник не выполнит' : undefined}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
             Сохранить
           </button>
