@@ -89,9 +89,14 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
         var page = await reader.ReadAsync(query, ct);
 
+        // Подпись смысла — только колонке, объявленной зависящей от отбора, и только открытой: служба
+        // строк не переименовывает чужие колонки и не подписывает то, чего человек не видит.
+        var noted = marked.Select(c => c.DependsOnFilter && c.Unavailable is null
+            && page.Notes is { } notes && notes.TryGetValue(c.Key, out var note) ? c with { Note = note } : c).ToList();
+
         // Вычистка — здесь, а не в службе модуля: служба вправе не считать закрытое, но гарантия
         // обязана стоять в одном месте. Забытое службой значение суммы иначе ушло бы наружу.
-        return (Dto(entry, marked, [.. page.Rows.Select(r => Only(r, shown))]) with
+        return (Dto(entry, noted, [.. page.Rows.Select(r => Only(r, shown))]) with
         {
             Count = page.Count,
             Offset = request.Offset,
@@ -139,7 +144,10 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
     /// <summary>Системные колонки модуля — то, что лежит в его коде, без схемы заказчика.</summary>
     private static List<TableColumnDto> Declared(ModuleTable table) => [.. table.Columns
         .Select(c => new TableColumnDto(
-            c.Key, c.Title, TableKinds.Name(c.Kind), TableOperators.For(TableKinds.Name(c.Kind)), true))];
+            c.Key, c.Title, TableKinds.Name(c.Kind),
+            // Колонке, чьё значение зависит от отбора, операторов не положено: по ней не отбирают.
+            c.DependsOnFilter ? [] : TableOperators.For(TableKinds.Name(c.Kind)), true,
+            DependsOnFilter: c.DependsOnFilter))];
 
     /// <summary>
     /// Запрошенные колонки в запрошенном порядке; ключ, которого нет, — колонка с причиной «поле

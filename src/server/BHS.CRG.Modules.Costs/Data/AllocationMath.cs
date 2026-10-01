@@ -75,6 +75,18 @@ public sealed record AllocationBalance(
     public IReadOnlyList<int> Unbalanced => [.. Lines.Where(l => !l.Balanced).Select(l => l.Ordinal)];
 
     /// <summary>
+    /// Части, в которых ЛЕЖАТ ДЕНЬГИ счёта, — одним правилом на всех, кто считает затраты по объектам:
+    /// реестр счетов с отбором по стройке (G1c, issue #1090) и «Затраты по стройке» (G5). Посчитай
+    /// каждый по-своему — итог реестра по стройке перестал бы сходиться с отчётом (ТЗ COST-20.1).
+    ///
+    /// <para>Пока есть части счёта целиком, деньги лежат в них: и у счёта без строк, и когда строки уже
+    /// появились, а пересчёт ждёт (<see cref="AllocationDocumentBalance.Pending" />) — сложи их тогда с
+    /// частями строк, и счёт посчитался бы дважды. Частей счёта нет — деньги в частях строк.</para>
+    /// </summary>
+    public IEnumerable<AllocationShare> Money =>
+        Document.Parts.Count > 0 ? Document.Parts : Lines.SelectMany(l => l.Parts);
+
+    /// <summary>
     /// «Разнесён» (ТЗ COST-9): каждая строка разнесена полностью, и расхождение с суммой к оплате — в
     /// пределах допуска.
     /// </summary>

@@ -1,10 +1,5 @@
-using System.Net.Http.Json;
 using System.Text.Json;
-using BHS.CRG.Api.Auth;
-using BHS.CRG.Application.DataSets;
-using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Infrastructure.DataSets;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -22,9 +17,6 @@ namespace BHS.CRG.Tests.Integration;
 /// </summary>
 public sealed class ModuleTableFilterPairTests(InvoiceLineHost host) : ModuleTableSeededTests(host)
 {
-    private const string Address = "costs.invoices";
-    private const string Marker = "system:table:" + Address;
-
     [Fact]
     public async Task Один_отбор_даёт_одни_строки_в_памяти_и_в_запросе()
     {
@@ -100,30 +92,4 @@ public sealed class ModuleTableFilterPairTests(InvoiceLineHost host) : ModuleTab
 
         Assert.True(failures.Count == 0, "Исполнители разошлись:\n  " + string.Join("\n  ", failures));
     }
-
-    // ── Два исполнителя ───────────────────────────────────────────────────────
-
-    /// <summary>Экран таблицы: отбор исполняет запрос к базе.</summary>
-    private static async Task<List<string>> SqlAsync(HttpClient client, string filter)
-    {
-        var response = await client.GetAsync(
-            $"/api/tables/{Address}?columns=Номер&limit=1000&filter={Uri.EscapeDataString(filter)}");
-        await OkAsync(response);
-        var table = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return [.. table.GetProperty("rows").EnumerateArray()
-            .Select(r => r.GetProperty("Номер").GetString() ?? "")
-            .OrderBy(n => n, StringComparer.Ordinal)];
-    }
-
-    /// <summary>Набор данных на той же таблице: строки целиком, отбор — в памяти.</summary>
-    private async Task<DataSetParseResult> MemoryRowsAsync(Guid user)
-    {
-        using var scope = host.Services.CreateScope();
-        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(user, default);
-        var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>().Single(p => p.Handles(Marker));
-        return await provider.ProvideAsync(Marker, CatalogScope.System, null, access, default);
-    }
-
-    private static List<string> Numbers(IEnumerable<IReadOnlyDictionary<string, string?>> rows) =>
-        [.. rows.Select(r => r.GetValueOrDefault("Номер") ?? "").OrderBy(n => n, StringComparer.Ordinal)];
 }

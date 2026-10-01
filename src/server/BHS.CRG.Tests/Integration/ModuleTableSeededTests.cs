@@ -1,6 +1,12 @@
+using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.DataSets;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +23,49 @@ namespace BHS.CRG.Tests.Integration;
 public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
     private readonly InvoiceLineHost host = host;
+
+    protected const string Address = "costs.invoices";
+    protected const string Marker = "system:table:" + Address;
+
+    // ── Два исполнителя ───────────────────────────────────────────────────────
+
+    /// <summary>Экран таблицы: отбор исполняет запрос к базе. Отдаёт номера подошедших счетов.</summary>
+    protected static async Task<List<string>> SqlAsync(HttpClient client, string filter)
+    {
+        var response = await client.GetAsync(
+            $"/api/tables/{Address}?columns=Номер&limit=1000&filter={Uri.EscapeDataString(filter)}");
+        await OkAsync(response);
+        var table = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return [.. table.GetProperty("rows").EnumerateArray()
+            .Select(r => r.GetProperty("Номер").GetString() ?? "")
+            .OrderBy(n => n, StringComparer.Ordinal)];
+    }
+
+    /// <summary>Набор данных на той же таблице: строки целиком, отбор — в памяти.</summary>
+    protected async Task<DataSetParseResult> MemoryRowsAsync(Guid user)
+    {
+        using var scope = host.Services.CreateScope();
+        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(user, default);
+        var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>().Single(p => p.Handles(Marker));
+        return await provider.ProvideAsync(Marker, CatalogScope.System, null, access, default);
+    }
+
+    protected static List<string> Numbers(IEnumerable<IReadOnlyDictionary<string, string?>> rows) =>
+        [.. rows.Select(r => r.GetValueOrDefault("Номер") ?? "").OrderBy(n => n, StringComparer.Ordinal)];
+
+    /// <summary>Своя роль с одним правом — системных ролей «модуль есть, счетов нет» не бывает.</summary>
+    protected async Task<string> RoleAsync(string permission)
+    {
+        var name = $"Narrow_{Guid.NewGuid():N}";
+        using var scope = host.Services.CreateScope();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var role = new IdentityRole<Guid>(name);
+        Assert.True((await roles.CreateAsync(role)).Succeeded);
+        Assert.True((await roles.AddClaimAsync(role, new Claim(RoleSynchronizer.PermissionClaim, permission))).Succeeded);
+        return name;
+    }
+
+    // ── Посев ─────────────────────────────────────────────────────────────────
 
     protected sealed record Seed(string Tag, string Weight, string Warranty, string Note);
 
