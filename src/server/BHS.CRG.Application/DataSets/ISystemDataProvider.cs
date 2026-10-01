@@ -23,9 +23,14 @@ public interface ISystemDataProvider
     /// Что этот провайдер может предложить на данном уровне — кандидаты диалога создания источника.
     /// Пусто, если консолидация на этом уровне не имеет смысла (например, документы комплекта
     /// у набора уровня «Стройка»).
+    ///
+    /// <para><paramref name="access" /> — тот же параметр, что у <see cref="ProvideAsync" />: кандидат
+    /// считает свои строки, то есть предложить набор значит уже его прочитать. Ворота пропустили
+    /// спрашивающего к набору, но строки и колонки поставщика с изоляцией (или с колонками под своим
+    /// правом, как у таблиц модулей — G1b) зависят от того, кто спросил.</para>
     /// </summary>
     Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-        CatalogScope scope, Guid? scopeId, CancellationToken ct);
+        CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct);
 
     /// <summary>
     /// Объявление набора: модуль, требуемый ключ доступа, вид отбора строк и текст границы выдачи

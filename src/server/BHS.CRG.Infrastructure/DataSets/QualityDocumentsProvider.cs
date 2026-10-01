@@ -48,7 +48,7 @@ public class QualityDocumentsProvider(AppDbContext db) : ISystemDataProvider
     public bool Handles(string marker) => marker == SystemDataSets.QualityDocumentsMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         // Уровни все, но кандидата предлагаем только при живых строках: иначе кнопка «Данные
         // системы» появлялась бы и там, где модулем качества не пользуются вовсе.

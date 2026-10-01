@@ -17,7 +17,8 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// </summary>
 public static class BindingPreviewColumns
 {
-    public const string Removed = "removed";
+    /// <summary>Тот же код, что у таблиц модулей: одна причина — одно слово на обоих путях.</summary>
+    public const string Removed = Application.Tables.TableColumnReasons.Removed;
 
     /// <param name="mappedKeys">Поля, которым маппинг назначил колонку источника, в порядке маппинга.</param>
     /// <param name="fields">Эффективные поля типа строки; null — тип вывести не удалось.</param>

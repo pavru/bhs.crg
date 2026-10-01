@@ -180,6 +180,9 @@ internal static class WorkerRegistration
     // этапа 2, issue #1069). Сразу за регистрацией модулей: службы модулей их спрашивают, а сами
     // порты опираются на зарегистрированное выше.
     builder.Services.AddModulePorts();
+    // Таблицы модулей (ТЗ CORE-33, G1b, issue #1089): служба для экрана и поставщик набора данных на
+    // каждую объявленную таблицу. Сразу за модулями — каталог таблиц собран там.
+    BHS.CRG.Api.Modules.Tables.ModuleTableRegistration.AddModuleTables(builder.Services);
     // Реестр функциональных тэгов: ядро + тэги ВКЛЮЧЁННЫХ модулей (ТЗ TYPE-22, issue #959). Сразу за
     // регистрацией модулей — он собирается из их объявлений.
     builder.Services.AddTagCatalog();

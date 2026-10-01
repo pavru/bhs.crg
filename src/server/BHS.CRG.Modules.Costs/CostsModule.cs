@@ -1,7 +1,9 @@
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Tables;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -147,6 +149,12 @@ public sealed class CostsModule : IAppModule
     public IReadOnlyList<ModuleTag> Tags => CostsRecordTypes.Tags;
 
     /// <summary>
+    /// Таблицы модуля (ТЗ CORE-33, задача G1b, issue #1089): пока одна — счета, зерно «счёт». Строки
+    /// счёта и части разноски — следующими зёрнами, вместе с их первым потребителем.
+    /// </summary>
+    public IReadOnlyList<ModuleTable> Tables => [InvoiceTable.Declaration];
+
+    /// <summary>
     /// Единственная служба каркаса — свой контекст базы. Строку подключения модуль берёт из настроек,
     /// которые ему передали: своего источника у него нет, а спрашивать её у ядра портом незачем —
     /// настройка приложения и есть настройка модуля, экземпляр у них один.
@@ -177,6 +185,10 @@ public sealed class CostsModule : IAppModule
         // Стройки и статьи — цели разноски (F3, issue #1087). Областью запроса: читает порты ядра, а те
         // живут областью запроса.
         services.AddScoped<AllocationPlacesSource>();
+
+        // Служба строк таблицы счетов (G1b, issue #1089). Не зарегистрировать её — отказ старта:
+        // объявленная таблица открылась бы и отказала на первом же чтении.
+        services.AddScoped<InvoiceTableRows>();
     }
 
     /// <summary>
