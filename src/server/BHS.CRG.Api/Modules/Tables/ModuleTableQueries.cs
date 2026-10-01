@@ -16,6 +16,10 @@ namespace BHS.CRG.Api.Modules.Tables;
 /// отбор «сумма больше миллиона» выдал бы их по одной: строка есть — значит больше. Отказ называет
 /// причину теми же словами, что стоят у колонки.</para>
 ///
+/// <para><b>И по колонке, чьё значение зависит от самого отбора</b> (сумма, которая под отбором по
+/// стройке становится долей): условие «сумма больше миллиона» меняло бы смысл вместе с соседним
+/// условием — молча. Итог по такой колонке считается: его смысл называет подпись колонки.</para>
+///
 /// <para>Дерево разбирает исполнитель наборов данных (<see cref="DataSetRowFilterExecutor.Parse" />):
 /// формат у экрана и у источника один, и второго разбора не заводим.</para>
 /// </summary>
@@ -98,10 +102,16 @@ public static class ModuleTableQueries
                 $"Не применено: {what} стоит на колонке «{key}», а такой колонки в таблице нет — поле удалено " +
                 "из типа или переименовано. Строки не отданы вовсе: без этого условия выдача была бы другой.");
 
-        return column.Unavailable is null
-            ? null
-            : new(StatusCodes.Status403Forbidden,
+        if (column.Unavailable is not null)
+            return new(StatusCodes.Status403Forbidden,
                 $"Не применено: {what} стоит на колонке «{column.Label}», а она закрыта — {column.Reason}.");
+
+        return column.DependsOnFilter
+            ? new(StatusCodes.Status409Conflict,
+                $"Не применено: {what} стоит на колонке «{column.Label}», а её значение зависит от самого " +
+                "отбора — под другим отбором те же слова значили бы другое. Строки не отданы вовсе. Возьмите " +
+                "колонку с постоянным смыслом.")
+            : null;
     }
 }
 
@@ -118,6 +128,7 @@ public static class TableKinds
         (ModuleTableColumnKind.Number, TableOperators.Number),
         (ModuleTableColumnKind.Date, TableOperators.Date),
         (ModuleTableColumnKind.Boolean, TableOperators.Boolean),
+        (ModuleTableColumnKind.List, TableOperators.List),
     ];
 
     public static string Name(ModuleTableColumnKind kind) => Map.First(m => m.Kind == kind).Name;

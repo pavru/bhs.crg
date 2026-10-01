@@ -29,6 +29,21 @@ public static partial class TableConditions
     /// <summary>Дата ISO в начале значения: «2026-05-01» и «2026-05-01T00:00:00» — одна и та же дата.</summary>
     public const string DatePattern = @"^[0-9]{4}-[0-9]{2}-[0-9]{2}";
 
+    /// <summary>
+    /// Чем разделены элементы перечня в клетке набора данных (значения наборов — строки). Перевод
+    /// строки, а не запятая: в названии стройки запятая — обычное дело («Комарова 36, 4 эт.»), а
+    /// перевода строки в однострочном названии не бывает.
+    /// </summary>
+    public const char ListSeparator = '\n';
+
+    /// <summary>Клетка перечня из его элементов — тем же разделителем, каким её разбирает условие.</summary>
+    public static string? Join(IEnumerable<string> items) =>
+        string.Join(ListSeparator, items) is { Length: > 0 } cell ? cell : null;
+
+    /// <summary>Элементы перечня из клетки.</summary>
+    public static string[] Items(string? cell) =>
+        (cell ?? "").Split(ListSeparator, StringSplitOptions.RemoveEmptyEntries);
+
     [GeneratedRegex(NumberPattern)] private static partial Regex NumberRegex();
     [GeneratedRegex(DatePattern)] private static partial Regex DateRegex();
 
@@ -87,6 +102,11 @@ public static partial class TableConditions
                 return cell => Number(cell) is { } n && Compare(op, i => n.CompareTo(numbers[i]));
             case TableOperators.Date:
                 return cell => Date(cell) is { } d && Compare(op, i => string.CompareOrdinal(d, values[i]));
+            case TableOperators.List:
+                // Условие по дочернему зерну: «есть в перечне такой». Отрицания выше уже перевёрнуты
+                // целиком — «нет НИ ОДНОГО такого», а не «есть хоть один другой».
+                var wanted = Upper(values[0]);
+                return cell => Items(cell).Any(item => TextMatches(op, Upper(item), wanted));
             default:
                 var value = Upper(values[0]);
                 return cell => TextMatches(op, Upper(cell), value);
