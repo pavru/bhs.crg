@@ -229,14 +229,17 @@ await check('matrix-under-read-only-right', async () => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const reader = await context.newPage();
   const denials = [];
+  reader.on('response', r => { if (r.status() === 403) denials.push(`${r.request().method()} ${r.url()}`); });
 
   try {
     await login(reader, ACCOUNTANT_EMAIL, ACCOUNTANT_PASSWORD);
-    // Отказы считаются с того места, где начинаются счета: стартовая страница — список строек — у
-    // бухгалтера сама запрашивает сводки сверок и планов без права на них. Это дефект оболочки, а не
-    // матрицы; успей он ответить до перехода — проверка краснела бы через раз (так и было в CI).
-    await reader.waitForLoadState('networkidle');
-    reader.on('response', r => { if (r.status() === 403) denials.push(`${r.request().method()} ${r.url()}`); });
+    // Отказы считаются С ВХОДА, и стартовой странице дают догрузиться: она — список строек — запрашивала
+    // у бухгалтера сводки сверок и планов без права на них (issue #1125). Не дождись прогон её запросов,
+    // переход к счетам обрывал бы их, и проверка была бы зелёной через раз — так и было в CI.
+    // ⚠️ Открываем её ЗАНОВО, а не ждём `waitForLoadState('networkidle')`: вход уводит на неё
+    // клиентским переходом, документ прежний, и состояние «сеть затихла» у него наступило ещё на
+    // странице входа — ожидание вернулось бы сразу, не дождавшись ничего.
+    await reader.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
     const matrix = await openMatrix(reader, first, 'разноска по объектам');
 
     const text = (await cells(matrix)).flat().join(' ');

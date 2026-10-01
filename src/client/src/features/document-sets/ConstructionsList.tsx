@@ -11,6 +11,7 @@ import { usePlanSummary, planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
+import { NO_ACCESS, hasModule, useAccess } from '@/shared/api/access';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 
@@ -85,6 +86,9 @@ export function ConstructionsList() {
   const { data: constructions = [], isLoading } = useListConstructions();
   const { data: problems } = useProblemSummary('System');
   const { data: plans } = usePlanSummary('System');
+  // Поиск идёт по комплектам — это модуль ИД (issue #1125). Без модуля поле отвечало бы
+  // «Ничего не найдено» на любой запрос: отказ сервера выглядел бы пустым результатом.
+  const { data: access = NO_ACCESS } = useAccess();
   const createMutation = useCreateConstruction();
   const deleteMutation = useDeleteConstruction();
   const renameMutation = useRenameConstruction();
@@ -118,7 +122,7 @@ export function ConstructionsList() {
         </Button>
       </div>
 
-      <DocumentSearchPanel />
+      {hasModule(access, 'id') && <DocumentSearchPanel />}
 
       {isLoading ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
