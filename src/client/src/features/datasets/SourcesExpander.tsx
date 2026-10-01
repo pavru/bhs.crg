@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
   BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal, Link2,
 } from 'lucide-react';
-import { parseSourceColumnNames, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, parseSourceColumns, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
 import { apiError } from '@/shared/utils/apiError';
 import { useToast } from '@/shared/ui/Toast';
@@ -27,6 +27,7 @@ import { PdfSourceDialog } from './PdfSourceDialog';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { RowFilterDialog } from './RowFilterDialog';
+import { filterColumns } from './rowFilterModel';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type {
@@ -286,7 +287,8 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       </div>
 
       {filterOpen && (
-        <RowFilterDialog columns={columns} initial={src.rowFilter}
+        <RowFilterDialog columns={filterColumns(parseSourceColumns(src.cachedSchema), computedAliases)}
+          initial={src.rowFilter}
           onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
       )}
       {/* Диалогу отдаём только колонки САМОГО источника, без вычисляемых псевдонимов (issue #539):

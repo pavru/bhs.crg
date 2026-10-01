@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Tables;
 using BHS.CRG.Domain.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
@@ -29,8 +30,31 @@ public static class DataSetDtoMapper
             _                 => null,
         };
 
-    public static string SerializeSchema(IReadOnlyList<DataSetColumnInfo> columns) =>
-        JsonSerializer.Serialize(columns.Select(c => new { name = c.Name, sampleValues = c.SampleValues }));
+    /// <summary>
+    /// Описание колонок источника — то, что клиент получает в <c>CachedSchema</c>.
+    /// </summary>
+    /// <param name="types">Виды колонок, если поставщик их объявил (таблица модуля). Тогда колонка едет
+    /// с видом и СВОИМИ операторами отбора (issue #1133) — из того же списка, по которому отбор
+    /// проверяется (<see cref="TableOperators" />): диалог отбора предлагает ровно то, что исполнитель
+    /// примет, и второго списка «вид → операторы» в клиенте нет. Колонка, пришедшая без значений,
+    /// едет с причиной — условие по ней исполнитель отвергнет.
+    ///
+    /// <para>У колонки без вида (файл, распознавание) запись прежняя, ключ в ключ: она лежит в базе, и
+    /// менять её форму незачем.</para></param>
+    public static string SerializeSchema(IReadOnlyList<DataSetColumnInfo> columns, DataSetColumnTypes? types = null) =>
+        JsonSerializer.Serialize(columns.Select(c =>
+        {
+            var column = new Dictionary<string, object?> { ["name"] = c.Name, ["sampleValues"] = c.SampleValues };
+            if (types is null) return column;
+
+            if (types.Kinds.TryGetValue(c.Name, out var kind))
+            {
+                column["kind"] = kind;
+                column["operators"] = TableOperators.For(kind);
+            }
+            if (types.Closed.TryGetValue(c.Name, out var reason)) column["unavailable"] = reason;
+            return column;
+        }));
 
     public static string? SerializeColumnExpressions(IReadOnlyList<ColumnExprDto>? columnExpressions) =>
         columnExpressions is { Count: > 0 }
@@ -105,7 +129,7 @@ public static class DataSetDtoMapper
     /// null (отдать кэш) и на пустом списке — см. те же соображения в <c>DataSnapshotService</c>.
     /// </summary>
     private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live)
-        => live is { Columns.Count: > 0 } l ? SerializeSchema(l.Columns) : null;
+        => live is { Columns.Count: > 0 } l ? SerializeSchema(l.Columns, l.Types) : null;
 
     /// <param name="bindingCounts">Сколько привязок у каждого источника; null — не считали (ответ
     /// одиночной мутации). Показывать из-за этого ложный ноль нельзя, поэтому и в DTO едет null.</param>

@@ -249,6 +249,40 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         Assert.True(table.GetProperty("rows").GetArrayLength() <= 100);
     }
 
+    /// <summary>
+    /// Источник набора на таблице модуля отдаёт клиенту колонки с видом и операторами (issue #1133):
+    /// по ним диалог отбора предлагает колонке её операторы, а не все подряд. Проверяется путь целиком
+    /// — от поставщика до списка наборов; сама запись колонки — в <c>SourceSchemaTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Источник_на_таблице_отдаёт_колонки_с_видом_и_операторами()
+    {
+        var (client, _) = await SignInAsync("Admin");
+
+        var file = await client.PostAsJsonAsync("/api/datasets/files/system", new { scope = "System", name = "Системные" });
+        await OkAsync(file);
+        var fileId = (await file.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var created = await client.PostAsJsonAsync($"/api/datasets/files/{fileId}/sources",
+            new { name = $"Счета {Guid.NewGuid():N}", sheetOrPath = $"system:table:{Address}" });
+        await OkAsync(created);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var files = await client.GetFromJsonAsync<JsonElement>("/api/datasets/files?scope=System");
+        var source = files.EnumerateArray().SelectMany(f => f.GetProperty("sources").EnumerateArray())
+            .Single(s => s.GetProperty("id").GetGuid() == id);
+        var schema = JsonDocument.Parse(source.GetProperty("cachedSchema").GetString()!).RootElement;
+
+        List<string?> Operators(string column) => [.. schema.EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == column)
+            .GetProperty("operators").EnumerateArray().Select(o => o.GetString())];
+
+        Assert.DoesNotContain("contains", Operators("Итого"));
+        Assert.Contains("between", Operators("Итого"));
+        Assert.Contains("between", Operators("Срок"));
+        Assert.Contains("contains", Operators("Номер"));
+        Assert.DoesNotContain("gt", Operators("Номер"));
+    }
+
     private static string Own(Seed seed) => Uri.EscapeDataString(
         $$"""{"type":"condition","column":"Номер","op":"starts_with","value":"{{seed.Tag}}"}""");
 

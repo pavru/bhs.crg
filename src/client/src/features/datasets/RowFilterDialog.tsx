@@ -2,15 +2,11 @@ import { useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { FilterCondition, FilterGroup, FilterNode, FilterOp, RowFilterDef } from '@/shared/api/types';
-import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
-
-const ALL_OPS: FilterOp[] = [
-  'eq', 'neq', 'contains', 'not_contains',
-  'starts_with', 'ends_with',
-  'gt', 'gte', 'lt', 'lte',
-  'is_empty', 'is_not_empty',
-];
+import {
+  conditionProblem, hasProblems, operatorsFor, opLabel, withColumn, withOperator, type FilterColumn,
+} from './rowFilterModel';
+import { RowFilterValue } from './RowFilterValue';
 
 function makeCondition(): FilterCondition {
   return { type: 'condition', column: '', op: 'eq', value: '' };
@@ -59,73 +55,77 @@ function FilterConditionRow({
   onRemove,
 }: {
   cond: FilterCondition;
-  columns: string[];
+  columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
 }) {
-  const noValue = FILTER_OPS_NO_VALUE.includes(cond.op);
+  const column = columns.find(c => c.name === cond.column);
+  // Колонке — её операторы (issue #1133). Оператор сохранённого условия, который к ней не подходит,
+  // остаётся в списке и назван: молча подменить его значило бы переписать чужое условие.
+  const allowed = operatorsFor(column);
+  const ops = allowed.includes(cond.op) ? allowed : [cond.op, ...allowed];
+  const problem = conditionProblem(cond, columns);
+  // Колонка условия, которой в источнике уже нет, тоже остаётся в списке: иначе выбор показал бы
+  // «— колонка —» у условия, которое в базе стоит на конкретной колонке.
+  const missing = cond.column !== '' && !column;
 
   return (
-    <div className="flex items-center gap-1.5 group/cond">
-      {/* Column */}
-      {columns.length > 0 ? (
+    <div>
+      <div className="flex items-start gap-1.5 group/cond">
+        {/* Column */}
+        {columns.length > 0 ? (
+          <select
+            value={cond.column}
+            onChange={e => onChange(withColumn(cond, e.target.value, columns))}
+            className={FIELD_CLS}
+            style={{ minWidth: '120px', maxWidth: '160px' }}
+          >
+            <option value="">— колонка —</option>
+            {missing && <option value={cond.column}>{cond.column}</option>}
+            {columns.map(c => (
+              <option key={c.name} value={c.name} disabled={!!c.unavailable && c.name !== cond.column}>
+                {c.unavailable ? `${c.name} — ${c.unavailable}` : c.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={cond.column}
+            onChange={e => onChange({ ...cond, column: e.target.value })}
+            placeholder="Колонка"
+            className={FIELD_CLS}
+            style={{ width: '120px' }}
+          />
+        )}
+
+        {/* Operator */}
         <select
-          value={cond.column}
-          onChange={e => onChange({ ...cond, column: e.target.value })}
-          className={FIELD_CLS}
-          style={{ minWidth: '120px', maxWidth: '160px' }}
+          value={cond.op}
+          // Значение НЕ сбрасываем при смене оператора (issue #401): оно перекладывается туда, где его
+          // ждёт сервер, — одно в value, границы и список в values (withOperator).
+          onChange={e => onChange(withOperator(cond, e.target.value as FilterOp))}
+          className={`${FIELD_CLS} shrink-0`}
+          style={{ width: '148px' }}
         >
-          <option value="">— колонка —</option>
-          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+          {ops.map(op => (
+            <option key={op} value={op}>{opLabel(op)}</option>
+          ))}
         </select>
-      ) : (
-        <input
-          value={cond.column}
-          onChange={e => onChange({ ...cond, column: e.target.value })}
-          placeholder="Колонка"
-          className={FIELD_CLS}
-          style={{ width: '120px' }}
-        />
-      )}
 
-      {/* Operator */}
-      <select
-        value={cond.op}
-        // Значение НЕ сбрасываем при смене оператора (issue #401) — очищаем только при переходе
-        // на оператор без значения (isEmpty и т.п.), чтобы не тащить мусор в сериализацию.
-        onChange={e => {
-          const op = e.target.value as FilterOp;
-          onChange({ ...cond, op, ...(FILTER_OPS_NO_VALUE.includes(op) ? { value: undefined } : {}) });
-        }}
-        className={`${FIELD_CLS} shrink-0`}
-        style={{ width: '148px' }}
-      >
-        {ALL_OPS.map(op => (
-          <option key={op} value={op}>{FILTER_OP_LABELS[op]}</option>
-        ))}
-      </select>
+        {/* Value */}
+        <RowFilterValue cond={cond} kind={column?.kind} onChange={onChange} />
 
-      {/* Value */}
-      {!noValue ? (
-        <input
-          value={cond.value ?? ''}
-          onChange={e => onChange({ ...cond, value: e.target.value })}
-          placeholder="Значение"
-          className={`${FIELD_CLS} flex-1 min-w-0`}
-        />
-      ) : (
-        <div className="flex-1" />
-      )}
-
-      {/* Remove */}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
-        title="Удалить условие"
-      >
-        <Trash2 size={12} />
-      </button>
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
+          title="Удалить условие"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+      {problem && <p className="mt-0.5 text-xs text-danger">Условие не выполнится: {problem}.</p>}
     </div>
   );
 }
@@ -145,7 +145,7 @@ function FilterGroupEditor({
   onChange: (g: FilterGroup) => void;
   onRemove?: () => void;
   depth: number;
-  columns: string[];
+  columns: FilterColumn[];
 }) {
   function setLogic(l: 'and' | 'or') {
     onChange({ ...group, logic: l });
@@ -256,7 +256,8 @@ export function RowFilterDialog({
   onSave,
   onClose,
 }: {
-  columns?: string[];
+  /** Колонки источника с их видами; без них (шаблон обработки) колонка вписывается текстом. */
+  columns?: FilterColumn[];
   initial: RowFilterDef | null;
   onSave: (filter: RowFilterDef | null) => void;
   onClose: () => void;
@@ -281,6 +282,9 @@ export function RowFilterDialog({
   }
 
   const hasAny = root.children.length > 0;
+  // Отбор с условием, которое сервер не выполнит, не сохраняем: отказ пришёл бы уже после — чтением
+  // источника, и не там, где человек ошибся.
+  const blocked = hasProblems(root, columns ?? []);
 
   return (
     <Modal
@@ -292,7 +296,9 @@ export function RowFilterDialog({
         <div className="flex gap-2 items-center">
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
+            disabled={blocked}
+            title={blocked ? 'Исправьте отмеченные условия: такой отбор источник не выполнит' : undefined}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
             Сохранить
           </button>

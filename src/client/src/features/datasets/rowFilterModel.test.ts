@@ -1,0 +1,160 @@
+import { describe, it, expect } from 'vitest';
+import type { FilterCondition, FilterGroup } from '@/shared/api/types';
+import { FILTER_OP_LABELS } from '@/shared/api/types';
+import {
+  UNTYPED_OPS, conditionProblem, filterColumns, hasProblems, opArity, opLabel, operatorsFor,
+  valueFits, withColumn, withOperator, type FilterColumn,
+} from './rowFilterModel';
+
+/**
+ * Операторы и значение условия по виду колонки (issue #1133). Диалог отбора — единственный редактор
+ * дерева условий, и проверяется он здесь, без экрана: что колонке предлагается, в каком виде
+ * значение уходит на сервер и какое условие названо негодным ДО сохранения.
+ */
+
+// Колонки так, как их отдаёт сервер у источника на таблице модуля: с видом и своими операторами.
+const NUMBER_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between', 'in', 'not_in', 'is_null', 'is_not_null'];
+const columns: FilterColumn[] = [
+  { name: 'Номер', kind: 'text', operators: ['eq', 'neq', 'contains', 'in', 'is_empty'] },
+  { name: 'Итого', kind: 'number', operators: NUMBER_OPS },
+  { name: 'Срок', kind: 'date', operators: NUMBER_OPS },
+  { name: 'Оплачен', kind: 'boolean', operators: ['eq', 'neq', 'is_null', 'is_not_null'] },
+  { name: 'ВТомЧислеНДС', unavailable: 'нет права на суммы' },
+  { name: 'Расчёт' },
+];
+
+const cond = (patch: Partial<FilterCondition>): FilterCondition =>
+  ({ type: 'condition', column: 'Итого', op: 'eq', value: '5', ...patch });
+
+describe('operatorsFor', () => {
+  it('колонке с видом — ровно операторы, присланные сервером', () => {
+    expect(operatorsFor(columns[1])).toEqual(NUMBER_OPS);
+    expect(operatorsFor(columns[1])).not.toContain('contains');
+  });
+
+  it('колонке без вида и колонке, вписанной текстом, — общий список с новыми узлами', () => {
+    expect(operatorsFor(columns[5])).toBe(UNTYPED_OPS);
+    expect(operatorsFor(undefined)).toBe(UNTYPED_OPS);
+    expect(UNTYPED_OPS).toEqual(expect.arrayContaining(['between', 'in', 'not_in', 'contains']));
+    // «Не определено» у колонки без вида — то же «пусто» под вторым именем: дважды не предлагаем.
+    expect(UNTYPED_OPS).not.toContain('is_null');
+  });
+
+  it('у каждого предлагаемого оператора есть подпись, а незнакомый показывается кодом', () => {
+    for (const op of [...UNTYPED_OPS, ...NUMBER_OPS]) expect(opLabel(op)).toBe(FILTER_OP_LABELS[op as never]);
+    expect(opLabel('new_operator')).toBe('new_operator');
+  });
+});
+
+describe('withOperator', () => {
+  it('«между» держит две границы в values, и введённое не теряется', () => {
+    const between = withOperator(cond({ value: '5' }), 'between');
+    expect(between).toEqual({ type: 'condition', column: 'Итого', op: 'between', values: ['5', ''] });
+    expect('value' in between).toBe(false);
+  });
+
+  it('«в списке» держит список в values, без пустых мест', () => {
+    expect(withOperator(cond({ value: '5' }), 'in').values).toEqual(['5']);
+    expect(withOperator(cond({ value: '' }), 'in').values).toEqual([]);
+  });
+
+  it('обратно к одному значению — первое из введённых, в value', () => {
+    const one = withOperator(cond({ op: 'between', value: undefined, values: ['5', '10'] }), 'gt');
+    expect(one).toEqual({ type: 'condition', column: 'Итого', op: 'gt', value: '5' });
+  });
+
+  it('оператор без значения не несёт ни value, ни values', () => {
+    const none = withOperator(cond({ op: 'in', value: undefined, values: ['5'] }), 'is_null');
+    expect(none).toEqual({ type: 'condition', column: 'Итого', op: 'is_null' });
+  });
+
+  it('значение никогда не лежит в value и values разом — такое условие сервер отвергает', () => {
+    for (const op of NUMBER_OPS) {
+      const next = withOperator(cond({ value: '5' }), op as never);
+      expect('value' in next && 'values' in next).toBe(false);
+    }
+  });
+
+  it('число значений оператора', () => {
+    expect([opArity('eq'), opArity('between'), opArity('not_in'), opArity('is_not_null'), opArity('is_empty')])
+      .toEqual(['one', 'two', 'list', 'none', 'none']);
+  });
+});
+
+describe('withColumn', () => {
+  it('оператор, не подходящий новой колонке, заменяется первым подходящим', () => {
+    const moved = withColumn(cond({ column: 'Номер', op: 'contains', value: 'мтр' }), 'Итого', columns);
+    expect(moved).toMatchObject({ column: 'Итого', op: 'eq', value: 'мтр' });
+  });
+
+  it('подходящий оператор остаётся', () => {
+    expect(withColumn(cond({ op: 'gt' }), 'Срок', columns)).toMatchObject({ column: 'Срок', op: 'gt' });
+    expect(withColumn(cond({ op: 'contains' }), 'Расчёт', columns)).toMatchObject({ column: 'Расчёт', op: 'contains' });
+  });
+});
+
+describe('conditionProblem', () => {
+  it('годное условие возражений не вызывает', () => {
+    expect(conditionProblem(cond({}), columns)).toBeNull();
+    expect(conditionProblem(cond({ column: 'Срок', op: 'between', value: undefined, values: ['2026-05-01', '2026-05-31'] }), columns)).toBeNull();
+    expect(conditionProblem(cond({ column: 'Оплачен', value: 'true' }), columns)).toBeNull();
+    expect(conditionProblem(cond({ op: 'is_null', value: undefined }), columns)).toBeNull();
+  });
+
+  it('оператор, не подходящий к виду, назван — сохранённое условие не прячется', () => {
+    expect(conditionProblem(cond({ op: 'contains', value: '1' }), columns))
+      .toBe('«содержит» к колонке вида «число» не применяется');
+  });
+
+  it('колонка без значений названа причиной', () => {
+    expect(conditionProblem(cond({ column: 'ВТомЧислеНДС' }), columns)).toContain('нет права на суммы');
+  });
+
+  it('значение, которое сервер не разберёт, названо', () => {
+    expect(conditionProblem(cond({ value: '1,5' }), columns)).toBe('значение «1,5» — не число');
+    expect(conditionProblem(cond({ value: '' }), columns)).toBe('значение не задано');
+    expect(conditionProblem(cond({ column: 'Срок', value: '01.05.2026' }), columns)).toBe('значение «01.05.2026» — не дата');
+    expect(conditionProblem(cond({ op: 'between', value: undefined, values: ['5', ''] }), columns)).toBe('не заданы обе границы');
+    expect(conditionProblem(cond({ op: 'in', value: undefined, values: [] }), columns)).toBe('список значений пуст');
+  });
+
+  it('у текста и у колонки без вида пустое значение законно — с пустой ячейкой сравнивают намеренно', () => {
+    expect(conditionProblem(cond({ column: 'Номер', value: '' }), columns)).toBeNull();
+    expect(conditionProblem(cond({ column: 'Расчёт', op: 'gt', value: '' }), columns)).toBeNull();
+    expect(conditionProblem(cond({ column: 'Нет такой', op: 'contains', value: 'x' }), columns)).toBeNull();
+  });
+
+  it('условие без колонки — не ошибка: оно выбрасывается при сохранении', () => {
+    expect(conditionProblem(cond({ column: '', op: 'in', value: undefined, values: [] }), columns)).toBeNull();
+  });
+
+  it('негодное условие в глубине дерева находится', () => {
+    const tree: FilterGroup = {
+      type: 'group', logic: 'and',
+      children: [cond({}), { type: 'group', logic: 'or', children: [cond({ op: 'contains', value: '1' })] }],
+    };
+    expect(hasProblems(tree, columns)).toBe(true);
+    expect(hasProblems({ ...tree, children: [cond({})] }, columns)).toBe(false);
+  });
+});
+
+describe('valueFits', () => {
+  it('запись числа и даты — та же, что разбирает сервер', () => {
+    expect(['110', '-5', '99.99'].every(v => valueFits('number', v))).toBe(true);
+    expect(['1,5', '1e3', '12 шт', '.5', ''].some(v => valueFits('number', v))).toBe(false);
+    expect(valueFits('date', '2026-05-01')).toBe(true);
+    expect(valueFits('date', '2026-05-01T00:00:00')).toBe(false);
+    expect(valueFits('boolean', 'да')).toBe(false);
+    expect(valueFits('text', '')).toBe(true);
+    expect(valueFits(undefined, 'что угодно')).toBe(true);
+  });
+});
+
+describe('filterColumns', () => {
+  it('вычисляемые колонки идут следом, без вида; колонка источника с тем же именем остаётся своей', () => {
+    const result = filterColumns(columns.slice(0, 2), ['Расчёт', 'Итого', 'Расчёт', '']);
+    expect(result.map(c => c.name)).toEqual(['Номер', 'Итого', 'Расчёт']);
+    expect(result[1].kind).toBe('number');
+    expect(result[2].kind).toBeUndefined();
+  });
+});

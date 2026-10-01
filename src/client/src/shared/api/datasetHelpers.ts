@@ -4,6 +4,18 @@ import type { FilterGroup, FilterNode, RowFilterDef, DataSetBindingPreviewResult
 export interface DataSetColumn {
   name: string;
   sampleValues?: string[];
+  /**
+   * Вид значения — у источника, чей поставщик его объявил (таблица модуля): `text`, `number`, `date`,
+   * `boolean`… Нет вида — файл или распознавание: сервер сравнивает по догадке.
+   */
+  kind?: string;
+  /**
+   * Операторы отбора, которые сервер у этой колонки примет (issue #1133). Список приходит с сервера, а
+   * не выводится здесь из вида: отбор проверяется по нему же, и второй список разошёлся бы с первым.
+   */
+  operators?: string[];
+  /** Почему колонка пришла без значений («нет права на суммы»). Условие по ней сервер отвергнет. */
+  unavailable?: string;
 }
 
 /** Safely parses the cached JSON schema of a DataSetSource into column descriptors. */
