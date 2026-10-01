@@ -111,15 +111,24 @@ public sealed record ModuleTable(
                          "строки всем, кто вошёл");
         if (Isolation == ModuleTableIsolation.Unset) problems.Add("не объявлен вид отбора строк");
         if (string.IsNullOrWhiteSpace(Boundary)) problems.Add("нет текста границы выдачи");
-        if (Columns.Count == 0) problems.Add("не объявлено ни одной колонки");
-        if (!typeof(IModuleTableRows).IsAssignableFrom(Reader))
+        // null у ссылочных полей — тоже негодное объявление, а не NullReferenceException без имени
+        // таблицы: модуль может собираться без проверки nullable (ревью PR #1130).
+        if (Reader is null) problems.Add("не названа служба строк");
+        else if (!typeof(IModuleTableRows).IsAssignableFrom(Reader))
             problems.Add($"служба строк «{Reader.Name}» не реализует {nameof(IModuleTableRows)}");
+        if (Columns is null)
+        {
+            problems.Add("не объявлено ни одной колонки");
+            return problems;
+        }
+        if (Columns.Count == 0) problems.Add("не объявлено ни одной колонки");
 
-        foreach (var key in Columns.GroupBy(c => c.Key, StringComparer.Ordinal).Where(g => g.Count() > 1))
+        foreach (var key in Columns.Where(c => c is not null).GroupBy(c => c.Key, StringComparer.Ordinal).Where(g => g.Count() > 1))
             problems.Add($"колонка «{key.Key}» объявлена дважды");
 
         foreach (var column in Columns)
         {
+            if (column is null) { problems.Add("в списке колонок пустое место"); continue; }
             if (string.IsNullOrWhiteSpace(column.Key) || string.IsNullOrWhiteSpace(column.Title))
                 problems.Add("у колонки нет ключа или заголовка");
             if (!Enum.IsDefined(column.Kind))

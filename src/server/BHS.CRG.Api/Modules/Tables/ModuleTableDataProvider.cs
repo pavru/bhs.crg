@@ -34,9 +34,14 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
             ModuleTableIsolation.PerUser => SystemDataSetIsolation.PerUser,
             _ => SystemDataSetIsolation.Unset,
         },
-        [entry.Table.Boundary]);
+        [entry.Table.Boundary],
+        ColumnsByRight: entry.Table.Columns.Any(c => c.Requires is not null));
 
-    public bool Handles(string marker) => marker == MarkerOf(entry);
+    /// <summary>Адрес таблицы — для сторожа объявлений: имя класса у всех таблиц одно.</summary>
+    public string Address => entry.Address;
+
+    /// <summary>Без учёта регистра — как <see cref="ModuleTableCatalog.Find" />: один адрес на обоих путях.</summary>
+    public bool Handles(string marker) => string.Equals(marker, MarkerOf(entry), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Таблица модуля живёт на уровне системы: её строки не зависят от места набора. Предлагать её
@@ -54,6 +59,9 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
     public async Task<DataSetParseResult> ProvideAsync(
         string marker, CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
+        // Уровень — здесь, а не только в кандидатах: источник создают и запросом мимо списка.
+        SystemDataSetRules.EnsureSystemLevel(scope, entry.Table.Title);
+
         // Отказ здесь — дефект, а не ответ пользователю: до поставщика доходят только через ворота
         // набора (SystemDataSetGate), а они проверяют то же самое — систему, модуль и ключ таблицы.
         var (table, refusal) = await tables.ReadAsync(entry.Address, access, null, ct);

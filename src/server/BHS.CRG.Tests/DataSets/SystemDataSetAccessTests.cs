@@ -258,18 +258,13 @@ public class SystemDataSetAccessTests
         ISet<string> known = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             { SystemDataSetDeclaration.CoreModule, "id" };
 
-        Assert.True(SystemDataSetDeclarations.KeyIsKnown(
-            new("id", "id.document.read", SystemDataSetIsolation.None, ["…"]), known, catalog));
-        Assert.True(SystemDataSetDeclarations.KeyIsKnown(
-            new("id", "id", SystemDataSetIsolation.None, ["…"]), known, catalog));
-        Assert.True(SystemDataSetDeclarations.KeyIsKnown(
-            new(SystemDataSetDeclaration.CoreModule, "core.catalog.read", SystemDataSetIsolation.None, ["…"]),
-            known, catalog));
+        Assert.True(SystemDataSetDeclarations.KeyIsKnown("id.document.read", known, catalog));
+        Assert.True(SystemDataSetDeclarations.KeyIsKnown("id", known, catalog));
+        Assert.True(SystemDataSetDeclarations.KeyIsKnown("core.catalog.read", known, catalog));
 
         // А ключ чужого модуля, которого в сборке нет вовсе, — по-прежнему отказ: набор с таким
         // ключом не откроется никому, и выглядело бы это как отобранные права.
-        Assert.False(SystemDataSetDeclarations.KeyIsKnown(
-            new("id", "costs.invoice.read", SystemDataSetIsolation.None, ["…"]), known, catalog));
+        Assert.False(SystemDataSetDeclarations.KeyIsKnown("costs.invoice.read", known, catalog));
     }
 
     // ── Загрузчик строк: ворота стоят ДО обращения к поставщику ────────────────

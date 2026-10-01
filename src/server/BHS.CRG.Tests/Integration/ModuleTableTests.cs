@@ -6,6 +6,8 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Tables;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Modules.Costs;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -83,6 +85,64 @@ public sealed class ModuleTableTests(InvoiceLineHost host) : InvoiceLineTestBase
         var removed = Column(table, "Удалённое");
         Assert.Equal(TableColumnReasons.Removed, removed.GetProperty("unavailable").GetString());
         Assert.Equal(TableColumnReasons.RemovedText, removed.GetProperty("reason").GetString());
+    }
+
+    /// <summary>
+    /// Пустой список колонок (<c>?columns=,</c>) — «ничего не просили», а не таблица без колонок:
+    /// меньше объявленного не приходит никогда (ревью PR #1130).
+    /// </summary>
+    [Fact]
+    public async Task Пустой_список_колонок_отдаёт_все_колонки()
+    {
+        var (supplier, _) = await SignInAsync("Supplier");
+        var all = Keys(await TableAsync(supplier));
+
+        foreach (var query in new[] { ",", " , ", ",,," })
+        {
+            var response = await supplier.GetAsync($"/api/tables/{Address}?columns={Uri.EscapeDataString(query)}");
+            await OkAsync(response);
+            Assert.Equal(all, Keys(await response.Content.ReadFromJsonAsync<JsonElement>()));
+        }
+    }
+
+    /// <summary>
+    /// Поле схемы на примитиве («Деньги» на базе числа) — колонка вида своей базы, с операторами
+    /// сравнения, а не текстом с «содержит» (ревью PR #1130). И «bool» — тот же булев вид, что «boolean».
+    /// </summary>
+    [Fact]
+    public async Task Поле_на_примитиве_приходит_колонкой_своей_базы()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var money = $"Деньги_{suffix}";
+        var flag = $"Флаг_{suffix}";
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
+            var primitive = Domain.Catalog.PrimitiveType.Create(
+                money, money, "number", null, JsonDocument.Parse("{}"));
+            db.PrimitiveTypes.Add(primitive);
+            var type = await db.DocumentTypes.SingleAsync(t => t.Code == CostsRecordTypes.InvoiceCode);
+            var root = System.Text.Json.Nodes.JsonNode.Parse(type.Schema.RootElement.GetRawText())!.AsObject();
+            root["fields"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject
+            {
+                ["key"] = money, ["title"] = money, ["type"] = "primitive", ["typeId"] = primitive.Id.ToString(),
+            });
+            root["fields"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject
+            {
+                ["key"] = flag, ["title"] = flag, ["type"] = "bool",
+            });
+            type.UpdateSchema(JsonDocument.Parse(root.ToJsonString()));
+            await db.SaveChangesAsync();
+        }
+
+        var (supplier, _) = await SignInAsync("Supplier");
+        var table = await TableAsync(supplier);
+
+        var column = Column(table, money);
+        Assert.Equal("number", column.GetProperty("kind").GetString());
+        Assert.Contains("gt", column.GetProperty("operators").EnumerateArray().Select(o => o.GetString()));
+        Assert.Equal("boolean", Column(table, flag).GetProperty("kind").GetString());
     }
 
     /// <summary>

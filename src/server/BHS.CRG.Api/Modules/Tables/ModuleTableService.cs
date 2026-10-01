@@ -48,14 +48,17 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
                 $"Таблица «{table.Title}» отдаёт строки только по правам человека, а их здесь нет " +
                 $"({access.SystemReason})."));
 
-        var columns = await ColumnsAsync(table, ct);
-
         // Модуль выключен — не отказ, а состояние: колонки приходят все, с этой причиной, строк нет.
         // Объявление — не данные модуля, и показать, ЧТО выключено, честнее, чем пустой 404.
+        //
+        // ⚠️ Только ОБЪЯВЛЕННЫЕ колонки и запрошенные ключи, без полей схемы типа. Ключа таблицы
+        // здесь не проверить — у выключенного модуля его нет ни у кого, — поэтому отвечаем тем, что
+        // и так лежит в коде модуля, а не схемой заказчика (ревью PR #1130). Запрошенное поле схемы
+        // всё равно приходит: своим ключом, с той же причиной.
         if (!access.EnabledModules.Contains(entry.Module))
         {
             var off = TableColumnReasons.ModuleOffText(entry.ModuleTitle);
-            return (Dto(entry, [.. Mark(columns, requested).Select(c => c with
+            return (Dto(entry, [.. Mark(Declared(table), requested).Select(c => c with
             {
                 Unavailable = TableColumnReasons.ModuleOff, Reason = off,
             })], [], TableColumnReasons.ModuleOff), null);
@@ -64,6 +67,8 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         if (!access.Allows(table.Requires))
             return (null, new(StatusCodes.Status403Forbidden,
                 $"Таблица «{table.Title}» открывается ключом «{table.Requires}», а у «{access.Who}» его нет."));
+
+        var columns = await ColumnsAsync(table, ct);
 
         var marked = Mark(columns, requested)
             .Select(c => c.Unavailable is null && Closed(table, c.Key, access) is { } hides
@@ -83,9 +88,7 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
     /// <summary>Колонки таблицы: системные модуля, затем поля схемы типа, которых среди системных нет.</summary>
     private async Task<List<TableColumnDto>> ColumnsAsync(ModuleTable table, CancellationToken ct)
     {
-        var columns = table.Columns
-            .Select(c => new TableColumnDto(c.Key, c.Title, KindOf(c.Kind), TableOperators.For(KindOf(c.Kind)), true))
-            .ToList();
+        var columns = Declared(table);
         if (table.RecordType is null) return columns;
 
         // Типов немного, а эффективная схема требует цепочки предков — грузим все разом.
@@ -94,22 +97,43 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         if (type is null) return columns;
 
         var system = columns.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
-        columns.AddRange(DocumentTypeSchemaReader.EffectiveFields(type.Id, types)
+        var fields = DocumentTypeSchemaReader.EffectiveFields(type.Id, types)
             // Расчётное поле в данных не лежит, нескалярное в клетку не ложится.
             .Where(f => !system.Contains(f.Key) && !f.Computed && SchemaFieldKinds.IsScalar(f.Type))
-            .Select(f => new TableColumnDto(
-                f.Key, string.IsNullOrWhiteSpace(f.Title) ? f.Key : f.Title, KindOf(f.Type),
-                TableOperators.For(KindOf(f.Type)), false)));
+            .ToList();
+
+        // Примитив («Деньги» на базе числа) — колонка своей базы: иначе сумма пришла бы текстом, с
+        // «содержит» вместо «больше», и итог G1c посчитал бы строки вместо суммы (ревью PR #1130).
+        var primitiveIds = fields.Where(f => f.Type == "primitive" && f.TypeId is not null)
+            .Select(f => f.TypeId!.Value).Distinct().ToList();
+        var bases = primitiveIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.PrimitiveTypes.AsNoTracking().Where(p => primitiveIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.BaseType, ct);
+
+        columns.AddRange(fields.Select(f =>
+        {
+            var kind = KindOf(f.Type == "primitive" && f.TypeId is { } id && bases.TryGetValue(id, out var b) ? b : f.Type);
+            return new TableColumnDto(
+                f.Key, string.IsNullOrWhiteSpace(f.Title) ? f.Key : f.Title, kind, TableOperators.For(kind), false);
+        }));
         return columns;
     }
+
+    /// <summary>Системные колонки модуля — то, что лежит в его коде, без схемы заказчика.</summary>
+    private static List<TableColumnDto> Declared(ModuleTable table) => [.. table.Columns
+        .Select(c => new TableColumnDto(c.Key, c.Title, KindOf(c.Kind), TableOperators.For(KindOf(c.Kind)), true))];
 
     /// <summary>
     /// Запрошенные колонки в запрошенном порядке; ключ, которого нет, — колонка с причиной «поле
     /// удалено из типа». Ничего не просили — все колонки таблицы.
+    ///
+    /// <para>Пустой список — тоже «ничего не просили» (<c>?columns=,</c>): таблица без единой колонки
+    /// нарушила бы главное обещание — меньше объявленного не приходит никогда (ревью PR #1130).</para>
     /// </summary>
     private static IEnumerable<TableColumnDto> Mark(List<TableColumnDto> columns, IReadOnlyList<string>? requested)
     {
-        if (requested is null) return columns;
+        if (requested is null or { Count: 0 }) return columns;
 
         var byKey = columns.ToDictionary(c => c.Key, StringComparer.Ordinal);
         return requested.Distinct(StringComparer.Ordinal).Select(key => byKey.TryGetValue(key, out var column)
@@ -141,12 +165,15 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         _ => TableOperators.Text,
     };
 
-    /// <summary>Вид поля схемы → вид колонки. Перечисление, строка, текст — текстом.</summary>
+    /// <summary>
+    /// Вид поля схемы (или базы примитива) → вид колонки. Перечисление, строка, текст — текстом: в
+    /// данных у перечисления код, и отбор идёт по коду; подпись значения — дело экрана (G1e).
+    /// </summary>
     private static string KindOf(string fieldType) => fieldType switch
     {
         "number" => TableOperators.Number,
         "date" => TableOperators.Date,
-        "boolean" => TableOperators.Boolean,
+        "bool" or "boolean" => TableOperators.Boolean,
         _ => TableOperators.Text,
     };
 }

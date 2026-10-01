@@ -38,6 +38,14 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
             Assert.Equal("модуль «Счета и накладные» выключен", c.GetProperty("reason").GetString());
         });
 
+        // Схему типа выключенный модуль не читает (ревью PR #1130): отвечает тем, что лежит в его коде.
+        // Запрошенное поле сохранённого представления всё равно приходит — своим ключом, с той же
+        // причиной, а не «удалено из типа».
+        var view = await client.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices?columns=Номер,ПолеЗаказчика");
+        var viewColumns = view.GetProperty("columns").EnumerateArray().ToList();
+        Assert.Equal(["Номер", "ПолеЗаказчика"], viewColumns.Select(c => c.GetProperty("key").GetString()));
+        Assert.All(viewColumns, c => Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString()));
+
         // В перечне таблиц выключенного модуля нет: представления скрыты, но не удалены (AUTH-19).
         var list = await client.GetFromJsonAsync<JsonElement>("/api/tables");
         Assert.DoesNotContain(list.EnumerateArray(), t => t.GetProperty("address").GetString() == "costs.invoices");

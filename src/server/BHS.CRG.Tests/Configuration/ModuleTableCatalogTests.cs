@@ -1,5 +1,8 @@
+using BHS.CRG.Api.Modules.Tables;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Tables;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
@@ -59,6 +62,78 @@ public class ModuleTableCatalogTests
             new ServiceCollection().AddAppModules(config, new ProbeModule(Table(), registerReader: false)));
 
         Assert.Contains("probe.registry", error.Message);
+    }
+
+    /// <summary>
+    /// Пустые ссылки в объявлении (служба строк, список колонок) — тоже названная ошибка таблицы, а не
+    /// NullReferenceException без имени: модуль может собираться без проверки nullable (ревью PR #1130).
+    /// Через <c>AddAppModules</c>: проверка служб стоит там РАНЬШЕ каталога и падала первой.
+    /// </summary>
+    [Fact]
+    public void Пустая_служба_и_пустые_колонки_названы_а_не_роняют_старт_без_имени()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Modules:Enabled"] = "probe" })
+            .Build();
+
+        var error = Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddAppModules(
+            config, new ProbeModule(Table() with { Reader = null!, Columns = null! })));
+
+        Assert.Contains("«probe.registry»", error.Message);
+        Assert.Contains("не названа служба строк", error.Message);
+        Assert.Contains("ни одной колонки", error.Message);
+    }
+
+    /// <summary>
+    /// Колонки по праву делают таблицу «разной у разных» — к печатной форме и сверке она не
+    /// подключается, хотя построчной изоляции у неё нет (ревью PR #1130). Проверяется на настоящем
+    /// объявлении счетов: суммы закрыты правом, значит и объявление набора обязано это нести.
+    /// </summary>
+    [Fact]
+    public void Таблица_с_колонками_по_праву_не_подключается_к_печати_и_сверке()
+    {
+        var invoices = Assert.Single(new ModuleTableCatalog([new CostsModule()]).All);
+        var declaration = new ModuleTableDataProvider(invoices, null!).Declaration;
+
+        Assert.Equal(SystemDataSetIsolation.None, declaration.Isolation);
+        Assert.True(declaration.ColumnsByRight);
+        foreach (var what in new[] { "печатная форма", "сверка" })
+            Assert.Contains(what, Assert.Throws<ConflictException>(() =>
+                SystemDataSetRules.EnsureShared(declaration, what)).Message);
+
+        // Без колонок по праву — по-прежнему годится.
+        var plain = new ModuleTableDataProvider(new("probe", "Проба", Table()), null!).Declaration;
+        Assert.False(plain.ColumnsByRight);
+        SystemDataSetRules.EnsureShared(plain, "печатная форма");
+    }
+
+    /// <summary>
+    /// Источник таблицы — только на уровне системы, и отказ стоит в самом поставщике: кандидатом ниже
+    /// он не предлагается, но создать его можно запросом мимо списка (ревью PR #1130).
+    /// </summary>
+    [Fact]
+    public async Task Источник_таблицы_ниже_уровня_системы_отказывает()
+    {
+        var invoices = Assert.Single(new ModuleTableCatalog([new CostsModule()]).All);
+        var provider = new ModuleTableDataProvider(invoices, null!);
+
+        foreach (var scope in new[] { CatalogScope.Construction, CatalogScope.Section, CatalogScope.Set })
+        {
+            var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
+                ModuleTableDataProvider.MarkerOf(invoices), scope, Guid.NewGuid(), null!, CancellationToken.None));
+            Assert.Contains("«Система»", refusal.Message);
+        }
+    }
+
+    /// <summary>Маркер — без учёта регистра, как адрес у экрана: один адрес на обоих путях.</summary>
+    [Fact]
+    public void Маркер_таблицы_узнаётся_без_учёта_регистра()
+    {
+        var invoices = Assert.Single(new ModuleTableCatalog([new CostsModule()]).All);
+        var provider = new ModuleTableDataProvider(invoices, null!);
+
+        Assert.True(provider.Handles("system:table:Costs.Invoices"));
+        Assert.False(provider.Handles("system:table:costs.waybills"));
     }
 
     /// <summary>Ошибки собираются все, а не первая: чинить по одной на перезапуск дорого.</summary>

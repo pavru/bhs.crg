@@ -60,8 +60,10 @@ public sealed class ModuleTableCatalog
     /// </summary>
     public static void EnsureReaders(IAppModule module, IServiceCollection services)
     {
+        // Таблицу без службы (Reader = null) здесь пропускаем: её назовёт каталог среди прочих ошибок
+        // объявления — он собирает все разом, а этот отказ остановил бы старт раньше и без них.
         var missing = module.Tables
-            .Where(t => !services.Any(d => d.ServiceType == t.Reader))
+            .Where(t => t?.Reader is not null && !services.Any(d => d.ServiceType == t.Reader))
             .Select(t => $"«{ModuleTable.Address(module.Code, t.Code)}» ({t.Reader.Name})")
             .ToList();
         if (missing.Count == 0) return;

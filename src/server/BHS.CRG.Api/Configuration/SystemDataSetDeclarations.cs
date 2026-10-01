@@ -39,7 +39,11 @@ public static class SystemDataSetDeclarations
         foreach (var provider in providers.All)
         {
             var declaration = provider.Declaration;
-            var name = provider.GetType().Name;
+            // Поставщик таблицы — один класс на все таблицы модулей: по имени класса не понять, какая
+            // из них сломана, поэтому у него имя — адрес таблицы (ревью PR #1130).
+            var name = provider is BHS.CRG.Api.Modules.Tables.ModuleTableDataProvider table
+                ? $"таблица «{table.Address}»"
+                : provider.GetType().Name;
 
             // Модуль сверяем со ВСЕЙ сборкой, включая выключенные (ModuleRegistry.Disabled): набор
             // выключенного модуля — штатное состояние, он отвечает «модуль не подключён» на чтении
@@ -60,7 +64,7 @@ public static class SystemDataSetDeclarations
             // не поднималась вовсе вместо ожидаемого «модуль не подключён» на чтении (нашло ревью
             // PR #1057). Цена послабления названа вслух: опечатку в праве выключенного модуля
             // отличить не от чего — справочника его прав на этом экземпляре не существует.
-            if (!KeyIsKnown(declaration, known, permissions))
+            if (!KeyIsKnown(declaration.Requires, known, permissions))
                 broken.Add($"{name}: ключа доступа «{declaration.Requires}» нет ни в справочнике прав, " +
                            "ни среди модулей сборки");
         }
@@ -70,7 +74,7 @@ public static class SystemDataSetDeclarations
         // «нет права на суммы» даже администратору.
         foreach (var entry in services.GetRequiredService<BHS.CRG.Modules.Tables.ModuleTableCatalog>().All)
         foreach (var column in entry.Table.Columns.Where(c => c.Requires is not null))
-            if (!IsKnownKey(column.Requires!, known, permissions))
+            if (!KeyIsKnown(column.Requires!, known, permissions))
                 broken.Add($"таблица «{entry.Address}», колонка «{column.Key}»: ключа доступа " +
                            $"«{column.Requires}» нет ни в справочнике прав, ни среди модулей сборки");
 
@@ -89,12 +93,7 @@ public static class SystemDataSetDeclarations
     /// <para>Отдельной функцией, чтобы правило можно было проверить прогоном без поднятия хоста:
     /// самый важный его случай — ВЫКЛЮЧЕННЫЙ модуль, а хост прогона поднимается с включённым.</para>
     /// </summary>
-    public static bool KeyIsKnown(
-        SystemDataSetDeclaration declaration, ISet<string> knownModules, PermissionCatalog permissions) =>
-        IsKnownKey(declaration.Requires, knownModules, permissions);
-
-    /// <inheritdoc cref="KeyIsKnown(SystemDataSetDeclaration, ISet{string}, PermissionCatalog)" />
-    public static bool IsKnownKey(string key, ISet<string> knownModules, PermissionCatalog permissions)
+    public static bool KeyIsKnown(string key, ISet<string> knownModules, PermissionCatalog permissions)
     {
         if (permissions.Declares(key)) return true;
         if (knownModules.Contains(key)) return true;
