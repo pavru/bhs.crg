@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { DataSetBindingPreviewResult } from '@/shared/api/types';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { DataGrid, DataGridValue, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -31,8 +31,11 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
       {results.map(r => (
         <div key={r.bindingId} className="rounded-lg overflow-hidden border border-stroke">
           <div className="flex items-center gap-2 px-3 py-2 bg-base">
-            {r.error
+            {/* Иконка — по режиму: у рабочей привязки `error` несёт предупреждение, и данные под ним есть. */}
+            {r.mode === 'error'
               ? <AlertCircle size={13} className="text-danger shrink-0" />
+              : r.error
+              ? <AlertTriangle size={13} className="text-warning shrink-0" />
               : <CheckCircle2 size={13} className="text-success shrink-0" />
             }
             <span className="text-xs font-medium flex-1 text-fg1">
@@ -82,6 +85,13 @@ function ScalarPreview({ data, columns }: { data: Record<string, unknown>; colum
 }
 
 function TabularPreview({ rows, columns }: { rows: Record<string, unknown>[]; columns: DataGridColumn[] }) {
+  // Ни одно поле не размечено — сетка без колонок нарисовала бы невидимые строки под зелёной галкой.
+  if (columns.length === 0)
+    return (
+      <p className="px-3 py-2 text-xs text-warning bg-surface">
+        Ни одному полю строки не назначена колонка источника — из источника в строки не придёт ничего.
+      </p>
+    );
   return (
     <div className="bg-surface">
       <DataGrid framed={false} columns={columns} rows={rows.slice(0, PREVIEW_ROWS)} renderValue={renderPreviewValue} />

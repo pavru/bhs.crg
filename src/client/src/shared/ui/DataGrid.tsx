@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { EyeOff, Unlink } from 'lucide-react';
-import { dtCard, dtTable, dtTh, dtTd, dtRow } from './dataTable';
+import { dtCard, dtTable, dtTh, dtTd, dtRow, dtNum } from './dataTable';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
   type ColumnUnavailable, type GridState,
@@ -39,11 +39,16 @@ export function DataGridValue({ row, column, renderValue }: {
   column: DataGridColumn;
   renderValue?: (value: unknown) => ReactNode;
 }) {
+  const kind = cellKind(row, column.key);
   if (column.unavailable) {
     const state = DATA_GRID_STATES[column.unavailable];
+    // Значение у такой колонки бывает (строки таблицы генерация пишет и вне схемы) — тогда оно
+    // видно, но приглушено и с причиной. Нет значения — клетка называет причину, а не пустует.
+    if (kind === 'value')
+      return <span className="text-fg4" title={state.hint}>{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span>;
     return <span className="text-fg4 italic" title={state.hint}>{state.title}</span>;
   }
-  switch (cellKind(row, column.key)) {
+  switch (kind) {
     case 'absent':
       return <span className="text-fg4" title={ABSENT_CELL_HINT} aria-label={ABSENT_CELL_HINT}>—</span>;
     // Пустое значение — пустая клетка: так его читает любой, кто видел таблицу. Слово «null» на
@@ -106,7 +111,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
             <tr key={rowKey ? rowKey(row, i) : i} className={dtRow}>
               {columns.map(c => (
                 <td key={c.key}
-                  className={`${dtTd} whitespace-nowrap text-fg1 ${c.align === 'right' ? 'text-right tabular-nums' : ''}`}>
+                  className={`${dtTd} whitespace-nowrap text-fg1 ${c.align === 'right' ? dtNum : ''}`}>
                   <DataGridValue row={row} column={c}
                     renderValue={renderValue ? v => renderValue(v, c) : undefined} />
                 </td>

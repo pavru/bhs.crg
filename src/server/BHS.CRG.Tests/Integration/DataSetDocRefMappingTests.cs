@@ -222,6 +222,66 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
     }
 
     /// <summary>
+    /// Убрали из типа САМО целевое поле привязки (G1a, issue #1088, найдено ревью). Генерация такую
+    /// привязку пропускает целиком — и предпросмотр обязан сказать это отказом, а не рисовать
+    /// исправную таблицу под зелёной галкой.
+    /// </summary>
+    [Fact]
+    public async Task BindingPreview_RefusesWhenTheTargetFieldIsGoneFromTheType()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'},{'key':'Строки','type':'array'}]}")));
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+
+        var (_, reestrId, _) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+        var sourceId = await MaterializedSourceAsync(scope, "A\n1\n", rowType.Id, new Dictionary<string, string> { ["Поле"] = "A" });
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
+
+        await m.Send(new UpdateDocumentTypeSchemaCommand(reestrType.Id, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
+        Assert.Equal("error", preview.Mode);
+        Assert.Contains("«Строки»", preview.Error);
+    }
+
+    /// <summary>
+    /// Скалярная привязка с разметкой на поле, которого в типе владельца нет: генерация значение НЕ
+    /// пишет — значит, и предпросмотр показывает колонку с причиной, но без значения (G1a, #1088).
+    /// Иначе экран обещал бы данные, которых в документе не будет.
+    /// </summary>
+    [Fact]
+    public async Task ScalarPreview_ShowsAFieldMissingFromTheType_WithoutItsValue()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+
+        var (_, reestrId, _) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+        var sourceId = await MaterializedSourceAsync(scope, "A,B\n17,лишнее\n", rowType.Id, new Dictionary<string, string> { ["Поле"] = "A" });
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, null,
+            new Dictionary<string, string> { ["Номер"] = "A", ["Лишнее"] = "B" }), default);
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, TestAccess.All, default));
+        var data = Assert.IsType<Dictionary<string, object?>>(preview.Data);
+
+        Assert.Equal("17", data["Номер"]);
+        Assert.False(data.ContainsKey("Лишнее"), "значение поля вне схемы показано, хотя генерация его не пишет");
+        Assert.Equal(BindingPreviewColumns.Removed, Assert.Single(preview.Columns!, c => c.Key == "Лишнее").Unavailable);
+    }
+
+    /// <summary>
     /// Поле убрали из типа строки, а разметка на него осталась (задача G1a, issue #1088): предпросмотр
     /// показывает такую колонку С ПРИЧИНОЙ, а не теряет её. Пропавшая колонка выглядела бы так, будто
     /// всё размечено верно, — а ради этого вопроса предпросмотр и открывают.
