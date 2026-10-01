@@ -17,6 +17,7 @@ import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameSection, useDeleteSection, useCreateDocumentSet } from '@/shared/api/constructions';
+import { NO_ACCESS, hasModule, useAccess } from '@/shared/api/access';
 
 // ── Экран раздела ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -34,6 +35,12 @@ export function SectionDetail() {
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: problems } = useProblemSummary('Section', sectionId);
   const { data: plan } = usePlanSummary('Section', sectionId);
+  // Комплекты — модуль ИД, а раздел — ядро (issue #1128). Без модуля блок комплектов и кнопки
+  // «Добавить комплект» не рисуются ВОВСЕ, а не пустым «Нет комплектов»: каждая дверь открывалась
+  // отказом 403, а пустой список читался бы как «комплектов нет». Пока доступ не пришёл — тоже
+  // не рисуем (NO_ACCESS): показать и убрать хуже, чем показать позже.
+  const { data: access = NO_ACCESS } = useAccess();
+  const idOn = hasModule(access, 'id');
 
   const [addSetOpen, setAddSetOpen] = useState(false);
   const [newSetName, setNewSetName] = useState('');
@@ -83,22 +90,24 @@ export function SectionDetail() {
 
   const nav = (
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
-      <NavSection label="Комплекты" />
-      {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
-      {section.documentSets.map(ds => {
-        const p = problemOf(problems, ds.id);
-        const done = planOf(plan, ds.id);
-        return (
-          <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
-            progress={done?.percent ?? null} progressTitle={planTitle(done)}
-            alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
-            onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
-        );
-      })}
-      <button type="button" onClick={() => setAddSetOpen(true)}
-        className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
-        <Plus size={16} className="shrink-0" /> Добавить комплект
-      </button>
+      {idOn && <>
+        <NavSection label="Комплекты" />
+        {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
+        {section.documentSets.map(ds => {
+          const p = problemOf(problems, ds.id);
+          const done = planOf(plan, ds.id);
+          return (
+            <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
+              progress={done?.percent ?? null} progressTitle={planTitle(done)}
+              alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
+              onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
+          );
+        })}
+        <button type="button" onClick={() => setAddSetOpen(true)}
+          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+          <Plus size={16} className="shrink-0" /> Добавить комплект
+        </button>
+      </>}
       <NavSection label="Этот раздел" />
       <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
       <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
@@ -108,7 +117,7 @@ export function SectionDetail() {
 
   const headerAction = (
     <div className="flex items-center gap-2 shrink-0">
-      <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>
+      {idOn && <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
       <RowActionsMenu ariaLabel="Действия раздела" actions={[
         { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },
         { key: 'delete', label: 'Удалить раздел', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },

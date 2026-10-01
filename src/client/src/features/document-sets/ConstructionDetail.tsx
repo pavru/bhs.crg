@@ -17,6 +17,7 @@ import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCreateSection } from '@/shared/api/constructions';
+import { NO_ACCESS, hasModule, useAccess } from '@/shared/api/access';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -34,6 +35,9 @@ export function ConstructionDetail() {
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: problems } = useProblemSummary('Construction', constructionId);
   const { data: plan } = usePlanSummary('Construction', constructionId);
+  // Счётчик комплектов у раздела — число модуля ИД (issue #1128): без модуля его нет, а не ноль.
+  const { data: access = NO_ACCESS } = useAccess();
+  const idOn = hasModule(access, 'id');
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
@@ -78,7 +82,7 @@ export function ConstructionDetail() {
         const p = problemOf(problems, s.id);
         const done = planOf(plan, s.id);
         return (
-          <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={s.documentSets.length} chevron
+          <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
             progress={done?.percent ?? null} progressTitle={planTitle(done)}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />

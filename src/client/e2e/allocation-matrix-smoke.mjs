@@ -12,6 +12,9 @@
 //   4. `matrix-under-read-only-right` — под «Бухгалтером» (чтение счетов без права разноски) матрица
 //      открывается, но полей и кнопок «поровну» и «по %» НЕТ, и ни один запрос не получил отказа —
 //      а не «кнопки есть и получают 403».
+//   5. `construction-tree-without-id` — тот же «Бухгалтер» (модуля ИД у него нет) открывает стройку и
+//      раздел, в котором ЕСТЬ комплект: комплектов, «Добавить комплект» и счётчика нет вовсе — ни
+//      пустым «Нет комплектов», ни дверью в 403 (issue #1128), — и ни один запрос не получил отказа.
 //
 // ⚠️ ДАННЫЕ ПРОГОН ГОТОВИТ СЕБЕ САМ: свои счета (с приметой в номере) и восемь своих объектов
 // (заводятся один раз и переиспользуются). Посеянный счёт первый же прогон разнёс бы, и второй
@@ -250,6 +253,44 @@ await check('matrix-under-read-only-right', async () => {
         throw new Error(`кнопка «${name}» видна без права разноски`);
     if (await matrix.locator('tbody input').count())
       throw new Error('клетки матрицы правятся без права разноски');
+    if (denials.length)
+      throw new Error(`запросов с отказом доступа: ${denials.length}\n      ${denials.join('\n      ')}`);
+  } finally {
+    await context.close();
+  }
+});
+
+// ── 5. Бухгалтер: дерево строек без модуля ИД ─────────────────────────────────────────────────────
+// Раздел с комплектом — свой, заводится однажды: проверка «комплекта не видно» на разделе без комплектов
+// была бы зелёной и на коде, который их показывает.
+const treeSite = sites[0];
+const treeSection = (await api('GET', `/constructions/${treeSite.id}`)).sections.find(s => s.name === 'Раздел прогона')
+  ?? await api('POST', `/constructions/${treeSite.id}/sections`, { name: 'Раздел прогона' });
+if (!(treeSection.documentSets ?? []).some(ds => ds.name === 'Комплект прогона'))
+  await api('POST', '/document-sets', { sectionId: treeSection.id, name: 'Комплект прогона' });
+
+await check('construction-tree-without-id', async () => {
+  const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  const reader = await context.newPage();
+  const denials = [];
+  reader.on('response', r => { if (r.status() === 403) denials.push(`${r.request().method()} ${r.url()}`); });
+
+  try {
+    await login(reader, ACCOUNTANT_EMAIL, ACCOUNTANT_PASSWORD);
+    await reader.goto(`${BASE}/document-sets/${treeSite.id}/sections/${treeSection.id}`, { waitUntil: 'networkidle' });
+    // Якорь — «тот ли это экран»: раздел открылся и показывает то, что принадлежит ядру.
+    await reader.getByRole('heading', { name: 'Раздел прогона' }).waitFor({ timeout: 10_000 });
+    await reader.getByRole('button', { name: 'Каталог' }).first().waitFor();
+
+    if (await reader.getByRole('button', { name: /Добавить комплект/ }).count())
+      throw new Error('«Добавить комплект» видна без модуля ИД');
+    for (const text of ['Комплект прогона', 'Нет комплектов'])
+      if (await reader.getByText(text, { exact: true }).count())
+        throw new Error(`«${text}» видно без модуля ИД`);
+
+    await reader.goto(`${BASE}/document-sets/${treeSite.id}`, { waitUntil: 'networkidle' });
+    await reader.getByRole('heading', { name: treeSite.name }).waitFor({ timeout: 10_000 });
+
     if (denials.length)
       throw new Error(`запросов с отказом доступа: ${denials.length}\n      ${denials.join('\n      ')}`);
   } finally {
