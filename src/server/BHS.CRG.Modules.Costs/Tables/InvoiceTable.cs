@@ -58,23 +58,58 @@ public static class InvoiceTable
 /// </summary>
 public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog) : IModuleTableRows
 {
-    public async Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> ReadAsync(
-        ModuleTableQuery query, CancellationToken ct)
+    private static readonly IReadOnlyDictionary<InvoiceState, string> States =
+        Enum.GetValues<InvoiceState>().ToDictionary(s => s, InvoiceRequisites.Label);
+
+    private static readonly IReadOnlyDictionary<InvoicePaymentState, string> Payments =
+        Enum.GetValues<InvoicePaymentState>().ToDictionary(p => p, InvoiceRequisites.Label);
+
+    public async Task<ModuleTablePage> ReadAsync(ModuleTableQuery query, CancellationToken ct)
     {
-        var invoices = await db.Invoices
-            .AsNoTracking()
-            .OrderByDescending(i => i.IssuedOn)
+        // Названия организаций — одним списком: вида «Организация» на чистой установке может не быть
+        // вовсе (см. InvoiceEndpoints.SupplierNamesAsync). Нужны и строкам, и отбору по названию.
+        var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))
+            ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
+
+        var sql = Sql(names);
+        var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
+
+        // Итог и число строк — по всему отбору, ДО страницы (ТЗ CORE-33).
+        var count = await selected.CountAsync(ct);
+        var totals = await sql.TotalsAsync(selected, query.Totals, ct);
+
+        // Порядок по умолчанию — свежие сверху; он же довершает любую сортировку, иначе строки с
+        // равными значениями менялись бы местами от страницы к странице.
+        IQueryable<Invoice> page = (sql.OrderBy(selected, query.Sort)?.ThenByDescending(i => i.IssuedOn)
+                                    ?? selected.OrderByDescending(i => i.IssuedOn))
             .ThenByDescending(i => i.CreatedAt)
-            .ToListAsync(ct);
+            .ThenBy(i => i.Id);
+        if (query.Offset > 0) page = page.Skip(query.Offset);
+        if (query.Limit is { } limit) page = page.Take(limit);
 
-        // Названия организаций — одним списком, и только когда есть что разрешать: вида «Организация»
-        // на чистой установке может не быть вовсе (см. InvoiceEndpoints.SupplierNamesAsync).
-        var names = invoices.Any(i => i.SupplierId is not null || i.PayerId is not null)
-            ? (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? []
-            : [];
-
-        return [.. invoices.Select(i => Row(i, names, query.Columns))];
+        var invoices = await page.ToListAsync(ct);
+        return new([.. invoices.Select(i => Row(i, names, query.Columns))], count, totals);
     }
+
+    /// <summary>
+    /// Где лежит каждая колонка таблицы. Описаны ВСЕ объявленные — это проверяет сам построитель;
+    /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
+    /// </summary>
+    private static TableSql<Invoice> Sql(Dictionary<Guid, string> names) =>
+        TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
+            .Text(InvoiceRequisites.NumberKey, i => i.Number)
+            .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
+            .Lookup(InvoiceRequisites.SupplierKey, i => i.SupplierId, names)
+            .Lookup(InvoiceRequisites.PayerKey, i => i.PayerId, names)
+            .Text(InvoiceRequisites.PurposeKey, i => i.Purpose)
+            .Number(InvoiceRequisites.TotalKey, i => i.Total)
+            .Number(InvoiceRequisites.VatTotalKey, i => i.VatTotal)
+            .Date(InvoiceRequisites.ShippedOnKey, i => i.ShippedOn)
+            .Number(InvoiceRequisites.DeferralKey, i => i.DeferralDays)
+            .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
+            .Lookup(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
+            .Lookup(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
+            .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
 
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open)

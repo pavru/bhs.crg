@@ -34,8 +34,25 @@ public record DataSetParseResult(
     /// объявленная строка. Объявил несколько исходов и не выбрал ни одного — отказ: показать первую
     /// значило бы подписать данные не тем текстом, а это хуже отсутствующей подписи.</para>
     /// </summary>
-    string? Boundary = null
+    string? Boundary = null,
+    /// <summary>
+    /// Виды колонок — у набора, чей поставщик их объявляет (таблица модуля, G1c). null — видов нет
+    /// (файл, распознавание), и отбор сравнивает по догадке, как прежде.
+    /// </summary>
+    DataSetColumnTypes? Types = null
 );
+
+/// <summary>
+/// Что поставщик знает о своих колонках (ТЗ CORE-33; задача G1c, issue #1090).
+/// </summary>
+/// <param name="Kinds">Колонка → вид значения (см. <c>TableOperators</c>). Условие по такой колонке
+/// сравнивает по виду, а не по догадке — так же, как запрос к базе у экрана таблицы.</param>
+/// <param name="Closed">Колонка → причина, по которой она пришла без значений («нет права на суммы»).
+/// Отбор по такой колонке отказывает: у пустых клеток он вернул бы «ничего не нашлось», и человек
+/// без права на суммы получил бы пустой набор вместо отказа.</param>
+public sealed record DataSetColumnTypes(
+    IReadOnlyDictionary<string, string> Kinds,
+    IReadOnlyDictionary<string, string> Closed);
 
 public interface IDataSetParser
 {

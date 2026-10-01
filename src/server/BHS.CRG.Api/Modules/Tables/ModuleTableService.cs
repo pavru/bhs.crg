@@ -28,15 +28,16 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
             .Where(e => !access.IsSystem && access.EnabledModules.Contains(e.Module) && access.Allows(e.Table.Requires))
             .Select(e => new TableListItemDto(e.Address, e.Table.Title, e.Table.Grain, e.Module))];
 
-    /// <param name="requested">Колонки, которые просит потребитель (сохранённое представление): ключ,
-    /// которого в таблице больше нет, приходит колонкой с причиной «поле удалено из типа». null — все
-    /// объявленные.</param>
+    /// <param name="request">Что просит потребитель. Колонка сохранённого представления, которой в
+    /// таблице больше нет, приходит с причиной «поле удалено из типа». Отбор, сортировку и страницу
+    /// исполняет служба модуля запросом к своей базе (G1c); итог считается по всему отбору.</param>
     /// <returns>Таблица либо отказ — кодом ответа и текстом. Отказ возвращается, а не бросается: слой
     /// Api отвечает кодами, а набор данных до этой службы доходит только через ворота набора, где те
     /// же проверки уже отказали своими словами.</returns>
     public async Task<(TableDto? Table, TableRefusal? Refusal)> ReadAsync(
-        string address, DataAccess access, IReadOnlyList<string>? requested, CancellationToken ct)
+        string address, DataAccess access, TableRequest request, CancellationToken ct)
     {
+        var requested = request.Columns;
         if (catalog.Find(address) is not { } entry)
             return (null, new(StatusCodes.Status404NotFound, $"Таблицы «{address}» нет ни у одного модуля сборки."));
         var table = entry.Table;
@@ -68,21 +69,36 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
             return (null, new(StatusCodes.Status403Forbidden,
                 $"Таблица «{table.Title}» открывается ключом «{table.Requires}», а у «{access.Who}» его нет."));
 
-        var columns = await ColumnsAsync(table, ct);
-
-        var marked = Mark(columns, requested)
-            .Select(c => c.Unavailable is null && Closed(table, c.Key, access) is { } hides
+        // Причина «нет права» ставится ВСЕМ колонкам таблицы, а не только запрошенным: отбирать и
+        // сортировать можно и по колонке, которой на экране нет, — и по закрытой нельзя всё равно.
+        var columns = (await ColumnsAsync(table, ct))
+            .Select(c => Closed(table, c.Key, access) is { } hides
                 ? c with { Unavailable = TableColumnReasons.NoRight, Reason = TableColumnReasons.NoRightText(hides) }
                 : c)
             .ToList();
+        var marked = Mark(columns, requested).ToList();
 
-        var open = marked.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+        // Два множества, и путать их нельзя. ОТКРЫТЫЕ — всё, что человеку можно: по ним идут отбор,
+        // сортировка и итог, даже если колонки нет на экране. ПОКАЗАННЫЕ — открытые из запрошенных:
+        // только они едут в строках, иначе `?columns=Номер` тащил бы в каждой строке всю таблицу.
+        var open = columns.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+        var shown = marked.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+        var (query, refusal) = ModuleTableQueries.Build(table.Title, columns, open, shown, request, access.UserId!.Value);
+        if (query is null) return (null, refusal);
+
         var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
-        var rows = await reader.ReadAsync(new ModuleTableQuery(open, access.UserId!.Value), ct);
+        var page = await reader.ReadAsync(query, ct);
 
         // Вычистка — здесь, а не в службе модуля: служба вправе не считать закрытое, но гарантия
         // обязана стоять в одном месте. Забытое службой значение суммы иначе ушло бы наружу.
-        return (Dto(entry, marked, [.. rows.Select(r => Only(r, open))]), null);
+        return (Dto(entry, marked, [.. page.Rows.Select(r => Only(r, shown))]) with
+        {
+            Count = page.Count,
+            Offset = request.Offset,
+            Limit = request.Limit,
+            Totals = page.Totals.Where(t => open.Contains(t.Key)).ToDictionary(
+                t => t.Key, t => ModuleTableQueries.Total(t.Value, query.Totals![t.Key]), StringComparer.Ordinal),
+        }, null);
     }
 
     /// <summary>Колонки таблицы: системные модуля, затем поля схемы типа, которых среди системных нет.</summary>
@@ -122,7 +138,8 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
 
     /// <summary>Системные колонки модуля — то, что лежит в его коде, без схемы заказчика.</summary>
     private static List<TableColumnDto> Declared(ModuleTable table) => [.. table.Columns
-        .Select(c => new TableColumnDto(c.Key, c.Title, KindOf(c.Kind), TableOperators.For(KindOf(c.Kind)), true))];
+        .Select(c => new TableColumnDto(
+            c.Key, c.Title, TableKinds.Name(c.Kind), TableOperators.For(TableKinds.Name(c.Kind)), true))];
 
     /// <summary>
     /// Запрошенные колонки в запрошенном порядке; ключ, которого нет, — колонка с причиной «поле
@@ -156,14 +173,6 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         ModuleTableEntry entry, IReadOnlyList<TableColumnDto> columns,
         IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string? state = null) =>
         new(entry.Address, entry.Table.Title, entry.Table.Grain, entry.Table.Boundary, columns, rows, state);
-
-    public static string KindOf(ModuleTableColumnKind kind) => kind switch
-    {
-        ModuleTableColumnKind.Number => TableOperators.Number,
-        ModuleTableColumnKind.Date => TableOperators.Date,
-        ModuleTableColumnKind.Boolean => TableOperators.Boolean,
-        _ => TableOperators.Text,
-    };
 
     /// <summary>
     /// Вид поля схемы (или базы примитива) → вид колонки. Перечисление, строка, текст — текстом: в

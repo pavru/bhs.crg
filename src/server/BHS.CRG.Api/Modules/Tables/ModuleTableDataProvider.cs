@@ -64,7 +64,7 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
 
         // Отказ здесь — дефект, а не ответ пользователю: до поставщика доходят только через ворота
         // набора (SystemDataSetGate), а они проверяют то же самое — систему, модуль и ключ таблицы.
-        var (table, refusal) = await tables.ReadAsync(entry.Address, access, null, ct);
+        var (table, refusal) = await tables.ReadAsync(entry.Address, access, new TableRequest(), ct);
         if (table is null)
             throw new InvalidOperationException(
                 $"Ворота набора пропустили к таблице «{entry.Address}», а служба таблиц отказала: {refusal!.Error}");
@@ -85,7 +85,13 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
                 $"{(g.Count() == 1 ? "колонка" : "колонки")} {string.Join(", ", g.Select(c => $"«{c.Label}»"))} " +
                 $"без значений: {g.Key}"));
 
-        return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning));
+        // Виды колонок едут с данными: отбор источника сравнивает по виду — так же, как запрос к
+        // базе у экрана таблицы. По закрытой колонке отбор отказывает, а не находит «ничего».
+        var types = new DataSetColumnTypes(
+            table.Columns.Where(c => c.Unavailable is null).ToDictionary(c => c.Key, c => c.Kind, StringComparer.Ordinal),
+            closed.ToDictionary(c => c.Key, c => c.Reason ?? "", StringComparer.Ordinal));
+
+        return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning), Types: types);
     }
 
     private static IReadOnlyDictionary<string, string?> Strings(IReadOnlyDictionary<string, object?> row) =>
