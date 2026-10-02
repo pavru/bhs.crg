@@ -35,12 +35,7 @@ public sealed class ModuleSchemaHost : IntegrationTestFixture
 
     internal static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_schema";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("schema");
 
     protected override string HostConnectionString => ConnectionString;
 

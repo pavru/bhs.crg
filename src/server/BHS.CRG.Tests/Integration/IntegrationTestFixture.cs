@@ -57,6 +57,17 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
     /// <summary>
+    /// С чего обязано начинаться имя тестовой базы — и умолчание выше, и всё, что приходит из
+    /// <c>BHS_TEST_DB</c> (issue #1142). База дев-стенда называется <c>bhs_crg</c> и стоит на том же
+    /// порту, что и тестовые: имя отличает их одним суффиксом, а прогон сносит в своей базе всё.
+    /// Проверяет <see cref="TestRunDatabase.EnsureTestName" />.
+    ///
+    /// Записано рядом с умолчанием нарочно: это единственный файл тестов, где имя базы вправе стоять
+    /// строкой (<c>TestDatabaseNameGuardTests</c>), а правило и умолчание обязаны сходиться.
+    /// </summary>
+    internal const string TestDatabasePrefix = "bhs_crg_";
+
+    /// <summary>
     /// Значения, которые тестовый хост обязан назвать сам: без них приложение отказывается
     /// стартовать (<c>JwtKeyGuard</c>, <c>StorageConfigGuard</c>).
     /// </summary>

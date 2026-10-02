@@ -14,11 +14,15 @@ public class TestRunDatabaseTests
 
     // ── Имя базы ──────────────────────────────────────────────────────────────
 
+    private const string Prefix = IntegrationTestFixture.TestDatabasePrefix;
+
+    // Имена — от префикса, а не строкой: имя базы строкой в тестах не пишется
+    // (TestDatabaseNameGuardTests), и образцы здесь не исключение.
     [Theory]
-    [InlineData("bhs_crg_test")]
-    [InlineData("bhs_crg_ci")]
-    [InlineData("bhs_crg_test_966_lines")]
-    public void Тестовое_имя_проходит(string database) => TestRunDatabase.EnsureTestName(Named(database));
+    [InlineData("test")]
+    [InlineData("ci")]
+    [InlineData("test_966_lines")]
+    public void Тестовое_имя_проходит(string rest) => TestRunDatabase.EnsureTestName(Named(Prefix + rest));
 
     /// <summary>
     /// Имя приходит из переменной окружения целиком, а прогон сносит в базе всё, включая учётные
@@ -26,7 +30,7 @@ public class TestRunDatabaseTests
     /// </summary>
     [Theory]
     [InlineData("bhs_crg")]     // база дев-стенда
-    [InlineData("bhs_crg_")]    // префикс без имени — опечатка в переменной
+    [InlineData(Prefix)]        // префикс без имени — опечатка в переменной
     [InlineData("postgres")]
     [InlineData("crg_customer")]
     public void Нетестовое_имя_останавливает_прогон(string database)
@@ -67,10 +71,10 @@ public class TestRunDatabaseTests
     [Fact]
     public void Разные_базы_и_разные_серверы_ключ_не_делят()
     {
-        var key = TestRunDatabase.KeyOf(Named("bhs_crg_test"));
+        var key = TestRunDatabase.KeyOf(Named("проба"));
 
-        Assert.NotEqual(key, TestRunDatabase.KeyOf(Named("bhs_crg_test_lines")));
-        Assert.NotEqual(key, TestRunDatabase.KeyOf(Named("bhs_crg_test").Replace("5433", "5434")));
+        Assert.NotEqual(key, TestRunDatabase.KeyOf(Named("проба_lines")));
+        Assert.NotEqual(key, TestRunDatabase.KeyOf(Named("проба").Replace("5433", "5434")));
     }
 
     // ── Один раз на ключ ──────────────────────────────────────────────────────

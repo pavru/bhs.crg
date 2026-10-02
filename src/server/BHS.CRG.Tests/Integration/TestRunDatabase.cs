@@ -16,12 +16,6 @@ namespace BHS.CRG.Tests.Integration;
 internal static class TestRunDatabase
 {
     /// <summary>
-    /// С чего обязано начинаться имя тестовой базы. База дев-стенда называется <c>bhs_crg</c> и стоит
-    /// на том же порту, что и тестовые, — имя из <c>BHS_TEST_DB</c> отличает их одним суффиксом.
-    /// </summary>
-    internal const string RequiredPrefix = "bhs_crg_";
-
-    /// <summary>
     /// Учётные таблицы, очищаемые раз за прогон, — в придачу к тому, что чистится между классами.
     /// Между классами их трогать нельзя: вошедший пользователь живёт дольше одного теста, а роли
     /// создаёт только старт. В начале прогона их ещё никто не завёл, и всё, что в них лежит, — от
@@ -53,10 +47,11 @@ internal static class TestRunDatabase
     internal static void EnsureTestName(string connectionString)
     {
         var name = new NpgsqlConnectionStringBuilder(connectionString).Database ?? "";
-        if (name.StartsWith(RequiredPrefix, StringComparison.Ordinal) && name.Length > RequiredPrefix.Length) return;
+        const string prefix = IntegrationTestFixture.TestDatabasePrefix;
+        if (name.StartsWith(prefix, StringComparison.Ordinal) && name.Length > prefix.Length) return;
 
         throw new InvalidOperationException(
-            $"База «{name}» не похожа на тестовую: имя обязано начинаться с «{RequiredPrefix}». " +
+            $"База «{name}» не похожа на тестовую: имя обязано начинаться с «{prefix}». " +
             "Прогон сносит в своей базе всё, включая учётные записи и роли, а «bhs_crg» — база стенда " +
             "на том же порту. Проверьте переменную BHS_TEST_DB.");
     }
@@ -160,9 +155,9 @@ internal static class TestRunDatabase
             {
                 try
                 {
-                    // Имя прошло проверку выше и складывается из константы и BHS_TEST_DB — из окружения
-                    // прогона, а не из данных.
-                    await using var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", admin);
+                    // Имя складывается из константы и BHS_TEST_DB — из окружения прогона, а не из
+                    // данных; кавычки в нём удваивает Quote.
+                    await using var create = new NpgsqlCommand($"CREATE DATABASE {TestDatabases.Quote(name)}", admin);
                     await create.ExecuteNonQueryAsync();
                 }
                 catch (PostgresException raced) when (raced.SqlState == PostgresErrorCodes.DuplicateDatabase)
