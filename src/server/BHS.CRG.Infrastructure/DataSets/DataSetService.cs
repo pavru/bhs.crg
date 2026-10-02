@@ -63,8 +63,8 @@ public class DataSetService(
         sources.CreateSourceAsync(fileId, input, access, ct);
     public Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
-        string? byIdColumn, CancellationToken ct) =>
-        sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct);
+        string? byIdColumn, CancellationToken ct, string? ifMatch = null) =>
+        sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct, ifMatch);
     public Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
         string? byIdColumn, DataAccess access, CancellationToken ct) =>
@@ -123,6 +123,9 @@ public class DataSetService(
         processingTemplates.ListAsync(ct);
     public Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct) =>
         processingTemplates.CreateAsync(input, ct);
+    public Task<DataSetProcessingTemplateDto?> CreateProcessingTemplateFromSourceAsync(
+        Guid sourceId, string name, string? ifMatch, CancellationToken ct) =>
+        processingTemplates.CreateFromSourceAsync(sourceId, name, ifMatch, ct);
     public Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct) =>
         processingTemplates.UpdateAsync(id, input, ct);
     public Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct) =>
