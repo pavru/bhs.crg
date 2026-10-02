@@ -266,9 +266,11 @@ public partial class DataSetPdfRecognitionService
         if (profileActuallyChanged && !string.IsNullOrEmpty(touched!.TableData))
         {
             var marker = PdfProfiles.GostTableMarkerPrefix + touched!.Id;
-            var tableSource = await db.DataSetSources
-                .FirstOrDefaultAsync(s => s.FileId == fileId && s.SheetOrPath == marker, ct);
-            tableSource?.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+            // Все проекции таблицы, а не первая попавшаяся (issue #1149): у копии те же строки, и
+            // обесценились они так же — см. ProjectionsOf.
+            var tableSources = await db.DataSetSources
+                .Where(s => s.FileId == fileId && s.SheetOrPath == marker).ToListAsync(ct);
+            foreach (var tableSource in tableSources) tableSource.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
         }
 
         await db.SaveChangesAsync(ct);
