@@ -276,6 +276,10 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         // список, в том числе «больше», которого у перечня нет.
         Assert.Contains("contains", Operators("ОбъектыРазноски"));
         Assert.DoesNotContain("gt", Operators("ОбъектыРазноски"));
+
+        // Считаемое от сегодня (#1090) — колонки своих видов: число сравнивают, флагу — «равно».
+        Assert.Contains("lt", Operators("ДнейДоСрока"));
+        Assert.Equal(["eq", "neq", "is_null", "is_not_null"], Operators("СрокПросрочен"));
         // Колонка, чьё значение зависит от отбора, в набор не едет — значит, и отбирать по ней нечего.
         Assert.DoesNotContain(schema.EnumerateArray(), c => c.GetProperty("name").GetString() == "СуммаПоОтбору");
     }

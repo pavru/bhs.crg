@@ -300,8 +300,10 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
 /// Хост со включённым модулем счетов и своей базой (C2, issue #1078) — по той же причине, что у
 /// <see cref="InvoiceHost" />: состав системных ролей приводится при старте к объявленному, и хост с
 /// другим набором модулей менял бы права ролям у соседних классов.
+///
+/// <para>Не запечатан ради <see cref="InvoiceClockHost" />: тот же хост с подставным «сегодня».</para>
 /// </summary>
-public sealed class InvoiceLineHost : IntegrationTestFixture
+public class InvoiceLineHost : IntegrationTestFixture
 {
     private static string ConnectionString { get; } = Dedicated();
 
