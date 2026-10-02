@@ -253,15 +253,24 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     /// ничего. Спроси мы вместо этого про строки, таблица с удалёнными
     /// строками осталась бы неусечённой — с мёртвыми версиями в куче, от которых зависит порядок
     /// выдачи без сортировки, а на нём тесты уже ловили настоящие дефекты (issue #1149).</para>
+    ///
+    /// <para>Вторая половина условия — про секционированные таблицы: у родителя своего файла нет,
+    /// данные лежат в секциях, и размер самого родителя всегда нулевой. Сегодня таких в списке нет,
+    /// но появись одна — она молча перестала бы очищаться, а сторож списка остался бы зелёным:
+    /// имя-то в списке есть. У обычной таблицы дерево секций пусто, и вторая половина ничего не
+    /// добавляет.</para>
     /// </summary>
-    internal static async Task<List<string>> TouchedTablesAsync(AppDbContext db) =>
+    /// <param name="tables">Что проверять; по умолчанию — <see cref="TruncatedTables" />.</param>
+    internal static async Task<List<string>> TouchedTablesAsync(AppDbContext db, string[]? tables = null) =>
         await db.Database
             .SqlQueryRaw<string>(
                 """
                 SELECT t AS "Value" FROM unnest({0}) AS t
                 WHERE pg_relation_size(format('%I', t)::regclass) > 0
+                   OR (SELECT coalesce(sum(pg_relation_size(part.relid)), 0)
+                       FROM pg_partition_tree(format('%I', t)::regclass) AS part) > 0
                 """,
-                (object)TruncatedTables)
+                (object)(tables ?? TruncatedTables))
             .ToListAsync();
 
     /// <summary>Truncates all domain tables so each test class starts clean.</summary>
@@ -271,23 +280,34 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Усекаем только тронутые — см. TouchedTablesAsync. CASCADE при этом дотягивается до тех же
-        // таблиц, что и раньше: вне списка на таблицы списка не ссылается никто (иначе нынешняя
-        // очистка сносила бы «оставленное нарочно»), а внутри списка нетронутая таблица пуста и так.
-        var touched = await TouchedTablesAsync(db);
-
         // Имена берём в кавычки: сейчас список весь в нижнем регистре, но часть таблиц модели
         // названа как RefreshTokens, и первое же такое имя, добавленное сюда как есть, Postgres
         // свернёт в refreshtokens — фикстура упадёт до первого теста с «relation does not exist».
         //
         // EF1003 — про склейку значений в SQL. Здесь склеиваются имена таблиц, а имя таблицы
         // параметром не передашь; список выше — константа в коде тестов, снаружи в него не попасть.
+        static string Quoted(IEnumerable<string> names) => string.Join(", ", names.Select(t => $"\"{t}\""));
+
+        // Замок на ВСЕ таблицы списка, и только под ним — вопрос «какие тронуты». Раньше барьером
+        // был сам TRUNCATE всех таблиц: он дожидался транзакции, которую не закрыл прошлый тест, и
+        // сносил её строки. Усекая только тронутые без замка, мы бы этот барьер потеряли: запись,
+        // пришедшая между вопросом и усечением — или в прогон, где усекать оказалось нечего, —
+        // досталась бы следующему тесту. Замок с вопросом стоят 2,6 мс против 60 у усечения всех
+        // таблиц: файлов замок не заводит. Сторож — FixtureResetTouchedTests.
+        await using var tx = await db.Database.BeginTransactionAsync();
 #pragma warning disable EF1003
+        await db.Database.ExecuteSqlRawAsync(
+            "LOCK TABLE " + Quoted(TruncatedTables) + " IN ACCESS EXCLUSIVE MODE");
+
+        // Усекаем только тронутые — см. TouchedTablesAsync. CASCADE при этом дотягивается до тех же
+        // таблиц, что и раньше: вне списка на таблицы списка не ссылается никто (иначе нынешняя
+        // очистка сносила бы «оставленное нарочно»), а внутри списка нетронутая таблица пуста и так.
+        var touched = await TouchedTablesAsync(db);
         if (touched.Count > 0)
             await db.Database.ExecuteSqlRawAsync(
-                "TRUNCATE TABLE " + string.Join(", ", touched.Select(t => $"\"{t}\""))
-                + " RESTART IDENTITY CASCADE");
+                "TRUNCATE TABLE " + Quoted(touched) + " RESTART IDENTITY CASCADE");
 #pragma warning restore EF1003
+        await tx.CommitAsync();
 
         await ResetModuleSchemasAsync(scope);
 
