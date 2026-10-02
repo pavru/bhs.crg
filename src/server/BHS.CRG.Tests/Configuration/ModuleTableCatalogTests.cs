@@ -161,6 +161,30 @@ public class ModuleTableCatalogTests
         Assert.Contains(table.Problems(), p => p.Contains("«Сумма»"));
     }
 
+    /// <summary>
+    /// Перечень и вид «выбор» — только вместе (G1d, issue #1091). Выбор без перечня отвергал бы любое
+    /// значение; перечень у текста никто бы не проверял — экран предложил бы список, а отбор принял бы
+    /// и то, чего в нём нет.
+    /// </summary>
+    [Fact]
+    public void Перечень_значений_и_вид_выбор_объявляются_только_вместе()
+    {
+        ModuleTable With(ModuleTableColumn column) => Table() with { Columns = [column] };
+
+        Assert.Empty(With(new("Оплата", "Оплата", ModuleTableColumnKind.Choice, Options: ["Да", "Нет"])).Problems());
+
+        Assert.Contains(With(new("Оплата", "Оплата", ModuleTableColumnKind.Choice)).Problems(),
+            p => p.Contains("«Оплата»") && p.Contains("не назван перечень"));
+        Assert.Contains(With(new("Оплата", "Оплата", ModuleTableColumnKind.Choice, Options: [])).Problems(),
+            p => p.Contains("не назван перечень"));
+        Assert.Contains(With(new("Оплата", "Оплата", ModuleTableColumnKind.Text, Options: ["Да"])).Problems(),
+            p => p.Contains("не «выбор»"));
+        Assert.Contains(With(new("Оплата", "Оплата", ModuleTableColumnKind.Choice, Options: ["Да", "Да"])).Problems(),
+            p => p.Contains("названо дважды"));
+        Assert.Contains(With(new("Оплата", "Оплата", ModuleTableColumnKind.Choice, Options: ["Да", " "])).Problems(),
+            p => p.Contains("пустое значение"));
+    }
+
     /// <summary>Настоящее объявление счетов годно — сторож не выдуман на подставных модулях.</summary>
     [Fact]
     public void Таблица_счетов_объявлена_годно()

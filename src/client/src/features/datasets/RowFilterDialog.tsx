@@ -1,17 +1,14 @@
 import { useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import type { FilterCondition, FilterGroup, FilterOp, RowFilterDef } from '@/shared/api/types';
+import type { FilterCondition, FilterGroup, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
 import {
-  conditionProblem, fromDraft, newCondition, newGroup, operatorsFor, opLabel, pruneDraft, toDraft,
-  withColumn, withOperator, type DraftGroup, type FilterColumn,
-} from './rowFilterModel';
-import { RowFilterValue } from './RowFilterValue';
+  conditionProblem, fromDraft, newCondition, newGroup, pruneDraft, toDraft,
+  type DraftGroup, type FilterColumn,
+} from '@/shared/filter/rowFilterModel';
+import { ConditionEditor } from '@/shared/filter/ConditionEditor';
 import { useDialogSave } from './useDialogSave';
-
-// Reused field styling for condition selects/inputs.
-const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
 
 // ─── Logic toggle ─────────────────────────────────────────────────────────────
 
@@ -56,64 +53,15 @@ function FilterConditionRow({
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
 }) {
-  const column = columns.find(c => c.name === cond.column);
-  // Колонке — её операторы (issue #1133). Оператор сохранённого условия, который к ней не подходит,
-  // остаётся в списке и назван: молча подменить его значило бы переписать чужое условие.
-  const allowed = operatorsFor(column);
-  const ops = allowed.includes(cond.op) ? allowed : [cond.op, ...allowed];
   // Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
   // то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор.
   const problem = conditionProblem(cond, columns);
-  // Колонка условия, которой в источнике уже нет, тоже остаётся в списке: иначе выбор показал бы
-  // «— колонка —» у условия, которое в базе стоит на конкретной колонке.
-  const missing = cond.column !== '' && !column;
 
   return (
     <div>
       <div className="flex items-start gap-1.5 group/cond">
         <span className="w-6 shrink-0 pt-1.5 text-[10px] tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
-        {/* Column */}
-        {columns.length > 0 ? (
-          <select
-            value={cond.column}
-            onChange={e => onChange(withColumn(cond, e.target.value, columns))}
-            className={FIELD_CLS}
-            style={{ minWidth: '120px', maxWidth: '160px' }}
-          >
-            <option value="">— колонка —</option>
-            {missing && <option value={cond.column}>{cond.column}</option>}
-            {columns.map(c => (
-              <option key={c.name} value={c.name} disabled={!!c.unavailable && c.name !== cond.column}>
-                {c.unavailable ? `${c.name} — ${c.unavailable}` : c.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            value={cond.column}
-            onChange={e => onChange({ ...cond, column: e.target.value })}
-            placeholder="Колонка"
-            className={FIELD_CLS}
-            style={{ width: '120px' }}
-          />
-        )}
-
-        {/* Operator */}
-        <select
-          value={cond.op}
-          // Значение НЕ сбрасываем при смене оператора (issue #401): оно перекладывается туда, где его
-          // ждёт сервер, — одно в value, границы и список в values (withOperator).
-          onChange={e => onChange(withOperator(cond, e.target.value as FilterOp))}
-          className={`${FIELD_CLS} shrink-0`}
-          style={{ width: '148px' }}
-        >
-          {ops.map(op => (
-            <option key={op} value={op}>{opLabel(op)}</option>
-          ))}
-        </select>
-
-        {/* Value */}
-        <RowFilterValue cond={cond} kind={column?.kind} onChange={onChange} />
+        <ConditionEditor cond={cond} columns={columns} onChange={onChange} />
 
         {/* Remove */}
         <button
@@ -263,11 +211,21 @@ function FilterGroupEditor({
 
 // ─── Main dialog ──────────────────────────────────────────────────────────────
 
+const SOURCE_WORDING = {
+  title: 'Фильтрация строк',
+  note: 'Строки, не прошедшие фильтр, исключаются до маппинга. Вычисляемые колонки (если заданы) '
+    + 'доступны для фильтрации. Можно вкладывать группы с разной логикой (AND/OR).',
+  save: 'Сохранить',
+  saving: 'Сохранение…',
+  reset: 'Сбросить фильтр',
+};
+
 export function RowFilterDialog({
   columns,
   initial,
   onSave,
   onClose,
+  wording,
 }: {
   /** Колонки источника с их видами; без них (шаблон обработки) колонка вписывается текстом. */
   columns?: FilterColumn[];
@@ -278,7 +236,14 @@ export function RowFilterDialog({
    */
   onSave: (filter: RowFilterDef | null) => void | Promise<unknown>;
   onClose: () => void;
+  /**
+   * Слова диалога, когда он открыт не у источника набора, а расширенным режимом отбора таблицы
+   * (issue #1091): там отбор не «сохраняется» в обработку, а применяется к экрану, и про маппинг с
+   * вычисляемыми колонками говорить незачем. Не задано — слова источника.
+   */
+  wording?: { title: string; note: string; save: string; saving: string; reset: string };
 }) {
+  const words = wording ?? SOURCE_WORDING;
   // Негодную форму сохранённого отбора заменяем пустым корнем и говорим об этом вслух (ниже):
   // редактировать в ней нечего, а падать диалогу нельзя — сюда приходят ПО ОТКАЗУ сервера
   // «исправьте условия отбора» (issue #966, ревью PR #1058).
@@ -305,7 +270,7 @@ export function RowFilterDialog({
     <Modal
       open={true}
       onOpenChange={o => { if (!o) close(); }}
-      title="Фильтрация строк"
+      title={words.title}
       wide
       footer={
         <div className="flex gap-2 items-center">
@@ -314,7 +279,7 @@ export function RowFilterDialog({
             disabled={saving}
             className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
-            {saving ? 'Сохранение…' : 'Сохранить'}
+            {saving ? words.saving : words.save}
           </button>
           <button
             onClick={close}
@@ -329,7 +294,7 @@ export function RowFilterDialog({
               disabled={saving}
               className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
             >
-              Сбросить фильтр
+              {words.reset}
             </button>
           )}
         </div>
@@ -342,11 +307,7 @@ export function RowFilterDialog({
         </p>
       )}
 
-      <p className="text-xs mb-4 text-fg4">
-        Строки, не прошедшие фильтр, исключаются до маппинга.
-        Вычисляемые колонки (если заданы) доступны для фильтрации.
-        Можно вкладывать группы с разной логикой (AND/OR).
-      </p>
+      <p className="text-xs mb-4 text-fg4">{words.note}</p>
 
       <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor

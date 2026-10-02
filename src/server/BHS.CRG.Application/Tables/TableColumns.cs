@@ -54,6 +54,13 @@ public static class TableOperators
     /// </summary>
     public const string List = "list";
 
+    /// <summary>
+    /// Выбор из закрытого перечня (G1d, issue #1091): состояние документа, состояние оплаты. Операторы
+    /// — равенство и вхождение в список; значение вне перечня колонки делает условие негодным
+    /// (<see cref="TableConditions.Problem" />), а не «ничего не нашедшим».
+    /// </summary>
+    public const string Choice = "choice";
+
     private static readonly string[] Presence = ["is_empty", "is_not_empty"];
     private static readonly string[] Undefined = ["is_null", "is_not_null"];
     private static readonly string[] Equality = ["eq", "neq"];
@@ -76,6 +83,7 @@ public static class TableOperators
             [Date] = [.. Equality, .. Order, "between", .. Membership, .. Undefined],
             [Boolean] = [.. Equality, .. Undefined],
             [List] = [.. Equality, "contains", "not_contains", "starts_with", "ends_with", .. Membership, .. Presence],
+            [Choice] = [.. Equality, .. Membership],
         };
 
     /// <summary>Все операторы, какие бывают.</summary>
@@ -132,9 +140,12 @@ public static class TableOperators
 /// неё нет, — и в набор данных она не едет.</param>
 /// <param name="Note">Что колонка значит ПОД ЭТИМ ОТБОРОМ — подписью к заголовку: «доля: Комарова
 /// 36». null — смысл обычный.</param>
+/// <param name="Options">Значения закрытого перечня — у колонки вида «выбор» (G1d, issue #1091):
+/// экран предлагает их списком, и по ним же проверяется условие. null — перечня у колонки нет.</param>
 public record TableColumnDto(
     string Key, string Label, string Kind, IReadOnlyList<string> Operators, bool System,
-    string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null);
+    string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null,
+    IReadOnlyList<string>? Options = null);
 
 /// <summary>Таблица модуля со строками.</summary>
 /// <param name="Address">Адрес таблицы: <c>costs.invoices</c>.</param>

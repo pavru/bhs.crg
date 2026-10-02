@@ -187,6 +187,10 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
     [InlineData("""{"type":"condition","column":"Номер","op":"in","values":[null]}""", "пустое место")]
     [InlineData("""{"type":"condition","column":"Номер","op":"eq","values":["а","б"]}""", "одно значение")]
     [InlineData("""{"type":"condition","column":"Номер","op":"похоже","value":"1"}""", "которого нет")]
+    // Колонка-выбор (G1d, issue #1091): слово вне перечня и оператор текста — отказ, а не «не нашлось».
+    [InlineData("""{"type":"condition","column":"СостояниеОплаты","op":"eq","value":"Оплочен"}""", "в перечне колонки нет")]
+    [InlineData("""{"type":"condition","column":"СостояниеОплаты","op":"in","values":["Оплачен","Чепуха"]}""", "«Чепуха»")]
+    [InlineData("""{"type":"condition","column":"Состояние","op":"contains","value":"Черн"}""", "не применяется")]
     [InlineData("""["не дерево"]""", "не разбирается")]
     public async Task Битый_отбор_отказывает(string filter, string reason)
     {
@@ -282,6 +286,32 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         Assert.Equal(["eq", "neq", "is_null", "is_not_null"], Operators("СрокПросрочен"));
         // Колонка, чьё значение зависит от отбора, в набор не едет — значит, и отбирать по ней нечего.
         Assert.DoesNotContain(schema.EnumerateArray(), c => c.GetProperty("name").GetString() == "СуммаПоОтбору");
+
+        // Выбор (#1091) — с перечнем значений: диалог предлагает его списком, а не полем для строки.
+        Assert.Equal(["eq", "neq", "in", "not_in"], Operators("СостояниеОплаты"));
+        Assert.Equal(["Не оплачен", "Частично оплачен", "Оплачен"], [.. schema.EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == "СостояниеОплаты")
+            .GetProperty("options").EnumerateArray().Select(o => o.GetString())]);
+    }
+
+    /// <summary>
+    /// Экран получает перечень значений колонки-выбора вместе с колонкой (G1d, issue #1091) — и ровно
+    /// у неё: у текста, числа и даты перечня нет, им значение вводят.
+    /// </summary>
+    [Fact]
+    public async Task Колонка_выбор_приходит_экрану_с_перечнем_значений()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+
+        var table = await client.GetFromJsonAsync<JsonElement>($"/api/tables/{Address}?limit=1");
+        JsonElement Column(string key) => table.GetProperty("columns").EnumerateArray()
+            .Single(c => c.GetProperty("key").GetString() == key);
+
+        Assert.Equal("choice", Column("Состояние").GetProperty("kind").GetString());
+        Assert.Equal(["Черновик", "Разобран", "Отклонён"],
+            Column("Состояние").GetProperty("options").EnumerateArray().Select(o => o.GetString()));
+        Assert.Equal(JsonValueKind.Null, Column("Номер").GetProperty("options").ValueKind);
+        Assert.Equal(JsonValueKind.Null, Column("Итого").GetProperty("options").ValueKind);
     }
 
     /// <summary>

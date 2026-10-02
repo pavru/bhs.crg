@@ -37,7 +37,8 @@ public static class DataSetDtoMapper
     /// <param name="types">Виды колонок, если поставщик их объявил (таблица модуля). Тогда колонка едет
     /// с видом и СВОИМИ операторами отбора (issue #1133) — из того же списка, по которому отбор
     /// проверяется (<see cref="TableOperators" />): диалог отбора предлагает ровно то, что исполнитель
-    /// примет, и второго списка «вид → операторы» в клиенте нет. Колонка, пришедшая без значений,
+    /// примет, и второго списка «вид → операторы» в клиенте нет. Колонка-выбор едет ещё и с перечнем
+    /// своих значений (issue #1091): диалог предлагает их списком. Колонка, пришедшая без значений,
     /// едет с причиной — условие по ней исполнитель отвергнет.
     ///
     /// <para>У колонки без вида (файл, распознавание) запись прежняя, ключ в ключ: она лежит в базе, и
@@ -53,6 +54,7 @@ public static class DataSetDtoMapper
                 column["kind"] = kind;
                 column["operators"] = TableOperators.For(kind);
             }
+            if (types.OptionsOf(c.Name) is { } options) column["options"] = options;
             if (types.Closed.TryGetValue(c.Name, out var reason)) column["unavailable"] = reason;
             return column;
         }));
