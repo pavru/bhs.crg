@@ -16,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
 using System.Threading.RateLimiting;
 
 namespace BHS.CRG.Tests.Integration;
@@ -43,11 +42,18 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     /// занят нативной службой PostgreSQL на машине разработчика. Строка подключения у них
     /// одинаковая, поэтому совпадение портов означало бы тесты, молча ушедшие в чужую базу.
     /// В ci.yml сервисный контейнер публикует тот же 5433 — значение одно на все окружения.
+    ///
+    /// ⚠️ Адрес — 127.0.0.1, а НЕ localhost (issue #1142). Имя разрешается сначала в <c>::1</c>, а
+    /// порт контейнера по IPv6 на машине разработчика может не отвечать вовсе: не отказом, а
+    /// молчанием. Npgsql делит таймаут между адресами и идёт по ним по очереди, поэтому КАЖДОЕ новое
+    /// физическое подключение ждало по семь секунд — а новое оно у каждого поднятого хоста. Замер на
+    /// одном и том же наборе из трёх классов: 107 с с именем против 16 с с адресом. Снаружи это не
+    /// видно никак: тесты зелёные, просто медленные.
     /// </summary>
     internal static readonly string TestConnectionString =
         // Include Error Detail — чтобы отказ базы называл, что именно сцепилось: без него взаимная
         // блокировка из #928 пришла с «Detail redacted», и обе стороны пришлось вычислять по журналу.
-        "Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Include Error Detail=true;Database="
+        "Host=127.0.0.1;Port=5433;Username=postgres;Password=xxsystem;Include Error Detail=true;Database="
         + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
     /// <summary>
@@ -289,16 +295,21 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     }
 
     /// <summary>
-    /// Таблицы учётных записей, очищаемые РАЗ ЗА ПРОГОН (<see cref="ResetForRunAsync" />) — в придачу
-    /// к <see cref="TruncatedTables" />. Между классами их трогать нельзя: вошедший пользователь
-    /// живёт дольше одного теста. А в начале прогона их ещё никто не завёл, и всё, что в них лежит, —
-    /// от прошлых прогонов. Каскад уносит и то, что на учётную запись ссылается (роли пользователя,
-    /// его настройки, отметки уведомлений); сессии названы отдельно — внешнего ключа у них нет.
+    /// База этого хоста. Наследник со своей базой называет её здесь — и той же строкой переопределяет
+    /// подключение в <c>ConfigureWebHost</c>.
+    ///
+    /// <para>Отдельным свойством, потому что знать базу надо ДО старта хоста: её занимают и чистят
+    /// раньше, чем приложение начнёт в неё писать. Спросить у конфигурации значило бы поднять хост.
+    /// Расхождение объявленного с настоящим ловит <see cref="EnsureRunsOnDeclaredDatabase" /> — иначе
+    /// наследник, забывший это свойство, чистил бы общую базу, а свою копил бы молча.</para>
     /// </summary>
-    internal static readonly string[] RunTruncatedTables = ["AspNetUsers", "RefreshTokens"];
+    protected virtual string HostConnectionString => TestConnectionString;
 
-    /// <summary>По одной очистке на БАЗУ за процесс; ключ — строка подключения хоста.</summary>
-    private static readonly ConcurrentDictionary<string, Lazy<Task>> RunResets = new();
+    /// <summary>По одной очистке на БАЗУ за процесс.</summary>
+    private static readonly OncePerKey RunResets = new();
+
+    /// <summary>Сколько ждать, пока базу отпустит доживающий процесс прошлого прогона.</summary>
+    protected static readonly TimeSpan ClaimPatience = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// База чистится один раз, перед первым тестом прогона (issue #1142). xUnit зовёт это у фикстуры
@@ -309,19 +320,22 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     /// вовсе — отделяют свои строки меткой и за собой не убирают. Без очистки раз за прогон всё это
     /// растёт от прогона к прогону, и только на машине разработчика: в CI база каждый раз свежая. За
     /// несколько десятков прогонов у хоста строк счёта набралось 4262 счёта, 4081 учётная запись и 603
-    /// источника на одной таблице, схема типа счёта доросла до 578 полей (каждый посев дописывает
-    /// три), а в общей базе лежало 1634 роли и 7239 сессий. Запрос списка наборов перестал
-    /// укладываться в сто секунд, и падал тест, который ни в чём не виноват.</para>
+    /// источника на одной таблице, а в общей базе лежало 1634 роли и 7239 сессий. Запрос списка
+    /// наборов перестал укладываться в сто секунд, и падал тест, который ни в чём не виноват.</para>
     ///
     /// <para>⚠️ Стоит это в самом хосте и у ВСЕХ хостов, а не у двух, на которых нашлось: новый хост
     /// со своей базой иначе снова копил бы молча, а вопрос «кто убирает» не возникает, пока база
     /// маленькая.</para>
     ///
-    /// <para>⚠️ Две сессии на одной базе мешают друг другу: вторая, стартуя, снесёт строки первой. У
-    /// общей тестовой базы так было всегда (её чистит каждый класс), теперь так и у баз хостов
-    /// счетов. Развязка та же — своё имя базы в <c>BHS_TEST_DB</c> (issue #618).</para>
+    /// <para>⚠️ Второй прогон на той же базе не начнётся: базу держит первый
+    /// (<see cref="TestRunDatabase.ClaimAsync" />). Развязка — своё имя базы в <c>BHS_TEST_DB</c>
+    /// (issue #618).</para>
     /// </summary>
-    public Task InitializeAsync() => ResetOncePerRunAsync();
+    public async Task InitializeAsync()
+    {
+        await ResetOncePerRunAsync();
+        EnsureRunsOnDeclaredDatabase();
+    }
 
     // Явно: у WebApplicationFactory уже есть DisposeAsync с другим возвращаемым типом. Гасит хост
     // по-прежнему Dispose — xUnit зовёт его следом.
@@ -335,47 +349,54 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     /// классом снесла бы организации и номенклатуру, на которые уже указывают статические поля, — и
     /// падали бы не те тесты, что чистили. Сторож — <c>RunResetTests</c>.</para>
     ///
-    /// <para>Отказ очистки запоминается вместе с ней: все классы хоста упадут одной причиной. Это
-    /// нарочно — зелёный прогон на базе с чужими строками хуже честного отказа.</para>
+    /// <para>Хост при этом не поднимается, пока очистка не дошла до своей второй половины: ключ —
+    /// объявленная база, а не то, что ответит конфигурация.</para>
     /// </summary>
     internal Task ResetOncePerRunAsync() =>
-        RunResets.GetOrAdd(Database, _ => new Lazy<Task>(ResetForRunAsync)).Value;
+        RunResets.RunAsync(TestRunDatabase.KeyOf(HostConnectionString), ResetForRunAsync);
 
     /// <summary>Очистка этого прогона у базы хоста уже прошла — для сторожей, не для тестов.</summary>
-    internal bool CleanedThisRun =>
-        RunResets.TryGetValue(Database, out var reset) && reset is { IsValueCreated: true, Value.IsCompletedSuccessfully: true };
-
-    private string Database => Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")!;
+    internal bool CleanedThisRun => RunResets.Done(TestRunDatabase.KeyOf(HostConnectionString));
 
     /// <summary>
-    /// Привести базу к виду «приложение только что поднялось на пустой»: всё, что чистится между
-    /// классами, плюс учётные записи и роли, заведённые тестами.
+    /// Привести базу к виду «приложение только что поднялось на пустой» — в два приёма, и порядок
+    /// здесь главное.
     ///
-    /// <para>Чего НЕ трогает — того, что создаётся только при старте хоста, а старт к этому моменту
-    /// уже прошёл и повторён не будет: справочник прав, встроенные профили распознавания и системные
-    /// роли с их составом (причины — в <c>FixtureResetCoverageTests.DeliberatelyKept</c>). Роли
-    /// поэтому не TRUNCATE, а удаление всех, КРОМЕ системных: чужая здесь только та, что завёл тест
-    /// («Narrow_…», «Granted_…» — по одной на каждую проверку узкого права).</para>
+    /// <para>ДО старта хоста: занять базу и снести учётные таблицы — всё, включая роли. Системные
+    /// роли с составом прав вернёт сам старт, и перечислять их здесь не надо: список «что создаёт
+    /// старт» разошёлся бы с приложением на первой роли, заведённой мимо него.</para>
     ///
-    /// <para>Типы модулей очистка сносит вместе с остальными типами, и возвращать их здесь не нужно:
-    /// посев классов заводит «Организацию» и повторяет проекцию сам — на свежей базе в CI при старте
-    /// их тоже нет, потому что цели у ссылок счёта ещё не существует.</para>
+    /// <para>ПОСЛЕ старта: то же, что между классами (<see cref="ResetDatabaseAsync" />), — список
+    /// таблиц и схемы модулей берутся у поднятого приложения. Справочник прав и встроенные профили
+    /// распознавания при этом остаются (<c>FixtureResetCoverageTests.DeliberatelyKept</c>). Типы
+    /// модулей сносятся вместе с остальными типами, и возвращать их не нужно: посев классов заводит
+    /// «Организацию» и повторяет проекцию сам — на свежей базе в CI при старте их тоже нет.</para>
     /// </summary>
-    internal async Task ResetForRunAsync()
+    private async Task ResetForRunAsync()
     {
-        await ResetDatabaseAsync();
+        await TestRunDatabase.ClaimAsync(HostConnectionString, ClaimPatience);
+        await TestRunDatabase.ClearIdentityAsync(HostConnectionString);
 
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-#pragma warning disable EF1003 // склеиваются имена таблиц из константы выше, а не значения
-        await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE " + string.Join(", ", RunTruncatedTables.Select(t => $"\"{t}\""))
-            + " RESTART IDENTITY CASCADE");
-#pragma warning restore EF1003
+        // Первое обращение к службам поднимает хост — уже на вычищенных учётных таблицах.
+        EnsureRunsOnDeclaredDatabase();
+        await OncePerKey.RetryOnceAsync(ResetDatabaseAsync, TimeSpan.FromSeconds(2));
+    }
 
-        var system = BHS.CRG.Api.Auth.SystemRoles.All.Select(r => r.Name).ToArray();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""DELETE FROM "AspNetRoles" WHERE NOT ("Name" = ANY({system}))""");
+    /// <summary>
+    /// Хост работает на той базе, которую объявил. Иначе занята и вычищена была бы одна база, а
+    /// тесты шли бы на другой — никем не занятой и никогда не чищенной.
+    /// </summary>
+    private void EnsureRunsOnDeclaredDatabase()
+    {
+        var declared = TestRunDatabase.KeyOf(HostConnectionString);
+        var actual = TestRunDatabase.KeyOf(
+            Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")!);
+        if (declared == actual) return;
+
+        throw new InvalidOperationException(
+            $"{GetType().Name} объявил базу «{declared}», а работает на «{actual}». Переопределите " +
+            $"{nameof(HostConnectionString)} той же строкой, что подставлена в ConfigureWebHost: по ней " +
+            "базу занимают и чистят перед прогоном.");
     }
 }
 

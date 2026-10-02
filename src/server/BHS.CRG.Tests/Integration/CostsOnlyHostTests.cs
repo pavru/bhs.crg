@@ -231,6 +231,8 @@ public sealed class CostsOnlyHost : IntegrationTestFixture
         return builder.ConnectionString;
     }
 
+    protected override string HostConnectionString => ConnectionString;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);

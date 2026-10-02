@@ -140,9 +140,11 @@ public static class DataSetDtoMapper
     /// а колонки провайдера зависят от схемы типа и меняются вместе с ней.
     ///
     /// null (отдать кэш) и на пустом списке — см. те же соображения в <c>DataSnapshotService</c>.
+    ///
+    /// Саму строку собирает <see cref="SystemSourceCounter" /> — один раз на консолидацию, а не здесь
+    /// на каждый источник.
     /// </summary>
-    private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live)
-        => live is { Columns.Count: > 0 } l ? SerializeSchema(l.Columns, l.Types) : null;
+    private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live) => live?.Schema;
 
     /// <param name="bindingCounts">Сколько привязок у каждого источника; null — не считали (ответ
     /// одиночной мутации). Показывать из-за этого ложный ноль нельзя, поэтому и в DTO едет null.</param>

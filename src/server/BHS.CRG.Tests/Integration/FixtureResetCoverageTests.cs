@@ -36,14 +36,20 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
 
         // Учётные записи заводятся тестами по мере надобности и живут дольше одного класса;
         // очистка выбила бы и пользователей, зарегистрированных для проверок авторизации.
-        ["AspNetUsers"] = "Identity: учётные записи, чистятся точечно теми, кто их заводит",
-        ["AspNetRoles"] = "Identity: роли создаёт приложение при старте, TRUNCATE их не вернёт",
+        //
+        // ⚠️ «Между классами не чистятся» не значит «не чистятся вовсе». За собой их убирают не все,
+        // роли и сессии — почти никто: в общей базе набралось 1634 роли и 7239 сессий при 16 учётных
+        // записях. Поэтому учётные таблицы сносятся раз за прогон, ДО старта хоста
+        // (TestRunDatabase.IdentityTables, issue #1142) — тогда роли возвращает сам старт.
+        ["AspNetUsers"] = "Identity: учётные записи живут дольше класса; сносятся раз за прогон",
+        ["AspNetRoles"] = "Identity: роли создаёт старт, посреди прогона их никто не вернёт; сносятся раз за прогон, до старта",
         ["AspNetUserRoles"] = "Identity: связь пользователь-роль",
         ["AspNetUserClaims"] = "Identity",
         ["AspNetUserLogins"] = "Identity",
         ["AspNetUserTokens"] = "Identity",
         ["AspNetRoleClaims"] = "Identity",
-        ["RefreshTokens"] = "Identity: сессии, уходят вместе с пользователями",
+        // Внешнего ключа на учётную запись у сессий НЕТ: удалённый пользователь оставляет свои.
+        ["RefreshTokens"] = "Identity: сессии вошедших пользователей; сносятся раз за прогон",
     };
 
     /// <summary>
@@ -108,7 +114,7 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         var tables = TableNames().ToHashSet(StringComparer.Ordinal);
 
         var vanished = IntegrationTestFixture.TruncatedTables.Concat(DeliberatelyKept.Keys)
-            .Concat(IntegrationTestFixture.RunTruncatedTables)
+            .Concat(TestRunDatabase.IdentityTables)
             .Where(t => !tables.Contains(t))
             .OrderBy(t => t, StringComparer.Ordinal)
             .ToList();
@@ -124,7 +130,7 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
     [Fact]
     public void RunTruncatedTables_AreKeptBetweenClasses()
     {
-        var stray = IntegrationTestFixture.RunTruncatedTables
+        var stray = TestRunDatabase.IdentityTables
             .Where(t => !DeliberatelyKept.ContainsKey(t))
             .ToList();
 

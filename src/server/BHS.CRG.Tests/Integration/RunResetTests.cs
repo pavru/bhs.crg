@@ -5,13 +5,14 @@ using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
 /// <summary>
-/// Очистка базы раз за прогон (issue #1142): что она сносит, что обязана оставить и почему второй раз
-/// за прогон не случается.
+/// Очистка базы раз за прогон (issue #1142): что она сносит, что возвращает старт, почему второй раз
+/// за прогон не случается и почему второй ПРОГОН на той же базе не начинается.
 ///
 /// <para>Проверяется на хосте портов, а не на хостах счетов, на которых накопление нашлось: его база
 /// и так сбрасывается перед каждым тестом, то есть очистка посреди прогона здесь никому не мешает. У
@@ -23,33 +24,39 @@ public class RunResetTests(ModulePortsHost host) : IClassFixture<ModulePortsHost
 {
     private const string Password = "Test#12345";
 
+    private string Database => host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")!;
+
     /// <summary>
-    /// Следы прошлого прогона уходят, а созданное стартом хоста остаётся. Вторая половина важнее
-    /// первой: старт к моменту очистки уже прошёл, и снесённые системные роли, права или встроенные
-    /// профили никто не вернул бы до конца прогона — падали бы входы и проверки прав во всех классах
-    /// хоста, а причину искали бы в них.
+    /// Учётные таблицы сносятся целиком, а созданное стартом возвращает СТАРТ — поэтому очистка и
+    /// стоит до него. Вторая половина важнее первой: вернись системные роли не все или без прав,
+    /// падали бы входы и проверки прав во всех классах хоста, а причину искали бы в них.
+    ///
+    /// <para>⚠️ Второй хост здесь поднимается нарочно: проверяется именно то, что делает его старт.
+    /// Сверяется при этом не список «что создаёт старт», а состояние до и после — список у очистки
+    /// был, и расходился бы с приложением на первой роли, заведённой мимо него.</para>
     /// </summary>
     [Fact]
-    public async Task Очистка_сносит_следы_тестов_и_оставляет_созданное_стартом()
+    public async Task Учётные_таблицы_сносятся_а_созданное_стартом_возвращает_старт()
     {
-        await host.ResetForRunAsync();
-        var seeded = await SeededAsync();
+        var seeded = await SeededAsync(host);
         // Сравнивать «до» и «после» имеет смысл, только когда есть что терять.
         Assert.All(seeded, s => Assert.True(s.Value > 0, $"{s.Key}: стартом не создано ничего"));
-
         var narrow = await LeaveTracesAsync();
 
-        await host.ResetForRunAsync();
+        await TestRunDatabase.ClearIdentityAsync(Database);
 
         Assert.Equal(0, await CountAsync("\"AspNetUsers\""));
-        Assert.Equal(0, await CountAsync("\"AspNetUserRoles\""));
+        Assert.Equal(0, await CountAsync("\"AspNetRoles\""));
+        Assert.Equal(0, await CountAsync("\"AspNetRoleClaims\""));
         Assert.Equal(0, await CountAsync("\"RefreshTokens\""));
-        Assert.Equal(0, await CountAsync("constructions"));
 
-        using var scope = host.Services.CreateScope();
+        using var next = new ModulePortsHost();
+        Assert.Equal(seeded, await SeededAsync(next));
+        using var scope = next.Services.CreateScope();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         Assert.Null(await roles.FindByNameAsync(narrow));
-        Assert.Equal(seeded, await SeededAsync());
+
+        await host.ResetDatabaseAsync();
     }
 
     /// <summary>
@@ -64,19 +71,37 @@ public class RunResetTests(ModulePortsHost host) : IClassFixture<ModulePortsHost
         // а не полагаемся: сними её кто-нибудь с InitializeAsync — базы снова начнут копить, и ни один
         // тест этого не заметит, потому что на маленькой базе всё зелёное.
         Assert.True(host.CleanedThisRun, "хост класса поднят, а его база перед первым тестом не очищена");
-        await LeaveTracesAsync();
+        var narrow = await LeaveTracesAsync();
         var (users, sites) = (await CountAsync("\"AspNetUsers\""), await CountAsync("constructions"));
         Assert.True(users > 0 && sites > 0, "следы не оставлены — сносить было бы нечего");
 
-        // Хост следующего класса: новый экземпляр на той же базе и тот же вызов, что делает xUnit.
+        // Хост следующего класса: новый экземпляр на той же базе. Поднимать его незачем — ключ ворот
+        // берётся из объявленной базы, и до служб дело не доходит.
         using var next = new ModulePortsHost();
-        await next.InitializeAsync();
+        await next.ResetOncePerRunAsync();
         await host.InitializeAsync();
 
         Assert.Equal(users, await CountAsync("\"AspNetUsers\""));
         Assert.Equal(sites, await CountAsync("constructions"));
 
-        await host.ResetForRunAsync();
+        await RemoveTracesAsync(narrow);
+    }
+
+    /// <summary>
+    /// Базу держит этот прогон, и второй претендент получает отказ с причиной — а не сносит строки
+    /// из-под идущих тестов. Претендентом здесь служит новое подключение из этого же процесса: замок
+    /// держится подключением, и для базы оно ничем не отличается от соседнего прогона.
+    /// </summary>
+    [Fact]
+    public async Task Второй_прогон_на_занятой_базе_получает_отказ_с_причиной()
+    {
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => TestRunDatabase.LockAsync(Database, TimeSpan.Zero));
+
+        Assert.Contains("уже держит другой прогон", refusal.Message);
+        Assert.Contains("BHS_TEST_DB", refusal.Message);
+        // Отказ называет держателя — иначе искать висящий процесс пришлось бы перебором.
+        Assert.Contains($"pid {Environment.ProcessId}", refusal.Message);
     }
 
     /// <summary>
@@ -112,20 +137,42 @@ public class RunResetTests(ModulePortsHost host) : IClassFixture<ModulePortsHost
         return name;
     }
 
-    /// <summary>Созданное стартом хоста: по числу строк на таблицу, системные роли — поимённо.</summary>
-    private async Task<Dictionary<string, int>> SeededAsync()
+    /// <summary>
+    /// Убрать следы поимённо. Общей очисткой здесь не обойтись: она сносит и системные роли, а
+    /// возвращает их только старт.
+    /// </summary>
+    private async Task RemoveTracesAsync(string narrow)
     {
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlRawAsync("""DELETE FROM "RefreshTokens"; DELETE FROM "AspNetUsers";""");
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            Assert.True((await roles.DeleteAsync((await roles.FindByNameAsync(narrow))!)).Succeeded);
+        }
+        await host.ResetDatabaseAsync();
+    }
+
+    /// <summary>
+    /// Созданное стартом хоста, как оно лежит в базе: число строк справочников и КАЖДАЯ роль со
+    /// своим числом прав. Имена ролей берутся из базы, а не из кода приложения.
+    /// </summary>
+    private static async Task<Dictionary<string, int>> SeededAsync(IntegrationTestFixture fixture)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
         var seeded = new Dictionary<string, int>
         {
-            ["permissions"] = await CountAsync("permissions"),
-            ["recognition_profiles"] = await CountAsync("recognition_profiles"),
-            ["AspNetRoleClaims"] = await CountAsync("\"AspNetRoleClaims\""),
+            ["permissions"] = await db.Database.SqlQueryRaw<int>("""SELECT count(*)::int AS "Value" FROM permissions""").SingleAsync(),
+            ["recognition_profiles"] = await db.Database.SqlQueryRaw<int>("""SELECT count(*)::int AS "Value" FROM recognition_profiles""").SingleAsync(),
         };
 
-        using var scope = host.Services.CreateScope();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-        foreach (var definition in SystemRoles.All)
-            seeded[$"роль {definition.Name}"] = await roles.FindByNameAsync(definition.Name) is null ? 0 : 1;
+        foreach (var role in await roles.Roles.ToListAsync())
+            // +1 — сама роль: у «Администратора» права не перечислены, и ноль прав не должен читаться
+            // как «роли нет».
+            seeded[$"роль {role.Name}"] = 1 + (await roles.GetClaimsAsync(role)).Count;
         return seeded;
     }
 

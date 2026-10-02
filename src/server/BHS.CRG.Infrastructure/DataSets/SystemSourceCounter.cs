@@ -50,8 +50,13 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
     /// <summary>Что известно про системный источник на момент чтения.</summary>
     /// <param name="Types">Виды колонок, если поставщик их объявил (таблица модуля): по ним диалог
     /// отбора предлагает колонке её операторы (issue #1133).</param>
+    /// <param name="Schema">Колонки в том виде, в каком их ждёт клиент от <c>CachedSchema</c>; null —
+    /// колонок нет, и отдавать надо запомненное. Сериализуется ЗДЕСЬ, один раз на ответ провайдера:
+    /// состояние у источников одной консолидации общее, и собирать ту же строку заново на каждый
+    /// источник списка значило бы вернуть по мелочи то, от чего ушли (issue #1142).</param>
     public readonly record struct SystemSourceState(
-        int RowCount, string? Warning, IReadOnlyList<DataSetColumnInfo> Columns, DataSetColumnTypes? Types = null);
+        int RowCount, string? Warning, IReadOnlyList<DataSetColumnInfo> Columns, DataSetColumnTypes? Types = null,
+        string? Schema = null);
 
     /// <summary>
     /// Состояние по id источника для системных наборов из выборки (источники берутся из
@@ -131,7 +136,8 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
             // источнике лежит с момента создания и уезжает в резервную копию — новой утечки здесь нет.
             SystemDataSetGate.Ensure(provider.Declaration, access, "");
             var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
-            return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns, provided.Types);
+            return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns, provided.Types,
+                provided.Columns.Count > 0 ? DataSetDtoMapper.SerializeSchema(provided.Columns, provided.Types) : null);
         }
         // Ловим НАШ отказ провайдера («источник доступен только на уровне комплекта» и подобные) —
         // для счётчика это просто «состояния нет». Чужое исключение сюда попадать не должно: оно

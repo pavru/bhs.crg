@@ -227,16 +227,6 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     }
 
     /// <summary>
-    /// Запись справочника — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: общие данные (<c>domain_objects</c>). Сойдя с
-    /// дороги экрана, тест снова начал бы подтверждать сам себя — ровно это и случилось в C1, когда
-    /// помощник писал в таблицу прежней модели, из которой читал порт.
-    /// </summary>
-    /// <para>⚠️ Заводится, только если такой записи ещё нет. Проверка осталась от времени, когда база
-    /// между прогонами не чистилась вовсе: статические поля класса сбрасывались, строки — нет, и посев
-    /// на втором прогоне давал вторую «Трубу гофрированную». Теперь базу раз за прогон чистит хост
-    /// (issue #1142), и двойнику взяться неоткуда; проверка стоит на случай, когда очистку обошли —
-    /// тест поиска упал бы тогда на дубле, которого в коде нет.</para>
-    /// <summary>
     /// Позиция номенклатуры без названия — так, как это бывает в живой базе (записи без имени в ней
     /// есть). Имя снимается запросом к базе, а не командой: команда его требует, и правильно
     /// требует — состояние это старое, а не создаваемое.
@@ -261,13 +251,20 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         await db.Database.ExecuteSqlRawAsync("""DELETE FROM domain_objects WHERE "Id" = {0}""", id);
     }
 
+    /// <summary>
+    /// Запись справочника — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: общие данные (<c>domain_objects</c>). Сойдя с
+    /// дороги экрана, тест снова начал бы подтверждать сам себя — ровно это и случилось в C1, когда
+    /// помощник писал в таблицу прежней модели, из которой читал порт.
+    ///
+    /// <para>Заводится всегда, без поиска «нет ли уже такой». Поиск стоял здесь, пока база между
+    /// прогонами не чистилась: посев второго прогона давал вторую «Трубу гофрированную». Теперь базу
+    /// раз за прогон чистит хост (issue #1142), и поиск только прятал бы поломку очистки — посев молча
+    /// взял бы запись прошлого прогона. Без него тест поиска упадёт на дубле и на неё укажет.</para>
+    /// </summary>
     protected async Task<Guid> EntryAsync(Guid typeId, string name)
     {
         using var scope = host.Services.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-
-        var known = await mediator.Send(new ListCommonDataRefsQuery([typeId], name));
-        if (known.FirstOrDefault(r => r.DisplayName == name) is { } found) return found.Id;
 
         var created = await mediator.Send(new CreateCommonDataEntryCommand(name, typeId,
             JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""), CatalogScope.System, null, null));
@@ -317,6 +314,8 @@ public sealed class InvoiceLineHost : IntegrationTestFixture
         builder.Database += "_lines";
         return builder.ConnectionString;
     }
+
+    protected override string HostConnectionString => ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

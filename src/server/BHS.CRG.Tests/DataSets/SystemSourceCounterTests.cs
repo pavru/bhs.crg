@@ -39,6 +39,9 @@ public class SystemSourceCounterTests
         /// <summary>Отказывать, как поставщик отказывает на уровне, где консолидация неприменима.</summary>
         public bool Refuses { get; set; }
 
+        /// <summary>Отдавать строки без единой колонки — так выглядит консолидация, которой нечего показать.</summary>
+        public bool NoColumns { get; set; }
+
         public SystemDataSetDeclaration Declaration { get; } = new(
             SystemDataSetDeclaration.CoreModule, "core.catalog.read",
             SystemDataSetIsolation.None, ["Отдаёт записи общих данных"]);
@@ -59,7 +62,8 @@ public class SystemSourceCounterTests
             var rows = Enumerable.Range(1, count)
                 .Select(i => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?> { ["Наименование"] = $"Строка {i}" })
                 .ToList();
-            return Task.FromResult(new DataSetParseResult([new DataSetColumnInfo("Наименование", [])], rows));
+            return Task.FromResult(new DataSetParseResult(
+                NoColumns ? [] : [new DataSetColumnInfo("Наименование", [])], rows));
         }
     }
 
@@ -160,6 +164,45 @@ public class SystemSourceCounterTests
 
         Assert.Single(provider.Asked);
         Assert.Equal(2, states.Count);
+    }
+
+    /// <summary>
+    /// Схема источника для клиента собирается вместе с состоянием — одна на консолидацию. Список
+    /// наборов отдаёт её каждому источнику, и собранная заново на каждый она стоила бы столько же
+    /// сериализаций, сколько источников в списке.
+    /// </summary>
+    [Fact]
+    public async Task Схема_собирается_один_раз_на_консолидацию()
+    {
+        var (counter, _) = Counter();
+        var file = SystemFile();
+        var acts = file.AddSource("Акты", Documents, "[]", 0);
+        var protocols = file.AddSource("Протоколы", Documents, "[]", 0);
+
+        var states = await counter.StateAsync([file], Reader, default);
+
+        var schema = System.Text.Json.JsonDocument.Parse(states[acts.Id].Schema!).RootElement;
+        Assert.Equal("Наименование", schema[0].GetProperty("name").GetString());
+        // Одна и та же строка, а не две равные: собрана она один раз.
+        Assert.Same(states[acts.Id].Schema, states[protocols.Id].Schema);
+    }
+
+    /// <summary>
+    /// Колонок нет — схемы нет, и клиенту уезжает запомненная. Пустой список вместо неё выглядел бы
+    /// как «у источника нет колонок», и диалог привязки предложил бы выбирать из ничего.
+    /// </summary>
+    [Fact]
+    public async Task Без_колонок_схемы_нет()
+    {
+        var (counter, provider) = Counter();
+        provider.NoColumns = true;
+        var file = SystemFile();
+        var source = file.AddSource("Акты", Documents, "[]", 0);
+
+        var states = await counter.StateAsync([file], Reader, default);
+
+        Assert.Null(states[source.Id].Schema);
+        Assert.Equal(1, states[source.Id].RowCount);
     }
 
     /// <summary>
