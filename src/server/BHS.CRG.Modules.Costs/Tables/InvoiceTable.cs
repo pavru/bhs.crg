@@ -123,6 +123,11 @@ public sealed class InvoiceTableRows(
         var sql = Sql(names, shares.Labels, today);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
+        // Одна строка по ключу — тот же отбор и ещё одно условие: счёт вне отбора не приходит. Ключ,
+        // который не разбирается, — «такого счёта нет», а не все счета.
+        if (query.Row is { } key)
+            selected = Guid.TryParse(key, out var only) ? selected.Where(i => i.Id == only) : selected.Where(_ => false);
+
         // Отбор НАЗЫВАЕТ объекты — «Сумма» становится долей счёта на них (ТЗ CORE-33). Иначе это сумма
         // счёта целиком, и считает её запрос, как любую числовую колонку.
         var naming = TableFilters.Naming(query.Filter, InvoiceTable.ObjectsKey);
@@ -162,7 +167,8 @@ public sealed class InvoiceTableRows(
         var objects = shares.Objects(parts);
         return new(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, today))], count, totals,
-            naming.Count == 0 ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = shares.Note(naming) });
+            naming.Count == 0 ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = shares.Note(naming) },
+            [.. invoices.Select(i => i.Id.ToString())]);
     }
 
     /// <summary>

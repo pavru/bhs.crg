@@ -81,6 +81,13 @@ public sealed record TableSort(string Column, ModuleTableColumnKind Kind, bool D
 /// <param name="Limit">Сколько строк отдать; null — все (набор данных читает таблицу целиком).</param>
 /// <param name="Totals">Колонки, по которым нужен итог, с их видами. Итог — по ВСЕМУ отбору, а не
 /// по странице.</param>
+/// <param name="Row">Ключ ОДНОЙ строки (<see cref="ModuleTablePage.Keys" />): отдать только её — и
+/// только если она в отборе. Так экран открывает строку в боковой панели (ТЗ CORE-33; задача G1e,
+/// issue #1092) — под ТЕМ ЖЕ отбором, что и таблицу: колонка, чей смысл зависит от отбора, в панели
+/// обязана значить то же, что в клетке. null — все строки отбора.
+///
+/// <para>⚠️ Ключ, которого служба не понимает, — «такой строки нет», а не все строки: ядро сверяет
+/// ключи ответа с запрошенным и на чужой строке останавливается.</para></param>
 public sealed record ModuleTableQuery(
     IReadOnlySet<string> Columns,
     Guid UserId,
@@ -88,7 +95,8 @@ public sealed record ModuleTableQuery(
     IReadOnlyList<TableSort>? Sort = null,
     int Offset = 0,
     int? Limit = null,
-    IReadOnlyDictionary<string, ModuleTableColumnKind>? Totals = null);
+    IReadOnlyDictionary<string, ModuleTableColumnKind>? Totals = null,
+    string? Row = null);
 
 /// <summary>Страница строк таблицы.</summary>
 /// <param name="Rows">Строки страницы.</param>
@@ -97,11 +105,17 @@ public sealed record ModuleTableQuery(
 /// <param name="Notes">Что колонка значит ПОД ЭТИМ ОТБОРОМ — подписью к её заголовку: «доля: Комарова
 /// 36». Только у колонок, объявленных зависящими от отбора
 /// (<see cref="ModuleTableColumn.DependsOnFilter" />), и только когда смысл действительно сменился.</param>
+/// <param name="Keys">Ключи строк — по одному на строку, в том же порядке: чем строку назвать, чтобы
+/// прочитать её снова (<see cref="ModuleTableQuery.Row" />). Отдельным списком, а не ключом в самой
+/// строке: строка — это значения колонок, и набор данных, читающий ту же таблицу, получил бы
+/// служебный ключ лишней колонкой. null — служба ключей не называет, и строка на экране не
+/// открывается: это сказано, а не угадано по номеру строки на странице.</param>
 public sealed record ModuleTablePage(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     int Count,
     IReadOnlyDictionary<string, TableTotal> Totals,
-    IReadOnlyDictionary<string, string>? Notes = null);
+    IReadOnlyDictionary<string, string>? Notes = null,
+    IReadOnlyList<string>? Keys = null);
 
 /// <summary>
 /// Итог по колонке — по всему отбору (ТЗ CORE-33).

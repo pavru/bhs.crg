@@ -801,7 +801,7 @@ async function main() {
    * Организации и счета модуля — своим файлом (храповик размера): здесь остаётся вызов, а всё, что
    * знает про счета, живёт в `seed-invoices.mjs`.
    */
-  await seedInvoices({ api, findType, ensureEntry, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
+  await seedInvoices({ api, findType, ensureEntry, ensureUser, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
   await ensureSystemDataSet();
 
   // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
