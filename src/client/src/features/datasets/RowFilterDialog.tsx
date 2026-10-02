@@ -3,12 +3,12 @@ import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { FilterCondition, FilterGroup, FilterOp, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
-import { apiError } from '@/shared/utils/apiError';
 import {
-  conditionProblem, fromDraft, newCondition, newGroup, operatorsFor, opLabel, toDraft,
+  conditionProblem, fromDraft, newCondition, newGroup, operatorsFor, opLabel, pruneDraft, toDraft,
   withColumn, withOperator, type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
+import { useDialogSave } from './useDialogSave';
 
 // Reused field styling for condition selects/inputs.
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
@@ -44,11 +44,14 @@ function LogicToggle({
 
 function FilterConditionRow({
   cond,
+  path,
   columns,
   onChange,
   onRemove,
 }: {
   cond: FilterCondition;
+  /** Номер условия по уровням от корня («2.1») — им сервер называет условие в отказе. */
+  path: string;
   columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
@@ -68,6 +71,7 @@ function FilterConditionRow({
   return (
     <div>
       <div className="flex items-start gap-1.5 group/cond">
+        <span className="w-6 shrink-0 pt-1.5 text-[10px] tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
         {/* Column */}
         {columns.length > 0 ? (
           <select
@@ -132,12 +136,15 @@ const DEPTH_COLORS = ['var(--f-brand)', 'color-mix(in srgb, var(--f-brand) 50%, 
 
 function FilterGroupEditor({
   group,
+  path,
   onChange,
   onRemove,
   depth,
   columns,
 }: {
   group: DraftGroup;
+  /** Номер самой группы по уровням от корня; у корня пусто. */
+  path: string;
   onChange: (g: DraftGroup) => void;
   onRemove?: () => void;
   depth: number;
@@ -206,6 +213,8 @@ function FilterGroupEditor({
       {group.children.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           {group.children.map((child, i) => {
+            // Счёт узлов — тот же, что у сервера: по уровням от корня, с единицы.
+            const childPath = path ? `${path}.${i + 1}` : `${i + 1}`;
             // Ключ — свой у строки, а не её номер: строка помнит недобранное значение списка и вид
             // поля, и при удалении условия это не должно переехать к следующему.
             if (child.type === 'condition') {
@@ -213,6 +222,7 @@ function FilterGroupEditor({
                 <FilterConditionRow
                   key={child.key}
                   cond={child}
+                  path={childPath}
                   columns={columns}
                   onChange={c => updateChild(i, c)}
                   onRemove={() => removeChild(i)}
@@ -223,6 +233,7 @@ function FilterGroupEditor({
               <FilterGroupEditor
                 key={child.key}
                 group={child}
+                path={childPath}
                 depth={depth + 1}
                 columns={columns}
                 onChange={g => updateChild(i, g)}
@@ -276,30 +287,24 @@ export function RowFilterDialog({
     () => (isEditableFilterRoot(initial) ? toDraft(initial!) as DraftGroup : newGroup())
   );
 
-  const [saving, setSaving] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const { saving, refusal, clearRefusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить отбор');
 
-  async function commit(filter: RowFilterDef | null) {
-    setSaving(true);
-    setRefusal(null);
-    try {
-      await onSave(filter);
-      onClose();
-    } catch (e) {
-      setRefusal(apiError(e, 'Не удалось сохранить отбор'));
-      setSaving(false);
-    }
+  // На экране с этого момента — ровно то дерево, что уехало: пустые строки на сервер не идут, а он
+  // называет условие номером по отправленному («условие 2.1»). Останься они, номер в отказе указывал
+  // бы на соседнюю строку.
+  function handleSave() {
+    const sent = pruneDraft(root);
+    setRoot(sent);
+    void commit(() => onSave(cleanFilterNode(fromDraft(sent)) as FilterGroup | null));
   }
-
-  const handleSave = () => commit(cleanFilterNode(fromDraft(root)) as FilterGroup | null);
-  const handleReset = () => commit(null);
+  const handleReset = () => void commit(() => onSave(null));
 
   const hasAny = root.children.length > 0;
 
   return (
     <Modal
       open={true}
-      onOpenChange={o => { if (!o) onClose(); }}
+      onOpenChange={o => { if (!o) close(); }}
       title="Фильтрация строк"
       wide
       footer={
@@ -312,8 +317,9 @@ export function RowFilterDialog({
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+            onClick={close}
+            disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50"
           >
             Отмена
           </button>
@@ -345,9 +351,10 @@ export function RowFilterDialog({
       <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
+          path=""
           // Отказ сервера — про отбор, который отправляли. Тронули условие — он уже про другое
           // дерево, и висеть рядом с исправленным условием ему нельзя.
-          onChange={next => { setRoot(next); setRefusal(null); }}
+          onChange={next => { setRoot(next); clearRefusal(); }}
           onRemove={undefined}
           depth={0}
           columns={columns ?? []}

@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
@@ -34,8 +33,8 @@ public partial class DataSetSourceService
         // и иначе негодный отбор, сохранённый до #1137, запер бы источник: нельзя было бы поправить
         // ни сортировку, ни вычисляемые колонки. Хуже от такого сохранения не становится — источник
         // с этим отбором уже отказывает на чтении.
-        if (!SameJson(rowFilter, source.RowFilter)
-            && DataSetRowFilterExecutor.Problem(rowFilter, await TypesAsync(source, access, ct)) is { } problem)
+        if (!DataSetDtoMapper.SameJson(rowFilter, source.RowFilter)
+            && await FilterProblemAsync(rowFilter, source, access, ct) is { } problem)
             throw new InvalidRequestException(
                 $"Отбор строк источника «{source.Name}» не сохранён: {problem} Источник такой отбор не "
                 + "выполнит — исправьте условие и сохраните снова.");
@@ -59,7 +58,7 @@ public partial class DataSetSourceService
         // шаблона писали под другой источник, и здесь он может не выполниться («Итого содержит 1» у
         // таблицы, где «Итого» — число). Применив его, мы получили бы источник, отказывающий на
         // каждом чтении, — и человек искал бы причину в данных, а не в шаблоне.
-        if (DataSetRowFilterExecutor.Problem(template.RowFilter, await TypesAsync(source, access, ct)) is { } problem)
+        if (await FilterProblemAsync(template.RowFilter, source, access, ct) is { } problem)
             throw new InvalidRequestException(
                 $"Шаблон «{template.Name}» не применён к источнику «{source.Name}»: отбор шаблона этот "
                 + $"источник не выполнит — {problem} Источник не изменён.");
@@ -82,22 +81,25 @@ public partial class DataSetSourceService
     }
 
     /// <summary>
-    /// Виды колонок источника глазами того, кто сохраняет; null — видов нет (файл, распознавание) и
-    /// отбор проверяется только по форме. Виды объявляет поставщик системного набора, и зависят они
-    /// от прав: колонка, закрытая человеку, для него колонка без значений, и отбор по ней он не
-    /// выполнит — значит, и сохранить не должен.
+    /// Почему этот источник отбор не выполнит; null — возражений нет.
+    ///
+    /// <para>Виды колонок — глазами того, кто сохраняет: их объявляет поставщик системного набора, и
+    /// зависят они от прав. Колонка, закрытая человеку, для него колонка без значений, и отбор по
+    /// ней он не выполнит — значит, и сохранить не должен. У файла и распознавания видов нет, и
+    /// отбор проверяется только по форме.</para>
+    ///
+    /// <para>За видами идём, только когда без них не обойтись: поставщик собирает ради них
+    /// консолидацию ЦЕЛИКОМ (дешевле спросить нечем — см. <c>AutoMapAsync</c>). Отбора нет или он
+    /// негоден уже по форме — ответ известен без поставщика, и сброс отбора не должен зависеть от
+    /// того, жив ли поставщик и пускает ли он этого человека. Отказ поставщика при этом — отказ
+    /// сохранения, а не «видов нет» (<see cref="SystemSourceCounter.TypesAsync" />).</para>
     /// </summary>
-    private async Task<DataSetColumnTypes?> TypesAsync(DataSetSource source, DataAccess access, CancellationToken ct) =>
-        (await systemCounts.StateAsync(source, source.File, access, ct))?.Types;
-
-    /// <summary>
-    /// Один ли это отбор. Сравниваем значением, а не текстом: в базе отбор лежит в <c>jsonb</c>, и
-    /// порядок ключей с пробелами у прочитанного оттуда другой, чем у пришедшего в запросе.
-    /// </summary>
-    internal static bool SameJson(string? left, string? right)
+    private async Task<string?> FilterProblemAsync(
+        string? rowFilter, DataSetSource source, DataAccess access, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-            return string.IsNullOrWhiteSpace(left) && string.IsNullOrWhiteSpace(right);
-        return JsonNode.DeepEquals(JsonNode.Parse(left), JsonNode.Parse(right));
+        if (string.IsNullOrWhiteSpace(rowFilter)) return null;
+        return DataSetRowFilterExecutor.Problem(rowFilter)
+            ?? DataSetRowFilterExecutor.Problem(
+                rowFilter, await systemCounts.TypesAsync(source, source.File, access, ct));
     }
 }

@@ -181,8 +181,11 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const columns = [...new Set([...parseSourceColumnNames(src.cachedSchema), ...computedAliases])];
   const cols = parseSourceColumnNames(src.cachedSchema);
 
+  // Обработка уезжает ЦЕЛИКОМ, и сервер может отказать (issue #1137) — любому из трёх диалогов:
+  // отбор проверяется, если он в запросе не тот, что в базе, а у диалога сортировки он из копии
+  // источника на странице. Поэтому обещание отдаём диалогу — он ждёт ответ и показывает отказ у себя.
   function save(patch: { rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null }) {
-    setProcessing.mutate({
+    return setProcessing.mutateAsync({
       id: src.id, rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec, ...patch,
     });
   }
@@ -299,10 +302,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       {filterOpen && (
         <RowFilterDialog columns={filterColumns(parseSourceColumns(src.cachedSchema), computedAliases)}
           initial={src.rowFilter}
-          onSave={f => setProcessing.mutateAsync({
-            id: src.id, rowFilter: f, computedColumns: src.computedColumns, sortSpec: src.sortSpec,
-          })}
-          onClose={() => setFilterOpen(false)} />
+          onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
       )}
       {/* Диалогу отдаём только колонки САМОГО источника, без вычисляемых псевдонимов (issue #539):
           фишка несёт номер позиции, а позиции вычисляемых колонок меняются по ходу — при вычислении

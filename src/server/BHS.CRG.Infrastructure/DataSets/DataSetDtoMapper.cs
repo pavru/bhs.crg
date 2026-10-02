@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Tables;
@@ -69,6 +70,18 @@ public static class DataSetDtoMapper
 
     public static object? DeserializeJson(string? json) =>
         json is null ? null : JsonSerializer.Deserialize<object>(json);
+
+    /// <summary>
+    /// Одно ли это значение. Сравниваем значением, а не текстом: в базе обработка лежит в
+    /// <c>jsonb</c>, и порядок ключей с пробелами у прочитанного оттуда другой, чем у пришедшего в
+    /// запросе. Отсутствие значения равно только отсутствию.
+    /// </summary>
+    public static bool SameJson(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+            return string.IsNullOrWhiteSpace(left) && string.IsNullOrWhiteSpace(right);
+        return JsonNode.DeepEquals(JsonNode.Parse(left), JsonNode.Parse(right));
+    }
 
     // Значение ячейки для предпросмотра — через общий DataSetMappingApplier (issue #374). Для ссылочного
     // маппинга (@@ref) показываем искомое значение колонки с маркером «🔗 …» — фактический резолвинг в

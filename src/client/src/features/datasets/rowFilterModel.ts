@@ -214,6 +214,22 @@ export function toDraft(node: FilterNode): DraftNode {
   return { ...node, column: typeof node.column === 'string' ? node.column : '', op: node.op ?? 'eq', key: nextKey() };
 }
 
+/**
+ * Черновик без того, что на сервер не уедет: строк с невыбранной колонкой и опустевших групп — по
+ * правилу `cleanFilterNode`. Диалог показывает ЭТО дерево с момента сохранения: сервер называет
+ * условие номером по отправленному дереву («условие 2.1»), и останься пустые строки на экране, номер
+ * указывал бы на соседнее условие — а колонка у соседей бывает одна. Ключи уцелевших строк прежние;
+ * корень остаётся и пустым — диалогу нужна группа.
+ */
+export function pruneDraft(group: DraftGroup): DraftGroup {
+  const children = group.children.flatMap<DraftNode>(child => {
+    if (child.type === 'condition') return child.column.trim() ? [child] : [];
+    const pruned = pruneDraft(child);
+    return pruned.children.length > 0 ? [pruned] : [];
+  });
+  return { ...group, children };
+}
+
 /** Черновик — обратно в дерево, которое уходит на сервер: без ключей строк. */
 export function fromDraft(node: DraftNode): FilterNode {
   if (node.type === 'group') {

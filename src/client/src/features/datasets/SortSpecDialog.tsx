@@ -4,6 +4,7 @@ import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal } from '@/shared/ui/Modal';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
+import { useDialogSave } from './useDialogSave';
 
 function SortRow({
   level, columns, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast,
@@ -65,9 +66,11 @@ export function SortSpecDialog({
 }: {
   columns?: string[];
   initial: SortSpec | null;
-  onSave: (spec: SortSpec | null) => void;
+  /** Обещание ждём: отказ сервера показываем здесь же, диалог закрывается только при успехе. */
+  onSave: (spec: SortSpec | null) => void | Promise<unknown>;
   onClose: () => void;
 }) {
+  const { saving, refusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить сортировку');
   // Личности строк (issue #517): без них повторный Enter по «Ниже» двигает уже другой уровень.
   const [levels, setLevels] = useState<SortColumn[]>(() => withRowUids(initial ?? []));
 
@@ -92,28 +95,30 @@ export function SortSpecDialog({
 
   function handleSave() {
     const valid = levels.filter(l => l.column.trim());
-    onSave(valid.length > 0 ? valid : null);
-    onClose();
+    void commit(() => onSave(valid.length > 0 ? valid : null));
   }
 
   return (
     <Modal
       open={true}
-      onOpenChange={o => { if (!o) onClose(); }}
+      onOpenChange={o => { if (!o) close(); }}
       title="Сортировка строк"
       wide
       footer={
         <div className="flex gap-2">
-          <button onClick={handleSave} className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand">
-            Сохранить
+          <button onClick={handleSave} disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50">
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
-          <button onClick={onClose} className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted">
+          <button onClick={close} disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50">
             Отмена
           </button>
           {levels.length > 0 && (
             <button
-              onClick={() => { setLevels([]); onSave(null); onClose(); }}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+              onClick={() => void commit(() => onSave(null))}
+              disabled={saving}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
             >
               Сбросить
             </button>
@@ -151,6 +156,8 @@ export function SortSpecDialog({
       >
         <Plus size={13} /> Добавить уровень сортировки
       </button>
+
+      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
     </Modal>
   );
 }

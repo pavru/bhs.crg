@@ -205,8 +205,15 @@ public static class DataSetRowFilterExecutor
 
         var children = node.Children ?? [];
         for (var i = 0; i < children.Length; i++)
-            if (Check(children[i], path.Length == 0 ? $"{i + 1}" : $"{path}.{i + 1}", types) is { } problem)
-                return problem;
+        {
+            var childPath = path.Length == 0 ? $"{i + 1}" : $"{path}.{i + 1}";
+            // «null» среди узлов разбор пропускает как значение — и без этой строки отказом был бы
+            // NullReferenceException: 500 без текста вместо названной причины и на сохранении, и на
+            // чтении отбора, приехавшего из копии.
+            if (children[i] is null)
+                return $"{Place("узел", childPath)} записан значением «null»: ни условия, ни группы в нём нет.";
+            if (Check(children[i], childPath, types) is { } problem) return problem;
+        }
         return null;
     }
 

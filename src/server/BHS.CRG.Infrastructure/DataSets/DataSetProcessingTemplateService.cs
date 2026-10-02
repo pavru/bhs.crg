@@ -43,7 +43,7 @@ public class DataSetProcessingTemplateService(AppDbContext db)
         if (template == null) return null;
 
         var rowFilter = DataSetDtoMapper.SerializeJson(input.RowFilter);
-        if (!DataSetSourceService.SameJson(rowFilter, template.RowFilter)) EnsureFilter(rowFilter, input.Name);
+        if (!DataSetDtoMapper.SameJson(rowFilter, template.RowFilter)) EnsureFilter(rowFilter, input.Name);
         template.Update(input.Name, input.SheetOrPath, DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions),
             rowFilter, DataSetDtoMapper.SerializeJson(input.ComputedColumns),
             DataSetDtoMapper.SerializeJson(input.SortSpec));

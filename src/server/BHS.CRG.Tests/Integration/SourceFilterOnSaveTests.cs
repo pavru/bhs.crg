@@ -173,6 +173,67 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         Assert.Null(await StoredAsync(id));
     }
 
+    /// <summary>
+    /// «Виды узнать не удалось» — не «видов нет». Кому поставщик отказывает в строках (нет доступа к
+    /// модулю), тому нечем и проверить отбор: прими мы его по форме, человек сохранил бы «Итого
+    /// содержит 1» — отказом для всех, кто источник читает. Отказ — тот же, что на чтении.
+    ///
+    /// <para>А вот снять отбор и применить шаблон без отбора он может: проверять там нечего, и за
+    /// видами служба к поставщику не идёт вовсе — сброс не должен зависеть от того, пускает ли
+    /// поставщик этого человека и жив ли он.</para>
+    /// </summary>
+    [Fact]
+    public async Task Кому_поставщик_отказывает_тот_отбор_не_сохраняет_но_снять_может()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var id = await SourceAsync(admin);
+        await OkAsync(await PutAsync(admin, id, Good));
+        var (_, outsider) = await SignInAsync("Installer");
+
+        // По форме отбор годен, негоден он этому источнику — без видов проверка его пропустила бы.
+        await Assert.ThrowsAsync<ForbiddenException>(() => AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
+            id, new SetSourceProcessingInput(JsonDocument.Parse(WrongKind).RootElement, null, null), access, default)));
+        Assert.Contains("between", await StoredAsync(id));
+
+        // Негодный по форме отбор назван и без поставщика — причина та же, что у всех.
+        var named = await Assert.ThrowsAsync<InvalidRequestException>(() => AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
+            id, new SetSourceProcessingInput(JsonDocument.Parse(UnknownOp).RootElement, null, null), access, default)));
+        Assert.Contains("«betwen»", named.Message);
+
+        // Шаблон без отбора — только сортировка: проверять нечего, поставщик не нужен.
+        var template = await admin.PostAsJsonAsync("/api/datasets/processing-templates", new
+        {
+            name = $"Шаблон {Guid.NewGuid():N}",
+            sortSpec = JsonDocument.Parse("""[{"column":"Номер","direction":"desc"}]""").RootElement,
+        });
+        await OkAsync(template);
+        var templateId = (await template.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        Assert.NotNull(await AsAsync(outsider, (svc, access) => svc.ApplyProcessingTemplateAsync(id, templateId, access, default)));
+        Assert.Null(await StoredAsync(id));
+
+        // И сброс отбора — тоже.
+        await StoreAsync(id, WrongKind);
+        Assert.NotNull(await AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
+            id, new SetSourceProcessingInput(null, null, null), access, default)));
+        Assert.Null(await StoredAsync(id));
+    }
+
+    /// <summary>
+    /// «null» среди узлов — названная причина, а не падение: разбор такой узел пропускает, и прежде
+    /// сохранение отвечало 500 без текста.
+    /// </summary>
+    [Fact]
+    public async Task Пустой_узел_в_отборе_назван_а_не_роняет_сохранение()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var id = await SourceAsync(client);
+
+        var refused = await PutAsync(client, id, """{"type":"group","logic":"and","children":[null]}""");
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("узел 1", await refused.Content.ReadAsStringAsync());
+    }
+
     // ── Помощники ───────────────────────────────────────────────────────────────
 
     private static async Task<Guid> SourceAsync(HttpClient client)
@@ -192,6 +253,17 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
             rowFilter = JsonDocument.Parse(rowFilter).RootElement,
             sortSpec = JsonDocument.Parse(sortSpec).RootElement,
         });
+
+    /// <summary>
+    /// Вызов службы от имени пользователя — каждый в СВОЕЙ области: в общей контекст базы отдал бы
+    /// источник из памяти, каким тот был до правки мимо службы, и проверка шла бы не по тому отбору.
+    /// </summary>
+    private async Task<T> AsAsync<T>(Guid user, Func<IDataSetService, DataAccess, Task<T>> call)
+    {
+        using var scope = host.Services.CreateScope();
+        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(user, default);
+        return await call(scope.ServiceProvider.GetRequiredService<IDataSetService>(), access);
+    }
 
     /// <summary>Отбор так, как он лежит в базе; null — отбора нет.</summary>
     private async Task<string?> StoredAsync(Guid id)

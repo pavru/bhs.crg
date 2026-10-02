@@ -203,6 +203,10 @@ public class DataSetRowFilterExecutorTests
     [InlineData("""{"type":"condition","column":"Кол","op":"eq","value":"1","values":["2"]}""")]
     [InlineData("null")]
     [InlineData("{")]
+    // «null» среди узлов: разбор его пропускает, и прежде отказом был NullReferenceException — 500
+    // без текста и на сохранении, и на чтении отбора, приехавшего из копии.
+    [InlineData("""{"type":"group","logic":"and","children":[null]}""")]
+    [InlineData("""{"type":"group","logic":"and","children":[{"type":"group","logic":"or","children":[{"type":"condition","column":"Кол","value":"1"},null]}]}""")]
     public void Причина_для_сохранения_та_же_что_в_отказе_чтения(string json)
     {
         var problem = DataSetRowFilterExecutor.Problem(json);
