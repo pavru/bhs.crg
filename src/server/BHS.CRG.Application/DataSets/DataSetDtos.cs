@@ -33,7 +33,11 @@ public record DataSetSourceDto(
     DataOrigin Origin = DataOrigin.Parsed,
     /// <summary>Почему данные устарели; null — не устарели. Текст пишет клиент: он у каждой точки
     /// показа свой (у поля документа — без глагола, в списке источников — с действием).</summary>
-    DataSetStaleReason? StaleReason = null);
+    DataSetStaleReason? StaleReason = null,
+    /// <summary>Версия обработки (issue #1141): отпечаток извлечения и обработки, с которых страница
+    /// собирает диалоги. Правка обработки называет её обратно (<c>ifMatch</c>) — так сервер узнаёт,
+    /// что источник не изменили, пока диалог был открыт. Считает <c>SourceProcessingVersion</c>.</summary>
+    string? ProcessingVersion = null);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).

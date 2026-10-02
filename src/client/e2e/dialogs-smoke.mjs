@@ -5,16 +5,17 @@
 // инициализаторы состояния и локальный ОВЕРРАЙД поверх серверного значения. Ошибка в такой замене
 // не падает, а тихо показывает не то: пустой список групп, чужой поиск, забытый выбор шаблонов.
 //
-// Почти ничего не сохраняет: правки разбиения и материализации бросаются вместе с браузером. Одна
-// проверка пишет по-настоящему — галка шаблона на демо-документе уезжает PUT'ом, — и возвращает
-// исходное состояние в finally, чтобы прерванный прогон не оставил документ с чужим выбором.
+// Почти ничего не сохраняет: правки разбиения и материализации бросаются вместе с браузером. Пишут
+// по-настоящему две группы проверок — галка шаблона на демо-документе уезжает PUT'ом, обработка
+// источника правится «чужой» правкой и сохраняется (issue #1141), — и обе возвращают исходное
+// состояние в finally, чтобы прерванный прогон не оставил за собой чужой выбор и чужую обработку.
 //
 // Требует поднятых фронта (:5173), бэка (:5000) и хранилища (Garage, :3900) — экран разбиения
 // читает страницы PDF из него. Плюс демо-данные, см. e2e/README.md.
 //
-// В CI гоняются 10 проверок из 13: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
+// В CI гоняются 13 проверок из 16: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
 // есть ИИ-движка, которого там нет (issue #872). Пропуск включается пустым `SMOKE_PDF_FILE_ID` и
-// называется вслух в итоге прогона — молчаливый превратил бы «10 из 13» в «10 из 10».
+// называется вслух в итоге прогона — молчаливый превратил бы «13 из 16» в «13 из 13».
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
@@ -238,6 +239,136 @@ await check('materialize-type-change-resets-chosen-variant', async () => {
 
 await page.keyboard.press('Escape');
 await page.waitForTimeout(800);
+
+// ── Обработка источника: правка с устаревшей копии (issue #1141) ───────────────
+// Диалог обработки собран по копии источника на странице. Источник тем временем правит другой
+// человек — сохранение обязано получить отказ и показать его в диалоге, а не затереть чужую правку.
+//
+// «Другой человек» здесь — запрос к API мимо страницы, от имени того же пользователя: серверу важна
+// не личность, а версия обработки, которую называет правка.
+const apiAs = (method, path, body) => page.evaluate(async ([method, path, body]) => {
+  const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+  const res = await fetch(`/api${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text.slice(0, 200)}`);
+  return text ? JSON.parse(text) : null;
+}, [method, path, body]);
+
+/** Источник, чьё меню открывает `sourceMenu`: первый у набора — в том же порядке, что на экране. */
+const smokeSource = async () => {
+  const files = await apiAs('GET', '/datasets/files?scope=System');
+  const file = files.find(f => f.name.includes(DATASET_FILE));
+  if (!file?.sources?.length) throw new Error(`набор «${DATASET_FILE}» с источником не найден среди системных`);
+  return file.sources[0];
+};
+/** Диалог обработки по пункту меню источника; заголовок диалога совпадает с пунктом. */
+const openProcessingDialog = async (item) => {
+  await sourceMenu.click();
+  await page.waitForTimeout(700);
+  await page.getByText(item, { exact: true }).first().click();
+  await page.waitForTimeout(1000);
+  const dlg = page.locator('[role=dialog]').last();
+  if (!(await dlg.innerText()).includes(item)) throw new Error(`диалог «${item}» не открылся`);
+  return dlg;
+};
+const openSortDialog = () => openProcessingDialog('Сортировка строк');
+/** Ждём, пока диалог закроется сам (сохранение прошло); остался — отдаём его отказ. */
+const closedAfterSave = async (dlg, what) => {
+  await page.waitForFunction(() => !document.querySelector('[role=dialog]'), null, { timeout: 15000 })
+    .catch(() => {});
+  if (await page.locator('[role=dialog]').count())
+    throw new Error(`${what} не сохранилось: «${(await refusalOf(dlg)).slice(0, 160)}»`);
+};
+const saveButton = (dlg) => dlg.getByRole('button', { name: /^Сохранить$/ });
+const refusalOf = async (dlg) => (await dlg.locator('[role=alert]').count())
+  ? (await dlg.locator('[role=alert]').first().innerText()) : '';
+/** Перечитывание списка наборов страницей — то, что подменяет копию источника под диалогом. */
+const filesRefetched = () => page.waitForResponse(
+  r => r.request().method() === 'GET' && /\/api\/datasets\/files(\?|$)/.test(r.url()), { timeout: 10000 });
+
+const sourceBefore = await smokeSource();
+const FOREIGN = 'smoke_чужая_правка';
+try {
+  let staleDialog = null;
+
+  await check('processing-save-from-stale-copy-is-refused', async () => {
+    staleDialog = await openSortDialog();
+    await apiAs('PUT', `/datasets/sources/${sourceBefore.id}/processing`, {
+      ifMatch: sourceBefore.processingVersion,
+      computedColumns: [...(sourceBefore.computedColumns ?? []), { alias: FOREIGN, expr: '1' }],
+    });
+
+    const refetched = filesRefetched();
+    await saveButton(staleDialog).click();
+    await staleDialog.locator('[role=alert]').first().waitFor({ timeout: 10000 }).catch(() => {});
+    const said = await refusalOf(staleDialog);
+    if (!/тем временем изменили/.test(said)) throw new Error(`отказа в диалоге нет: «${said.slice(0, 160)}»`);
+    // Отказ страница встречает перечитыванием источников — ждём его: следующая проверка стоит на нём.
+    await refetched;
+    await page.waitForTimeout(800);
+  });
+
+  // Ключевая проверка. Страница уже перечитала источник и знает его НОВУЮ версию, а диалог открыт с
+  // прежней копии. Возьми сохранение версию из страницы, а не из снимка, с которого диалог открыт, —
+  // оно прошло бы: черновик по старым данным уехал бы с версией «я видел новые».
+  await check('processing-stale-dialog-stays-refused-after-page-refresh', async () => {
+    if (!staleDialog) throw new Error('диалог с устаревшей копии не открыт — предыдущая проверка не дошла');
+    await saveButton(staleDialog).click();
+    await page.waitForTimeout(2500);
+    if (!(await staleDialog.count()) || !/Сортировка строк/.test(await staleDialog.innerText()))
+      throw new Error('диалог закрылся — устаревшая правка сохранена');
+    if (!/тем временем изменили/.test(await refusalOf(staleDialog)))
+      throw new Error('повторное сохранение из того же диалога не получило отказа');
+    const now = await smokeSource();
+    if (JSON.stringify(now.sortSpec) !== JSON.stringify(sourceBefore.sortSpec))
+      throw new Error('сортировка источника изменилась, хотя сохранение отклонено');
+    if (!(now.computedColumns ?? []).some(c => c.alias === FOREIGN))
+      throw new Error('чужая правка вычисляемых колонок пропала');
+  });
+
+  // Свежий диалог сохраняется — и следующий за ним тоже. Вторая половина — про то, что сохранение
+  // отпускает человека, только когда страница ПЕРЕЧИТАЛА источник: первая правка меняет версию
+  // обработки, и диалог, открытый с прежней копии, получил бы отказ «источник изменили» на свою же
+  // правку. Перечитывание здесь нарочно задержано: без задержки оно успевает и так, и проверка была
+  // бы зелёной при любом коде (поломка «мутация не ждёт перечитывания» её не роняла).
+  await check('processing-next-dialog-opens-from-saved-copy', async () => {
+    if (await page.locator('[role=dialog]').count()) {
+      await page.locator('[role=dialog]').last().getByRole('button', { name: /^Отмена$/ }).click();
+      await page.waitForTimeout(800);
+    }
+    const slowFiles = /\/api\/datasets\/files(\?|$)/;
+    await page.route(slowFiles, async route => {
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      await route.continue();
+    });
+    try {
+      // Правка, которая меняет версию: сброс вычисляемых колонок убирает и «чужую» колонку.
+      const computed = await openProcessingDialog('Вычисляемые колонки');
+      await computed.getByRole('button', { name: /^Сбросить$/ }).click();
+      await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
+
+      const sort = await openSortDialog();
+      await saveButton(sort).click();
+      await closedAfterSave(sort, 'сохранение сортировки сразу после своей же правки');
+    } finally {
+      await page.unroute(slowFiles);
+    }
+    if (((await smokeSource()).computedColumns ?? []).length)
+      throw new Error('вычисляемые колонки не сброшены, хотя диалог закрылся');
+  });
+} finally {
+  // Вернуть обработку, какой она была до прогона, — с версией, какая у источника сейчас.
+  if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+  const now = await smokeSource();
+  await apiAs('PUT', `/datasets/sources/${now.id}/processing`, {
+    ifMatch: now.processingVersion,
+    computedColumns: sourceBefore.computedColumns, sortSpec: sourceBefore.sortSpec,
+  });
+}
 
 // ── Копирование документа: цель забывается при закрытии ────────────────────────
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);

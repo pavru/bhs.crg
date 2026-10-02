@@ -36,6 +36,14 @@ public partial class DataSetSourceService
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
+        // Сверка — до проверки отбора: устаревшей правке нужен ответ «источник изменили», а не разбор
+        // отбора, собранного по колонкам, которых у источника, может быть, уже нет.
+        if (SourceProcessingVersion.Moved(source, input.IfMatch))
+            throw new ConflictException(
+                $"Обработка источника «{source.Name}» не сохранена: источник тем временем изменили — "
+                + "правка собрана по прежней обработке, и сохранение затёрло бы чужую. Обновите "
+                + "страницу и повторите правку: диалог покажет обработку, какой она стала.");
+
         // Правка — по частям (issue #1139): чего в запросе нет, то остаётся как есть.
         var rowFilter = Part(input.RowFilter, source.RowFilter);
 

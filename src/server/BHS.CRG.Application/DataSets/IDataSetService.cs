@@ -139,7 +139,8 @@ public interface IDataSetService
     /// <summary>
     /// Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает. Правится
     /// по частям (issue #1139): часть, которой в запросе нет, остаётся как есть; правка без единой
-    /// части — отказ <c>InvalidRequestException</c>, а не «сохранено».
+    /// части — отказ <c>InvalidRequestException</c>, а не «сохранено». Названная в правке версия
+    /// обработки сверяется с сохранённой (issue #1141): источник изменили — <c>ConflictException</c>.
     /// Присланный отбор проверяется: негодный отказывает <c>InvalidRequestException</c> с причиной
     /// (issue #1137). Доступ нужен проверке — виды колонок системного набора зависят от прав.
     /// </summary>
@@ -158,6 +159,15 @@ public interface IDataSetService
     // ── Processing templates (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ────
     Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct);
     Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct);
+
+    /// <summary>
+    /// Шаблон из извлечения и обработки источника, какими они СОХРАНЕНЫ (issue #1141): содержимое
+    /// берёт сервер, а не страница из своей копии. <paramref name="ifMatch" /> — версия обработки,
+    /// которую показывала страница: не совпала — <c>ConflictException</c>, шаблон не создан;
+    /// <c>null</c> — не сверяется. Нет источника — <c>null</c>.
+    /// </summary>
+    Task<DataSetProcessingTemplateDto?> CreateProcessingTemplateFromSourceAsync(
+        Guid sourceId, string name, string? ifMatch, CancellationToken ct);
     Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct);
     Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct);
 

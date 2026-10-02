@@ -440,6 +440,12 @@ export interface DataSetSource {
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;
+  /**
+   * Версия обработки (issue #1141) — отпечаток извлечения и обработки, считает сервер. Правка
+   * обработки и «Сохранить как шаблон» называют её обратно (`ifMatch`): так сервер узнаёт, что
+   * источник не изменили, пока был открыт диалог. Брать — из той копии, по которой диалог собран.
+   */
+  processingVersion: string;
   /** Коды функциональных тэгов источника (scope Dataset) — только для PDF. */
   tags: string[] | null;
   /** Данные источника разошлись со своим происхождением — нужно перераспознать. */

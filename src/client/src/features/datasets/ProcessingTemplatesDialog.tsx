@@ -5,7 +5,7 @@ import { IconButton } from '@/shared/ui/Button';
 import {
   useListProcessingTemplates, useCreateProcessingTemplate,
   useUpdateProcessingTemplate, useDeleteProcessingTemplate,
-} from '@/shared/api/datasets';
+} from '@/shared/api/datasetProcessing';
 import { countFilterConditions } from '@/shared/api/datasetHelpers';
 import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from './RowFilterDialog';

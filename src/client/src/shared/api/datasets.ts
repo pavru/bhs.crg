@@ -3,8 +3,7 @@ import { apiClient } from './client';
 import { filenameFromContentDisposition } from './attachments';
 import type {
   CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
-  DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
-  GostGrouping, GostGroupingGroup, MaterializeDiscriminator,
+  DataSetPreview, DataSetSource, GostGrouping, GostGroupingGroup, MaterializeDiscriminator,
 } from './types';
 import { withBlobErrorBody } from '@/shared/utils/apiError';
 
@@ -115,11 +114,20 @@ export function useDeleteDataSetFile() {
  * старое состояние — то есть прятала бы вход ровно тогда, когда он нужен.
  */
 function invalidateSources(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+  void refreshSources(qc);
+}
+
+/**
+ * То же, с обещанием: оно исполняется, когда список наборов ПЕРЕЧИТАН. Нужно тому, кто не должен
+ * отпускать человека раньше, чем страница увидит сохранённое, — правке обработки (issue #1141,
+ * `datasetProcessing.ts`): диалог, открытый с прежней копии источника, назвал бы прежнюю версию.
+ */
+export function refreshSources(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
   // ...и список доступного документу: привязку выбирают ПО ИСТОЧНИКУ, так что создание или
   // удаление источника меняет и его. Ключ ['datasets','available'] под префикс files не попадает.
   qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
+  return qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
 }
 
 export function useCreateDataSetSource() {
@@ -484,103 +492,6 @@ export function useRecognizeDocumentTable(fileId: string) {
     mutationFn: (firstPageIndex) =>
       apiClient.post(`/datasets/files/${fileId}/recognize-table`, { firstPageIndex }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs', 'active'] }); },
-  });
-}
-
-// ── Обработка источника (Filter/Transformation/Sort) — лёгкая правка, файл не трогает ─────
-
-/**
- * Правка обработки ПО ЧАСТЯМ (issue #1139). Части, которой в правке нет, сервер не трогает и не
- * проверяет; `null` её сбрасывает. Диалог шлёт только то, что правит сам: досланная «за компанию»
- * часть из копии источника на странице затёрла бы то, что тем временем сохранил другой человек.
- *
- * Объединение, а не запись с необязательными полями: правку без единой части сервер отклоняет, а
- * `undefined` в запрос не попадает вовсе — тип не должен пропускать ни то, ни другое.
- */
-export type SourceProcessingPatch =
-  | { rowFilter: RowFilterDef | null }
-  | { computedColumns: ComputedColumn[] | null }
-  | { sortSpec: SortSpec | null };
-
-export function useSetDataSetSourceProcessing() {
-  const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { id: string } & SourceProcessingPatch>({
-    mutationFn: ({ id, ...data }) =>
-      apiClient.put(`/datasets/sources/${id}/processing`, data).then(r => r.data),
-    // Инвалидируем и предпросмотр источника (issue #399): счётчик строк и превью считаются пост-пайплайна
-    // через usePreviewDataSetSource (['datasets','preview',sourceId,...]) — без этого фильтр не виден до
-    // перемонтирования. Префикс-матч покрывает maxRows=1 (счётчик) и maxRows=50 (превью).
-    onSuccess: (_data, { id }) => {
-      invalidateSources(qc);
-      qc.invalidateQueries({ queryKey: ['datasets', 'preview', id] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', id] });
-    },
-  });
-}
-
-// ── Шаблоны обработки (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ──────
-
-export function useListProcessingTemplates() {
-  return useQuery<DataSetProcessingTemplate[]>({
-    queryKey: ['datasets', 'processing-templates'],
-    queryFn: () => apiClient.get('/datasets/processing-templates').then(r => r.data),
-  });
-}
-
-export function useCreateProcessingTemplate() {
-  const qc = useQueryClient();
-  return useMutation<DataSetProcessingTemplate, Error, {
-    name: string;
-    sheetOrPath?: string | null;
-    columnExpressions?: ColumnExprDef[] | null;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
-    sortSpec?: SortSpec | null;
-  }>({
-    mutationFn: (data) => apiClient.post('/datasets/processing-templates', data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] }),
-  });
-}
-
-export function useUpdateProcessingTemplate() {
-  const qc = useQueryClient();
-  return useMutation<DataSetProcessingTemplate, Error, {
-    id: string;
-    name: string;
-    sheetOrPath?: string | null;
-    columnExpressions?: ColumnExprDef[] | null;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
-    sortSpec?: SortSpec | null;
-  }>({
-    mutationFn: ({ id, ...data }) => apiClient.put(`/datasets/processing-templates/${id}`, data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] }),
-  });
-}
-
-export function useDeleteProcessingTemplate() {
-  const qc = useQueryClient();
-  return useMutation<void, Error, { id: string }>({
-    mutationFn: ({ id }) => apiClient.delete(`/datasets/processing-templates/${id}`).then(() => undefined),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] });
-      invalidateSources(qc);
-    },
-  });
-}
-
-/** Применить шаблон (Extraction, если задана, + Filter/Transformation/Sort) к источнику — copy-on-apply. */
-export function useApplyProcessingTemplate() {
-  const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { sourceId: string; templateId: string }>({
-    mutationFn: ({ sourceId, templateId }) =>
-      apiClient.post(`/datasets/sources/${sourceId}/apply-template/${templateId}`).then(r => r.data),
-    // Тот же пробел, что в useSetDataSetSourceProcessing (issue #399) — освежаем предпросмотр источника.
-    onSuccess: (_data, { sourceId }) => {
-      invalidateSources(qc);
-      qc.invalidateQueries({ queryKey: ['datasets', 'preview', sourceId] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', sourceId] });
-    },
   });
 }
 

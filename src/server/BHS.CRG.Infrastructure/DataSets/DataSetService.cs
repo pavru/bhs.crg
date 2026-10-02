@@ -123,6 +123,9 @@ public class DataSetService(
         processingTemplates.ListAsync(ct);
     public Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct) =>
         processingTemplates.CreateAsync(input, ct);
+    public Task<DataSetProcessingTemplateDto?> CreateProcessingTemplateFromSourceAsync(
+        Guid sourceId, string name, string? ifMatch, CancellationToken ct) =>
+        processingTemplates.CreateFromSourceAsync(sourceId, name, ifMatch, ct);
     public Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct) =>
         processingTemplates.UpdateAsync(id, input, ct);
     public Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct) =>

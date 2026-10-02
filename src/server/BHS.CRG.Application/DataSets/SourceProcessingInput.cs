@@ -44,6 +44,19 @@ public record SetSourceProcessingInput
     public ProcessingPart ComputedColumns { get; init; }
     public ProcessingPart SortSpec { get; init; }
 
+    /// <summary>
+    /// Версия обработки, с которой правку собирали (issue #1141), — <c>ProcessingVersion</c> источника,
+    /// каким его видел правящий. Не совпала с сохранённой — отказ <c>ConflictException</c>: правка по
+    /// частям закрыла затирание МЕЖДУ частями, а внутри одной части устаревшая копия по-прежнему
+    /// затирала бы чужую правку, и ответом было бы «сохранено».
+    ///
+    /// <para><c>null</c> — сверять не с чем: правящий не опирался на прежнее состояние источника.
+    /// Решает это вход, а не служба: вход HTTP версию требует всегда (за ним страница, и страница без
+    /// версии — как раз та, чью свежесть проверить нечем), а вызов из кода, задающий обработку
+    /// заново, называть её не обязан.</para>
+    /// </summary>
+    public string? IfMatch { get; init; }
+
     /// <summary>Не прислано ни одной части — менять нечего.</summary>
     public bool IsEmpty => !(RowFilter.Sent || ComputedColumns.Sent || SortSpec.Sent);
 }
