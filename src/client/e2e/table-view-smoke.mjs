@@ -51,7 +51,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-view-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, PASSWORD, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 
 const TABLE = `${BASE}/tables/costs.invoices`;
@@ -493,6 +493,8 @@ try {
     // Enter — из поля значения: пока кнопка заперта, форму он не отправляет.
     await page.locator('[data-radix-popper-content-wrapper] input').last().press('Enter');
     await page.keyboard.press('Escape');
+    // «Не стало» читают, когда экран доработал: в первый же миг условия нет и у сломанного места.
+    await settled(page);
     if ((await chips(page).getByRole('button', { name: /^Снять условие/ }).count()) !== 0 || new URL(page.url()).hash)
       throw new Error('пустое место стало условием отбора по клавише Enter');
   });
@@ -566,12 +568,19 @@ try {
     await rowsBecome(page, TABLE_SEED.count, 'посеянные счета под реестром');
 
     await page.getByRole('link', { name: 'Таблица целиком', exact: true }).click();
-    await page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10000 });
-    if (new URL(page.url()).pathname !== '/tables/costs.invoices') throw new Error(`ссылка ведёт на ${new URL(page.url()).pathname}`);
+    await until(() => {
+      const path = new URL(page.url()).pathname;
+      if (path !== '/tables/costs.invoices') throw new Error(`ссылка ведёт на ${path}`);
+    });
+    // Настройка представления осталась позади: колонок больше, чем в реестре. Ждём именно ЭТО, а не
+    // число строк: строк в реестре и в таблице поровну, и такое ожидание сбывается до перехода —
+    // колонки тогда читаются со старого ответа, пока новый в пути (на раннере так и вышло).
+    await until(async () => {
+      if ((await headers(page).count()) <= REGISTRY_COLUMNS.length)
+        throw new Error('таблица целиком открылась колонками реестра');
+    });
+    // Отбор приехал: строки — уже из ответа таблицы целиком, и их столько же, сколько посеяно.
     await rowsBecome(page, TABLE_SEED.count, 'те же счета в таблице целиком');
-    // Настройка представления осталась позади: колонок больше, чем в реестре.
-    if ((await headers(page).count()) <= REGISTRY_COLUMNS.length)
-      throw new Error('таблица целиком открылась колонками реестра');
   });
 } finally {
   await browser.close();
