@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Modules.Ports;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -52,6 +53,11 @@ public static class ModulePorts
         // Ответ «не закрыто ничего» — правда об этом экземпляре, а не заглушка; подробнее в
         // доккомментарии класса.
         services.AddScoped<IModulePeriods, NoClosedPeriods>();
+
+        // «Сегодня» в поясе компании. Часы — службой, а не DateTime.Now: границу суток иначе нечем
+        // проверить. TryAdd — часы мог уже зарегистрировать сам ASP.NET.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IModuleClock, ModuleClockPort>();
 
         // Кто выполняет фоновую работу модуля. Спрашивает её фоновый цикл в инфраструктуре — по
         // интерфейсу из слоя приложения, потому что о контрактах модулей ему знать нельзя.

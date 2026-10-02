@@ -24,6 +24,10 @@ namespace BHS.CRG.Modules.Costs.Tables;
 /// по нему — «есть часть на этот объект». Под таким отбором «Сумма» показывает ДОЛЮ счёта по разноске
 /// на названные объекты и приходит с подписью «доля: …»; полная сумма остаётся в «Сумма к оплате».
 /// Без отбора по объекту обе суммы равны.</para>
+///
+/// <para><b>«Осталось дней» и «Просрочен» считаются от сегодня и не хранятся</b> (ТЗ COST-9.1, CORE-33;
+/// задача G1c, issue #1090): источник считает их на чтении от срока «оплатить до» в поясе компании,
+/// и по ним работают отбор и сортировка — правило одно на запрос и на клетку (<see cref="InvoiceDue" />).</para>
 /// </summary>
 public static class InvoiceTable
 {
@@ -38,6 +42,12 @@ public static class InvoiceTable
 
     /// <summary>Сумма по отбору: вся сумма счёта либо его доля на названные отбором объекты.</summary>
     public const string AmountKey = "СуммаПоОтбору";
+
+    /// <summary>Сколько дней до срока оплаты; у просроченного счёта — отрицательное.</summary>
+    public const string DaysLeftKey = "ДнейДоСрока";
+
+    /// <summary>Срок оплаты прошёл, а счёт оплаты ещё ждёт.</summary>
+    public const string OverdueKey = "СрокПросрочен";
 
     private const string Amounts = "суммы";
 
@@ -65,6 +75,8 @@ public static class InvoiceTable
             new(InvoiceRequisites.ShippedOnKey, "Дата отгрузки", ModuleTableColumnKind.Date),
             new(InvoiceRequisites.DeferralKey, "Отсрочка, дней", ModuleTableColumnKind.Number),
             new(InvoiceRequisites.DueDateKey, "Оплатить до", ModuleTableColumnKind.Date),
+            new(DaysLeftKey, "Осталось дней", ModuleTableColumnKind.Number),
+            new(OverdueKey, "Просрочен", ModuleTableColumnKind.Boolean),
             new(InvoiceRequisites.StateKey, "Состояние документа", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.PaymentKey, "Состояние оплаты", ModuleTableColumnKind.Text),
         ],
@@ -76,7 +88,8 @@ public static class InvoiceTable
 /// Строки таблицы счетов. Поля, которые заказчик дописал в тип, лежат в <see cref="Invoice.Data" /> и
 /// приходят теми же ключами — их колонки ядро берёт из схемы типа.
 /// </summary>
-public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places)
+public sealed class InvoiceTableRows(
+    CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModuleClock clock)
     : IModuleTableRows
 {
     private static readonly IReadOnlyDictionary<InvoiceState, string> States =
@@ -99,7 +112,11 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, 
             .Concat(known.Articles.Select(a => (a.Id, a.Name)))
             .ToDictionary(o => o.Id, o => o.Name));
 
-        var sql = Sql(names, shares.Labels);
+        // «Сегодня» — одно на весь ответ: и отбору, и клеткам. Спроси мы его дважды, запрос на
+        // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
+        var today = await clock.TodayAsync(ct);
+
+        var sql = Sql(names, shares.Labels, today);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Отбор НАЗЫВАЕТ объекты — «Сумма» становится долей счёта на них (ТЗ CORE-33). Иначе это сумма
@@ -140,7 +157,7 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, 
 
         var objects = shares.Objects(parts);
         return new(
-            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts))], count, totals,
+            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, today))], count, totals,
             naming.Count == 0 ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = shares.Note(naming) });
     }
 
@@ -148,7 +165,8 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, 
     /// Где лежит каждая колонка таблицы. Описаны ВСЕ объявленные — это проверяет сам построитель;
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
-    private TableSql<Invoice> Sql(Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects) =>
+    private TableSql<Invoice> Sql(
+        Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects, DateOnly today) =>
         TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
@@ -167,6 +185,8 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, 
             .Date(InvoiceRequisites.ShippedOnKey, i => i.ShippedOn)
             .Number(InvoiceRequisites.DeferralKey, i => i.DeferralDays)
             .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
+            .Number(InvoiceTable.DaysLeftKey, InvoiceDue.DaysLeft(today))
+            .Flag(InvoiceTable.OverdueKey, InvoiceDue.Overdue(today))
             .Lookup(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Lookup(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
@@ -175,7 +195,8 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, 
     /// и «Сумма» — сумма счёта целиком.</param>
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
-        IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts)
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts,
+        DateOnly today)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -192,12 +213,15 @@ public sealed class InvoiceTableRows(CostsDbContext db, IModuleCatalog catalog, 
             [InvoiceRequisites.PaymentKey] = InvoiceRequisites.Label(invoice.Payment),
         };
 
-        // Деньги — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле, чем
-        // считать и выбрасывать.
+        // Деньги и срок — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле,
+        // чем считать и выбрасывать.
         if (open.Contains(InvoiceRequisites.TotalKey)) row[InvoiceRequisites.TotalKey] = invoice.Total;
         if (open.Contains(InvoiceRequisites.VatTotalKey)) row[InvoiceRequisites.VatTotalKey] = invoice.VatTotal;
         if (open.Contains(InvoiceTable.AmountKey))
             row[InvoiceTable.AmountKey] = amounts is null ? invoice.Total : amounts.GetValueOrDefault(invoice.Id);
+
+        if (open.Contains(InvoiceTable.DaysLeftKey)) row[InvoiceTable.DaysLeftKey] = InvoiceDue.DaysLeftOf(invoice, today);
+        if (open.Contains(InvoiceTable.OverdueKey)) row[InvoiceTable.OverdueKey] = InvoiceDue.OverdueOf(invoice, today);
 
         foreach (var field in invoice.Data.RootElement.EnumerateObject())
             if (!row.ContainsKey(field.Name)) row[field.Name] = Scalar(field.Value);
