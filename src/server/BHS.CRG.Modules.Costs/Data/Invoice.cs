@@ -255,6 +255,15 @@ public sealed class Invoice
         Touch();
     }
 
+    /// <summary>
+    /// Изменилось содержимое счёта, которое лежит НЕ в его колонках, — строки.
+    ///
+    /// <para>Строки — часть счёта, а не соседняя сущность: человек, открывший реестр, спрашивает «когда
+    /// счёт правили», а не «когда правили его шапку». До этого метода правка строк время счёта не
+    /// трогала, и <c>updatedAt</c> в ответе оставался прежним при другом содержимом (issue #1171).</para>
+    /// </summary>
+    public void ContentChanged() => Touch();
+
     /// <summary>Скан счёта: пришёл файлом или сканом (ТЗ COST-5).</summary>
     public void AttachScan(string blobPath, string fileName, string mimeType, long size)
     {
