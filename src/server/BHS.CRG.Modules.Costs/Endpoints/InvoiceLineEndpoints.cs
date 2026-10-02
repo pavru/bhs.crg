@@ -148,6 +148,12 @@ public static class InvoiceLineEndpoints
                 $"{InvoiceEndpoints.Label(invoice)} отклонён — разбирать его незачем. Верните счёт в " +
                 "черновик, если решение изменилось.");
 
+        // Уже разобран — подтверждать нечего, и в журнал не пишем: запись «счёт разобран» означает
+        // решение человека, а повторное нажатие (или повтор запроса после обрыва связи) новым решением
+        // не является. Так же молчит возврат в черновик у черновика.
+        if (invoice.State == InvoiceState.Parsed)
+            return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+
         var missing = InvoiceRequisites.Missing(invoice);
         if (missing.Count > 0)
             throw new InvalidRequestException(
