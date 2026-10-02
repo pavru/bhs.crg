@@ -51,7 +51,10 @@ public static partial class TableConditions
     /// Что не так с условием; null — годно. Проверяется ДО первой строки: условие, которое нельзя
     /// выполнить, отказывает, а не возвращает «ничего не нашлось».
     /// </summary>
-    public static string? Problem(string kind, string op, IReadOnlyList<string> values)
+    /// <param name="options">Закрытый перечень значений колонки вида «выбор». Значение сверяется с ним
+    /// буква в букву: перечень приходит экрану с сервера, и выбирают из него, а не набирают.</param>
+    public static string? Problem(
+        string kind, string op, IReadOnlyList<string> values, IReadOnlyList<string>? options = null)
     {
         if (!TableOperators.All.Contains(op)) return $"оператора «{op}» нет";
         if (!TableOperators.IsPresence(op) && !TableOperators.For(kind).Contains(op))
@@ -67,6 +70,12 @@ public static partial class TableConditions
                 return $"значение «{value}» — не дата вида ГГГГ-ММ-ДД";
             if (kind == TableOperators.Boolean && value is not ("true" or "false"))
                 return $"значение «{value}» — не «true» и не «false»";
+            // Выбор без перечня — дефект объявления, а не условия: отвергаем и его, иначе любое
+            // значение прошло бы как годное и молча ничего не нашло.
+            if (kind == TableOperators.Choice && options?.Contains(value, StringComparer.Ordinal) != true)
+                return $"значения «{value}» в перечне колонки нет" + (options is { Count: > 0 }
+                    ? $": бывают {string.Join(", ", options.Select(o => $"«{o}»"))}"
+                    : "");
         }
         return null;
     }

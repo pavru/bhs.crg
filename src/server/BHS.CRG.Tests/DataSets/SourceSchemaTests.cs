@@ -46,6 +46,27 @@ public class SourceSchemaTests
     }
 
     /// <summary>
+    /// Колонка-выбор едет с перечнем своих значений (G1d, issue #1091): диалог отбора предлагает их
+    /// списком. У остальных колонок ключа перечня нет вовсе.
+    /// </summary>
+    [Fact]
+    public void Колонка_выбор_едет_с_перечнем_значений()
+    {
+        var types = new DataSetColumnTypes(
+            new Dictionary<string, string> { ["Номер"] = TableOperators.Choice, ["Срок"] = TableOperators.Date },
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyList<string>> { ["Номер"] = ["Первый", "Второй"] });
+
+        var schema = JsonDocument.Parse(DataSetDtoMapper.SerializeSchema(Columns, types)).RootElement;
+
+        var choice = Column(schema, "Номер");
+        Assert.Equal("choice", choice.GetProperty("kind").GetString());
+        Assert.Equal(["Первый", "Второй"], choice.GetProperty("options").EnumerateArray().Select(o => o.GetString()));
+        Assert.Equal(["eq", "neq", "in", "not_in"], choice.GetProperty("operators").EnumerateArray().Select(o => o.GetString()));
+        Assert.False(Column(schema, "Срок").TryGetProperty("options", out _));
+    }
+
+    /// <summary>
     /// У набора без видов запись прежняя, ключ в ключ: она лежит в базе у каждого файлового источника,
     /// и новые ключи с null изменили бы её форму без единой причины.
     /// </summary>

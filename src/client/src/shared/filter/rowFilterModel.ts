@@ -3,17 +3,28 @@ import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
 import type { DataSetColumn } from '@/shared/api/datasetHelpers';
 
 /**
- * Условие отбора источника: какие операторы предложить колонке и в каком виде держать значение
- * (issue #1133).
+ * Условие отбора: какие операторы предложить колонке и в каком виде держать значение (issue #1133).
  *
- * Зачем отдельным модулем. Диалог отбора — единственный редактор дерева условий, и до #1133 он
- * предлагал любой колонке одни и те же двенадцать операторов. У источника на таблице модуля колонки
- * типизированы: «Сумма содержит 1» сервер отвергает, а «срок между…» из интерфейса был недостижим
- * вовсе. Правила здесь чистые — диалог их только рисует, а проверяет тест.
+ * Зачем отдельным модулем. У отбора два лица — диалог дерева условий и чипы над таблицей (issue
+ * #1091), — а правила у них одни: что колонке предлагается, в каком виде значение уходит на сервер
+ * и какое условие названо негодным. До #1133 диалог предлагал любой колонке одни и те же двенадцать
+ * операторов; у таблицы модуля колонки типизированы: «Сумма содержит 1» сервер отвергает, а «срок
+ * между…» из интерфейса был недостижим вовсе. Правила здесь чистые — экран их только рисует, а
+ * проверяет тест.
  */
 
-/** Колонка в диалоге отбора: колонка источника либо вычисляемая (у той вида нет). */
-export type FilterColumn = Pick<DataSetColumn, 'name' | 'kind' | 'operators' | 'unavailable'>;
+/**
+ * Колонка в отборе: колонка источника либо вычисляемая (у той вида нет). `name` — то, что стоит в
+ * условии; `label` — заголовок для человека, когда он от имени отличается (у таблицы модуля условие
+ * стоит на ключе «Срок», а колонка называется «Оплатить до»).
+ */
+export type FilterColumn =
+  Pick<DataSetColumn, 'name' | 'kind' | 'operators' | 'options' | 'unavailable'> & { label?: string };
+
+/** Как колонку назвать человеку. */
+export function columnLabel(column: FilterColumn | undefined, name: string): string {
+  return column?.label ?? name;
+}
 
 /**
  * Операторы колонки БЕЗ вида (файл, распознавание, вычисляемая колонка): сервер сравнивает по
@@ -95,7 +106,7 @@ export function withColumn(cond: FilterCondition, name: string, columns: FilterC
   const renamed = { ...cond, column: name };
   const moved = op === cond.op ? renamed : withOperator(renamed, op);
 
-  const fits = (v: string) => valueFits(column?.kind, v);
+  const fits = (v: string) => valueFits(column?.kind, v, column?.options);
   if (moved.value !== undefined) return fits(moved.value) ? moved : { ...moved, value: '' };
   if (moved.values === undefined) return moved;
   return {
@@ -105,7 +116,7 @@ export function withColumn(cond: FilterCondition, name: string, columns: FilterC
 }
 
 const KIND_NAMES: Record<string, string> = {
-  text: 'текст', number: 'число', date: 'дата', boolean: 'да / нет', list: 'перечень',
+  text: 'текст', number: 'число', date: 'дата', boolean: 'да / нет', list: 'перечень', choice: 'выбор',
 };
 
 /**
@@ -134,9 +145,10 @@ export function conditionProblem(cond: FilterCondition, columns: FilterColumn[])
   // У числа, даты и флага значение обязано разбираться: пустая строка — не число и не дата. У текста
   // и у колонки без вида пустое значение законно — с пустой ячейкой сравнивают намеренно.
   const values = arity === 'one' ? [cond.value ?? ''] : arity === 'none' ? [] : cond.values ?? [];
-  const bad = values.find(v => !valueFits(column?.kind, v));
+  const bad = values.find(v => !valueFits(column?.kind, v, column?.options));
   if (bad !== undefined)
     return bad === '' ? (arity === 'two' ? 'не заданы обе границы' : 'значение не задано')
+      : column?.kind === 'choice' ? `значения «${bad}» в перечне колонки нет`
       : `значение «${bad}» — не ${VALUE_NAMES[column?.kind ?? ''] ?? column?.kind}`;
 
   return null;
@@ -149,12 +161,16 @@ const VALUE_NAMES: Record<string, string> = { number: 'число', date: 'да�
  * знак (запятая и «1e3» числом не считаются), дата — ГГГГ-ММ-ДД и существующая: «2026-02-30» сервер
  * датой не считает. Поля ввода дают такую запись сами; проверка нужна значению, сохранённому раньше
  * или пришедшему мимо диалога.
+ *
+ * У колонки-выбора (issue #1091) годится только значение из её перечня, буква в букву: произвольную
+ * строку она не принимает. Выбор, которому перечня не прислали, не принимает ничего — как на сервере.
  */
-export function valueFits(kind: string | undefined, value: string): boolean {
+export function valueFits(kind: string | undefined, value: string, options?: readonly string[]): boolean {
   switch (kind) {
     case 'number': return /^-?[0-9]+(\.[0-9]+)?$/.test(value);
     case 'date': return isDate(value);
     case 'boolean': return value === 'true' || value === 'false';
+    case 'choice': return options?.includes(value) ?? false;
     default: return true;
   }
 }

@@ -25,6 +25,9 @@ public sealed partial class TableSql<T>
         public abstract IOrderedQueryable<T> Order(IQueryable<T> rows, bool descending, bool first);
         public abstract Task<TableTotal> TotalAsync(IQueryable<T> rows, CancellationToken ct);
 
+        /// <summary>Слова, которыми колонка-выбор называет свои коды; null — колонка не выбор.</summary>
+        public virtual IReadOnlyCollection<string>? Words => null;
+
         /// <summary>
         /// Операторы, общие всем видам: «пусто», равенство и перечень. Отрицания — именно «не подошло
         /// под положительное», поэтому «не равно» включает пустые клетки. null — оператор не из общих,
@@ -234,12 +237,18 @@ public sealed partial class TableSql<T>
             new(await rows.LongCountAsync(Compose(value, b => b != null), ct), 0);
     }
 
-    /// <summary>Справочник: ссылка в базе, название у человека.</summary>
+    /// <summary>
+    /// Справочник: ссылка в базе, название у человека. Тем же запросом живёт и колонка-выбор — код в
+    /// базе, слово из закрытого перечня у человека; различает их только объявленный вид.
+    /// </summary>
     private sealed class LookupColumn<TKey>(
-        Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels) : Column
+        Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels, ModuleTableColumnKind kind) : Column
         where TKey : struct
     {
-        public override ModuleTableColumnKind Kind => ModuleTableColumnKind.Text;
+        public override ModuleTableColumnKind Kind => kind;
+
+        public override IReadOnlyCollection<string>? Words =>
+            kind == ModuleTableColumnKind.Choice ? [.. labels.Values] : null;
 
         private Expression<Func<T, bool>> Known
         {
