@@ -27,7 +27,7 @@ public class SourceProcessingVersionTests
     [InlineData("""{"n":1e2}""", """{"n":100}""")]
     [InlineData("""{"n":1.0}""", """{"n":1}""")]
     [InlineData("""{"n":0.000001}""", """{"n":1e-6}""")]
-    [InlineData("""{"s":"А"}""", """{"s":"А"}""")]
+    [InlineData("""{"s":"\u0410"}""", """{"s":"А"}""")]
     [InlineData("""{"a":1,"a":2}""", """{"a":2}""")]
     public void Запись_значения_на_версию_не_влияет(string asSent, string asStored)
     {
