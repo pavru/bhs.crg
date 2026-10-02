@@ -127,7 +127,13 @@ public sealed record ModuleTablePage(
 /// <param name="Sum">Сумма — только у числа.</param>
 /// <param name="Min">Наименьшее: <c>decimal</c> у числа, <c>DateOnly</c> у даты.</param>
 /// <param name="Max">Наибольшее.</param>
-public sealed record TableTotal(long Count, long Skipped, decimal? Sum = null, object? Min = null, object? Max = null)
+/// <param name="Note">Что итог значит ПОД ЭТИМ ОТБОРОМ — подписью под ним: «период — по дате счёта, не
+/// по оплате» (задача G4, issue #1097). Отдельно от подписи колонки (<see cref="ModuleTablePage.Notes" />):
+/// та меняет смысл КЛЕТОК и положена только колонке, объявленной зависящей от отбора, а оговорка об
+/// отборе относится к нижней строке любой колонки — клетка «Сумма к оплате» под отбором периода значит
+/// то же, а её итог читают как «столько потрачено за период». null — оговорки нет.</param>
+public sealed record TableTotal(
+    long Count, long Skipped, decimal? Sum = null, object? Min = null, object? Max = null, string? Note = null)
 {
     /// <summary>Среднее учтённых значений.</summary>
     public decimal? Average => Sum is { } sum && Count > 0 ? sum / Count : null;

@@ -78,6 +78,8 @@ export default function App() {
                       маршруте тоже: таблицы разных модулей открываются разными ключами, и ключ
                       проверяет сервер по объявлению таблицы — экран показывает его отказ. */}
                   <Route path="tables/:address" element={<TablePage />} />
+                  {/* Та же таблица под готовым представлением модуля: «Реестр счетов» (G4). */}
+                  <Route path="tables/:address/:view" element={<TablePage />} />
                   <Route path="reconciliations" element={<ReconciliationsPage />} />
                 </Route>
                 <Route element={<RequireAccess />}>

@@ -1,6 +1,9 @@
 import type { FilterCondition, FilterGroup, FilterNode } from '@/shared/api/types';
 import { formatDateRu } from '@/shared/utils/date';
-import { columnLabel, conditionProblem, opArity, opLabel, valueFits, type FilterColumn } from './rowFilterModel';
+import {
+  columnLabel, conditionProblem, opArity, operatorsFor, opLabel, valueFits, withColumn, withOperator,
+  type FilterColumn,
+} from './rowFilterModel';
 
 /**
  * Чипы отбора — второе лицо того же дерева условий (ТЗ CORE-33; задача G1d, issue #1091).
@@ -45,6 +48,46 @@ export function fromChips(conditions: FilterCondition[]): FilterGroup | null {
 /** Снять чип. Меняется сам отбор, а не его вид: условие уходит из дерева. */
 export function withoutChip(conditions: FilterCondition[], index: number): FilterGroup | null {
   return fromChips(conditions.filter((_, i) => i !== index));
+}
+
+/**
+ * Какие из предложенных мест показать (G4, issue #1097). Колонка, по которой условие уже стоит,
+ * местом не предлагается: рядом с чипом «Дата счёта: 01.09 — 30.09» место «+ Дата счёта» читалось бы
+ * как «период ещё не задан» — и второй период по нему сузил бы отбор до пересечения. Колонки, которой
+ * у таблицы нет, тоже: места без колонки не открыть. И колонки, закрытой правом: условие по ней
+ * сервер не применит, и место вело бы прямо в отказ.
+ */
+export function offeredColumns(suggested: string[] | undefined, columns: FilterColumn[], conditions: FilterCondition[]): string[] {
+  return (suggested ?? []).filter(name => columns.some(c => c.name === name && !c.unavailable)
+    && !conditions.some(c => c.column === name));
+}
+
+/**
+ * Введено ли в условие хоть что-то (G4, issue #1097; ревью PR #1177). Предложенное место — ещё не
+ * условие, и отбором оно становится со ЗНАЧЕНИЕМ: колонка у места уже названа, и пустое «Добавить»
+ * у даты уходило бы в отказ сервера на месте таблицы, а у поставщика молча ставило бы «поставщик
+ * пуст». Кому нужен именно пустой поставщик, выбирает оператор «пусто» — ему значение не нужно.
+ *
+ * Это не проверка годности: «между» с одной границей сюда проходит, и что с ним не так, скажет
+ * подсказка под условием и сервер.
+ */
+export function conditionEntered(cond: FilterCondition): boolean {
+  switch (opArity(cond.op)) {
+    case 'none': return true;
+    case 'one': return (cond.value ?? '') !== '';
+    default: return (cond.values ?? []).some(v => v !== '');
+  }
+}
+
+/**
+ * Условие для места, которое отбор предлагает готовым (G4, issue #1097): колонка названа, значение
+ * пусто. У даты — сразу «между»: место под дату в реестре называется «период», и «равно» на нём
+ * пришлось бы каждый раз менять руками.
+ */
+export function offeredCondition(name: string, columns: FilterColumn[]): FilterCondition {
+  const start = withColumn({ type: 'condition', column: '', op: 'eq', value: '' }, name, columns);
+  const column = columns.find(c => c.name === name);
+  return column?.kind === 'date' && operatorsFor(column).includes('between') ? withOperator(start, 'between') : start;
 }
 
 /** Поставить чип: новый — в конец, правка — на своё место. */
