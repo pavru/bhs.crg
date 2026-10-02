@@ -68,7 +68,11 @@ public static class InvoiceEndpoints
     /// <para>⚠️ Счёт БЕЗ строк вовсе в этот отбор НЕ попадает, хотя разбирать его тоже надо. Причина:
     /// «строк нет» и «строки ждут позиции» — разные работы, и вторую делают по скану, который уже
     /// разобран наполовину. Очередь «строк нет вовсе» — это отбор по состоянию «черновик», он приезжает
-    /// с сеткой реестра (G4, issue #1097) вместе с остальными сохранёнными представлениями.</para></param>
+    /// с сеткой реестра (G4, issue #1097) вместе с остальными сохранёнными представлениями.</para>
+    ///
+    /// <para>⚠️ ОТКЛОНЁННЫЙ счёт в отбор тоже не попадает, сколько бы строк у него ни ждало позиции:
+    /// «не платим» — значит и не разбираем, переход «разобран» на нём отвечает отказом. Очередь, в
+    /// которой стоит то, что разобрать нельзя, перестаёт быть очередью (issue #1166).</para></param>
     private static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
         CostsDbContext db, IModuleCatalog catalog, CancellationToken ct, bool needsParsing = false)
     {
@@ -98,7 +102,8 @@ public static class InvoiceEndpoints
 
         if (needsParsing)
             invoices = [.. invoices.Where(
-                i => lines.TryGetValue(i.Id, out var counted) && counted.Unmatched > 0)];
+                i => i.State != InvoiceState.Rejected
+                     && lines.TryGetValue(i.Id, out var counted) && counted.Unmatched > 0)];
 
         var names = await SupplierNamesAsync(catalog, invoices, ct);
 
@@ -370,7 +375,7 @@ public static class InvoiceEndpoints
     /// (позиции удалены), <c>null</c> — «спрашивать не у кого». Сведи их в одно, и в установке без
     /// типа «Номенклатура» каждая ссылка счёта выглядела бы битой.</para>
     /// </summary>
-    private static async Task<IReadOnlyDictionary<Guid, string?>?> NomenclatureNamesAsync(
+    internal static async Task<IReadOnlyDictionary<Guid, string?>?> NomenclatureNamesAsync(
         IModuleCatalog catalog, IReadOnlyList<InvoiceLine> lines, CancellationToken ct)
     {
         var ids = lines.Select(l => l.NomenclatureId).OfType<Guid>().Distinct().ToList();
