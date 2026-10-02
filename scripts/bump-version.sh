@@ -18,8 +18,9 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FILE="${VERSION_FILE:-$(cd "$DIR/.." && pwd)/src/server/Directory.Build.props}"
-export VERSION_FILE="$FILE"
+# Путь спрашиваем у get-version.sh, а не вычисляем второй раз: читать версию из одного файла, а
+# писать в другой — отказ, который сверка ниже назвала бы «записывали X, а читается Y».
+FILE=$("$DIR/get-version.sh" --file)
 
 level="${1:-patch}"
 case "$level" in
