@@ -177,7 +177,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 
 `.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master: backend
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
-храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`)
+храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`)
 и **живые прогоны в браузере** — четырьмя независимыми
 работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`.
 

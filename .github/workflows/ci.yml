@@ -260,6 +260,11 @@ jobs:
       - name: Проверка логики backend-tests.sh
         run: bash scripts/backend-tests.tests.sh
 
+      # Тот же довод: скрипт сводит коды возврата трёх ветвей подготовки живых прогонов в один
+      # (issue #1178). Проверяется на командах оболочки.
+      - name: Проверка логики in-parallel.sh
+        run: bash scripts/in-parallel.tests.sh
+
   e2e:
     name: Живые прогоны (браузер)
     runs-on: ubuntu-latest
@@ -403,24 +408,33 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
           path: ~/.nuget/packages
 
-      - name: Сборка сервера
-        run: dotnet publish src/server/BHS.CRG.Api -c Release -o ${{ runner.temp }}/api
-
-      - name: Установка зависимостей клиента
-        working-directory: src/client
-        run: npm ci
-
+      # Три ветви ОДНОВРЕМЕННО (issue #1178): сборке сервера не нужен ни клиент, ни браузер, а
+      # браузеру — даже `node_modules` клиента. По очереди это шло 93–100 с из пяти минут работы,
+      # самой долгой в прогоне; вместе — столько, сколько самая долгая ветвь, то есть сервер.
+      # Времена ветвей печатает сам шаг, итоговыми строками: шаг в интерфейсе теперь один.
+      #
+      # Сводит ветви `scripts/in-parallel.sh`: отказ любой — красный шаг, её вывод развёрнут и
+      # стоит внизу. Его логику проверяет работа «Скрипт обновления».
+      #
+      # ⚠️ Ветви не должны писать в одно место. Поэтому браузер ставится НЕ из каталога клиента:
+      # `npx` там взял бы пакет из `node_modules`, который в эту секунду пишет соседняя ветвь, —
+      # а из корня репозитория, где пакета нет, он берёт Playwright в свой кеш. Версия у пакета и
+      # у браузера обязана быть одна — отсюда одна переменная на обе ветви: Playwright ищет
+      # браузер ровно своей сборки и при несовпадении отказывает на запуске первого же прогона.
+      #
       # Playwright ставится ТОЛЬКО здесь и БЕЗ записи в package.json (`--no-save`): остальным
       # работам он не нужен, а в общем package-lock он утяжелял бы каждую из них.
-      - name: Playwright и браузер
-        working-directory: src/client
+      - name: Сборка сервера, клиента и установка браузера
+        env:
+          E2E_PLAYWRIGHT_VERSION: 1.62.1
         run: |
-          npm i --no-save playwright@1.62.1
-          npx playwright install --with-deps chromium
-
-      - name: Сборка клиента
-        working-directory: src/client
-        run: npm run build
+          bash scripts/in-parallel.sh \
+            'Сборка сервера' \
+              'dotnet publish src/server/BHS.CRG.Api -c Release -o "$RUNNER_TEMP/api"' \
+            'Сборка клиента' \
+              'cd src/client && npm ci && npm i --no-save "playwright@$E2E_PLAYWRIGHT_VERSION" && npm run build' \
+            'Браузер' \
+              'npx --yes "playwright@$E2E_PLAYWRIGHT_VERSION" install --with-deps chromium'
 
       # Запускаем ИЗ каталога публикации. Запуск по полному пути к dll оставляет корнем содержимого
       # текущий каталог — приложение не находит свой appsettings.json, поднимается на умолчаниях и
