@@ -157,6 +157,14 @@ gh label create version:minor --description "Слияние поднимает M
 ⚠️ Окружение заводится ПЕРВЫМ. На работу, назвавшую несуществующее окружение, GitHub заводит его
 сам — без ограничения по веткам.
 
+⚠️ Команды — для bash (Git Bash). **В PowerShell перенаправления `<` нет** («The '<' operator is
+reserved for future use»), а конвейер `Get-Content … |` дописывает к ключу свой перевод строки.
+Секрет оттуда кладётся через cmd, байт в байт:
+`cmd /c "gh secret set VERSION_BUMP_DEPLOY_KEY --env version-bump < bump_key"`.
+
+⚠️ Ключ создавайте **вне рабочего дерева** или удаляйте сразу: `bump_key` — закрытый ключ с правом
+записи в master, и `git add -A` унёс бы его в публичный репозиторий.
+
 И руками: Settings → Rules → Rulesets → «Master ruleset» → Bypass list → Add bypass → **Deploy
 keys** → Always allow. ⚠️ Исключение выдаётся **всем** deploy-ключам репозитория с правом записи, а
 не одному: второй такой ключ тоже сможет писать в master мимо PR и проверок. Нужна точечность —
