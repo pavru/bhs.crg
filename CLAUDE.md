@@ -70,14 +70,17 @@ src/
 # ⚠️ База слушает 5433, а не 5432: 5432 может занимать нативная служба PostgreSQL, а строка
 # подключения у них одинаковая — при совпадении портов приложение молча ушло бы в чужую базу.
 # Порт 5433 указан везде: дев-compose, appsettings.Development.json, IntegrationTestFixture, ci.yml.
+# ⚠️ И адрес — 127.0.0.1, а не localhost (issue #1151): имя разрешается сначала в ::1, а порт
+# контейнера по IPv6 на машине разработчика молчит — не отказом, а тишиной. Каждое новое подключение
+# ждёт по семь секунд, отказа нет нигде, и списывается это на «миграции долгие».
 #
 # ⚠️ ПЕРВЫЙ ЗАПУСК ПОСЛЕ ПЕРЕХОДА ДАЁТ ПУСТУЮ БАЗУ, и выглядит это как «данные пропали»:
 # приложение мигрирует схему само и поднимается зелёным. Если ваши данные были в нативной службе
 # (5432), перенесите их — она их не потеряла:
 #   pg_dump -h localhost -p 5432 -U postgres -d bhs_crg -Fc -f bhs_crg.dump
-#   psql   -h localhost -p 5433 -U postgres -c "DROP DATABASE IF EXISTS bhs_crg WITH (FORCE)"
-#   psql   -h localhost -p 5433 -U postgres -c "CREATE DATABASE bhs_crg"
-#   pg_restore -h localhost -p 5433 -U postgres -d bhs_crg --no-owner --no-privileges bhs_crg.dump
+#   psql   -h 127.0.0.1 -p 5433 -U postgres -c "DROP DATABASE IF EXISTS bhs_crg WITH (FORCE)"
+#   psql   -h 127.0.0.1 -p 5433 -U postgres -c "CREATE DATABASE bhs_crg"
+#   pg_restore -h 127.0.0.1 -p 5433 -U postgres -d bhs_crg --no-owner --no-privileges bhs_crg.dump
 # ⚠️ Именно с `compose wait`: `up -d` возвращает 0, даже если инициализация хранилища УПАЛА,
 # и тогда отказ приходит позже — ошибкой S3 из середины приложения. `up -d --wait` не годится:
 # он считает одноразовый init неуспешным и краснеет даже при коде 0.
@@ -117,7 +120,7 @@ dotnet ef migrations remove --force --project src/server/BHS.CRG.Modules.Costs \
 # мигрировала бы не ту базу, что настроена у приложения, и отвечала бы успехом.
 dotnet ef database update --project src/server/BHS.CRG.Infrastructure \
                           --startup-project src/server/BHS.CRG.Api --context AppDbContext
-ConnectionStrings__Postgres="Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Database=bhs_crg" \
+ConnectionStrings__Postgres="Host=127.0.0.1;Port=5433;Username=postgres;Password=xxsystem;Database=bhs_crg" \
   dotnet ef database update --project src/server/BHS.CRG.Modules.Costs --context CostsDbContext
 
 # TypeScript проверка (ВАЖНО: -b, т.к. корневой tsconfig только ссылки;
