@@ -94,7 +94,8 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
         // базе у экрана таблицы. По закрытой колонке отбор отказывает, а не находит «ничего».
         var types = new DataSetColumnTypes(
             kept.Where(c => c.Unavailable is null).ToDictionary(c => c.Key, c => c.Kind, StringComparer.Ordinal),
-            closed.ToDictionary(c => c.Key, c => c.Reason ?? "", StringComparer.Ordinal));
+            closed.ToDictionary(c => c.Key, c => c.Reason ?? "", StringComparer.Ordinal),
+            kept.Where(c => c.Options is not null).ToDictionary(c => c.Key, c => c.Options!, StringComparer.Ordinal));
 
         return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning), Types: types);
     }

@@ -8,7 +8,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { RowFilterDialog } from './RowFilterDialog';
-import { filterColumns } from './rowFilterModel';
+import { filterColumns } from '@/shared/filter/rowFilterModel';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type { DataSetSource } from '@/shared/api/types';

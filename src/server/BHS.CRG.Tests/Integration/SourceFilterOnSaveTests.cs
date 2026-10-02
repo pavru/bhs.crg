@@ -22,6 +22,8 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : SourceProces
 {
     private const string Good = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"between","values":["80","110"]}]}""";
     private const string WrongKind = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"contains","value":"1"}]}""";
+    private const string OutsideChoice = """{"type":"group","logic":"and","children":[{"type":"condition","column":"СостояниеОплаты","op":"eq","value":"Оплочен"}]}""";
+    private const string InsideChoice = """{"type":"group","logic":"and","children":[{"type":"condition","column":"СостояниеОплаты","op":"in","values":["Оплачен","Частично оплачен"]}]}""";
     private const string UnknownOp = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Номер","op":"betwen","value":"1"}]}""";
 
     [Fact]
@@ -44,6 +46,27 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : SourceProces
         var unknown = await PutFilterAsync(client, id, UnknownOp);
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Contains("«betwen»", await unknown.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Колонка-выбор (G1d, issue #1091): слово вне её перечня в отбор не сохраняется, и отказ называет
+    /// перечень. Раньше «Состояние оплаты равно Оплочен» сохранялось и молча не находило ничего.
+    /// </summary>
+    [Fact]
+    public async Task Значение_вне_перечня_колонки_выбора_в_отбор_не_сохраняется()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var id = await SourceAsync(client);
+
+        var refused = await PutFilterAsync(client, id, OutsideChoice);
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var said = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("значения «Оплочен» в перечне колонки нет", said);
+        Assert.Contains("«Частично оплачен»", said);
+        Assert.Null(await FilterAsync(id));
+
+        Assert.Equal(HttpStatusCode.OK, (await PutFilterAsync(client, id, InsideChoice)).StatusCode);
     }
 
     [Fact]

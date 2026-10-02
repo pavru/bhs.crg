@@ -24,6 +24,16 @@ public enum ModuleTableColumnKind
     /// счёт, у которого такой части нет ни одной.</para>
     /// </summary>
     List,
+
+    /// <summary>
+    /// Выбор из ЗАКРЫТОГО перечня значений (G1d, issue #1091): состояние документа, состояние оплаты.
+    /// Значения перечня называет объявление колонки (<see cref="ModuleTableColumn.Options" />).
+    ///
+    /// <para>Отдельный вид, а не текст со списком подсказок, потому что у него другое обещание: условие
+    /// со значением вне перечня — ОТКАЗ. У текста «Состояние равно Оплочен» молча ничего не находит, и
+    /// опечатка выглядит как «таких счетов нет».</para>
+    /// </summary>
+    Choice,
 }
 
 /// <summary>
@@ -71,13 +81,17 @@ public enum ModuleTableIsolation
 /// <para>⚠️ По такой колонке ядро не отбирает и не сортирует, и в набор данных она не едет. Условие
 /// «сумма больше миллиона» меняло бы смысл вместе с соседним условием — молча; а набор отбирает строки
 /// сам, уже после чтения, и доля в нём посчиталась бы без отбора: полной суммой под именем доли.</para></param>
+/// <param name="Options">Значения закрытого перечня — у колонки вида <see cref="ModuleTableColumnKind.Choice" />
+/// и только у неё, в порядке показа. Те же слова, что стоят в клетках: по ним идёт отбор, и их же
+/// предлагает экран.</param>
 public sealed record ModuleTableColumn(
     string Key,
     string Title,
     ModuleTableColumnKind Kind,
     string? Requires = null,
     string? Hides = null,
-    bool DependsOnFilter = false);
+    bool DependsOnFilter = false,
+    IReadOnlyList<string>? Options = null);
 
 /// <summary>
 /// Табличный источник, который объявляет модуль (ТЗ CORE-33, CORE-24; задача G1b, issue #1089).
@@ -156,6 +170,19 @@ public sealed record ModuleTable(
             if (string.IsNullOrWhiteSpace(column.Requires) != string.IsNullOrWhiteSpace(column.Hides))
                 problems.Add($"у колонки «{column.Key}» право и то, что оно закрывает, названы не вместе: " +
                              "без второго отказ сказал бы «нет права» и не сказал бы, на что");
+
+            // Перечень и вид «выбор» — только вместе. Выбор без перечня отвергал бы любое значение, а
+            // перечень у текста никто бы не проверял: экран предложил бы список, а отбор принял бы и
+            // то, чего в нём нет.
+            var options = column.Options ?? [];
+            if (column.Kind == ModuleTableColumnKind.Choice && options.Count == 0)
+                problems.Add($"у колонки-выбора «{column.Key}» не назван перечень значений");
+            if (column.Kind != ModuleTableColumnKind.Choice && column.Options is not null)
+                problems.Add($"у колонки «{column.Key}» назван перечень значений, а вид у неё — не «выбор»");
+            if (options.Any(string.IsNullOrWhiteSpace))
+                problems.Add($"в перечне колонки «{column.Key}» есть пустое значение");
+            if (options.Distinct(StringComparer.Ordinal).Count() != options.Count)
+                problems.Add($"в перечне колонки «{column.Key}» значение названо дважды");
         }
 
         return problems;
