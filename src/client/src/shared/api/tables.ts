@@ -75,6 +75,8 @@ export interface TableTotal {
   average: number | null;
   min: number | string | null;
   max: number | string | null;
+  /** Что итог значит под этим отбором: «период — по дате счёта, не по оплате». */
+  note?: string | null;
 }
 
 export interface TableData extends TableDeclaration {

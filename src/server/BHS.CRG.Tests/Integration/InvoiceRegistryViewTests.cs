@@ -2,8 +2,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Tables;
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Tables;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -101,14 +103,23 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
         await InvoiceAsync(client, $"{tag}-4", "2026-10-01", 7_000m);
 
         var september = await ReadAsync(client,
-            $"columns=Номер,{Amount}&totals={Amount}&filter={Own(tag, Period("2026-09-01", "2026-09-30"))}");
+            $"columns=Номер,{Amount},Итого&totals={Amount},Итого&filter={Own(tag, Period("2026-09-01", "2026-09-30"))}");
 
         Assert.Equal([$"{tag}-2", $"{tag}-3"], Numbers(september));
         Assert.Equal(1_250.50m, september.GetProperty("totals").GetProperty(Amount).GetProperty("sum").GetDecimal());
         Assert.Equal(InvoiceTable.ByIssueDateNote, Column(september, Amount).GetProperty("note").GetString());
 
-        var all = await ReadAsync(client, $"columns=Номер,{Amount}&totals={Amount}&filter={Own(tag)}");
+        // Ось — свойство отбора, а не одной колонки: реестр ставит итог под ОБЕ суммы, и второй под
+        // отбором периода значит то же — «за счета, выставленные в периоде». Оговорка стоит под каждым.
+        Assert.Equal(InvoiceTable.ByIssueDateNote, TotalNote(september, Amount));
+        Assert.Equal(InvoiceTable.ByIssueDateNote, TotalNote(september, "Итого"));
+        // А клетка «Суммы к оплате» значит прежнее — её заголовок подписи не получает.
+        Assert.Equal(JsonValueKind.Null, Column(september, "Итого").GetProperty("note").ValueKind);
+
+        var all = await ReadAsync(client, $"columns=Номер,{Amount},Итого&totals={Amount},Итого&filter={Own(tag)}");
         Assert.Equal(JsonValueKind.Null, Column(all, Amount).GetProperty("note").ValueKind);
+        Assert.Null(TotalNote(all, Amount));
+        Assert.Null(TotalNote(all, "Итого"));
     }
 
     /// <summary>
@@ -140,12 +151,14 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
         // Доля, а не счёт целиком: 200, а не 600 — полная сумма стоит рядом, в «Сумме к оплате».
         Assert.Equal(200m, table.GetProperty("totals").GetProperty(Amount).GetProperty("sum").GetDecimal());
         Assert.Equal(600m, table.GetProperty("totals").GetProperty("Итого").GetProperty("sum").GetDecimal());
+        // Под итогом доли — оба сужения; под итогом счёта целиком — только ось: долей он не стал.
+        Assert.Equal($"доля: {nameA}; {InvoiceTable.ByIssueDateNote}", TotalNote(table, Amount));
+        Assert.Equal(InvoiceTable.ByIssueDateNote, TotalNote(table, "Итого"));
     }
 
     /// <summary>
-    /// «Строк без позиции» — очередь «Разобрать» колонкой: число в клетке, отбор, сортировка и итог
-    /// считают одно и то же. У счёта, где разбирать нечего, клетка пуста, а не «0» — иначе отбор
-    /// «не пусто» не был бы очередью.
+    /// «Строк без позиции»: число в клетке, отбор, сортировка и итог считают одно и то же. У счёта, где
+    /// разбирать нечего, клетка пуста, а не «0» — иначе отбор «не пусто» отдавал бы все счета.
     /// </summary>
     [Fact]
     public async Task Строк_без_позиции_клетка_отбор_и_итог_считают_одно()
@@ -180,6 +193,49 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
 
         var many = await ReadAsync(client, $"columns=Номер&filter={Own(tag, Condition(Unmatched, "gt", "1"))}");
         Assert.Equal([$"{tag}-1"], Numbers(many));
+    }
+
+    /// <summary>
+    /// Колонка — факт о строках, очередь «Разобрать» — правило поверх него: отклонённый счёт в очередь
+    /// не входит (issue #1166), а строки без позиции у него остаются, и счётчик в списке счетов у него
+    /// прежний. Реестр обязан давать ТУ ЖЕ очередь, что экран счетов, — названным рецептом: «не пусто»
+    /// и «не отклонён». Разойдись они, у снабженца было бы две очереди с одним названием (ревью PR #1177).
+    /// </summary>
+    [Fact]
+    public async Task Очередь_разобрать_в_реестре_та_же_что_на_экране_счетов()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var tag = Tag();
+
+        var waiting = await InvoiceAsync(client, $"{tag}-1", "2026-09-10", 100m);
+        await LinesAsync(client, waiting, [Line(null, quantity: 1, price: 100m, text: "Ждёт")]);
+        var rejected = await InvoiceAsync(client, $"{tag}-2", "2026-09-11", 200m);
+        await LinesAsync(client, rejected,
+            [Line(null, quantity: 1, price: 100m, text: "Не ждёт"), Line(null, quantity: 1, price: 100m, text: "И это")]);
+        var parsed = await InvoiceAsync(client, $"{tag}-3", "2026-09-12", 100m);
+        await LinesAsync(client, parsed, [Line(cable, quantity: 1, price: 100m)]);
+
+        // Перехода в «отклонён» в API ещё нет — состояние ставится запросом (см. InvoiceParsedReferenceTests).
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database
+                .ExecuteSqlInterpolatedAsync($"UPDATE costs.invoices SET state = {"Rejected"} WHERE id = {rejected}");
+
+        // Факт: строки без позиции у отклонённого счёта есть, и колонка их называет.
+        var facts = await ReadAsync(client, $"columns=Номер,{Unmatched}&filter={Own(tag, Condition(Unmatched, "is_not_empty"))}");
+        Assert.Equal(
+            [($"{tag}-1", 1m), ($"{tag}-2", (decimal?)2m)],
+            facts.GetProperty("rows").EnumerateArray().Select(r => (r.GetProperty("Номер").GetString()!, Number(r, Unmatched))));
+
+        // Очередь: то же, без отклонённых.
+        var queue = await ReadAsync(client, "columns=Номер&filter=" + Own(tag, Group(
+            Condition(Unmatched, "is_not_empty"), Condition("Состояние", "neq", "Отклонён"))));
+
+        var own = new[] { waiting, rejected, parsed };
+        var onScreen = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true"))
+            .EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).Where(own.Contains).ToList();
+
+        Assert.Equal([waiting], onScreen);
+        Assert.Equal([$"{tag}-1"], Numbers(queue));
     }
 
     // ── Отборы ────────────────────────────────────────────────────────────────
@@ -225,6 +281,10 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
 
     private static decimal? Number(JsonElement row, string key) =>
         row.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetDecimal() : null;
+
+    /// <summary>Подпись под итогом колонки; null — оговорки нет.</summary>
+    private static string? TotalNote(JsonElement table, string key) =>
+        table.GetProperty("totals").GetProperty(key).GetProperty("note").GetString();
 
     private static JsonElement Column(JsonElement table, string key) =>
         table.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("key").GetString() == key);

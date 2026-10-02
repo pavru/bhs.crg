@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TableTotal } from '@/shared/api/tables';
-import { aggregatesFor, totalText } from './tableTotals';
+import { aggregatesFor, hasShownTotals, totalText } from './tableTotals';
 
 /** Итоговая строка таблицы (задача G1e, issue #1092, ТЗ CORE-33). */
 
@@ -50,10 +50,38 @@ describe('totalText', () => {
 
   it('итог, которого у вида колонки не бывает, так и назван — а не посчитан как попало', () => {
     const sumOfText = totalText(total({ sum: null }), 'sum', 'text');
-    expect(sumOfText).toEqual({ text: 'Σ —', note: 'у колонки этого вида такой итог не считается' });
+    expect(sumOfText).toEqual({ text: 'Σ —', note: 'у колонки этого вида такой итог не считается', meaning: null });
   });
 
   it('сервер итога не прислал — показать нечего', () => {
     expect(totalText(undefined, 'sum', 'number')).toBeNull();
+  });
+
+  it('что итог значит под отбором — словами сервера; оговорки нет — и подписи нет', () => {
+    const axis = 'период — по дате счёта, не по оплате';
+    expect(totalText(total({ note: axis }), 'sum', 'number')?.meaning).toBe(axis);
+    expect(totalText(total({}), 'sum', 'number')?.meaning).toBeNull();
+  });
+});
+
+describe('hasShownTotals — рисовать ли итоговую строку', () => {
+  const chosen = [{ column: 'Сумма', aggregate: 'sum' as const }, { column: 'Итого', aggregate: 'sum' as const }];
+  const grid = [{ key: 'Поставщик' }, { key: 'Итого' }];
+
+  it('итог посчитан и его колонка в сетке — строка есть', () => {
+    expect(hasShownTotals(chosen, { Итого: total({}) }, grid)).toBe(true);
+  });
+
+  it('обе колонки с итогом закрыты правом — строки нет, а не пустая полоса', () => {
+    expect(hasShownTotals(chosen, {}, [{ key: 'Поставщик' }])).toBe(false);
+    expect(hasShownTotals(chosen, null, grid)).toBe(false);
+  });
+
+  it('итог пришёл, а колонку из сетки убрали — показать его негде', () => {
+    expect(hasShownTotals(chosen, { Сумма: total({}) }, grid)).toBe(false);
+  });
+
+  it('итогов не выбрано — строки нет', () => {
+    expect(hasShownTotals([], { Итого: total({}) }, grid)).toBe(false);
   });
 });

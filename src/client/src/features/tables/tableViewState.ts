@@ -1,5 +1,5 @@
 import type { FilterNode } from '@/shared/api/types';
-import { TABLE_PAGE, type TablePreset, type TableSort } from '@/shared/api/tables';
+import { TABLE_PAGE, type TableDeclaration, type TablePreset, type TableSort } from '@/shared/api/tables';
 
 /**
  * Состояние экрана таблицы и его запись в адресе (ТЗ CORE-33: «состояние — в адресе страницы»;
@@ -68,6 +68,46 @@ export function presetView(preset: TablePreset): TableView {
       .filter((t): t is ColumnTotal => (AGGREGATE_NAMES as readonly string[]).includes(t.aggregate)),
     pinned: preset.pinned,
   };
+}
+
+/**
+ * Что стоит под адресом с кодом представления (G4, issue #1097). Пять ответов, и у каждого своё
+ * поведение экрана — поэтому они названы, а не выводятся на месте из «есть ли preset»:
+ *
+ * - `table` — код не назван, это таблица целиком;
+ * - `pending` — описание ещё не пришло: настройка едет в нём, строки ждут;
+ * - `found` — представление есть;
+ * - `off` — модуль выключен: представлений у него нет ВОВСЕ, и говорит сама таблица — «модуль
+ *   выключен». Строки запрашиваются: иначе экран вечно показывал бы «Строки загружаются…» под
+ *   состоянием, у которого есть название (ревью PR #1177);
+ * - `missing` — кода у таблицы нет: отказ экрана, строки не запрашиваются.
+ */
+export type PresetLookup =
+  | { state: 'table' | 'pending' | 'off' | 'missing' }
+  | { state: 'found'; preset: TablePreset };
+
+export function presetLookup(
+  code: string | undefined, declaration: Pick<TableDeclaration, 'state' | 'views'> | undefined,
+): PresetLookup {
+  if (!code) return { state: 'table' };
+  if (!declaration) return { state: 'pending' };
+  if (declaration.state === 'module-off') return { state: 'off' };
+  const preset = declaration.views?.find(v => v.code.toLowerCase() === code.toLowerCase());
+  return preset ? { state: 'found', preset } : { state: 'missing' };
+}
+
+/** Запрашивать ли строки: под `pending` рано, под `missing` нечего. */
+export function rowsWanted(lookup: PresetLookup): boolean {
+  return lookup.state !== 'pending' && lookup.state !== 'missing';
+}
+
+/**
+ * Адрес таблицы целиком с ТЕМ ЖЕ отбором (G4, issue #1097): из представления к таблице уходят, чтобы
+ * посмотреть те же счета всеми колонками, — отбор, оставленный позади, пришлось бы набирать заново.
+ * Колонки, итоги и сортировка не переносятся: они — настройка представления.
+ */
+export function wholeTableHash(view: TableView): string {
+  return viewHash({ ...DEFAULT_VIEW, filter: view.filter, brokenFilter: view.brokenFilter });
 }
 
 /** «Все колонки таблицы» — словом в адресе: у готового представления пустой список значил бы «как в нём». */

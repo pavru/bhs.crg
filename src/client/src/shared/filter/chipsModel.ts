@@ -54,10 +54,29 @@ export function withoutChip(conditions: FilterCondition[], index: number): Filte
  * Какие из предложенных мест показать (G4, issue #1097). Колонка, по которой условие уже стоит,
  * местом не предлагается: рядом с чипом «Дата счёта: 01.09 — 30.09» место «+ Дата счёта» читалось бы
  * как «период ещё не задан» — и второй период по нему сузил бы отбор до пересечения. Колонки, которой
- * у таблицы нет, тоже: места без колонки не открыть.
+ * у таблицы нет, тоже: места без колонки не открыть. И колонки, закрытой правом: условие по ней
+ * сервер не применит, и место вело бы прямо в отказ.
  */
 export function offeredColumns(suggested: string[] | undefined, columns: FilterColumn[], conditions: FilterCondition[]): string[] {
-  return (suggested ?? []).filter(name => columns.some(c => c.name === name) && !conditions.some(c => c.column === name));
+  return (suggested ?? []).filter(name => columns.some(c => c.name === name && !c.unavailable)
+    && !conditions.some(c => c.column === name));
+}
+
+/**
+ * Введено ли в условие хоть что-то (G4, issue #1097; ревью PR #1177). Предложенное место — ещё не
+ * условие, и отбором оно становится со ЗНАЧЕНИЕМ: колонка у места уже названа, и пустое «Добавить»
+ * у даты уходило бы в отказ сервера на месте таблицы, а у поставщика молча ставило бы «поставщик
+ * пуст». Кому нужен именно пустой поставщик, выбирает оператор «пусто» — ему значение не нужно.
+ *
+ * Это не проверка годности: «между» с одной границей сюда проходит, и что с ним не так, скажет
+ * подсказка под условием и сервер.
+ */
+export function conditionEntered(cond: FilterCondition): boolean {
+  switch (opArity(cond.op)) {
+    case 'none': return true;
+    case 'one': return (cond.value ?? '') !== '';
+    default: return (cond.values ?? []).some(v => v !== '');
+  }
 }
 
 /**

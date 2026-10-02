@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { tableRequest } from '@/shared/api/tables';
 import {
-  chipProblem, chipsView, chipText, fromChips, offeredColumns, offeredCondition, withChip, withoutChip,
+  chipProblem, chipsView, chipText, conditionEntered, fromChips, offeredColumns, offeredCondition, withChip,
+  withoutChip,
 } from './chipsModel';
 import { withColumn, type FilterColumn } from './rowFilterModel';
 
@@ -198,5 +199,29 @@ describe('offeredColumns — какие места показать', () => {
 
   it('представление мест не называет — их нет', () => {
     expect(offeredColumns(undefined, columns, [])).toEqual([]);
+  });
+
+  it('колонка закрыта правом — места под неё нет: оно вело бы прямо в отказ', () => {
+    expect(offeredColumns(['Номер', 'ВТомЧислеНДС'], columns, [])).toEqual(['Номер']);
+  });
+});
+
+describe('conditionEntered — стало ли место условием', () => {
+  it('у только что открытого места значения нет — у текста, выбора и периода одинаково', () => {
+    expect(conditionEntered(offeredCondition('Номер', columns))).toBe(false);
+    expect(conditionEntered(offeredCondition('СостояниеОплаты', columns))).toBe(false);
+    expect(conditionEntered(offeredCondition('Срок', columns))).toBe(false);
+  });
+
+  it('значение введено — условие есть; у периода хватает одной границы, остальное скажет подсказка', () => {
+    expect(conditionEntered(cond({ column: 'Номер', value: 'А-1' }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Срок', op: 'between', value: undefined, values: ['2026-09-01', ''] }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Номер', op: 'in', value: undefined, values: ['А-1'] }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Номер', op: 'in', value: undefined, values: [] }))).toBe(false);
+  });
+
+  it('оператору без значения вводить нечего: «пусто» — условие сразу', () => {
+    expect(conditionEntered(cond({ column: 'Номер', op: 'is_empty', value: undefined }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Срок', op: 'is_null', value: undefined }))).toBe(true);
   });
 });

@@ -3,7 +3,9 @@ import * as Popover from '@radix-ui/react-popover';
 import { Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import type { FilterCondition, FilterGroup, FilterNode } from '@/shared/api/types';
 import { ConditionEditor } from './ConditionEditor';
-import { chipProblem, chipsView, chipText, offeredColumns, offeredCondition, withChip, withoutChip } from './chipsModel';
+import {
+  chipProblem, chipsView, chipText, conditionEntered, offeredColumns, offeredCondition, withChip, withoutChip,
+} from './chipsModel';
 import { columnLabel, type FilterColumn } from './rowFilterModel';
 
 /**
@@ -60,7 +62,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
         ))}
 
         {offered.map(name => (
-          <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить"
+          <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить" requireValue
             initial={offeredCondition(name, columns)}
             onSubmit={cond => onChange(withChip(conditions, cond))}>
             <button type="button" className={`${CHIP_CLS} border-dashed border-stroke text-fg3 hover:text-fg1 px-2.5 py-1 gap-1`}>
@@ -138,11 +140,17 @@ function Chip({ cond, columns, onChange, onRemove }: {
  * отбор одним действием: запрос к таблице идёт на каждое изменение отбора, и слать его на каждую
  * набранную букву значения незачем.
  */
-function ConditionPopover({ columns, initial, submit, onSubmit, children }: {
+function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, children }: {
   columns: FilterColumn[];
   initial: FilterCondition;
   submit: string;
   onSubmit: (c: FilterCondition) => void;
+  /**
+   * Без значения условие не добавляется — так у предложенного места: колонка в нём уже названа, и
+   * пустое «Добавить» ставило бы отбор, которого человек не задавал. У «+ условие» этого нет: там
+   * сравнение с пустой ячейкой набирают намеренно.
+   */
+  requireValue?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -157,6 +165,10 @@ function ConditionPopover({ columns, initial, submit, onSubmit, children }: {
     setOpen(next);
   }
 
+  const waiting = requireValue === true && !conditionEntered(draft);
+
+  // Запертой кнопки достаточно и для Enter: форму с запертой кнопкой отправки браузер по Enter из
+  // поля не отправляет (проверено поломкой — живой прогон жмёт Enter в поле значения).
   function apply() {
     onSubmit(draft);
     setOpen(false);
@@ -171,9 +183,11 @@ function ConditionPopover({ columns, initial, submit, onSubmit, children }: {
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <form onSubmit={e => { e.preventDefault(); apply(); }}>
             <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} />
-            {problem && <p className="mt-1.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
+            {waiting
+              ? <p className="mt-1.5 text-xs text-fg4">Введите значение — без него отбор не ставится.</p>
+              : problem && <p className="mt-1.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
             <div className="mt-2.5 flex justify-end">
-              <button type="submit" disabled={!draft.column.trim()}
+              <button type="submit" disabled={!draft.column.trim() || waiting}
                 className="px-3 py-1 rounded-md text-xs font-medium text-white bg-brand disabled:opacity-50">
                 {submit}
               </button>

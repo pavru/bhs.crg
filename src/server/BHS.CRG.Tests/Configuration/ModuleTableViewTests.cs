@@ -66,7 +66,35 @@ public class ModuleTableViewTests
         { "отбор по несуществующей", Good() with { Filters = ["Поставщик"] }, "отбор предложен по колонке «Поставщик», которой в таблице нет" },
         { "отбор по зависящей от отбора", Good() with { Filters = ["Доля"] }, "а по ней не отбирают" },
         { "отбор дважды", Good() with { Filters = ["Номер", "Номер"] }, "отбор по колонке «Номер» предложен дважды" },
+        // Тому, у кого права нет, такой сортировке таблица отвечает отказом — представление не открылось бы.
+        { "сортировка по закрытой правом", Good() with { Sort = [new("Цена", true)] }, "она закрыта правом «probe.money»" },
+        // null — названная поломка, а не исключение: модуль может собираться без проверки nullable.
+        { "пустое место в колонках", Good() with { Columns = ["Номер", null!, "Сумма"] }, "в списке колонок пустое место" },
+        { "пустое место в сортировке", Good() with { Sort = [null!] }, "в сортировке пустое место" },
+        { "сортировка без колонки", Good() with { Sort = [new(null!)] }, "в сортировке пустое место" },
+        { "пустое место в итогах", Good() with { Totals = [null!] }, "в итогах пустое место" },
+        { "итог без колонки", Good() with { Totals = [new(null!, "sum")] }, "в итогах пустое место" },
+        { "пустое место в отборах", Good() with { Filters = [null!] }, "в местах под отбор пустое место" },
     };
+
+    /// <summary>
+    /// Колонка без ключа — поломка ТАБЛИЦЫ, и называет её таблица. Проверка представления на ней не
+    /// падает: исключение пришло бы без адреса таблицы и унесло бы с собой всё, что названо после.
+    /// </summary>
+    [Fact]
+    public void Колонка_без_ключа_не_роняет_проверку_представления()
+    {
+        var table = Table(Good() with { Columns = ["Номер", "Нет такой"] }) with
+        {
+            Columns = [new("Номер", "Номер", ModuleTableColumnKind.Text), new(null!, "Без ключа", ModuleTableColumnKind.Text), null!],
+        };
+
+        var problems = table.Problems();
+
+        Assert.Contains(problems, p => p.Contains("у колонки нет ключа или заголовка"));
+        Assert.Contains(problems, p => p.Contains("в списке колонок пустое место"));
+        Assert.Contains(problems, p => p.Contains("представление «registry»: колонки «Нет такой» в таблице нет"));
+    }
 
     /// <summary>Годное представление не называет ничего — иначе сторожа выше краснели бы на всём.</summary>
     [Fact]
@@ -129,6 +157,7 @@ public class ModuleTableViewTests
             new("Дата", "Дата", ModuleTableColumnKind.Date),
             new("Сумма", "Сумма", ModuleTableColumnKind.Number),
             new("Доля", "Доля", ModuleTableColumnKind.Number, DependsOnFilter: true),
+            new("Цена", "Цена", ModuleTableColumnKind.Number, "probe.money", "цены"),
         ],
         typeof(ProbeRows), Views: views);
 

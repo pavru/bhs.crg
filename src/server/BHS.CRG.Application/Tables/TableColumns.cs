@@ -208,9 +208,10 @@ public record TableDto(
 /// <param name="Count">Сколько значений учтено.</param>
 /// <param name="Skipped">Сколько значений НЕ учтено: в клетке лежит не то, что обещает вид колонки.</param>
 /// <param name="SkippedReason">Почему не учтены: «не число», «не дата». null — учтены все.</param>
+/// <param name="Note">Что итог значит под этим отбором — подписью под ним; null — оговорки нет.</param>
 public record TableTotalDto(
     long Count, long Skipped, string? SkippedReason,
-    decimal? Sum = null, decimal? Average = null, object? Min = null, object? Max = null);
+    decimal? Sum = null, decimal? Average = null, object? Min = null, object? Max = null, string? Note = null);
 
 /// <summary>Что потребитель просит у таблицы.</summary>
 /// <param name="Columns">Колонки представления; null — все объявленные.</param>

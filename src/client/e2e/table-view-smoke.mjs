@@ -31,6 +31,8 @@
 //      счёта, не по оплате». Ломается: оставить подпись только в шапке либо не дать вовсе.
 //   9. unknown-view-is-refused — представления с таким кодом нет: экран это говорит, а не открывает
 //      таблицу целиком под видом того, о чём просили.
+//  10. registry-leads-to-the-whole-table — из реестра к таблице целиком ведёт ссылка, и отбор едет с
+//      ней. Ломается: убрать ссылку (другого входа в таблицу в интерфейсе нет) либо вести без отбора.
 //
 // ⚠️ ДАННЫЕ — ТЕ ЖЕ, ЧТО СЕЕТ ПОСЕВ (e2e/seed-invoices.mjs, `TABLE_SEED`): счетов для итога нарочно
 // больше страницы, и человек «модуль есть, счетов нет» заведён там же. Счета прогон досеивает САМ, той
@@ -181,11 +183,22 @@ try {
       ...t, state: 'module-off',
       columns: t.columns.map(c => ({ ...c, unavailable: 'module-off', reason })),
       ...(t.rows ? { rows: [], keys: null, count: 0, totals: {} } : {}),
+      // У выключенного модуля представлений нет вовсе (ModuleTableOffTests).
+      ...(t.views ? { views: [] } : {}),
     });
     await withAnswers(page, turnOff, async () => {
       await open(page);
       await stateCell(page).waitFor({ timeout: 8000 });
       states.moduleOff = flat(await stateCell(page).innerText());
+
+      // Тот же модуль под адресом с кодом представления: говорит таблица — теми же словами. Не
+      // «представления нет» (его нет, потому что модуль выключен) и не вечное «Строки загружаются…».
+      await page.goto('about:blank');
+      await page.goto(`${TABLE}/registry`, { waitUntil: 'networkidle' });
+      await stateCell(page).waitFor({ timeout: 8000 })
+        .catch(() => { throw new Error('под кодом представления выключенный модуль состояния не назвал — экран ждёт строк, которых не запрашивал'); });
+      const under = flat(await stateCell(page).innerText());
+      if (under !== states.moduleOff) throw new Error(`под кодом представления состояние другое: «${under}»`);
     });
   });
 
@@ -214,6 +227,14 @@ try {
     for (const c of closed)
       if (shown.includes(c.label)) throw new Error(`закрытая колонка «${c.label}» нарисована в таблице`);
     if (!shown.includes('Номер счёта')) throw new Error(`открытой колонки «Номер счёта» в таблице нет: ${shown}`);
+  });
+
+  await check('hidden-column-names-the-right: в реестре без права на суммы итоговой строки нет — а не пустая полоса', async () => {
+    await openRegistry(narrow, { filter: seeded });
+    await rowsBecome(narrow, TABLE_SEED.count, 'посеянные счета в реестре у человека без права на суммы');
+    // Реестр ставит итог под обе суммы, и обе закрыты: считать нечего и показывать нечего.
+    if ((await narrow.locator('tfoot').count()) !== 0)
+      throw new Error(`итоговая строка нарисована: «${flat(await narrow.locator('tfoot').innerText())}»`);
   });
   await narrow.close();
 
@@ -462,6 +483,18 @@ try {
         throw new Error(`места под отбор «${name}» нет`);
     if ((await chips(page).getByRole('button', { name: /^Снять условие/ }).count()) !== 0)
       throw new Error('реестр открылся с условием отбора, которого человек не ставил');
+
+    // Место — ещё не условие: без значения оно отбором не становится ни кнопкой, ни клавишей Enter.
+    // У поставщика пустое «равно» сервер принял бы и молча отобрал бы счета без поставщика.
+    await chips(page).getByRole('button', { name: 'Поставщик', exact: true }).click();
+    const add = page.getByRole('button', { name: 'Добавить', exact: true });
+    await add.waitFor({ timeout: 5000 });
+    if (!(await add.isDisabled())) throw new Error('пустое место под «Поставщика» можно добавить условием');
+    // Enter — из поля значения: пока кнопка заперта, форму он не отправляет.
+    await page.locator('[data-radix-popper-content-wrapper] input').last().press('Enter');
+    await page.keyboard.press('Escape');
+    if ((await chips(page).getByRole('button', { name: /^Снять условие/ }).count()) !== 0 || new URL(page.url()).hash)
+      throw new Error('пустое место стало условием отбора по клавише Enter');
   });
 
   await check('registry-address-holds-only-the-difference: правка ложится в адрес отличием и переживает перезагрузку', async () => {
@@ -501,6 +534,9 @@ try {
     const foot = flat(await page.locator('tfoot td').nth(column).innerText());
     if (!foot.includes(`Σ ${flat(tableSeedSum().toLocaleString('ru-RU'))}`)) throw new Error(`итог периода: «${foot}»`);
     if (!foot.includes(AXIS)) throw new Error(`итог оси не называет: «${foot}»`);
+    // Ось — свойство отбора, а не одной колонки: итог «Суммы к оплате» под периодом значит то же.
+    const whole = flat(await page.locator('tfoot td').nth(shown.indexOf('Сумма к оплате')).innerText());
+    if (!whole.includes(AXIS)) throw new Error(`итог «Суммы к оплате» оси не называет: «${whole}»`);
 
     // Период стоит чипом — места под него больше нет: рядом с чипом оно читалось бы как «не задан».
     if ((await chips(page).getByRole('button', { name: 'Дата счёта', exact: true }).count()) !== 0)
@@ -523,6 +559,19 @@ try {
       throw new Error('под несуществующим представлением открылась таблица — её примут за то, о чём просили');
     await page.getByRole('link', { name: 'Открыть таблицу целиком' }).click();
     await page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10000 });
+  });
+
+  await check('registry-leads-to-the-whole-table: из реестра к таблице целиком ведёт ссылка, и отбор едет с ней', async () => {
+    await openRegistry(page, { filter: seeded });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета под реестром');
+
+    await page.getByRole('link', { name: 'Таблица целиком', exact: true }).click();
+    await page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10000 });
+    if (new URL(page.url()).pathname !== '/tables/costs.invoices') throw new Error(`ссылка ведёт на ${new URL(page.url()).pathname}`);
+    await rowsBecome(page, TABLE_SEED.count, 'те же счета в таблице целиком');
+    // Настройка представления осталась позади: колонок больше, чем в реестре.
+    if ((await headers(page).count()) <= REGISTRY_COLUMNS.length)
+      throw new Error('таблица целиком открылась колонками реестра');
   });
 } finally {
   await browser.close();

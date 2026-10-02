@@ -11,10 +11,10 @@ import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
 import { RowPanel } from './RowPanel';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
-import { totalText } from './tableTotals';
+import { hasShownTotals, totalText } from './tableTotals';
 import {
-  DEFAULT_VIEW, PAGE_SIZES, presetView, withColumnShown, withFilter, withPage, withRow, withSize, withSort,
-  type TableView,
+  DEFAULT_VIEW, PAGE_SIZES, presetLookup, presetView, rowsWanted, wholeTableHash, withColumnShown, withFilter,
+  withPage, withRow, withSize, withSort, type TableView,
 } from './tableViewState';
 import { useTableView } from './useTableView';
 
@@ -38,9 +38,9 @@ export function TablePage() {
   // Экрану они нужны и тогда — иначе негодное условие нечем было бы назвать и нечем исправить, а
   // отказ занял бы место всего экрана вместе с чипами, о которых он говорит.
   const declaration = useTableDeclaration(address);
-  const preset = presetCode
-    ? declaration.data?.views?.find(v => v.code.toLowerCase() === presetCode.toLowerCase())
-    : undefined;
+  const lookup = presetLookup(presetCode, declaration.data);
+  const [wanted, missing] = [rowsWanted(lookup), lookup.state === 'missing'];
+  const preset = lookup.state === 'found' ? lookup.preset : undefined;
   const base = useMemo(() => (preset ? presetView(preset) : DEFAULT_VIEW), [preset]);
   const [view, setView] = useTableView(base);
 
@@ -50,7 +50,7 @@ export function TablePage() {
   const table = useTable(address, {
     filter, columns: view.columns, sort: view.sort, totals: view.totals.map(t => t.column),
     offset: (view.page - 1) * view.size, limit: view.size,
-  }, !presetCode || preset !== undefined);
+  }, wanted);
   useDocumentTitle(preset?.title ?? declaration.data?.title);
 
   // Описание ещё не пришло и отказа нет — сказать пока нечего: ни «строк нет», ни причину.
@@ -70,7 +70,7 @@ export function TablePage() {
   // Представление названо, а у таблицы его нет (опечатка в адресе, модуль его убрал). Открыть вместо
   // него таблицу целиком значило бы выдать её за то, о чём просили, — человек искал «Реестр счетов».
   // У выключенного модуля представлений нет вовсе, и там говорит сама таблица: «модуль выключен».
-  if (presetCode && !preset && !off)
+  if (missing)
     return (
       <div className="px-6 py-10 text-sm" role="alert">
         <p className="text-danger">У таблицы «{decl.title}» нет представления «{presetCode}».</p>
@@ -86,8 +86,6 @@ export function TablePage() {
   const sortable = new Set(decl.columns.filter(c => !c.unavailable && !c.dependsOnFilter).map(c => c.key));
   const data = table.data;
   const grid = data ? gridColumns(data.columns) : [];
-  // Что колонка значит под этим отбором («доля: Комарова 36; период — по дате счёта»), — и итогу тоже.
-  const notes = new Map((data?.columns ?? []).flatMap(c => (c.note ? [[c.key, c.note] as const] : [])));
 
   return (
     <div className="h-full flex min-h-0">
@@ -97,7 +95,18 @@ export function TablePage() {
             <Table2 size={18} className="text-fg3" aria-hidden />
             {preset?.title ?? decl.title}
           </h1>
-          <p className="mt-0.5 text-xs text-fg4">Строка — {decl.grain}. {decl.boundary.replace(/\.$/, '')}.</p>
+          <p className="mt-0.5 text-xs text-fg4">
+            Строка — {decl.grain}. {decl.boundary.replace(/\.$/, '')}.
+            {/* Из представления — к таблице целиком, с тем же отбором: другого входа в неё в интерфейсе нет. */}
+            {preset && (
+              <>
+                {' '}
+                <Link className="underline hover:text-fg2" to={`/tables/${encodeURIComponent(address)}${wholeTableHash(view)}`}>
+                  Таблица целиком
+                </Link>
+              </>
+            )}
+          </p>
         </div>
 
         <div className="flex items-start gap-3">
@@ -151,8 +160,8 @@ export function TablePage() {
               sort={view.sort} sortable={c => sortable.has(c.key)}
               onSort={(c, additive) => setView(withSort(view, c.key, additive))}
               pinned={view.pinned}
-              footer={view.totals.length > 0
-                ? c => <Total view={view} data={data} column={c} kind={kinds.get(c.key)} note={notes.get(c.key)} />
+              footer={hasShownTotals(view.totals, data.totals, grid)
+                ? c => <Total view={view} data={data} column={c} kind={kinds.get(c.key)} />
                 : undefined}
               rowKey={data.keys ? (_, i) => data.keys![i] : undefined}
               onRowOpen={data.keys ? (_, i) => setView(withRow(view, data.keys![i])) : undefined}
@@ -179,13 +188,14 @@ export function TablePage() {
 /**
  * Итог под колонкой — по всему отбору, а не по странице; оговорка о неучтённых значениях видна сразу.
  *
- * Подпись смысла колонки повторена ПОД ИТОГОМ (ревизия Дизайнера; G4, issue #1097): неправильно
+ * Что итог значит под этим отбором, сказано ПОД НИМ (ревизия Дизайнера; G4, issue #1097): неправильно
  * читают не клетку, а нижнюю строку. Человек, отобравший по стройке, читает её как «столько потрачено
  * на стройку» — а это доля по разноске за счета, выставленные в периоде, и шапка колонки к этому
- * моменту уже уехала вверх.
+ * моменту уже уехала вверх. Подпись приходит с самим итогом, а не с колонкой: ось периода — свойство
+ * отбора, и оговорка положена каждому денежному итогу, а не одной «Сумме».
  */
-function Total({ view, data, column, kind, note }: {
-  view: TableView; data: TableData; column: DataGridColumn; kind: string | undefined; note: string | undefined;
+function Total({ view, data, column, kind }: {
+  view: TableView; data: TableData; column: DataGridColumn; kind: string | undefined;
 }) {
   const chosen = view.totals.find(t => t.column === column.key);
   const total = chosen ? totalText(data.totals?.[column.key], chosen.aggregate, kind ?? 'text') : null;
@@ -194,7 +204,7 @@ function Total({ view, data, column, kind, note }: {
     <div title="Итог по всему отбору, а не по странице">
       <div className="font-medium text-fg1">{total.text}</div>
       {total.note && <div className="text-warning">{total.note}</div>}
-      {note && <div className="text-fg4 font-normal whitespace-normal">{note}</div>}
+      {total.meaning && <div className="text-fg4 font-normal whitespace-normal">{total.meaning}</div>}
     </div>
   );
 }

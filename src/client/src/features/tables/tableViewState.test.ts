@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { FilterNode } from '@/shared/api/types';
 import type { TablePreset } from '@/shared/api/tables';
 import {
-  DEFAULT_VIEW, chooserOrder, columnsCustomised, filterChanged, parseView, presetView, viewHash, withColumnMoved,
-  withColumnShown, withColumnsReset,
+  DEFAULT_VIEW, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
+  viewHash, wholeTableHash, withColumnMoved, withColumnShown, withColumnsReset,
   withFilter, withPage, withPinned, withRow, withSize, withSort, withTotal, type TableView,
 } from './tableViewState';
 
@@ -255,5 +255,44 @@ describe('готовое представление', () => {
     expect(columnsCustomised(back, base)).toBe(false);
     // От таблицы целиком то же состояние — настроенное: мерка зависит от основы.
     expect(columnsCustomised(back)).toBe(true);
+  });
+
+  describe('что стоит под адресом с кодом представления', () => {
+    const declared = { state: null, views: [registry] };
+
+    it('код не назван — таблица целиком, строки запрашиваются сразу', () => {
+      expect(presetLookup(undefined, undefined)).toEqual({ state: 'table' });
+      expect(rowsWanted({ state: 'table' })).toBe(true);
+    });
+
+    it('описание ещё не пришло — строки ждут: настройка едет в нём', () => {
+      expect(presetLookup('registry', undefined)).toEqual({ state: 'pending' });
+      expect(rowsWanted({ state: 'pending' })).toBe(false);
+    });
+
+    it('представление найдено, регистр кода не важен', () => {
+      expect(presetLookup('Registry', declared)).toEqual({ state: 'found', preset: registry });
+      expect(rowsWanted({ state: 'found', preset: registry })).toBe(true);
+    });
+
+    it('кода у таблицы нет — отказ, строки не запрашиваются', () => {
+      expect(presetLookup('net-takogo', declared)).toEqual({ state: 'missing' });
+      expect(rowsWanted({ state: 'missing' })).toBe(false);
+    });
+
+    it('модуль выключен — это не «представления нет»: говорит таблица, и строки запрашиваются', () => {
+      const off = presetLookup('registry', { state: 'module-off', views: [] });
+      expect(off).toEqual({ state: 'off' });
+      // Иначе экран вечно показывал бы «Строки загружаются…» под состоянием, у которого есть название.
+      expect(rowsWanted(off)).toBe(true);
+    });
+  });
+
+  it('к таблице целиком уходят с тем же отбором, а настройка представления остаётся позади', () => {
+    const tuned = withPage(withSort({ ...base, filter: unpaid }, 'Номер', false), 3);
+    const whole = parseView(wholeTableHash(tuned));
+
+    expect(whole).toEqual(view({ filter: unpaid }));
+    expect(wholeTableHash(base)).toBe('');
   });
 });

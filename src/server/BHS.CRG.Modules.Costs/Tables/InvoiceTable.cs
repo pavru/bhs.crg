@@ -57,8 +57,13 @@ public static class InvoiceTable
     public const string OverdueKey = "СрокПросрочен";
 
     /// <summary>
-    /// Сколько строк счёта ждёт позиции номенклатуры; пусто — ни одной. Счётчик очереди «Разобрать»
-    /// колонкой: без неё очередь читается по одному счёту за раз — открывая каждый.
+    /// Сколько строк счёта стоит без позиции номенклатуры; пусто — ни одной. То же число, что счётчик
+    /// в списке счетов: без колонки оно читается по одному счёту за раз — открывая каждый.
+    ///
+    /// <para>⚠️ Это ФАКТ о строках, а не очередь «Разобрать»: отклонённый счёт в очередь не входит
+    /// (issue #1166), а строки без позиции у него остаются — и счётчик в списке счетов у него прежний.
+    /// Очередь в реестре — «не пусто» вместе с «Состояние документа ≠ Отклонён»; что это одно и то же,
+    /// держит тест.</para>
     /// </summary>
     public const string UnmatchedKey = "СтрокБезПозиции";
 
@@ -72,6 +77,13 @@ public static class InvoiceTable
     public const string RegistryView = "registry";
 
     private const string Amounts = "суммы";
+
+    /// <summary>
+    /// Денежные колонки, чей ИТОГ под отбором периода называет ось подписью. «Сумма» сюда не входит:
+    /// её подпись длиннее — она же называет долю — и приходит ещё и к заголовку.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> MoneyByIssueDate =
+        [InvoiceRequisites.TotalKey, InvoiceRequisites.VatTotalKey];
 
     public static ModuleTable Declaration { get; } = new(
         Code,
@@ -211,6 +223,15 @@ public sealed class InvoiceTableRows(
             : null;
         if (shareTotal) totals[InvoiceTable.AmountKey] = InvoiceShares.Total(amounts!.Values);
 
+        // Что сумма значит под этим отбором — колонке «Сумма» (у неё меняется и смысл клетки) и под
+        // КАЖДЫМ денежным итогом. Ось периода — свойство отбора, а не одной колонки: под отбором по
+        // дате счёта итог «Суммы к оплате» — тоже «за счета, выставленные в периоде», и без оговорки
+        // он читается как то, что сходится с затратами по стройке.
+        var note = shares.Note(naming, byIssueDate);
+        Annotate(totals, InvoiceTable.AmountKey, note);
+        if (byIssueDate)
+            foreach (var money in InvoiceTable.MoneyByIssueDate) Annotate(totals, money, InvoiceTable.ByIssueDateNote);
+
         // Счётчик «ждут позиции» — по счетам страницы, одним запросом; условие то же, что у колонки
         // в запросе (см. Sql).
         var unmatched = query.Columns.Contains(InvoiceTable.UnmatchedKey)
@@ -223,10 +244,14 @@ public sealed class InvoiceTableRows(
         var objects = shares.Objects(parts);
         return new(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today))], count, totals,
-            shares.Note(naming, byIssueDate) is { } note
-                ? new Dictionary<string, string> { [InvoiceTable.AmountKey] = note }
-                : null,
+            note is null ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = note },
             [.. invoices.Select(i => i.Id.ToString())]);
+    }
+
+    /// <summary>Подпись под итогом колонки — если итог по ней считался.</summary>
+    private static void Annotate(Dictionary<string, TableTotal> totals, string key, string? note)
+    {
+        if (note is not null && totals.TryGetValue(key, out var total)) totals[key] = total with { Note = note };
     }
 
     /// <summary>
@@ -255,12 +280,13 @@ public sealed class InvoiceTableRows(
             .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
             .Number(InvoiceTable.DaysLeftKey, InvoiceDue.DaysLeft(today))
             .Flag(InvoiceTable.OverdueKey, InvoiceDue.Overdue(today))
-            // Ноль — пусто, а не «0»: у разобранного счёта клетка молчит, и отбор «не пусто» — это и
-            // есть очередь «Разобрать».
-            .Number(InvoiceTable.UnmatchedKey, i =>
-                db.InvoiceLines.Count(l => l.InvoiceId == i.Id && l.NomenclatureId == null) == 0
-                    ? null
-                    : db.InvoiceLines.Count(l => l.InvoiceId == i.Id && l.NomenclatureId == null))
+            // Ноль — пусто, а не «0»: у разобранного счёта клетка молчит, и отбор «не пусто» отдаёт
+            // счета, где разбирать есть что. Подзапрос ОДИН и сам даёт NULL, когда строк нет: построитель
+            // подставляет выражение в запрос по нескольку раз (отбор, сортировка — дважды, итог), и
+            // «count = 0 ? null : count» удваивало бы каждое из них (ревью PR #1177).
+            .Number(InvoiceTable.UnmatchedKey, i => db.InvoiceLines
+                .Where(l => l.InvoiceId == i.Id && l.NomenclatureId == null)
+                .GroupBy(l => l.InvoiceId).Select(g => (decimal?)g.Count()).FirstOrDefault())
             .Choice(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Choice(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
