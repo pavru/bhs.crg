@@ -22,7 +22,8 @@ namespace BHS.CRG.Tests.Integration;
 /// живых типов задевает документы, которые на них ссылаются.</para>
 ///
 /// <para>⚠️ Базы свои, а не общая тестовая: тест применяет миграции ЧАСТЯМИ и создаёт схему с нуля,
-/// то есть делает с базой то, чего соседние тесты не переживут.</para>
+/// то есть делает с базой то, чего соседние тесты не переживут. Свои — но названные ОТ базы прогона
+/// (см. <see cref="DatabaseName" />): иначе их делили бы все одновременные прогоны на машине.</para>
 /// </summary>
 [Collection("Integration")]
 public class MigrationCensusTests
@@ -30,7 +31,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Fresh_database_migrates_and_the_census_has_nothing_to_compare()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_fresh");
+        await using var db = await CreateDatabaseAsync("fresh");
 
         // База пустая: таблиц нет, сверять не с чем — и это НЕ повод для отказа старта.
         var before = await MigrationCensus.ReadAsync(db);
@@ -55,7 +56,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Missing_database_is_not_a_failure_it_is_the_first_start()
     {
-        var name = "bhs_crg_census_absent";
+        var name = DatabaseName("absent");
         await using (var conn = new NpgsqlConnection(AdminConnectionString()))
         {
             await conn.OpenAsync();
@@ -71,7 +72,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Database_with_history_keeps_every_construction_section_and_set()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_history");
+        await using var db = await CreateDatabaseAsync("history");
 
         // Схема ПРЕЖНЕЙ версии: доходим до предпоследней миграции — проверяем ту, что добавлена
         // последней, какой бы она ни была. Имя не прибито нарочно: прибитое устареет со следующей
@@ -201,7 +202,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task История_поднимает_номенклатуру_над_материалом()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift");
+        await using var db = await CreateDatabaseAsync("lift");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         var unit = await SeedLegacyTypesAsync(db);
 
@@ -266,7 +267,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Повторный_прогон_второго_справочника_не_заводит()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_twice");
+        await using var db = await CreateDatabaseAsync("lift_twice");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
@@ -292,7 +293,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Откат_возвращает_поля_строке()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down");
+        await using var db = await CreateDatabaseAsync("lift_down");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
@@ -318,7 +319,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Пересозданная_база_номенклатуру_не_заводит()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_fresh");
+        await using var db = await CreateDatabaseAsync("lift_fresh");
         await db.Database.MigrateAsync();
 
         Assert.Equal(0L, await ScalarAsync(db,
@@ -334,7 +335,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Чужой_вид_работы_ссылку_не_получает()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_alien");
+        await using var db = await CreateDatabaseAsync("lift_alien");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await InsertTypeAsync(db, Guid.NewGuid(), "ВидРаботы", "Свой классификатор", "id", "Open",
@@ -365,7 +366,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Откат_не_уносит_ссылку_наполненного_классификатора()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down_filled");
+        await using var db = await CreateDatabaseAsync("lift_down_filled");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
@@ -464,8 +465,42 @@ public class MigrationCensusTests
         return string.Join("\n;\n", migration.UpOperations.OfType<SqlOperation>().Select(o => o.Sql));
     }
 
-    private static async Task<AppDbContext> CreateDatabaseAsync(string name)
+    /// <summary>
+    /// Имя временной базы — от имени тестовой базы ПРОГОНА: <c>&lt;база прогона&gt;_census_&lt;суффикс&gt;</c>
+    /// (issue #1145).
+    ///
+    /// <para>Раньше имена были прибиты (<c>bhs_crg_census_fresh</c> и ещё восемь) и от
+    /// <c>BHS_TEST_DB</c> не зависели. Переменная развязывает одновременные прогоны в разных worktree
+    /// (issue #618), а этот класс развязку обходил: два прогона с РАЗНЫМИ базами сносили и создавали
+    /// друг у друга одну и ту же. Отказ при этом на тесноту не похож ничем — «57P01: terminating
+    /// connection due to administrator command» посреди миграции (чужой DROP … WITH (FORCE)) или
+    /// «23505 … pg_database_datname_index» на CREATE — и читается как поломка самой миграции.</para>
+    ///
+    /// <para>Тем же способом своё имя получают хосты модулей (<see cref="ModuleSchemaHost" /> и
+    /// соседи): суффикс к базе прогона, а не отдельное имя.</para>
+    /// </summary>
+    private static string DatabaseName(string suffix)
     {
+        var name = new NpgsqlConnectionStringBuilder(IntegrationTestFixture.TestConnectionString).Database
+                   + "_census_" + suffix;
+
+        // Имя длиннее 63 байт сервер обрезает МОЛЧА (NOTICE, которого никто не читает): CREATE создал
+        // бы базу с обрезанным именем, а подключение по полному её бы не нашло — и хуже того, обрезка
+        // склеила бы «lift_down» с «lift_down_filled» в одну базу. Отказываем сразу и по имени причины.
+        if (System.Text.Encoding.UTF8.GetByteCount(name) > MaxIdentifierBytes)
+            throw new InvalidOperationException(
+                $"Имя временной базы «{name}» длиннее {MaxIdentifierBytes} байт — PostgreSQL его обрежет. "
+                + "Укоротите BHS_TEST_DB.");
+
+        return name;
+    }
+
+    /// <summary>Предел длины идентификатора PostgreSQL (NAMEDATALEN − 1).</summary>
+    private const int MaxIdentifierBytes = 63;
+
+    private static async Task<AppDbContext> CreateDatabaseAsync(string suffix)
+    {
+        var name = DatabaseName(suffix);
         await using (var conn = new NpgsqlConnection(AdminConnectionString()))
         {
             await conn.OpenAsync();
