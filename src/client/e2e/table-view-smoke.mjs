@@ -19,6 +19,19 @@
 //   5. broken-filter-refuses-visibly — негодный отбор даёт видимый отказ с названием колонки, а не
 //      «отбор ничего не нашёл». Ломается: съесть отказ и показать пустую выдачу.
 //
+// И готовое представление «Реестр счетов» (задача G4, issue #1097, ТЗ COST-20.1):
+//
+//   6. registry-is-a-named-setup — пункт навигации открывает ту же таблицу под настройкой модуля:
+//      колонки в порядке таблицы заказчика, итоги под обеими суммами, пять мест под отбор — и
+//      пустой адрес. Ломается: открыть таблицу всеми колонками под названием реестра.
+//   7. registry-address-holds-only-the-difference — правка представления ложится в адрес одним
+//      отличием и переживает перезагрузку. Ломается: писать в адрес настройку целиком либо читать
+//      адрес от умолчаний таблицы — убранная колонка вернётся, а за ней придут все остальные.
+//   8. registry-total-names-its-axis — под отбором периода сумма и её ИТОГ называют ось: «по дате
+//      счёта, не по оплате». Ломается: оставить подпись только в шапке либо не дать вовсе.
+//   9. unknown-view-is-refused — представления с таким кодом нет: экран это говорит, а не открывает
+//      таблицу целиком под видом того, о чём просили.
+//
 // ⚠️ ДАННЫЕ — ТЕ ЖЕ, ЧТО СЕЕТ ПОСЕВ (e2e/seed-invoices.mjs, `TABLE_SEED`): счетов для итога нарочно
 // больше страницы, и человек «модуль есть, счетов нет» заведён там же. Счета прогон досеивает САМ, той
 // же функцией: в CI посев идёт до перезапуска приложения, когда типа счёта ещё нет, и счетов не сеет.
@@ -404,6 +417,106 @@ try {
     const second = (await headers(page).nth(1).boundingBox()).x;
     if (second >= before.head + (await first.boundingBox()).width)
       throw new Error('вторая колонка не ушла под закреплённую — прокрутки не было');
+  });
+
+  // ── 6. Готовое представление «Реестр счетов» ──────────────────────────────────────────────────
+
+  const REGISTRY_COLUMNS = [
+    'Поставщик', 'Сумма', 'Сумма к оплате', 'Номер счёта', 'Дата счёта', 'Дата отгрузки', 'Отсрочка, дней',
+    'Оплатить до', 'Осталось дней', 'Состояние оплаты', 'Объект', 'Плательщик', 'Назначение', 'Строк без позиции',
+  ];
+  const OFFERED = ['Дата счёта', 'Плательщик', 'Поставщик', 'Объект', 'Состояние оплаты'];
+  const AXIS = 'период — по дате счёта, не по оплате';
+  const titles = async p => (await headers(p).allInnerTexts()).map(flat);
+
+  async function openRegistry(p, state = {}) {
+    await p.goto('about:blank');
+    await p.goto(`${TABLE}/registry` + (Object.keys(state).length ? hash(state) : ''), { waitUntil: 'networkidle' });
+    await p.getByRole('heading', { name: 'Реестр счетов' }).waitFor({ timeout: 10000 });
+  }
+
+  await check('registry-is-a-named-setup: пункт навигации открывает реестр его колонками, итогами и местами под отбор', async () => {
+    await page.setViewportSize({ width: 1500, height: 1000 });
+    await page.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
+    await page.getByRole('link', { name: 'Реестр счетов' }).click();
+    await page.getByRole('heading', { name: 'Реестр счетов' }).waitFor({ timeout: 10000 });
+    await dataRows(page).first().waitFor({ timeout: 8000 });
+
+    const url = new URL(page.url());
+    if (url.pathname !== '/tables/costs.invoices/registry') throw new Error(`пункт ведёт на ${url.pathname}`);
+    if (url.hash) throw new Error(`нетронутое представление записало в адрес «${decodeURIComponent(url.hash)}»`);
+
+    const shown = await titles(page);
+    if (shown.join(' | ') !== REGISTRY_COLUMNS.join(' | '))
+      throw new Error(`колонки реестра: ${shown.join(' | ')}`);
+
+    // Итог — под обеими суммами: под отбором по объекту первая становится долей, вторая остаётся счётом.
+    for (const title of ['Сумма', 'Сумма к оплате']) {
+      const foot = flat(await page.locator('tfoot td').nth(shown.indexOf(title)).innerText());
+      if (!foot.startsWith('Σ ')) throw new Error(`под «${title}» итога нет: «${foot}»`);
+    }
+
+    // Места под отбор предложены, но условием ни одно не стало: отбор ставит человек.
+    for (const name of OFFERED)
+      if ((await chips(page).getByRole('button', { name, exact: true }).count()) !== 1)
+        throw new Error(`места под отбор «${name}» нет`);
+    if ((await chips(page).getByRole('button', { name: /^Снять условие/ }).count()) !== 0)
+      throw new Error('реестр открылся с условием отбора, которого человек не ставил');
+  });
+
+  await check('registry-address-holds-only-the-difference: правка ложится в адрес отличием и переживает перезагрузку', async () => {
+    await openRegistry(page, { filter: seeded });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета под реестром');
+
+    await columnsButton.click();
+    await page.getByRole('dialog').getByLabel('Назначение', { exact: true }).click();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(n => document.querySelectorAll('thead th').length === n, REGISTRY_COLUMNS.length - 1,
+      { timeout: 5000 }).catch(() => { throw new Error('колонка со снятой галочкой осталась в реестре'); });
+
+    const params = [...new URLSearchParams(new URL(page.url()).hash.slice(1)).keys()].sort();
+    if (params.join(',') !== 'columns,filter')
+      throw new Error(`в адресе не одно отличие, а «${params.join(', ')}» — настройка представления записана целиком`);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета после перезагрузки');
+    const after = await titles(page);
+    if (after.join(' | ') !== REGISTRY_COLUMNS.filter(c => c !== 'Назначение').join(' | '))
+      throw new Error(`после перезагрузки колонки: ${after.join(' | ')}`);
+    // Итоги и закрепление в адрес не писались — значит, пришли из представления, а не из умолчаний таблицы.
+    if (!flat(await page.locator('tfoot td').nth(after.indexOf('Сумма к оплате')).innerText()).startsWith('Σ '))
+      throw new Error('после перезагрузки итог реестра пропал — адрес прочитан от умолчаний таблицы');
+  });
+
+  await check('registry-total-names-its-axis: под отбором периода сумма и её итог называют ось', async () => {
+    const period = { type: 'condition', column: 'Дата', op: 'between', values: ['2026-09-01', '2026-09-30'] };
+    await openRegistry(page, { filter: { type: 'group', logic: 'and', children: [seeded, period] } });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета за сентябрь');
+
+    const shown = await titles(page);
+    const column = shown.findIndex(title => title.startsWith('Сумма ('));
+    if (column < 0 || !shown[column].includes(AXIS)) throw new Error(`шапка суммы оси не называет: ${shown.join(' | ')}`);
+
+    // Итог — та строка, которую читают как «столько потрачено»; шапка к этому моменту уехала вверх.
+    const foot = flat(await page.locator('tfoot td').nth(column).innerText());
+    if (!foot.includes(`Σ ${flat(tableSeedSum().toLocaleString('ru-RU'))}`)) throw new Error(`итог периода: «${foot}»`);
+    if (!foot.includes(AXIS)) throw new Error(`итог оси не называет: «${foot}»`);
+
+    // Без периода в отборе называть нечего — подписи нет ни в шапке, ни под итогом.
+    await openRegistry(page, { filter: seeded });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета без периода');
+    if ((await page.getByText(AXIS).count()) !== 0) throw new Error('ось названа, хотя период в отбор не входит');
+  });
+
+  await check('unknown-view-is-refused: представления нет — экран это говорит, а таблицу вместо него не открывает', async () => {
+    await page.goto('about:blank');
+    await page.goto(`${TABLE}/net-takogo`, { waitUntil: 'networkidle' });
+    const alert = page.getByRole('alert').filter({ hasText: 'нет представления «net-takogo»' });
+    await alert.waitFor({ timeout: 8000 });
+    if ((await headers(page).count()) !== 0)
+      throw new Error('под несуществующим представлением открылась таблица — её примут за то, о чём просили');
+    await page.getByRole('link', { name: 'Открыть таблицу целиком' }).click();
+    await page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10000 });
   });
 } finally {
   await browser.close();

@@ -159,9 +159,28 @@ public record TableColumnDto(
 /// <param name="Columns">Все колонки таблицы: объявленные модулем и поля схемы типа; закрытые — с
 /// причиной.</param>
 /// <param name="State">Состояние таблицы целиком: <see cref="TableColumnReasons.ModuleOff" /> или null.</param>
+/// <param name="Views">Готовые представления таблицы, которые поставляет модуль (G4, issue #1097):
+/// «Реестр счетов». Пусто — готовых нет. У таблицы выключенного модуля — тоже пусто: настраивать
+/// нечего, строк нет.</param>
 public record TableDeclarationDto(
     string Address, string Title, string Grain, string Boundary,
-    IReadOnlyList<TableColumnDto> Columns, string? State = null);
+    IReadOnlyList<TableColumnDto> Columns, string? State = null,
+    IReadOnlyList<TableViewDto>? Views = null);
+
+/// <summary>
+/// Готовое представление таблицы — её настройка от модуля (ТЗ CORE-33, COST-20.1; задача G4,
+/// issue #1097): состав и порядок колонок, сортировка, итоги, закрепление и колонки, по которым
+/// экран предлагает отбор. Условий отбора в нём нет — их ставит человек.
+/// </summary>
+/// <param name="Code">Код представления — им оно названо в адресе экрана.</param>
+/// <param name="Filters">Колонки, по которым отбор предлагается готовыми местами под условие.</param>
+public record TableViewDto(
+    string Code, string Title, IReadOnlyList<string> Columns,
+    IReadOnlyList<TableSortRequest> Sort, IReadOnlyList<TableViewTotalDto> Totals, int Pinned,
+    IReadOnlyList<string> Filters);
+
+/// <summary>Итог готового представления: колонка и слово итога (<c>sum</c>, <c>count</c>…).</summary>
+public record TableViewTotalDto(string Column, string Aggregate);
 
 /// <summary>Таблица модуля со строками.</summary>
 /// <param name="Address">Адрес таблицы: <c>costs.invoices</c>.</param>

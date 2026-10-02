@@ -114,8 +114,21 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
 
         var (entry, table) = (opened.Entry, opened.Entry.Table);
         return (new(entry.Address, table.Title, table.Grain, table.Boundary, opened.Columns,
-            opened.Off is null ? null : TableColumnReasons.ModuleOff), null);
+            opened.Off is null ? null : TableColumnReasons.ModuleOff,
+            opened.Off is null ? Views(table) : []), null);
     }
+
+    /// <summary>
+    /// Готовые представления таблицы — как объявил модуль. Правами не сужаются: представление называет
+    /// колонки, а закрыта ли колонка этому человеку, говорит сама колонка — и экран покажет её причину
+    /// так же, как у представления, собранного руками.
+    /// </summary>
+    private static IReadOnlyList<TableViewDto> Views(ModuleTable table) => [.. (table.Views ?? [])
+        .Select(v => new TableViewDto(
+            v.Code, v.Title, v.Columns,
+            [.. (v.Sort ?? []).Select(s => new TableSortRequest(s.Column, s.Descending))],
+            [.. (v.Totals ?? []).Select(t => new TableViewTotalDto(t.Column, t.Aggregate))],
+            v.Pinned, v.Filters ?? []))];
 
     /// <summary>Таблица, открытая спрашивающему: её колонки с причинами и, если модуль выключен, чем.</summary>
     /// <param name="Columns">ВСЕ колонки таблицы, закрытые — с причиной.</param>

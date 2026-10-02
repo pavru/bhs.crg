@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2 } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -30,6 +30,10 @@ export const workNav: NavItem[] = [
   // без второго), а пункт обязан закрываться тем же правом, что стоит на группе адресов экрана.
   { to: '/invoices',        label: 'Счета',               icon: ReceiptText, module: 'costs',
     permission: 'costs.invoice.read' },
+  // «Реестр счетов» — готовое представление таблицы счетов (ТЗ COST-20.1, задача G4). Закрыт МОДУЛЕМ,
+  // без права: ключ таблицы — код модуля, и открывается она всякому, кому открыт «Счета и накладные».
+  // Суммы в ней закрывает право на счета — причиной у колонки, а не отказом экрана.
+  { to: '/tables/costs.invoices/registry', label: 'Реестр счетов', icon: Table2, module: 'costs' },
   { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run' },
 ];
 

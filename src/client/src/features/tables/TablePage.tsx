@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router';
 import { ChevronLeft, ChevronRight, Table2 } from 'lucide-react';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -13,7 +13,8 @@ import { RowPanel } from './RowPanel';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { totalText } from './tableTotals';
 import {
-  PAGE_SIZES, withColumnShown, withFilter, withPage, withRow, withSize, withSort, type TableView,
+  DEFAULT_VIEW, PAGE_SIZES, presetView, withColumnShown, withFilter, withPage, withRow, withSize, withSort,
+  type TableView,
 } from './tableViewState';
 import { useTableView } from './useTableView';
 
@@ -24,24 +25,33 @@ import { useTableView } from './useTableView';
  * Своего состояния у экрана нет — оно в адресе страницы (`useTableView`): перезагрузка и «назад» не
  * теряют ни отбор, ни состав колонок.
  *
- * <p>⚠️ Это механизм, а не «Реестр счетов»: готовое представление со своим составом колонок и
- * пунктом в навигации приезжает задачей G4, сохранённые представления — G3a.</p>
+ * <p><b>Готовое представление</b> (задача G4, issue #1097) — та же таблица под названной настройкой:
+ * `/tables/costs.invoices/registry` открывает «Реестр счетов» с его колонками, итогами и местами под
+ * отбор. Настройку поставляет модуль, и приходит она в описании таблицы; адрес страницы отсчитан от
+ * неё, поэтому пуст, пока человек ничего не менял. Сохранённые представления — G3a.</p>
  */
 export function TablePage() {
-  const { address = '' } = useParams();
-  const [view, setView] = useTableView();
+  const { address = '', view: presetCode } = useParams();
   const [advanced, setAdvanced] = useState(false);
 
   // Описание и строки — двумя запросами. Отказ отбора приходит БЕЗ таблицы: ни колонок, ни названия.
   // Экрану они нужны и тогда — иначе негодное условие нечем было бы назвать и нечем исправить, а
   // отказ занял бы место всего экрана вместе с чипами, о которых он говорит.
   const declaration = useTableDeclaration(address);
+  const preset = presetCode
+    ? declaration.data?.views?.find(v => v.code.toLowerCase() === presetCode.toLowerCase())
+    : undefined;
+  const base = useMemo(() => (preset ? presetView(preset) : DEFAULT_VIEW), [preset]);
+  const [view, setView] = useTableView(base);
+
   const filter = view.filter ?? view.brokenFilter;
+  // ⚠️ Под готовым представлением строки ждут описания: настройка приходит в нём, и запрос, ушедший
+  // раньше, прочитал бы таблицу ВСЕМИ колонками — чтобы тут же выбросить ответ.
   const table = useTable(address, {
     filter, columns: view.columns, sort: view.sort, totals: view.totals.map(t => t.column),
     offset: (view.page - 1) * view.size, limit: view.size,
-  });
-  useDocumentTitle(declaration.data?.title);
+  }, !presetCode || preset !== undefined);
+  useDocumentTitle(preset?.title ?? declaration.data?.title);
 
   // Описание ещё не пришло и отказа нет — сказать пока нечего: ни «строк нет», ни причину.
   if (declaration.isPending) return <div className="px-6 py-10 text-sm text-fg4">Загрузка…</div>;
@@ -56,6 +66,19 @@ export function TablePage() {
 
   const decl = declaration.data;
   const off = decl.state === 'module-off';
+
+  // Представление названо, а у таблицы его нет (опечатка в адресе, модуль его убрал). Открыть вместо
+  // него таблицу целиком значило бы выдать её за то, о чём просили, — человек искал «Реестр счетов».
+  // У выключенного модуля представлений нет вовсе, и там говорит сама таблица: «модуль выключен».
+  if (presetCode && !preset && !off)
+    return (
+      <div className="px-6 py-10 text-sm" role="alert">
+        <p className="text-danger">У таблицы «{decl.title}» нет представления «{presetCode}».</p>
+        <p className="mt-2 text-fg3">
+          <Link className="underline" to={`/tables/${encodeURIComponent(address)}`}>Открыть таблицу целиком</Link>
+        </p>
+      </div>
+    );
   const allKeys = decl.columns.map(c => c.key);
   const kinds = new Map(decl.columns.map(c => [c.key, c.kind]));
   const filterColumns = tableFilterColumns(decl.columns);
@@ -63,6 +86,8 @@ export function TablePage() {
   const sortable = new Set(decl.columns.filter(c => !c.unavailable && !c.dependsOnFilter).map(c => c.key));
   const data = table.data;
   const grid = data ? gridColumns(data.columns) : [];
+  // Что колонка значит под этим отбором («доля: Комарова 36; период — по дате счёта»), — и итогу тоже.
+  const notes = new Map((data?.columns ?? []).flatMap(c => (c.note ? [[c.key, c.note] as const] : [])));
 
   return (
     <div className="h-full flex min-h-0">
@@ -70,17 +95,20 @@ export function TablePage() {
         <div className="mb-3">
           <h1 className="text-xl font-semibold text-fg1 flex items-center gap-2">
             <Table2 size={18} className="text-fg3" aria-hidden />
-            {decl.title}
+            {preset?.title ?? decl.title}
           </h1>
           <p className="mt-0.5 text-xs text-fg4">Строка — {decl.grain}. {decl.boundary.replace(/\.$/, '')}.</p>
         </div>
 
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <FilterChips columns={filterColumns} filter={view.filter}
+            <FilterChips columns={filterColumns} filter={view.filter} suggested={preset?.filters}
               onChange={next => setView(withFilter(view, next))} onAdvanced={() => setAdvanced(true)} />
           </div>
-          {!off && <ColumnsPanel columns={decl.columns} view={view} gridColumns={grid.length} onChange={setView} />}
+          {!off && (
+            <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title}
+              gridColumns={grid.length} onChange={setView} />
+          )}
         </div>
 
         {/* Колонка, закрытая правом, в таблицу не идёт — о ней говорит эта строка: сколько колонок,
@@ -123,7 +151,9 @@ export function TablePage() {
               sort={view.sort} sortable={c => sortable.has(c.key)}
               onSort={(c, additive) => setView(withSort(view, c.key, additive))}
               pinned={view.pinned}
-              footer={view.totals.length > 0 ? c => <Total view={view} data={data} column={c} kind={kinds.get(c.key)} /> : undefined}
+              footer={view.totals.length > 0
+                ? c => <Total view={view} data={data} column={c} kind={kinds.get(c.key)} note={notes.get(c.key)} />
+                : undefined}
               rowKey={data.keys ? (_, i) => data.keys![i] : undefined}
               onRowOpen={data.keys ? (_, i) => setView(withRow(view, data.keys![i])) : undefined}
               rowOpen={(_, i) => view.row !== null && data.keys?.[i] === view.row}
@@ -146,9 +176,16 @@ export function TablePage() {
   );
 }
 
-/** Итог под колонкой — по всему отбору, а не по странице; оговорка о неучтённых значениях видна сразу. */
-function Total({ view, data, column, kind }: {
-  view: TableView; data: TableData; column: DataGridColumn; kind: string | undefined;
+/**
+ * Итог под колонкой — по всему отбору, а не по странице; оговорка о неучтённых значениях видна сразу.
+ *
+ * Подпись смысла колонки повторена ПОД ИТОГОМ (ревизия Дизайнера; G4, issue #1097): неправильно
+ * читают не клетку, а нижнюю строку. Человек, отобравший по стройке, читает её как «столько потрачено
+ * на стройку» — а это доля по разноске за счета, выставленные в периоде, и шапка колонки к этому
+ * моменту уже уехала вверх.
+ */
+function Total({ view, data, column, kind, note }: {
+  view: TableView; data: TableData; column: DataGridColumn; kind: string | undefined; note: string | undefined;
 }) {
   const chosen = view.totals.find(t => t.column === column.key);
   const total = chosen ? totalText(data.totals?.[column.key], chosen.aggregate, kind ?? 'text') : null;
@@ -157,6 +194,7 @@ function Total({ view, data, column, kind }: {
     <div title="Итог по всему отбору, а не по странице">
       <div className="font-medium text-fg1">{total.text}</div>
       {total.note && <div className="text-warning">{total.note}</div>}
+      {note && <div className="text-fg4 font-normal whitespace-normal">{note}</div>}
     </div>
   );
 }

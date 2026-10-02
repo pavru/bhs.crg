@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { tableRequest } from '@/shared/api/tables';
-import { chipProblem, chipsView, chipText, fromChips, withChip, withoutChip } from './chipsModel';
+import { chipProblem, chipsView, chipText, fromChips, offeredCondition, withChip, withoutChip } from './chipsModel';
 import { withColumn, type FilterColumn } from './rowFilterModel';
 
 /**
@@ -158,5 +158,22 @@ describe('снятие чипа меняет запрос, а не только 
 
     expect(request.method).toBe('post');
     expect(request.url).toBe('/tables/costs.invoices/query');
+  });
+});
+
+/** Места под условие, которые отбор предлагает готовыми (задача G4, issue #1097). */
+describe('offeredCondition — предложенное место под условие', () => {
+  it('у даты место сразу «между»: в реестре оно называется «период»', () => {
+    expect(offeredCondition('Срок', columns)).toEqual({ type: 'condition', column: 'Срок', op: 'between', values: ['', ''] });
+  });
+
+  it('у остальных — первый годный оператор колонки и пустое значение', () => {
+    expect(offeredCondition('СостояниеОплаты', columns)).toEqual(
+      { type: 'condition', column: 'СостояниеОплаты', op: 'eq', value: '' });
+    expect(offeredCondition('Номер', columns).op).toBe('eq');
+  });
+
+  it('место — ещё не условие: с пустым значением оно названо негодным, а не отбирает всё подряд', () => {
+    expect(chipProblem(offeredCondition('СостояниеОплаты', columns), columns)).not.toBeNull();
   });
 });

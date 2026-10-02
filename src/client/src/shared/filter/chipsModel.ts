@@ -1,6 +1,9 @@
 import type { FilterCondition, FilterGroup, FilterNode } from '@/shared/api/types';
 import { formatDateRu } from '@/shared/utils/date';
-import { columnLabel, conditionProblem, opArity, opLabel, valueFits, type FilterColumn } from './rowFilterModel';
+import {
+  columnLabel, conditionProblem, opArity, operatorsFor, opLabel, valueFits, withColumn, withOperator,
+  type FilterColumn,
+} from './rowFilterModel';
 
 /**
  * Чипы отбора — второе лицо того же дерева условий (ТЗ CORE-33; задача G1d, issue #1091).
@@ -48,6 +51,17 @@ export function withoutChip(conditions: FilterCondition[], index: number): Filte
 }
 
 /** Поставить чип: новый — в конец, правка — на своё место. */
+/**
+ * Условие для места, которое отбор предлагает готовым (G4, issue #1097): колонка названа, значение
+ * пусто. У даты — сразу «между»: место под дату в реестре называется «период», и «равно» на нём
+ * пришлось бы каждый раз менять руками.
+ */
+export function offeredCondition(name: string, columns: FilterColumn[]): FilterCondition {
+  const start = withColumn({ type: 'condition', column: '', op: 'eq', value: '' }, name, columns);
+  const column = columns.find(c => c.name === name);
+  return column?.kind === 'date' && operatorsFor(column).includes('between') ? withOperator(start, 'between') : start;
+}
+
 export function withChip(conditions: FilterCondition[], cond: FilterCondition, index?: number): FilterGroup | null {
   return fromChips(index === undefined ? [...conditions, cond] : conditions.map((c, i) => (i === index ? cond : c)));
 }

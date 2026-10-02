@@ -31,6 +31,25 @@ export interface TableColumn {
   requires: string | null;
 }
 
+/**
+ * Готовое представление таблицы — её настройка, которую поставляет модуль (ТЗ CORE-33, COST-20.1;
+ * задача G4, issue #1097): «Реестр счетов». Условий отбора в нём нет — их ставит человек; `filters`
+ * называет колонки, по которым экран отбор ПРЕДЛАГАЕТ.
+ */
+export interface TablePreset {
+  /** Код представления — им оно названо в адресе экрана: `/tables/costs.invoices/registry`. */
+  code: string;
+  title: string;
+  /** Колонки в порядке показа. */
+  columns: string[];
+  sort: TableSort[];
+  totals: { column: string; aggregate: string }[];
+  /** Сколько первых колонок закреплено слева. */
+  pinned: number;
+  /** Колонки, по которым отбор предлагается готовыми местами под условие. */
+  filters: string[];
+}
+
 /** Таблица без строк: что она такое и ВСЕ её колонки — в том числе не показанные. */
 export interface TableDeclaration {
   address: string;
@@ -40,6 +59,8 @@ export interface TableDeclaration {
   columns: TableColumn[];
   /** Состояние таблицы целиком: `module-off` либо null. */
   state: string | null;
+  /** Готовые представления таблицы; у выключенного модуля — пусто. */
+  views?: TablePreset[];
 }
 
 /** Итог по колонке — по всему отбору, а не по странице. */
