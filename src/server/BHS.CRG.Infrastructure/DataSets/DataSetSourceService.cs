@@ -38,7 +38,9 @@ public partial class DataSetSourceService(
     public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(
         Guid fileId, DataAccess access, CancellationToken ct)
     {
-        var sources = await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct);
+        // Порядок — тот же, что у источников в выдаче набора (issue #1149): без него он был порядком
+        // строк в куче и менялся правкой любого источника.
+        var sources = (await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct)).InListOrder().ToList();
         var ids = sources.Select(s => s.Id).ToList();
         var bindingCounts = ids.Count == 0
             ? new Dictionary<Guid, int>()

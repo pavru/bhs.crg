@@ -103,10 +103,13 @@ public static class DataSetDtoMapper
     /// <param name="bindingCounts">Число привязок по id источника (issue #417). null — не считали.</param>
     /// <param name="liveStates">Живое состояние системных источников по id (issue #613, #626) — для
     /// наборов, где кэш поддерживать нечем. Источники не из словаря отдают свой кэш.</param>
+    /// <remarks>Источники упорядочиваются ЗДЕСЬ (issue #1149), а не в запросах, которые набор читают:
+    /// через это место идут и списки, и ответы всех правок набора, а запросов с
+    /// <c>Include(f => f.Sources)</c> больше, и следующий забыл бы порядок так же, как прежние.</remarks>
     public static DataSetFileDto MapFile(DataSetFile f, IReadOnlyDictionary<Guid, int>? bindingCounts = null,
         IReadOnlyDictionary<Guid, SystemSourceCounter.SystemSourceState>? liveStates = null) => new(
         f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
-        f.Sources.Select(s => MapSource(s, BindingCountOf(bindingCounts, s.Id), LiveStateOf(liveStates, s.Id))).ToList(),
+        f.Sources.InListOrder().Select(s => MapSource(s, BindingCountOf(bindingCounts, s.Id), LiveStateOf(liveStates, s.Id))).ToList(),
         f.CreatedAt, f.PreprocessingProfile,
         f.RecognitionProfiles is null ? null
             : JsonSerializer.Deserialize<Dictionary<string, Guid>>(f.RecognitionProfiles));
