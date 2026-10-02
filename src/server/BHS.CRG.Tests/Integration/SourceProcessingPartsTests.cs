@@ -1,13 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
-using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
-using BHS.CRG.Domain.DataSets;
-using BHS.CRG.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -19,7 +13,7 @@ namespace BHS.CRG.Tests.Integration;
 /// источника на странице. Копия устаревала — и сохранение сортировки молча затирало отбор, который
 /// тем временем поправил другой человек. Отказа при этом не было: ответ «сохранено» был правдой.</para>
 /// </summary>
-public sealed class SourceProcessingPartsTests(InvoiceLineHost host) : ModuleTableSeededTests(host)
+public sealed class SourceProcessingPartsTests(InvoiceLineHost host) : SourceProcessingTestBase(host)
 {
     private const string Sort = """[{"column":"Номер","direction":"asc"}]""";
     private const string Computed = """[{"alias":"К","expr":"1"}]""";
@@ -82,6 +76,7 @@ public sealed class SourceProcessingPartsTests(InvoiceLineHost host) : ModuleTab
     [InlineData("{}", "менять нечего")]
     [InlineData("""{"rowFiltr":null}""", "«rowFiltr»")]
     [InlineData("""{"sortSpec":null,"filter":null}""", "«filter»")]
+    [InlineData("""{"sortSpec":null,"SortSpec":[]}""", "прислано дважды")]
     [InlineData("[]", "не объект")]
     public async Task Запрос_из_которого_взять_нечего_отклоняется_и_источник_цел(string body, string named)
     {
@@ -101,33 +96,43 @@ public sealed class SourceProcessingPartsTests(InvoiceLineHost host) : ModuleTab
     /// <summary>
     /// Правка без отбора к поставщику не идёт вовсе: проверять нечего. Кому источник закрыт, тот
     /// сортировку всё равно поправит — как и снимет отбор (см. <see cref="SourceFilterOnSaveTests" />).
+    ///
+    /// <para>Отбор у источника при этом ЕСТЬ, и годный по форме: без него проверка вышла бы раньше,
+    /// чем дошла до поставщика, и тест был бы зелёным при любом коде службы.</para>
     /// </summary>
     [Fact]
     public async Task Правка_без_отбора_поставщика_не_спрашивает()
     {
         var (admin, _) = await SignInAsync("Admin");
         var id = await SourceAsync(admin);
+        await StoreAsync(id, Between(80, 110));
         var (_, outsider) = await SignInAsync("Installer");
 
-        using var scope = host.Services.CreateScope();
-        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(outsider, default);
-        var saved = await scope.ServiceProvider.GetRequiredService<IDataSetService>().SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput { SortSpec = ProcessingPart.Of(JsonDocument.Parse(Sort).RootElement) }, access, default);
+        var saved = await AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
+            id, new SetSourceProcessingInput { SortSpec = ProcessingPart.Of(JsonDocument.Parse(Sort).RootElement) }, access, default));
 
         Assert.NotNull(saved);
-        Assert.Contains("Номер", (await StoredAsync(id)).SortSpec);
+        var stored = await StoredAsync(id);
+        Assert.Contains("Номер", stored.SortSpec);
+        Assert.Contains("110", stored.RowFilter);
     }
 
-    // ── Помощники ───────────────────────────────────────────────────────────────
-
-    /// <summary>Тело — дословно: какие поля в нём есть, а каких нет, здесь и проверяется.</summary>
-    private static Task<HttpResponseMessage> PutAsync(HttpClient client, Guid id, string body) =>
-        client.PutAsync($"/api/datasets/sources/{id}/processing", new StringContent(body, Encoding.UTF8, "application/json"));
-
-    private async Task<DataSetSource> StoredAsync(Guid id)
+    /// <summary>
+    /// Правку без единой части отклоняет сама служба, а не только разбор тела: входов больше одного,
+    /// и «сохранено» в ответ на правку, из которой взять нечего, не должен получить ни один.
+    /// </summary>
+    [Fact]
+    public async Task Правка_без_единой_части_отклоняется_службой()
     {
-        using var scope = host.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .DataSetSources.AsNoTracking().FirstAsync(s => s.Id == id);
+        var (client, user) = await SignInAsync("Admin");
+        var id = await SourceAsync(client);
+        await OkAsync(await PutAsync(client, id, $$"""{"sortSpec":{{Sort}}}"""));
+        var before = (await StoredAsync(id)).UpdatedAt;
+
+        var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => AsAsync(user, (svc, access) =>
+            svc.SetSourceProcessingAsync(id, new SetSourceProcessingInput(), access, default)));
+
+        Assert.Contains("менять нечего", refusal.Message);
+        Assert.Equal(before, (await StoredAsync(id)).UpdatedAt);
     }
 }

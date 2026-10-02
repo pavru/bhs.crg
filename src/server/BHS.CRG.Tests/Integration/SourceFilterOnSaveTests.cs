@@ -1,9 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
-using BHS.CRG.Domain.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,11 +14,11 @@ namespace BHS.CRG.Tests.Integration;
 ///
 /// <para>Источник здесь — на таблице счетов: у неё колонки с видами, и проверка обязана быть той же,
 /// что при чтении («Итого содержит 1» — отказ, «Срок пусто» — годится). Три решения, которые
-/// сторожатся отдельно: неизменённый отбор не перепроверяется (иначе сохранённый раньше негодный
-/// запер бы источник), шаблон ложится целиком или не ложится вовсе, а колонка, закрытая человеку
-/// правом, для него колонка без значений.</para>
+/// сторожатся отдельно: сохранённый раньше негодный отбор источник не запирает (правка сортировки
+/// отбора не присылает — issue #1139), шаблон ложится целиком или не ложится вовсе, а колонка,
+/// закрытая человеку правом, для него колонка без значений.</para>
 /// </summary>
-public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableSeededTests(host)
+public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : SourceProcessingTestBase(host)
 {
     private const string Good = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"between","values":["80","110"]}]}""";
     private const string WrongKind = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"contains","value":"1"}]}""";
@@ -32,7 +30,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var (client, _) = await SignInAsync("Admin");
         var id = await SourceAsync(client);
 
-        var refused = await PutAsync(client, id, WrongKind);
+        var refused = await PutFilterAsync(client, id, WrongKind);
 
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         var said = await refused.Content.ReadAsStringAsync();
@@ -40,10 +38,10 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         Assert.Contains("условие 1 по колонке «Итого»", said);
         Assert.Contains("не применяется", said);
         // В базу не легло ничего: отказ — это отказ, а не «сохранили и предупредили».
-        Assert.Null(await StoredAsync(id));
+        Assert.Null(await FilterAsync(id));
 
         // Оператора нет вовсе — та же дверь, та же причина словами.
-        var unknown = await PutAsync(client, id, UnknownOp);
+        var unknown = await PutFilterAsync(client, id, UnknownOp);
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Contains("«betwen»", await unknown.Content.ReadAsStringAsync());
     }
@@ -54,15 +52,15 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var (client, _) = await SignInAsync("Admin");
         var id = await SourceAsync(client);
 
-        await OkAsync(await PutAsync(client, id, Good));
+        await OkAsync(await PutFilterAsync(client, id, Good));
         // «Пусто» сервер принимает у колонки любого вида — отборы, сохранённые до #1090, спрашивали
         // его у числа и даты. Проверка при сохранении не должна быть строже чтения.
-        await OkAsync(await PutAsync(client, id,
+        await OkAsync(await PutFilterAsync(client, id,
             """{"type":"group","logic":"and","children":[{"type":"condition","column":"Срок","op":"is_empty"}]}"""));
-        Assert.NotNull(await StoredAsync(id));
+        Assert.NotNull(await FilterAsync(id));
 
-        await OkAsync(await PutAsync(client, id, "null"));
-        Assert.Null(await StoredAsync(id));
+        await OkAsync(await PutFilterAsync(client, id, "null"));
+        Assert.Null(await FilterAsync(id));
     }
 
     /// <summary>
@@ -77,15 +75,15 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var id = await SourceAsync(client);
         await StoreAsync(id, WrongKind);
 
-        var sorted = await PutPartsAsync(client, id, new { sortSpec = Json("""[{"column":"Номер","direction":"asc"}]""") });
+        var sorted = await PutAsync(client, id, """{"sortSpec":[{"column":"Номер","direction":"asc"}]}""");
         await OkAsync(sorted);
         Assert.Equal(1, (await sorted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sortSpec").GetArrayLength());
-        await OkAsync(await PutPartsAsync(client, id, new { computedColumns = Json("""[{"alias":"К","expr":"1"}]""") }));
-        Assert.Contains("contains", await StoredAsync(id));
+        await OkAsync(await PutAsync(client, id, """{"computedColumns":[{"alias":"К","expr":"1"}]}"""));
+        Assert.Contains("contains", await FilterAsync(id));
 
         // А присланный отбор — новый ввод, даже слово в слово совпавший с сохранённым: человек нажал
         // «Сохранить» в диалоге отбора, и там ему и место узнать, что отбор негоден.
-        var same = await PutPartsAsync(client, id, new { rowFilter = Json(WrongKind) });
+        var same = await PutFilterAsync(client, id, WrongKind);
         Assert.Equal(HttpStatusCode.BadRequest, same.StatusCode);
     }
 
@@ -94,7 +92,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
     {
         var (client, _) = await SignInAsync("Admin");
         var id = await SourceAsync(client);
-        await OkAsync(await PutAsync(client, id, Good));
+        await OkAsync(await PutFilterAsync(client, id, Good));
 
         // По форме отбор годен — негоден он именно этому источнику: «Итого» здесь число.
         var name = $"Шаблон {Guid.NewGuid():N}";
@@ -114,9 +112,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         Assert.Contains("Источник не изменён", said);
 
         // Шаблон не лёг и частично: сортировка шаблона на источник не попала, отбор остался прежним.
-        using var scope = host.Services.CreateScope();
-        var source = await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .DataSetSources.AsNoTracking().FirstAsync(s => s.Id == id);
+        var source = await StoredAsync(id);
         Assert.Null(source.SortSpec);
         Assert.Contains("between", source.RowFilter);
     }
@@ -163,15 +159,11 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var id = await SourceAsync(admin);
         var (_, narrow) = await SignInAsync(await RoleAsync("costs.waybill.read"));
 
-        using var scope = host.Services.CreateScope();
-        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(narrow, default);
-        var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-
-        var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => svc.SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(JsonDocument.Parse(Good).RootElement) }, access, default));
+        var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => AsAsync(narrow, (svc, access) => svc.SetSourceProcessingAsync(
+            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(JsonDocument.Parse(Good).RootElement) }, access, default)));
 
         Assert.Contains("нет права на суммы", refusal.Message);
-        Assert.Null(await StoredAsync(id));
+        Assert.Null(await FilterAsync(id));
     }
 
     /// <summary>
@@ -188,13 +180,13 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
     {
         var (admin, _) = await SignInAsync("Admin");
         var id = await SourceAsync(admin);
-        await OkAsync(await PutAsync(admin, id, Good));
+        await OkAsync(await PutFilterAsync(admin, id, Good));
         var (_, outsider) = await SignInAsync("Installer");
 
         // По форме отбор годен, негоден он этому источнику — без видов проверка его пропустила бы.
         await Assert.ThrowsAsync<ForbiddenException>(() => AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
             id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(JsonDocument.Parse(WrongKind).RootElement) }, access, default)));
-        Assert.Contains("between", await StoredAsync(id));
+        Assert.Contains("between", await FilterAsync(id));
 
         // Негодный по форме отбор назван и без поставщика — причина та же, что у всех.
         var named = await Assert.ThrowsAsync<InvalidRequestException>(() => AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
@@ -210,13 +202,13 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         await OkAsync(template);
         var templateId = (await template.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.NotNull(await AsAsync(outsider, (svc, access) => svc.ApplyProcessingTemplateAsync(id, templateId, access, default)));
-        Assert.Null(await StoredAsync(id));
+        Assert.Null(await FilterAsync(id));
 
         // И сброс отбора — тоже.
         await StoreAsync(id, WrongKind);
         Assert.NotNull(await AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Cleared }, access, default)));
-        Assert.Null(await StoredAsync(id));
+            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(null) }, access, default)));
+        Assert.Null(await FilterAsync(id));
     }
 
     /// <summary>
@@ -229,7 +221,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var (client, _) = await SignInAsync("Admin");
         var id = await SourceAsync(client);
 
-        var refused = await PutAsync(client, id, """{"type":"group","logic":"and","children":[null]}""");
+        var refused = await PutFilterAsync(client, id, """{"type":"group","logic":"and","children":[null]}""");
 
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         Assert.Contains("узел 1", await refused.Content.ReadAsStringAsync());
@@ -237,44 +229,6 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
 
     // ── Помощники ───────────────────────────────────────────────────────────────
 
-    private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
-
-    /// <summary>Правка обработки ровно теми частями, что названы в теле.</summary>
-    private static Task<HttpResponseMessage> PutPartsAsync(HttpClient client, Guid id, object parts) =>
-        client.PutAsJsonAsync($"/api/datasets/sources/{id}/processing", parts);
-
-    private static Task<HttpResponseMessage> PutAsync(HttpClient client, Guid id, string rowFilter, string sortSpec = "null") =>
-        client.PutAsJsonAsync($"/api/datasets/sources/{id}/processing", new
-        {
-            rowFilter = JsonDocument.Parse(rowFilter).RootElement,
-            sortSpec = JsonDocument.Parse(sortSpec).RootElement,
-        });
-
-    /// <summary>
-    /// Вызов службы от имени пользователя — каждый в СВОЕЙ области: в общей контекст базы отдал бы
-    /// источник из памяти, каким тот был до правки мимо службы, и проверка шла бы не по тому отбору.
-    /// </summary>
-    private async Task<T> AsAsync<T>(Guid user, Func<IDataSetService, DataAccess, Task<T>> call)
-    {
-        using var scope = host.Services.CreateScope();
-        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(user, default);
-        return await call(scope.ServiceProvider.GetRequiredService<IDataSetService>(), access);
-    }
-
     /// <summary>Отбор так, как он лежит в базе; null — отбора нет.</summary>
-    private async Task<string?> StoredAsync(Guid id)
-    {
-        using var scope = host.Services.CreateScope();
-        return (await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .DataSetSources.AsNoTracking().FirstAsync(s => s.Id == id)).RowFilter;
-    }
-
-    /// <summary>Отбор — в базу мимо службы: так лежит сохранённое до #1137 и восстановленное из копии.</summary>
-    private async Task StoreAsync(Guid id, string rowFilter)
-    {
-        using var scope = host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.DataSetSources.FirstAsync(s => s.Id == id)).SetProcessing(rowFilter, null, null);
-        await db.SaveChangesAsync();
-    }
+    private async Task<string?> FilterAsync(Guid id) => (await StoredAsync(id)).RowFilter;
 }

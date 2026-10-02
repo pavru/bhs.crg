@@ -1,6 +1,6 @@
 using System.Text.Json;
+using BHS.CRG.Api.Endpoints.DataSets;
 using BHS.CRG.Application.DataSets;
-using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Tests.DataSets;
 
@@ -9,10 +9,13 @@ namespace BHS.CRG.Tests.DataSets;
 /// запросе нет вовсе. Различие это видно только по телу — привязка к записи отдала бы <c>null</c> и
 /// за отсутствующее поле, и за сброшенное.
 /// </summary>
-public class SourceProcessingInputTests
+public class SourceProcessingBodyTests
 {
-    private static SetSourceProcessingInput Parse(string body) =>
-        SetSourceProcessingInput.FromBody(JsonDocument.Parse(body).RootElement);
+    private static SetSourceProcessingInput Parse(string body)
+    {
+        Assert.True(SourceProcessingBody.TryParse(JsonDocument.Parse(body).RootElement, out var input, out var refusal), refusal);
+        return input;
+    }
 
     [Fact]
     public void Прислана_одна_часть_остальные_не_тронуты()
@@ -23,6 +26,7 @@ public class SourceProcessingInputTests
         Assert.Equal(JsonValueKind.Array, Assert.IsType<JsonElement>(input.SortSpec.Value).ValueKind);
         Assert.False(input.RowFilter.Sent);
         Assert.False(input.ComputedColumns.Sent);
+        Assert.False(input.IsEmpty);
     }
 
     [Fact]
@@ -30,7 +34,7 @@ public class SourceProcessingInputTests
     {
         var input = Parse("""{"rowFilter":null}""");
 
-        Assert.Equal(ProcessingPart.Cleared, input.RowFilter);
+        Assert.Equal(ProcessingPart.Of(null), input.RowFilter);
         Assert.False(input.SortSpec.Sent);
     }
 
@@ -50,21 +54,40 @@ public class SourceProcessingInputTests
     {
         SetSourceProcessingInput input;
         using (var document = JsonDocument.Parse("""{"rowFilter":{"type":"group","logic":"and","children":[]}}"""))
-            input = SetSourceProcessingInput.FromBody(document.RootElement);
+            Assert.True(SourceProcessingBody.TryParse(document.RootElement, out input, out _));
 
         Assert.Equal("group", Assert.IsType<JsonElement>(input.RowFilter.Value).GetProperty("type").GetString());
     }
 
+    /// <summary>
+    /// Тело без единой части разбирается в пустую правку — отказывает ей служба, одинаково для любого
+    /// входа (см. <c>SourceProcessingPartsTests</c>).
+    /// </summary>
+    [Fact]
+    public void Тело_без_частей_даёт_пустую_правку()
+    {
+        Assert.True(Parse("{}").IsEmpty);
+        Assert.True(new SetSourceProcessingInput().IsEmpty);
+    }
+
+    /// <summary>
+    /// Тело, которое нельзя понять однозначно, — отказ с причиной. Повтор поля — тоже: «rowFilter» и
+    /// «RowFilter» — одна часть, и молча взятое последним <c>null</c> сбросило бы присланный отбор.
+    /// </summary>
     [Theory]
-    [InlineData("{}", "менять нечего")]
     [InlineData("""{"rowFiltr":null}""", "«rowFiltr»")]
     [InlineData("""{"rowFilter":null,"sort":[]}""", "«sort»")]
+    [InlineData("""{"rowFilter":{"type":"group","logic":"and","children":[]},"RowFilter":null}""", "«RowFilter» прислано дважды")]
+    [InlineData("""{"sortSpec":null,"sortSpec":null}""", "«sortSpec» прислано дважды")]
     [InlineData("[]", "не объект")]
     [InlineData("null", "не объект")]
     [InlineData("\"rowFilter\"", "не объект")]
-    public void Запрос_из_которого_взять_нечего_отказ_с_причиной(string body, string named)
+    public void Тело_которое_не_понять_однозначно_отказ_с_причиной(string body, string named)
     {
-        var refusal = Assert.Throws<InvalidRequestException>(() => Parse(body));
-        Assert.Contains(named, refusal.Message);
+        Assert.False(SourceProcessingBody.TryParse(JsonDocument.Parse(body).RootElement, out var input, out var refusal));
+
+        Assert.Contains(named, refusal);
+        // Отказ — отказ целиком: частей из тела, разобранного наполовину, наружу не выходит.
+        Assert.True(input.IsEmpty);
     }
 }

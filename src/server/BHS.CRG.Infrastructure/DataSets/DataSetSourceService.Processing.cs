@@ -25,6 +25,14 @@ public partial class DataSetSourceService
     public async Task<DataSetSourceDto?> SetSourceProcessingAsync(
         Guid sourceId, SetSourceProcessingInput input, DataAccess access, CancellationToken ct)
     {
+        // Правка без единой части — отказ, а не «сохранено»: ответить успехом, ничего не сохранив,
+        // значило бы скрыть опечатку в имени части у того, кто зовёт. Проверка здесь, а не у входа:
+        // входов больше одного, и обойти её не должен ни один.
+        if (input.IsEmpty)
+            throw new InvalidRequestException(
+                "Обработка источника не сохранена: в запросе нет ни отбора, ни вычисляемых колонок, ни "
+                + "сортировки — менять нечего.");
+
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 

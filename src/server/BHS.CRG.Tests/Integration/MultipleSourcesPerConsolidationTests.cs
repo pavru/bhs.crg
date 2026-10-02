@@ -111,7 +111,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         Assert.Equal("Протокол №1", Assert.Single(protocolsPreview.Rows)[protocolsPreview.Columns.ToList().IndexOf("Наименование")]);
 
         // Правка одного не трогает другой: снимаем фильтр у актов — протоколы остаются при своём.
-        await svc.SetSourceProcessingAsync(acts.Id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Cleared }, TestAccess.All, default);
+        await svc.SetSourceProcessingAsync(acts.Id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(null) }, TestAccess.All, default);
         Assert.Equal(2, (await svc.PreviewSourceAsync(acts.Id, 50, TestAccess.All, default))!.Rows.Count);
         Assert.Single((await svc.PreviewSourceAsync(protocols.Id, 50, TestAccess.All, default))!.Rows);
     }

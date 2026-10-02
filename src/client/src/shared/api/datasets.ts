@@ -493,13 +493,14 @@ export function useRecognizeDocumentTable(fileId: string) {
  * Правка обработки ПО ЧАСТЯМ (issue #1139). Части, которой в правке нет, сервер не трогает и не
  * проверяет; `null` её сбрасывает. Диалог шлёт только то, что правит сам: досланная «за компанию»
  * часть из копии источника на странице затёрла бы то, что тем временем сохранил другой человек.
- * Поле со значением `undefined` в запрос не попадает — это то же «части нет».
+ *
+ * Объединение, а не запись с необязательными полями: правку без единой части сервер отклоняет, а
+ * `undefined` в запрос не попадает вовсе — тип не должен пропускать ни то, ни другое.
  */
-export interface SourceProcessingPatch {
-  rowFilter?: RowFilterDef | null;
-  computedColumns?: ComputedColumn[] | null;
-  sortSpec?: SortSpec | null;
-}
+export type SourceProcessingPatch =
+  | { rowFilter: RowFilterDef | null }
+  | { computedColumns: ComputedColumn[] | null }
+  | { sortSpec: SortSpec | null };
 
 export function useSetDataSetSourceProcessing() {
   const qc = useQueryClient();
