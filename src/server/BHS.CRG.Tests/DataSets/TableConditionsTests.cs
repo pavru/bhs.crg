@@ -25,6 +25,10 @@ public class TableConditionsTests
     private static DataSetColumnTypes Typed(string column, string kind) =>
         new(new Dictionary<string, string> { [column] = kind }, new Dictionary<string, string>());
 
+    private static DataSetColumnTypes Choice(string column, params string[] options) =>
+        new(new Dictionary<string, string> { [column] = TableOperators.Choice }, new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyList<string>> { [column] = options });
+
     // ── Перечень: условие по дочернему зерну ───────────────────────────────────
 
     /// <summary>
@@ -183,6 +187,46 @@ public class TableConditionsTests
         Assert.Contains(reason, refusal.Message);
     }
 
+    /// <summary>
+    /// Колонка-выбор (G1d, issue #1091): значение вне её перечня — ОТКАЗ с названным перечнем, а не
+    /// «ничего не нашлось». У текста опечатка в состоянии выглядела бы как «таких счетов нет».
+    /// </summary>
+    [Fact]
+    public void Значение_вне_перечня_колонки_выбора_отказывает_и_называет_перечень()
+    {
+        var rows = Rows("Оплата", "Не оплачен", "Оплачен", "Оплачен", null);
+        var types = Choice("Оплата", "Не оплачен", "Оплачен");
+        int Count(string filter) => DataSetRowFilterExecutor.Apply(filter, rows, "т", types).Count;
+        string Refusal(string filter) => Assert.Throws<ConflictException>(() => Count(filter)).Message;
+
+        Assert.Equal(2, Count(One("Оплата", "eq", "Оплачен")));
+        Assert.Equal(2, Count(One("Оплата", "neq", "Оплачен")));
+        Assert.Equal(3, Count(Many("Оплата", "in", "Оплачен", "Не оплачен")));
+
+        var typo = Refusal(One("Оплата", "eq", "Оплочен"));
+        Assert.Contains("значения «Оплочен» в перечне колонки нет", typo);
+        Assert.Contains("«Не оплачен», «Оплачен»", typo);
+
+        // Перечень сверяется буква в букву: значение выбирают из списка, а не набирают.
+        Assert.Contains("в перечне колонки нет", Refusal(One("Оплата", "eq", "оплачен")));
+        // Одно негодное значение в списке — негоден весь список.
+        Assert.Contains("«Чепуха»", Refusal(Many("Оплата", "in", "Оплачен", "Чепуха")));
+        // Операторов текста у выбора нет: «содержит опл» — это уже набранная строка.
+        Assert.Contains("не применяется", Refusal(One("Оплата", "contains", "Опл")));
+    }
+
+    /// <summary>
+    /// Выбор, которому перечня не дали, отвергает любое значение — а не принимает любое. Иначе забытый
+    /// перечень превращал бы колонку в текст, и опечатка снова молча ничего не находила бы.
+    /// </summary>
+    [Fact]
+    public void Выбор_без_перечня_отвергает_любое_значение()
+    {
+        Assert.NotNull(TableConditions.Problem(TableOperators.Choice, "eq", ["Оплачен"]));
+        Assert.NotNull(TableConditions.Problem(TableOperators.Choice, "eq", ["Оплачен"], []));
+        Assert.Null(TableConditions.Problem(TableOperators.Choice, "eq", ["Оплачен"], ["Оплачен"]));
+    }
+
     /// <summary>Колонка без объявленного вида (вычисляемая) — по догадке и в типизированном наборе.</summary>
     [Fact]
     public void Колонка_без_вида_в_типизированном_наборе_сравнивается_по_догадке()
@@ -239,11 +283,37 @@ public class TableConditionsTests
             .Text("Номер", p => p.Number).Number("Сумма", p => p.Total).Flag("Срочно", p => p.Urgent));
     }
 
+    /// <summary>
+    /// У колонки-выбора перечень объявления и слова, которые знает запрос, — одно множество (G1d, issue
+    /// #1091). Экран предлагает первое, запрос находит по второму: разойдись они, выбранное из списка
+    /// значение молча не находило бы ничего.
+    /// </summary>
+    [Fact]
+    public void Перечень_колонки_выбора_обязан_совпасть_со_словами_запроса()
+    {
+        var table = new ModuleTable(
+            "probe", "Проба", "запись", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+            [new("Вид", "Вид", ModuleTableColumnKind.Choice, Options: ["Первый", "Второй"])],
+            typeof(object));
+        TableSql<Probe> With(Dictionary<int, string> words) =>
+            TableSql<Probe>.Describe(table, sql => sql.Choice("Вид", p => p.Kind, words));
+
+        With(new() { [1] = "Второй", [2] = "Первый" });
+
+        var missing = Assert.Throws<InvalidOperationException>(() => With(new() { [1] = "Первый" }));
+        Assert.Contains("«Вид»", missing.Message);
+        Assert.Throws<InvalidOperationException>(() => With(new() { [1] = "Первый", [2] = "Второй", [3] = "Третий" }));
+        // Справочником выбор не описать: вид другой, и перечень некому было бы сверить.
+        Assert.Throws<InvalidOperationException>(() =>
+            TableSql<Probe>.Describe(table, sql => sql.Lookup("Вид", p => p.Kind, new Dictionary<int, string>())));
+    }
+
     private sealed class Probe
     {
         public string? Number { get; set; }
         public decimal? Total { get; set; }
         public bool? Urgent { get; set; }
+        public int? Kind { get; set; }
     }
 
     // ── Число значений — одна проверка на оба режима ──────────────────────────

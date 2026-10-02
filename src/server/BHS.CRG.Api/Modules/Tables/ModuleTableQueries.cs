@@ -81,7 +81,7 @@ public static class ModuleTableQueries
         }
 
         var (kind, op, values) = (column!.Kind, node.Op ?? "eq", DataSetRowFilterExecutor.ValuesOf(node));
-        if (TableConditions.Problem(kind, op, values) is { } problem)
+        if (TableConditions.Problem(kind, op, values, column.Options) is { } problem)
         {
             refusal = new(StatusCodes.Status409Conflict,
                 $"Отбор не применён: условие по колонке «{column.Label}» — {problem}. Строки не отданы вовсе: " +
@@ -129,6 +129,7 @@ public static class TableKinds
         (ModuleTableColumnKind.Date, TableOperators.Date),
         (ModuleTableColumnKind.Boolean, TableOperators.Boolean),
         (ModuleTableColumnKind.List, TableOperators.List),
+        (ModuleTableColumnKind.Choice, TableOperators.Choice),
     ];
 
     public static string Name(ModuleTableColumnKind kind) => Map.First(m => m.Kind == kind).Name;

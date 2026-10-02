@@ -71,7 +71,17 @@ public sealed partial class TableSql<T> where T : class
     /// </summary>
     public TableSql<T> Lookup<TKey>(
         string key, Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels)
-        where TKey : struct => Add(key, new LookupColumn<TKey>(id, labels));
+        where TKey : struct => Add(key, new LookupColumn<TKey>(id, labels, ModuleTableColumnKind.Text));
+
+    /// <summary>
+    /// Колонка-выбор: в базе код, человеку — слово из ЗАКРЫТОГО перечня (G1d, issue #1091). Запрос тот
+    /// же, что у справочника; отличие — в обещании: слова обязаны совпасть с перечнем объявления
+    /// (<see cref="ModuleTableColumn.Options" />), и это проверяется при сборке описания. Разойдись
+    /// они, экран предлагал бы значение, по которому запрос не находит ничего.
+    /// </summary>
+    public TableSql<T> Choice<TKey>(
+        string key, Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels)
+        where TKey : struct => Add(key, new LookupColumn<TKey>(id, labels, ModuleTableColumnKind.Choice));
 
     /// <summary>
     /// Поля схемы типа — всё, чего нет среди объявленных колонок. Модуль говорит, как достать текст
@@ -147,5 +157,18 @@ public sealed partial class TableSql<T> where T : class
                 $"Таблица «{declaration.Code}»: колонки {string.Join(", ", broken)} объявлены, а запросу не " +
                 "описаны (или описаны другим видом). Отбор по такой колонке искал бы её среди полей схемы " +
                 "и отвечал бы «ничего не найдено».");
+
+        // Перечень объявления и слова запроса — одно и то же множество: экран предлагает первое, а
+        // находит запрос по второму.
+        var strayed = declaration.Columns
+            .Where(c => c.Kind == ModuleTableColumnKind.Choice
+                        && !(c.Options ?? []).ToHashSet(StringComparer.Ordinal).SetEquals(_columns[c.Key].Words ?? []))
+            .Select(c => $"«{c.Key}»")
+            .ToList();
+        if (strayed.Count > 0)
+            throw new InvalidOperationException(
+                $"Таблица «{declaration.Code}»: у колонок-выборов {string.Join(", ", strayed)} перечень " +
+                "объявления не совпал со словами, которые знает запрос. Экран предложил бы значение, по " +
+                "которому запрос не находит ничего.");
     }
 }

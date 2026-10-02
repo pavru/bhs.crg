@@ -77,8 +77,12 @@ public static class InvoiceTable
             new(InvoiceRequisites.DueDateKey, "Оплатить до", ModuleTableColumnKind.Date),
             new(DaysLeftKey, "Осталось дней", ModuleTableColumnKind.Number),
             new(OverdueKey, "Просрочен", ModuleTableColumnKind.Boolean),
-            new(InvoiceRequisites.StateKey, "Состояние документа", ModuleTableColumnKind.Text),
-            new(InvoiceRequisites.PaymentKey, "Состояние оплаты", ModuleTableColumnKind.Text),
+            // Состояния — закрытые перечни: отбор по ним выбирают из списка, а слово вне перечня —
+            // отказ, а не «таких счетов нет» (G1d, issue #1091).
+            new(InvoiceRequisites.StateKey, "Состояние документа", ModuleTableColumnKind.Choice,
+                Options: [.. Enum.GetValues<InvoiceState>().Select(InvoiceRequisites.Label)]),
+            new(InvoiceRequisites.PaymentKey, "Состояние оплаты", ModuleTableColumnKind.Choice,
+                Options: [.. Enum.GetValues<InvoicePaymentState>().Select(InvoiceRequisites.Label)]),
         ],
         typeof(InvoiceTableRows),
         CostsRecordTypes.InvoiceCode);
@@ -187,8 +191,8 @@ public sealed class InvoiceTableRows(
             .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
             .Number(InvoiceTable.DaysLeftKey, InvoiceDue.DaysLeft(today))
             .Flag(InvoiceTable.OverdueKey, InvoiceDue.Overdue(today))
-            .Lookup(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
-            .Lookup(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
+            .Choice(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
+            .Choice(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
 
     /// <param name="amounts">Доли счетов на названные отбором объекты; null — отбор объектов не называет,

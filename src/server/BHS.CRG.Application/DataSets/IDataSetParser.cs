@@ -50,9 +50,17 @@ public record DataSetParseResult(
 /// <param name="Closed">Колонка → причина, по которой она пришла без значений («нет права на суммы»).
 /// Отбор по такой колонке отказывает: у пустых клеток он вернул бы «ничего не нашлось», и человек
 /// без права на суммы получил бы пустой набор вместо отказа.</param>
+/// <param name="Options">Колонка → закрытый перечень её значений — у колонки вида «выбор» (G1d, issue
+/// #1091). Условие со значением вне перечня отказывает; диалог отбора предлагает перечень списком.</param>
 public sealed record DataSetColumnTypes(
     IReadOnlyDictionary<string, string> Kinds,
-    IReadOnlyDictionary<string, string> Closed);
+    IReadOnlyDictionary<string, string> Closed,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? Options = null)
+{
+    /// <summary>Перечень значений колонки; null — перечня у неё нет.</summary>
+    public IReadOnlyList<string>? OptionsOf(string column) =>
+        Options is not null && Options.TryGetValue(column, out var options) ? options : null;
+}
 
 public interface IDataSetParser
 {

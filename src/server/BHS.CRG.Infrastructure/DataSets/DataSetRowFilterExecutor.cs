@@ -188,7 +188,7 @@ public static class DataSetRowFilterExecutor
                     + $"значений: {reason}.";
 
             if (types is not null && types.Kinds.TryGetValue(node.Column, out var kind)
-                && TableConditions.Problem(kind, op, values) is { } problem)
+                && TableConditions.Problem(kind, op, values, types.OptionsOf(node.Column)) is { } problem)
                 return $"{Place("условие", path)} по колонке «{node.Column}»: {problem}.";
             return null;
         }
