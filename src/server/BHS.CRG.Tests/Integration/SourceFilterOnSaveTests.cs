@@ -66,9 +66,9 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
     }
 
     /// <summary>
-    /// Клиент шлёт обработку целиком — отбор, вычисляемые колонки и сортировку разом. Проверяй мы
-    /// отбор при каждом сохранении, источник с негодным отбором, сохранённым до #1137, нельзя было бы
-    /// ни пересортировать, ни дополнить колонкой: пришлось бы сначала чинить отбор.
+    /// Источник с негодным отбором, сохранённым раньше (до #1137, из копии), нельзя запирать: его
+    /// сортировку и вычисляемые колонки правят, не присылая отбора, — и до проверки дело не доходит
+    /// (issue #1139). Прежде отбор уезжал с каждой правкой, и пропускали его сравнением «тот же ли».
     /// </summary>
     [Fact]
     public async Task Сохранённый_раньше_негодный_отбор_не_запирает_источник()
@@ -77,15 +77,16 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var id = await SourceAsync(client);
         await StoreAsync(id, WrongKind);
 
-        // Тот же отбор, ключи в ДРУГОМ порядке (так его и возвращает база), плюс новая сортировка.
-        const string reordered = """{"logic":"and","children":[{"value":"1","op":"contains","column":"Итого","type":"condition"}],"type":"group"}""";
-        var sorted = await PutAsync(client, id, reordered, """[{"column":"Номер","direction":"asc"}]""");
+        var sorted = await PutPartsAsync(client, id, new { sortSpec = Json("""[{"column":"Номер","direction":"asc"}]""") });
         await OkAsync(sorted);
         Assert.Equal(1, (await sorted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sortSpec").GetArrayLength());
+        await OkAsync(await PutPartsAsync(client, id, new { computedColumns = Json("""[{"alias":"К","expr":"1"}]""") }));
+        Assert.Contains("contains", await StoredAsync(id));
 
-        // Изменённый негодный отбор — уже новый ввод, и он отклоняется.
-        var changed = await PutAsync(client, id, WrongKind.Replace("\"1\"", "\"2\""));
-        Assert.Equal(HttpStatusCode.BadRequest, changed.StatusCode);
+        // А присланный отбор — новый ввод, даже слово в слово совпавший с сохранённым: человек нажал
+        // «Сохранить» в диалоге отбора, и там ему и место узнать, что отбор негоден.
+        var same = await PutPartsAsync(client, id, new { rowFilter = Json(WrongKind) });
+        Assert.Equal(HttpStatusCode.BadRequest, same.StatusCode);
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
 
         var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => svc.SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput(JsonDocument.Parse(Good).RootElement, null, null), access, default));
+            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(JsonDocument.Parse(Good).RootElement) }, access, default));
 
         Assert.Contains("нет права на суммы", refusal.Message);
         Assert.Null(await StoredAsync(id));
@@ -192,12 +193,12 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
 
         // По форме отбор годен, негоден он этому источнику — без видов проверка его пропустила бы.
         await Assert.ThrowsAsync<ForbiddenException>(() => AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput(JsonDocument.Parse(WrongKind).RootElement, null, null), access, default)));
+            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(JsonDocument.Parse(WrongKind).RootElement) }, access, default)));
         Assert.Contains("between", await StoredAsync(id));
 
         // Негодный по форме отбор назван и без поставщика — причина та же, что у всех.
         var named = await Assert.ThrowsAsync<InvalidRequestException>(() => AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput(JsonDocument.Parse(UnknownOp).RootElement, null, null), access, default)));
+            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Of(JsonDocument.Parse(UnknownOp).RootElement) }, access, default)));
         Assert.Contains("«betwen»", named.Message);
 
         // Шаблон без отбора — только сортировка: проверять нечего, поставщик не нужен.
@@ -214,7 +215,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
         // И сброс отбора — тоже.
         await StoreAsync(id, WrongKind);
         Assert.NotNull(await AsAsync(outsider, (svc, access) => svc.SetSourceProcessingAsync(
-            id, new SetSourceProcessingInput(null, null, null), access, default)));
+            id, new SetSourceProcessingInput { RowFilter = ProcessingPart.Cleared }, access, default)));
         Assert.Null(await StoredAsync(id));
     }
 
@@ -236,16 +237,11 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : ModuleTableS
 
     // ── Помощники ───────────────────────────────────────────────────────────────
 
-    private static async Task<Guid> SourceAsync(HttpClient client)
-    {
-        var file = await client.PostAsJsonAsync("/api/datasets/files/system", new { scope = "System", name = "Системные" });
-        await OkAsync(file);
-        var fileId = (await file.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        var created = await client.PostAsJsonAsync($"/api/datasets/files/{fileId}/sources",
-            new { name = $"Счета {Guid.NewGuid():N}", sheetOrPath = Marker });
-        await OkAsync(created);
-        return (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-    }
+    private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
+
+    /// <summary>Правка обработки ровно теми частями, что названы в теле.</summary>
+    private static Task<HttpResponseMessage> PutPartsAsync(HttpClient client, Guid id, object parts) =>
+        client.PutAsJsonAsync($"/api/datasets/sources/{id}/processing", parts);
 
     private static Task<HttpResponseMessage> PutAsync(HttpClient client, Guid id, string rowFilter, string sortSpec = "null") =>
         client.PutAsJsonAsync($"/api/datasets/sources/{id}/processing", new

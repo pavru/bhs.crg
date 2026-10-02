@@ -402,13 +402,16 @@ public static class DataSetEndpoints
         });
 
         // Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
+        // Правится ПО ЧАСТЯМ (issue #1139): поле, которого в теле нет, не трогается; присланное
+        // значением null — сбрасывается. Тело берём как есть, а не привязкой к записи: та не
+        // отличила бы одно от другого.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
-            Guid sourceId, ProcessingRequest req, ClaimsPrincipal user, DataAccessResolver access,
+            Guid sourceId, JsonElement body, ClaimsPrincipal user, DataAccessResolver access,
             IDataSetService svc, CancellationToken ct) =>
         {
             try
             {
-                var input = new SetSourceProcessingInput(req.RowFilter, req.ComputedColumns, req.SortSpec);
+                var input = SetSourceProcessingInput.FromBody(body);
                 var result = await svc.SetSourceProcessingAsync(sourceId, input, await access.ForAsync(user, ct), ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
@@ -474,7 +477,6 @@ public static class DataSetEndpoints
         MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn);
     private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows,
         MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn);
-    private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,
         object? RowFilter, object? ComputedColumns, object? SortSpec);

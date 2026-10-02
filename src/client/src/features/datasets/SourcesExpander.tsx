@@ -14,7 +14,7 @@ import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
   isManualGroupingConflict, recognitionRefusal, type RecognitionRefusal, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
-  useRecognizeDocumentTable, type SourceCandidate,
+  useRecognizeDocumentTable, type SourceCandidate, type SourceProcessingPatch,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -31,7 +31,7 @@ import { filterColumns } from './rowFilterModel';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type {
-  DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec, ColumnExprDef,
+  DataSetFile, DataSetProcessingTemplate, DataSetSource, ColumnExprDef,
 } from '@/shared/api/types';
 
 /** Мини-диалог: только имя нового шаблона — сама Extraction + обработка уже известны (текущие источника). */
@@ -181,13 +181,11 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const columns = [...new Set([...parseSourceColumnNames(src.cachedSchema), ...computedAliases])];
   const cols = parseSourceColumnNames(src.cachedSchema);
 
-  // Обработка уезжает ЦЕЛИКОМ, и сервер может отказать (issue #1137) — любому из трёх диалогов:
-  // отбор проверяется, если он в запросе не тот, что в базе, а у диалога сортировки он из копии
-  // источника на странице. Поэтому обещание отдаём диалогу — он ждёт ответ и показывает отказ у себя.
-  function save(patch: { rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null }) {
-    return setProcessing.mutateAsync({
-      id: src.id, rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec, ...patch,
-    });
+  // Каждый диалог шлёт ТОЛЬКО свою часть (issue #1139): остальные сервер не трогает. Досылать их из
+  // `src` нельзя — это копия источника на странице, и устаревшая затёрла бы чужую правку.
+  // Обещание отдаём диалогу: он ждёт ответ и показывает отказ у себя (отбор сервер проверяет).
+  function save(patch: SourceProcessingPatch) {
+    return setProcessing.mutateAsync({ id: src.id, ...patch });
   }
   // Шаблон, чей отбор источник не выполнит, сервер отклоняет целиком (issue #1137). Действие — из
   // меню, своего диалога у него нет, поэтому причина выходит тостом.

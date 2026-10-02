@@ -137,8 +137,9 @@ public interface IDataSetService
     Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct);
 
     /// <summary>
-    /// Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает.
-    /// Изменённый отбор проверяется: негодный отказывает <c>InvalidRequestException</c> с причиной
+    /// Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает. Правится
+    /// по частям (issue #1139): часть, которой в запросе нет, остаётся как есть.
+    /// Присланный отбор проверяется: негодный отказывает <c>InvalidRequestException</c> с причиной
     /// (issue #1137). Доступ нужен проверке — виды колонок системного набора зависят от прав.
     /// </summary>
     Task<DataSetSourceDto?> SetSourceProcessingAsync(

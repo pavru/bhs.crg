@@ -28,22 +28,27 @@ public partial class DataSetSourceService
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var rowFilter = DataSetDtoMapper.SerializeJson(input.RowFilter);
-        // Отбор, который в запросе не изменился, повторно не проверяем. Клиент шлёт обработку целиком,
-        // и иначе негодный отбор, сохранённый до #1137, запер бы источник: нельзя было бы поправить
-        // ни сортировку, ни вычисляемые колонки. Хуже от такого сохранения не становится — источник
-        // с этим отбором уже отказывает на чтении.
-        if (!DataSetDtoMapper.SameJson(rowFilter, source.RowFilter)
-            && await FilterProblemAsync(rowFilter, source, access, ct) is { } problem)
+        // Правка — по частям (issue #1139): чего в запросе нет, то остаётся как есть.
+        var rowFilter = Part(input.RowFilter, source.RowFilter);
+
+        // Проверяется отбор, только когда он ПРИСЛАН, — и всегда, когда прислан: присланный отбор —
+        // новый ввод, даже если совпал с сохранённым. Негодный отбор, сохранённый раньше (до #1137,
+        // из копии), источник при этом не запирает: сортировку и вычисляемые колонки правят, не
+        // присылая отбора, и до проверки дело не доходит.
+        if (input.RowFilter.Sent && await FilterProblemAsync(rowFilter, source, access, ct) is { } problem)
             throw new InvalidRequestException(
                 $"Отбор строк источника «{source.Name}» не сохранён: {problem} Источник такой отбор не "
                 + "выполнит — исправьте условие и сохраните снова.");
 
         source.SetProcessing(
-            rowFilter, DataSetDtoMapper.SerializeJson(input.ComputedColumns), DataSetDtoMapper.SerializeJson(input.SortSpec));
+            rowFilter, Part(input.ComputedColumns, source.ComputedColumns), Part(input.SortSpec, source.SortSpec));
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
     }
+
+    /// <summary>Часть обработки после правки: присланная — из запроса, остальные — сохранённые.</summary>
+    private static string? Part(ProcessingPart part, string? stored) =>
+        part.Sent ? DataSetDtoMapper.SerializeJson(part.Value) : stored;
 
     public async Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(
         Guid sourceId, Guid templateId, DataAccess access, CancellationToken ct)
