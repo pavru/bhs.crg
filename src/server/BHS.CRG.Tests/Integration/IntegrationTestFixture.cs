@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 using System.Threading.RateLimiting;
 
 namespace BHS.CRG.Tests.Integration;
@@ -25,7 +26,7 @@ namespace BHS.CRG.Tests.Integration;
 /// Starts the ASP.NET Core host once, pointing at the bhs_crg_test database.
 /// MinIO is replaced with FakeBlobStorage so tests don't need Docker.
 /// </summary>
-public class IntegrationTestFixture : WebApplicationFactory<Program>
+public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
     /// <summary>
     /// Имя тестовой БД — из переменной окружения <c>BHS_TEST_DB</c>, по умолчанию прежнее (issue #618).
@@ -285,6 +286,96 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 if (ours) await db.DisposeAsync();
             }
         }
+    }
+
+    /// <summary>
+    /// Таблицы учётных записей, очищаемые РАЗ ЗА ПРОГОН (<see cref="ResetForRunAsync" />) — в придачу
+    /// к <see cref="TruncatedTables" />. Между классами их трогать нельзя: вошедший пользователь
+    /// живёт дольше одного теста. А в начале прогона их ещё никто не завёл, и всё, что в них лежит, —
+    /// от прошлых прогонов. Каскад уносит и то, что на учётную запись ссылается (роли пользователя,
+    /// его настройки, отметки уведомлений); сессии названы отдельно — внешнего ключа у них нет.
+    /// </summary>
+    internal static readonly string[] RunTruncatedTables = ["AspNetUsers", "RefreshTokens"];
+
+    /// <summary>По одной очистке на БАЗУ за процесс; ключ — строка подключения хоста.</summary>
+    private static readonly ConcurrentDictionary<string, Lazy<Task>> RunResets = new();
+
+    /// <summary>
+    /// База чистится один раз, перед первым тестом прогона (issue #1142). xUnit зовёт это у фикстуры
+    /// сам — до первого теста и до посева, который идёт в <c>InitializeAsync</c> самих классов.
+    ///
+    /// <para>Зачем. Между классами чистится не всё: учётные записи, роли и сессии живут дольше класса
+    /// (<c>FixtureResetCoverageTests.DeliberatelyKept</c>), а классы хостов счетов базу не сбрасывают
+    /// вовсе — отделяют свои строки меткой и за собой не убирают. Без очистки раз за прогон всё это
+    /// растёт от прогона к прогону, и только на машине разработчика: в CI база каждый раз свежая. За
+    /// несколько десятков прогонов у хоста строк счёта набралось 4262 счёта, 4081 учётная запись и 603
+    /// источника на одной таблице, схема типа счёта доросла до 578 полей (каждый посев дописывает
+    /// три), а в общей базе лежало 1634 роли и 7239 сессий. Запрос списка наборов перестал
+    /// укладываться в сто секунд, и падал тест, который ни в чём не виноват.</para>
+    ///
+    /// <para>⚠️ Стоит это в самом хосте и у ВСЕХ хостов, а не у двух, на которых нашлось: новый хост
+    /// со своей базой иначе снова копил бы молча, а вопрос «кто убирает» не возникает, пока база
+    /// маленькая.</para>
+    ///
+    /// <para>⚠️ Две сессии на одной базе мешают друг другу: вторая, стартуя, снесёт строки первой. У
+    /// общей тестовой базы так было всегда (её чистит каждый класс), теперь так и у баз хостов
+    /// счетов. Развязка та же — своё имя базы в <c>BHS_TEST_DB</c> (issue #618).</para>
+    /// </summary>
+    public Task InitializeAsync() => ResetOncePerRunAsync();
+
+    // Явно: у WebApplicationFactory уже есть DisposeAsync с другим возвращаемым типом. Гасит хост
+    // по-прежнему Dispose — xUnit зовёт его следом.
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Очистка базы ОДИН РАЗ ЗА ПРОГОН: первый спросивший чистит, остальные получают ту же задачу.
+    ///
+    /// <para>⚠️ Именно раз за процесс, а не на экземпляр хоста. Экземпляр xUnit создаёт на каждый
+    /// класс, а посев у классов хостов счетов статический и случается однажды: очистка перед вторым
+    /// классом снесла бы организации и номенклатуру, на которые уже указывают статические поля, — и
+    /// падали бы не те тесты, что чистили. Сторож — <c>RunResetTests</c>.</para>
+    ///
+    /// <para>Отказ очистки запоминается вместе с ней: все классы хоста упадут одной причиной. Это
+    /// нарочно — зелёный прогон на базе с чужими строками хуже честного отказа.</para>
+    /// </summary>
+    internal Task ResetOncePerRunAsync() =>
+        RunResets.GetOrAdd(Database, _ => new Lazy<Task>(ResetForRunAsync)).Value;
+
+    /// <summary>Очистка этого прогона у базы хоста уже прошла — для сторожей, не для тестов.</summary>
+    internal bool CleanedThisRun =>
+        RunResets.TryGetValue(Database, out var reset) && reset is { IsValueCreated: true, Value.IsCompletedSuccessfully: true };
+
+    private string Database => Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")!;
+
+    /// <summary>
+    /// Привести базу к виду «приложение только что поднялось на пустой»: всё, что чистится между
+    /// классами, плюс учётные записи и роли, заведённые тестами.
+    ///
+    /// <para>Чего НЕ трогает — того, что создаётся только при старте хоста, а старт к этому моменту
+    /// уже прошёл и повторён не будет: справочник прав, встроенные профили распознавания и системные
+    /// роли с их составом (причины — в <c>FixtureResetCoverageTests.DeliberatelyKept</c>). Роли
+    /// поэтому не TRUNCATE, а удаление всех, КРОМЕ системных: чужая здесь только та, что завёл тест
+    /// («Narrow_…», «Granted_…» — по одной на каждую проверку узкого права).</para>
+    ///
+    /// <para>Типы модулей очистка сносит вместе с остальными типами, и возвращать их здесь не нужно:
+    /// посев классов заводит «Организацию» и повторяет проекцию сам — на свежей базе в CI при старте
+    /// их тоже нет, потому что цели у ссылок счёта ещё не существует.</para>
+    /// </summary>
+    internal async Task ResetForRunAsync()
+    {
+        await ResetDatabaseAsync();
+
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+#pragma warning disable EF1003 // склеиваются имена таблиц из константы выше, а не значения
+        await db.Database.ExecuteSqlRawAsync(
+            "TRUNCATE TABLE " + string.Join(", ", RunTruncatedTables.Select(t => $"\"{t}\""))
+            + " RESTART IDENTITY CASCADE");
+#pragma warning restore EF1003
+
+        var system = BHS.CRG.Api.Auth.SystemRoles.All.Select(r => r.Name).ToArray();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""DELETE FROM "AspNetRoles" WHERE NOT ("Name" = ANY({system}))""");
     }
 }
 

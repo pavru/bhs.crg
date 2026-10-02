@@ -1,4 +1,5 @@
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
@@ -20,9 +21,32 @@ namespace BHS.CRG.Infrastructure.DataSets;
 ///
 /// Там, где строки И ТАК загружаются (карточка источника, страница строк), состояние берут не
 /// отсюда, а из <see cref="LoadedRows"/> — иначе провайдер отработал бы дважды на один ответ.
+///
+/// И по той же причине провайдера спрашивают один раз на КОНСОЛИДАЦИЮ, а не на источник (issue
+/// #1142): считаем до обработки, то есть ответ у всех источников одной консолидации в одной области
+/// одинаков. Несколько источников на консолидации — штатный случай (issue #717), и спрошенный по
+/// разу на каждый, провайдер собирал строки столько раз, сколько источников в списке: на 603
+/// источниках одной таблицы запрос списка наборов не уложился в сто секунд.
 /// </summary>
 public class SystemSourceCounter(SystemDataProviderRegistry providers)
 {
+    /// <summary>
+    /// Что определяет ответ провайдера — ровно параметры <c>ProvideAsync</c>, кроме доступа: он один
+    /// на весь вызов. Источника в ключе нет нарочно, в нём и состоит экономия.
+    /// </summary>
+    private readonly record struct Question(string Marker, CatalogScope Scope, Guid? ScopeId);
+
+    /// <summary>
+    /// Ответы, уже полученные в ЭТОМ вызове; null — провайдер отказал или его нет, и переспрашивать о
+    /// том же незачем.
+    ///
+    /// <para>⚠️ Словарь заводит каждый вызов заново, и в поле его переносить нельзя. Счётчик живёт
+    /// весь запрос, а строки системного набора живые: ответ, переживший вызов, показал бы прежнее
+    /// число после того, как в том же запросе добавили документ (сторож —
+    /// <c>SystemSourceCounterTests</c>).</para>
+    /// </summary>
+    private sealed class Answers : Dictionary<Question, SystemSourceState?>;
+
     /// <summary>Что известно про системный источник на момент чтения.</summary>
     /// <param name="Types">Виды колонок, если поставщик их объявил (таблица модуля): по ним диалог
     /// отбора предлагает колонке её операторы (issue #1133).</param>
@@ -38,8 +62,10 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         IEnumerable<DataSetFile> files, DataAccess access, CancellationToken ct)
     {
         var states = new Dictionary<Guid, SystemSourceState>();
+        // Одни ответы на ВСЮ выборку, а не на набор: наборы одной области спрашивают об одном и том же.
+        var answers = new Answers();
         foreach (var file in files.Where(f => f.IsSystem))
-            await AddAsync(states, file, file.Sources, access, ct);
+            await AddAsync(states, answers, file, file.Sources, access, ct);
         return states;
     }
 
@@ -48,7 +74,7 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         DataSetFile file, IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
     {
         var states = new Dictionary<Guid, SystemSourceState>();
-        if (file.IsSystem) await AddAsync(states, file, sources, access, ct);
+        if (file.IsSystem) await AddAsync(states, new Answers(), file, sources, access, ct);
         return states;
     }
 
@@ -75,12 +101,14 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         return (await provider.ProvideAsync(source.SheetOrPath, file.Scope, file.ScopeId, access, ct)).Types;
     }
 
-    private async Task AddAsync(Dictionary<Guid, SystemSourceState> states, DataSetFile file,
+    private async Task AddAsync(Dictionary<Guid, SystemSourceState> states, Answers answers, DataSetFile file,
         IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
     {
         foreach (var source in sources)
         {
-            var state = await StateAsync(source.SheetOrPath, file, access, ct);
+            var question = new Question(source.SheetOrPath, file.Scope, file.ScopeId);
+            if (!answers.TryGetValue(question, out var state))
+                answers[question] = state = await StateAsync(source.SheetOrPath, file, access, ct);
             if (state is not null) states[source.Id] = state.Value;
         }
     }

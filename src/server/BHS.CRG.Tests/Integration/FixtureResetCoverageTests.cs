@@ -108,6 +108,7 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         var tables = TableNames().ToHashSet(StringComparer.Ordinal);
 
         var vanished = IntegrationTestFixture.TruncatedTables.Concat(DeliberatelyKept.Keys)
+            .Concat(IntegrationTestFixture.RunTruncatedTables)
             .Where(t => !tables.Contains(t))
             .OrderBy(t => t, StringComparer.Ordinal)
             .ToList();
@@ -115,6 +116,30 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         Assert.True(vanished.Count == 0,
             "В списках названы таблицы, которых в модели больше нет: " + string.Join(", ", vanished));
     }
+
+    /// <summary>
+    /// Таблица, очищаемая раз за прогон, обязана быть среди сознательно оставленных между классами:
+    /// иначе она чистится и так, и запись о ней — мёртвая строка, которая выглядит как решение.
+    /// </summary>
+    [Fact]
+    public void RunTruncatedTables_AreKeptBetweenClasses()
+    {
+        var stray = IntegrationTestFixture.RunTruncatedTables
+            .Where(t => !DeliberatelyKept.ContainsKey(t))
+            .ToList();
+
+        Assert.True(stray.Count == 0,
+            "В очистке раз за прогон названы таблицы, которых нет среди оставляемых между классами: " +
+            string.Join(", ", stray));
+    }
+
+    /// <summary>
+    /// Общая база очищена до первого теста прогона — то же, что <c>RunResetTests</c> проверяет у хоста
+    /// класса, но у фикстуры КОЛЛЕКЦИИ: её xUnit поднимает другой дорогой.
+    /// </summary>
+    [Fact]
+    public void SharedDatabase_IsCleanedBeforeTheFirstTest() =>
+        Assert.True(fixture.CleanedThisRun, "общая тестовая база перед первым тестом прогона не очищена");
 
     private IEnumerable<string> TableNames()
     {
