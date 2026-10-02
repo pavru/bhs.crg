@@ -142,10 +142,26 @@ public static class TableOperators
 /// 36». null — смысл обычный.</param>
 /// <param name="Options">Значения закрытого перечня — у колонки вида «выбор» (G1d, issue #1091):
 /// экран предлагает их списком, и по ним же проверяется условие. null — перечня у колонки нет.</param>
+/// <param name="Requires">Код права, которого не хватило, — у колонки с причиной
+/// <see cref="TableColumnReasons.NoRight" /> (G1e, issue #1092). Слова причины человек понесёт
+/// администратору, а тот ищет право по коду: совпадение строки избавляет обоих от угадывания.</param>
 public record TableColumnDto(
     string Key, string Label, string Kind, IReadOnlyList<string> Operators, bool System,
     string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null,
-    IReadOnlyList<string>? Options = null);
+    IReadOnlyList<string>? Options = null, string? Requires = null);
+
+/// <summary>
+/// Таблица без строк — что она такое и из чего состоит (G1e, issue #1092). Экран спрашивает это
+/// отдельно от строк: выбор колонок и чипы отбора обязаны знать ВСЕ колонки, а не показанные, и
+/// обязаны уцелеть, когда отбор отказал, — отказ строк приходит без единой колонки, и исправить
+/// негодное условие было бы нечем.
+/// </summary>
+/// <param name="Columns">Все колонки таблицы: объявленные модулем и поля схемы типа; закрытые — с
+/// причиной.</param>
+/// <param name="State">Состояние таблицы целиком: <see cref="TableColumnReasons.ModuleOff" /> или null.</param>
+public record TableDeclarationDto(
+    string Address, string Title, string Grain, string Boundary,
+    IReadOnlyList<TableColumnDto> Columns, string? State = null);
 
 /// <summary>Таблица модуля со строками.</summary>
 /// <param name="Address">Адрес таблицы: <c>costs.invoices</c>.</param>
@@ -155,13 +171,16 @@ public record TableColumnDto(
 /// <param name="Offset">С какой строки отбора начинается страница.</param>
 /// <param name="Limit">Размер страницы; null — отданы все строки отбора.</param>
 /// <param name="Totals">Итоги по запрошенным колонкам — по всему отбору, а не по странице.</param>
+/// <param name="Keys">Ключи строк — по одному на строку, в том же порядке; ими экран называет строку,
+/// открытую в боковой панели (<see cref="TableRequest.Row" />). null — таблица ключей не называет.</param>
 public record TableDto(
     string Address, string Title, string Grain, string Boundary,
     IReadOnlyList<TableColumnDto> Columns,
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     string? State = null,
     int Count = 0, int Offset = 0, int? Limit = null,
-    IReadOnlyDictionary<string, TableTotalDto>? Totals = null);
+    IReadOnlyDictionary<string, TableTotalDto>? Totals = null,
+    IReadOnlyList<string>? Keys = null);
 
 /// <summary>
 /// Итог по колонке (ТЗ CORE-33): у числа сумма, среднее, минимум и максимум; у даты минимум и
@@ -180,12 +199,14 @@ public record TableTotalDto(
 /// <param name="Sort">Сортировка по порядку важности.</param>
 /// <param name="Limit">Размер страницы; null — все строки (так таблицу читает набор данных).</param>
 /// <param name="Totals">Колонки, по которым нужен итог.</param>
+/// <param name="Row">Ключ одной строки: отдать только её, и только если она в отборе.</param>
 public record TableRequest(
     IReadOnlyList<string>? Columns = null,
     string? Filter = null,
     IReadOnlyList<TableSortRequest>? Sort = null,
     int Offset = 0, int? Limit = null,
-    IReadOnlyList<string>? Totals = null);
+    IReadOnlyList<string>? Totals = null,
+    string? Row = null);
 
 public record TableSortRequest(string Column, bool Descending);
 

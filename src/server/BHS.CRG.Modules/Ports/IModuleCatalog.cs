@@ -33,7 +33,10 @@ public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string Displ
 /// у которой однажды появится <c>DataJson</c>, немедленно станет вторым способом читать справочник —
 /// и выбирать между ними будет тот, кто напишет следующую строку кода.</para>
 /// </summary>
-public sealed record ModuleCatalogRef(Guid Id, string EntityType, string? DisplayName);
+/// <param name="MatchedAlias">Альтернативное имя, по которому запись найдена поиском, — когда
+/// набранного нет в её названии (issue #1169); иначе <c>null</c>. Кто показывает список, обязан
+/// показать и его: запись, в названии которой набранного нет, без пояснения выглядит ошибкой поиска.</param>
+public sealed record ModuleCatalogRef(Guid Id, string EntityType, string? DisplayName, string? MatchedAlias = null);
 
 /// <summary>
 /// Справочники ядра для модуля — ЧТЕНИЕ (ТЗ CORE-34): поставщик у счёта, стройка у разноски, лицо в
@@ -87,6 +90,9 @@ public interface IModuleCatalog
     ///
     /// <para>Ответы те же три, что у <see cref="ListAsync" />: список, пустой список, <c>null</c> —
     /// вида нет вовсе.</para>
+    ///
+    /// <para>Ищет и по альтернативным именам записи; найденное по ним называет
+    /// <see cref="ModuleCatalogRef.MatchedAlias" />.</para>
     ///
     /// <para>⚠️ <paramref name="limit" /> отсекает список ПОСЛЕ сортировки по названию, но остаётся
     /// отсечением: «в справочнике нет» по неполному списку утверждать нельзя. Кто показывает список,

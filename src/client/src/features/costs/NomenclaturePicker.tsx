@@ -119,6 +119,11 @@ function PickerDialog({ onClose, onPick }: {
               <button key={item.id} type="button" onClick={() => onPick(item.id, item.name)}
                 className="w-full text-left px-3 py-1.5 rounded hover:bg-surface2 flex items-baseline gap-2">
                 <span className="text-sm text-fg truncate">{item.name ?? 'без названия'}</span>
+                {/* Найдено по альтернативному имени — сказано словами: набранного в названии нет, и
+                    без пояснения строка читается как промах поиска. */}
+                {item.matchedAlias && (
+                  <span className="text-[11px] text-fg3 truncate">найдено по «{item.matchedAlias}»</span>
+                )}
                 <span className="text-[11px] text-fg4 shrink-0">{item.type}</span>
               </button>
             ))}

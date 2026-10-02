@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,6 +44,48 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// дало бы «Invoices» и «IssuedOn» в схеме, где всё остальное названо по-русски и через
     /// подчёркивание.
     /// </summary>
+    /// <summary>Имя теневого свойства с версией строки счёта.</summary>
+    private const string RowVersion = "RowVersion";
+
+    /// <summary>
+    /// Запись, проигравшая одновременной, отвечает отказом 409, а не 500.
+    ///
+    /// <para>Переводится ЗДЕСЬ, одним местом, а не у каждого адреса: адресов, пишущих счёт, восемь, и
+    /// девятый забыл бы. Исключение EF наружу — это «внутренняя ошибка сервера» о ситуации, которая
+    /// ошибкой сервера не является: человеку надо повторить, а не звать администратора.</para>
+    ///
+    /// <para>Сюда же попадает удаление строки, которую одновременный запрос уже удалил: EF ждёт одну
+    /// затронутую запись и получает ноль. Это та же гонка, и ответ тот же.</para>
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
+        }
+        catch (DbUpdateConcurrencyException e)
+        {
+            throw Concurrent(e);
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        try
+        {
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+        catch (DbUpdateConcurrencyException e)
+        {
+            throw Concurrent(e);
+        }
+    }
+
+    private static ConflictException Concurrent(DbUpdateConcurrencyException e) =>
+        new("Счёт изменили одновременно с этой правкой, и она не записана — целиком, ни одной частью. " +
+            "Перечитайте счёт и повторите: записанная поверх, она затёрла бы чужую правку или удвоила бы свою.",
+            e);
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -88,6 +131,20 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.CreatedBy).HasColumnName("created_by");
         invoice.Property(i => i.CreatedAt).HasColumnName("created_at");
         invoice.Property(i => i.UpdatedAt).HasColumnName("updated_at");
+
+        // Версия строки счёта — токен конкурентности (issue #1173). Счёт — корень: строки и разноска —
+        // его части, и каждая их правка отмечается у него самого (Invoice.ContentChanged). Поэтому из
+        // двух одновременных правок одного счёта вторая отказывает при записи целиком — а не удваивает
+        // строки и не записывает «разобран» поверх строки, у которой только что сняли позицию.
+        //
+        // ⚠️ Это системная колонка PostgreSQL (xmin), а не своя: её меняет ЛЮБАЯ запись строки, и
+        // забыть её поднять нельзя. Колонки в таблице не прибавляется — миграция только сообщает
+        // модели, что свойство есть.
+        //
+        // ⚠️ Форма версию НЕ присылает, и окно конфликта — время одного запроса, а не время, пока
+        // счёт открыт. Защита от устаревшей формы — другое решение (как ifMatch у наборов данных): у
+        // формы появился бы отказ, которого сейчас нет.
+        invoice.Property<uint>(RowVersion).IsRowVersion();
 
         // Дубликат «поставщик + номер + дата» (ТЗ COST-6.2) — ОГОВОРКА, а не запрет, поэтому индекс
         // не уникальный: он нужен затем, чтобы оговорку было чем искать на каждом сохранении.

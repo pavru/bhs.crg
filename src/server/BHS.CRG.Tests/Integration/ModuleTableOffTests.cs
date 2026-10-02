@@ -46,6 +46,16 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
         Assert.Equal(["Номер", "ПолеЗаказчика"], viewColumns.Select(c => c.GetProperty("key").GetString()));
         Assert.All(viewColumns, c => Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString()));
 
+        // Описание без строк (G1e, issue #1092) говорит то же: состояние названо, колонки — объявленные,
+        // каждая с причиной. Экран по нему и рисует «модуль выключен» вместо пустой таблицы.
+        var described = await client.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices/columns");
+        Assert.Equal(TableColumnReasons.ModuleOff, described.GetProperty("state").GetString());
+        Assert.Equal(
+            columns.Select(c => c.GetProperty("key").GetString()),
+            described.GetProperty("columns").EnumerateArray().Select(c => c.GetProperty("key").GetString()));
+        Assert.All(described.GetProperty("columns").EnumerateArray(),
+            c => Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString()));
+
         // В перечне таблиц выключенного модуля нет: представления скрыты, но не удалены (AUTH-19).
         var list = await client.GetFromJsonAsync<JsonElement>("/api/tables");
         Assert.DoesNotContain(list.EnumerateArray(), t => t.GetProperty("address").GetString() == "costs.invoices");
