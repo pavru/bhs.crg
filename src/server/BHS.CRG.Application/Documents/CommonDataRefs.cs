@@ -15,7 +15,11 @@ namespace BHS.CRG.Application.Documents;
 /// <param name="DisplayName">Название записи. Пустым не бывает у записей, заведённых экраном, но
 /// в базе поле допускает <c>null</c> — и подставлять вместо него имя типа здесь нельзя: список
 /// показал бы «Номенклатура» вместо «нет названия», то есть соврал бы о данных.</param>
-public sealed record CommonDataRef(Guid Id, Guid CompositeTypeId, string? DisplayName);
+/// <param name="MatchedAlias">Альтернативное имя, по которому запись НАЙДЕНА, — когда искали текст,
+/// а в названии его нет (issue #1169). Без него найденное выглядит ошибкой поиска: набрали «ВВГ 3*2.5»,
+/// а в списке стоит «Кабель ВВГнг(А)-LS 3х2,5». <c>null</c> — искали не текстом или нашли по
+/// названию.</param>
+public sealed record CommonDataRef(Guid Id, Guid CompositeTypeId, string? DisplayName, string? MatchedAlias = null);
 
 /// <summary>
 /// Ссылки на записи общих данных — для выбора из справочника (ТЗ CORE-34).
