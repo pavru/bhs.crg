@@ -16,6 +16,7 @@ import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
+import { apiError } from '@/shared/utils/apiError';
 import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
 
 // Пустые значения — модульными константами, а не инлайновыми `[]`: инлайновый литерал даёт новую
@@ -196,6 +197,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     save.mutate(
       {
         sourceId: source.id,
+        // `source` — снимок, с которого диалог открыт (см. SourcesExpander): его версию и называем.
+        ifMatch: source.materializationVersion,
         typeId: typeId || null,
         // В режиме «по Ид» маппинга нет вовсе: строка целиком — ссылка. Отправить и то и другое
         // значит сохранить две разные настройки одного и того же (сервер такое и не примет).
@@ -239,6 +242,14 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           Источник разворачивает каждую строку (после всех обработок) в сущность выбранного типа.
           Маппинг задаётся здесь один раз — поля документов совместимого типа ссылаются на источник без маппинга.
         </p>
+        {/* Отказ сервера — здесь же, и диалог остаётся открытым: раньше он не показывался вовсе, и
+            несохранённая настройка выглядела бы как мёртвое нажатие (issue #1141 — отказ «источник
+            тем временем изменили»; тем же путём доходит и отказ проверки настройки). */}
+        {save.error && (
+          <p role="alert" className="text-xs text-danger">
+            {apiError(save.error, 'Не удалось сохранить материализацию')}
+          </p>
+        )}
 
         <TypePickerField className="w-full" label="Тип для материализации" title="Тип для материализации"
           placeholder="— не материализовать —" clearable={{ label: 'Не материализовать' }}

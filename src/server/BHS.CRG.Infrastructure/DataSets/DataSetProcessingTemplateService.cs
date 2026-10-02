@@ -37,6 +37,38 @@ public class DataSetProcessingTemplateService(AppDbContext db)
         return DataSetDtoMapper.MapProcessingTemplate(template);
     }
 
+    /// <summary>
+    /// Шаблон из извлечения и обработки источника — «Сохранить как шаблон» (issue #1141). Собирает его
+    /// сервер из СОХРАНЁННОГО источника: раньше содержимое присылала страница из своей копии, и
+    /// устаревшая копия давала шаблон с обработкой, которой у источника уже нет. Версия сверяется по
+    /// той же причине с обратной стороны: человек сохраняет шаблоном то, что видит, — и если источник
+    /// тем временем изменили, молча взять новое значило бы сохранить не то, что он просил.
+    /// </summary>
+    /// <returns><c>null</c> — источника нет.</returns>
+    public async Task<DataSetProcessingTemplateDto?> CreateFromSourceAsync(
+        Guid sourceId, string name, string? ifMatch, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidRequestException("Шаблон обработки не сохранён: не задано название.");
+
+        var source = await db.DataSetSources.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+
+        if (SourceProcessingVersion.Moved(source, ifMatch))
+            throw new ConflictException(
+                $"Шаблон «{name.Trim()}» не сохранён: источник «{source.Name}» тем временем изменили, и "
+                + "страница показывает его прежнюю обработку. Обновите страницу, проверьте обработку и "
+                + "сохраните шаблон снова.");
+
+        EnsureFilter(source.RowFilter, name);
+        var template = DataSetProcessingTemplate.Create(
+            name, source.SheetOrPath, source.ColumnExpressions,
+            source.RowFilter, source.ComputedColumns, source.SortSpec);
+        db.DataSetProcessingTemplates.Add(template);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapProcessingTemplate(template);
+    }
+
     public async Task<DataSetProcessingTemplateDto?> UpdateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct)
     {
         var template = await db.DataSetProcessingTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
