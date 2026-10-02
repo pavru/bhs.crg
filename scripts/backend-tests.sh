@@ -47,7 +47,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT="$DIR/../src/server/BHS.CRG.Tests/BHS.CRG.Tests.csproj"
 
 NAMESPACE='BHS.CRG.Tests.Integration.'
-SECOND_STREAM='I M S U'
+SECOND_STREAM='I M S'
 
 # Оба фильтра — из одного списка: `~` «содержит», `!~` «не содержит»; второй поток — «любая из
 # букв», первый — «ни одна из них». Разойтись они могут только вместе.
