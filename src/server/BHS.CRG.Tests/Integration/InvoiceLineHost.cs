@@ -260,13 +260,14 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     /// раз за прогон чистит хост (issue #1142), и поиск только прятал бы поломку очистки — посев молча
     /// взял бы запись прошлого прогона. Без него тест поиска упадёт на дубле и на неё укажет.</para>
     /// </summary>
-    protected async Task<Guid> EntryAsync(Guid typeId, string name)
+    protected async Task<Guid> EntryAsync(Guid typeId, string name, params string[] aliases)
     {
         using var scope = host.Services.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
         var created = await mediator.Send(new CreateCommonDataEntryCommand(name, typeId,
-            JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""), CatalogScope.System, null, null));
+            JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""), CatalogScope.System, null,
+            aliases.Length > 0 ? aliases : null));
         return created.Id;
     }
 

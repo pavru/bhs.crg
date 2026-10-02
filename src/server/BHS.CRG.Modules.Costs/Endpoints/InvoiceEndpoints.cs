@@ -76,11 +76,32 @@ public static class InvoiceEndpoints
     private static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
         CostsDbContext db, IModuleCatalog catalog, CancellationToken ct, bool needsParsing = false)
     {
-        // Счётчики строк — ОДНИМ группирующим запросом на весь реестр, без чтения самих строк: на экране
-        // нужны два числа на счёт, а не строки. Запрос на счёт превратил бы открытие реестра в сотню
-        // обращений — той же ценой, что уже названа у названий поставщиков.
-        var counters = await db.InvoiceLines
-            .AsNoTracking()
+        // Очередь «Разобрать» отбирает БАЗА (issue #1171), и запрос идёт от строк без позиции, а не от
+        // счетов: так частичный индекс ix_invoice_lines_unmatched — он заведён ровно под этот отбор —
+        // получает работу. Раньше реестр читал все счета и отбирал очередь в памяти: индекс при этом не
+        // читал никто, он только удорожал запись строк.
+        var selected = db.Invoices.AsNoTracking();
+        if (needsParsing)
+            selected = selected.Where(i => i.State != InvoiceState.Rejected
+                && db.InvoiceLines.Where(l => l.NomenclatureId == null).Select(l => l.InvoiceId).Contains(i.Id));
+
+        var invoices = await selected
+            .OrderByDescending(i => i.IssuedOn)
+            .ThenByDescending(i => i.CreatedAt)
+            .ToListAsync(ct);
+
+        // Счётчики строк — ОДНИМ группирующим запросом, без чтения самих строк: на экране нужны два
+        // числа на счёт, а не строки. Запрос на счёт превратил бы открытие реестра в сотню обращений —
+        // той же ценой, что уже названа у названий поставщиков. У очереди — только по её счетам:
+        // группировать всю таблицу ради десятка счетов незачем.
+        var counted = db.InvoiceLines.AsNoTracking();
+        if (needsParsing)
+        {
+            var queued = invoices.Select(i => i.Id).ToList();
+            counted = counted.Where(l => queued.Contains(l.InvoiceId));
+        }
+
+        var counters = await counted
             .GroupBy(l => l.InvoiceId)
             .Select(g => new
             {
@@ -94,24 +115,13 @@ public static class InvoiceEndpoints
         // подставленный нуль в поле суммы — это неправда, на которую кто-нибудь однажды сошлётся.
         var lines = counters.ToDictionary(c => c.InvoiceId, c => (Count: c.Count, Unmatched: c.Unmatched));
 
-        var invoices = await db.Invoices
-            .AsNoTracking()
-            .OrderByDescending(i => i.IssuedOn)
-            .ThenByDescending(i => i.CreatedAt)
-            .ToListAsync(ct);
-
-        if (needsParsing)
-            invoices = [.. invoices.Where(
-                i => i.State != InvoiceState.Rejected
-                     && lines.TryGetValue(i.Id, out var counted) && counted.Unmatched > 0)];
-
         var names = await SupplierNamesAsync(catalog, invoices, ct);
 
         return TypedResults.Ok<IReadOnlyList<InvoiceListItem>>(
             [.. invoices.Select(i => InvoiceViews.Item(
                 i,
                 i.SupplierId is { } id && names.TryGetValue(id, out var name) ? name : null,
-                lines.TryGetValue(i.Id, out var counted) ? counted.Count : 0,
+                lines.TryGetValue(i.Id, out var total) ? total.Count : 0,
                 lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0))]);
     }
 

@@ -103,9 +103,14 @@ public static class AllocationEndpoints
                 await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, id => id == line.Id, now);
         if (returned) invoice.ReturnToDraft();
 
+        // Разноска — часть счёта: её правка отмечается у него самого. От этого зависит и время правки
+        // счёта, и защита от одновременной записи (issue #1173).
+        var changed = !was.SequenceEqual(values);
+        if (changed) invoice.ContentChanged();
+
         await db.SaveChangesAsync(ct);
 
-        if (!was.SequenceEqual(values))
+        if (changed)
             await log.RecordAsync(InvoiceActions.AllocationChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice),
                 before: $"строка {line.Ordinal}: {InvoiceAllocations.Describe(was, known, line.Unit)}",
