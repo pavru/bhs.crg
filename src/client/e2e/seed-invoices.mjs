@@ -14,7 +14,7 @@
  * отказывает с названной причиной — молчаливый пропуск стоил бы пяти проверок формы, которые
  * выглядели бы пройденными, не открыв ни одного счёта.
  */
-export async function seedInvoices({ api, findType, ensureEntry, field, apiBase, token, png }) {
+export async function seedInvoices({ api, findType, ensureEntry, ensureUser, field, apiBase, token, png }) {
   const typeId = await ensureOrganizationType({ api, findType, field });
   await seedNomenclature({ api, findType, ensureEntry, field });
 
@@ -29,6 +29,8 @@ export async function seedInvoices({ api, findType, ensureEntry, field, apiBase,
   });
   if (existing === null) return null;
 
+  await seedNarrowUser({ api, ensureUser });
+
   // ⚠️ Тип счёта может быть ещё НЕ ЗАВЕДЁН, и это нормальный ход событий, а не сбой. Тип объявляет
   // модуль, но ссылается он на тип «Организация», который заводит человек — здесь его только что
   // завёл посев, уже после старта приложения. Проекция типов модуля идёт один раз, при запуске,
@@ -40,6 +42,8 @@ export async function seedInvoices({ api, findType, ensureEntry, field, apiBase,
       + 'Перезапустите приложение и повторите посев, если счета нужны на стенде глазами.');
     return null;
   }
+
+  await ensureTableRows(api);
 
   const ref = id => ({ $ref: 'catalog', entryId: id });
   const requisites = {
@@ -74,6 +78,70 @@ export async function seedInvoices({ api, findType, ensureEntry, field, apiBase,
       { requisites: { ...requisites, 'Назначение': 'Тот же счёт, второй файл' } });
 
   return { number: 'СЧ-104', recognizedId: recognized.id, duplicateId: duplicate.id };
+}
+
+/**
+ * Данные живого прогона экрана таблицы (G1e, issue #1092). Прогон берёт их ОТСЮДА ЖЕ: число строк и
+ * сумма, записанные во втором месте, разошлись бы с посевом при первой же правке.
+ */
+export const TABLE_SEED = {
+  /** Назначение, по которому прогон отбирает посеянные счета — ровно их, сколько бы счетов ни накопилось. */
+  purpose: 'Посев: итог по отбору',
+  /** Больше наименьшей страницы экрана (50): иначе «итог по отбору, а не по странице» проверять не на чем. */
+  count: 55,
+  amount: i => 100 + i,
+  /** Учётная запись с модулем счетов, но БЕЗ права на счета: суммы ей закрыты. */
+  narrowEmail: 'nakladnye@bhs.local',
+  narrowRole: 'Только накладные (посев)',
+};
+
+/** Сумма посеянных счетов — по той же формуле, что их сеяла. */
+export const tableSeedSum = () =>
+  Array.from({ length: TABLE_SEED.count }, (_, i) => TABLE_SEED.amount(i + 1)).reduce((a, b) => a + b, 0);
+
+/**
+ * Счета для проверки «итог считается по всему отбору, а не по странице» (G1e, issue #1092).
+ *
+ * ⚠️ Их нарочно БОЛЬШЕ страницы. На пяти строках та же проверка зелёная и не значит ничего: сумма
+ * страницы и сумма отбора совпадают. Сеются один раз — по номерам, которых ещё нет.
+ *
+ * ⚠️ Зовёт её и посев, и САМ ПРОГОН. В CI посев идёт до перезапуска приложения, когда типа счёта
+ * ещё нет (см. `seedInvoices`), и счета он там не сеет вовсе — прогон досеивает их этой же
+ * функцией. Вторая, своя, разошлась бы с посевом числом строк или суммой.
+ *
+ * @param api `(method, path, body) => ответ` — запрос к приложению от имени того, кто вправе заводить счета.
+ */
+export async function ensureTableRows(api) {
+  const existing = await api('GET', '/costs/invoices');
+  const have = new Set(existing.filter(i => i.purpose === TABLE_SEED.purpose).map(i => i.number));
+  let added = 0;
+  for (let i = 1; i <= TABLE_SEED.count; i++) {
+    const number = `ИТОГ-${String(i).padStart(2, '0')}`;
+    if (have.has(number)) continue;
+    await api('POST', '/costs/invoices', {
+      requisites: { 'Номер': number, 'Дата': '2026-09-01', 'Итого': TABLE_SEED.amount(i), 'Назначение': TABLE_SEED.purpose },
+    });
+    added++;
+  }
+  if (added) console.log(`  + счета для итога по отбору: ${added} (всего ${TABLE_SEED.count})`);
+}
+
+/**
+ * Роль «модуль есть, счетов нет» и человек с ней (G1e, issue #1092): право на накладные открывает
+ * модуль, а суммы счетов — нет. Системной роли такого состава не бывает, поэтому роль своя.
+ */
+async function seedNarrowUser({ api, ensureUser }) {
+  const roles = await api('GET', '/roles');
+  let role = roles.find(r => r.title === TABLE_SEED.narrowRole);
+  if (!role) {
+    role = await api('POST', '/roles', {
+      title: TABLE_SEED.narrowRole,
+      summary: 'Для живых прогонов: видит модуль счетов, сумм не видит',
+      permissions: ['costs.waybill.read'],
+    });
+    console.log(`  + роль «${TABLE_SEED.narrowRole}»`);
+  }
+  await ensureUser(TABLE_SEED.narrowEmail, 'Нина Накладная', role.name);
 }
 
 /**

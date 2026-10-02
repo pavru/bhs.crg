@@ -192,7 +192,12 @@ public static class InvoiceAllocations
         new(part.Id, part.LineId, part.Ordinal, part.Quantity, part.Amount);
 
     /// <summary>Идентификатор присланной части: есть — правим её, нет — заводим новую.</summary>
-    public static Guid? Id(JsonElement part, int number) => Identifier(part, "id", $"Часть {number}: идентификатор");
+    public static Guid? Id(JsonElement part, int number)
+    {
+        // Идентификатор читают раньше значений — вид части проверяется и здесь (issue #1163).
+        CostsValues.EnsureObject(part, $"Часть {number}", "части");
+        return Identifier(part, "id", $"Часть {number}: идентификатор");
+    }
 
     /// <summary>
     /// Значения присланной части — разобранные по тому, как разносится строка.
@@ -204,13 +209,12 @@ public static class InvoiceAllocations
     /// </summary>
     public static AllocationValues Values(JsonElement part, int number, AllocationMode mode)
     {
-        if (part.ValueKind != JsonValueKind.Object)
-            throw new InvalidRequestException(
-                $"Часть {number} прислана как {part.ValueKind}, а ожидается объект с полями части.");
+        CostsValues.EnsureObject(part, $"Часть {number}", "части");
 
+        // Number, а не Money: о точности части здесь свой разговор со своими словами (Positive, Nonzero).
         var target = Target(part, $"Часть {number}");
-        var quantity = CostsValues.Money(part, "quantity", $"Количество, часть {number}");
-        var amount = CostsValues.Money(part, "amount", $"Сумма, часть {number}");
+        var quantity = CostsValues.Number(part, "quantity", $"Количество, часть {number}");
+        var amount = CostsValues.Number(part, "amount", $"Сумма, часть {number}");
 
         return mode switch
         {

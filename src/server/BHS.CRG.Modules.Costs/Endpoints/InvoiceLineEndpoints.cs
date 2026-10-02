@@ -148,6 +148,12 @@ public static class InvoiceLineEndpoints
                 $"{InvoiceEndpoints.Label(invoice)} отклонён — разбирать его незачем. Верните счёт в " +
                 "черновик, если решение изменилось.");
 
+        // Уже разобран — подтверждать нечего, и в журнал не пишем: запись «счёт разобран» означает
+        // решение человека, а повторное нажатие (или повтор запроса после обрыва связи) новым решением
+        // не является. Так же молчит возврат в черновик у черновика.
+        if (invoice.State == InvoiceState.Parsed)
+            return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+
         var missing = InvoiceRequisites.Missing(invoice);
         if (missing.Count > 0)
             throw new InvalidRequestException(
@@ -175,6 +181,8 @@ public static class InvoiceLineEndpoints
                 "справочником — свободный текст позицию не заменяет: без ссылки нельзя ни свести " +
                 "затраты, ни связать материал с документом качества. Пока они ждут, счёт остаётся " +
                 "черновиком и виден в отборе «Разобрать».");
+
+        await EnsureReferencesAliveAsync(catalog, invoice, lines, ct);
 
         EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, places, invoice, lines, ct)).Summary);
 
@@ -234,6 +242,61 @@ public static class InvoiceLineEndpoints
         throw new InvalidRequestException(
             $"{InvoiceEndpoints.Label(invoice)}: {string.Join("; ", problems)}. «Разобран» означает, что " +
             "деньги счёта легли на стройки целиком: иначе затраты по стройке не сойдутся со счетами.");
+    }
+
+    /// <summary>
+    /// Ссылки счёта на справочник ядра обязаны вести к записям: позиции строк и организации шапки.
+    ///
+    /// <para>⚠️ «Позиция указана» и «позиция есть» — разное, и разводит их не опечатка, а устройство:
+    /// внешнего ключа между схемой модуля и справочником ядра нет, и ядро строк счёта ссылающимися не
+    /// видит — позицию можно удалить. Переход проверял только первое, и счёт становился «разобран» со
+    /// строкой, которую ответ ТЕМ ЖЕ запросом называл потерянной (<c>nomenclatureLost</c>): сверен, а
+    /// свести затраты не с чем (находка ревью, issue #1166). Сохранение строк такую ссылку отвергает —
+    /// переход обязан быть не мягче него.</para>
+    ///
+    /// <para>Организации шапки — та же дверь: обязательность поля отвечает на «заполнено», а не на
+    /// «запись на месте».</para>
+    ///
+    /// <para>Названо ВСЁ разом, как у разноски: иначе человек чинил бы поставщика, чтобы узнать о
+    /// строке.</para>
+    ///
+    /// <para>Чего здесь НЕТ: позицию, удалённую ПОСЛЕ перехода, эта проверка не видит — модуль об
+    /// удалении не узнаёт, и счёт остаётся разобранным с пометкой «позиция не найдена» в форме. Это
+    /// вопрос к удалению в ядре, а не к переходу.</para>
+    /// </summary>
+    private static async Task EnsureReferencesAliveAsync(
+        IModuleCatalog catalog, Invoice invoice, IReadOnlyList<InvoiceLine> lines, CancellationToken ct)
+    {
+        var problems = new List<string>();
+
+        foreach (var (field, id) in new[]
+                 {
+                     (InvoiceRequisites.SupplierKey, invoice.SupplierId),
+                     (InvoiceRequisites.PayerKey, invoice.PayerId),
+                 })
+            if (id is { } organization && await catalog.GetAsync(organization, ct) is null)
+                problems.Add($"организации из поля «{field}» нет в справочнике");
+
+        // Вида «Номенклатура» нет вовсе — спрашивать не у кого, и это не «все позиции потеряны»:
+        // состояние установки, а не счёта. Но и «сверено со справочником» без справочника не скажешь.
+        var names = await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct)
+            ?? throw new ConflictException(
+                $"{InvoiceEndpoints.Label(invoice)}: тип «{CostsRecordTypes.NomenclatureCode}» в системе не " +
+                "заведён, и сверить позиции строк не с чем. «Разобран» означает, что строки сведены со " +
+                "справочником, — пока его нет, счёт остаётся черновиком.");
+
+        var lost = lines
+            .Where(l => l.NomenclatureId is { } position && !names.ContainsKey(position))
+            .Select(l => l.Ordinal)
+            .ToList();
+        if (lost.Count > 0)
+            problems.Add($"позиции номенклатуры нет в справочнике у {Genitive(lost)}");
+
+        if (problems.Count > 0)
+            throw new InvalidRequestException(
+                $"{InvoiceEndpoints.Label(invoice)}: {string.Join("; ", problems)}. Так бывает, когда запись " +
+                "удалили или перенесли в другой вид: ссылка осталась, а записи нет. Выберите её заново — " +
+                "«разобран» означает, что счёт сведён со справочником, а ссылка в пустоту не сводится ни с чем.");
     }
 
     /// <summary>Строки счёта, как они лежат, — в том виде, в каком их считает разноска.</summary>

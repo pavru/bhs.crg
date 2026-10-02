@@ -38,44 +38,19 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         string address, DataAccess access, TableRequest request, CancellationToken ct)
     {
         var requested = request.Columns;
-        if (catalog.Find(address) is not { } entry)
-            return (null, new(StatusCodes.Status404NotFound, $"Таблицы «{address}» нет ни у одного модуля сборки."));
+        var (opened, denied) = await OpenAsync(address, access, ct);
+        if (opened is null) return (null, denied);
+        var (entry, columns) = (opened.Entry, opened.Columns);
         var table = entry.Table;
 
-        // Система — первой, как в воротах наборов: у неё нет ни ключей, ни списка модулей, и любая
-        // другая проверка ответила бы ей неверной причиной.
-        if (access.IsSystem)
-            return (null, new(StatusCodes.Status409Conflict,
-                $"Таблица «{table.Title}» отдаёт строки только по правам человека, а их здесь нет " +
-                $"({access.SystemReason})."));
-
-        // Модуль выключен — не отказ, а состояние: колонки приходят все, с этой причиной, строк нет.
-        // Объявление — не данные модуля, и показать, ЧТО выключено, честнее, чем пустой 404.
-        //
-        // ⚠️ Только ОБЪЯВЛЕННЫЕ колонки и запрошенные ключи, без полей схемы типа. Ключа таблицы
-        // здесь не проверить — у выключенного модуля его нет ни у кого, — поэтому отвечаем тем, что
-        // и так лежит в коде модуля, а не схемой заказчика (ревью PR #1130). Запрошенное поле схемы
-        // всё равно приходит: своим ключом, с той же причиной.
-        if (!access.EnabledModules.Contains(entry.Module))
-        {
-            var off = TableColumnReasons.ModuleOffText(entry.ModuleTitle);
-            return (Dto(entry, [.. Mark(Declared(table), requested).Select(c => c with
+        // Запрошенное поле схемы у выключенного модуля всё равно приходит: своим ключом, с той же
+        // причиной, а не «удалено из типа» — про тип здесь не известно ничего.
+        if (opened.Off is { } off)
+            return (Dto(entry, [.. Mark(columns, requested).Select(c => c with
             {
                 Unavailable = TableColumnReasons.ModuleOff, Reason = off,
             })], [], TableColumnReasons.ModuleOff), null);
-        }
 
-        if (!access.Allows(table.Requires))
-            return (null, new(StatusCodes.Status403Forbidden,
-                $"Таблица «{table.Title}» открывается ключом «{table.Requires}», а у «{access.Who}» его нет."));
-
-        // Причина «нет права» ставится ВСЕМ колонкам таблицы, а не только запрошенным: отбирать и
-        // сортировать можно и по колонке, которой на экране нет, — и по закрытой нельзя всё равно.
-        var columns = (await ColumnsAsync(table, ct))
-            .Select(c => Closed(table, c.Key, access) is { } hides
-                ? c with { Unavailable = TableColumnReasons.NoRight, Reason = TableColumnReasons.NoRightText(hides) }
-                : c)
-            .ToList();
         var marked = Mark(columns, requested).ToList();
 
         // Два множества, и путать их нельзя. ОТКРЫТЫЕ — всё, что человеку можно: по ним идут отбор,
@@ -88,6 +63,25 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
 
         var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
         var page = await reader.ReadAsync(query, ct);
+
+        // Ключ — у каждой строки или ни у одной: список короче строк сдвинул бы ключи, и панель
+        // открыла бы соседнюю строку под именем выбранной.
+        if (page.Keys is { } keys && keys.Count != page.Rows.Count)
+            throw new InvalidOperationException(
+                $"Служба строк таблицы «{table.Title}» отдала строк — {page.Rows.Count}, а ключей — {keys.Count}.");
+
+        if (query.Row is { } row)
+        {
+            if (page.Keys is null)
+                return (null, new(StatusCodes.Status409Conflict,
+                    $"Таблица «{table.Title}» строку по ключу не отдаёт: её служба ключей строк не называет."));
+
+            // Служба, не заметившая ключа, отдала бы всю страницу — и первая её строка сошла бы за
+            // запрошенную. Это ошибка модуля, а не человека: останавливаемся, а не отвечаем чужой строкой.
+            if (page.Keys.Any(k => k != row))
+                throw new InvalidOperationException(
+                    $"Служба строк таблицы «{table.Title}» на запрос строки «{row}» отдала другие строки.");
+        }
 
         // Подпись смысла — только колонке, объявленной зависящей от отбора, и только открытой: служба
         // строк не переименовывает чужие колонки и не подписывает то, чего человек не видит.
@@ -103,7 +97,78 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
             Limit = request.Limit,
             Totals = page.Totals.Where(t => open.Contains(t.Key)).ToDictionary(
                 t => t.Key, t => ModuleTableQueries.Total(t.Value, query.Totals![t.Key]), StringComparer.Ordinal),
+            Keys = page.Keys,
         }, null);
+    }
+
+    /// <summary>
+    /// Таблица без строк: все её колонки с причинами (G1e, issue #1092). Те же ворота, что у строк, —
+    /// проверки стоят в <see cref="OpenAsync" /> один раз, и описание не может открыться тому, кому
+    /// закрыты строки.
+    /// </summary>
+    public async Task<(TableDeclarationDto? Table, TableRefusal? Refusal)> DescribeAsync(
+        string address, DataAccess access, CancellationToken ct)
+    {
+        var (opened, denied) = await OpenAsync(address, access, ct);
+        if (opened is null) return (null, denied);
+
+        var (entry, table) = (opened.Entry, opened.Entry.Table);
+        return (new(entry.Address, table.Title, table.Grain, table.Boundary, opened.Columns,
+            opened.Off is null ? null : TableColumnReasons.ModuleOff), null);
+    }
+
+    /// <summary>Таблица, открытая спрашивающему: её колонки с причинами и, если модуль выключен, чем.</summary>
+    /// <param name="Columns">ВСЕ колонки таблицы, закрытые — с причиной.</param>
+    /// <param name="Off">Причина «модуль выключен» словами; null — модуль включён.</param>
+    private sealed record Opened(ModuleTableEntry Entry, List<TableColumnDto> Columns, string? Off);
+
+    /// <summary>Ворота таблицы — одни на строки и на описание.</summary>
+    private async Task<(Opened? Table, TableRefusal? Refusal)> OpenAsync(
+        string address, DataAccess access, CancellationToken ct)
+    {
+        if (catalog.Find(address) is not { } entry)
+            return (null, new(StatusCodes.Status404NotFound, $"Таблицы «{address}» нет ни у одного модуля сборки."));
+        var table = entry.Table;
+
+        // Система — первой, как в воротах наборов: у неё нет ни ключей, ни списка модулей, и любая
+        // другая проверка ответила бы ей неверной причиной.
+        if (access.IsSystem)
+            return (null, new(StatusCodes.Status409Conflict,
+                $"Таблица «{table.Title}» отдаёт строки только по правам человека, а их здесь нет " +
+                $"({access.SystemReason})."));
+
+        // Модуль выключен — не отказ, а состояние: колонки приходят все, с этой причиной, строк нет.
+        // Объявление — не данные модуля, и показать, ЧТО выключено, честнее, чем пустой 404.
+        //
+        // ⚠️ Только ОБЪЯВЛЕННЫЕ колонки, без полей схемы типа. Ключа таблицы здесь не проверить — у
+        // выключенного модуля его нет ни у кого, — поэтому отвечаем тем, что и так лежит в коде
+        // модуля, а не схемой заказчика (ревью PR #1130).
+        if (!access.EnabledModules.Contains(entry.Module))
+        {
+            var off = TableColumnReasons.ModuleOffText(entry.ModuleTitle);
+            return (new(entry, [.. Declared(table).Select(c => c with
+            {
+                Unavailable = TableColumnReasons.ModuleOff, Reason = off,
+            })], off), null);
+        }
+
+        if (!access.Allows(table.Requires))
+            return (null, new(StatusCodes.Status403Forbidden,
+                $"Таблица «{table.Title}» открывается ключом «{table.Requires}», а у «{access.Who}» его нет."));
+
+        // Причина «нет права» ставится ВСЕМ колонкам таблицы, а не только запрошенным: отбирать и
+        // сортировать можно и по колонке, которой на экране нет, — и по закрытой нельзя всё равно.
+        var columns = (await ColumnsAsync(table, ct))
+            .Select(c => Closed(table, c.Key, access) is { } closed
+                ? c with
+                {
+                    Unavailable = TableColumnReasons.NoRight,
+                    Reason = TableColumnReasons.NoRightText(closed.Hides!),
+                    Requires = closed.Requires,
+                }
+                : c)
+            .ToList();
+        return (new(entry, columns, null), null);
     }
 
     /// <summary>Колонки таблицы: системные модуля, затем поля схемы типа, которых среди системных нет.</summary>
@@ -167,11 +232,14 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
                 TableColumnReasons.Removed, TableColumnReasons.RemovedText));
     }
 
-    /// <summary>Что закрывает право колонки, если у спрашивающего его нет; null — колонка открыта.</summary>
-    private static string? Closed(ModuleTable table, string key, DataAccess access) =>
-        table.Columns.FirstOrDefault(c => c.Key == key) is { Requires: { } requires, Hides: { } hides }
+    /// <summary>
+    /// Объявление колонки, закрытой правом, которого у спрашивающего нет; null — колонка открыта. Из
+    /// него берутся и слова причины («суммы»), и код права — тот, по которому его ищет администратор.
+    /// </summary>
+    private static ModuleTableColumn? Closed(ModuleTable table, string key, DataAccess access) =>
+        table.Columns.FirstOrDefault(c => c.Key == key) is { Requires: { } requires, Hides: not null } column
         && !access.Allows(requires)
-            ? hides
+            ? column
             : null;
 
     private static IReadOnlyDictionary<string, object?> Only(IReadOnlyDictionary<string, object?> row, ISet<string> open) =>
