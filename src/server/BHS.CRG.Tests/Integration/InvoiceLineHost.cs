@@ -17,7 +17,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -305,12 +304,7 @@ public sealed class InvoiceLineHost : IntegrationTestFixture
 {
     private static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_lines";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("lines");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

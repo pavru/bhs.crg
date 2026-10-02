@@ -18,7 +18,6 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -816,12 +815,7 @@ public sealed class InvoiceHost : IntegrationTestFixture
 {
     private static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_invoices";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("invoices");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
