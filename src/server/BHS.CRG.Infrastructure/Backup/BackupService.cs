@@ -320,7 +320,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
     {
         var manifest = await ReadManifestAsync(scope, warnings, ct);
         return scope == BackupScope.Full
-            ? manifest with { ModuleData = await modules.ReadAsync(tx, ct) }
+            ? manifest with { ModuleData = await modules.ReadAsync(tx, warnings, ct) }
             : manifest;
     }
 }
