@@ -33,7 +33,9 @@ const atPath = p => url => new URL(url).pathname === p;
 
 const browser = await launchBrowser();
 const page = await browser.newPage();
-watchRequests(page);
+// Наблюдение за запросами обычно ставит сам login(). Здесь — отдельно и заранее: первые проверки
+// ходят по страницам ДО входа, а запрос, ушедший раньше подписки, для settled() не существует.
+await watchRequests(page);
 page.on('dialog', d => d.accept());
 
 try {

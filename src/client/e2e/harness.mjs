@@ -61,26 +61,44 @@ export async function launchBrowser() {
 }
 
 /**
- * Вход по форме. Ждём именно появления токена: без этого следующий `goto` успевает уйти
- * раньше сохранения, и ProtectedRoute вернёт на /login. Смотрим оба хранилища — «Запомнить
- * меня» выбирает между localStorage и sessionStorage (см. shared/api/token.ts), и прогон
- * не должен зависеть от того, каким это поле стоит по умолчанию.
+ * Вход по форме: страница входа, отправка, токен. Заодно ставит страницу под наблюдение за
+ * запросами (`watchRequests`) — вход у каждого набора первым делом, и отдельный вызов, о котором
+ * надо помнить, забывали бы ровно там, где `settled()` понадобится позже.
+ */
+export async function login(page, email = EMAIL, password = PASSWORD) {
+  await watchRequests(page);
+  await page.goto(`${BASE}/login`);
+  await submitLogin(page, email, password);
+}
+
+/**
+ * Отправка формы входа на УЖЕ открытой странице входа — для проверок, которым важно войти тем же
+ * деревом, что рисовало страницу входа, без перехода (`shared-ui`: смена человека в одной вкладке).
+ *
+ * Ждём именно появления токена: без этого следующий `goto` успевает уйти раньше сохранения, и
+ * ProtectedRoute вернёт на /login. Смотрим оба хранилища — «Запомнить меня» выбирает между
+ * localStorage и sessionStorage (см. shared/api/token.ts), и прогон не должен зависеть от того,
+ * каким это поле стоит по умолчанию.
  *
  * ⚠️ Отказ сервера называется ОТКАЗОМ, с кодом. Входы ограничены по частоте — 30 за пять минут с
  * одного адреса (политика `login` на сервере), — а все наборы ходят с одного. Пока прогон целиком
  * шёл шесть минут, входы делились между двумя окнами; без пауз (issue #1160) все они попадают в
- * одно. Сейчас их девятнадцать, запас есть, но следующий набор с тремя-четырьмя входами его
- * съест — и без этих слов упёрся бы в «истёк срок ожидания токена», по которому причину не найти.
+ * одно. Без этих слов набор упирался бы в «истёк срок ожидания токена», по которому причину не
+ * найти. Сколько входов в прогоне CI и сколько ещё помещается — считает `suites.test.mjs`, а не
+ * этот комментарий: число, записанное словами, устарело первым же слиянием.
  */
-export async function login(page, email = EMAIL, password = PASSWORD) {
-  await page.goto(`${BASE}/login`);
+export async function submitLogin(page, email = EMAIL, password = PASSWORD) {
   await page.fill('input[type=email]', email);
   await page.fill('input[type=password]', password);
-  const answered = page.waitForResponse(
-    r => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/auth/login'),
-    { timeout: 15_000 });
-  await page.click('button[type=submit]');
-  const answer = await answered;
+  // Ожидание ответа и щелчок — ОДНИМ обещанием. Заведённое отдельно, ожидание осталось бы без
+  // хозяина при отказе щелчка, и его собственный отказ через пятнадцать секунд ронял бы процесс —
+  // посреди другой проверки и без итоговой сводки.
+  const [answer] = await Promise.all([
+    page.waitForResponse(
+      r => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/auth/login'),
+      { timeout: 15_000 }),
+    page.click('button[type=submit]'),
+  ]);
   if (!answer.ok()) {
     throw new Error(`вход под ${email} отклонён: ${answer.status()}` + (answer.status() === 429
       ? ' — исчерпан предел частоты входов (30 за 5 минут с одного адреса)' : ''));
@@ -97,19 +115,30 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 /** Запросы страницы, которые ещё в полёте, и счётчик начатых — на них стоит `settled()`. */
 const watched = new WeakMap();
 
+/** Запрос за документом главного кадра. `frame()` у запроса вправе бросить — тогда это не он. */
+function isDocumentRequest(page, request) {
+  try { return request.isNavigationRequest() && request.frame() === page.mainFrame(); }
+  catch { return false; }
+}
+
 /**
- * Ставит страницу под наблюдение за запросами. Вызывается СРАЗУ после `newPage()` — до первого
- * перехода: запрос, ушедший раньше подписки, для `settled()` не существует, и она объявила бы
- * страницу затихшей при работающей загрузке.
+ * Ставит страницу под наблюдение за запросами. `login()` делает это сам; звать отдельно нужно
+ * только странице, которая обходится без входа, — и тогда ДО первого перехода: запрос, ушедший
+ * раньше подписки, для `settled()` не существует, и она объявила бы страницу затихшей при
+ * работающей загрузке.
  */
 export function watchRequests(page) {
-  if (watched.has(page)) return;
-  const net = { inflight: new Set(), started: 0, loading: null };
+  const known = watched.get(page);
+  if (known) return known.ready;
+  const net = { inflight: new Set(), started: 0, document: null, ready: null };
+  watched.set(page, net);
   page.on('request', r => {
-    if (r.isNavigationRequest() && r.frame() === page.mainFrame()) net.loading = r;
+    if (isDocumentRequest(page, r)) net.document = r;
     net.inflight.add(r);
     net.started++;
   });
+  page.on('requestfinished', r => net.inflight.delete(r));
+  page.on('requestfailed', r => net.inflight.delete(r));
   // Загрузка нового документа обрывает запросы прежнего, и об оборванных так браузер НЕ сообщает
   // ни «завершён», ни «не удался» — они остались бы «в полёте» навсегда (проверено: первым же
   // прогоном `settled()` двадцать секунд ждала запрос страницы входа, уже заменённой переходом).
@@ -118,23 +147,27 @@ export function watchRequests(page) {
   // этими двумя событиями прежний документ ещё жив и успевает послать своё (перечитывание после
   // только что сохранённой темы — и следом `reload()`), так что снятое раньше набралось бы заново.
   //
-  // Смена адреса внутри приложения сюда не попадает: запроса за документом у неё нет, `loading`
-  // пуст — и запросы живого документа остаются на счету.
-  page.on('framenavigated', frame => {
-    if (frame !== page.mainFrame() || !net.loading) return;
-    const document = net.loading;
-    net.loading = null;
-    const stillLoading = net.inflight.has(document);
-    net.inflight.clear();
-    if (stillLoading) net.inflight.add(document);
-  });
-  page.on('requestfinished', r => net.inflight.delete(r));
-  page.on('requestfailed', r => {
-    net.inflight.delete(r);
-    if (net.loading === r) net.loading = null;   // загрузка не состоялась — документ прежний
-  });
-  watched.set(page, net);
+  // ⚠️ Этот миг берём у самого браузера, а не у `framenavigated`: то событие приходит и на смену
+  // адреса ВНУТРИ приложения, и отличить одно от другого по нему нельзя. Пока различали по «был ли
+  // запрос за документом», смена адреса, случившаяся при уже ушедшем запросе, принималась за
+  // приход документа: счёт снимался раньше времени, а настоящий приход уже не снимал ничего — и
+  // оборванные запросы прежнего экрана висели до конца прогона (ревью PR #1161; так бывает сразу
+  // после входа, когда проверка зовёт `goto`, а приложение в тот же миг уходит на стартовый экран).
+  // У браузера это два РАЗНЫХ события: `Page.frameNavigated` — только про новый документ.
+  net.ready = (async () => {
+    const session = await page.context().newCDPSession(page);
+    session.on('Page.frameNavigated', ({ frame }) => {
+      if (frame.parentId) return;   // вложенный кадр: об оборванном в нём браузер сообщает сам
+      const loading = net.document && net.inflight.has(net.document) ? net.document : null;
+      net.inflight.clear();
+      if (loading) net.inflight.add(loading);   // сам документ ещё докачивается
+    });
+    await session.send('Page.enable');
+  })();
+  return net.ready;
 }
+
+const BUSY = Symbol('страница не ответила');
 
 /**
  * Ждёт, пока приложение ЗАКОНЧИТ отвечать на предыдущее действие: запросов в полёте нет, очередь
@@ -152,16 +185,21 @@ export function watchRequests(page) {
  *
  * ⚠️ Истечение срока — отказ, а не «ну, наверное, готово»: продолжи проверка по незатихшей
  * странице, она покраснела бы шагом позже и уже про другое. В отказе названы запросы, которые
- * не дали дождаться.
+ * не дали дождаться. Срок действует и тогда, когда страница не отвечает вовсе: вопрос «свободна
+ * ли очередь» задаётся ей самой, и занятый поток держал бы ожидание столько, сколько занят.
+ *
+ * Поведение проверяется `harness-smoke.mjs` — на цепочках, а не на приложении.
  */
 export async function settled(page, { timeout = 20_000 } = {}) {
   const net = watched.get(page);
-  if (!net) throw new Error('settled(): страница не под наблюдением — watchRequests(page) зовут сразу после newPage()');
+  if (!net) throw new Error('settled(): страница не под наблюдением — её ставит login(), а без входа — watchRequests(page) до первого перехода');
+  await net.ready;
   const deadline = Date.now() + timeout;
+  const flying = () => [...net.inflight].map(r => `${r.method()} ${r.url().replace(/^https?:\/\/[^/]+/, '')}`);
   let calm = 0;
   while (calm < 2) {
     if (Date.now() > deadline) {
-      const busy = [...net.inflight].map(r => `${r.method()} ${r.url().replace(/^https?:\/\/[^/]+/, '')}`);
+      const busy = flying();
       throw new Error(`страница не затихла за ${timeout / 1000} с: `
         + (busy.length ? `в полёте ${busy.join(', ')}` : 'запросы уходят один за другим'));
     }
@@ -169,11 +207,21 @@ export async function settled(page, { timeout = 20_000 } = {}) {
     const before = net.started;
     // Свободная очередь задач, затем кадр. Страховочный таймер — на случай, когда кадров нет вовсе
     // (страница в фоне): без него ожидание повисло бы до общего срока.
-    const drained = await page.evaluate(() => new Promise(done => {
+    const asked = page.evaluate(() => new Promise(done => {
       const frame = () => requestAnimationFrame(() => done(true));
       setTimeout(() => done(true), 400);
       if ('requestIdleCallback' in window) requestIdleCallback(frame, { timeout: 300 }); else setTimeout(frame, 0);
     })).catch(() => false);   // переход посреди ожидания рвёт контекст — это «ещё не затихла»
+    // Таймер срока снимаем сами: оставленный, он держал бы процесс набора ещё двадцать секунд
+    // после последней проверки.
+    let timer;
+    const late = new Promise(resolve => { timer = setTimeout(() => resolve(BUSY), deadline - Date.now()); });
+    const drained = await Promise.race([asked, late]).finally(() => clearTimeout(timer));
+    if (drained === BUSY) {
+      const busy = flying();
+      throw new Error(`страница не отвечает ${timeout / 1000} с — занята так, что не может сказать, затихла ли`
+        + (busy.length ? `; в полёте ${busy.join(', ')}` : ''));
+    }
     if (drained && net.inflight.size === 0 && net.started === before) calm++;
     else { calm = 0; if (!drained) await sleep(15); }
   }

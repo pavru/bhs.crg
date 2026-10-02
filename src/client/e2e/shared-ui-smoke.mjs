@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/shared-ui-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, EMAIL, PASSWORD, launchBrowser, login, clearSession, createChecks, watchRequests, settled, until } from './harness.mjs';
+import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -28,7 +28,6 @@ const OTHER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
-watchRequests(page);
 const { check, summarize } = createChecks();
 
 const domTheme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
@@ -64,14 +63,9 @@ await check('theme-saves-right-after-form-login', async () => {
 
   await clearSession(page);
   await page.evaluate(() => localStorage.removeItem('crg-theme'));
-  await page.goto(`${BASE}/login`);
-  await page.fill('input[type=email]', EMAIL);
-  await page.fill('input[type=password]', PASSWORD);
-  await page.click('button[type=submit]');
-  // Сначала вход: токен в хранилище — признак, что ответ пришёл. Потом — всё, что вход потянул за собой.
-  await page.waitForFunction(
-    () => !!(localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token')),
-    null, { timeout: 10_000 });
+  // Сначала вход — он сам открывает страницу входа заново и ждёт токен; потом — всё, что вход
+  // потянул за собой.
+  await login(page);
   await settled(page);
 
   await pickTheme('Тёмная');
@@ -156,14 +150,9 @@ await check('settings-do-not-survive-a-change-of-user', async () => {
   await page.waitForSelector('input[type=email]', { timeout: 10000 });
 
   // Вход ДРУГИМ человеком в той же вкладке — без перезагрузки страницы.
-  await page.fill('input[type=email]', OTHER_EMAIL);
-  await page.fill('input[type=password]', OTHER_PASSWORD);
-  await page.click('button[type=submit]');
   // Утверждение ниже — «тема НЕ тёмная», и читать его можно только после того, как настройки
   // второго человека доехали: до них на экране ещё тема страницы входа, и это не поломка.
-  await page.waitForFunction(
-    () => !!(localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token')),
-    null, { timeout: 10_000 });
+  await submitLogin(page, OTHER_EMAIL, OTHER_PASSWORD);
   await settled(page);
 
   if ((await domTheme()) === 'dark')

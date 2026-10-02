@@ -13,12 +13,11 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/settings-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, watchRequests, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
-watchRequests(page);
 const { check, summarize } = createChecks();
 
 await login(page);

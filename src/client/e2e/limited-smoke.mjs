@@ -33,7 +33,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/limited-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, watchRequests, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
 
 // Учётная запись с ограниченными правами — та же, что заводит посев (e2e/seed.mjs): роль `User`,
 // она же «Инженер ИД». Отдельной заводить незачем; разойдясь, значения дали бы «не вошёл».
@@ -67,7 +67,6 @@ const PNG = Buffer.from(
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
-watchRequests(page);
 
 /**
  * Каждый отказ доступа за весь проход — с адресом и экраном, на котором пришёл.

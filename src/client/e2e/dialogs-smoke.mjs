@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, watchRequests, settled, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -49,7 +49,6 @@ const MATERIALS_TYPE = process.env.SMOKE_MATERIALS_UNION_TYPE || 'Материа
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
-watchRequests(page);
 const { check, skip, summarize } = createChecks();
 
 await login(page);
