@@ -71,9 +71,6 @@ public sealed record InvoiceLineView(
 /// <param name="Vat">Сумма НДС по строкам — то самое «в том числе НДС», посчитанное по строкам.</param>
 public sealed record InvoiceLineTotals(int Count, int WithoutNomenclature, decimal Amount, decimal Vat)
 {
-    /// <summary>Итоги пустого набора строк: ни суммы, ни ожидающих — черновик без строк штатен.</summary>
-    public static readonly InvoiceLineTotals Empty = new(0, 0, 0m, 0m);
-
     public static InvoiceLineTotals Of(IReadOnlyCollection<InvoiceLine> lines) => new(
         lines.Count,
         lines.Count(l => l.NomenclatureId is null),
@@ -91,21 +88,40 @@ public static class InvoiceLineRequests
     /// Почему позиция — ссылка, а не наименование текстом (ТЗ COST-7). Главный сторож задачи C2, и
     /// сказан он человеку, а не только коду: отказ читают за формой.
     /// </summary>
+    /// <summary>
+    /// Что делать с ценой, у которой в бумаге доли копейки (бывает: цена за метр, посчитанная из цены
+    /// за километр). Отказ без этого был бы тупиком — а выход есть: сумма строки принимается как
+    /// прислана и по цене не пересчитывается.
+    /// </summary>
+    private const string PriceHint =
+        "Если цена в бумаге именно такая — впишите её до копеек, а сумму строки возьмите из бумаги: " +
+        "присланная сумма ложится как есть и по цене не пересчитывается.";
+
     private const string NomenclatureWhy =
         "Позицию выбирают из справочника номенклатуры, а не вписывают наименованием: без ссылки на " +
         "справочник нельзя ни свести затраты, ни связать материал с документом качества, ни сказать " +
         "монтажнику, что ему отпустили. Наименование из бумаги поставщика присылайте в «supplierText» — " +
         "оно останется цитатой и ключом сопоставления, а строка будет ждать позиции в отборе «Разобрать».";
 
-    /// <summary>Идентификатор присланной строки: есть — правим её, нет — заводим новую.</summary>
-    public static Guid? Id(JsonElement line, int number) =>
-        CostsValues.Value(line, IdKey) switch
+    /// <summary>
+    /// Идентификатор присланной строки: есть — правим её, нет — заводим новую.
+    ///
+    /// <para>⚠️ Вид строки проверяется и здесь, а не только в <see cref="Values" />: идентификатор
+    /// читают ПЕРВЫМ, и отказ «строка N прислана как …», стоявший только там, был недостижим — раньше
+    /// него приходил 500 (issue #1163).</para>
+    /// </summary>
+    public static Guid? Id(JsonElement line, int number)
+    {
+        CostsValues.EnsureObject(line, $"Строка {number}", "строки");
+
+        return CostsValues.Value(line, IdKey) switch
         {
             null => null,
             { ValueKind: JsonValueKind.String } value when Guid.TryParse(value.GetString(), out var id) => id,
             var other => throw CostsValues.Wrong($"Строка {number}: идентификатор", other,
                 "строку-идентификатор уже сохранённой строки либо ничего"),
         };
+    }
 
     /// <summary>
     /// Значения строки — разобранные и досчитанные.
@@ -114,9 +130,7 @@ public static class InvoiceLineRequests
     /// число» без номера строки заставило бы человека искать опечатку во всей таблице.</param>
     public static InvoiceLineValues Values(JsonElement line, int number)
     {
-        if (line.ValueKind != JsonValueKind.Object)
-            throw new InvalidRequestException(
-                $"Строка {number} прислана как {line.ValueKind}, а ожидается объект с полями строки.");
+        CostsValues.EnsureObject(line, $"Строка {number}", "строки");
 
         var values = new InvoiceLineValues(
             NomenclatureId: CostsValues.Reference(line, NomenclatureKey, NomenclatureWhy,
@@ -125,14 +139,24 @@ public static class InvoiceLineRequests
             SupplierCode: CostsValues.Text(line, "supplierCode", $"Артикул поставщика, строка {number}",
                 InvoiceLine.SupplierCodeLength),
             Unit: CostsValues.Text(line, "unit", $"Единица измерения, строка {number}", InvoiceLine.UnitLength),
-            Quantity: CostsValues.Money(line, "quantity", $"Количество, строка {number}"),
-            Price: CostsValues.Money(line, "price", $"Цена, строка {number}"),
+            Quantity: CostsValues.Quantity(line, "quantity", $"Количество, строка {number}"),
+            Price: CostsValues.Money(line, "price", $"Цена, строка {number}", PriceHint),
             VatRate: Rate(line, number),
             VatAmount: CostsValues.Money(line, "vatAmount", $"Сумма НДС, строка {number}"),
             Amount: CostsValues.Money(line, "amount", $"Сумма, строка {number}"),
             Note: CostsValues.Text(line, "note", $"Примечание, строка {number}"));
 
-        return values.Completed();
+        var completed = values.Completed();
+
+        // Присланные числа в границе, а ПОСЧИТАННАЯ сумма — уже нет: количество × цена у двух чисел
+        // под триллион даёт до 10²⁴. В decimal оно помещается, в колонку — нет, и отказала бы база.
+        if (completed.Amount is { } amount && Math.Abs(amount) >= CostsValues.Limit)
+            throw new InvalidRequestException(
+                $"Строка {number}: количество × цена = {CostsValues.Shown(amount)} — " +
+                "больше, чем здесь бывает (предел — триллион). В одном из двух чисел лишние нули или " +
+                "склейка при вставке из буфера.");
+
+        return completed;
     }
 
     /// <summary>

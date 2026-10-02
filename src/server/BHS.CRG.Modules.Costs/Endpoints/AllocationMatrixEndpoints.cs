@@ -162,7 +162,7 @@ public static class AllocationMatrixEndpoints
                 throw new InvalidRequestException($"Объект {number} прислан как {target.ValueKind}, а ожидается объект.");
 
             var place = InvoiceAllocations.Target(target, $"Объект {number}");
-            var weight = percent ? Percent(CostsValues.Money(target, "percent", $"Процент, объект {number}"), number) : 1m;
+            var weight = percent ? Percent(CostsValues.Number(target, "percent", $"Процент, объект {number}"), number) : 1m;
             return new SplitTarget(place, weight);
         }).ToList();
 
