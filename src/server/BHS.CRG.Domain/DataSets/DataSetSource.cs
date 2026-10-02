@@ -123,9 +123,18 @@ public class DataSetSource : Entity
 
     private DataSetSource() { }
 
+    /// <summary>Шаг, на который новый источник отодвигается от предыдущего, если часы отстали.
+    /// Микросекунда, а не такт: время в базе хранится до микросекунды, и сдвиг мельче после
+    /// сохранения исчез бы — источники снова совпали бы по времени.</summary>
+    private static readonly TimeSpan OrderStep = TimeSpan.FromMicroseconds(1);
+
+    /// <param name="after">Время создания последнего из уже существующих источников набора: новый
+    /// создаётся строго позже — см. <see cref="DataSetFile.AddSource" />. Null — источник первый.</param>
     internal static DataSetSource Create(Guid fileId, string name, string sheetOrPath,
-        string cachedSchema, int cachedRowCount, string? columnExpressions = null, string? cachedData = null)
-        => new()
+        string cachedSchema, int cachedRowCount, string? columnExpressions = null, string? cachedData = null,
+        DateTimeOffset? after = null)
+    {
+        var source = new DataSetSource
         {
             FileId = fileId,
             Name = name,
@@ -135,6 +144,10 @@ public class DataSetSource : Entity
             ColumnExpressions = columnExpressions,
             CachedData = cachedData,
         };
+        if (after is { } last && source.CreatedAt <= last)
+            source.CreatedAt = source.UpdatedAt = last + OrderStep;
+        return source;
+    }
 
     /// <summary>
     /// Восстановление из резервной копии (issue #833) — со ВСЕМ разбором, включая кэш данных.

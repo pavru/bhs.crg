@@ -38,7 +38,12 @@ public partial class DataSetSourceService(
     public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(
         Guid fileId, DataAccess access, CancellationToken ct)
     {
-        var sources = await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct);
+        // Источники читаются ЧЕРЕЗ НАБОР, а не своим запросом (issue #1149): порядок у них один, и
+        // задаёт его набор (DataSetFile.Sources). Собственный запрос отдавал их в порядке строк в
+        // куче, и тот менялся правкой любого источника.
+        var file = await db.DataSetFiles.Include(f => f.Sources).AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null) return [];
+        var sources = file.Sources;
         var ids = sources.Select(s => s.Id).ToList();
         var bindingCounts = ids.Count == 0
             ? new Dictionary<Guid, int>()
@@ -47,11 +52,8 @@ public partial class DataSetSourceService(
                 .GroupBy(b => b.SourceId)
                 .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
 
-        // Системный набор: число строк живое (issue #613) — файл не запрашиваем, если нечего считать.
-        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
-        var liveStates = file is null
-            ? new Dictionary<Guid, SystemSourceCounter.SystemSourceState>()
-            : await systemCounts.StateAsync(file, sources, access, ct);
+        // Системный набор: число строк живое (issue #613).
+        var liveStates = await systemCounts.StateAsync([file], access, ct);
 
         return sources.Select(s => DataSetDtoMapper.MapSource(
             s, bindingCounts.GetValueOrDefault(s.Id),
@@ -615,7 +617,10 @@ public partial class DataSetSourceService(
     // ради которой копию и делают. Имя задаёт вызывающий (диалог), иначе берём ближайшее свободное.
     public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, string? name, CancellationToken ct)
     {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        // Набор — вместе с источниками: копия обязана встать после ВСЕХ, а не только после оригинала
+        // (см. DataSetFile.AddSource — о незагруженных источниках набор не знает).
+        var source = await db.DataSetSources.Include(s => s.File).ThenInclude(f => f.Sources)
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
         var copyName = string.IsNullOrWhiteSpace(name)
