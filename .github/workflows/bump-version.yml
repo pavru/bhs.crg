@@ -1,0 +1,146 @@
+# Повышение версии после слияния в master (issue #1153).
+#
+# PR версию НЕ трогает. Раньше её поднимал сам PR, и параллельные ветки брали один и тот же
+# следующий номер от одного и того же master: конфликт в единственной строке у каждой ветки, кроме
+# слитой первой. Теперь номер появляется там, где порядок слияний уже известен, — в master.
+#
+# Что поднимается. PATCH — по умолчанию. MINOR — если на слитом PR стоит метка `version:minor`
+# (PATCH при этом обнуляется). MAJOR workflow не поднимает никогда: это решение владельца продукта
+# о выпуске, и принимается оно правкой <Version> руками, отдельным PR.
+#
+# ТЕГОВ ЗДЕСЬ НЕТ, и это не упущение. Тег `vX.Y.Z` означает выпуск и ставится в release.yml; его же
+# шаг «Тег ещё не занят» отказывает, если тег текущей версии существует. Поставь его повышение —
+# выпуск перестал бы работать совсем.
+#
+# ⚠️ ПИШЕМ В MASTER DEPLOY-КЛЮЧОМ, а не GITHUB_TOKEN, и причин две — обе про отказ, а не про удобство:
+#   1. master закрыт набором правил («Master ruleset»: только через PR, три обязательные проверки).
+#      GITHUB_TOKEN в исключения набора правил добавить нельзя, deploy-ключи — можно.
+#   2. Коммит, отправленный GITHUB_TOKEN, не запускает другие workflow — то есть CI на нём не
+#      пройдёт никогда. А release.yml выпускает только коммит с зелёным CI: master, голова которого —
+#      коммит повышения, нельзя было бы выпустить вовсе.
+# Ключ лежит в секрете VERSION_BUMP_DEPLOY_KEY ОКРУЖЕНИЯ `version-bump`, а не репозитория; открытая
+# его половина — deploy-ключ с правом записи, «Deploy keys» внесены в Bypass list набора правил.
+# Окружение открыто только ветке master: этот ключ пишет в master мимо PR и проверок, и читать его
+# должен один этот workflow. Настройка с нуля и разбор отказов — docs/DEV_NOTES.md, «Повышение
+# версии: бот, ключ и граница».
+name: Повышение версии
+
+on:
+  push:
+    branches: [master]
+
+# Повышения идут по одному. Но это НЕ очередь: ожидающий прогон в группе один, и следующий push его
+# вытесняет — при трёх быстрых слияниях средний прогон будет отменён. Поэтому прогон смотрит не на
+# «свой» коммит, а на всё, что слито с прошлого изменения версии (scripts/unbumped-merges.sh): какой
+# бы прогон ни уцелел, он сделает работу за отменённые.
+concurrency:
+  group: bump-version
+  cancel-in-progress: false
+
+permissions:
+  contents: read        # читать хватает: запись идёт deploy-ключом, а не этим токеном
+  pull-requests: read   # метки слитых PR
+
+jobs:
+  bump:
+    name: Повышение версии
+    # В форке повышать нечего и нечем: без условия каждый push в его master давал бы красный прогон
+    # с требованием завести ключ.
+    if: ${{ !github.event.repository.fork }}
+    runs-on: ubuntu-latest
+    environment: version-bump
+    # Работа занимает секунды. Потолок нужен из-за группы выше: зависший на сети прогон держал бы
+    # её до общего лимита в шесть часов, и всё это время версия не поднималась бы — без красного
+    # прогона, который об этом сказал бы.
+    timeout-minutes: 10
+    steps:
+      - name: Ключ записи задан
+        # Без ключа checkout молча взял бы GITHUB_TOKEN, и отказ пришёл бы в самом конце — от набора
+        # правил, сообщением про «base branch policy», которое на ключ не указывает ничем.
+        env:
+          KEY: ${{ secrets.VERSION_BUMP_DEPLOY_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Секрет VERSION_BUMP_DEPLOY_KEY в окружении version-bump не задан — писать в master нечем. Версия НЕ поднята. Как завести ключ: docs/DEV_NOTES.md, «Повышение версии»."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: master      # голова ветки, а не коммит события: за время ожидания в группе она ушла вперёд
+          fetch-depth: 0   # граница «с прошлого изменения версии» ищется по истории
+          ssh-key: ${{ secrets.VERSION_BUMP_DEPLOY_KEY }}
+
+      - name: Повышение
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Несколько попыток: между «посмотрели на master» и «отправили» в него успевают слить ещё
+          # один PR. Каждая попытка начинает С НУЛЯ от свежего master, а не перекладывает готовый
+          # коммит поверх (`pull --rebase`): уровень повышения выбран по тем слияниям, которые
+          # попытка видела, и для подъехавшего PR с меткой `version:minor` он был бы уже неверен.
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin master
+            git reset --quiet --hard origin/master
+
+            # Отказ скрипта (граница не нашлась) — отказ шага: он идёт под `bash -e`.
+            pending=$(bash scripts/unbumped-merges.sh)
+
+            level=none
+            while read -r kind sha subject; do
+              [ -n "$kind" ] || continue
+
+              # Первая строка ответа — число PR у коммита, дальше метки. Число нужно, чтобы отличить
+              # «меток нет» от «PR не нашёлся»: master закрыт набором правил, и слияние без PR —
+              # это не слияние без меток, а ответ, которому нельзя верить. Сразу после слияния связь
+              # коммита с PR может ещё не появиться, поэтому сначала ждём, а отказываем потом.
+              # Отказ, а не PATCH: молчаливый PATCH вместо MINOR выглядел бы обычным повышением, и
+              # о потерянной метке никто бы не узнал.
+              for try in 1 2 3 4 5 6; do
+                if ! out=$(gh api "repos/$REPO/commits/$sha/pulls" --jq 'length, (.[].labels[].name)'); then
+                  echo "::error::Не удалось спросить метки PR для коммита $sha. Версия НЕ поднята."
+                  exit 1
+                fi
+                count=$(head -n 1 <<<"$out")
+                labels=$(tail -n +2 <<<"$out")
+                # У слияний вида `before` PR мог и не быть: они старше ручной правки версии, ждать
+                # там нечего, и повода для отказа нет.
+                if [ "$count" != 0 ] || [ "$kind" = before ]; then break; fi
+                echo "${sha:0:8}: PR пока не найден (попытка $try из 6) — ждём."
+                sleep 5
+              done
+              if [ "$count" = 0 ] && [ "$kind" = after ]; then
+                echo "::error::У слияния $sha ($subject) не нашёлся PR — метки спросить не у кого. Версия НЕ поднята. Если PR у него и правда нет, поднимите версию руками отдельным PR: он станет новой границей."
+                exit 1
+              fi
+
+              echo "$kind ${sha:0:8} $subject — метки: $(tr '\n' ' ' <<<"${labels:-нет}")"
+              if grep -qxF 'version:minor' <<<"$labels"; then
+                level=minor
+              elif [ "$kind" = after ] && [ "$level" = none ]; then
+                level=patch
+              fi
+            done <<<"$pending"
+
+            if [ "$level" = none ]; then
+              echo "После версии $(bash scripts/get-version.sh) неучтённых слияний нет — повышать нечего."
+              exit 0
+            fi
+
+            version=$(bash scripts/bump-version.sh "$level")
+            git commit --quiet -m "chore: bump version to $version [skip bump]" -- "$(bash scripts/get-version.sh --file)"
+
+            if git push origin HEAD:master; then
+              echo "Версия поднята до $version ($level)."
+              exit 0
+            fi
+            echo "Отправка не прошла (попытка $attempt из 5) — берём master заново."
+            sleep 3
+          done
+
+          echo "::error::Версия НЕ поднята: master не принял коммит пять раз подряд. Если выше отказ вида «push declined due to repository rule violations» — deploy-ключи не внесены в Bypass list набора правил «Master ruleset» (docs/DEV_NOTES.md, «Повышение версии»)."
+          exit 1
