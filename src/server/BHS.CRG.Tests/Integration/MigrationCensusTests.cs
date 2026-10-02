@@ -22,15 +22,36 @@ namespace BHS.CRG.Tests.Integration;
 /// живых типов задевает документы, которые на них ссылаются.</para>
 ///
 /// <para>⚠️ Базы свои, а не общая тестовая: тест применяет миграции ЧАСТЯМИ и создаёт схему с нуля,
-/// то есть делает с базой то, чего соседние тесты не переживут.</para>
+/// то есть делает с базой то, чего соседние тесты не переживут. Свои — но названные ОТ базы прогона
+/// (см. <see cref="TestDatabases" />): иначе их делили бы все одновременные прогоны на машине.</para>
+///
+/// <para>За собой базы СНОСЯТСЯ (<see cref="DisposeAsync" />). Пока имена были прибиты, оставшихся
+/// баз было восемь на машину; названные от базы прогона, они копились бы по восемь на каждое
+/// значение <c>BHS_TEST_DB</c> — стенд рос бы от числа прошлых прогонов. Нужна база упавшего теста
+/// для разбора — <c>BHS_TEST_KEEP_DB=1</c> оставит её на месте.</para>
 /// </summary>
 [Collection("Integration")]
-public class MigrationCensusTests
+public class MigrationCensusTests : IAsyncLifetime
 {
+    /// <summary>Базы, заведённые ЭТИМ тестом: экземпляр класса у каждого теста свой.</summary>
+    private readonly List<string> _created = [];
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Снести базы теста. xUnit зовёт это после метода теста, то есть после того, как
+    /// <c>await using</c> закрыл контекст; соединение, оставшееся в пуле, снимает WITH (FORCE).
+    /// </summary>
+    public async Task DisposeAsync()
+    {
+        if (Environment.GetEnvironmentVariable("BHS_TEST_KEEP_DB") is { Length: > 0 }) return;
+        foreach (var name in _created) await DropAsync(name);
+    }
+
     [Fact]
     public async Task Fresh_database_migrates_and_the_census_has_nothing_to_compare()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_fresh");
+        await using var db = await CreateDatabaseAsync("fresh");
 
         // База пустая: таблиц нет, сверять не с чем — и это НЕ повод для отказа старта.
         var before = await MigrationCensus.ReadAsync(db);
@@ -55,13 +76,8 @@ public class MigrationCensusTests
     [Fact]
     public async Task Missing_database_is_not_a_failure_it_is_the_first_start()
     {
-        var name = "bhs_crg_census_absent";
-        await using (var conn = new NpgsqlConnection(AdminConnectionString()))
-        {
-            await conn.OpenAsync();
-            await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
-            await drop.ExecuteNonQueryAsync();
-        }
+        var name = TestDatabases.Name("census_absent");
+        await DropAsync(name);
 
         await using var db = new AppDbContext(OptionsFor(name));
         Assert.Null(await MigrationCensus.ReadAsync(db));
@@ -71,7 +87,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Database_with_history_keeps_every_construction_section_and_set()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_history");
+        await using var db = await CreateDatabaseAsync("history");
 
         // Схема ПРЕЖНЕЙ версии: доходим до предпоследней миграции — проверяем ту, что добавлена
         // последней, какой бы она ни была. Имя не прибито нарочно: прибитое устареет со следующей
@@ -201,7 +217,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task История_поднимает_номенклатуру_над_материалом()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift");
+        await using var db = await CreateDatabaseAsync("lift");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         var unit = await SeedLegacyTypesAsync(db);
 
@@ -266,7 +282,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Повторный_прогон_второго_справочника_не_заводит()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_twice");
+        await using var db = await CreateDatabaseAsync("lift_twice");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
@@ -292,7 +308,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Откат_возвращает_поля_строке()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down");
+        await using var db = await CreateDatabaseAsync("lift_down");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
@@ -318,7 +334,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Пересозданная_база_номенклатуру_не_заводит()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_fresh");
+        await using var db = await CreateDatabaseAsync("lift_fresh");
         await db.Database.MigrateAsync();
 
         Assert.Equal(0L, await ScalarAsync(db,
@@ -334,7 +350,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Чужой_вид_работы_ссылку_не_получает()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_alien");
+        await using var db = await CreateDatabaseAsync("lift_alien");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await InsertTypeAsync(db, Guid.NewGuid(), "ВидРаботы", "Свой классификатор", "id", "Open",
@@ -365,7 +381,7 @@ public class MigrationCensusTests
     [Fact]
     public async Task Откат_не_уносит_ссылку_наполненного_классификатора()
     {
-        await using var db = await CreateDatabaseAsync("bhs_crg_census_lift_down_filled");
+        await using var db = await CreateDatabaseAsync("lift_down_filled");
         await MigrateToBeforeAsync(db, "NomenclatureAboveMaterial");
         await SeedLegacyTypesAsync(db);
         await db.Database.MigrateAsync();
@@ -464,18 +480,34 @@ public class MigrationCensusTests
         return string.Join("\n;\n", migration.UpOperations.OfType<SqlOperation>().Select(o => o.Sql));
     }
 
-    private static async Task<AppDbContext> CreateDatabaseAsync(string name)
+    /// <summary>
+    /// Завести пустую базу <c>&lt;база прогона&gt;_census_&lt;суффикс&gt;</c> и запомнить её к сносу.
+    ///
+    /// Сначала сносится одноимённая: её мог оставить прогон, убитый посреди теста, — до
+    /// <see cref="DisposeAsync" /> он не дошёл.
+    /// </summary>
+    private async Task<AppDbContext> CreateDatabaseAsync(string suffix)
     {
+        var name = TestDatabases.Name("census_" + suffix);
+        await DropAsync(name);
         await using (var conn = new NpgsqlConnection(AdminConnectionString()))
         {
             await conn.OpenAsync();
-            await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
-            await drop.ExecuteNonQueryAsync();
-            await using var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", conn);
+            await using var create = new NpgsqlCommand($"CREATE DATABASE {TestDatabases.Quote(name)}", conn);
             await create.ExecuteNonQueryAsync();
         }
 
+        _created.Add(name);
         return new AppDbContext(OptionsFor(name));
+    }
+
+    private static async Task DropAsync(string name)
+    {
+        await using var conn = new NpgsqlConnection(AdminConnectionString());
+        await conn.OpenAsync();
+        await using var drop = new NpgsqlCommand(
+            $"DROP DATABASE IF EXISTS {TestDatabases.Quote(name)} WITH (FORCE)", conn);
+        await drop.ExecuteNonQueryAsync();
     }
 
     /// <summary>
