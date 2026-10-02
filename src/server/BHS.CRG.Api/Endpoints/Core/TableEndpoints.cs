@@ -6,8 +6,8 @@ using BHS.CRG.Application.Tables;
 namespace BHS.CRG.Api.Endpoints.Core;
 
 /// <summary>
-/// Таблицы модулей для экрана (ТЗ CORE-33; задача G1b, issue #1089). Отбор, сортировка и итоги
-/// приедут в G1c, экран — в G1e; здесь — состав колонок с причинами и строки.
+/// Таблицы модулей для экрана (ТЗ CORE-33; задачи G1b–G1e, issue #1089–#1092): состав колонок с
+/// причинами, строки под отбором и сортировкой, итоги по всему отбору, одна строка по ключу.
 ///
 /// <para>Группа закрыта только входом, и это не забытое право: таблицы разных модулей открываются
 /// разными ключами, и ключ проверяет служба по объявлению таблицы — тем же путём, что у набора
@@ -23,15 +23,29 @@ public static class TableEndpoints
         g.MapGet("/", async (ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables,
             CancellationToken ct) => Results.Ok(tables.List(await access.ForAsync(user, ct))));
 
+        // Таблица без строк: все её колонки с причинами. Экрану она нужна отдельно — выбор колонок и
+        // чипы отбора знают все колонки, а не показанные, и остаются на месте, когда отбор отказал.
+        g.MapGet("/{address}/columns", async (
+            string address, ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables,
+            CancellationToken ct) =>
+        {
+            var (table, refusal) = await tables.DescribeAsync(address, await access.ForAsync(user, ct), ct);
+            return table is not null
+                ? Results.Ok(table)
+                : Results.Json(new { error = refusal!.Error }, statusCode: refusal.Status);
+        });
+
         // ?columns=Номер,Итого — колонки сохранённого представления: исчезнувшая из типа приходит
         // колонкой с причиной, а не пропадает. Отбор — тем же деревом условий, что у наборов данных
-        // (?filter=…), сортировка — ?sort=Итого:desc,Номер, итоги — ?totals=Итого.
+        // (?filter=…), сортировка — ?sort=Итого:desc,Номер, итоги — ?totals=Итого, одна строка —
+        // ?row=ключ (под тем же отбором: строка вне отбора не приходит).
         g.MapGet("/{address}", async (
             string address, string? columns, string? filter, string? sort, string? totals, int? offset, int? limit,
+            string? row,
             ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
         {
             var request = Paged(
-                List(columns), filter, [.. (List(sort) ?? []).Select(SortOf)], offset, limit, List(totals));
+                List(columns), filter, [.. (List(sort) ?? []).Select(SortOf)], offset, limit, List(totals), row);
             return Answer(await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct));
         });
 
@@ -42,20 +56,22 @@ public static class TableEndpoints
             string address, TableQueryBody body,
             ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
         {
-            var request = Paged(body.Columns, body.Filter, body.Sort ?? [], body.Offset, body.Limit, body.Totals);
+            var request = Paged(
+                body.Columns, body.Filter, body.Sort ?? [], body.Offset, body.Limit, body.Totals, body.Row);
             return Answer(await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct));
         });
     }
 
     /// <summary>Запрос к таблице телом. <c>Filter</c> — строка с JSON, как и отбор источника набора.</summary>
     public sealed record TableQueryBody(
-        string[]? Columns, string? Filter, TableSortRequest[]? Sort, int? Offset, int? Limit, string[]? Totals);
+        string[]? Columns, string? Filter, TableSortRequest[]? Sort, int? Offset, int? Limit, string[]? Totals,
+        string? Row = null);
 
     /// <summary>Страница есть ВСЕГДА: экран, забывший её попросить, получил бы таблицу целиком.</summary>
     private static TableRequest Paged(
         IReadOnlyList<string>? columns, string? filter, IReadOnlyList<TableSortRequest> sort,
-        int? offset, int? limit, IReadOnlyList<string>? totals) => new(
-        columns, filter, sort, Math.Max(offset ?? 0, 0), Math.Clamp(limit ?? DefaultPage, 1, MaxPage), totals);
+        int? offset, int? limit, IReadOnlyList<string>? totals, string? row) => new(
+        columns, filter, sort, Math.Max(offset ?? 0, 0), Math.Clamp(limit ?? DefaultPage, 1, MaxPage), totals, row);
 
     private static IResult Answer((TableDto? Table, TableRefusal? Refusal) read) => read.Table is not null
         ? Results.Ok(read.Table)

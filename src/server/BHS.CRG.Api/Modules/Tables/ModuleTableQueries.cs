@@ -51,7 +51,8 @@ public static class ModuleTableQueries
             .Where(open.Contains)
             .ToDictionary(key => key, key => TableKinds.Parse(byKey[key].Kind), StringComparer.Ordinal);
 
-        return (new ModuleTableQuery(shown, userId, filter, sort, request.Offset, request.Limit, totals), null);
+        return (new ModuleTableQuery(shown, userId, filter, sort, request.Offset, request.Limit, totals,
+            string.IsNullOrWhiteSpace(request.Row) ? null : request.Row), null);
     }
 
     /// <summary>Итог модуля → итог для потребителя: с названной причиной неучтённых значений.</summary>
