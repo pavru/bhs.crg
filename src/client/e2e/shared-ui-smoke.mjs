@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/shared-ui-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, EMAIL, PASSWORD, launchBrowser, login, clearSession, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -34,7 +34,7 @@ const domTheme = () => page.evaluate(() => document.documentElement.getAttribute
 const storedTheme = () => page.evaluate(() => localStorage.getItem('crg-theme'));
 const pickTheme = async (label) => {
   await page.getByRole('group', { name: 'Тема оформления' }).getByRole('button', { name: label }).click();
-  await page.waitForTimeout(600);
+  await settled(page);
 };
 
 await login(page);
@@ -58,21 +58,20 @@ try {
 //   3) вход через форму, и первое же нажатие — то самое, вокруг которого всё и строится.
 await check('theme-saves-right-after-form-login', async () => {
   await page.goto(`${BASE}/document-sets`);
-  await page.waitForTimeout(2000);
+  await settled(page);
   await pickTheme('Системная');
 
   await clearSession(page);
   await page.evaluate(() => localStorage.removeItem('crg-theme'));
-  await page.goto(`${BASE}/login`);
-  await page.fill('input[type=email]', EMAIL);
-  await page.fill('input[type=password]', PASSWORD);
-  await page.click('button[type=submit]');
-  await page.waitForTimeout(2000);
+  // Сначала вход — он сам открывает страницу входа заново и ждёт токен; потом — всё, что вход
+  // потянул за собой.
+  await login(page);
+  await settled(page);
 
   await pickTheme('Тёмная');
   await page.evaluate(() => localStorage.removeItem('crg-theme'));
   await page.reload();
-  await page.waitForTimeout(2500);
+  await settled(page);
   if ((await domTheme()) !== 'dark')
     throw new Error(`выбор темы сразу после входа не доехал до сервера: на <html> «${await domTheme()}»`);
 });
@@ -80,7 +79,7 @@ await check('theme-saves-right-after-form-login', async () => {
 // ── Тема ───────────────────────────────────────────────────────────────────────
 await page.emulateMedia({ colorScheme: 'light' });
 await page.goto(`${BASE}/document-sets`);
-await page.waitForTimeout(2000);
+await settled(page);
 
 await check('theme-choice-applies-to-dom', async () => {
   await pickTheme('Тёмная');
@@ -93,7 +92,7 @@ await check('theme-choice-survives-reload', async () => {
   await pickTheme('Тёмная');
   if ((await storedTheme()) !== 'dark') throw new Error(`в localStorage «${await storedTheme()}»`);
   await page.reload();
-  await page.waitForTimeout(2000);
+  await settled(page);
   if ((await domTheme()) !== 'dark') throw new Error('после перезагрузки тема не тёмная');
 });
 
@@ -102,13 +101,13 @@ await check('theme-choice-survives-reload', async () => {
 await check('system-theme-follows-os-change', async () => {
   await pickTheme('Системная');
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.waitForTimeout(600);
+  await settled(page);
   if ((await domTheme()) !== 'light') throw new Error(`при светлой системе на <html> «${await domTheme()}»`);
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.waitForTimeout(600);
+  await settled(page);
   if ((await domTheme()) !== 'dark') throw new Error(`система стала тёмной, а на <html> «${await domTheme()}»`);
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.waitForTimeout(600);
+  await settled(page);
   if ((await domTheme()) !== 'light') throw new Error('обратная смена системной темы не дошла');
 });
 
@@ -118,10 +117,10 @@ await check('system-theme-follows-os-change', async () => {
 await check('pinned-theme-ignores-os-change', async () => {
   await pickTheme('Светлая');
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.waitForTimeout(800);
+  await settled(page);
   if ((await domTheme()) !== 'light') throw new Error(`система тёмная перебила закреплённую светлую: «${await domTheme()}»`);
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.waitForTimeout(400);
+  await settled(page);
 });
 
 // Тема хранится на СЕРВЕРЕ (issue #953, ТЗ CORE-25.3), а в браузере остаётся только зеркало.
@@ -136,7 +135,7 @@ await check('theme-comes-from-the-server-not-the-browser', async () => {
   await page.evaluate(() => localStorage.removeItem('crg-theme'));
   if ((await storedTheme()) !== null) throw new Error('зеркало темы не удалилось — проверка ничего не значит');
   await page.reload();
-  await page.waitForTimeout(2500);
+  await settled(page);
   if ((await domTheme()) !== 'dark')
     throw new Error(`без зеркала тема не приехала с сервера: на <html> «${await domTheme()}»`);
 });
@@ -151,10 +150,10 @@ await check('settings-do-not-survive-a-change-of-user', async () => {
   await page.waitForSelector('input[type=email]', { timeout: 10000 });
 
   // Вход ДРУГИМ человеком в той же вкладке — без перезагрузки страницы.
-  await page.fill('input[type=email]', OTHER_EMAIL);
-  await page.fill('input[type=password]', OTHER_PASSWORD);
-  await page.click('button[type=submit]');
-  await page.waitForTimeout(2500);
+  // Утверждение ниже — «тема НЕ тёмная», и читать его можно только после того, как настройки
+  // второго человека доехали: до них на экране ещё тема страницы входа, и это не поломка.
+  await submitLogin(page, OTHER_EMAIL, OTHER_PASSWORD);
+  await settled(page);
 
   if ((await domTheme()) === 'dark')
     throw new Error('вошедшему второму человеку досталась тема первого');
@@ -166,20 +165,20 @@ await check('settings-do-not-survive-a-change-of-user', async () => {
 
 await login(page);
 await page.goto(`${BASE}/document-sets`);
-await page.waitForTimeout(2000);
+await settled(page);
 
 await pickTheme('Светлая');   // возвращаем окружение в исходное
 
 // ── Поле даты ──────────────────────────────────────────────────────────────────
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });
-await page.waitForTimeout(1000);
+await settled(page);
 await page.getByText(AOSR, { exact: false }).first().click();
 await page.waitForSelector('[role=dialog]', { timeout: 15000 });
-await page.waitForTimeout(2000);
+await settled(page);
 const editor = page.locator('[role=dialog]').first();
 await editor.getByRole('button', { name: /Даты работ/ }).first().click();
-await page.waitForTimeout(1200);
+await settled(page);
 
 // Сегменты поля даты адресуем по их собственным плейсхолдерам, а не «любой input с четырьмя
 // цифрами»: под ту примету попадёт и обычное числовое поле, и проверка покраснела бы на исправном
@@ -203,13 +202,17 @@ await check('date-input-discards-partial-input-on-blur', async () => {
   const before = await seg.inputValue();
   await seg.click();
   await seg.fill('20');   // два разряда из четырёх — значение так не соберётся
-  await page.waitForTimeout(300);
+  await settled(page);
   if ((await seg.inputValue()) !== '20') throw new Error('набранное не показывается, пока поле в фокусе');
   // Уводим фокус, не закрывая редактор: щелчок по заголовку раздела.
   await editor.getByRole('button', { name: /Даты работ/ }).first().click();
-  await page.waitForTimeout(900);
-  const after = await yearSegs.nth(idx).inputValue();
-  if (after !== before) throw new Error(`после потери фокуса в сегменте «${after}», а в значении «${before}»`);
+  // Откат идёт ТАЙМЕРОМ (120 мс после потери фокуса — поле ждёт, не вернётся ли фокус в соседний
+  // сегмент), а таймеров `settled()` не видит. Ждём само значение: до потери фокуса в сегменте
+  // стояло «20», так что раньше отката утверждение истинным не станет.
+  await until(async () => {
+    const after = await yearSegs.nth(idx).inputValue();
+    if (after !== before) throw new Error(`после потери фокуса в сегменте «${after}», а в значении «${before}»`);
+  });
 });
 
 } finally {

@@ -12,7 +12,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/pages-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -39,20 +39,20 @@ try {
 
 // ── Шаблоны: выбор привязан к типу документа ──────────────────────────────────
 await page.goto(`${BASE}/templates`);
-await page.waitForTimeout(3000);
+await settled(page);
 
 let firstTypeName = '';
 await check('templates-auto-select-after-type-pick', async () => {
   const selector = page.locator('button').filter({ hasText: /Тип документа|Выберите тип/ }).first();
   if (!(await selector.count())) throw new Error('селектора типа на странице шаблонов нет');
   await selector.click();
-  await page.waitForTimeout(1200);
+  await settled(page);
   const picker = page.locator('[role=dialog]').last();
   const option = picker.locator('button').filter({ hasText: /АОСР|Кабельный журнал|Титульный/ }).first();
   if (!(await option.count())) throw new Error('в пикере типов нет знакомых типов');
   firstTypeName = (await option.innerText()).split(/\r?\n/)[0].trim();
   await option.click();
-  await page.waitForTimeout(3000);
+  await settled(page);
   const t = await page.locator('body').innerText();
   if (/Выберите тип документа/.test(t)) throw new Error('тип не выбрался');
   // Шаблон выбирается сам: без этого справа пусто, а слева список — то есть экран «ничего не открыто».
@@ -72,12 +72,12 @@ await check('templates-selection-does-not-leak-to-other-type', async () => {
   if (!firstTypeName) throw new Error('тип не выбран предыдущей проверкой — проверять нечего');
   const selector = page.locator('button').filter({ hasText: rx(firstTypeName.slice(0, 12)) }).first();
   await selector.click();
-  await page.waitForTimeout(1200);
+  await settled(page);
   const picker = page.locator('[role=dialog]').last();
   const empty = picker.locator('button').filter({ hasText: rx(EMPTY_TYPE) }).first();
   if (!(await empty.count())) throw new Error(`типа «${EMPTY_TYPE}» в пикере нет`);
   await empty.click();
-  await page.waitForTimeout(3000);
+  await settled(page);
   const t = await page.locator('body').innerText();
   // Утверждение ПОЛОЖИТЕЛЬНОЕ: у типа без шаблонов правая панель обязана предлагать выбрать или
   // создать. Останься там шаблон прежнего типа — вместо приглашения был бы редактор.
@@ -90,7 +90,7 @@ await check('set-detail-deep-link-opens-document', async () => {
   await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}?doc=${AOSR_INSTANCE}`);
   await page.waitForSelector('[role=dialog]', { timeout: 20000 })
     .catch(() => { throw new Error('редактор документа по ссылке не открылся'); });
-  await page.waitForTimeout(2000);
+  await settled(page);
   const t = await page.locator('[role=dialog]').first().innerText();
   if (!/АОСР/.test(t)) throw new Error(`открылось не то: ${t.slice(0, 200)}`);
 });
@@ -100,22 +100,25 @@ await check('set-detail-deep-link-survives-reload', async () => {
   await page.reload();
   await page.waitForSelector('[role=dialog]', { timeout: 20000 })
     .catch(() => { throw new Error('после обновления страницы документ не открылся'); });
-  await page.waitForTimeout(1500);
+  await settled(page);
   if (!/АОСР/.test(await page.locator('[role=dialog]').first().innerText()))
     throw new Error('после обновления открылось не то');
 });
 
 await check('set-detail-closing-clears-doc-param', async () => {
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(1500);
-  if (new URL(page.url()).searchParams.get('doc'))
-    throw new Error(`закрытие не сняло параметр: ${page.url()}`);
+  // До закрытия параметр в адресе ЕСТЬ, поэтому ждать его исчезновения можно: раньше действия это
+  // утверждение истинным не станет.
+  await until(async () => {
+    if (new URL(page.url()).searchParams.get('doc'))
+      throw new Error(`закрытие не сняло параметр: ${page.url()}`);
+  });
 });
 
 // ── Сверка: секция из адреса ──────────────────────────────────────────────────
 await check('reconciliations-view-param-opens-section', async () => {
   await page.goto(`${BASE}/reconciliations?view=aliases`);
-  await page.waitForTimeout(3000);
+  await settled(page);
   const t = await page.locator('body').innerText();
   if (!/Алиас|алиас/i.test(t)) throw new Error(`секция алиасов не открылась: ${t.slice(-300)}`);
 });
@@ -125,11 +128,11 @@ await check('reconciliations-view-param-opens-section', async () => {
 // проекции уже добавлены источниками, и подставлять диалогу нечего — проверка была бы пустой.
 await check('source-editor-prefills-first-candidate', async () => {
   await page.goto(`${BASE}/datasets`);
-  await page.waitForTimeout(2500);
+  await settled(page);
   await page.getByText(SYSTEM_DATASET, { exact: false }).first().click();
-  await page.waitForTimeout(2500);
+  await settled(page);
   await page.locator('button').filter({ hasText: /Добавить источник/ }).first().click();
-  await page.waitForTimeout(3000);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   const text = await dlg.innerText();
   if (/— выберите —/.test(text)) throw new Error('кандидат не подставлен — список стоит на плейсхолдере');
@@ -139,7 +142,7 @@ await check('source-editor-prefills-first-candidate', async () => {
   if (!text.includes(value.replace(/ \(\d+\)$/, '')))
     throw new Error(`имя «${value}» не отвечает ни одному кандидату в списке`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(600);
+  await settled(page);
 });
 
 // Подстановка обязана уступать человеку: стёртое поле остаётся пустым, набранное — набранным.
@@ -147,19 +150,19 @@ await check('source-editor-prefills-first-candidate', async () => {
 // поле тут же заполнялось обратно, и следующая буква приписывалась к подставленному.
 await check('source-editor-name-can-be-cleared-and-typed', async () => {
   await page.locator('button').filter({ hasText: /Добавить источник/ }).first().click();
-  await page.waitForTimeout(3000);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   const field = dlg.locator('input').first();
   await field.fill('');
-  await page.waitForTimeout(500);
+  await settled(page);
   const cleared = await field.inputValue();
   if (cleared !== '') throw new Error(`очищенное поле заполнилось само: «${cleared}»`);
   await field.fill('Мой источник');
-  await page.waitForTimeout(500);
+  await settled(page);
   const typed = await field.inputValue();
   if (typed !== 'Мой источник') throw new Error(`набранное подменено: «${typed}»`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(600);
+  await settled(page);
 });
 
 } finally {
