@@ -23,6 +23,8 @@ public sealed class ModulePortsHost : IntegrationTestFixture
 
     private static string Dedicated() => TestDatabases.ConnectionString("ports");
 
+    protected override string HostConnectionString => ConnectionString;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);

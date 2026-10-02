@@ -121,7 +121,8 @@ public static class DataSetDtoMapper
         s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping),
         bindingCount, live?.Warning,
         MaterializeVariantSelector.ParseConfig(s.MaterializeDiscriminator),
-        s.MaterializeByIdColumn, s.Origin, s.StaleReason);
+        s.MaterializeByIdColumn, s.Origin, s.StaleReason, SourceProcessingVersion.Of(s),
+        SourceProcessingVersion.OfMaterialization(s));
 
     /// <summary>null, если счётчики не запрашивали (одиночная мутация), иначе 0 для источника без привязок.</summary>
     private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
@@ -140,9 +141,11 @@ public static class DataSetDtoMapper
     /// а колонки провайдера зависят от схемы типа и меняются вместе с ней.
     ///
     /// null (отдать кэш) и на пустом списке — см. те же соображения в <c>DataSnapshotService</c>.
+    ///
+    /// Саму строку собирает <see cref="SystemSourceCounter" /> — один раз на консолидацию, а не здесь
+    /// на каждый источник.
     /// </summary>
-    private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live)
-        => live is { Columns.Count: > 0 } l ? SerializeSchema(l.Columns, l.Types) : null;
+    private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live) => live?.Schema;
 
     /// <param name="bindingCounts">Сколько привязок у каждого источника; null — не считали (ответ
     /// одиночной мутации). Показывать из-за этого ложный ноль нельзя, поэтому и в DTO едет null.</param>

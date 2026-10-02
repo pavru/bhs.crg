@@ -37,28 +37,27 @@ public sealed class ModuleSchemaHost : IntegrationTestFixture
 
     private static string Dedicated() => TestDatabases.ConnectionString("schema");
 
+    protected override string HostConnectionString => ConnectionString;
+
     /// <summary>
     /// Готовит базу ДО первого запуска хоста: сносит схему модуля и кладёт в неё строку прошлой версии.
     ///
     /// Конструктор фикстуры выполняется раньше сборки приложения (<c>WebApplicationFactory</c> строит
     /// хост при первом обращении), поэтому здесь ещё можно привести базу в то состояние, из которого
-    /// проверка имеет смысл. Базы может не быть вовсе — первый прогон; её создаст миграция ядра.
+    /// проверка имеет смысл.
+    ///
+    /// <para>Сначала база занимается (<see cref="TestRunDatabase.ClaimAsync" />, issue #1142): снос
+    /// схемы — первая правка базы в этом прогоне, и чужой прогон, идущий на ней же, обязан получить
+    /// отказ ДО неё. Заодно база создаётся, если её нет, — так выглядит КАЖДЫЙ прогон в CI и первый
+    /// прогон на новой машине. Готовить её надо и тогда: иначе состояние базы решало бы, что проверяет
+    /// набор, — у себя проверялось бы обновление, а в CI (где база пуста) молча только чистая
+    /// установка, и сторож данных прошлой версии был бы там красным без всякой поломки.</para>
     /// </summary>
     public ModuleSchemaHost()
     {
-        try
-        {
-            Prepare();
-        }
-        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.InvalidCatalogName)
-        {
-            // Базы ещё нет — так выглядит КАЖДЫЙ прогон в CI и первый прогон на новой машине. Создаём
-            // её сами и готовим заново: иначе состояние базы решало бы, что проверяет набор, — у себя
-            // проверялось бы обновление, а в CI (где база пуста) молча только чистая установка, и
-            // сторож данных прошлой версии был бы там красным без всякой поломки.
-            CreateDatabase();
-            Prepare();
-        }
+        // Task.Run — чтобы ожидание в конструкторе не зависело от контекста синхронизации xUnit.
+        Task.Run(() => TestRunDatabase.ClaimAsync(ConnectionString, ClaimPatience)).GetAwaiter().GetResult();
+        Prepare();
     }
 
     /// <summary>Снести схему модуля и положить в неё строку «прошлой версии».</summary>
@@ -70,23 +69,6 @@ public sealed class ModuleSchemaHost : IntegrationTestFixture
         Execute(conn, "CREATE SCHEMA costs");
         Execute(conn, $"CREATE TABLE {LeftoverTable} (id int primary key)");
         Execute(conn, $"INSERT INTO {LeftoverTable} (id) VALUES (1)");
-    }
-
-    /// <summary>
-    /// Создать пустую базу этого хоста. Дальше её мигрирует само приложение при старте — как на
-    /// установке у заказчика.
-    /// </summary>
-    private static void CreateDatabase()
-    {
-        var target = new NpgsqlConnectionStringBuilder(ConnectionString);
-        var name = target.Database!;
-        target.Database = "postgres";
-
-        using var conn = new NpgsqlConnection(target.ConnectionString);
-        conn.Open();
-        // Имя базы параметром не передать; складывается оно из константы фикстуры и переменной
-        // BHS_TEST_DB, то есть из окружения прогона, а не из данных. Кавычки в нём удваивает Quote.
-        Execute(conn, $"CREATE DATABASE {TestDatabases.Quote(name)}");
     }
 
     private static void Execute(NpgsqlConnection conn, string sql)

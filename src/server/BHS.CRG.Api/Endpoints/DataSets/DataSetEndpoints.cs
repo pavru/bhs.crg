@@ -179,12 +179,14 @@ public static class DataSetEndpoints
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
+        // Правка извлечения собрана по копии источника на странице — называет его версию (issue #1141).
         g.MapPut("/sources/{sourceId:guid}", async (
             Guid sourceId, SourceRequest req, IDataSetService svc, CancellationToken ct) =>
         {
+            if (SourceIfMatch.Refuse(req.IfMatch, "Источник не сохранён") is { } refused) return refused;
             try
             {
-                var input = new UpdateSourceInput(req.Name, req.SheetOrPath, req.ColumnExpressions);
+                var input = new UpdateSourceInput(req.Name, req.SheetOrPath, req.ColumnExpressions, req.IfMatch);
                 var result = await svc.UpdateSourceAsync(sourceId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
@@ -220,11 +222,13 @@ public static class DataSetEndpoints
         });
 
         // Материализация источника в тип (issue #19): typeId + маппинг колонок → поля типа. typeId=null снимает.
+        // Настройка замещается целиком, поэтому запрос называет версию материализации (issue #1141).
         g.MapPut("/sources/{sourceId:guid}/materialization", async (
             Guid sourceId, MaterializationRequest req, IDataSetService svc, CancellationToken ct) =>
         {
+            if (SourceIfMatch.Refuse(req.IfMatch, "Материализация не сохранена") is { } refused) return refused;
             var result = await svc.SetMaterializationAsync(
-                sourceId, req.TypeId, req.Mapping, req.Discriminator, req.ByIdColumn, ct);
+                sourceId, req.TypeId, req.Mapping, req.Discriminator, req.ByIdColumn, ct, req.IfMatch);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -404,7 +408,8 @@ public static class DataSetEndpoints
         // Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
         // Правится ПО ЧАСТЯМ (issue #1139): поле, которого в теле нет, не трогается; присланное
         // значением null — сбрасывается. Тело берём как есть, а не привязкой к записи: та не
-        // отличила бы одно от другого (разбор — SourceProcessingBody).
+        // отличила бы одно от другого (разбор — SourceProcessingBody). Тело называет версию обработки,
+        // с которой открыт диалог (issue #1141): источник тем временем изменили — 409 общим обработчиком.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
             Guid sourceId, JsonElement body, ClaimsPrincipal user, DataAccessResolver access,
             IDataSetService svc, CancellationToken ct) =>
@@ -455,6 +460,16 @@ public static class DataSetEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
+        // «Сохранить как шаблон» (issue #1141): содержимое берёт сервер из сохранённого источника, а не
+        // страница из своей копии; версия обработки обязательна, как у правки (409, если не совпала).
+        g.MapPost("/sources/{sourceId:guid}/processing-template", async (
+            Guid sourceId, TemplateFromSourceRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            if (SourceIfMatch.Refuse(req.IfMatch, "Шаблон не сохранён") is { } refused) return refused;
+            var result = await svc.CreateProcessingTemplateFromSourceAsync(sourceId, req.Name ?? "", req.IfMatch, ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
         g.MapDelete("/processing-templates/{id:guid}", async (Guid id, IDataSetService svc, CancellationToken ct) =>
             await svc.DeleteProcessingTemplateAsync(id, ct) ? Results.NoContent() : Results.NotFound());
     }
@@ -469,18 +484,19 @@ public static class DataSetEndpoints
 
     private record AutoMapRequest(AutoMapFieldDto[] Fields);
     private record AutoMapFieldDto(string Key, string Title);
-    private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
+    private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions, string? IfMatch);
     private record RenameSourceRequest(string Name);
     private record DuplicateSourceRequest(string? Name);
     /// <param name="ByIdColumn">Колонка с Ид существующего документа (issue #725): непустая = строка
     /// целиком становится ссылкой на документ, маппинг в этом режиме не задаётся.</param>
     private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping,
-        MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn);
+        MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn, string? IfMatch);
     private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows,
         MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn);
     private record ProcessingTemplateRequest(
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,
         object? RowFilter, object? ComputedColumns, object? SortSpec);
+    private record TemplateFromSourceRequest(string? Name, string? IfMatch);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
     private record PdfSourceRequest(string Name, string[]? Tags, string? Profile);
     private record ApplyGroupingRequest(ApplyGroupingGroupRequest[] Groups);

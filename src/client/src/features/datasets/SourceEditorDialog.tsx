@@ -181,7 +181,11 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
 
     try {
       if (initial) {
-        await update.mutateAsync({ id: initial.id, name: name.trim(), sheetOrPath: finalSheetOrPath, columnExpressions: finalColumns });
+        // `initial` — копия источника, с которой редактор открыт: её версию и называем (issue #1141).
+        await update.mutateAsync({
+          id: initial.id, ifMatch: initial.processingVersion,
+          name: name.trim(), sheetOrPath: finalSheetOrPath, columnExpressions: finalColumns,
+        });
       } else {
         await create.mutateAsync({ fileId, name: name.trim(), sheetOrPath: finalSheetOrPath, columnExpressions: finalColumns });
       }
@@ -354,7 +358,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
           </>
         )}
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       </div>
     </Modal>
   );

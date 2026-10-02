@@ -226,14 +226,6 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     }
 
     /// <summary>
-    /// Запись справочника — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: общие данные (<c>domain_objects</c>). Сойдя с
-    /// дороги экрана, тест снова начал бы подтверждать сам себя — ровно это и случилось в C1, когда
-    /// помощник писал в таблицу прежней модели, из которой читал порт.
-    /// </summary>
-    /// <para>⚠️ Заводится, только если такой записи ещё нет. База между прогонами НЕ сбрасывается (как и
-    /// у C1), а статические поля класса — да: посев без этой проверки на втором прогоне давал бы вторую
-    /// «Трубу гофрированную», и тест поиска падал бы на дубле, которого в коде нет.</para>
-    /// <summary>
     /// Позиция номенклатуры без названия — так, как это бывает в живой базе (записи без имени в ней
     /// есть). Имя снимается запросом к базе, а не командой: команда его требует, и правильно
     /// требует — состояние это старое, а не создаваемое.
@@ -258,13 +250,20 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         await db.Database.ExecuteSqlRawAsync("""DELETE FROM domain_objects WHERE "Id" = {0}""", id);
     }
 
+    /// <summary>
+    /// Запись справочника — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: общие данные (<c>domain_objects</c>). Сойдя с
+    /// дороги экрана, тест снова начал бы подтверждать сам себя — ровно это и случилось в C1, когда
+    /// помощник писал в таблицу прежней модели, из которой читал порт.
+    ///
+    /// <para>Заводится всегда, без поиска «нет ли уже такой». Поиск стоял здесь, пока база между
+    /// прогонами не чистилась: посев второго прогона давал вторую «Трубу гофрированную». Теперь базу
+    /// раз за прогон чистит хост (issue #1142), и поиск только прятал бы поломку очистки — посев молча
+    /// взял бы запись прошлого прогона. Без него тест поиска упадёт на дубле и на неё укажет.</para>
+    /// </summary>
     protected async Task<Guid> EntryAsync(Guid typeId, string name)
     {
         using var scope = host.Services.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-
-        var known = await mediator.Send(new ListCommonDataRefsQuery([typeId], name));
-        if (known.FirstOrDefault(r => r.DisplayName == name) is { } found) return found.Id;
 
         var created = await mediator.Send(new CreateCommonDataEntryCommand(name, typeId,
             JsonDocument.Parse($$"""{"Наименование":"{{name}}"}"""), CatalogScope.System, null, null));
@@ -300,6 +299,10 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
 /// <see cref="InvoiceHost" />: состав системных ролей приводится при старте к объявленному, и хост с
 /// другим набором модулей менял бы права ролям у соседних классов.
 ///
+/// <para>База чистится один раз, перед первым тестом прогона
+/// (<see cref="IntegrationTestFixture.InitializeAsync" />): классы этого хоста отделяют свои строки
+/// меткой и за собой не убирают.</para>
+///
 /// <para>Не запечатан ради <see cref="InvoiceClockHost" />: тот же хост с подставным «сегодня».</para>
 /// </summary>
 public class InvoiceLineHost : IntegrationTestFixture
@@ -307,6 +310,8 @@ public class InvoiceLineHost : IntegrationTestFixture
     private static string ConnectionString { get; } = Dedicated();
 
     private static string Dedicated() => TestDatabases.ConnectionString("lines");
+
+    protected override string HostConnectionString => ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

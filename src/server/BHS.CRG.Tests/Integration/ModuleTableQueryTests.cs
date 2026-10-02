@@ -284,6 +284,23 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         Assert.DoesNotContain(schema.EnumerateArray(), c => c.GetProperty("name").GetString() == "СуммаПоОтбору");
     }
 
+    /// <summary>
+    /// Посев не растит схему типа счёта: она одна на все тесты хоста, и каждое чтение таблицы отдаёт
+    /// по колонке на каждое её поле. Пока посев дописывал свои три поля на каждый вызов, схема росла
+    /// с каждым тестом — и за десятки прогонов доросла до 578 полей (issue #1142).
+    /// </summary>
+    [Fact]
+    public async Task Посев_не_растит_общую_схему_типа()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        await SeedAsync(client);
+        var fields = await InvoiceFieldsAsync();
+
+        await SeedAsync(client);
+
+        Assert.Equal(fields, await InvoiceFieldsAsync());
+    }
+
     private static string Own(Seed seed) => Uri.EscapeDataString(
         $$"""{"type":"condition","column":"Номер","op":"starts_with","value":"{{seed.Tag}}"}""");
 

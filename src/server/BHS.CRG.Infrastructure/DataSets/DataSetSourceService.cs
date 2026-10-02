@@ -272,37 +272,6 @@ public partial class DataSetSourceService(
                 .Select(c => c.Name)];
 
     /// <summary>
-    /// Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает. Настройка
-    /// задаётся целиком: тип, маппинг и (issue #716) правило выбора варианта.
-    /// Сохраняется ЗАМЕЩЕНИЕМ — частичных правок здесь нет намеренно: маппинг и правила связаны, и
-    /// сохранить одно без другого значит оставить источник в состоянии, которого валидатор не пропустил бы.
-    /// </summary>
-    public async Task<DataSetSourceDto?> SetMaterializationAsync(
-        Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping,
-        MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-
-        var effectiveMapping = mapping ?? new Dictionary<string, string>();
-        if (typeId is { } id)
-        {
-            var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
-            if (!typesById.TryGetValue(id, out var type))
-                throw new NotFoundException($"Тип {id} не найден.");
-            MaterializeConfigValidator.Validate(type, effectiveMapping, discriminator, typesById, byIdColumn);
-        }
-
-        var mappingJson = typeId is null ? null : JsonSerializer.Serialize(effectiveMapping);
-        var discriminatorJson = typeId is null || discriminator is null
-            ? null
-            : JsonSerializer.Serialize(discriminator);
-        source.SetMaterialization(typeId, mappingJson, discriminatorJson, byIdColumn);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
-
-    /// <summary>
     /// Предпросмотр материализации: строки источника (после всех обработок) → объекты формы типа по
     /// MaterializeMapping. Ссылочный (@@ref) показывается маркером, файловый (@@file) — объектом-вложением
     /// (тот же рендер, что у превью привязки — см. DataSetDtoMapper.PreviewCell). Без резолва каталога.
@@ -584,27 +553,6 @@ public partial class DataSetSourceService(
         if (string.IsNullOrWhiteSpace(name)) throw new InvalidRequestException("Укажите название.");
         await EnsureNameFreeAsync(source.FileId, name.Trim(), sourceId, ct, source.Name);
         source.Rename(name);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
-
-    public async Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-        // Определение системного источника — это выбор консолидации, менять в нём нечего: переименование
-        // идёт через RenameSourceAsync, а другая консолидация — другой источник.
-        if (source.File.IsSystem)
-            throw new InvalidRequestException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
-        if (string.IsNullOrWhiteSpace(input.Name)) throw new InvalidRequestException("Укажите название источника.");
-        await EnsureNameFreeAsync(source.FileId, input.Name.Trim(), sourceId, ct, source.Name);
-
-        var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
-        var (schema, rowCount) = await ParseForDefinitionAsync(
-            source.File.BlobPath, source.File.Format, input.SheetOrPath, columnExpressionsJson, ct);
-
-        source.UpdateDefinition(input.Name.Trim(), input.SheetOrPath.Trim(), columnExpressionsJson);
-        source.UpdateCache(DataSetDtoMapper.SerializeSchema(schema), rowCount);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
     }

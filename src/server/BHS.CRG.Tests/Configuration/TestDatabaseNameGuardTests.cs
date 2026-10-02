@@ -18,7 +18,10 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class TestDatabaseNameGuardTests
 {
-    /// <summary>Единственное место, где имя базы вправе стоять строкой: умолчание для <c>BHS_TEST_DB</c>.</summary>
+    /// <summary>
+    /// Единственное место, где имя базы вправе стоять строкой: умолчание для <c>BHS_TEST_DB</c> и
+    /// префикс, которому имя из неё обязано отвечать (issue #1142).
+    /// </summary>
     private const string DefaultNameHome = "IntegrationTestFixture.cs";
 
     // ── Сам помощник ─────────────────────────────────────────────────────────

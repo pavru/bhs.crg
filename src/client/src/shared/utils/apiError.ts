@@ -13,6 +13,12 @@ export function apiError(e: unknown, fallback = 'Ошибка'): string {
   return err?.message || fallback;
 }
 
+/** Отказ «состояние не допускает операцию» (409) — по ответу axios. Что именно не допускает, знает
+ *  тот, кто спрашивает: у распознавания это ручная правка разбиения, у источника — чужая правка. */
+export function isConflict(e: unknown): boolean {
+  return (e as { response?: { status?: number } })?.response?.status === 409;
+}
+
 /**
  * Дожидается запроса, отдающего ФАЙЛ, и разворачивает тело отказа из блоба в объект — чтобы дальше
  * всё работало как с обычным ответом (`toast.apiError`, `apiError`). Исключение перебрасывается:

@@ -21,17 +21,22 @@ public sealed class SourceProcessingPartsTests(InvoiceLineHost host) : SourcePro
     private static string Between(int from, int to) =>
         $$"""{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"between","values":["{{from}}","{{to}}"]}]}""";
 
+    /// <summary>
+    /// Правка одной части не трогает остальные — в том числе ту, что сменилась между двумя правками.
+    ///
+    /// <para>Правку с УСТАРЕВШЕЙ страницы тест больше не изображает: с issue #1141 она называет версию и
+    /// получает отказ (<see cref="SourceProcessingConflictTests" />). Здесь — что остаётся правдой для
+    /// правки со свежей страницы и для входов без версии: чего в запросе нет, то не тронуто.</para>
+    /// </summary>
     [Fact]
-    public async Task Правка_сортировки_не_трогает_отбор_сменившийся_за_спиной_страницы()
+    public async Task Правка_сортировки_не_трогает_отбор_и_вычисляемые_колонки()
     {
         var (client, _) = await SignInAsync("Admin");
         var id = await SourceAsync(client);
         await OkAsync(await PutAsync(client, id, $$"""{"rowFilter":{{Between(80, 110)}},"computedColumns":{{Computed}}}"""));
-
-        // Страница загружена — на ней отбор «80…110». Тем временем другой человек его поменял.
+        // Отбор сменился уже после первой правки — в запросе сортировки его нет вовсе.
         await OkAsync(await PutAsync(client, id, $$"""{"rowFilter":{{Between(1, 2)}}}"""));
 
-        // Со страницы правят сортировку: в запросе только она.
         var sorted = await PutAsync(client, id, $$"""{"sortSpec":{{Sort}}}""");
         await OkAsync(sorted);
 
