@@ -43,15 +43,6 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         return states;
     }
 
-    /// <summary>То же для источников, загруженных отдельно от файла.</summary>
-    public async Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
-        DataSetFile file, IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
-    {
-        var states = new Dictionary<Guid, SystemSourceState>();
-        if (file.IsSystem) await AddAsync(states, file, sources, access, ct);
-        return states;
-    }
-
     /// <summary>Состояние одного источника; null — набор не системный или маркер неизвестен.</summary>
     public async Task<SystemSourceState?> StateAsync(
         DataSetSource source, DataSetFile file, DataAccess access, CancellationToken ct)

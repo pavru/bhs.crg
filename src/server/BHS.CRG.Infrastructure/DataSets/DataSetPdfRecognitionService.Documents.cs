@@ -139,8 +139,8 @@ public partial class DataSetPdfRecognitionService
         };
         file.SetGrouping(JsonSerializer.Serialize(updated));
         // Если пользователь УЖЕ создал источник-проекцию этой таблицы — обновляем его кэш (ре-распознавание).
-        file.Sources.FirstOrDefault(s => s.SheetOrPath == $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}")
-            ?.UpdateCache(schemaJson, rows.Count, dataJson);
+        foreach (var projection in ProjectionsOf(file.Sources, $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}"))
+            projection.UpdateCache(schemaJson, rows.Count, dataJson);
         await db.SaveChangesAsync(ct);
 
         // Ноль строк на ЯВНОМ вызове — предупреждение, а не отчёт об успехе (issue #803). Постранично

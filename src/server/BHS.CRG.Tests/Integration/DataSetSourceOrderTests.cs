@@ -21,13 +21,16 @@ namespace BHS.CRG.Tests.Integration;
 /// создания. Имена даны так, чтобы порядок создания расходился с алфавитным: иначе закрепление «по
 /// имени» прошло бы этот тест, а для страницы оно означало бы строку, прыгающую при переименовании.
 ///
-/// <para><b>Статистика собирается нарочно</b> (<see cref="AnalyzeAsync" />). После TRUNCATE её у
-/// таблиц нет, и планировщик, не зная, что источников два, читает их по индексу <c>FileId</c>. А
-/// индекс правку переживает: новая версия строки ложится на ту же страницу, запись индекса остаётся
-/// прежней и ведёт к ней по цепочке — порядок сохраняется сам собой, и тест зелёный без всякого
-/// упорядочивания (проверено: так и было). На живой базе статистика есть, таблица в одну страницу
-/// читается подряд — и там источники переставляются. Без ANALYZE тест проверял бы базу, какой не
-/// бывает.</para>
+/// <para><b>Таблица читается подряд — нарочно</b> (<see cref="ReadLikeLiveBaseAsync" />). После
+/// TRUNCATE статистики у таблиц нет, и планировщик, не зная, что источников два, читает их по
+/// индексу <c>FileId</c>. А индекс правку переживает: новая версия строки ложится на ту же страницу,
+/// запись индекса остаётся прежней и ведёт к ней по цепочке — порядок сохраняется сам собой, и тест
+/// зелёный без всякого упорядочивания (проверено: так и было). На живой базе статистика есть,
+/// таблица в одну страницу читается подряд — и там источники переставляются.</para>
+///
+/// <para>И само условие тест УТВЕРЖДАЕТ (<see cref="HeapOrderAsync" />): чтение без порядка после
+/// правки обязано отличаться от чтения до неё. Перестанет отличаться — сторож краснеет сам, а не
+/// становится зелёным при любом коде, как это уже было однажды.</para>
 /// </summary>
 [Collection("Integration")]
 public class DataSetSourceOrderTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -36,6 +39,7 @@ public class DataSetSourceOrderTests(IntegrationTestFixture fixture) : IAsyncLif
     public Task DisposeAsync() => Task.CompletedTask;
 
     private static IDataSetService Svc(IServiceScope s) => s.ServiceProvider.GetRequiredService<IDataSetService>();
+    private static AppDbContext Db(IServiceScope s) => s.ServiceProvider.GetRequiredService<AppDbContext>();
 
     /// <summary>Набор уровня комплекта с CSV-файлом: комплект нужен выдаче «наборы, доступные
     /// комплекту» — она читает наборы своим запросом, и порядок в ней проверяется отдельно.</summary>
@@ -53,10 +57,26 @@ public class DataSetSourceOrderTests(IntegrationTestFixture fixture) : IAsyncLif
         return (set.Id, file, marker);
     }
 
-    /// <summary>Статистика таблиц — как на базе, которая живёт дольше одного теста (см. описание класса).</summary>
-    private static Task AnalyzeAsync(IServiceScope scope) =>
-        scope.ServiceProvider.GetRequiredService<AppDbContext>().Database
-            .ExecuteSqlRawAsync("ANALYZE dataset_files, dataset_sources");
+    /// <summary>
+    /// Читать таблицы подряд, как их читает база, живущая дольше одного теста (см. описание класса).
+    ///
+    /// Настройка — на СОЕДИНЕНИИ этой области, а не статистикой: ANALYZE оставил бы её в общей
+    /// тестовой базе (TRUNCATE статистику колонок не убирает), и следующие классы планировались бы
+    /// не так, как в одиночном запуске. Соединение держим открытым — иначе каждая команда брала бы
+    /// из пула новое, без настройки; возвращаясь в пул, оно её сбрасывает.
+    /// </summary>
+    private static async Task ReadLikeLiveBaseAsync(IServiceScope scope)
+    {
+        var db = Db(scope);
+        await db.Database.OpenConnectionAsync();
+        await db.Database.ExecuteSqlRawAsync("SET enable_indexscan = off; SET enable_bitmapscan = off");
+    }
+
+    /// <summary>Источники набора так, как их отдаёт база без упорядочивания.</summary>
+    private static Task<List<Guid>> HeapOrderAsync(IServiceScope scope, Guid fileId) =>
+        Db(scope).Database
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM dataset_sources WHERE "FileId" = {fileId}""")
+            .ToListAsync();
 
     /// <summary>Правка обработки — то самое действие, после которого источники менялись местами.</summary>
     private static Task SaveSortAsync(IDataSetService svc, Guid sourceId) =>
@@ -75,18 +95,18 @@ public class DataSetSourceOrderTests(IntegrationTestFixture fixture) : IAsyncLif
         var header = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Шапка счёта", marker, null), TestAccess.All, default);
         var items = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Товары счёта", marker, null), TestAccess.All, default);
         Guid[] created = [header.Id, items.Id];
-        await AnalyzeAsync(scope);
+        await ReadLikeLiveBaseAsync(scope);
 
         // До правки порядок верен и без закрепления — сверяем, чтобы отказ ниже читался как «правка
         // переставила», а не как «порядок был другим с самого начала».
+        var heapBefore = await HeapOrderAsync(scope, file.Id);
         await AssertOrderAsync();
 
         await SaveSortAsync(svc, header.Id);
-        await AssertOrderAsync();
 
-        // И второй источник — правкой: теперь в куче переехали оба, и порядок их строк снова другой.
-        await SaveSortAsync(svc, items.Id);
-        await SaveSortAsync(svc, header.Id);
+        Assert.False(heapBefore.SequenceEqual(await HeapOrderAsync(scope, file.Id)),
+            "Правка первого источника не переставила строки в чтении без порядка — тест перестал "
+            + "воспроизводить дефект и прошёл бы при любом коде. Причину см. в описании класса.");
         await AssertOrderAsync();
 
         async Task AssertOrderAsync()
@@ -118,17 +138,52 @@ public class DataSetSourceOrderTests(IntegrationTestFixture fixture) : IAsyncLif
         var acts = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", marker, null), TestAccess.All, default);
 
         // Совпадение имён — мимо службы: сама она его уже не допускает, а в базах прошлых версий оно есть.
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = Db(scope);
         (await db.DataSetSources.FirstAsync(s => s.Id == second.Id)).Rename("Лист");
         await db.SaveChangesAsync();
-        await AnalyzeAsync(scope);
+        await ReadLikeLiveBaseAsync(scope);
 
+        var heapBefore = await HeapOrderAsync(scope, file.Id);
         await SaveSortAsync(svc, first.Id);
+        Assert.False(heapBefore.SequenceEqual(await HeapOrderAsync(scope, file.Id)),
+            "Правка источника не переставила строки в чтении без порядка — см. описание класса.");
 
         var detail = await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
             .GetDatasetAsync(file.Id, TestAccess.All);
         // «Акты» созданы последними, а стоят первыми: имя по-прежнему главный ключ.
         Assert.Equal([acts.Id, first.Id, second.Id], detail!.Sources.Select(s => s.Id));
+    }
+
+    /// <summary>
+    /// Новый источник встаёт в конец, даже если часы сервера отстали от времени создания прежних.
+    ///
+    /// Проверяются оба входа, которыми источник добавляется к СУЩЕСТВУЮЩЕМУ набору: создание и
+    /// копия. У копии правило держится на том, что набор загружен вместе со всеми источниками —
+    /// поэтому копируем не последний источник, а первый: о «будущем» соседе набор узнает только
+    /// если тот загружен.
+    /// </summary>
+    [Fact]
+    public async Task NewSource_GoesLast_EvenWhenClockIsBehind()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (_, file, marker) = await SeedFileAsync(scope);
+
+        var early = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Шапка", marker, null), TestAccess.All, default);
+        var future = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Товары", marker, null), TestAccess.All, default);
+
+        // «Часы отстали»: источник в базе создан позже, чем сейчас показывает сервер.
+        var db = Db(scope);
+        await db.Database.ExecuteSqlAsync(
+            $"""UPDATE dataset_sources SET "CreatedAt" = now() + interval '1 day' WHERE "Id" = {future.Id}""");
+        // Иначе служба получит набор из памяти контекста — с прежним временем источника.
+        db.ChangeTracker.Clear();
+
+        var copy = await svc.DuplicateSourceAsync(early.Id, "Шапка — копия", default);
+        var created = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Акты", marker, null), TestAccess.All, default);
+
+        Assert.Equal([early.Id, future.Id, copy!.Id, created.Id],
+            Ids(await svc.ListSourcesAsync(file.Id, TestAccess.All, default)));
     }
 
     private static Guid[] Ids(IEnumerable<DataSetSourceDto> sources) => sources.Select(s => s.Id).ToArray();
