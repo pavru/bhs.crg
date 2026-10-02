@@ -1,5 +1,5 @@
 import type { FilterNode } from '@/shared/api/types';
-import { TABLE_PAGE, type TableSort } from '@/shared/api/tables';
+import { TABLE_PAGE, type TableDeclaration, type TablePreset, type TableSort } from '@/shared/api/tables';
 
 /**
  * Состояние экрана таблицы и его запись в адресе (ТЗ CORE-33: «состояние — в адресе страницы»;
@@ -51,13 +51,84 @@ export const DEFAULT_VIEW: TableView = {
   size: TABLE_PAGE, row: null,
 };
 
-/** Состояние из фрагмента адреса. Чего в адресе нет — то по умолчанию. */
-export function parseView(hash: string): TableView {
-  const params = new URLSearchParams(hash.replace(/^#/, ''));
-  const view: TableView = { ...DEFAULT_VIEW };
+/**
+ * Настройка готового представления — состоянием экрана (задача G4, issue #1097). От неё экран
+ * отсчитывает адрес: пока человек ничего не менял, фрагмент пуст, а на экране — «Реестр счетов» с
+ * его колонками, итогами и закреплением.
+ *
+ * Итог с незнакомым словом пропускается, как и в адресе: считать по нему нечего. Сервер такое
+ * представление не объявит — он проверяет слова итогов при старте.
+ */
+export function presetView(preset: TablePreset): TableView {
+  return {
+    ...DEFAULT_VIEW,
+    columns: [...preset.columns],
+    sort: preset.sort.map(s => ({ ...s })),
+    totals: preset.totals
+      .filter((t): t is ColumnTotal => (AGGREGATE_NAMES as readonly string[]).includes(t.aggregate)),
+    pinned: preset.pinned,
+  };
+}
 
-  const columns = unique(list(params.get('columns')));
-  if (columns.length > 0) view.columns = columns;
+/**
+ * Что стоит под адресом с кодом представления (G4, issue #1097). Пять ответов, и у каждого своё
+ * поведение экрана — поэтому они названы, а не выводятся на месте из «есть ли preset»:
+ *
+ * - `table` — код не назван, это таблица целиком;
+ * - `pending` — описание ещё не пришло: настройка едет в нём, строки ждут;
+ * - `found` — представление есть;
+ * - `off` — модуль выключен: представлений у него нет ВОВСЕ, и говорит сама таблица — «модуль
+ *   выключен». Строки запрашиваются: иначе экран вечно показывал бы «Строки загружаются…» под
+ *   состоянием, у которого есть название (ревью PR #1177);
+ * - `missing` — кода у таблицы нет: отказ экрана, строки не запрашиваются.
+ */
+export type PresetLookup =
+  | { state: 'table' | 'pending' | 'off' | 'missing' }
+  | { state: 'found'; preset: TablePreset };
+
+export function presetLookup(
+  code: string | undefined, declaration: Pick<TableDeclaration, 'state' | 'views'> | undefined,
+): PresetLookup {
+  if (!code) return { state: 'table' };
+  if (!declaration) return { state: 'pending' };
+  if (declaration.state === 'module-off') return { state: 'off' };
+  const preset = declaration.views?.find(v => v.code.toLowerCase() === code.toLowerCase());
+  return preset ? { state: 'found', preset } : { state: 'missing' };
+}
+
+/** Запрашивать ли строки: под `pending` рано, под `missing` нечего. */
+export function rowsWanted(lookup: PresetLookup): boolean {
+  return lookup.state !== 'pending' && lookup.state !== 'missing';
+}
+
+/**
+ * Адрес таблицы целиком с ТЕМ ЖЕ отбором (G4, issue #1097): из представления к таблице уходят, чтобы
+ * посмотреть те же счета всеми колонками, — отбор, оставленный позади, пришлось бы набирать заново.
+ * Колонки, итоги и сортировка не переносятся: они — настройка представления.
+ */
+export function wholeTableHash(view: TableView): string {
+  return viewHash({ ...DEFAULT_VIEW, filter: view.filter, brokenFilter: view.brokenFilter });
+}
+
+/** «Все колонки таблицы» — словом в адресе: у готового представления пустой список значил бы «как в нём». */
+const ALL_COLUMNS = '*';
+
+/**
+ * Состояние из фрагмента адреса. Чего в адресе нет — то как в `base`: у таблицы это умолчания, у
+ * готового представления — его настройка.
+ *
+ * ⚠️ Параметр, который в адресе ЕСТЬ, но пуст (`sort=`), — не «как в основе», а «снято»: иначе
+ * сортировку готового представления нельзя было бы убрать — адрес без неё читался бы как адрес с ней.
+ */
+export function parseView(hash: string, base: TableView = DEFAULT_VIEW): TableView {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const view: TableView = { ...base };
+
+  if (params.get('columns')?.trim() === ALL_COLUMNS) view.columns = null;
+  else {
+    const columns = unique(list(params.get('columns')));
+    if (columns.length > 0) view.columns = columns;
+  }
 
   const filter = params.get('filter');
   if (filter?.trim()) {
@@ -66,15 +137,17 @@ export function parseView(hash: string): TableView {
     else view.brokenFilter = filter;
   }
 
-  view.sort = list(params.get('sort')).map(pair).map(([column, word]) => ({ column, descending: word === 'desc' }));
+  if (params.has('sort'))
+    view.sort = list(params.get('sort')).map(pair).map(([column, word]) => ({ column, descending: word === 'desc' }));
 
   // Итог с незнакомым словом в адрес попадает только правкой адреса руками; считать по нему нечего,
   // и колонки, которая осталась бы без итога, он не называет — пропускаем.
-  view.totals = list(params.get('totals')).map(pair)
-    .filter((p): p is [string, Aggregate] => (AGGREGATE_NAMES as readonly string[]).includes(p[1]))
-    .map(([column, aggregate]) => ({ column, aggregate }));
+  if (params.has('totals'))
+    view.totals = list(params.get('totals')).map(pair)
+      .filter((p): p is [string, Aggregate] => (AGGREGATE_NAMES as readonly string[]).includes(p[1]))
+      .map(([column, aggregate]) => ({ column, aggregate }));
 
-  view.pinned = whole(params.get('pin'), 0, 0);
+  view.pinned = whole(params.get('pin'), 0, base.pinned);
   view.page = whole(params.get('page'), 1, 1);
   const size = whole(params.get('size'), 1, TABLE_PAGE);
   view.size = PAGE_SIZES.includes(size) ? size : TABLE_PAGE;
@@ -82,17 +155,25 @@ export function parseView(hash: string): TableView {
   return view;
 }
 
-/** Фрагмент адреса из состояния: с `#`, либо пусто, если всё по умолчанию. Умолчания в адрес не идут. */
-export function viewHash(view: TableView): string {
+/**
+ * Фрагмент адреса из состояния: с `#`, либо пусто, если всё как в `base`. В адрес идёт только то,
+ * чем состояние от основы ОТЛИЧАЕТСЯ: у таблицы — от умолчаний, у готового представления — от его
+ * настройки. Так адрес «Реестра счетов» остаётся коротким, пока человек его не менял, и правка
+ * представления модулем доезжает до всех, кто своего не настраивал.
+ */
+export function viewHash(view: TableView, base: TableView = DEFAULT_VIEW): string {
   const parts: [string, string][] = [];
-  if (view.columns?.length) parts.push(['columns', view.columns.join(',')]);
+  const columns = view.columns?.join(',') ?? '';
+  if (columns !== (base.columns?.join(',') ?? '')) parts.push(['columns', columns || ALL_COLUMNS]);
 
   const filter = view.filter ? JSON.stringify(view.filter) : view.brokenFilter;
   if (filter) parts.push(['filter', filter]);
 
-  if (view.sort.length) parts.push(['sort', view.sort.map(s => `${s.column}:${s.descending ? 'desc' : 'asc'}`).join(',')]);
-  if (view.totals.length) parts.push(['totals', view.totals.map(t => `${t.column}:${t.aggregate}`).join(',')]);
-  if (view.pinned > 0) parts.push(['pin', String(view.pinned)]);
+  const sortText = (sort: TableSort[]) => sort.map(s => `${s.column}:${s.descending ? 'desc' : 'asc'}`).join(',');
+  const totalsText = (totals: ColumnTotal[]) => totals.map(t => `${t.column}:${t.aggregate}`).join(',');
+  if (sortText(view.sort) !== sortText(base.sort)) parts.push(['sort', sortText(view.sort)]);
+  if (totalsText(view.totals) !== totalsText(base.totals)) parts.push(['totals', totalsText(view.totals)]);
+  if (view.pinned !== base.pinned) parts.push(['pin', String(view.pinned)]);
   if (view.page > 1) parts.push(['page', String(view.page)]);
   if (view.size !== TABLE_PAGE) parts.push(['size', String(view.size)]);
   if (view.row) parts.push(['row', view.row]);
@@ -196,9 +277,18 @@ export function withRow(view: TableView, row: string | null): TableView {
   return { ...view, row };
 }
 
-/** Колонки, итоги и закрепление — как у таблицы по умолчанию. Отбор и сортировка остаются. */
-export function withColumnsReset(view: TableView): TableView {
-  return { ...view, columns: null, totals: [], pinned: 0 };
+/**
+ * Колонки, итоги и закрепление — как в основе: у таблицы — её умолчания, у готового представления —
+ * его настройка. Отбор и сортировка остаются.
+ */
+export function withColumnsReset(view: TableView, base: TableView = DEFAULT_VIEW): TableView {
+  return { ...view, columns: base.columns && [...base.columns], totals: [...base.totals], pinned: base.pinned };
+}
+
+/** Отличаются ли колонки, итоги или закрепление от основы — есть ли что возвращать. */
+export function columnsCustomised(view: TableView, base: TableView = DEFAULT_VIEW): boolean {
+  return JSON.stringify([view.columns, view.totals, view.pinned])
+    !== JSON.stringify([base.columns, base.totals, base.pinned]);
 }
 
 /**

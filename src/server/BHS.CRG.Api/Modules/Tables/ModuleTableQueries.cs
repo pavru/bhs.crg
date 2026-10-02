@@ -59,7 +59,7 @@ public static class ModuleTableQueries
     public static TableTotalDto Total(TableTotal total, ModuleTableColumnKind kind) => new(
         total.Count, total.Skipped,
         total.Skipped == 0 ? null : kind == ModuleTableColumnKind.Date ? "не дата" : "не число",
-        total.Sum, total.Average, total.Min, total.Max);
+        total.Sum, total.Average, total.Min, total.Max, total.Note);
 
     private static TableFilter? Filter(
         FilterNode node, Dictionary<string, TableColumnDto> columns, ref TableRefusal? refusal)

@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { tableRequest } from '@/shared/api/tables';
-import { chipProblem, chipsView, chipText, fromChips, withChip, withoutChip } from './chipsModel';
+import {
+  chipProblem, chipsView, chipText, conditionEntered, fromChips, offeredColumns, offeredCondition, withChip,
+  withoutChip,
+} from './chipsModel';
 import { withColumn, type FilterColumn } from './rowFilterModel';
 
 /**
@@ -158,5 +161,67 @@ describe('снятие чипа меняет запрос, а не только 
 
     expect(request.method).toBe('post');
     expect(request.url).toBe('/tables/costs.invoices/query');
+  });
+});
+
+/** Места под условие, которые отбор предлагает готовыми (задача G4, issue #1097). */
+describe('offeredCondition — предложенное место под условие', () => {
+  it('у даты место сразу «между»: в реестре оно называется «период»', () => {
+    expect(offeredCondition('Срок', columns)).toEqual({ type: 'condition', column: 'Срок', op: 'between', values: ['', ''] });
+  });
+
+  it('у остальных — первый годный оператор колонки и пустое значение', () => {
+    expect(offeredCondition('СостояниеОплаты', columns)).toEqual(
+      { type: 'condition', column: 'СостояниеОплаты', op: 'eq', value: '' });
+    expect(offeredCondition('Номер', columns).op).toBe('eq');
+  });
+
+  it('место — ещё не условие: с пустым значением оно названо негодным, а не отбирает всё подряд', () => {
+    expect(chipProblem(offeredCondition('СостояниеОплаты', columns), columns)).not.toBeNull();
+  });
+});
+
+describe('offeredColumns — какие места показать', () => {
+  const suggested = ['Срок', 'Номер', 'СостояниеОплаты'];
+
+  it('отбора нет — места стоят все, в порядке представления', () => {
+    expect(offeredColumns(suggested, columns, [])).toEqual(suggested);
+  });
+
+  it('по колонке уже стоит условие — места под неё нет: оно правится чипом', () => {
+    const period = cond({ column: 'Срок', op: 'between', value: undefined, values: ['2026-09-01', '2026-09-30'] });
+    expect(offeredColumns(suggested, columns, [period])).toEqual(['Номер', 'СостояниеОплаты']);
+  });
+
+  it('колонки, которой у таблицы нет, местом не предложить', () => {
+    expect(offeredColumns(['Номер', 'НетТакой'], columns, [])).toEqual(['Номер']);
+  });
+
+  it('представление мест не называет — их нет', () => {
+    expect(offeredColumns(undefined, columns, [])).toEqual([]);
+  });
+
+  it('колонка закрыта правом — места под неё нет: оно вело бы прямо в отказ', () => {
+    expect(offeredColumns(['Номер', 'ВТомЧислеНДС'], columns, [])).toEqual(['Номер']);
+  });
+});
+
+describe('conditionEntered — стало ли место условием', () => {
+  it('у только что открытого места значения нет — у текста, выбора и периода одинаково', () => {
+    expect(conditionEntered(offeredCondition('Номер', columns))).toBe(false);
+    expect(conditionEntered(offeredCondition('СостояниеОплаты', columns))).toBe(false);
+    expect(conditionEntered(offeredCondition('Срок', columns))).toBe(false);
+  });
+
+  it('значение введено — условие есть; у периода хватает одной границы, остальное скажет подсказка', () => {
+    expect(conditionEntered(cond({ column: 'Номер', value: 'А-1' }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Срок', op: 'between', value: undefined, values: ['2026-09-01', ''] }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Номер', op: 'in', value: undefined, values: ['А-1'] }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Номер', op: 'in', value: undefined, values: [] }))).toBe(false);
+  });
+
+  it('оператору без значения вводить нечего: «пусто» — условие сразу', () => {
+    expect(conditionEntered(cond({ column: 'Номер', op: 'is_empty', value: undefined }))).toBe(true);
+    expect(conditionEntered(cond({ column: 'Срок', op: 'is_null', value: undefined }))).toBe(true);
   });
 });

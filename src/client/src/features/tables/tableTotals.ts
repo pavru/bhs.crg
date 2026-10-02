@@ -1,6 +1,6 @@
 import type { TableTotal } from '@/shared/api/tables';
 import { cellText, plural } from './tableCells';
-import type { Aggregate } from './tableViewState';
+import type { Aggregate, ColumnTotal } from './tableViewState';
 
 /**
  * Итоговая строка таблицы (ТЗ CORE-33; задача G1e, issue #1092). Чистое: что стоит под колонкой,
@@ -33,6 +33,12 @@ export interface TotalText {
    * сумма была бы молча меньше.
    */
   note: string | null;
+  /**
+   * Что итог значит под этим отбором — словами сервера: «доля: Комарова 36; период — по дате счёта,
+   * не по оплате» (G4, issue #1097). Стоит ПОД ИТОГОМ, а не только в шапке: неправильно читают
+   * нижнюю строку, и шапка к этому моменту уже уехала вверх.
+   */
+  meaning: string | null;
 }
 
 /**
@@ -44,7 +50,7 @@ export function totalText(total: TableTotal | undefined, aggregate: Aggregate, k
   const { sign } = AGGREGATES[aggregate];
 
   if (!aggregatesFor(kind).includes(aggregate))
-    return { text: `${sign} —`, note: 'у колонки этого вида такой итог не считается' };
+    return { text: `${sign} —`, note: 'у колонки этого вида такой итог не считается', meaning: null };
 
   const value = aggregate === 'count' ? total.count
     : aggregate === 'sum' ? total.sum
@@ -58,5 +64,17 @@ export function totalText(total: TableTotal | undefined, aggregate: Aggregate, k
 
   // Количество — всегда число, даже у даты; остальное показано так же, как клетки колонки.
   const shown = value == null ? '—' : cellText(value, aggregate === 'count' ? 'number' : kind);
-  return { text: `${sign} ${shown}`, note };
+  return { text: `${sign} ${shown}`, note, meaning: total.note ?? null };
+}
+
+/**
+ * Есть ли что поставить в итоговую строку. Выбранный итог — ещё не показанный: по колонке, закрытой
+ * правом, сервер итога не считает, и в сетке её нет. У человека без права на суммы «Реестр счетов»
+ * ставит итог под две закрытые колонки — и строка без этой проверки рисовалась бы пустой полосой
+ * внизу таблицы, которую нечем убрать (ревью PR #1177).
+ */
+export function hasShownTotals(
+  chosen: ColumnTotal[], totals: Record<string, TableTotal> | null | undefined, grid: { key: string }[],
+): boolean {
+  return chosen.some(t => totals?.[t.column] !== undefined && grid.some(c => c.key === t.column));
 }

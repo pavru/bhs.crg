@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterNode } from '@/shared/api/types';
+import type { TablePreset } from '@/shared/api/tables';
 import {
-  DEFAULT_VIEW, chooserOrder, filterChanged, parseView, viewHash, withColumnMoved, withColumnShown,
-  withColumnsReset,
+  DEFAULT_VIEW, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
+  viewHash, wholeTableHash, withColumnMoved, withColumnShown, withColumnsReset,
   withFilter, withPage, withPinned, withRow, withSize, withSort, withTotal, type TableView,
 } from './tableViewState';
 
@@ -177,5 +178,121 @@ describe('изменения состояния', () => {
     });
     expect(withColumnsReset(custom)).toEqual(view({ filter: unpaid, sort: [{ column: 'Номер', descending: true }] }));
     expect(withPinned(DEFAULT_VIEW, -3).pinned).toBe(0);
+  });
+});
+
+/** Готовое представление модуля — основа, от которой отсчитан адрес (задача G4, issue #1097). */
+describe('готовое представление', () => {
+  const registry: TablePreset = {
+    code: 'registry', title: 'Реестр счетов',
+    columns: ['Поставщик', 'Итого', 'Номер'],
+    sort: [{ column: 'Дата', descending: true }],
+    totals: [{ column: 'Итого', aggregate: 'sum' }],
+    pinned: 1,
+    filters: ['Дата', 'Поставщик'],
+  };
+  const base = presetView(registry);
+
+  it('настройка представления становится состоянием экрана; условий отбора в ней нет', () => {
+    expect(base).toEqual(view({
+      columns: ['Поставщик', 'Итого', 'Номер'], sort: [{ column: 'Дата', descending: true }],
+      totals: [{ column: 'Итого', aggregate: 'sum' }], pinned: 1,
+    }));
+    expect(base.filter).toBeNull();
+  });
+
+  it('итог с незнакомым словом в состояние не попадает — считать по нему нечего', () => {
+    const odd = presetView({ ...registry, totals: [{ column: 'Итого', aggregate: 'total' }] });
+    expect(odd.totals).toEqual([]);
+  });
+
+  it('пока человек ничего не менял, адрес пуст — и пустой адрес открывает представление', () => {
+    expect(viewHash(base, base)).toBe('');
+    expect(parseView('', base)).toEqual(base);
+  });
+
+  it('в адрес идёт только отличие от представления', () => {
+    const named = (hash: string) => [...new URLSearchParams(hash.slice(1)).keys()];
+
+    const filtered = withFilter(base, unpaid);
+    expect(named(viewHash(filtered, base))).toEqual(['filter']);
+    expect(parseView(viewHash(filtered, base), base)).toEqual(filtered);
+
+    const narrower = withColumnShown(base, all, 'Номер', false);
+    expect(named(viewHash(narrower, base))).toEqual(['columns']);
+    expect(parseView(viewHash(narrower, base), base)).toEqual(narrower);
+  });
+
+  it('снятое остаётся снятым: пустой параметр — не «как в представлении»', () => {
+    const cleared = { ...base, sort: [], totals: [], pinned: 0 };
+    const hash = viewHash(cleared, base);
+
+    expect(hash).toBe('#sort=&totals=&pin=0');
+    expect(parseView(hash, base)).toEqual(cleared);
+  });
+
+  it('«все колонки таблицы» под представлением названы в адресе словом', () => {
+    const everything = { ...base, columns: null };
+    const hash = viewHash(everything, base);
+
+    expect(hash).toBe('#columns=*');
+    expect(parseView(hash, base).columns).toBeNull();
+    // У самой таблицы «все колонки» — умолчание, и в адрес оно не идёт.
+    expect(viewHash(view({ columns: null }))).toBe('');
+  });
+
+  it('один и тот же адрес под таблицей и под представлением значит разное', () => {
+    expect(parseView('#page=2').columns).toBeNull();
+    expect(parseView('#page=2', base).columns).toEqual(registry.columns);
+  });
+
+  it('возврат колонок ведёт к представлению, а не к таблице целиком', () => {
+    const custom = withPinned(withTotal(withColumnShown(base, all, 'Номер', false), 'Итого', 'max'), 2);
+    expect(columnsCustomised(custom, base)).toBe(true);
+
+    const back = withColumnsReset({ ...custom, filter: unpaid }, base);
+    expect(back).toEqual({ ...base, filter: unpaid });
+    expect(columnsCustomised(back, base)).toBe(false);
+    // От таблицы целиком то же состояние — настроенное: мерка зависит от основы.
+    expect(columnsCustomised(back)).toBe(true);
+  });
+
+  describe('что стоит под адресом с кодом представления', () => {
+    const declared = { state: null, views: [registry] };
+
+    it('код не назван — таблица целиком, строки запрашиваются сразу', () => {
+      expect(presetLookup(undefined, undefined)).toEqual({ state: 'table' });
+      expect(rowsWanted({ state: 'table' })).toBe(true);
+    });
+
+    it('описание ещё не пришло — строки ждут: настройка едет в нём', () => {
+      expect(presetLookup('registry', undefined)).toEqual({ state: 'pending' });
+      expect(rowsWanted({ state: 'pending' })).toBe(false);
+    });
+
+    it('представление найдено, регистр кода не важен', () => {
+      expect(presetLookup('Registry', declared)).toEqual({ state: 'found', preset: registry });
+      expect(rowsWanted({ state: 'found', preset: registry })).toBe(true);
+    });
+
+    it('кода у таблицы нет — отказ, строки не запрашиваются', () => {
+      expect(presetLookup('net-takogo', declared)).toEqual({ state: 'missing' });
+      expect(rowsWanted({ state: 'missing' })).toBe(false);
+    });
+
+    it('модуль выключен — это не «представления нет»: говорит таблица, и строки запрашиваются', () => {
+      const off = presetLookup('registry', { state: 'module-off', views: [] });
+      expect(off).toEqual({ state: 'off' });
+      // Иначе экран вечно показывал бы «Строки загружаются…» под состоянием, у которого есть название.
+      expect(rowsWanted(off)).toBe(true);
+    });
+  });
+
+  it('к таблице целиком уходят с тем же отбором, а настройка представления остаётся позади', () => {
+    const tuned = withPage(withSort({ ...base, filter: unpaid }, 'Номер', false), 3);
+    const whole = parseView(wholeTableHash(tuned));
+
+    expect(whole).toEqual(view({ filter: unpaid }));
+    expect(wholeTableHash(base)).toBe('');
   });
 });
