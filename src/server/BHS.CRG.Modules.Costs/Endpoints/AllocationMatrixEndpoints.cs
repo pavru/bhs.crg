@@ -119,6 +119,9 @@ public static class AllocationMatrixEndpoints
                 "и повторите — записанный сейчас набор молча вернул бы удалённые части и стёр бы добавленные.");
 
         var was = Describe(lines, existing.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot()), known);
+        // Что лежало — по значению, ДО раскладки: Place правит части на месте. Сравнивается не описание
+        // для журнала (оно для человека, и две разные раскладки могут описаться одинаково), а сами части.
+        var stored = Parts(existing);
         var now = new List<InvoiceAllocation>();
 
         foreach (var line in lines)
@@ -131,6 +134,9 @@ public static class AllocationMatrixEndpoints
         var returned = invoice.State == InvoiceState.Parsed
             && !InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), now, known).Summary.Allocated;
         if (returned) invoice.ReturnToDraft();
+
+        // Разноска — часть счёта: её правка отмечается у него самого (issue #1173).
+        if (!stored.SequenceEqual(Parts(now))) invoice.ContentChanged();
 
         await db.SaveChangesAsync(ct);
 
@@ -326,6 +332,12 @@ public static class AllocationMatrixEndpoints
             throw new InvalidRequestException($"Счёт целиком: {e.Message}", e);
         }
     }
+
+    /// <summary>Части разноски по значению и месту — для ответа на вопрос «изменилась ли раскладка».</summary>
+    private static List<(Guid Id, Guid? LineId, int Ordinal, AllocationValues Values)> Parts(
+        IEnumerable<InvoiceAllocation> parts) =>
+        [.. parts.OrderBy(a => a.LineId).ThenBy(a => a.Ordinal).ThenBy(a => a.Id)
+            .Select(a => (a.Id, a.LineId, a.Ordinal, a.Snapshot()))];
 
     private static IReadOnlyList<JsonElement> Parts(JsonElement item) => CostsValues.Value(item, "parts") switch
     {
