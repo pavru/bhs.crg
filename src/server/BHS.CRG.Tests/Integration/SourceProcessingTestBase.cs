@@ -67,6 +67,48 @@ public abstract class SourceProcessingTestBase(InvoiceLineHost host) : ModuleTab
     }
 
     /// <summary>
+    /// Чужая правка, которую закрывают, только когда опоздавший запрос (<paramref name="late" />) УПЁРСЯ
+    /// в нашу транзакцию. Так воспроизводится «два сохранения почти разом» — без гонки и без надежды
+    /// на удачу: упёрся — значит, источник он уже прочитал, и прочитал прежним, потому что наша правка
+    /// ещё не закрыта. Возвращает опоздавший запрос — его исход проверяет тест.
+    ///
+    /// <para>Ждать «секунду-другую» вместо этого нельзя: опоздавший иногда добирается до чтения позже,
+    /// видит уже закрытую правку и получает отказ на первой же сверке — и тест зелёный, хотя до
+    /// блокировки дело не дошло (так он и был зелёным со снятой блокировкой).</para>
+    ///
+    /// <para>⚠️ Спрашивается <c>pg_locks</c>, а не <c>pg_stat_activity</c>: второй внутри транзакции
+    /// отдаётся снимком, сделанным при первом обращении, — и опрос из нашей же транзакции до её конца
+    /// видел бы базу, какой она была до опоздавшего запроса (так тест и стоял красным при любом коде).</para>
+    /// </summary>
+    protected async Task<Task<T>> ChangeWhileAsync<T>(Guid id, Action<DataSetSource> change, Func<Task<T>> late)
+    {
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        change(await db.DataSetSources.FirstAsync(s => s.Id == id));
+        await db.SaveChangesAsync();
+        var running = late();
+
+        for (var waited = 0; ; waited += 50)
+        {
+            var blocked = await db.Database
+                .SqlQuery<int>($"""
+                    SELECT count(*)::int AS "Value" FROM pg_locks
+                    WHERE NOT granted AND pg_backend_pid() = ANY (pg_blocking_pids(pid))
+                    """)
+                .SingleAsync();
+            if (blocked > 0) break;
+            Assert.False(running.IsCompleted,
+                "Опоздавший запрос завершился, не дождавшись чужой правки: до общей строки источника он не дошёл.");
+            Assert.True(waited < 20_000, "Опоздавший запрос так и не упёрся в чужую правку источника.");
+            await Task.Delay(50);
+        }
+
+        await transaction.CommitAsync();
+        return running;
+    }
+
+    /// <summary>
     /// Вызов службы от имени пользователя — каждый в СВОЕЙ области: в общей контекст базы отдал бы
     /// источник из памяти, каким тот был до правки мимо службы, и проверка шла бы не по тому отбору.
     /// </summary>

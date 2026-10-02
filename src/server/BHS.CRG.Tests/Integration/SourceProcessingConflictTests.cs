@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Infrastructure.DataSets;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -183,6 +184,70 @@ public sealed class SourceProcessingConflictTests(InvoiceLineHost host) : Source
         Assert.NotNull(await AsAsync(user, (svc, access) =>
             svc.SetSourceProcessingAsync(id, new SetSourceProcessingInput { SortSpec = sort }, access, default)));
         Assert.Contains("Номер", (await StoredAsync(id)).SortSpec);
+    }
+
+    /// <summary>
+    /// Сверка и запись неразрывны. Два сохранения приходят почти разом: опоздавшее читает источник,
+    /// пока чужая правка ещё не закрыта, — то есть видит прежнюю обработку, и версия у него сходится.
+    /// Без блокировки строки оно дождалось бы чужой записи и легло поверх неё, а оба получили бы
+    /// «сохранено». Чужую правку закрывают, только когда опоздавшее упёрлось в блокировку, — иначе
+    /// неизвестно, прочитало ли оно источник прежним (см. <see cref="SourceProcessingTestBase.ChangeWhileAsync" />).
+    /// </summary>
+    [Fact]
+    public async Task Сохранение_пришедшее_вместе_с_чужим_получает_отказ_а_не_затирает()
+    {
+        var (client, user) = await SignInAsync("Admin");
+        var id = await SourceAsync(client);
+        var seen = await SeenAsync(await PutAsync(client, id, $$"""{"sortSpec":{{Sort}}}"""));
+        var mine = ProcessingPart.Of(JsonDocument.Parse(Marked("sortSpec", "СВОЁ")).RootElement.Clone());
+
+        var late = await ChangeWhileAsync(id, s => s.SetProcessing(s.RowFilter, s.ComputedColumns, Marked("sortSpec", "ЧУЖОЕ")),
+            late: () => AsAsync(user, (svc, access) => svc.SetSourceProcessingAsync(
+                id, new SetSourceProcessingInput { SortSpec = mine, IfMatch = seen }, access, default)));
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => late);
+        Assert.Contains("тем временем изменили", refusal.Message);
+        var stored = await StoredAsync(id);
+        Assert.Contains("ЧУЖОЕ", stored.SortSpec);
+        Assert.DoesNotContain("СВОЁ", stored.SortSpec);
+    }
+
+    /// <summary>
+    /// То же правило входа — у соседних правок, собранных по копии источника на странице: извлечение
+    /// и материализация. Сама сверка у них проверена в <see cref="SourceVersionedEditsTests" />.
+    /// </summary>
+    [Theory]
+    [InlineData("", """{"name":"Иначе","sheetOrPath":"x"}""")]
+    [InlineData("/materialization", """{"typeId":null,"mapping":null}""")]
+    public async Task Правка_извлечения_и_материализации_без_версии_отклоняется(string path, string body)
+    {
+        var (client, id, _) = await LoadedAsync();
+        var before = (await StoredAsync(id)).UpdatedAt;
+
+        var refused = await client.PutAsync($"/api/datasets/sources/{id}{path}",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var said = (await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString();
+        Assert.Contains("ifMatch", said);
+        Assert.Contains("обновите страницу", said);
+        Assert.Equal(before, (await StoredAsync(id)).UpdatedAt);
+    }
+
+    /// <summary>Материализация через HTTP: устаревшая версия — 409, текущая — сохранено.</summary>
+    [Fact]
+    public async Task Материализация_через_HTTP_сверяет_версию()
+    {
+        var (client, id, _) = await LoadedAsync();
+        Task<HttpResponseMessage> Unset(string version) => client.PutAsJsonAsync(
+            $"/api/datasets/sources/{id}/materialization", new { typeId = (Guid?)null, ifMatch = version });
+
+        var stale = await Unset("не та");
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Contains("тем временем изменили",
+            (await stale.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        await OkAsync(await Unset(SourceProcessingVersion.OfMaterialization(await StoredAsync(id))));
     }
 
     // ── «Сохранить как шаблон» ────────────────────────────────────────────────

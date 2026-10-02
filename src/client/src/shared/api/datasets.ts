@@ -5,7 +5,10 @@ import type {
   CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
   DataSetPreview, DataSetSource, GostGrouping, GostGroupingGroup, MaterializeDiscriminator,
 } from './types';
-import { withBlobErrorBody } from '@/shared/utils/apiError';
+import { isConflict, withBlobErrorBody } from '@/shared/utils/apiError';
+import {
+  EXTRACTION_FIELDS, MATERIALIZATION_FIELDS, invalidateSources, refreshIfSourceMoved, sourceSaved,
+} from './sourceCache';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
 
@@ -105,31 +108,6 @@ export function useDeleteDataSetFile() {
 
 // ── Источники (ручное управление — для XML) ────────────────────────────────────
 
-/**
- * Список источников изменился: перечитать и наборы, и КАНДИДАТОВ (issue #717).
- *
- * Ключ кандидатов — ['datasets','source-candidates',fileId], и сброс ['datasets','files'] его не
- * задевает: префикс другой. Пока занятый кандидат просто исчезал, это было незаметно; теперь у него
- * есть счётчик и действие «Добавить ещё», и без сброса панель сразу после создания показывала бы
- * старое состояние — то есть прятала бы вход ровно тогда, когда он нужен.
- */
-function invalidateSources(qc: ReturnType<typeof useQueryClient>) {
-  void refreshSources(qc);
-}
-
-/**
- * То же, с обещанием: оно исполняется, когда список наборов ПЕРЕЧИТАН. Нужно тому, кто не должен
- * отпускать человека раньше, чем страница увидит сохранённое, — правке обработки (issue #1141,
- * `datasetProcessing.ts`): диалог, открытый с прежней копии источника, назвал бы прежнюю версию.
- */
-export function refreshSources(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
-  // ...и список доступного документу: привязку выбирают ПО ИСТОЧНИКУ, так что создание или
-  // удаление источника меняет и его. Ключ ['datasets','available'] под префикс files не попадает.
-  qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
-  return qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
-}
-
 export function useCreateDataSetSource() {
   const qc = useQueryClient();
   return useMutation<DataSetSource, Error, {
@@ -144,17 +122,24 @@ export function useCreateDataSetSource() {
   });
 }
 
+/**
+ * Правка извлечения. `ifMatch` — версия обработки (`processingVersion`, она включает извлечение) той
+ * копии источника, с которой открыт редактор (issue #1141): источник изменили — 409, а не прежнее
+ * извлечение поверх чужого.
+ */
 export function useUpdateDataSetSource() {
   const qc = useQueryClient();
   return useMutation<DataSetSource, Error, {
     id: string;
+    ifMatch: string;
     name: string;
     sheetOrPath: string;
     columnExpressions?: ColumnExprDef[] | null;
   }>({
     mutationFn: ({ id, ...data }) =>
       apiClient.put(`/datasets/sources/${id}`, data).then(r => r.data),
-    onSuccess: () => invalidateSources(qc),
+    onSuccess: saved => sourceSaved(qc, saved, EXTRACTION_FIELDS),
+    onError: e => refreshIfSourceMoved(qc, e),
   });
 }
 
@@ -168,11 +153,16 @@ export function useRenameSource() {
   });
 }
 
-/** Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает. */
+/**
+ * Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает. `ifMatch` — версия
+ * материализации (`materializationVersion`) той копии источника, с которой открыт диалог (issue #1141):
+ * настройка замещается целиком, и с устаревшей копии затёрла бы чужую.
+ */
 export function useSetMaterialization() {
   const qc = useQueryClient();
   return useMutation<DataSetSource, Error, {
     sourceId: string;
+    ifMatch: string;
     typeId: string | null;
     mapping: Record<string, string> | null;
     /** Правило выбора варианта union'а (issue #716); null — один вариант на все строки. */
@@ -182,11 +172,12 @@ export function useSetMaterialization() {
   }>({
     // Настройка сохраняется ЦЕЛИКОМ: маппинг и правило связаны, и отправить одно без другого
     // значит оставить источник в состоянии, которого сервер не пропустит.
-    mutationFn: ({ sourceId, typeId, mapping, discriminator, byIdColumn }) =>
+    mutationFn: ({ sourceId, ifMatch, typeId, mapping, discriminator, byIdColumn }) =>
       apiClient.put(`/datasets/sources/${sourceId}/materialization`,
-        { typeId, mapping, discriminator: discriminator ?? null, byIdColumn: byIdColumn ?? null })
+        { ifMatch, typeId, mapping, discriminator: discriminator ?? null, byIdColumn: byIdColumn ?? null })
         .then(r => r.data),
-    onSuccess: () => invalidateSources(qc),
+    onSuccess: saved => sourceSaved(qc, saved, MATERIALIZATION_FIELDS),
+    onError: e => refreshIfSourceMoved(qc, e),
   });
 }
 
@@ -369,7 +360,7 @@ export function useRecognizeSource() {
 
 /** 409 от /recognize — набор уже правился вручную, нужно явное подтверждение перезаписи. */
 export function isManualGroupingConflict(err: unknown): boolean {
-  return (err as { response?: { status?: number } })?.response?.status === 409;
+  return isConflict(err);
 }
 
 /** Почему распознавание не запустилось и стоит ли звать администратора. */

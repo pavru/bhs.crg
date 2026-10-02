@@ -63,8 +63,8 @@ public class DataSetService(
         sources.CreateSourceAsync(fileId, input, access, ct);
     public Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
-        string? byIdColumn, CancellationToken ct) =>
-        sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct);
+        string? byIdColumn, CancellationToken ct, string? ifMatch = null) =>
+        sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct, ifMatch);
     public Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
         string? byIdColumn, DataAccess access, CancellationToken ct) =>

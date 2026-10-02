@@ -44,10 +44,13 @@ public interface IDataSetService
         Guid fileId, CreateSourceInput input, DataAccess access, CancellationToken ct);
     /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает;
     /// маппинг, правило выбора варианта (issue #716) и колонка режима «по Ид» (issue #725) задаются
-    /// целиком, замещением.</summary>
+    /// целиком, замещением. <paramref name="ifMatch" /> — версия материализации, которую показывала
+    /// страница (issue #1141): не совпала с сохранённой — <c>ConflictException</c>; <c>null</c> — не
+    /// сверяется. Стоит последним, после <paramref name="ct" />: вызовов без версии в коде много, и
+    /// это вызовы, которым сверять нечего.</summary>
     Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
-        string? byIdColumn, CancellationToken ct);
+        string? byIdColumn, CancellationToken ct, string? ifMatch = null);
     /// <summary>Предпросмотр материализации источника (строки → объекты формы типа).
     /// <paramref name="mapping"/> задан — настройку ведёт диалог, и <paramref name="discriminator"/>
     /// с <paramref name="byIdColumn"/> авторитетны (null значит «нет», issue #294/#716/#725);
@@ -55,6 +58,8 @@ public interface IDataSetService
     Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
         string? byIdColumn, DataAccess access, CancellationToken ct);
+    /// <summary>Ручная правка извлечения (имя, локатор, колонки). Версия во входе сверяется с
+    /// сохранённой (issue #1141): источник изменили — <c>ConflictException</c>.</summary>
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
     /// <summary>Лёгкое переименование источника (issue #43) — только имя, без extraction/кэша; для любого
     /// источника, включая PDF-проекции.</summary>

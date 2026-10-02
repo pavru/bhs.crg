@@ -36,8 +36,13 @@ public record DataSetSourceDto(
     DataSetStaleReason? StaleReason = null,
     /// <summary>Версия обработки (issue #1141): отпечаток извлечения и обработки, с которых страница
     /// собирает диалоги. Правка обработки называет её обратно (<c>ifMatch</c>) — так сервер узнаёт,
-    /// что источник не изменили, пока диалог был открыт. Считает <c>SourceProcessingVersion</c>.</summary>
-    string? ProcessingVersion = null);
+    /// что источник не изменили, пока диалог был открыт. Считает <c>SourceProcessingVersion</c>.
+    /// Её же называет правка извлечения.</summary>
+    string? ProcessingVersion = null,
+    /// <summary>Версия материализации: настройка материализации плюс всё, что входит в версию
+    /// обработки, — диалог материализации сопоставляет поля с колонками источника. Называется
+    /// обратно при сохранении материализации.</summary>
+    string? MaterializationVersion = null);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).
@@ -225,7 +230,11 @@ public record ColumnExprDto(string Name, string Expr);
 
 public record CreateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
 
-public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
+/// <param name="IfMatch">Версия обработки источника (она включает извлечение), с которой открыт
+/// редактор (issue #1141); не совпала с сохранённой — <c>ConflictException</c>. <c>null</c> — не
+/// сверяется: так зовёт код, задающий извлечение заново; вход HTTP версию требует всегда.</param>
+public record UpdateSourceInput(
+    string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions, string? IfMatch = null);
 
 /// <summary>
 /// Ручное создание PDF-источника: без SheetOrPath/ColumnExpressions (Extraction для PDF —

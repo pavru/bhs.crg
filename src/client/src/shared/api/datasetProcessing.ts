@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { refreshSources } from './datasets';
+import {
+  EXTRACTION_FIELDS, PROCESSING_FIELDS, invalidateSources, refreshIfSourceMoved, sourceSaved,
+} from './sourceCache';
 import type {
   ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, DataSetSource, RowFilterDef, SortSpec,
 } from './types';
 
 // Обработка источника и её шаблоны. Вынесено из datasets.ts: тот стоит в храповике размера, а со
 // сверкой версии (issue #1141) этой теме стало тесно в общем файле.
-
-type QueryClient = ReturnType<typeof useQueryClient>;
 
 // ── Обработка источника (Filter/Transformation/Sort) — лёгкая правка, файл не трогает ─────
 
@@ -24,16 +24,6 @@ export type SourceProcessingPatch =
   | { rowFilter: RowFilterDef | null }
   | { computedColumns: ComputedColumn[] | null }
   | { sortSpec: SortSpec | null };
-
-/**
- * Источник тем временем изменили (409): страница показывает прежнюю обработку. Перечитываем её
- * сразу, не дожидаясь, пока человек обновит страницу сам, — значки обработки в списке перестают
- * врать. Открытому диалогу это не помогает и помогать не должно: он собран по прежней копии и
- * называет её версию, так что повторное «Сохранить» получит тот же отказ.
- */
-function refreshIfMoved(qc: QueryClient, error: unknown) {
-  if ((error as { response?: { status?: number } })?.response?.status === 409) void refreshSources(qc);
-}
 
 /**
  * `ifMatch` — версия обработки (`processingVersion`) той копии источника, по которой собран диалог
@@ -52,15 +42,14 @@ export function useSetDataSetSourceProcessing() {
     // через usePreviewDataSetSource (['datasets','preview',sourceId,...]) — без этого фильтр не виден до
     // перемонтирования. Префикс-матч покрывает maxRows=1 (счётчик) и maxRows=50 (превью).
     //
-    // Обещание — перечитанного списка наборов: мутация завершается (и диалог закрывается), когда
-    // страница уже держит источник с новой версией. Иначе следующий диалог, открытый сразу после
-    // этого, взял бы прежнюю версию — и получил бы отказ «источник изменили» на собственную правку.
-    onSuccess: (_data, { id }) => {
+    // Сам источник вписываем в кэш из ответа, не дожидаясь перечитывания списка (см. putSourceInCache):
+    // следующий диалог обязан открыться уже с новой версии.
+    onSuccess: (saved, { id }) => {
+      sourceSaved(qc, saved, PROCESSING_FIELDS);
       qc.invalidateQueries({ queryKey: ['datasets', 'preview', id] });
       qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', id] });
-      return refreshSources(qc);
     },
-    onError: e => refreshIfMoved(qc, e),
+    onError: e => refreshIfSourceMoved(qc, e),
   });
 }
 
@@ -100,7 +89,7 @@ export function useSaveSourceAsTemplate() {
     mutationFn: ({ sourceId, ...data }) =>
       apiClient.post(`/datasets/sources/${sourceId}/processing-template`, data).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] }),
-    onError: e => refreshIfMoved(qc, e),
+    onError: e => refreshIfSourceMoved(qc, e),
   });
 }
 
@@ -126,7 +115,7 @@ export function useDeleteProcessingTemplate() {
     mutationFn: ({ id }) => apiClient.delete(`/datasets/processing-templates/${id}`).then(() => undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] });
-      void refreshSources(qc);
+      invalidateSources(qc);
     },
   });
 }
@@ -138,12 +127,13 @@ export function useApplyProcessingTemplate() {
     mutationFn: ({ sourceId, templateId }) =>
       apiClient.post(`/datasets/sources/${sourceId}/apply-template/${templateId}`).then(r => r.data),
     // Тот же пробел, что в useSetDataSetSourceProcessing (issue #399) — освежаем предпросмотр источника.
-    // И то же обещание: шаблон меняет версию обработки, и диалог, открытый до перечитывания, получил
-    // бы отказ на правку поверх только что применённого шаблона.
-    onSuccess: (_data, { sourceId }) => {
+    // Шаблон меняет обработку всегда, а извлечение — только у файлового источника: у системного оно —
+    // выбор консолидации, и схему его список считает на чтении (в ответе мутации её нет).
+    onSuccess: (saved, { sourceId }) => {
+      sourceSaved(qc, saved,
+        saved.origin === 'System' ? PROCESSING_FIELDS : [...PROCESSING_FIELDS, ...EXTRACTION_FIELDS]);
       qc.invalidateQueries({ queryKey: ['datasets', 'preview', sourceId] });
       qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', sourceId] });
-      return refreshSources(qc);
     },
   });
 }

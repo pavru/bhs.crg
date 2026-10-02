@@ -39,15 +39,39 @@ public static class SourceProcessingVersion
     /// Изменилась ли обработка с тех пор, как её видел правящий. Версии не назвали (<c>null</c>) —
     /// сверять не с чем: называть ли её, решает вход (см. <c>SetSourceProcessingInput.IfMatch</c>).
     ///
-    /// <para>Сверка — про правки, разделённые минутами: человек открыл диалог, и, пока он думал,
-    /// источник поправил другой. Блокировки между сверкой и записью нет: два сохранения в одну и ту
-    /// же долю секунды пройдут оба, и победит последнее.</para>
+    /// <para>Сама по себе сверка не атомарна: между ней и записью источник может поправить другой
+    /// запрос. Неразрывной её делает тот, кто пишет, — сверяя ещё раз под блокировкой строки
+    /// (<c>DataSetSourceService.LockAsync</c>).</para>
     /// </summary>
     public static bool Moved(DataSetSource source, string? seenVersion) =>
         seenVersion is not null && !string.Equals(seenVersion, Of(source), StringComparison.Ordinal);
 
+    /// <summary>То же для настройки материализации — сверяется с <see cref="OfMaterialization" />.</summary>
+    public static bool MaterializationMoved(DataSetSource source, string? seenVersion) =>
+        seenVersion is not null && !string.Equals(seenVersion, OfMaterialization(source), StringComparison.Ordinal);
+
     public static string Of(DataSetSource source) => Of(
         source.SheetOrPath, source.ColumnExpressions, source.RowFilter, source.ComputedColumns, source.SortSpec);
+
+    /// <summary>
+    /// Версия материализации: её настройка (тип, маппинг, правило варианта, колонка «по Ид») ПЛЮС всё,
+    /// что входит в версию обработки. Диалог материализации сопоставляет поля типа с колонками
+    /// источника, а колонки дают извлечение и вычисляемые колонки: сменили их за спиной страницы — и
+    /// маппинг указывал бы на колонки, которых уже нет.
+    ///
+    /// <para>Отдельная версия, а не общая с обработкой: наоборот зависимости нет. Диалогу сортировки
+    /// всё равно, во что источник материализуется, и общая версия отказывала бы ему на чужую правку
+    /// материализации.</para>
+    /// </summary>
+    public static string OfMaterialization(DataSetSource source)
+    {
+        var sb = new StringBuilder(Of(source))
+            .Append(UnitSeparator).Append(source.MaterializeTypeId)
+            .Append(UnitSeparator).Append(Canonical(source.MaterializeMapping))
+            .Append(UnitSeparator).Append(Canonical(source.MaterializeDiscriminator))
+            .Append(UnitSeparator).Append(source.MaterializeByIdColumn);
+        return Fingerprint(sb.ToString());
+    }
 
     public static string Of(
         string sheetOrPath, string? columnExpressions, string? rowFilter, string? computedColumns, string? sortSpec)
@@ -55,12 +79,13 @@ public static class SourceProcessingVersion
         var sb = new StringBuilder(sheetOrPath);
         foreach (var json in (string?[])[columnExpressions, rowFilter, computedColumns, sortSpec])
             sb.Append(UnitSeparator).Append(Canonical(json));
-
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
-        // Половины хеша хватает, как у отпечатка строк: это защита от «не заметили чужую правку»,
-        // а не от подделки.
-        return Convert.ToHexStringLower(hash)[..16];
+        return Fingerprint(sb.ToString());
     }
+
+    /// <summary>Половины хеша хватает, как у отпечатка строк: это защита от «не заметили чужую
+    /// правку», а не от подделки.</summary>
+    private static string Fingerprint(string content) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(content)))[..16];
 
     /// <summary>Значение в записи, не зависящей от того, как его записали; части нет — пусто.</summary>
     private static string Canonical(string? json)
@@ -94,12 +119,7 @@ public static class SourceProcessingVersion
                 writer.WriteEndArray();
                 break;
             case JsonValueKind.Number:
-                // «1e2» база вернёт как «100»: число пишем значением. Не влезло в decimal — как есть:
-                // таких чисел в обработке не бывает, а отказать в чтении источника из-за отпечатка
-                // было бы хуже, чем изредка счесть одинаковое разным.
-                writer.WriteRawValue(value.TryGetDecimal(out var number)
-                    ? number.ToString("G29", CultureInfo.InvariantCulture)
-                    : value.GetRawText());
+                writer.WriteRawValue(Number(value.GetRawText()));
                 break;
             case JsonValueKind.String:
                 // Значением: одна и та же строка бывает записана с разным экранированием.
@@ -109,5 +129,38 @@ public static class SourceProcessingVersion
                 value.WriteTo(writer); // true, false, null
                 break;
         }
+    }
+
+    /// <summary>
+    /// Число значением: значащие цифры без нулей по краям и порядок. «1e2», «100» и «100.0» дают одну
+    /// запись — и так для числа ЛЮБОЙ величины. Через <c>decimal</c> нельзя: база хранит числа
+    /// <c>jsonb</c> точно и возвращает их развёрнутыми («1e30» — единицей с тридцатью нулями), а в
+    /// <c>decimal</c> такое не влезает. Отпечаток по сырому тексту разошёлся бы с базой, и источник с
+    /// таким числом отвечал бы «изменили» на каждую следующую правку.
+    /// </summary>
+    private static string Number(string raw)
+    {
+        var negative = raw.StartsWith('-');
+        var body = negative ? raw[1..] : raw;
+        var exponentAt = body.IndexOfAny(['e', 'E']);
+        var exponent = 0L;
+        // Порядок, не влезающий в long, базе не записать вовсе — такое число оставляем как есть.
+        if (exponentAt >= 0 && !long.TryParse(
+                body[(exponentAt + 1)..], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out exponent))
+            return raw;
+
+        var mantissa = exponentAt < 0 ? body : body[..exponentAt];
+        var pointAt = mantissa.IndexOf('.');
+        if (pointAt >= 0)
+        {
+            exponent -= mantissa.Length - pointAt - 1;
+            mantissa = mantissa.Remove(pointAt, 1);
+        }
+
+        var digits = mantissa.TrimStart('0');
+        var significant = digits.TrimEnd('0');
+        if (significant.Length == 0) return "0";
+        exponent += digits.Length - significant.Length;
+        return $"{(negative ? "-" : "")}{significant}E{exponent}";
     }
 }

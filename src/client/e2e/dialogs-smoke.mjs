@@ -258,17 +258,52 @@ const apiAs = (method, path, body) => page.evaluate(async ([method, path, body])
   return text ? JSON.parse(text) : null;
 }, [method, path, body]);
 
-/** Источник, чьё меню открывает `sourceMenu`: первый у набора — в том же порядке, что на экране. */
+/**
+ * Источник, на котором идут проверки обработки. Выбирается ОДИН раз — первый в списке открытого
+ * набора — и дальше ищется по идентификатору, а его меню на странице — по имени (`openSourceMenu`).
+ *
+ * ⚠️ «Первый в списке» каждый раз заново брать нельзя: порядок источников у набора сервер не
+ * закрепляет (упорядочивания в запросе нет), и после правки строки источника в базе тот же запрос
+ * отдаёт их в другом порядке. Проверка посреди прогона получала ДРУГОЙ источник и краснела про
+ * «чужая правка пропала», хотя правка лежала на месте, — через раз, в зависимости от того, сколько
+ * раз источник правили до неё.
+ *
+ * Список — тем же запросом, что у страницы; набор — по `?file=` из адреса, а не по имени: имя
+ * приходит из окружения и ищется вхождением.
+ */
+let smokeSourceId = null;
 const smokeSource = async () => {
-  const files = await apiAs('GET', '/datasets/files?scope=System');
-  const file = files.find(f => f.name.includes(DATASET_FILE));
-  if (!file?.sources?.length) throw new Error(`набор «${DATASET_FILE}» с источником не найден среди системных`);
-  return file.sources[0];
+  const files = await apiAs('GET', '/datasets/files?scope=System&includeInherited=true');
+  const opened = new URL(page.url()).searchParams.get('file');
+  const file = files.find(f => (opened ? f.id === opened : f.name.includes(DATASET_FILE)));
+  if (!file?.sources?.length) throw new Error(`открытый набор «${DATASET_FILE}» с источником не найден в списке наборов`);
+  smokeSourceId ??= file.sources[0].id;
+  const source = file.sources.find(s => s.id === smokeSourceId);
+  if (!source) throw new Error('источник, выбранный в начале проверок обработки, пропал из набора');
+  return source;
+};
+/**
+ * Меню ТОГО ЖЕ источника на странице — по его имени. Строка источника — ближайший предок кнопки
+ * меню, в котором эта кнопка одна: выше начинается список, и там имя нашлось бы у любой кнопки.
+ */
+const openSourceMenu = async () => {
+  const { name } = await smokeSource();
+  const selector = 'button[aria-label="Действия над источником"]';
+  const buttons = page.locator(selector);
+  const index = await buttons.evaluateAll((els, [name, selector]) => els.findIndex(el => {
+    for (let row = el.parentElement; row; row = row.parentElement) {
+      if (row.querySelectorAll(selector).length > 1) return false;
+      if (row.innerText.includes(name)) return true;
+    }
+    return false;
+  }), [name, selector]);
+  if (index < 0) throw new Error(`на странице нет строки источника «${name}»`);
+  await buttons.nth(index).click();
+  await page.waitForTimeout(700);
 };
 /** Диалог обработки по пункту меню источника; заголовок диалога совпадает с пунктом. */
 const openProcessingDialog = async (item) => {
-  await sourceMenu.click();
-  await page.waitForTimeout(700);
+  await openSourceMenu();
   await page.getByText(item, { exact: true }).first().click();
   await page.waitForTimeout(1000);
   const dlg = page.locator('[role=dialog]').last();
@@ -290,12 +325,16 @@ const refusalOf = async (dlg) => (await dlg.locator('[role=alert]').count())
 const filesRefetched = () => page.waitForResponse(
   r => r.request().method() === 'GET' && /\/api\/datasets\/files(\?|$)/.test(r.url()), { timeout: 10000 });
 
-const sourceBefore = await smokeSource();
 const FOREIGN = 'smoke_чужая_правка';
+// Источник до прогона — его обработку вернём в finally. Берётся ВНУТРИ первой проверки, а не здесь:
+// брошенное вне check() убило бы прогон целиком, и проверки копирования, генерации и документов
+// качества ниже не запустились бы вовсе.
+let sourceBefore = null;
 try {
   let staleDialog = null;
 
   await check('processing-save-from-stale-copy-is-refused', async () => {
+    sourceBefore = await smokeSource();
     staleDialog = await openSortDialog();
     await apiAs('PUT', `/datasets/sources/${sourceBefore.id}/processing`, {
       ifMatch: sourceBefore.processingVersion,
@@ -316,7 +355,8 @@ try {
   // прежней копии. Возьми сохранение версию из страницы, а не из снимка, с которого диалог открыт, —
   // оно прошло бы: черновик по старым данным уехал бы с версией «я видел новые».
   await check('processing-stale-dialog-stays-refused-after-page-refresh', async () => {
-    if (!staleDialog) throw new Error('диалог с устаревшей копии не открыт — предыдущая проверка не дошла');
+    if (!sourceBefore || !staleDialog || !(await staleDialog.count()))
+      throw new Error('диалог с устаревшей копии не открыт — предыдущая проверка не дошла до него');
     await saveButton(staleDialog).click();
     await page.waitForTimeout(2500);
     if (!(await staleDialog.count()) || !/Сортировка строк/.test(await staleDialog.innerText()))
@@ -330,23 +370,104 @@ try {
       throw new Error('чужая правка вычисляемых колонок пропала');
   });
 
-  // Свежий диалог сохраняется — и следующий за ним тоже. Вторая половина — про то, что сохранение
-  // отпускает человека, только когда страница ПЕРЕЧИТАЛА источник: первая правка меняет версию
-  // обработки, и диалог, открытый с прежней копии, получил бы отказ «источник изменили» на свою же
-  // правку. Перечитывание здесь нарочно задержано: без задержки оно успевает и так, и проверка была
-  // бы зелёной при любом коде (поломка «мутация не ждёт перечитывания» её не роняла).
-  await check('processing-next-dialog-opens-from-saved-copy', async () => {
-    if (await page.locator('[role=dialog]').count()) {
-      await page.locator('[role=dialog]').last().getByRole('button', { name: /^Отмена$/ }).click();
+  // То же — у материализации: настройка сохраняется замещением, а её версия включает обработку
+  // (диалог сопоставляет поля с колонками источника). «Сохранить» жмём дважды: после первого отказа
+  // страница перечитывает источник, и второе нажатие прошло бы, бери диалог версию из страницы, а не
+  // из снимка, с которого открыт. От проверок выше не зависит: диалог открывает и источник меняет сама.
+  await check('materialize-save-from-stale-copy-is-refused', async () => {
+    if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+    await openSourceMenu();
+    await page.getByText('Материализация', { exact: false }).first().click();
+    await page.waitForTimeout(1800);
+    const dlg = page.locator('[role=dialog]').last();
+    if (!/Материализация источника/.test(await dlg.innerText())) throw new Error('диалог материализации не открылся');
+
+    const seen = await smokeSource();
+    sourceBefore ??= seen;
+    await apiAs('PUT', `/datasets/sources/${seen.id}/processing`, {
+      ifMatch: seen.processingVersion,
+      computedColumns: [...(seen.computedColumns ?? []), { alias: `${FOREIGN}_2`, expr: '1' }],
+    });
+    for (const attempt of ['первое', 'повторное']) {
+      const refetched = filesRefetched().catch(() => {});
+      // Судим по ответу на САМО сохранение, а не по тексту в диалоге: отказ от первого нажатия ещё
+      // на экране, когда уходит второе, и проверка по тексту была зелёной при принятом сохранении.
+      const answered = page.waitForResponse(
+        r => r.request().method() === 'PUT' && /\/materialization$/.test(new URL(r.url()).pathname),
+        { timeout: 10000 });
+      await saveButton(dlg).click();
+      const status = (await answered).status();
+      await page.waitForTimeout(800);
+      if (status !== 409 || !(await dlg.count()) || !/тем временем изменили/.test(await refusalOf(dlg)))
+        throw new Error(`${attempt} сохранение материализации с устаревшей копии не получило отказа (ответ ${status})`);
+      await refetched;
       await page.waitForTimeout(800);
     }
+    if ((await smokeSource()).materializeTypeId !== seen.materializeTypeId)
+      throw new Error('материализация источника изменилась, хотя сохранение отклонено');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+  });
+
+  // И у «Редактировать»: извлечение входит в ту же версию, что обработка. Одного нажатия здесь
+  // достаточно — редактор открыт с копии, которую страница запомнила при выборе пункта меню.
+  await check('source-edit-from-stale-copy-is-refused', async () => {
+    if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+    await openSourceMenu();
+    await page.getByText('Редактировать', { exact: true }).first().click();
+    await page.waitForTimeout(1800);
+    const dlg = page.locator('[role=dialog]').last();
+    if (!/Редактировать источник/.test(await dlg.innerText())) throw new Error('редактор источника не открылся');
+
+    const seen = await smokeSource();
+    sourceBefore ??= seen;
+    await apiAs('PUT', `/datasets/sources/${seen.id}/processing`, {
+      ifMatch: seen.processingVersion,
+      computedColumns: [...(seen.computedColumns ?? []), { alias: `${FOREIGN}_3`, expr: '1' }],
+    });
+    const answered = page.waitForResponse(
+      r => r.request().method() === 'PUT' && new URL(r.url()).pathname.endsWith(`/datasets/sources/${seen.id}`),
+      { timeout: 10000 });
+    await saveButton(dlg).click();
+    const status = (await answered).status();
+    await page.waitForTimeout(800);
+    if (status !== 409 || !(await dlg.count()) || !/тем временем изменили/.test(await refusalOf(dlg)))
+      throw new Error(`правка источника с устаревшей копии не получила отказа (ответ ${status})`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+  });
+
+  // Своя правка — и сразу следующая. Первая меняет версию обработки, и диалог, открытый следом,
+  // обязан назвать уже НОВУЮ: страница узнаёт её из ответа на сохранение, не дожидаясь перечитывания
+  // списка наборов. Перечитывание здесь нарочно задержано — без задержки оно успевает и так, и
+  // проверка была бы зелёной при любом коде (поломка «страница не знает о своей правке» её не роняла).
+  //
+  // От двух проверок выше не зависит: страницу перезагружает и условие себе собирает сама.
+  await check('processing-next-dialog-opens-from-saved-copy', async () => {
+    sourceBefore ??= await smokeSource();
+    // Условие проверки — у источника есть вычисляемая колонка: тогда у диалога есть «Сбросить», а
+    // сброс меняет версию обработки.
+    const current = await smokeSource();
+    if (!(current.computedColumns ?? []).length) {
+      await apiAs('PUT', `/datasets/sources/${current.id}/processing`, {
+        ifMatch: current.processingVersion, computedColumns: [{ alias: FOREIGN, expr: '1' }],
+      });
+    }
+    await page.reload();
+    await sourceMenu.waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1500);
+
     const slowFiles = /\/api\/datasets\/files(\?|$)/;
     await page.route(slowFiles, async route => {
       await new Promise(resolve => setTimeout(resolve, 4000));
-      await route.continue();
+      // Перехват снимают раньше, чем истекает задержка: проверке хватает пары секунд. Задержанный
+      // запрос к тому времени уже отпущен самим снятием, и «продолжить» его второй раз — отказ,
+      // брошенный мимо check(): он ронял прогон целиком, вместе с проверками ниже.
+      await route.continue().catch(() => {});
     });
     try {
-      // Правка, которая меняет версию: сброс вычисляемых колонок убирает и «чужую» колонку.
       const computed = await openProcessingDialog('Вычисляемые колонки');
       await computed.getByRole('button', { name: /^Сбросить$/ }).click();
       await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
@@ -361,13 +482,20 @@ try {
       throw new Error('вычисляемые колонки не сброшены, хотя диалог закрылся');
   });
 } finally {
-  // Вернуть обработку, какой она была до прогона, — с версией, какая у источника сейчас.
-  if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
-  const now = await smokeSource();
-  await apiAs('PUT', `/datasets/sources/${now.id}/processing`, {
-    ifMatch: now.processingVersion,
-    computedColumns: sourceBefore.computedColumns, sortSpec: sourceBefore.sortSpec,
-  });
+  // Вернуть обработку, какой она была до прогона, — с версией, какая у источника сейчас. Сбой возврата
+  // называем и идём дальше: остальным проверкам он не мешает, а прогон целиком ронять не должен.
+  try {
+    if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+    if (sourceBefore) {
+      const now = await smokeSource();
+      await apiAs('PUT', `/datasets/sources/${now.id}/processing`, {
+        ifMatch: now.processingVersion,
+        computedColumns: sourceBefore.computedColumns, sortSpec: sourceBefore.sortSpec,
+      });
+    }
+  } catch (e) {
+    console.log(`  ! обработка источника не возвращена в исходное состояние: ${e.message}`);
+  }
 }
 
 // ── Копирование документа: цель забывается при закрытии ────────────────────────

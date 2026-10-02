@@ -115,7 +115,8 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const [processing, setProcessing] = useState<{ kind: ProcessingDialogKind; base: DataSetSource } | null>(null);
   const openProcessing = (kind: ProcessingDialogKind) => setProcessing({ kind, base: src });
   const [previewing, setPreviewing] = useState(false);
-  const [materializing, setMaterializing] = useState(false);
+  // Тоже снимок (issue #1141): настройка материализации сохраняется замещением.
+  const [materializing, setMaterializing] = useState<DataSetSource | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
@@ -170,7 +171,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
     ] },
     { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => setRenaming(true) },
     { key: 'duplicate', label: 'Создать копию…', icon: <Copy size={13} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
-    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
+    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(src) },
     ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
@@ -238,7 +239,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
         <SourceProcessingDialogs kind={processing.kind} base={processing.base} onClose={() => setProcessing(null)} />
       )}
       {previewing && <SourcePreviewDialog source={src} onClose={() => setPreviewing(false)} />}
-      {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
+      {materializing && <MaterializationDialog source={materializing} onClose={() => setMaterializing(null)} />}
 
       {renaming && (
         <SourceNameDialog title="Переименовать источник" defaultName={src.name} takenNames={siblingNames}

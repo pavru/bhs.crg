@@ -38,28 +38,36 @@ public partial class DataSetSourceService
 
         // Сверка — до проверки отбора: устаревшей правке нужен ответ «источник изменили», а не разбор
         // отбора, собранного по колонкам, которых у источника, может быть, уже нет.
-        if (SourceProcessingVersion.Moved(source, input.IfMatch))
-            throw new ConflictException(
-                $"Обработка источника «{source.Name}» не сохранена: источник тем временем изменили — "
-                + "правка собрана по прежней обработке, и сохранение затёрло бы чужую. Обновите "
-                + "страницу и повторите правку: диалог покажет обработку, какой она стала.");
-
-        // Правка — по частям (issue #1139): чего в запросе нет, то остаётся как есть.
-        var rowFilter = Part(input.RowFilter, source.RowFilter);
+        EnsureProcessingCurrent(source, input.IfMatch);
 
         // Проверяется отбор, только когда он ПРИСЛАН, — и всегда, когда прислан: присланный отбор —
         // новый ввод, даже если совпал с сохранённым. Негодный отбор, сохранённый раньше (до #1137,
         // из копии), источник при этом не запирает: сортировку и вычисляемые колонки правят, не
         // присылая отбора, и до проверки дело не доходит.
-        if (input.RowFilter.Sent && await FilterProblemAsync(rowFilter, source, access, ct) is { } problem)
+        if (input.RowFilter.Sent
+            && await FilterProblemAsync(Part(input.RowFilter, null), source, access, ct) is { } problem)
             throw new InvalidRequestException(
                 $"Отбор строк источника «{source.Name}» не сохранён: {problem} Источник такой отбор не "
                 + "выполнит — исправьте условие и сохраните снова.");
 
+        // Сверка и запись — под блокировкой строки (см. LockAsync). Части, которых в запросе нет,
+        // берём уже ПОСЛЕ перечитывания: правка по частям (issue #1139) обещает их не трогать, а из
+        // копии, прочитанной до проверки отбора, вернула бы то, что успели поменять за это время.
+        await using var transaction = await LockAsync(source, ct);
+        EnsureProcessingCurrent(source, input.IfMatch);
         source.SetProcessing(
-            rowFilter, Part(input.ComputedColumns, source.ComputedColumns), Part(input.SortSpec, source.SortSpec));
+            Part(input.RowFilter, source.RowFilter),
+            Part(input.ComputedColumns, source.ComputedColumns),
+            Part(input.SortSpec, source.SortSpec));
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return DataSetDtoMapper.MapSource(source);
+    }
+
+    private static void EnsureProcessingCurrent(DataSetSource source, string? ifMatch)
+    {
+        if (SourceProcessingVersion.Moved(source, ifMatch))
+            throw SourceMoved($"Обработка источника «{source.Name}» не сохранена");
     }
 
     /// <summary>Часть обработки после правки: присланная — из запроса, остальные — сохранённые.</summary>
