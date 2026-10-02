@@ -3,7 +3,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import type { FilterCondition, FilterGroup, FilterNode } from '@/shared/api/types';
 import { ConditionEditor } from './ConditionEditor';
-import { chipProblem, chipsView, chipText, offeredCondition, withChip, withoutChip } from './chipsModel';
+import { chipProblem, chipsView, chipText, offeredColumns, offeredCondition, withChip, withoutChip } from './chipsModel';
 import { columnLabel, type FilterColumn } from './rowFilterModel';
 
 /**
@@ -34,9 +34,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 }) {
   const view = chipsView(filter);
   const conditions = view.mode === 'chips' ? view.conditions : [];
-  const offered = view.mode === 'chips'
-    ? (suggested ?? []).filter(name => columns.some(c => c.name === name) && !conditions.some(c => c.column === name))
-    : [];
+  const offered = view.mode === 'chips' ? offeredColumns(suggested, columns, conditions) : [];
   const problems = conditions
     .map(c => ({ text: chipText(c, columns), problem: chipProblem(c, columns) }))
     .filter(p => p.problem !== null);

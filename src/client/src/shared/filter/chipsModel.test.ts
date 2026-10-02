@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { tableRequest } from '@/shared/api/tables';
-import { chipProblem, chipsView, chipText, fromChips, offeredCondition, withChip, withoutChip } from './chipsModel';
+import {
+  chipProblem, chipsView, chipText, fromChips, offeredColumns, offeredCondition, withChip, withoutChip,
+} from './chipsModel';
 import { withColumn, type FilterColumn } from './rowFilterModel';
 
 /**
@@ -175,5 +177,26 @@ describe('offeredCondition — предложенное место под усл
 
   it('место — ещё не условие: с пустым значением оно названо негодным, а не отбирает всё подряд', () => {
     expect(chipProblem(offeredCondition('СостояниеОплаты', columns), columns)).not.toBeNull();
+  });
+});
+
+describe('offeredColumns — какие места показать', () => {
+  const suggested = ['Срок', 'Номер', 'СостояниеОплаты'];
+
+  it('отбора нет — места стоят все, в порядке представления', () => {
+    expect(offeredColumns(suggested, columns, [])).toEqual(suggested);
+  });
+
+  it('по колонке уже стоит условие — места под неё нет: оно правится чипом', () => {
+    const period = cond({ column: 'Срок', op: 'between', value: undefined, values: ['2026-09-01', '2026-09-30'] });
+    expect(offeredColumns(suggested, columns, [period])).toEqual(['Номер', 'СостояниеОплаты']);
+  });
+
+  it('колонки, которой у таблицы нет, местом не предложить', () => {
+    expect(offeredColumns(['Номер', 'НетТакой'], columns, [])).toEqual(['Номер']);
+  });
+
+  it('представление мест не называет — их нет', () => {
+    expect(offeredColumns(undefined, columns, [])).toEqual([]);
   });
 });

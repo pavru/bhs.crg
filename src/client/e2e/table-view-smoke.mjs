@@ -502,6 +502,12 @@ try {
     if (!foot.includes(`Σ ${flat(tableSeedSum().toLocaleString('ru-RU'))}`)) throw new Error(`итог периода: «${foot}»`);
     if (!foot.includes(AXIS)) throw new Error(`итог оси не называет: «${foot}»`);
 
+    // Период стоит чипом — места под него больше нет: рядом с чипом оно читалось бы как «не задан».
+    if ((await chips(page).getByRole('button', { name: 'Дата счёта', exact: true }).count()) !== 0)
+      throw new Error('место «Дата счёта» осталось при стоящем условии по дате');
+    if ((await chips(page).getByRole('button', { name: 'Плательщик', exact: true }).count()) !== 1)
+      throw new Error('вместе с местом под дату пропали и остальные');
+
     // Без периода в отборе называть нечего — подписи нет ни в шапке, ни под итогом.
     await openRegistry(page, { filter: seeded });
     await rowsBecome(page, TABLE_SEED.count, 'посеянные счета без периода');

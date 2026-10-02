@@ -50,7 +50,16 @@ export function withoutChip(conditions: FilterCondition[], index: number): Filte
   return fromChips(conditions.filter((_, i) => i !== index));
 }
 
-/** Поставить чип: новый — в конец, правка — на своё место. */
+/**
+ * Какие из предложенных мест показать (G4, issue #1097). Колонка, по которой условие уже стоит,
+ * местом не предлагается: рядом с чипом «Дата счёта: 01.09 — 30.09» место «+ Дата счёта» читалось бы
+ * как «период ещё не задан» — и второй период по нему сузил бы отбор до пересечения. Колонки, которой
+ * у таблицы нет, тоже: места без колонки не открыть.
+ */
+export function offeredColumns(suggested: string[] | undefined, columns: FilterColumn[], conditions: FilterCondition[]): string[] {
+  return (suggested ?? []).filter(name => columns.some(c => c.name === name) && !conditions.some(c => c.column === name));
+}
+
 /**
  * Условие для места, которое отбор предлагает готовым (G4, issue #1097): колонка названа, значение
  * пусто. У даты — сразу «между»: место под дату в реестре называется «период», и «равно» на нём
@@ -62,6 +71,7 @@ export function offeredCondition(name: string, columns: FilterColumn[]): FilterC
   return column?.kind === 'date' && operatorsFor(column).includes('between') ? withOperator(start, 'between') : start;
 }
 
+/** Поставить чип: новый — в конец, правка — на своё место. */
 export function withChip(conditions: FilterCondition[], cond: FilterCondition, index?: number): FilterGroup | null {
   return fromChips(index === undefined ? [...conditions, cond] : conditions.map((c, i) => (i === index ? cond : c)));
 }
