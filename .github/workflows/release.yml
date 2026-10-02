@@ -32,7 +32,7 @@ jobs:
           echo "::error::Выпуск делается только из master, а запрошен ${{ github.ref }}."
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # нужны теги: по ним проверяем, что версия действительно новая
 
@@ -70,7 +70,7 @@ jobs:
             exit 1
           fi
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -139,10 +139,10 @@ jobs:
             fi
           done
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Образ api
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.api
@@ -158,7 +158,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Образ web
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.web
@@ -174,7 +174,7 @@ jobs:
       # Едет тем же тегом версии, что api и web: compose тянет его по ${APP_VERSION}, и разъехаться
       # с остальной поставкой он не может.
       - name: Образ garage-init
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: deploy
           file: deploy/Dockerfile.garage-init
