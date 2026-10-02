@@ -18,7 +18,31 @@ public class DataSetFile : Entity
     public Guid? ScopeId { get; private set; }
 
     private readonly List<DataSetSource> _sources = [];
-    public IReadOnlyList<DataSetSource> Sources => _sources.AsReadOnly();
+
+    /// <summary>
+    /// Источники набора — ВСЕГДА в одном порядке (issue #1149): по времени создания, при равенстве —
+    /// по идентификатору.
+    ///
+    /// <para><b>Зачем.</b> База отдаёт источники в порядке строк в куче, а он меняется любой
+    /// правкой: UPDATE кладёт новую версию строки в другое место, и следующая выборка отдаёт
+    /// источник уже после соседа. Сохранил обработку первого источника — на странице «Наборы данных»
+    /// он уехал вниз, а распознавание, искавшее «первый источник с маркером», обновляло другую
+    /// копию.</para>
+    ///
+    /// <para><b>Почему здесь, а не у читателей.</b> Упорядочивать в каждой выдаче — значит держать
+    /// порядок на договорённости: читателей у набора больше десятка, и новый забыл бы её так же, как
+    /// забыли прежние. Поле заполняет EF (свойство он не читает и не пишет — работает с полем
+    /// напрямую), а всё остальное видит источники только отсюда.</para>
+    ///
+    /// <para><b>Почему время создания, а не имя.</b> Источники заводят по одному и в своём порядке
+    /// (листы книги; обложка — титул — документы альбома): новый встаёт в конец, переименованный
+    /// остаётся на месте. По имени переименование перебрасывало бы строку под рукой.</para>
+    ///
+    /// <para>Идентификатор — не «порядок», а развязка для строк, попавших в базу мимо
+    /// <see cref="AddSource" /> с одинаковым временем: без второго ключа между ними снова решала бы
+    /// куча. Сортировка — на каждое обращение: источников у набора единицы.</para>
+    /// </summary>
+    public IReadOnlyList<DataSetSource> Sources => [.. _sources.OrderBy(s => s.CreatedAt).ThenBy(s => s.Id)];
 
     /// <summary>
     /// Препроцессинг (issue #27/#28): хардкод-профиль распознавания, породивший структуру набора
@@ -86,10 +110,22 @@ public class DataSetFile : Entity
     /// <summary>Набор без файла: сырьё — данные системы (см. <see cref="CreateSystem"/>).</summary>
     public bool IsSystem => Format == DataSetFormat.System;
 
+    /// <summary>
+    /// Новый источник — в конец списка, что бы ни показывали часы (issue #1149).
+    ///
+    /// Место источника определяет время создания (см. <see cref="Sources" />), а время берётся с
+    /// часов сервера. Часы переводят назад — поправка времени, машина, поднятая из снимка, — и
+    /// источник, созданный после этого, встал бы ВЫШЕ существующих. Поэтому он создаётся не раньше
+    /// последнего из них.
+    ///
+    /// ⚠️ Работает только на наборе с ЗАГРУЖЕННЫМИ источниками (<c>Include(f => f.Sources)</c>): о
+    /// тех, которых в памяти нет, набор не знает, и сравнивать новому источнику не с чем.
+    /// </summary>
     public DataSetSource AddSource(string name, string sheetOrPath, string cachedSchema, int cachedRowCount,
         string? columnExpressions = null, string? cachedData = null)
     {
-        var src = DataSetSource.Create(Id, name, sheetOrPath, cachedSchema, cachedRowCount, columnExpressions, cachedData);
+        var src = DataSetSource.Create(Id, name, sheetOrPath, cachedSchema, cachedRowCount, columnExpressions, cachedData,
+            after: _sources.Count == 0 ? null : _sources.Max(s => s.CreatedAt));
         _sources.Add(src);
         TouchUpdatedAt();
         return src;

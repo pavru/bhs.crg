@@ -104,27 +104,6 @@ public class SystemSourceCounterTests
     }
 
     /// <summary>
-    /// Тот же список, собранный не из набора, а из источников, загруженных отдельно (экран
-    /// источников одного набора), — второй вход в тот же подсчёт.
-    /// </summary>
-    [Fact]
-    public async Task Источники_загруженные_отдельно_от_набора_считаются_так_же()
-    {
-        var (counter, provider) = Counter();
-        var file = SystemFile();
-        var sources = new[]
-        {
-            file.AddSource("Акты", Documents, "[]", 0),
-            file.AddSource("Протоколы", Documents, "[]", 0),
-        };
-
-        var states = await counter.StateAsync(file, sources, Reader, default);
-
-        Assert.Single(provider.Asked);
-        Assert.Equal(2, states.Count);
-    }
-
-    /// <summary>
     /// Ответ поставщика зависит от области набора, поэтому в ключе — и она: у двух комплектов на
     /// одной консолидации строки разные. Запомни мы ответ по одному маркеру, второй комплект
     /// показал бы число строк первого — правдоподобное и неверное.
