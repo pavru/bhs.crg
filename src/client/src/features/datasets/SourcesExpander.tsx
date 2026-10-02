@@ -37,10 +37,17 @@ import type {
 /** Мини-диалог: только имя нового шаблона — сама Extraction + обработка уже известны (текущие источника). */
 function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
   defaultName: string; isPending: boolean;
-  onSave: (name: string) => void; onClose: () => void;
+  onSave: (name: string) => Promise<unknown>; onClose: () => void;
 }) {
   const [name, setName] = useState(defaultName);
+  // Сервер шаблон с негодным отбором не примет (issue #1137) — причину показываем здесь же.
+  const [error, setError] = useState<string | null>(null);
   const canSave = !isPending && !!name.trim();
+  const submit = () => {
+    if (!canSave) return;
+    setError(null);
+    onSave(name.trim()).catch(e => setError(apiError(e, 'Не удалось сохранить шаблон')));
+  };
 
   return (
     <Modal
@@ -50,8 +57,7 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
       footer={
         <div className="flex gap-2 justify-end">
           <Button variant="text" size="sm" onClick={onClose} disabled={isPending}>Отмена</Button>
-          <Button variant="filled" size="sm" onClick={() => canSave && onSave(name.trim())}
-            disabled={!canSave} loading={isPending}>
+          <Button variant="filled" size="sm" onClick={submit} disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
@@ -61,7 +67,8 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
         станут переиспользуемым шаблоном — копия, не живая ссылка.
       </p>
       <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)} autoFocus
-        onKeyDown={e => { if (e.key === 'Enter' && canSave) onSave(name.trim()); }} />
+        onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
     </Modal>
   );
 }
@@ -174,13 +181,19 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const columns = [...new Set([...parseSourceColumnNames(src.cachedSchema), ...computedAliases])];
   const cols = parseSourceColumnNames(src.cachedSchema);
 
+  // Обработка уезжает ЦЕЛИКОМ, и сервер может отказать (issue #1137) — любому из трёх диалогов:
+  // отбор проверяется, если он в запросе не тот, что в базе, а у диалога сортировки он из копии
+  // источника на странице. Поэтому обещание отдаём диалогу — он ждёт ответ и показывает отказ у себя.
   function save(patch: { rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null }) {
-    setProcessing.mutate({
+    return setProcessing.mutateAsync({
       id: src.id, rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec, ...patch,
     });
   }
+  // Шаблон, чей отбор источник не выполнит, сервер отклоняет целиком (issue #1137). Действие — из
+  // меню, своего диалога у него нет, поэтому причина выходит тостом.
   function applyTemplate(templateId: string) {
-    applyTemplateMutation.mutate({ sourceId: src.id, templateId });
+    applyTemplateMutation.mutate({ sourceId: src.id, templateId },
+      { onError: e => toast.apiError(e, 'Не удалось применить шаблон') });
   }
   async function saveAsTemplate(name: string) {
     let columnExpressions: ColumnExprDef[] | null;

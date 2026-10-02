@@ -83,10 +83,12 @@ public class DataSetService(
         sources.ListZipXmlEntriesAsync(fileId, ct);
     public Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct) =>
         sources.PreviewExpressionAsync(fileId, rowSelector, expr, ct);
-    public Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct) =>
-        sources.SetSourceProcessingAsync(sourceId, input, ct);
-    public Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct) =>
-        sources.ApplyProcessingTemplateAsync(sourceId, templateId, ct);
+    public Task<DataSetSourceDto?> SetSourceProcessingAsync(
+        Guid sourceId, SetSourceProcessingInput input, DataAccess access, CancellationToken ct) =>
+        sources.SetSourceProcessingAsync(sourceId, input, access, ct);
+    public Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(
+        Guid sourceId, Guid templateId, DataAccess access, CancellationToken ct) =>
+        sources.ApplyProcessingTemplateAsync(sourceId, templateId, access, ct);
 
     // ── PDF-распознавание ───────────────────────────────────────────────────────
     public Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct) =>

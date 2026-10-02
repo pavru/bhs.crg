@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { ComputedColumn } from '@/shared/api/types';
 import { columnAccessor } from './computedColumnAccess';
+import { useDialogSave } from './useDialogSave';
 
 function ColumnRow({
   col,
@@ -63,9 +64,11 @@ export function ComputedColumnsDialog({
   initial: ComputedColumn[] | null;
   /** Колонки источника в его порядке — для вставки по клику (issue #539). */
   sourceColumns?: string[];
-  onSave: (cols: ComputedColumn[] | null) => void;
+  /** Обещание ждём: отказ сервера показываем здесь же, диалог закрывается только при успехе. */
+  onSave: (cols: ComputedColumn[] | null) => void | Promise<unknown>;
   onClose: () => void;
 }) {
+  const { saving, refusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить вычисляемые колонки');
   const [columns, setColumns] = useState<ComputedColumn[]>(initial ?? []);
   // Куда вставлять по клику: последнее выражение, в котором стоял курсор.
   const active = useRef<{ el: HTMLInputElement; index: number } | null>(null);
@@ -108,34 +111,36 @@ export function ComputedColumnsDialog({
 
   function handleSave() {
     const valid = columns.filter(c => c.alias.trim() && c.expr.trim());
-    onSave(valid.length > 0 ? valid : null);
-    onClose();
+    void commit(() => onSave(valid.length > 0 ? valid : null));
   }
 
   return (
     <Modal
       open={true}
-      onOpenChange={o => { if (!o) onClose(); }}
+      onOpenChange={o => { if (!o) close(); }}
       title="Вычисляемые колонки"
       wide
       footer={
         <div className="flex gap-2">
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
+            disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
-            Сохранить
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+            onClick={close}
+            disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50"
           >
             Отмена
           </button>
           {columns.length > 0 && (
             <button
-              onClick={() => { setColumns([]); onSave(null); onClose(); }}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+              onClick={() => void commit(() => onSave(null))}
+              disabled={saving}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
             >
               Сбросить
             </button>
@@ -220,6 +225,8 @@ export function ComputedColumnsDialog({
       >
         <Plus size={13} /> Добавить колонку
       </button>
+
+      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
     </Modal>
   );
 }

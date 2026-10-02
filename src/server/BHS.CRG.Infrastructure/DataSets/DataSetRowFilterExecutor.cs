@@ -14,11 +14,14 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// тому, кто помнит, сколько строк ожидал. В печатной форме такое расхождение вскрылось бы после
 /// подписи.</para>
 ///
-/// <para>Отказ — здесь, в исполнителе, а не проверкой при сохранении настройки: проверка на входе не
-/// покрывает то, что уже лежит в базе (условия сохранялись без проверки годами), а исполнитель —
-/// единственное место, через которое проходят все пять путей чтения (предпросмотр, выгрузка,
-/// генерация, MCP, сверка). Проверка при сохранении была бы удобством; гарантией она стать не может,
-/// и заведись она первой — следующий правщик решил бы, что здесь проверять уже нечего.</para>
+/// <para>Отказ — здесь, в исполнителе, а не только проверкой при сохранении настройки: проверка на
+/// входе не покрывает то, что уже лежит в базе (условия сохранялись без проверки годами), а
+/// исполнитель — единственное место, через которое проходят все пять путей чтения (предпросмотр,
+/// выгрузка, генерация, MCP, сверка). Проверка при сохранении (issue #1137) — удобство: человек
+/// узнаёт об ошибке там, где ошибся. Гарантией она стать не может, и убирать отказ отсюда на том
+/// основании, что «на входе уже проверено», нельзя: мимо входа идут восстановление из копии, копия
+/// источника и всё сохранённое раньше. Проверяет она тем же разбором (<see cref="Problem" />) —
+/// второго списка правил нет.</para>
 ///
 /// <para><b>Дерево проверяется целиком и ДО первой строки.</b> Проверка по ходу отбора молчала бы на
 /// источнике, который сегодня вернул ноль строк, — то есть сторожа не было бы ровно в том состоянии,
@@ -30,7 +33,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// ТЕКСТА в базе не бывает: его не принимает сама база. Достижимы два вида — годный JSON чужой формы
 /// (отбор, сохранённый строкой или массивом условий вместо корневой группы) и годное дерево с
 /// негодным содержимым (оператор, вид узла или логика, которых нет). Служба, сохраняющая настройку
-/// источника, принимает объект как есть и не проверяет ничего.</para>
+/// источника, до #1137 принимала объект как есть и не проверяла ничего.</para>
 ///
 /// <para><b>Чего отказом НЕ считаем.</b> Колонка, которой нет в строке, — обычное дело: строки из
 /// распознавания и CSV бывают рваные, и такое условие сравнивает с пустым значением (см. тест
@@ -107,7 +110,21 @@ public static class DataSetRowFilterExecutor
     /// </summary>
     public static FilterNode? Parse(string? rowFilterJson, string? sourceName = null, DataSetColumnTypes? types = null)
     {
-        if (string.IsNullOrWhiteSpace(rowFilterJson)) return null;
+        var (root, problem, cause) = Read(rowFilterJson, types);
+        return problem is null ? root : throw Refuse(sourceName, problem, cause);
+    }
+
+    /// <summary>
+    /// Что не так с отбором; null — годен либо его нет. Для сохранения настройки (issue #1137): там
+    /// отказ звучит иначе («не сохранён», а не «строки не отданы»), а правила обязаны быть теми же,
+    /// что при чтении, — поэтому это тот же разбор, а не вторая проверка.
+    /// </summary>
+    public static string? Problem(string? rowFilterJson, DataSetColumnTypes? types = null) =>
+        Read(rowFilterJson, types).Problem;
+
+    static (FilterNode? Root, string? Problem, Exception? Cause) Read(string? rowFilterJson, DataSetColumnTypes? types)
+    {
+        if (string.IsNullOrWhiteSpace(rowFilterJson)) return (null, null, null);
 
         FilterNode? root;
         try { root = JsonSerializer.Deserialize<FilterNode>(rowFilterJson, JsonOpts); }
@@ -115,16 +132,15 @@ public static class DataSetRowFilterExecutor
         {
             // Исходная ошибка — во внутреннем исключении, а не в тексте: наружу дословно уходит
             // только наш текст (см. DomainException), а разбор столкновения без причины невозможен.
-            throw Refuse(sourceName, "описание отбора не разбирается — текст условий испорчен.", ex);
+            return (null, "описание отбора не разбирается — текст условий испорчен.", ex);
         }
 
         if (root is null)
-            throw Refuse(sourceName,
+            return (null,
                 "описание отбора записано значением «null»: условий в нём нет, и отсутствием отбора "
-                + "это не считается.");
+                + "это не считается.", null);
 
-        Validate(root, "", sourceName, types);
-        return root;
+        return (root, Check(root, "", types), null);
     }
 
     /// <summary>
@@ -138,63 +154,67 @@ public static class DataSetRowFilterExecutor
     }
 
     /// <summary>
-    /// Проверка дерева до отбора. Путь узла — номера по уровням от корня («2.1» — первый ребёнок
-    /// второго узла корня): колонки в дереве повторяются, и одной колонки для «какое именно условие»
-    /// не хватает.
+    /// Проверка дерева до отбора: первое, что в нём не так, либо null. Путь узла — номера по уровням
+    /// от корня («2.1» — первый ребёнок второго узла корня): колонки в дереве повторяются, и одной
+    /// колонки для «какое именно условие» не хватает.
     /// </summary>
-    static void Validate(FilterNode node, string path, string? sourceName, DataSetColumnTypes? types)
+    static string? Check(FilterNode node, string path, DataSetColumnTypes? types)
     {
         if (node.Type == "condition")
         {
             if (string.IsNullOrWhiteSpace(node.Column))
-                throw Refuse(sourceName, $"{Place("условие", path)} не называет колонку.");
+                return $"{Place("условие", path)} не называет колонку.";
 
             // Оператор по умолчанию — «eq»: условия сохранялись без него, и менять им смысл нельзя.
             var op = node.Op ?? "eq";
             if (!Ops.ContainsKey(op))
-                throw Refuse(sourceName,
-                    $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}», "
-                    + "которого нет.");
+                return $"{Place("условие", path)} по колонке «{node.Column}» задано оператором «{op}», "
+                    + "которого нет.";
 
             // Значение — в одном месте: «value» и «values» разом — это два разных условия в одном
             // узле, и какое из них имел в виду автор, исполнитель не знает.
             if (node.Value is not null && node.Values is { Length: > 0 })
-                throw Refuse(sourceName,
-                    $"{Place("условие", path)} по колонке «{node.Column}» несёт значение дважды — и в "
-                    + "«value», и в «values».");
+                return $"{Place("условие", path)} по колонке «{node.Column}» несёт значение дважды — и в "
+                    + "«value», и в «values».";
 
             var values = ValuesOf(node);
             if (TableOperators.ArityProblem(op, values) is { } arity)
-                throw Refuse(sourceName, $"{Place("условие", path)} по колонке «{node.Column}»: {arity}.");
+                return $"{Place("условие", path)} по колонке «{node.Column}»: {arity}.";
 
             // Колонка, пришедшая без значений (нет права на суммы): у пустых клеток отбор вернул бы
             // «ничего не нашлось» — человек без права получил бы пустой набор вместо отказа.
             if (types is not null && types.Closed.TryGetValue(node.Column, out var reason))
-                throw Refuse(sourceName,
-                    $"{Place("условие", path)} стоит на колонке «{node.Column}», а она пришла без "
-                    + $"значений: {reason}.");
+                return $"{Place("условие", path)} стоит на колонке «{node.Column}», а она пришла без "
+                    + $"значений: {reason}.";
 
             if (types is not null && types.Kinds.TryGetValue(node.Column, out var kind)
                 && TableConditions.Problem(kind, op, values) is { } problem)
-                throw Refuse(sourceName, $"{Place("условие", path)} по колонке «{node.Column}»: {problem}.");
-            return;
+                return $"{Place("условие", path)} по колонке «{node.Column}»: {problem}.";
+            return null;
         }
 
         if (node.Type != "group")
-            throw Refuse(sourceName,
-                $"{Place("узел", path)} назван видом «{node.Type}», которого нет: бывают «condition» "
-                + "и «group».");
+            return $"{Place("узел", path)} назван видом «{node.Type}», которого нет: бывают «condition» "
+                + "и «group».";
 
         // Логику проверяем и у группы без условий: негодная логика — это опечатка в настройке, а не
         // повод молча применить «and».
         if (node.Logic is not ("and" or "or"))
-            throw Refuse(sourceName,
-                $"{Place("группа", path)} связывает условия логикой «{node.Logic}», которой нет: "
-                + "бывают «and» и «or».");
+            return $"{Place("группа", path)} связывает условия логикой «{node.Logic}», которой нет: "
+                + "бывают «and» и «or».";
 
         var children = node.Children ?? [];
         for (var i = 0; i < children.Length; i++)
-            Validate(children[i], path.Length == 0 ? $"{i + 1}" : $"{path}.{i + 1}", sourceName, types);
+        {
+            var childPath = path.Length == 0 ? $"{i + 1}" : $"{path}.{i + 1}";
+            // «null» среди узлов разбор пропускает как значение — и без этой строки отказом был бы
+            // NullReferenceException: 500 без текста вместо названной причины и на сохранении, и на
+            // чтении отбора, приехавшего из копии.
+            if (children[i] is null)
+                return $"{Place("узел", childPath)} записан значением «null»: ни условия, ни группы в нём нет.";
+            if (Check(children[i], childPath, types) is { } problem) return problem;
+        }
+        return null;
     }
 
     static string Place(string kind, string path)
@@ -211,7 +231,7 @@ public static class DataSetRowFilterExecutor
 
     /// <summary>
     /// Дерево, готовое к строкам: колонка, оператор и значения каждого условия разобраны ОДИН раз, а
-    /// не на каждой строке. Дерево обязано быть проверенным (<see cref="Validate" />).
+    /// не на каждой строке. Дерево обязано быть проверенным (<see cref="Check" />).
     /// </summary>
     static Func<IReadOnlyDictionary<string, string?>, bool> Compile(FilterNode node, DataSetColumnTypes? types)
     {
@@ -228,7 +248,7 @@ public static class DataSetRowFilterExecutor
             return row => test(row.TryGetValue(column, out var cell) ? cell : null);
         }
 
-        // group — вид узла и логика уже проверены (Validate), так что иных ветвей здесь нет.
+        // group — вид узла и логика уже проверены (Check), так что иных ветвей здесь нет.
         var children = (node.Children ?? []).Select(c => Compile(c, types)).ToArray();
         if (children.Length == 0) return _ => true;   // группа без условий ничего не ограничивает
         return node.Logic == "or"

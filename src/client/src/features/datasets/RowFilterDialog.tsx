@@ -4,10 +4,11 @@ import { Modal } from '@/shared/ui/Modal';
 import type { FilterCondition, FilterGroup, FilterOp, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
 import {
-  conditionProblem, fromDraft, hasProblems, newCondition, newGroup, operatorsFor, opLabel, toDraft,
+  conditionProblem, fromDraft, newCondition, newGroup, operatorsFor, opLabel, pruneDraft, toDraft,
   withColumn, withOperator, type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
+import { useDialogSave } from './useDialogSave';
 
 // Reused field styling for condition selects/inputs.
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
@@ -43,11 +44,14 @@ function LogicToggle({
 
 function FilterConditionRow({
   cond,
+  path,
   columns,
   onChange,
   onRemove,
 }: {
   cond: FilterCondition;
+  /** Номер условия по уровням от корня («2.1») — им сервер называет условие в отказе. */
+  path: string;
   columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
@@ -57,6 +61,8 @@ function FilterConditionRow({
   // остаётся в списке и назван: молча подменить его значило бы переписать чужое условие.
   const allowed = operatorsFor(column);
   const ops = allowed.includes(cond.op) ? allowed : [cond.op, ...allowed];
+  // Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
+  // то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор.
   const problem = conditionProblem(cond, columns);
   // Колонка условия, которой в источнике уже нет, тоже остаётся в списке: иначе выбор показал бы
   // «— колонка —» у условия, которое в базе стоит на конкретной колонке.
@@ -65,6 +71,7 @@ function FilterConditionRow({
   return (
     <div>
       <div className="flex items-start gap-1.5 group/cond">
+        <span className="w-6 shrink-0 pt-1.5 text-[10px] tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
         {/* Column */}
         {columns.length > 0 ? (
           <select
@@ -118,7 +125,7 @@ function FilterConditionRow({
           <Trash2 size={12} />
         </button>
       </div>
-      {problem && <p className="mt-0.5 text-xs text-danger">Условие не выполнится: {problem}.</p>}
+      {problem && <p className="mt-0.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
     </div>
   );
 }
@@ -129,12 +136,15 @@ const DEPTH_COLORS = ['var(--f-brand)', 'color-mix(in srgb, var(--f-brand) 50%, 
 
 function FilterGroupEditor({
   group,
+  path,
   onChange,
   onRemove,
   depth,
   columns,
 }: {
   group: DraftGroup;
+  /** Номер самой группы по уровням от корня; у корня пусто. */
+  path: string;
   onChange: (g: DraftGroup) => void;
   onRemove?: () => void;
   depth: number;
@@ -203,6 +213,8 @@ function FilterGroupEditor({
       {group.children.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           {group.children.map((child, i) => {
+            // Счёт узлов — тот же, что у сервера: по уровням от корня, с единицы.
+            const childPath = path ? `${path}.${i + 1}` : `${i + 1}`;
             // Ключ — свой у строки, а не её номер: строка помнит недобранное значение списка и вид
             // поля, и при удалении условия это не должно переехать к следующему.
             if (child.type === 'condition') {
@@ -210,6 +222,7 @@ function FilterGroupEditor({
                 <FilterConditionRow
                   key={child.key}
                   cond={child}
+                  path={childPath}
                   columns={columns}
                   onChange={c => updateChild(i, c)}
                   onRemove={() => removeChild(i)}
@@ -220,6 +233,7 @@ function FilterGroupEditor({
               <FilterGroupEditor
                 key={child.key}
                 group={child}
+                path={childPath}
                 depth={depth + 1}
                 columns={columns}
                 onChange={g => updateChild(i, g)}
@@ -258,7 +272,11 @@ export function RowFilterDialog({
   /** Колонки источника с их видами; без них (шаблон обработки) колонка вписывается текстом. */
   columns?: FilterColumn[];
   initial: RowFilterDef | null;
-  onSave: (filter: RowFilterDef | null) => void;
+  /**
+   * Сохранение. Обещание ждём: отказ сервера («такой отбор источник не выполнит») показываем здесь
+   * же, и диалог остаётся открытым — исправить условие можно только в нём.
+   */
+  onSave: (filter: RowFilterDef | null) => void | Promise<unknown>;
   onClose: () => void;
 }) {
   // Негодную форму сохранённого отбора заменяем пустым корнем и говорим об этом вслух (ниже):
@@ -269,48 +287,47 @@ export function RowFilterDialog({
     () => (isEditableFilterRoot(initial) ? toDraft(initial!) as DraftGroup : newGroup())
   );
 
-  function handleSave() {
-    const cleaned = cleanFilterNode(fromDraft(root)) as FilterGroup | null;
-    onSave(cleaned);
-    onClose();
-  }
+  const { saving, refusal, clearRefusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить отбор');
 
-  function handleReset() {
-    onSave(null);
-    onClose();
+  // На экране с этого момента — ровно то дерево, что уехало: пустые строки на сервер не идут, а он
+  // называет условие номером по отправленному («условие 2.1»). Останься они, номер в отказе указывал
+  // бы на соседнюю строку.
+  function handleSave() {
+    const sent = pruneDraft(root);
+    setRoot(sent);
+    void commit(() => onSave(cleanFilterNode(fromDraft(sent)) as FilterGroup | null));
   }
+  const handleReset = () => void commit(() => onSave(null));
 
   const hasAny = root.children.length > 0;
-  // Отбор с условием, которое сервер не выполнит, не сохраняем: отказ пришёл бы уже после — чтением
-  // источника, и не там, где человек ошибся.
-  const blocked = hasProblems(root, columns ?? []);
 
   return (
     <Modal
       open={true}
-      onOpenChange={o => { if (!o) onClose(); }}
+      onOpenChange={o => { if (!o) close(); }}
       title="Фильтрация строк"
       wide
       footer={
         <div className="flex gap-2 items-center">
           <button
             onClick={handleSave}
-            disabled={blocked}
-            title={blocked ? 'Исправьте отмеченные условия: такой отбор источник не выполнит' : undefined}
+            disabled={saving}
             className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
-            Сохранить
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+            onClick={close}
+            disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50"
           >
             Отмена
           </button>
           {hasAny && (
             <button
               onClick={handleReset}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+              disabled={saving}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
             >
               Сбросить фильтр
             </button>
@@ -334,12 +351,17 @@ export function RowFilterDialog({
       <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
-          onChange={setRoot}
+          path=""
+          // Отказ сервера — про отбор, который отправляли. Тронули условие — он уже про другое
+          // дерево, и висеть рядом с исправленным условием ему нельзя.
+          onChange={next => { setRoot(next); clearRefusal(); }}
           onRemove={undefined}
           depth={0}
           columns={columns ?? []}
         />
       </div>
+
+      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
     </Modal>
   );
 }

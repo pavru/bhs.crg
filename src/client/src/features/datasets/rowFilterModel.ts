@@ -109,8 +109,10 @@ const KIND_NAMES: Record<string, string> = {
 };
 
 /**
- * Почему сервер это условие не выполнит; null — возражений нет. Говорим ДО сохранения: отказ сервера
- * приходит уже после него, чтением источника, и человек видит его не там, где ошибся.
+ * Почему сервер это условие, скорее всего, не выполнит; null — возражений нет. Это ПОДСКАЗКА под
+ * условием, а не запрет: решает сервер при сохранении (issue #1137), и его отказ диалог показывает
+ * сам. Копия правил здесь нужна, чтобы назвать причину сразу и у самого условия; запирать сохранение
+ * ей нельзя — разойдясь с сервером, она заперла бы годный отбор (так было с «пусто» у даты).
  *
  * Сохранённое негодное условие здесь не чинится и не прячется: оно показывается как есть и названо.
  */
@@ -167,13 +169,6 @@ function isDate(value: string): boolean {
   return year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
-/** Есть ли в дереве условие, которое сервер не выполнит. */
-export function hasProblems(node: FilterNode, columns: FilterColumn[]): boolean {
-  return node.type === 'condition'
-    ? conditionProblem(node, columns) !== null
-    : node.children.some(c => hasProblems(c, columns));
-}
-
 /**
  * Колонки диалога: колонки источника как есть, затем вычисляемые — без вида. При совпадении имён
  * берётся колонка источника: сервер проверяет условие по ИМЕНИ колонки, и объявленный вид действует
@@ -217,6 +212,22 @@ export function toDraft(node: FilterNode): DraftNode {
   if (node.type === 'group')
     return { ...node, key: nextKey(), children: (Array.isArray(node.children) ? node.children : []).map(toDraft) };
   return { ...node, column: typeof node.column === 'string' ? node.column : '', op: node.op ?? 'eq', key: nextKey() };
+}
+
+/**
+ * Черновик без того, что на сервер не уедет: строк с невыбранной колонкой и опустевших групп — по
+ * правилу `cleanFilterNode`. Диалог показывает ЭТО дерево с момента сохранения: сервер называет
+ * условие номером по отправленному дереву («условие 2.1»), и останься пустые строки на экране, номер
+ * указывал бы на соседнее условие — а колонка у соседей бывает одна. Ключи уцелевших строк прежние;
+ * корень остаётся и пустым — диалогу нужна группа.
+ */
+export function pruneDraft(group: DraftGroup): DraftGroup {
+  const children = group.children.flatMap<DraftNode>(child => {
+    if (child.type === 'condition') return child.column.trim() ? [child] : [];
+    const pruned = pruneDraft(child);
+    return pruned.children.length > 0 ? [pruned] : [];
+  });
+  return { ...group, children };
 }
 
 /** Черновик — обратно в дерево, которое уходит на сервер: без ключей строк. */

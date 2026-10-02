@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { FILTER_OP_LABELS } from '@/shared/api/types';
+import { cleanFilterNode } from '@/shared/api/datasetHelpers';
 import {
-  UNTYPED_OPS, conditionProblem, filterColumns, fromDraft, hasProblems, newCondition, newGroup, opArity,
-  opLabel, operatorsFor, toDraft, valueFits, withColumn, withOperator, type DraftGroup, type FilterColumn,
+  UNTYPED_OPS, conditionProblem, filterColumns, fromDraft, newCondition, newGroup, opArity,
+  opLabel, operatorsFor, pruneDraft, toDraft, valueFits, withColumn, withOperator,
+  type DraftGroup, type FilterColumn,
 } from './rowFilterModel';
 
 /**
@@ -164,14 +166,6 @@ describe('conditionProblem', () => {
     expect(conditionProblem(cond({ column: '', op: 'in', value: undefined, values: [] }), columns)).toBeNull();
   });
 
-  it('негодное условие в глубине дерева находится', () => {
-    const tree: FilterGroup = {
-      type: 'group', logic: 'and',
-      children: [cond({}), { type: 'group', logic: 'or', children: [cond({ op: 'contains', value: '1' })] }],
-    };
-    expect(hasProblems(tree, columns)).toBe(true);
-    expect(hasProblems({ ...tree, children: [cond({})] }, columns)).toBe(false);
-  });
 });
 
 describe('valueFits', () => {
@@ -218,7 +212,7 @@ describe('черновик диалога', () => {
     const bare = { type: 'condition', column: 'Итого', value: '5' } as unknown as FilterCondition;
     const draft = toDraft({ type: 'group', logic: 'and', children: [bare] }) as DraftGroup;
     expect(draft.children[0]).toMatchObject({ column: 'Итого', op: 'eq', value: '5' });
-    expect(hasProblems(draft, columns)).toBe(false);
+    expect(conditionProblem(draft.children[0] as FilterCondition, columns)).toBeNull();
   });
 
   it('условие без колонки и группа без детей диалог не роняют', () => {
@@ -229,6 +223,37 @@ describe('черновик диалога', () => {
     const draft = toDraft(broken) as DraftGroup;
     expect(draft.children.slice(0, 2)).toMatchObject([{ column: '' }, { column: '' }]);
     expect(draft.children[2]).toMatchObject({ children: [] });
-    expect(hasProblems(draft, columns)).toBe(false);
+    for (const child of draft.children.slice(0, 2))
+      expect(conditionProblem(child as FilterCondition, columns)).toBeNull();
+  });
+
+  // Сервер называет условие номером по ОТПРАВЛЕННОМУ дереву («условие 2»). Пустые строки на сервер
+  // не уезжают — значит, и на экране их с момента сохранения быть не должно, иначе «условие 2»
+  // оказалось бы третьей строкой, а второй — годное условие по той же колонке.
+  it('перед отправкой с экрана уходит то, что не уедет: номера условий совпадают с серверными', () => {
+    const between = { ...newCondition(), column: 'Итого', op: 'between' as const, values: ['80', '110'] };
+    const contains = { ...newCondition(), column: 'Итого', op: 'contains' as const, value: '1' };
+    const nested = { ...newCondition(), column: 'Номер', value: 'А' };
+    const draft = newGroup([
+      newCondition(),                                  // колонка не выбрана
+      between,
+      newGroup([newCondition()]),                      // группа, в которой после чистки пусто
+      contains,
+      newGroup([newCondition(), nested]),
+    ]);
+
+    const sent = pruneDraft(draft);
+
+    // Ключи уцелевших строк прежние: строка помнит недобранное значение и вид поля.
+    expect(sent.children.map(c => c.key)).toEqual([between.key, contains.key, draft.children[4].key]);
+    expect((sent.children[2] as DraftGroup).children.map(c => c.key)).toEqual([nested.key]);
+    // И это ровно то дерево, что уезжает на сервер.
+    expect(fromDraft(sent)).toEqual(cleanFilterNode(fromDraft(draft)));
+  });
+
+  it('черновик из одних пустых строк остаётся пустой группой — диалогу есть что показать', () => {
+    const sent = pruneDraft(newGroup([newCondition(), newGroup([newCondition()])]));
+    expect(sent).toMatchObject({ type: 'group', children: [] });
+    expect(cleanFilterNode(fromDraft(sent))).toBeNull();
   });
 });

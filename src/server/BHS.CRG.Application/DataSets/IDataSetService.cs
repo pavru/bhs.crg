@@ -136,15 +136,22 @@ public interface IDataSetService
     /// <summary>Предпросмотр XPath/JSONPath-выражения в builder'е — без сохранения источника.</summary>
     Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct);
 
-    /// <summary>Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает.</summary>
-    Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct);
+    /// <summary>
+    /// Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает.
+    /// Изменённый отбор проверяется: негодный отказывает <c>InvalidRequestException</c> с причиной
+    /// (issue #1137). Доступ нужен проверке — виды колонок системного набора зависят от прав.
+    /// </summary>
+    Task<DataSetSourceDto?> SetSourceProcessingAsync(
+        Guid sourceId, SetSourceProcessingInput input, DataAccess access, CancellationToken ct);
 
     /// <summary>
     /// Применить шаблон (Extraction, если задан в шаблоне, + Filter/Transformation/Sort) к
     /// источнику — copy-on-apply, единожды. Extraction в шаблоне триггерит пере-парсинг файла
-    /// (как Update/CreateSourceInput), в отличие от SetSourceProcessingAsync.
+    /// (как Update/CreateSourceInput), в отличие от SetSourceProcessingAsync. Шаблон, чей отбор
+    /// источник не выполнит, отклоняется целиком — источник не меняется (issue #1137).
     /// </summary>
-    Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct);
+    Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(
+        Guid sourceId, Guid templateId, DataAccess access, CancellationToken ct);
 
     // ── Processing templates (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ────
     Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct);

@@ -57,6 +57,24 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         DataSetSource source, DataSetFile file, DataAccess access, CancellationToken ct)
         => file.IsSystem ? await StateAsync(source.SheetOrPath, file, access, ct) : null;
 
+    /// <summary>
+    /// Виды колонок источника для ПРОВЕРКИ отбора при сохранении (issue #1137); null — видов у
+    /// источника нет вовсе (набор не системный, маркер без поставщика, поставщик видов не объявил).
+    ///
+    /// <para>Отказ ворот и поставщика здесь НЕ глотается — в отличие от <see cref="StateAsync(DataSetSource, DataSetFile, DataAccess, CancellationToken)" />.
+    /// Счётчику «состояния нет» годится: он покажет запомненное число. Проверке — нет: «виды узнать
+    /// не удалось» выглядело бы как «видов нет», отбор проверился бы только по форме, и человек,
+    /// которому источник закрыт, сохранил бы «Итого содержит 1» — отказом для всех, кто источник
+    /// читает. Кому поставщик отказывает в строках, тому он отказывает и здесь, теми же словами.</para>
+    /// </summary>
+    public async Task<DataSetColumnTypes?> TypesAsync(
+        DataSetSource source, DataSetFile file, DataAccess access, CancellationToken ct)
+    {
+        if (!file.IsSystem || providers.TryGet(source.SheetOrPath) is not { } provider) return null;
+        SystemDataSetGate.Ensure(provider.Declaration, access, source.Name);
+        return (await provider.ProvideAsync(source.SheetOrPath, file.Scope, file.ScopeId, access, ct)).Types;
+    }
+
     private async Task AddAsync(Dictionary<Guid, SystemSourceState> states, DataSetFile file,
         IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
     {
