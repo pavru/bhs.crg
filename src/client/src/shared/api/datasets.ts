@@ -489,14 +489,22 @@ export function useRecognizeDocumentTable(fileId: string) {
 
 // ── Обработка источника (Filter/Transformation/Sort) — лёгкая правка, файл не трогает ─────
 
+/**
+ * Правка обработки ПО ЧАСТЯМ (issue #1139). Части, которой в правке нет, сервер не трогает и не
+ * проверяет; `null` её сбрасывает. Диалог шлёт только то, что правит сам: досланная «за компанию»
+ * часть из копии источника на странице затёрла бы то, что тем временем сохранил другой человек.
+ *
+ * Объединение, а не запись с необязательными полями: правку без единой части сервер отклоняет, а
+ * `undefined` в запрос не попадает вовсе — тип не должен пропускать ни то, ни другое.
+ */
+export type SourceProcessingPatch =
+  | { rowFilter: RowFilterDef | null }
+  | { computedColumns: ComputedColumn[] | null }
+  | { sortSpec: SortSpec | null };
+
 export function useSetDataSetSourceProcessing() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, {
-    id: string;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
-    sortSpec?: SortSpec | null;
-  }>({
+  return useMutation<DataSetSource, Error, { id: string } & SourceProcessingPatch>({
     mutationFn: ({ id, ...data }) =>
       apiClient.put(`/datasets/sources/${id}/processing`, data).then(r => r.data),
     // Инвалидируем и предпросмотр источника (issue #399): счётчик строк и превью считаются пост-пайплайна

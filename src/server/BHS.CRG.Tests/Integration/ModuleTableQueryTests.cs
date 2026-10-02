@@ -255,13 +255,7 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
     {
         var (client, _) = await SignInAsync("Admin");
 
-        var file = await client.PostAsJsonAsync("/api/datasets/files/system", new { scope = "System", name = "Системные" });
-        await OkAsync(file);
-        var fileId = (await file.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        var created = await client.PostAsJsonAsync($"/api/datasets/files/{fileId}/sources",
-            new { name = $"Счета {Guid.NewGuid():N}", sheetOrPath = $"system:table:{Address}" });
-        await OkAsync(created);
-        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var id = await SourceAsync(client);
 
         var files = await client.GetFromJsonAsync<JsonElement>("/api/datasets/files?scope=System");
         var source = files.EnumerateArray().SelectMany(f => f.GetProperty("sources").EnumerateArray())

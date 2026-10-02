@@ -252,9 +252,6 @@ public record RecognizePlan(bool Background, string Title, Guid FileId);
 /// </summary>
 public record ApplyGroupingInput(IReadOnlyList<GostGroupingGroupDto> Groups);
 
-/// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
-public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);
-
 public record CreateProcessingTemplateInput(
     string Name, string? SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions,
     object? RowFilter, object? ComputedColumns, object? SortSpec);
