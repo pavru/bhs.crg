@@ -237,12 +237,45 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         }
     }
 
+    /// <summary>
+    /// Таблицы из <see cref="TruncatedTables" />, в которые с прошлой очистки что-то писали
+    /// (issue #1164).
+    ///
+    /// <para>Зачем выбирать. Очистка идёт перед КАЖДЫМ тестом — экземпляр класса xUnit создаёт на
+    /// тест, — а <c>TRUNCATE</c> платит не за строки, а за отношения: каждой таблице, её индексам и
+    /// TOAST заводится новый файл. У сорока двух таблиц отношений 175, и это 60 мс на очистку —
+    /// 57 секунд на прогон, хотя тест обычно трогает три-четыре таблицы.</para>
+    ///
+    /// <para>Признак — РАЗМЕР, а не «есть ли строки». У усечённой таблицы файл пуст, и первая же
+    /// вставка выделяет страницу; обратно страница не отдаётся ни удалением строк, ни откатом
+    /// (отдать её может только VACUUM, а после него мёртвых версий в таблице уже нет). То есть
+    /// нулевой размер означает «усекать нечего», и повторное усечение такой таблицы не меняет
+    /// ничего. Спроси мы вместо этого про строки, таблица с удалёнными
+    /// строками осталась бы неусечённой — с мёртвыми версиями в куче, от которых зависит порядок
+    /// выдачи без сортировки, а на нём тесты уже ловили настоящие дефекты (issue #1149).</para>
+    /// </summary>
+    internal static async Task<List<string>> TouchedTablesAsync(AppDbContext db) =>
+        await db.Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT t AS "Value" FROM unnest({0}) AS t
+                WHERE pg_relation_size(format('%I', t)::regclass) > 0
+                """,
+                (object)TruncatedTables)
+            .ToListAsync();
+
     /// <summary>Truncates all domain tables so each test class starts clean.</summary>
     public async Task ResetDatabaseAsync()
     {
         await WaitForBackgroundJobsAsync();
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Усекаем только тронутые — см. TouchedTablesAsync. CASCADE при этом дотягивается до тех же
+        // таблиц, что и раньше: вне списка на таблицы списка не ссылается никто (иначе нынешняя
+        // очистка сносила бы «оставленное нарочно»), а внутри списка нетронутая таблица пуста и так.
+        var touched = await TouchedTablesAsync(db);
+
         // Имена берём в кавычки: сейчас список весь в нижнем регистре, но часть таблиц модели
         // названа как RefreshTokens, и первое же такое имя, добавленное сюда как есть, Postgres
         // свернёт в refreshtokens — фикстура упадёт до первого теста с «relation does not exist».
@@ -250,9 +283,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         // EF1003 — про склейку значений в SQL. Здесь склеиваются имена таблиц, а имя таблицы
         // параметром не передашь; список выше — константа в коде тестов, снаружи в него не попасть.
 #pragma warning disable EF1003
-        await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE " + string.Join(", ", TruncatedTables.Select(t => $"\"{t}\""))
-            + " RESTART IDENTITY CASCADE");
+        if (touched.Count > 0)
+            await db.Database.ExecuteSqlRawAsync(
+                "TRUNCATE TABLE " + string.Join(", ", touched.Select(t => $"\"{t}\""))
+                + " RESTART IDENTITY CASCADE");
 #pragma warning restore EF1003
 
         await ResetModuleSchemasAsync(scope);
