@@ -119,6 +119,9 @@ public sealed record ModuleTableColumn(
 /// службы — отказ при старте, как схема без контекста.</param>
 /// <param name="RecordType">Код типа записи, чьи поля схемы тоже доступны колонками (поля, которые
 /// заказчик дописал в тип). null — таблица живёт одними системными колонками.</param>
+/// <param name="Views">Готовые представления таблицы — её настройки, которые поставляет модуль
+/// (<see cref="ModuleTableView" />): «Реестр счетов» у таблицы счетов. null — готовых нет, и таблица
+/// открывается всеми колонками в порядке объявления.</param>
 public sealed record ModuleTable(
     string Code,
     string Title,
@@ -128,7 +131,8 @@ public sealed record ModuleTable(
     string Boundary,
     IReadOnlyList<ModuleTableColumn> Columns,
     Type Reader,
-    string? RecordType = null)
+    string? RecordType = null,
+    IReadOnlyList<ModuleTableView>? Views = null)
 {
     /// <summary>Полный адрес таблицы: <c>модуль.таблица</c>.</summary>
     public static string Address(string module, string code) => $"{module}.{code}";
@@ -184,6 +188,16 @@ public sealed record ModuleTable(
             if (options.Distinct(StringComparer.Ordinal).Count() != options.Count)
                 problems.Add($"в перечне колонки «{column.Key}» значение названо дважды");
         }
+
+        // Представления — после колонок: они на колонки ссылаются, и негодная колонка названа выше.
+        foreach (var view in Views ?? [])
+        {
+            if (view is null) { problems.Add("в списке представлений пустое место"); continue; }
+            problems.AddRange(view.Problems(Columns));
+        }
+        foreach (var twice in (Views ?? []).Where(v => v is not null)
+                     .GroupBy(v => v.Code, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            problems.Add($"представление «{twice.Key}» объявлено дважды");
 
         return problems;
     }

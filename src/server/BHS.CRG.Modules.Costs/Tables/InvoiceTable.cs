@@ -28,6 +28,13 @@ namespace BHS.CRG.Modules.Costs.Tables;
 /// <para><b>«Осталось дней» и «Просрочен» считаются от сегодня и не хранятся</b> (ТЗ COST-9.1, CORE-33;
 /// задача G1c, issue #1090): источник считает их на чтении от срока «оплатить до» в поясе компании,
 /// и по ним работают отбор и сортировка — правило одно на запрос и на клетку (<see cref="InvoiceDue" />).</para>
+///
+/// <para><b>«Реестр счетов» — готовое представление этой таблицы, а не отдельный отчёт</b> (ТЗ
+/// COST-20.1; задача G4, issue #1097): колонки и их порядок — как в таблице, с которой заказчик
+/// работает сегодня. ⚠️ Оплаты в нём пока нет ничего, кроме состояния: колонка «Оплачено: дата, сумма»
+/// и отбор периода по дате оплаты приезжают вместе с отметкой оплаты (C5, issue #1082). До тех пор
+/// период отбирается по дате счёта — и колонка суммы говорит это подписью, потому что такой итог с
+/// «Затратами по стройке» (COST-20) не сходится и сходиться не должен.</para>
 /// </summary>
 public static class InvoiceTable
 {
@@ -49,7 +56,34 @@ public static class InvoiceTable
     /// <summary>Срок оплаты прошёл, а счёт оплаты ещё ждёт.</summary>
     public const string OverdueKey = "СрокПросрочен";
 
+    /// <summary>
+    /// Сколько строк счёта стоит без позиции номенклатуры; пусто — ни одной. То же число, что счётчик
+    /// в списке счетов: без колонки оно читается по одному счёту за раз — открывая каждый.
+    ///
+    /// <para>⚠️ Это ФАКТ о строках, а не очередь «Разобрать»: отклонённый счёт в очередь не входит
+    /// (issue #1166), а строки без позиции у него остаются — и счётчик в списке счетов у него прежний.
+    /// Очередь в реестре — «не пусто» вместе с «Состояние документа ≠ Отклонён»; что это одно и то же,
+    /// держит тест.</para>
+    /// </summary>
+    public const string UnmatchedKey = "СтрокБезПозиции";
+
+    /// <summary>
+    /// Подпись суммы под отбором периода: чем период назван — и чем он НЕ является. Другой оси у
+    /// реестра пока нет; с отметкой оплаты (C5) появится выбор, и подпись станет называть выбранную.
+    /// </summary>
+    public const string ByIssueDateNote = "период — по дате счёта, не по оплате";
+
+    /// <summary>Код готового представления «Реестр счетов» (ТЗ COST-20.1).</summary>
+    public const string RegistryView = "registry";
+
     private const string Amounts = "суммы";
+
+    /// <summary>
+    /// Денежные колонки, чей ИТОГ под отбором периода называет ось подписью. «Сумма» сюда не входит:
+    /// её подпись длиннее — она же называет долю — и приходит ещё и к заголовку.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> MoneyByIssueDate =
+        [InvoiceRequisites.TotalKey, InvoiceRequisites.VatTotalKey];
 
     public static ModuleTable Declaration { get; } = new(
         Code,
@@ -77,6 +111,7 @@ public static class InvoiceTable
             new(InvoiceRequisites.DueDateKey, "Оплатить до", ModuleTableColumnKind.Date),
             new(DaysLeftKey, "Осталось дней", ModuleTableColumnKind.Number),
             new(OverdueKey, "Просрочен", ModuleTableColumnKind.Boolean),
+            new(UnmatchedKey, "Строк без позиции", ModuleTableColumnKind.Number),
             // Состояния — закрытые перечни: отбор по ним выбирают из списка, а слово вне перечня —
             // отказ, а не «таких счетов нет» (G1d, issue #1091).
             new(InvoiceRequisites.StateKey, "Состояние документа", ModuleTableColumnKind.Choice,
@@ -85,7 +120,29 @@ public static class InvoiceTable
                 Options: [.. Enum.GetValues<InvoicePaymentState>().Select(InvoiceRequisites.Label)]),
         ],
         typeof(InvoiceTableRows),
-        CostsRecordTypes.InvoiceCode);
+        CostsRecordTypes.InvoiceCode,
+        [
+            // Порядок — как в реестре заказчика (ТЗ COST-20.1): контрагент, сумма, номер и дата,
+            // отгрузка, отсрочка, оплатить до, осталось дней, оплата, объект, компания, назначение.
+            //
+            // «Сумма к оплате» стоит сразу за «Суммой» нарочно: под отбором по объекту первая
+            // становится долей, и одинокая доля неотличима от полной суммы (ревизия Дизайнера).
+            new(RegistryView, "Реестр счетов",
+                [
+                    InvoiceRequisites.SupplierKey, AmountKey, InvoiceRequisites.TotalKey,
+                    InvoiceRequisites.NumberKey, InvoiceRequisites.DateKey, InvoiceRequisites.ShippedOnKey,
+                    InvoiceRequisites.DeferralKey, InvoiceRequisites.DueDateKey, DaysLeftKey,
+                    InvoiceRequisites.PaymentKey, ObjectsKey, InvoiceRequisites.PayerKey,
+                    InvoiceRequisites.PurposeKey, UnmatchedKey,
+                ],
+                Totals: [new(AmountKey, "sum"), new(InvoiceRequisites.TotalKey, "sum")],
+                Pinned: 1,
+                Filters:
+                [
+                    InvoiceRequisites.DateKey, InvoiceRequisites.PayerKey, InvoiceRequisites.SupplierKey,
+                    ObjectsKey, InvoiceRequisites.PaymentKey,
+                ]),
+        ]);
 }
 
 /// <summary>
@@ -131,6 +188,8 @@ public sealed class InvoiceTableRows(
         // Отбор НАЗЫВАЕТ объекты — «Сумма» становится долей счёта на них (ТЗ CORE-33). Иначе это сумма
         // счёта целиком, и считает её запрос, как любую числовую колонку.
         var naming = TableFilters.Naming(query.Filter, InvoiceTable.ObjectsKey);
+        // Отбор называет период — и называет его ДАТОЙ СЧЁТА: другой оси у реестра пока нет (C5).
+        var byIssueDate = TableFilters.Naming(query.Filter, InvoiceRequisites.DateKey).Count > 0;
         var shareTotal = naming.Count > 0 && query.Totals?.ContainsKey(InvoiceTable.AmountKey) == true;
         var shareCells = naming.Count > 0 && query.Columns.Contains(InvoiceTable.AmountKey);
 
@@ -164,11 +223,35 @@ public sealed class InvoiceTableRows(
             : null;
         if (shareTotal) totals[InvoiceTable.AmountKey] = InvoiceShares.Total(amounts!.Values);
 
+        // Что сумма значит под этим отбором — колонке «Сумма» (у неё меняется и смысл клетки) и под
+        // КАЖДЫМ денежным итогом. Ось периода — свойство отбора, а не одной колонки: под отбором по
+        // дате счёта итог «Суммы к оплате» — тоже «за счета, выставленные в периоде», и без оговорки
+        // он читается как то, что сходится с затратами по стройке.
+        var note = shares.Note(naming, byIssueDate);
+        Annotate(totals, InvoiceTable.AmountKey, note);
+        if (byIssueDate)
+            foreach (var money in InvoiceTable.MoneyByIssueDate) Annotate(totals, money, InvoiceTable.ByIssueDateNote);
+
+        // Счётчик «ждут позиции» — по счетам страницы, одним запросом; условие то же, что у колонки
+        // в запросе (см. Sql).
+        var unmatched = query.Columns.Contains(InvoiceTable.UnmatchedKey)
+            ? await db.InvoiceLines.AsNoTracking()
+                .Where(l => ids.Contains(l.InvoiceId) && l.NomenclatureId == null)
+                .GroupBy(l => l.InvoiceId).Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.Key, g => g.Count, ct)
+            : [];
+
         var objects = shares.Objects(parts);
         return new(
-            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, today))], count, totals,
-            naming.Count == 0 ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = shares.Note(naming) },
+            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today))], count, totals,
+            note is null ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = note },
             [.. invoices.Select(i => i.Id.ToString())]);
+    }
+
+    /// <summary>Подпись под итогом колонки — если итог по ней считался.</summary>
+    private static void Annotate(Dictionary<string, TableTotal> totals, string key, string? note)
+    {
+        if (note is not null && totals.TryGetValue(key, out var total)) totals[key] = total with { Note = note };
     }
 
     /// <summary>
@@ -197,6 +280,13 @@ public sealed class InvoiceTableRows(
             .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
             .Number(InvoiceTable.DaysLeftKey, InvoiceDue.DaysLeft(today))
             .Flag(InvoiceTable.OverdueKey, InvoiceDue.Overdue(today))
+            // Ноль — пусто, а не «0»: у разобранного счёта клетка молчит, и отбор «не пусто» отдаёт
+            // счета, где разбирать есть что. Подзапрос ОДИН и сам даёт NULL, когда строк нет: построитель
+            // подставляет выражение в запрос по нескольку раз (отбор, сортировка — дважды, итог), и
+            // «count = 0 ? null : count» удваивало бы каждое из них (ревью PR #1177).
+            .Number(InvoiceTable.UnmatchedKey, i => db.InvoiceLines
+                .Where(l => l.InvoiceId == i.Id && l.NomenclatureId == null)
+                .GroupBy(l => l.InvoiceId).Select(g => (decimal?)g.Count()).FirstOrDefault())
             .Choice(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Choice(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
@@ -206,7 +296,7 @@ public sealed class InvoiceTableRows(
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts,
-        DateOnly today)
+        Dictionary<Guid, int> unmatched, DateOnly today)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -232,6 +322,8 @@ public sealed class InvoiceTableRows(
 
         if (open.Contains(InvoiceTable.DaysLeftKey)) row[InvoiceTable.DaysLeftKey] = InvoiceDue.DaysLeftOf(invoice, today);
         if (open.Contains(InvoiceTable.OverdueKey)) row[InvoiceTable.OverdueKey] = InvoiceDue.OverdueOf(invoice, today);
+        if (open.Contains(InvoiceTable.UnmatchedKey))
+            row[InvoiceTable.UnmatchedKey] = unmatched.TryGetValue(invoice.Id, out var waiting) ? (decimal)waiting : null;
 
         foreach (var field in invoice.Data.RootElement.EnumerateObject())
             if (!row.ContainsKey(field.Name)) row[field.Name] = Scalar(field.Value);

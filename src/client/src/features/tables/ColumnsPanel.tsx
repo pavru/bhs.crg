@@ -5,7 +5,7 @@ import { MoveButtons } from '@/shared/ui/MoveButtons';
 import type { TableColumn } from '@/shared/api/tables';
 import { AGGREGATES, aggregatesFor } from './tableTotals';
 import {
-  chooserOrder, withColumnMoved, withColumnShown, withColumnsReset, withPinned, withTotal,
+  chooserOrder, columnsCustomised, withColumnMoved, withColumnShown, withColumnsReset, withPinned, withTotal,
   type Aggregate, type TableView,
 } from './tableViewState';
 
@@ -17,10 +17,14 @@ import {
  * закрытая правом, и колонка, которой в типе больше нет, из списка не пропадают — каждая стоит со
  * своей причиной, иначе «куда делась колонка» было бы нечем объяснить.
  */
-export function ColumnsPanel({ columns, view, gridColumns, onChange }: {
+export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onChange }: {
   /** Все колонки таблицы — из её описания. */
   columns: TableColumn[];
   view: TableView;
+  /** От чего настройка отсчитана: умолчания таблицы либо готовое представление. */
+  base: TableView;
+  /** Название готового представления; нет — основа сама таблица. */
+  baseTitle?: string;
   /** Сколько колонок сейчас в сетке: закрепить можно не больше. */
   gridColumns: number;
   onChange: (next: TableView) => void;
@@ -28,7 +32,7 @@ export function ColumnsPanel({ columns, view, gridColumns, onChange }: {
   const all = columns.map(c => c.key);
   const byKey = new Map(columns.map(c => [c.key, c]));
   const shown = view.columns ?? all;
-  const customised = view.columns !== null || view.totals.length > 0 || view.pinned > 0;
+  const customised = columnsCustomised(view, base);
 
   // Порядок строк списка запоминается, когда окошко открывают: показанные колонки, за ними
   // остальные. Пока оно открыто, снятая галочка строку не уносит — иначе колонка убегала бы из-под
@@ -49,6 +53,8 @@ export function ColumnsPanel({ columns, view, gridColumns, onChange }: {
           className="inline-flex items-center gap-1.5 rounded-md border border-stroke px-2.5 py-1 text-xs text-fg2 hover:text-fg1 hover:bg-muted">
           <Columns3 size={13} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
+          {/* Точка — настройка отошла от готового представления: «Реестр счетов» на экране уже не он. */}
+          {baseTitle && customised && <span className="text-warning" title={`Изменено относительно «${baseTitle}»`}>•</span>}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -89,9 +95,9 @@ export function ColumnsPanel({ columns, view, gridColumns, onChange }: {
               ))}
             </select>
             <div className="flex-1" />
-            <button type="button" disabled={!customised} onClick={() => onChange(withColumnsReset(view))}
+            <button type="button" disabled={!customised} onClick={() => onChange(withColumnsReset(view, base))}
               className="text-fg3 hover:text-fg1 disabled:opacity-40 disabled:hover:text-fg3">
-              Как у таблицы
+              {baseTitle ? `Как в «${baseTitle}»` : 'Как у таблицы'}
             </button>
           </div>
         </Popover.Content>

@@ -37,6 +37,25 @@ internal sealed class InvoiceShares(IReadOnlyDictionary<Guid, string> labels)
             g => (IReadOnlyList<string>)[.. g.Select(Label).Distinct(StringComparer.Ordinal).Order(ByName)]);
 
     /// <summary>
+    /// Подпись колонки суммы под отбором: что число значит и чем оно сужено. Называет ОБА сужения, а
+    /// не одно (ТЗ COST-20.1; задача G4, issue #1097): «доля: Комарова 36» под отбором, где есть и
+    /// стройка, и период, утверждала бы, что сумма сужена одним способом.
+    ///
+    /// <para>Период здесь — всегда по ДАТЕ СЧЁТА, и подпись это говорит: «Затраты по стройке» (COST-20)
+    /// считают по оплаченным в периоде счетам, и итог реестра с ними не сойдётся. Не сказать — значит
+    /// оставить человека сверять две цифры, которые и не должны совпасть.</para>
+    /// </summary>
+    /// <returns>null — отбор не называет ни объектов, ни периода, и смысл суммы обычный.</returns>
+    public string? Note(IReadOnlyList<TableFilterCondition> naming, bool byIssueDate) =>
+        (naming.Count > 0, byIssueDate) switch
+        {
+            (true, true) => $"{Note(naming)}; {InvoiceTable.ByIssueDateNote}",
+            (true, false) => Note(naming),
+            (false, true) => InvoiceTable.ByIssueDateNote,
+            _ => null,
+        };
+
+    /// <summary>
     /// Подпись колонки суммы под отбором по объекту: «доля: Комарова 36». Объекты — те, чьё название
     /// подошло под условия отбора; длинный перечень заменяется числом — подпись стоит в заголовке.
     /// </summary>

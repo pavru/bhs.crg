@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { FileText, ListChecks, Plus, Sparkles, Table2, Tags, TriangleAlert } from 'lucide-react';
+import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -19,10 +18,9 @@ import { K, formatDate, formatMoney, scanFitsBeside } from './invoiceFields';
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
  *
- * <p>⚠️ Это НЕ реестр из ТЗ. Полноценный реестр со своей сеткой, отбором, сохранёнными
- * представлениями и постраничностью приезжает задачей G4 — здесь список ровно затем, чтобы дойти до
- * формы и увидеть, что черновик в него попал. Назвать его реестром значило бы объявить сделанным то,
- * что не начато.</p>
+ * <p>⚠️ Это НЕ реестр из ТЗ. Реестр — готовое представление таблицы счетов, со своей сеткой, отбором
+ * и постраничностью (задача G4, issue #1097), и у него свой пункт в навигации. Здесь список ровно
+ * затем, чтобы дойти до формы и увидеть, что черновик в него попал.</p>
  */
 export function InvoicesPage() {
   const [selected, setSelected] = useState<string | null>(null);
@@ -36,7 +34,6 @@ export function InvoicesPage() {
   const organizations = useCostsOrganizations();
   const create = useCreateInvoice();
   const toast = useToast();
-  const navigate = useNavigate();
 
   const view = useInvoice(selected ?? undefined);
   const items = (invoices.data ?? []).filter(i => matches(i, query));
@@ -66,11 +63,6 @@ export function InvoicesPage() {
               Статьи вне строек
             </Button>
           )}
-          {/* Те же счета таблицей модуля, с отбором чипами (G1d, issue #1091). Готовый «Реестр счетов»
-              со своим пунктом в навигации — задача G4; до неё вход в таблицу — отсюда. */}
-          <Button variant="outlined" icon={<Table2 size={16} />} onClick={() => navigate('/tables/costs.invoices')}>
-            Таблицей
-          </Button>
           <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
             Новый счёт
           </Button>

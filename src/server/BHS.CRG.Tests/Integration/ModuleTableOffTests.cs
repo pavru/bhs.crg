@@ -31,7 +31,7 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
         Assert.Equal(TableColumnReasons.ModuleOff, table.GetProperty("state").GetString());
         Assert.Empty(table.GetProperty("rows").EnumerateArray());
         var columns = table.GetProperty("columns").EnumerateArray().ToList();
-        Assert.Equal(16, columns.Count);
+        Assert.Equal(17, columns.Count);
         Assert.All(columns, c =>
         {
             Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString());
@@ -55,6 +55,8 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
             described.GetProperty("columns").EnumerateArray().Select(c => c.GetProperty("key").GetString()));
         Assert.All(described.GetProperty("columns").EnumerateArray(),
             c => Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString()));
+        // Готовых представлений у выключенной таблицы нет (G4, issue #1097): настраивать нечего, строк нет.
+        Assert.Empty(described.GetProperty("views").EnumerateArray());
 
         // В перечне таблиц выключенного модуля нет: представления скрыты, но не удалены (AUTH-19).
         var list = await client.GetFromJsonAsync<JsonElement>("/api/tables");
