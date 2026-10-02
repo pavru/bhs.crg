@@ -15,11 +15,12 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/types-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, watchRequests, settled } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
+watchRequests(page);
 const { check, summarize } = createChecks();
 
 await login(page);
@@ -88,12 +89,12 @@ await check('field-summary-covers-three-kinds', async () => {
 // ── Пикер типа поля: список собирает buildFieldTypeOptions ────────────────────
 await check('field-type-picker-has-all-sections', async () => {
   await page.locator('button').filter({ hasText: 'Дата начала работ' }).first().click();
-  // Пауза — на РАСКРЫТИЕ карточки поля: схема типа уже в странице, запроса за раскрытием нет.
-  await page.waitForTimeout(1000);
+  // Ждём РАСКРЫТИЕ карточки поля: схема типа уже в странице, запроса за раскрытием нет.
+  await settled(page);
   await page.locator('button').filter({ hasText: /^Дата$/ }).first().click();
-  // Пауза — на открытие диалога пикера (анимация Radix). Разделы в нём собираются из тех же
+  // Ждём открытие диалога пикера. Разделы в нём собираются из тех же
   // реестров, что уже загружены переходом на страницу, — ждать сервер здесь нечего.
-  await page.waitForTimeout(1500);
+  await settled(page);
   const t = await page.locator('[role=dialog]').last().innerText();
   for (const section of ['БАЗОВЫЕ', 'ТИПЫ ПОЛЕЙ (РЕЕСТР)', 'ПЕРЕЧИСЛЕНИЯ', 'СОСТАВНЫЕ ТИПЫ']) {
     if (!t.includes(section)) throw new Error(`в пикере нет раздела «${section}»`);
@@ -107,9 +108,9 @@ await check('field-type-picker-has-all-sections', async () => {
 await check('field-type-pick-updates-summary', async () => {
   const picker = page.locator('[role=dialog]').last();
   await picker.locator('button').filter({ hasText: /^Флаг/ }).first().click();
-  // Пауза — на перерисовку карточки после ЛОКАЛЬНОЙ правки: выбор типа поля пишется в состояние
+  // Ждём перерисовку карточки после ЛОКАЛЬНОЙ правки: выбор типа поля пишется в состояние
   // редактора, на сервер он уходит только кнопкой «Сохранить», которую эта проверка не нажимает.
-  await page.waitForTimeout(1200);
+  await settled(page);
   const card = page.locator('button').filter({ hasText: 'ДатаНачалаРабот' }).first();
   const t = await card.innerText();
   if (!/Флаг/.test(t)) throw new Error(`сводка поля не стала «Флаг»: ${t.replace(/\s+/g, ' ').slice(0, 120)}`);
@@ -128,21 +129,21 @@ await check('dirty-badge-reaches-page-header', async () => {
  */
 await check('leave-guard-asks-before-switching-type', async () => {
   await page.locator('button').filter({ hasText: /^Приложение АОСР/ }).first().click();
-  // Пауза — на появление диалога-гарда (анимация): перехват ухода целиком в браузере, запроса нет.
-  await page.waitForTimeout(1200);
+  // Ждём появление диалога-гарда: перехват ухода целиком в браузере, запроса нет.
+  await settled(page);
   const t = await page.locator('body').innerText();
   if (!/Несохранённые изменения/.test(t)) throw new Error('переход прошёл без вопроса о несохранённом');
   await page.locator('button').filter({ hasText: /^Не сохранять$/ }).first().click();
-  // Пауза — на закрытие диалога и отрисовку выбранного типа. «Не сохранять» правку именно
+  // Ждём закрытие диалога и отрисовку выбранного типа. «Не сохранять» правку именно
   // БРОСАЕТ: запроса, ответ которого стоило бы дождаться, здесь нет по смыслу.
-  await page.waitForTimeout(2000);
+  await settled(page);
 });
 
 // ── Проверка сборки Typst-блоков ──────────────────────────────────────────────
 await check('typst-blocks-check-reports-result', async () => {
   await page.locator('button').filter({ hasText: 'Typst-блоки' }).first().click();
-  // Пауза — на раскрытие панели (анимация). Ответ самой проверки блоков ждётся состоянием ниже.
-  await page.waitForTimeout(1200);
+  // Ждём раскрытие панели. Ответ самой проверки блоков ждётся состоянием ниже.
+  await settled(page);
   await page.locator('button').filter({ hasText: 'Проверить блоки' }).first().click();
   // Ждём состояние, а не время: на холодном API первый ответ приходит позже фиксированных
   // четырёх секунд, и проверка краснела БЕЗ поломки — ровно тот же промах, что уже описан у
@@ -185,8 +186,8 @@ await check('enum-preview-in-list', async () => {
 await check('template-versions-grouped-by-name', async () => {
   await page.goto(`${BASE}/templates`, { waitUntil: 'networkidle' });
   await page.locator('button').filter({ hasText: /Тип документа|Выберите тип/ }).first().click();
-  // Пауза — на открытие диалога выбора типа (анимация); типы в нём уже загружены переходом.
-  await page.waitForTimeout(1200);
+  // Ждём открытие диалога выбора типа; типы в нём уже загружены переходом.
+  await settled(page);
   const picker = page.locator('[role=dialog]').last();
   // Выбор типа ТЯНЕТ ДАННЫЕ: версии шаблона приходят запросом `GET /api/templates?documentTypeId=…`.
   // Ждём его ответ, а не 3 секунды: на холодном API ответ приходит позже, и группировка версий
@@ -279,9 +280,9 @@ await page.goto(`${BASE}/composite-types`, { waitUntil: 'networkidle' });
 async function openComposite(name) {
   const search = page.getByPlaceholder('Поиск типа…');
   await search.fill(name);
-  // Пауза — на перефильтровку рейла: поиск отбирает УЖЕ загруженный список в браузере, запроса за
+  // Ждём перефильтровку рейла: поиск отбирает УЖЕ загруженный список в браузере, запроса за
   // ним нет. Щелчок ниже и сам дожидается появления кнопки.
-  await page.waitForTimeout(1200);
+  await settled(page);
   await page.locator('button').filter({ hasText: name }).first().click();
   // Ждём не время, а заголовок ОТКРЫТОГО типа. Имя штампованное и уникальное, поэтому такое
   // ожидание отличает «деталь показывает нужный тип» от «на экране всё ещё предыдущий» — а пауза
@@ -310,8 +311,8 @@ await check('type-owner-is-visible-and-changeable', async () => {
     throw new Error(`владелец показан не словами: «${before}»`);
 
   await owner.click();
-  // Пауза — на раскрытие списка Radix Select (анимация); варианты уже в странице.
-  await page.waitForTimeout(600);
+  // Ждём раскрытие списка Radix Select; варианты уже в странице.
+  await settled(page);
   // Щелчок по варианту И ЕСТЬ сохранение: владельца пишет мгновенная мутация
   // `PUT /api/document-types/{id}/module` — отдельной кнопки «Сохранить» у этого поля нет. Поэтому
   // ждём ОТВЕТ, а не 1,5 секунды: `reload()` ниже обрывал недошедший запрос, владелец оставался
@@ -334,13 +335,13 @@ await check('core-type-refuses-to-lean-on-a-module-type', async () => {
   // Пикер адресуется ИМЕНЕМ (подпись связана через aria-labelledby), а не текстом кнопки: текст
   // у неё — выбранное значение, «— без родителя —», и совпал бы с любым другим пустым пикером.
   await page.getByRole('button', { name: /Родительский тип/ }).first().click();
-  // Пауза — на открытие диалога пикера (анимация); типы в нём уже загружены.
-  await page.waitForTimeout(1200);
+  // Ждём открытие диалога пикера; типы в нём уже загружены.
+  await settled(page);
   await page.locator('[role=dialog]').last().locator('button')
     .filter({ hasText: OWNED }).first().click();
-  // Пауза — на закрытие диалога и перерисовку пикера: выбор родителя пишется в состояние формы, на
+  // Ждём закрытие диалога и перерисовку пикера: выбор родителя пишется в состояние формы, на
   // сервер он уходит только кнопкой «Сохранить» ниже.
-  await page.waitForTimeout(1000);
+  await settled(page);
   // Ждём ОТВЕТ на запись параметров (`PUT /api/document-types/{id}`), а не 2,5 секунды: пауза
   // короче ответа дала бы «отказ не доехал до экрана» — назвала бы поломкой правила то, что прогон
   // просто не дождался.

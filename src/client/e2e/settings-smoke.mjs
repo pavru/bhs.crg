@@ -13,11 +13,12 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/settings-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, watchRequests, settled } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
+watchRequests(page);
 const { check, summarize } = createChecks();
 
 await login(page);
@@ -33,10 +34,10 @@ let openTitle = null;
 async function openSection(title) {
   if (openTitle) {
     await page.locator('button').filter({ hasText: openTitle }).first().click();
-    await page.waitForTimeout(700);
+    await settled(page);
   }
   await page.locator('button').filter({ hasText: title }).first().click();
-  await page.waitForTimeout(1500);
+  await settled(page);
   openTitle = title;
   return page.locator('body').innerText();
 }
@@ -44,7 +45,7 @@ async function openSection(title) {
 try {
 
 await page.goto(`${BASE}/settings`);
-await page.waitForTimeout(3000);
+await settled(page);
 
 // ── Интеграции: пять кусков формы поверх одного ответа ─────────────────────────
 await check('integrations-form-shows-saved-engines', async () => {
@@ -66,11 +67,11 @@ await check('integrations-domain-list-keeps-typed-text', async () => {
   // Хвостовой перевод строки — то, ради чего список и хранит «сырой» текст: очищенный список от
   // него не меняется, и текст обязан остаться на экране как набран.
   await area.fill(`${before}\n`);
-  await page.waitForTimeout(600);
+  await settled(page);
   const after = await area.inputValue();
   if (after !== `${before}\n`) throw new Error(`набранное не удержалось: «${JSON.stringify(after)}»`);
   await area.fill(before);   // возвращаем как было (наружу и так уходит тот же список)
-  await page.waitForTimeout(400);
+  await settled(page);
 });
 
 // ── Почта, обновления, резервное копирование ──────────────────────────────────
@@ -114,17 +115,24 @@ await check('backup-schedule-edit-survives-refetch', async () => {
   const before = await time.inputValue();
   const probe = before === '04:44' ? '05:55' : '04:44';
   await time.fill(probe);
-  await page.waitForTimeout(18000);   // дольше 15 с — опрос за это время точно случился
+  // Ждём САМ опрос, а не «дольше 15 с»: ответ на перечитывание копий, пришедший ПОСЛЕ правки, и
+  // есть событие, после которого поломка возможна. Пауза в 18 с платилась целиком, а обещала
+  // меньше: задержись опрос — проверка прочла бы поле до него и позеленела, ничего не проверив.
+  await page.waitForResponse(
+    r => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith('/backup/files'),
+    { timeout: 30_000 },
+  ).catch(() => { throw new Error('за 30 с копии не перечитались ни разу — проверять правку не на чем'); });
+  await settled(page);   // ответ — ещё не экран: форме нужно его принять
   const after = await time.inputValue();
   if (after !== probe) throw new Error(`перечитывание выбросило правку: набрано «${probe}», стало «${after}»`);
   await time.fill(before);   // ничего не сохраняем — возвращаем как было
-  await page.waitForTimeout(400);
+  await settled(page);
 });
 
 // ── Профиль ───────────────────────────────────────────────────────────────────
 await check('profile-shows-account-name-and-keeps-typing', async () => {
   await page.goto(`${BASE}/profile`);
-  await page.waitForTimeout(2500);
+  await settled(page);
   // Первый input на странице — скрытый выбор аватара; имя лежит в текстовом, а TextField атрибут
   // type не проставляет — потому `:not([type])`, а не `[type=text]`.
   const field = page.locator('input:not([type])').first();
@@ -134,11 +142,11 @@ await check('profile-shows-account-name-and-keeps-typing', async () => {
   // у useAccount нет ни интервала, ни повода перечитать за это время — проверять «правка переживает
   // ответ сервера» этим прогоном было бы самообманом (поймано ревью PR #864).
   await field.fill(`${before} X`);
-  await page.waitForTimeout(1200);
+  await settled(page);
   const after = await field.inputValue();
   if (after !== `${before} X`) throw new Error(`набранное имя не удержалось: «${after}»`);
   await field.fill(before);
-  await page.waitForTimeout(400);
+  await settled(page);
 });
 
 // ── Профили распознавания ─────────────────────────────────────────────────────
@@ -152,12 +160,12 @@ await check('profile-shows-account-name-and-keeps-typing', async () => {
 // абзаце подтверждает лишь то, что на странице есть буквы.
 await check('profile-shows-my-permissions-in-words', async () => {
   await page.goto(`${BASE}/profile`);
-  await page.waitForTimeout(2500);
+  await settled(page);
 
   const core = page.getByRole('button', { name: /^Ядро/ });
   if ((await core.count()) < 1) throw new Error('в профиле нет группы прав «Ядро»');
   await core.first().click();
-  await page.waitForTimeout(600);
+  await settled(page);
 
   const list = page.locator('ul').filter({ hasText: /core\./ }).first();
   const items = await list.locator('li').allInnerTexts();
@@ -180,7 +188,7 @@ await check('profile-shows-my-permissions-in-words', async () => {
 // innerText отдаёт их прописными.
 await check('appearance-and-language-live-in-the-profile', async () => {
   await page.goto(`${BASE}/profile`);
-  await page.waitForTimeout(2500);
+  await settled(page);
   if ((await page.getByRole('heading', { name: /Оформление и язык/i }).count()) < 1)
     throw new Error('в профиле нет блока «Оформление и язык»');
   // ⚠️ Имя группы — ЛИЧНОЕ («…, личная настройка»), а не общее. Такой же переключатель стоит в
@@ -192,7 +200,7 @@ await check('appearance-and-language-live-in-the-profile', async () => {
     throw new Error('в профиле нет выбора языка');
 
   await page.goto(`${BASE}/settings`);
-  await page.waitForTimeout(2500);
+  await settled(page);
   if ((await page.getByRole('heading', { name: /шаблоны/i }).count()) < 1)
     throw new Error('раздел настроек не открылся — запрет ниже ничего не значит');
   if ((await page.getByRole('heading', { name: /региональн/i }).count()) > 0)
@@ -201,11 +209,11 @@ await check('appearance-and-language-live-in-the-profile', async () => {
 
 await check('recognition-profile-detail-shows-fields', async () => {
   await page.goto(`${BASE}/recognition-profiles`);
-  await page.waitForTimeout(3000);
+  await settled(page);
   const rows = page.locator('button').filter({ hasText: /штамп|счёт|обложк|титул|таблиц/i });
   if ((await rows.count()) < 1) throw new Error('в списке профилей нечего открыть');
   await rows.first().click();
-  await page.waitForTimeout(2000);
+  await settled(page);
   const inputs = await page.locator('input[type=text], input:not([type])').evaluateAll(els => els.map(e => e.value));
   if (!inputs.some(v => v && v.trim())) throw new Error('поля профиля пусты — форма собралась не из ответа');
 });

@@ -21,7 +21,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/routing-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, clearSession, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, clearSession, createChecks, watchRequests, settled } from './harness.mjs';
 
 const USER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
@@ -33,6 +33,7 @@ const atPath = p => url => new URL(url).pathname === p;
 
 const browser = await launchBrowser();
 const page = await browser.newPage();
+watchRequests(page);
 page.on('dialog', d => d.accept());
 
 try {
@@ -232,7 +233,8 @@ try {
   await check('roles-editor-explains-every-permission', async () => {
     await page.goto(`${BASE}/roles`);
     await page.waitForSelector('text=Роли и права', { timeout: 5000 });
-    await page.waitForTimeout(1500);
+    // Заголовок на месте раньше данных: роли и справочник прав приходят своими запросами.
+    await settled(page);
 
     // .first() — на этом экране два <nav>: боковое меню приложения и левая колонка списка ролей.
     const menu = await page.locator('nav').first().innerText();
