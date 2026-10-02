@@ -71,6 +71,10 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     /// тесты, которые заводят и удаляют БАЗЫ (перепись миграций), и тесноты они не переносят: их отказ
     /// приходит таймаутом, виноватой выглядит база, а не сосед. Сбрасывать здесь и нечего: счета
     /// заводятся с разными номерами, а читаются по идентификатору — чужие строки им не мешают.
+    ///
+    /// <para>Чистится база раз за прогон, перед первым тестом, — это делает хост
+    /// (<see cref="IntegrationTestFixture.InitializeAsync" />, issue #1142): без очистки вовсе она росла
+    /// от прогона к прогону.</para>
     /// </summary>
     private async Task SeedAsync()
     {
@@ -816,6 +820,8 @@ public sealed class InvoiceHost : IntegrationTestFixture
     private static string ConnectionString { get; } = Dedicated();
 
     private static string Dedicated() => TestDatabases.ConnectionString("invoices");
+
+    protected override string HostConnectionString => ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

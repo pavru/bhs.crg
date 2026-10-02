@@ -225,6 +225,8 @@ public sealed class CostsOnlyHost : IntegrationTestFixture
 
     private static string Dedicated() => TestDatabases.ConnectionString("costs");
 
+    protected override string HostConnectionString => ConnectionString;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);

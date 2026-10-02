@@ -79,13 +79,22 @@ public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLine
 
     // ── Посев ─────────────────────────────────────────────────────────────────
 
+    /// <summary>Сколько полей в схеме типа счёта — общей на все тесты хоста.</summary>
+    protected async Task<int> InvoiceFieldsAsync()
+    {
+        using var scope = host.Services.CreateScope();
+        var core = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
+        var type = await core.DocumentTypes.AsNoTracking().SingleAsync(t => t.Code == CostsRecordTypes.InvoiceCode);
+        return type.Schema.RootElement.GetProperty("fields").GetArrayLength();
+    }
+
     protected sealed record Seed(string Tag, string Weight, string Warranty, string Note);
 
     /// <summary>Восемь счетов с грязными данными; номера — «{метка}-1…8».</summary>
     protected async Task<Seed> SeedAsync(HttpClient client)
     {
         var tag = $"П{Guid.NewGuid().ToString("N")[..6]}";
-        var seed = new Seed(tag, $"Вес_{tag}", $"Гарантия_{tag}", $"Пометка_{tag}");
+        var seed = new Seed(tag, "ПробаВес", "ПробаГарантия", "ПробаПометка");
 
         var ids = new List<Guid>();
         for (var i = 0; i < 8; i++) ids.Add(await CreateAsync(client));
@@ -94,10 +103,23 @@ public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLine
         var core = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
         var type = await core.DocumentTypes.SingleAsync(t => t.Code == CostsRecordTypes.InvoiceCode);
         var root = System.Text.Json.Nodes.JsonNode.Parse(type.Schema.RootElement.GetRawText())!.AsObject();
-        foreach (var (key, kind) in new[] { (seed.Weight, "number"), (seed.Warranty, "date"), (seed.Note, "string") })
-            root["fields"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["key"] = key, ["title"] = key, ["type"] = kind });
-        type.UpdateSchema(JsonDocument.Parse(root.ToJsonString()));
-        await core.SaveChangesAsync();
+        var fields = root["fields"]!.AsArray();
+        var known = fields.Select(f => f!["key"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+
+        // Поля схемы — ОДНИ на все тесты, и заводятся один раз. Прежде у каждого посева были свои
+        // («Вес_{метка}»), и каждый дописывал в общий тип три поля: за прогон схема вырастала на сотни
+        // колонок, а за десятки прогонов — до 578 (issue #1142), и каждое чтение таблицы отдавало по
+        // колонке на каждое. Своими у теста остаются СТРОКИ: значения полей лежат в счёте, а счета
+        // отделяет метка в номере.
+        var missing = new[] { (seed.Weight, "number"), (seed.Warranty, "date"), (seed.Note, "string") }
+            .Where(f => !known.Contains(f.Item1)).ToList();
+        foreach (var (key, kind) in missing)
+            fields.Add(new System.Text.Json.Nodes.JsonObject { ["key"] = key, ["title"] = key, ["type"] = kind });
+        if (missing.Count > 0)
+        {
+            type.UpdateSchema(JsonDocument.Parse(root.ToJsonString()));
+            await core.SaveChangesAsync();
+        }
 
         // Прямо в базу: через адрес счёта нечисло в числовое поле не положить — а на живых данных оно
         // лежит (распознавание, загрузка), и исполнители расходятся именно на нём.
