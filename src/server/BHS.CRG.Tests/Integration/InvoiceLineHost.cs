@@ -302,8 +302,10 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
 /// <para>База чистится один раз, перед первым тестом прогона
 /// (<see cref="IntegrationTestFixture.InitializeAsync" />): классы этого хоста отделяют свои строки
 /// меткой и за собой не убирают.</para>
+///
+/// <para>Не запечатан ради <see cref="InvoiceClockHost" />: тот же хост с подставным «сегодня».</para>
 /// </summary>
-public sealed class InvoiceLineHost : IntegrationTestFixture
+public class InvoiceLineHost : IntegrationTestFixture
 {
     private static string ConnectionString { get; } = Dedicated();
 
