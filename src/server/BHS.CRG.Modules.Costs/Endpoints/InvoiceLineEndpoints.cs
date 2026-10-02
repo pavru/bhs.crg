@@ -89,7 +89,11 @@ public static class InvoiceLineEndpoints
                         "строка вернулась бы молча.")
                 : Added(db, invoice.Id);
 
-            line.Apply(index + 1, values);
+            // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
+            // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
+            // строки из ста давала бы сто обновлений, а время правки у девяноста девяти врало бы.
+            // У новой строки место ещё нулевое, поэтому она сюда попадает всегда.
+            if (line.Ordinal != index + 1 || line.Snapshot() != values) line.Apply(index + 1, values);
             kept.Add(line.Id);
             now.Add((line.Id, values));
         }
@@ -114,9 +118,14 @@ public static class InvoiceLineEndpoints
             : null;
         if (reason is not null) invoice.ReturnToDraft();
 
+        // Правка строк — правка счёта: время его правки обязано сдвинуться. Повторная отправка того же
+        // набора правкой не является — ни для журнала, ни для времени.
+        var changed = !was.SequenceEqual(now);
+        if (changed) invoice.ContentChanged();
+
         await db.SaveChangesAsync(ct);
 
-        if (!was.SequenceEqual(now))
+        if (changed)
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"строк: {count}", ct: ct);
 
