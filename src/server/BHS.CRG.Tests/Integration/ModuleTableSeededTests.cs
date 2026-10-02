@@ -65,6 +65,18 @@ public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLine
         return name;
     }
 
+    /// <summary>Источник набора данных на таблице счетов — в своём системном наборе; отдаёт его id.</summary>
+    protected static async Task<Guid> SourceAsync(HttpClient client)
+    {
+        var file = await client.PostAsJsonAsync("/api/datasets/files/system", new { scope = "System", name = "Системные" });
+        await OkAsync(file);
+        var fileId = (await file.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var created = await client.PostAsJsonAsync($"/api/datasets/files/{fileId}/sources",
+            new { name = $"Счета {Guid.NewGuid():N}", sheetOrPath = Marker });
+        await OkAsync(created);
+        return (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+    }
+
     // ── Посев ─────────────────────────────────────────────────────────────────
 
     protected sealed record Seed(string Tag, string Weight, string Warranty, string Note);
