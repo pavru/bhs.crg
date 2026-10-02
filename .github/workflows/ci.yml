@@ -413,7 +413,11 @@ jobs:
           # экран счетов закрыт воротами модуля, и прогон счетов отказывает с названной причиной —
           # молча зелёным он не станет.
           Modules__Enabled: id,costs
-          ConnectionStrings__Postgres: Host=localhost;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          # Адрес, а не имя localhost (issue #1151): одно значение на все окружения, как и порт. На
+          # машине разработчика имя разрешается сначала в ::1, а порт контейнера по IPv6 молчит —
+          # каждое новое подключение ждало по семь секунд. Здесь выигрыша не мерили: правка ради
+          # того, чтобы строка в CI не расходилась со стендом и тестами.
+          ConnectionStrings__Postgres: Host=127.0.0.1;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
           # Ключ подписи — одноразовый и живёт ровно столько, сколько работа. Секретом он не
           # является: база и адрес существуют только внутри этого прогона.
           Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
@@ -457,7 +461,7 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: http://localhost:5055
-          ConnectionStrings__Postgres: Host=localhost;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          ConnectionStrings__Postgres: Host=127.0.0.1;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
           Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
           Modules__Enabled: id,costs
           BlobStorage__Endpoint: 127.0.0.1:3900
