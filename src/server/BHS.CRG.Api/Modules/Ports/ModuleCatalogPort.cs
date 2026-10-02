@@ -90,7 +90,8 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
         // читает человек — «Ёлка» в нём стоит между «Дубом» и «Жасмином», а не после латиницы.
         return [.. refs
             .Select(r => new ModuleCatalogRef(
-                r.Id, codes.TryGetValue(r.CompositeTypeId, out var code) ? code : string.Empty, r.DisplayName))
+                r.Id, codes.TryGetValue(r.CompositeTypeId, out var code) ? code : string.Empty, r.DisplayName,
+                r.MatchedAlias))
             .OrderBy(r => r.DisplayName, StringComparer.CurrentCulture)];
     }
 

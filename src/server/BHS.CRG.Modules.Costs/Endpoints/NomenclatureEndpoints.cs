@@ -50,7 +50,7 @@ public static class NomenclatureEndpoints
         var more = found.Count > Limit;
 
         return TypedResults.Ok(new NomenclatureSearchResult(
-            [.. found.Take(Limit).Select(r => new NomenclatureItem(r.Id, r.DisplayName, r.EntityType))],
+            [.. found.Take(Limit).Select(r => new NomenclatureItem(r.Id, r.DisplayName, r.EntityType, r.MatchedAlias))],
             more));
     }
 }
@@ -60,7 +60,10 @@ public static class NomenclatureEndpoints
 /// нельзя: список показал бы «Материал» вместо «без названия», то есть соврал бы о данных.</param>
 /// <param name="Type">Код типа записи — у подтипа свой («Материал», «Кабель»). Человеку он нужен, чтобы
 /// различить похожие позиции, а не для отбора: отбор уже сделан.</param>
-public sealed record NomenclatureItem(Guid Id, string? Name, string Type);
+/// <param name="MatchedAlias">Альтернативное имя, по которому позиция найдена, — когда набранного нет в
+/// названии (issue #1169). Форма показывает его рядом: иначе позиция, в названии которой набранного нет,
+/// выглядит ошибкой поиска, и человек заводит дубль рядом с найденным.</param>
+public sealed record NomenclatureItem(Guid Id, string? Name, string Type, string? MatchedAlias = null);
 
 /// <summary>Найденное и оговорка о неполноте.</summary>
 /// <param name="More">Есть ли ещё подходящие позиции за пределами ответа. Форма обязана сказать это
