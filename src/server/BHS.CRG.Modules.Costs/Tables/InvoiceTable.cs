@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
@@ -115,9 +114,9 @@ public sealed class InvoiceTableRows(
 
         // «Сегодня» — одно на весь ответ: и отбору, и клеткам. Спроси мы его дважды, запрос на
         // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
-        var due = new Due(await clock.TodayAsync(ct));
+        var today = await clock.TodayAsync(ct);
 
-        var sql = Sql(names, shares.Labels, due);
+        var sql = Sql(names, shares.Labels, today);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Отбор НАЗЫВАЕТ объекты — «Сумма» становится долей счёта на них (ТЗ CORE-33). Иначе это сумма
@@ -158,7 +157,7 @@ public sealed class InvoiceTableRows(
 
         var objects = shares.Objects(parts);
         return new(
-            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, due))], count, totals,
+            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, today))], count, totals,
             naming.Count == 0 ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = shares.Note(naming) });
     }
 
@@ -167,7 +166,7 @@ public sealed class InvoiceTableRows(
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
     private TableSql<Invoice> Sql(
-        Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects, Due due) =>
+        Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects, DateOnly today) =>
         TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
@@ -186,34 +185,18 @@ public sealed class InvoiceTableRows(
             .Date(InvoiceRequisites.ShippedOnKey, i => i.ShippedOn)
             .Number(InvoiceRequisites.DeferralKey, i => i.DeferralDays)
             .Date(InvoiceRequisites.DueDateKey, i => i.DueDate)
-            .Number(InvoiceTable.DaysLeftKey, due.DaysLeft)
-            .Flag(InvoiceTable.OverdueKey, due.Overdue)
+            .Number(InvoiceTable.DaysLeftKey, InvoiceDue.DaysLeft(today))
+            .Flag(InvoiceTable.OverdueKey, InvoiceDue.Overdue(today))
             .Lookup(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Lookup(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
-
-    /// <summary>
-    /// Правило срока на один ответ: выражением — запросу, функцией — клетке. Функция собрана ИЗ ТОГО ЖЕ
-    /// выражения, а не написана рядом: отбор и клетка не могут разойтись.
-    /// </summary>
-    private sealed class Due(DateOnly today)
-    {
-        public Expression<Func<Invoice, decimal?>> DaysLeft { get; } = InvoiceDue.DaysLeft(today);
-        public Expression<Func<Invoice, bool?>> Overdue { get; } = InvoiceDue.Overdue(today);
-
-        private Func<Invoice, decimal?>? _daysLeft;
-        private Func<Invoice, bool?>? _overdue;
-
-        public decimal? DaysLeftOf(Invoice invoice) => (_daysLeft ??= DaysLeft.Compile())(invoice);
-        public bool? OverdueOf(Invoice invoice) => (_overdue ??= Overdue.Compile())(invoice);
-    }
 
     /// <param name="amounts">Доли счетов на названные отбором объекты; null — отбор объектов не называет,
     /// и «Сумма» — сумма счёта целиком.</param>
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts,
-        Due due)
+        DateOnly today)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -226,18 +209,19 @@ public sealed class InvoiceTableRows(
             [InvoiceRequisites.ShippedOnKey] = invoice.ShippedOn,
             [InvoiceRequisites.DeferralKey] = invoice.DeferralDays is { } days ? (decimal)days : null,
             [InvoiceRequisites.DueDateKey] = invoice.DueDate,
-            [InvoiceTable.DaysLeftKey] = due.DaysLeftOf(invoice),
-            [InvoiceTable.OverdueKey] = due.OverdueOf(invoice),
             [InvoiceRequisites.StateKey] = InvoiceRequisites.Label(invoice.State),
             [InvoiceRequisites.PaymentKey] = InvoiceRequisites.Label(invoice.Payment),
         };
 
-        // Деньги — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле, чем
-        // считать и выбрасывать.
+        // Деньги и срок — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле,
+        // чем считать и выбрасывать.
         if (open.Contains(InvoiceRequisites.TotalKey)) row[InvoiceRequisites.TotalKey] = invoice.Total;
         if (open.Contains(InvoiceRequisites.VatTotalKey)) row[InvoiceRequisites.VatTotalKey] = invoice.VatTotal;
         if (open.Contains(InvoiceTable.AmountKey))
             row[InvoiceTable.AmountKey] = amounts is null ? invoice.Total : amounts.GetValueOrDefault(invoice.Id);
+
+        if (open.Contains(InvoiceTable.DaysLeftKey)) row[InvoiceTable.DaysLeftKey] = InvoiceDue.DaysLeftOf(invoice, today);
+        if (open.Contains(InvoiceTable.OverdueKey)) row[InvoiceTable.OverdueKey] = InvoiceDue.OverdueOf(invoice, today);
 
         foreach (var field in invoice.Data.RootElement.EnumerateObject())
             if (!row.ContainsKey(field.Name)) row[field.Name] = Scalar(field.Value);

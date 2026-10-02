@@ -45,6 +45,12 @@ public sealed class InvoiceClockHost : InvoiceLineHost
 ///
 /// <para>«Сегодня» здесь — 15 января 2031 года, нарочно далеко от настоящего: возьми служба строк часы
 /// сервера вместо порта, ни один срок из посева просроченным бы не оказался, и тест это покажет.</para>
+///
+/// <para>⚠️ Фабрик у класса две: своя и унаследованная от <see cref="InvoiceLineTestBase" />, которая
+/// объявляет <see cref="InvoiceLineHost" />. Вторую xUnit создаёт и освобождает, но приложение в ней не
+/// стартует — фабрика поднимает его первым обращением, а к ней никто не обращается. Лечится базовым
+/// классом, обобщённым по типу хоста; не сделано, чтобы не перекраивать оснастку всех проверок строк
+/// счёта ради одного класса.</para>
 /// </summary>
 public sealed class InvoiceDueTableTests(InvoiceClockHost host)
     : ModuleTableSeededTests(host), IClassFixture<InvoiceClockHost>
