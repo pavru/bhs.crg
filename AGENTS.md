@@ -136,6 +136,10 @@ cd src/server && dotnet build BHS.CRG.slnx
 # Backend тесты (xUnit, проект BHS.CRG.Tests)
 cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
 
+# Те же тесты ДВУМЯ ПОТОКАМИ, как в CI (issue #1164): два процесса на своих базах,
+# <BHS_TEST_DB>_s1 и _s2. Весь набор гоняют так; один класс или фильтр — обычным `dotnet test`.
+bash scripts/backend-tests.sh
+
 # Frontend тесты (vitest; *.test.ts рядом с кодом)
 cd src/client && npm test
 
@@ -173,7 +177,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 
 `.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master: backend
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
-храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`)
+храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`)
 и **живые прогоны в браузере** — четырьмя независимыми
 работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`.
 
