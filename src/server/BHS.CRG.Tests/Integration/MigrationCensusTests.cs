@@ -23,11 +23,31 @@ namespace BHS.CRG.Tests.Integration;
 ///
 /// <para>⚠️ Базы свои, а не общая тестовая: тест применяет миграции ЧАСТЯМИ и создаёт схему с нуля,
 /// то есть делает с базой то, чего соседние тесты не переживут. Свои — но названные ОТ базы прогона
-/// (см. <see cref="DatabaseName" />): иначе их делили бы все одновременные прогоны на машине.</para>
+/// (см. <see cref="TestDatabases" />): иначе их делили бы все одновременные прогоны на машине.</para>
+///
+/// <para>За собой базы СНОСЯТСЯ (<see cref="DisposeAsync" />). Пока имена были прибиты, оставшихся
+/// баз было восемь на машину; названные от базы прогона, они копились бы по восемь на каждое
+/// значение <c>BHS_TEST_DB</c> — стенд рос бы от числа прошлых прогонов. Нужна база упавшего теста
+/// для разбора — <c>BHS_TEST_KEEP_DB=1</c> оставит её на месте.</para>
 /// </summary>
 [Collection("Integration")]
-public class MigrationCensusTests
+public class MigrationCensusTests : IAsyncLifetime
 {
+    /// <summary>Базы, заведённые ЭТИМ тестом: экземпляр класса у каждого теста свой.</summary>
+    private readonly List<string> _created = [];
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Снести базы теста. xUnit зовёт это после метода теста, то есть после того, как
+    /// <c>await using</c> закрыл контекст; соединение, оставшееся в пуле, снимает WITH (FORCE).
+    /// </summary>
+    public async Task DisposeAsync()
+    {
+        if (Environment.GetEnvironmentVariable("BHS_TEST_KEEP_DB") is { Length: > 0 }) return;
+        foreach (var name in _created) await DropAsync(name);
+    }
+
     [Fact]
     public async Task Fresh_database_migrates_and_the_census_has_nothing_to_compare()
     {
@@ -56,13 +76,8 @@ public class MigrationCensusTests
     [Fact]
     public async Task Missing_database_is_not_a_failure_it_is_the_first_start()
     {
-        var name = DatabaseName("absent");
-        await using (var conn = new NpgsqlConnection(AdminConnectionString()))
-        {
-            await conn.OpenAsync();
-            await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
-            await drop.ExecuteNonQueryAsync();
-        }
+        var name = TestDatabases.Name("census_absent");
+        await DropAsync(name);
 
         await using var db = new AppDbContext(OptionsFor(name));
         Assert.Null(await MigrationCensus.ReadAsync(db));
@@ -466,51 +481,33 @@ public class MigrationCensusTests
     }
 
     /// <summary>
-    /// Имя временной базы — от имени тестовой базы ПРОГОНА: <c>&lt;база прогона&gt;_census_&lt;суффикс&gt;</c>
-    /// (issue #1145).
+    /// Завести пустую базу <c>&lt;база прогона&gt;_census_&lt;суффикс&gt;</c> и запомнить её к сносу.
     ///
-    /// <para>Раньше имена были прибиты (<c>bhs_crg_census_fresh</c> и ещё восемь) и от
-    /// <c>BHS_TEST_DB</c> не зависели. Переменная развязывает одновременные прогоны в разных worktree
-    /// (issue #618), а этот класс развязку обходил: два прогона с РАЗНЫМИ базами сносили и создавали
-    /// друг у друга одну и ту же. Отказ при этом на тесноту не похож ничем — «57P01: terminating
-    /// connection due to administrator command» посреди миграции (чужой DROP … WITH (FORCE)) или
-    /// «23505 … pg_database_datname_index» на CREATE — и читается как поломка самой миграции.</para>
-    ///
-    /// <para>Тем же способом своё имя получают хосты модулей (<see cref="ModuleSchemaHost" /> и
-    /// соседи): суффикс к базе прогона, а не отдельное имя.</para>
+    /// Сначала сносится одноимённая: её мог оставить прогон, убитый посреди теста, — до
+    /// <see cref="DisposeAsync" /> он не дошёл.
     /// </summary>
-    private static string DatabaseName(string suffix)
+    private async Task<AppDbContext> CreateDatabaseAsync(string suffix)
     {
-        var name = new NpgsqlConnectionStringBuilder(IntegrationTestFixture.TestConnectionString).Database
-                   + "_census_" + suffix;
-
-        // Имя длиннее 63 байт сервер обрезает МОЛЧА (NOTICE, которого никто не читает): CREATE создал
-        // бы базу с обрезанным именем, а подключение по полному её бы не нашло — и хуже того, обрезка
-        // склеила бы «lift_down» с «lift_down_filled» в одну базу. Отказываем сразу и по имени причины.
-        if (System.Text.Encoding.UTF8.GetByteCount(name) > MaxIdentifierBytes)
-            throw new InvalidOperationException(
-                $"Имя временной базы «{name}» длиннее {MaxIdentifierBytes} байт — PostgreSQL его обрежет. "
-                + "Укоротите BHS_TEST_DB.");
-
-        return name;
-    }
-
-    /// <summary>Предел длины идентификатора PostgreSQL (NAMEDATALEN − 1).</summary>
-    private const int MaxIdentifierBytes = 63;
-
-    private static async Task<AppDbContext> CreateDatabaseAsync(string suffix)
-    {
-        var name = DatabaseName(suffix);
+        var name = TestDatabases.Name("census_" + suffix);
+        await DropAsync(name);
         await using (var conn = new NpgsqlConnection(AdminConnectionString()))
         {
             await conn.OpenAsync();
-            await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
-            await drop.ExecuteNonQueryAsync();
-            await using var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", conn);
+            await using var create = new NpgsqlCommand($"CREATE DATABASE {TestDatabases.Quote(name)}", conn);
             await create.ExecuteNonQueryAsync();
         }
 
+        _created.Add(name);
         return new AppDbContext(OptionsFor(name));
+    }
+
+    private static async Task DropAsync(string name)
+    {
+        await using var conn = new NpgsqlConnection(AdminConnectionString());
+        await conn.OpenAsync();
+        await using var drop = new NpgsqlCommand(
+            $"DROP DATABASE IF EXISTS {TestDatabases.Quote(name)} WITH (FORCE)", conn);
+        await drop.ExecuteNonQueryAsync();
     }
 
     /// <summary>

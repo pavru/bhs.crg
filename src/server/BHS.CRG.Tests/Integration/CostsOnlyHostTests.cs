@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -224,12 +223,7 @@ public sealed class CostsOnlyHost : IntegrationTestFixture
     /// </summary>
     private static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_costs";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("costs");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

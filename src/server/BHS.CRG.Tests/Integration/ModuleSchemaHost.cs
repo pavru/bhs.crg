@@ -35,12 +35,7 @@ public sealed class ModuleSchemaHost : IntegrationTestFixture
 
     internal static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_schema";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("schema");
 
     /// <summary>
     /// Готовит базу ДО первого запуска хоста: сносит схему модуля и кладёт в неё строку прошлой версии.
@@ -90,8 +85,8 @@ public sealed class ModuleSchemaHost : IntegrationTestFixture
         using var conn = new NpgsqlConnection(target.ConnectionString);
         conn.Open();
         // Имя базы параметром не передать; складывается оно из константы фикстуры и переменной
-        // BHS_TEST_DB, то есть из окружения прогона, а не из данных.
-        Execute(conn, $"CREATE DATABASE \"{name}\"");
+        // BHS_TEST_DB, то есть из окружения прогона, а не из данных. Кавычки в нём удваивает Quote.
+        Execute(conn, $"CREATE DATABASE {TestDatabases.Quote(name)}");
     }
 
     private static void Execute(NpgsqlConnection conn, string sql)
