@@ -1,5 +1,9 @@
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Tables;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,8 +14,9 @@ namespace BHS.CRG.Modules.Costs;
 /// Модуль «Счета и накладные» (ТЗ COST-Q1) — учёт счетов на оплату, расходных накладных, разноски
 /// затрат по стройкам и отчётов по затратам.
 ///
-/// ⚠️ Это КАРКАС: объявление, права, пути за воротами и своя схема базы — пока без таблиц. Ни одного
-/// экрана и ни одного адреса. Так нарочно (задача A1 нарезки этапа 2, issue #1068): у переноса
+/// ⚠️ Каркасом — объявление, права, пути за воротами и своя схема базы без таблиц — модуль был до C1
+/// (issue #1076): тогда у него появились первая таблица (счёт), свой тип и адреса, которые её читают.
+/// Каркас был сделан РАНЬШЕ нарочно (задача A1 нарезки этапа 2, issue #1068): у переноса
 /// распознавания в ядро — первого пункта этапа по ТЗ — признак готовности «установка ТОЛЬКО счета
 /// распознаёт без модуля ИД», и показать его нечем, пока модуля `costs` нет вовсе. Выключить
 /// единственный модуль нельзя: пустая настройка означает умолчание, а названный несуществующий код
@@ -132,6 +137,24 @@ public sealed class CostsModule : IAppModule
     public ModuleSchema? Schema => new(CostsDbContext.SchemaName, typeof(CostsDbContext));
 
     /// <summary>
+    /// Типы модуля (C1, issue #1076, ТЗ TYPE-14): пока один — счёт на оплату. Накладная приезжает
+    /// задачей D1 (issue #1083), строки счёта — C2 (issue #1078) своей таблицей.
+    /// </summary>
+    public IReadOnlyList<ModuleRecordType> RecordTypes => CostsRecordTypes.All;
+
+    /// <summary>
+    /// Тэги модуля (ТЗ TYPE-21): контрагент, плательщик, итог и НДС документа. Подробнее — в
+    /// <see cref="CostsRecordTypes.Tags" />, включая то, какого тэга из таблицы ТЗ здесь ещё нет.
+    /// </summary>
+    public IReadOnlyList<ModuleTag> Tags => CostsRecordTypes.Tags;
+
+    /// <summary>
+    /// Таблицы модуля (ТЗ CORE-33, задача G1b, issue #1089): пока одна — счета, зерно «счёт». Строки
+    /// счёта и части разноски — следующими зёрнами, вместе с их первым потребителем.
+    /// </summary>
+    public IReadOnlyList<ModuleTable> Tables => [InvoiceTable.Declaration];
+
+    /// <summary>
     /// Единственная служба каркаса — свой контекст базы. Строку подключения модуль берёт из настроек,
     /// которые ему передали: своего источника у него нет, а спрашивать её у ядра портом незачем —
     /// настройка приложения и есть настройка модуля, экземпляр у них один.
@@ -144,9 +167,29 @@ public sealed class CostsModule : IAppModule
     /// (<c>StorageConfigGuard</c>) раньше, чем дело дойдёт до модулей, и второй отказ об одном и том же
     /// расходился бы с первым формулировками.</para>
     /// </summary>
-    public void RegisterServices(IServiceCollection services, IConfiguration configuration) =>
+    public void RegisterServices(IServiceCollection services, IConfiguration configuration)
+    {
         services.AddDbContext<CostsDbContext>(options =>
             CostsDbContext.Configure(options, configuration.GetConnectionString("Postgres")));
+
+        // Объявление действий журнала (C1, issue #1076). Регистрируется здесь, а не в ядре: порт
+        // журнала отказывается писать действие, которого модуль не объявил, — иначе строка журнала
+        // читалась бы кодом, а в отборе по действию её не было бы вовсе.
+        //
+        // ⚠️ Одиночкой, а не областью запроса: каталог действий ядра — одиночка, он собирает
+        // объявления один раз и проверяет их при старте. Область запроса здесь роняет СБОРКУ
+        // контейнера («Cannot consume scoped service … from singleton»), то есть приложение не
+        // поднимается вовсе — и это лучше, чем объявление, прочитанное однажды и устаревшее.
+        services.AddSingleton<IModuleActivityActions, InvoiceActions>();
+
+        // Стройки и статьи — цели разноски (F3, issue #1087). Областью запроса: читает порты ядра, а те
+        // живут областью запроса.
+        services.AddScoped<AllocationPlacesSource>();
+
+        // Служба строк таблицы счетов (G1b, issue #1089). Не зарегистрировать её — отказ старта:
+        // объявленная таблица открылась бы и отказала на первом же чтении.
+        services.AddScoped<InvoiceTableRows>();
+    }
 
     /// <summary>
     /// Путь модуля. Объявлен ДО первого адреса нарочно: по нему ядро вешает отказ «модуль не
@@ -166,8 +209,21 @@ public sealed class CostsModule : IAppModule
     /// <c>Modules__Enabled=costs</c> БЕЗ <c>id</c> (<c>CostsOnlyHostTests</c>). До сих пор настоящее
     /// приложение без модуля исполнительной документации не поднимал никто, а
     /// <c>DisabledModuleTests</c> проверяет механизм на поддельных модулях в slim-хосте.
+    ///
+    /// <para>С C1 (issue #1076) адреса есть — счёт на оплату. Права на них объявлены ПОИМЁННО, хотя
+    /// ворота модуля уже стоят: доступ к модулю и право заводить счета — разные вещи, и у бухгалтера
+    /// есть первое без второго.</para>
     /// </summary>
-    public void MapEndpoints(IEndpointRouteBuilder endpoints) { }
+    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        InvoiceEndpoints.MapInvoices(endpoints);
+        InvoiceLineEndpoints.MapInvoiceLines(endpoints);
+        AllocationEndpoints.MapAllocation(endpoints);
+        AllocationMatrixEndpoints.Map(endpoints);
+        OrganizationEndpoints.MapOrganizations(endpoints);
+        NomenclatureEndpoints.MapNomenclature(endpoints);
+        ArticleEndpoints.MapArticles(endpoints);
+    }
 
     /// <summary>
     /// Инициализировать нечего: своих справочников у каркаса нет, системные роли «Снабженец» и

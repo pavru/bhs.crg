@@ -1,27 +1,14 @@
 import { useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import type { FilterCondition, FilterGroup, FilterNode, FilterOp, RowFilterDef } from '@/shared/api/types';
-import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
+import type { FilterCondition, FilterGroup, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
-
-const ALL_OPS: FilterOp[] = [
-  'eq', 'neq', 'contains', 'not_contains',
-  'starts_with', 'ends_with',
-  'gt', 'gte', 'lt', 'lte',
-  'is_empty', 'is_not_empty',
-];
-
-function makeCondition(): FilterCondition {
-  return { type: 'condition', column: '', op: 'eq', value: '' };
-}
-
-function makeGroup(): FilterGroup {
-  return { type: 'group', logic: 'and', children: [] };
-}
-
-// Reused field styling for condition selects/inputs.
-const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
+import {
+  conditionProblem, fromDraft, newCondition, newGroup, pruneDraft, toDraft,
+  type DraftGroup, type FilterColumn,
+} from '@/shared/filter/rowFilterModel';
+import { ConditionEditor } from '@/shared/filter/ConditionEditor';
+import { useDialogSave } from './useDialogSave';
 
 // ─── Logic toggle ─────────────────────────────────────────────────────────────
 
@@ -54,78 +41,39 @@ function LogicToggle({
 
 function FilterConditionRow({
   cond,
+  path,
   columns,
   onChange,
   onRemove,
 }: {
   cond: FilterCondition;
-  columns: string[];
+  /** Номер условия по уровням от корня («2.1») — им сервер называет условие в отказе. */
+  path: string;
+  columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
 }) {
-  const noValue = FILTER_OPS_NO_VALUE.includes(cond.op);
+  // Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
+  // то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор.
+  const problem = conditionProblem(cond, columns);
 
   return (
-    <div className="flex items-center gap-1.5 group/cond">
-      {/* Column */}
-      {columns.length > 0 ? (
-        <select
-          value={cond.column}
-          onChange={e => onChange({ ...cond, column: e.target.value })}
-          className={FIELD_CLS}
-          style={{ minWidth: '120px', maxWidth: '160px' }}
+    <div>
+      <div className="flex items-start gap-1.5 group/cond">
+        <span className="w-6 shrink-0 pt-1.5 text-[10px] tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
+        <ConditionEditor cond={cond} columns={columns} onChange={onChange} />
+
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
+          title="Удалить условие"
         >
-          <option value="">— колонка —</option>
-          {columns.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-      ) : (
-        <input
-          value={cond.column}
-          onChange={e => onChange({ ...cond, column: e.target.value })}
-          placeholder="Колонка"
-          className={FIELD_CLS}
-          style={{ width: '120px' }}
-        />
-      )}
-
-      {/* Operator */}
-      <select
-        value={cond.op}
-        // Значение НЕ сбрасываем при смене оператора (issue #401) — очищаем только при переходе
-        // на оператор без значения (isEmpty и т.п.), чтобы не тащить мусор в сериализацию.
-        onChange={e => {
-          const op = e.target.value as FilterOp;
-          onChange({ ...cond, op, ...(FILTER_OPS_NO_VALUE.includes(op) ? { value: undefined } : {}) });
-        }}
-        className={`${FIELD_CLS} shrink-0`}
-        style={{ width: '148px' }}
-      >
-        {ALL_OPS.map(op => (
-          <option key={op} value={op}>{FILTER_OP_LABELS[op]}</option>
-        ))}
-      </select>
-
-      {/* Value */}
-      {!noValue ? (
-        <input
-          value={cond.value ?? ''}
-          onChange={e => onChange({ ...cond, value: e.target.value })}
-          placeholder="Значение"
-          className={`${FIELD_CLS} flex-1 min-w-0`}
-        />
-      ) : (
-        <div className="flex-1" />
-      )}
-
-      {/* Remove */}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
-        title="Удалить условие"
-      >
-        <Trash2 size={12} />
-      </button>
+          <Trash2 size={12} />
+        </button>
+      </div>
+      {problem && <p className="mt-0.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
     </div>
   );
 }
@@ -136,31 +84,38 @@ const DEPTH_COLORS = ['var(--f-brand)', 'color-mix(in srgb, var(--f-brand) 50%, 
 
 function FilterGroupEditor({
   group,
+  path,
   onChange,
   onRemove,
   depth,
   columns,
 }: {
-  group: FilterGroup;
-  onChange: (g: FilterGroup) => void;
+  group: DraftGroup;
+  /** Номер самой группы по уровням от корня; у корня пусто. */
+  path: string;
+  onChange: (g: DraftGroup) => void;
   onRemove?: () => void;
   depth: number;
-  columns: string[];
+  columns: FilterColumn[];
 }) {
   function setLogic(l: 'and' | 'or') {
     onChange({ ...group, logic: l });
   }
 
   function addCondition() {
-    onChange({ ...group, children: [...group.children, makeCondition()] });
+    onChange({ ...group, children: [...group.children, newCondition()] });
   }
 
   function addSubGroup() {
-    onChange({ ...group, children: [...group.children, makeGroup()] });
+    onChange({ ...group, children: [...group.children, newGroup()] });
   }
 
-  function updateChild(i: number, node: FilterNode) {
-    onChange({ ...group, children: group.children.map((c, idx) => idx === i ? node : c) });
+  // Ключ строки возвращаем узлу здесь: строка условия о ключах не знает и отдаёт обычный узел дерева.
+  function updateChild(i: number, node: FilterCondition | DraftGroup) {
+    onChange({
+      ...group,
+      children: group.children.map((c, idx) => (idx === i ? { ...node, key: c.key } as typeof c : c)),
+    });
   }
 
   function removeChild(i: number) {
@@ -206,11 +161,16 @@ function FilterGroupEditor({
       {group.children.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           {group.children.map((child, i) => {
+            // Счёт узлов — тот же, что у сервера: по уровням от корня, с единицы.
+            const childPath = path ? `${path}.${i + 1}` : `${i + 1}`;
+            // Ключ — свой у строки, а не её номер: строка помнит недобранное значение списка и вид
+            // поля, и при удалении условия это не должно переехать к следующему.
             if (child.type === 'condition') {
               return (
                 <FilterConditionRow
-                  key={i}
+                  key={child.key}
                   cond={child}
+                  path={childPath}
                   columns={columns}
                   onChange={c => updateChild(i, c)}
                   onRemove={() => removeChild(i)}
@@ -219,8 +179,9 @@ function FilterGroupEditor({
             }
             return (
               <FilterGroupEditor
-                key={i}
+                key={child.key}
                 group={child}
+                path={childPath}
                 depth={depth + 1}
                 columns={columns}
                 onChange={g => updateChild(i, g)}
@@ -250,64 +211,90 @@ function FilterGroupEditor({
 
 // ─── Main dialog ──────────────────────────────────────────────────────────────
 
+const SOURCE_WORDING = {
+  title: 'Фильтрация строк',
+  note: 'Строки, не прошедшие фильтр, исключаются до маппинга. Вычисляемые колонки (если заданы) '
+    + 'доступны для фильтрации. Можно вкладывать группы с разной логикой (AND/OR).',
+  save: 'Сохранить',
+  saving: 'Сохранение…',
+  reset: 'Сбросить фильтр',
+};
+
 export function RowFilterDialog({
   columns,
   initial,
   onSave,
   onClose,
+  wording,
 }: {
-  columns?: string[];
+  /** Колонки источника с их видами; без них (шаблон обработки) колонка вписывается текстом. */
+  columns?: FilterColumn[];
   initial: RowFilterDef | null;
-  onSave: (filter: RowFilterDef | null) => void;
+  /**
+   * Сохранение. Обещание ждём: отказ сервера («такой отбор источник не выполнит») показываем здесь
+   * же, и диалог остаётся открытым — исправить условие можно только в нём.
+   */
+  onSave: (filter: RowFilterDef | null) => void | Promise<unknown>;
   onClose: () => void;
+  /**
+   * Слова диалога, когда он открыт не у источника набора, а расширенным режимом отбора таблицы
+   * (issue #1091): там отбор не «сохраняется» в обработку, а применяется к экрану, и про маппинг с
+   * вычисляемыми колонками говорить незачем. Не задано — слова источника.
+   */
+  wording?: { title: string; note: string; save: string; saving: string; reset: string };
 }) {
+  const words = wording ?? SOURCE_WORDING;
   // Негодную форму сохранённого отбора заменяем пустым корнем и говорим об этом вслух (ниже):
   // редактировать в ней нечего, а падать диалогу нельзя — сюда приходят ПО ОТКАЗУ сервера
   // «исправьте условия отбора» (issue #966, ревью PR #1058).
   const unreadable = initial != null && !isEditableFilterRoot(initial);
-  const [root, setRoot] = useState<FilterGroup>(
-    () => (isEditableFilterRoot(initial) ? initial! : { type: 'group', logic: 'and', children: [] })
+  const [root, setRoot] = useState<DraftGroup>(
+    () => (isEditableFilterRoot(initial) ? toDraft(initial!) as DraftGroup : newGroup())
   );
 
-  function handleSave() {
-    const cleaned = cleanFilterNode(root) as FilterGroup | null;
-    onSave(cleaned);
-    onClose();
-  }
+  const { saving, refusal, clearRefusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить отбор');
 
-  function handleReset() {
-    onSave(null);
-    onClose();
+  // На экране с этого момента — ровно то дерево, что уехало: пустые строки на сервер не идут, а он
+  // называет условие номером по отправленному («условие 2.1»). Останься они, номер в отказе указывал
+  // бы на соседнюю строку.
+  function handleSave() {
+    const sent = pruneDraft(root);
+    setRoot(sent);
+    void commit(() => onSave(cleanFilterNode(fromDraft(sent)) as FilterGroup | null));
   }
+  const handleReset = () => void commit(() => onSave(null));
 
   const hasAny = root.children.length > 0;
 
   return (
     <Modal
       open={true}
-      onOpenChange={o => { if (!o) onClose(); }}
-      title="Фильтрация строк"
+      onOpenChange={o => { if (!o) close(); }}
+      title={words.title}
       wide
       footer={
         <div className="flex gap-2 items-center">
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
+            disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
           >
-            Сохранить
+            {saving ? words.saving : words.save}
           </button>
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+            onClick={close}
+            disabled={saving}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50"
           >
             Отмена
           </button>
           {hasAny && (
             <button
               onClick={handleReset}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+              disabled={saving}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
             >
-              Сбросить фильтр
+              {words.reset}
             </button>
           )}
         </div>
@@ -320,21 +307,22 @@ export function RowFilterDialog({
         </p>
       )}
 
-      <p className="text-xs mb-4 text-fg4">
-        Строки, не прошедшие фильтр, исключаются до маппинга.
-        Вычисляемые колонки (если заданы) доступны для фильтрации.
-        Можно вкладывать группы с разной логикой (AND/OR).
-      </p>
+      <p className="text-xs mb-4 text-fg4">{words.note}</p>
 
       <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
-          onChange={setRoot}
+          path=""
+          // Отказ сервера — про отбор, который отправляли. Тронули условие — он уже про другое
+          // дерево, и висеть рядом с исправленным условием ему нельзя.
+          onChange={next => { setRoot(next); clearRefusal(); }}
           onRemove={undefined}
           depth={0}
           columns={columns ?? []}
         />
       </div>
+
+      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
     </Modal>
   );
 }

@@ -42,7 +42,7 @@ public class SetDocumentsProvider(
     public bool Handles(string marker) => marker == SystemDataSets.SetDocumentsMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         if (scope != CatalogScope.Set || scopeId is null) return [];
         var rows = await RowsAsync(scopeId.Value, ct);

@@ -1,17 +1,16 @@
 {
   "deploy/install.sh": 569,
   "deploy/update.sh": 818,
-  "src/client/e2e/seed.mjs": 566,
+  "src/client/e2e/seed.mjs": 568,
   "src/client/src/features/datasets/PdfGroupingEditor.tsx": 538,
-  "src/client/src/features/document-sets/catalog/index.tsx": 716,
-  "src/client/src/features/document-sets/editor/DataSetsTab.tsx": 797,
+  "src/client/src/features/document-sets/catalog/index.tsx": 698,
+  "src/client/src/features/document-sets/editor/DataSetsTab.tsx": 706,
   "src/client/src/features/document-sets/editor/RequisitesTab.tsx": 651,
   "src/client/src/features/document-sets/fields/ComplexFields.tsx": 780,
   "src/client/src/features/settings/BackupSection.tsx": 591,
   "src/client/src/features/settings/FieldBuilder.tsx": 647,
   "src/client/src/features/settings/PrimitiveTypesPage.tsx": 628,
-  "src/client/src/shared/api/datasets.ts": 535,
   "src/server/BHS.CRG.Infrastructure/Backup/BackupService.Restore.cs": 709,
-  "src/server/BHS.CRG.Infrastructure/DataSets/DataSetSourceService.cs": 572,
+  "src/server/BHS.CRG.Infrastructure/DataSets/DataSetSourceService.cs": 508,
   "src/server/BHS.CRG.Tests/Integration/BackupServiceTests.RoundTrip.cs": 629
 }

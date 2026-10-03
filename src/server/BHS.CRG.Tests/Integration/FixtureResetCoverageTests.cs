@@ -36,14 +36,36 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
 
         // Учётные записи заводятся тестами по мере надобности и живут дольше одного класса;
         // очистка выбила бы и пользователей, зарегистрированных для проверок авторизации.
-        ["AspNetUsers"] = "Identity: учётные записи, чистятся точечно теми, кто их заводит",
-        ["AspNetRoles"] = "Identity: роли создаёт приложение при старте, TRUNCATE их не вернёт",
+        //
+        // ⚠️ «Между классами не чистятся» не значит «не чистятся вовсе». За собой их убирают не все,
+        // роли и сессии — почти никто: в общей базе набралось 1634 роли и 7239 сессий при 16 учётных
+        // записях. Поэтому учётные таблицы сносятся раз за прогон, ДО старта хоста
+        // (TestRunDatabase.IdentityTables, issue #1142) — тогда роли возвращает сам старт.
+        ["AspNetUsers"] = "Identity: учётные записи живут дольше класса; сносятся раз за прогон",
+        ["AspNetRoles"] = "Identity: роли создаёт старт, посреди прогона их никто не вернёт; сносятся раз за прогон, до старта",
         ["AspNetUserRoles"] = "Identity: связь пользователь-роль",
         ["AspNetUserClaims"] = "Identity",
         ["AspNetUserLogins"] = "Identity",
         ["AspNetUserTokens"] = "Identity",
         ["AspNetRoleClaims"] = "Identity",
-        ["RefreshTokens"] = "Identity: сессии, уходят вместе с пользователями",
+        // Внешнего ключа на учётную запись у сессий НЕТ: удалённый пользователь оставляет свои.
+        ["RefreshTokens"] = "Identity: сессии вошедших пользователей; сносятся раз за прогон",
+    };
+
+    /// <summary>
+    /// Как сброс фикстуры покрывает КАЖДЫЙ контекст базы решения (задача A2b этапа 2, issue #1073).
+    ///
+    /// <para>Списки выше — про таблицы ЯДРА: их читает модель <c>AppDbContext</c>. Контекст модуля
+    /// они не видят вовсе, поэтому его таблицы не чистились бы между классами тестов, а проявилось бы
+    /// это падением ЧУЖОГО теста со второго прогона — способом, ради которого весь этот файл и
+    /// написан. Требует записи на каждый контекст мета-сторож
+    /// <c>ModuleDbContextInventoryTests</c>.</para>
+    /// </summary>
+    internal static readonly Dictionary<string, string> ContextCoverage = new()
+    {
+        [nameof(AppDbContext)] = "по таблицам: TruncatedTables либо DeliberatelyKept в этом файле",
+        [nameof(BHS.CRG.Modules.Costs.Data.CostsDbContext)] =
+            "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
     };
 
     [Fact]
@@ -92,6 +114,7 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         var tables = TableNames().ToHashSet(StringComparer.Ordinal);
 
         var vanished = IntegrationTestFixture.TruncatedTables.Concat(DeliberatelyKept.Keys)
+            .Concat(TestRunDatabase.IdentityTables)
             .Where(t => !tables.Contains(t))
             .OrderBy(t => t, StringComparer.Ordinal)
             .ToList();
@@ -99,6 +122,30 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         Assert.True(vanished.Count == 0,
             "В списках названы таблицы, которых в модели больше нет: " + string.Join(", ", vanished));
     }
+
+    /// <summary>
+    /// Таблица, очищаемая раз за прогон, обязана быть среди сознательно оставленных между классами:
+    /// иначе она чистится и так, и запись о ней — мёртвая строка, которая выглядит как решение.
+    /// </summary>
+    [Fact]
+    public void RunTruncatedTables_AreKeptBetweenClasses()
+    {
+        var stray = TestRunDatabase.IdentityTables
+            .Where(t => !DeliberatelyKept.ContainsKey(t))
+            .ToList();
+
+        Assert.True(stray.Count == 0,
+            "В очистке раз за прогон названы таблицы, которых нет среди оставляемых между классами: " +
+            string.Join(", ", stray));
+    }
+
+    /// <summary>
+    /// Общая база очищена до первого теста прогона — то же, что <c>RunResetTests</c> проверяет у хоста
+    /// класса, но у фикстуры КОЛЛЕКЦИИ: её xUnit поднимает другой дорогой.
+    /// </summary>
+    [Fact]
+    public void SharedDatabase_IsCleanedBeforeTheFirstTest() =>
+        Assert.True(fixture.CleanedThisRun, "общая тестовая база перед первым тестом прогона не очищена");
 
     private IEnumerable<string> TableNames()
     {

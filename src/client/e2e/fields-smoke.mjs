@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/fields-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -46,7 +46,7 @@ async function openInstance(name) {
   await page.waitForSelector('tbody tr', { timeout: 15000 });
   await page.getByText(name, { exact: false }).first().click();
   await page.waitForSelector('[role=dialog]', { timeout: 15000 });
-  await page.waitForTimeout(2000);
+  await settled(page);
   return page.locator('[role=dialog]').first();
 }
 
@@ -58,10 +58,10 @@ try {
 let editor = await openInstance(WORKS);
 if ((await editor.getByRole('button', { name: /^Таблица$/ }).count()) === 0) {
   await editor.getByRole('button', { name: /Работы/ }).first().click();
-  await page.waitForTimeout(900);
+  await settled(page);
 }
 await editor.getByRole('button', { name: /^Таблица$/ }).first().click();
-await page.waitForTimeout(1200);
+await settled(page);
 const table = page.locator('[role=dialog]').last();
 
 await check('array-table-opens', async () => {
@@ -83,20 +83,20 @@ await check('array-table-keeps-column-widths', async () => {
   const before = (await col.boundingBox()).width;
   await table.locator('[role=separator]').first().focus();
   for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
-  await page.waitForTimeout(500);
+  await settled(page);
   const widened = (await col.boundingBox()).width;
   if (widened <= before + 20) throw new Error(`колонка не расширилась: ${before} → ${widened}`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(800);
+  await settled(page);
   await editor.getByRole('button', { name: /^Таблица$/ }).first().click();
-  await page.waitForTimeout(1200);
+  await settled(page);
   const reopened = (await table.locator('th').nth(2).boundingBox()).width;
   if (Math.abs(reopened - widened) > 2) throw new Error(`ширина не пережила закрытие: ${widened} → ${reopened}`);
 });
 
 // ── Вставка из Excel ───────────────────────────────────────────────────────────
 await table.getByRole('button', { name: /вставить из excel/i }).first().click();
-await page.waitForTimeout(900);
+await settled(page);
 
 await check('paste-opens-on-input-step', async () => {
   const t = await page.locator('[role=dialog]').last().innerText();
@@ -107,7 +107,7 @@ await check('paste-detects-header-and-counts-rows', async () => {
   const dlg = page.locator('[role=dialog]').last();
   await dlg.locator('textarea').first().fill('Наименование\tЕдиница\nКабель ВВГнг 3х2.5\tм');
   await dlg.getByRole('button', { name: /далее/i }).first().click();
-  await page.waitForTimeout(900);
+  await settled(page);
   const t = await page.locator('[role=dialog]').last().innerText();
   if (!/сопоставлен/i.test(t)) throw new Error(`шаг сопоставления не открылся: ${t.slice(0, 200)}`);
   // Строка заголовков распознана и в данные НЕ попала — иначе счётчик показал бы 2.
@@ -115,21 +115,21 @@ await check('paste-detects-header-and-counts-rows', async () => {
 });
 
 await page.keyboard.press('Escape');   // закрыть вставку
-await page.waitForTimeout(600);
+await settled(page);
 await page.keyboard.press('Escape');   // закрыть таблицу
-await page.waitForTimeout(800);
+await settled(page);
 
 // ── Пикер ссылки ───────────────────────────────────────────────────────────────
 editor = await openInstance(AOSR);
 await editor.getByRole('button', { name: /Члены комиссии/ }).first().click();
-await page.waitForTimeout(900);
+await settled(page);
 
 // Считаем кандидатов один раз и сверяемся с этим числом дальше: на пустом списке проверка
 // «поиск сузил» истинна при любом коде, поэтому непустота — отдельное утверждение.
 let candidates = 0;
 await check('ref-picker-shows-candidates', async () => {
   await editor.getByRole('button', { name: /^Из каталога$/ }).first().click();
-  await page.waitForTimeout(1500);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   const t = await dlg.innerText();
   if (!/выбрать объект/i.test(t)) throw new Error(`не тот диалог: ${t.slice(0, 160)}`);
@@ -141,14 +141,19 @@ await check('ref-picker-search-narrows-and-restores', async () => {
   if (candidates < 1) throw new Error('нечего сужать — кандидатов не было');
   const dlg = page.locator('[role=dialog]').last();
   const input = dlg.locator('input').first();
+  // Оба утверждения до своего действия ЛОЖНЫ (кандидаты были — стало ноль; ноль — стали прежние),
+  // поэтому ждём сам результат: как устроен отбор — сразу, с задержкой ввода или запросом, —
+  // проверке знать незачем.
   await input.fill('щщщ-такого-нет');
-  await page.waitForTimeout(700);
-  const after = await dlg.locator('[role=option]').count();
-  if (after !== 0) throw new Error(`список не сузился: было ${candidates}, стало ${after}`);
+  await until(async () => {
+    const after = await dlg.locator('[role=option]').count();
+    if (after !== 0) throw new Error(`список не сузился: было ${candidates}, стало ${after}`);
+  });
   await input.fill('');
-  await page.waitForTimeout(700);
-  const back = await dlg.locator('[role=option]').count();
-  if (back !== candidates) throw new Error(`список не вернулся: было ${candidates}, стало ${back}`);
+  await until(async () => {
+    const back = await dlg.locator('[role=option]').count();
+    if (back !== candidates) throw new Error(`список не вернулся: было ${candidates}, стало ${back}`);
+  });
 });
 
 // До #858 пикер был смонтирован постоянно, и набранный поиск переживал закрытие: следующее
@@ -156,11 +161,11 @@ await check('ref-picker-search-narrows-and-restores', async () => {
 await check('ref-picker-reopens-clean', async () => {
   const dlg0 = page.locator('[role=dialog]').last();
   await dlg0.locator('input').first().fill('надзор');
-  await page.waitForTimeout(500);
+  await settled(page);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(800);
+  await settled(page);
   await editor.getByRole('button', { name: /^Из каталога$/ }).first().click();
-  await page.waitForTimeout(1300);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   if (!/выбрать объект/i.test(await dlg.innerText())) throw new Error('открылось не «Выбрать объект»');
   const val = await dlg.locator('input').first().inputValue();
@@ -173,11 +178,11 @@ await check('ref-picker-reopens-clean', async () => {
 // «Документы соответствия» — массив union-типа: строка 1 заполнена вариантом «Проект»,
 // строка 2 — вариантом «Документ». По строке видно, какой вариант обязан быть активным.
 await page.keyboard.press('Escape');
-await page.waitForTimeout(700);
+await settled(page);
 await editor.getByRole('button', { name: /Документы соответствия/ }).first().click();
-await page.waitForTimeout(1000);
+await settled(page);
 await editor.getByRole('button', { name: /Документы соответствия/ }).nth(1).click();
-await page.waitForTimeout(1000);
+await settled(page);
 
 // Переключатель вариантов — radio-группа (VariantPicker), активный помечен aria-checked.
 const checkedVariant = async () => {
@@ -189,7 +194,7 @@ const checkedVariant = async () => {
 
 await check('union-row-opens-on-filled-variant', async () => {
   await editor.getByRole('button', { name: /^Редактировать$/ }).first().click();
-  await page.waitForTimeout(1600);
+  await settled(page);
   const on = await checkedVariant();
   if (on !== 'Проект') throw new Error(`активен вариант «${on}», ждали «Проект»`);
   if (!/Проект ЭОМ/.test(await page.locator('[role=dialog]').last().innerText()))
@@ -199,20 +204,20 @@ await check('union-row-opens-on-filled-variant', async () => {
 await check('union-switch-hides-and-restores', async () => {
   const dlg = page.locator('[role=dialog]').last();
   await dlg.getByRole('radio', { name: /^Документ$/ }).first().click();
-  await page.waitForTimeout(900);
+  await settled(page);
   if ((await checkedVariant()) !== 'Документ') throw new Error('переключение не сменило активный вариант');
   if (/Проект ЭОМ/.test(await dlg.innerText())) throw new Error('показан прежний вариант при другом активном');
   await dlg.getByRole('radio', { name: /^Проект$/ }).first().click();
-  await page.waitForTimeout(900);
+  await settled(page);
   if ((await checkedVariant()) !== 'Проект') throw new Error('возврат не сменил активный вариант');
   if (!/Проект ЭОМ/.test(await dlg.innerText())) throw new Error('спрятанное значение не вернулось из стэша');
 });
 
 await check('union-second-row-has-its-own-variant', async () => {
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(900);
+  await settled(page);
   await editor.getByRole('button', { name: /^Редактировать$/ }).nth(1).click();
-  await page.waitForTimeout(1600);
+  await settled(page);
   const on = await checkedVariant();
   if (on !== 'Документ') throw new Error(`активен вариант «${on}», ждали «Документ»`);
   if (!/ПУЭ 7/.test(await page.locator('[role=dialog]').last().innerText()))
@@ -229,7 +234,7 @@ await check('file-preview-shows-attachment', async () => {
     .or(editor.locator('button[title="Предпросмотр"]')).first();
   if (!(await eye.count())) throw new Error('кнопки предпросмотра у поля-файла нет');
   await eye.click();
-  await page.waitForTimeout(2500);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   if ((await dlg.locator('iframe').count()) + (await dlg.locator('img').count()) < 1)
     throw new Error(`ни iframe, ни img: ${(await dlg.innerText()).slice(0, 200)}`);
@@ -238,18 +243,18 @@ await check('file-preview-shows-attachment', async () => {
 });
 
 await page.keyboard.press('Escape');
-await page.waitForTimeout(600);
+await settled(page);
 await page.keyboard.press('Escape');
-await page.waitForTimeout(800);
+await settled(page);
 
 await check('image-field-renders-stored-image', async () => {
   await page.goto(`${BASE}/common-data`);
-  await page.waitForTimeout(2500);
+  await settled(page);
   // Записи показываются по типу, а группа полей свёрнута: без обоих кликов поле не смонтировано.
   await page.getByText('Организация в СРО', { exact: false }).first().click();
-  await page.waitForTimeout(1500);
+  await settled(page);
   await page.getByText('Техногид', { exact: false }).first().click();
-  await page.waitForTimeout(2500);
+  await settled(page);
   await page.getByText('ЛОГОТИП, ПЕЧАТЬ', { exact: false }).first().click();
   // Ждём саму картинку, а не «сколько-то секунд»: байты едут из хранилища, и на холодном MinIO
   // фиксированная пауза даёт то зелёный, то красный прогон на одном и том же коде.
@@ -268,21 +273,21 @@ editor = await openInstance(AOSR);
 await check('base-picker-reopens-clean', async () => {
   const openPicker = async () => {
     await editor.getByRole('button', { name: /Выбрать основу/ }).first().click();
-    await page.waitForTimeout(1200);
+    await settled(page);
     const dlg = page.locator('[role=dialog]').last();
     if (!/Базовый экземпляр/i.test(await dlg.innerText())) throw new Error('пикер основы не открылся');
     return dlg;
   };
   const first = await openPicker();
   await first.locator('input').first().fill('надзор');
-  await page.waitForTimeout(500);
+  await settled(page);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(800);
+  await settled(page);
   const again = await openPicker();
   const val = await again.locator('input').first().inputValue();
   if (val !== '') throw new Error(`поиск не сброшен: «${val}»`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(600);
+  await settled(page);
 });
 
 /**
@@ -292,7 +297,7 @@ await check('base-picker-reopens-clean', async () => {
  */
 await check('constraint-violation-shows-message', async () => {
   await editor.getByRole('button', { name: /Прочее/ }).first().click();
-  await page.waitForTimeout(1200);
+  await settled(page);
   // Поле берём ПО ПОДПИСИ, а не «первый input раздела»: с порядковым локатором проверка при любой
   // перестановке формы молча уехала бы на чужое поле — и либо падала на исправном коде, либо (попади
   // она на другое целочисленное) проходила, ничего не проверив.
@@ -301,12 +306,14 @@ await check('constraint-violation-shows-message', async () => {
     throw new Error(`поле «${INTEGER_FIELD}» не найдено однозначно (${await input.count()})`);
   const before = await input.inputValue();
   await input.fill('1.5');           // тип поля — «Цело число»
-  await page.waitForTimeout(700);
-  const t = await editor.innerText();
-  if (!/целое число/i.test(t))
-    throw new Error(`дробное значение принято без замечания: ${t.slice(-300)}`);
+  // Замечания до ввода нет — ждём его появления, а не «сколько-то после ввода».
+  await until(async () => {
+    const t = await editor.innerText();
+    if (!/целое число/i.test(t))
+      throw new Error(`дробное значение принято без замечания: ${t.slice(-300)}`);
+  });
   await input.fill(before);          // возвращаем что было (прогон ничего не сохраняет)
-  await page.waitForTimeout(500);
+  await settled(page);
 });
 
 // ── Очистка активного варианта union ───────────────────────────────────────────
@@ -314,13 +321,13 @@ await check('constraint-violation-shows-message', async () => {
 // прогон ничего не сохраняет — правки уходят вместе с браузером).
 await check('union-clearing-keeps-active-variant', async () => {
   await editor.getByRole('button', { name: /Документы соответствия/ }).first().click();
-  await page.waitForTimeout(1000);
+  await settled(page);
   await editor.getByRole('button', { name: /Документы соответствия/ }).nth(1).click();
-  await page.waitForTimeout(1000);
+  await settled(page);
   // Берём строку с НЕ-первым вариантом («Проект» стоит в списке вторым): подмена активного варианта
   // подставляет ПЕРВЫЙ, и на строке с первым вариантом дефект был бы неотличим от исправности.
   await editor.getByRole('button', { name: /^Редактировать$/ }).first().click();
-  await page.waitForTimeout(1600);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   const on = await checkedVariant();
   if (on !== 'Проект') throw new Error(`строка открылась на «${on}», ждали «Проект»`);
@@ -328,7 +335,7 @@ await check('union-clearing-keeps-active-variant', async () => {
     .or(dlg.locator('button[title="Снять ссылку"]')).first();
   if (!(await unlink.count())) throw new Error('нечем очистить значение — кнопки «Снять ссылку» нет');
   await unlink.click();
-  await page.waitForTimeout(1000);
+  await settled(page);
   const after = await checkedVariant();
   // Заполненного ключа в значении не осталось, и активный вариант держится только пометкой выбора.
   if (after !== 'Проект') throw new Error(`после очистки активен «${after}» — ввод лёг бы не в тот ключ`);

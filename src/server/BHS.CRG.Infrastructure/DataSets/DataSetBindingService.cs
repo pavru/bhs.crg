@@ -4,6 +4,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -218,11 +219,31 @@ public class DataSetBindingService(
             .FirstOrDefaultAsync(o => o.Id == ownerId, ct);
         var ownerSetId = owner is { IsDocument: true, ScopeLevel: CatalogScope.Set } ? owner.ScopeId : null;
 
+        if (bindings.Count == 0) return [];
+
+        // Типы — один раз на весь предпросмотр (#1088): по ним выводятся тип строки, состав колонок,
+        // выбор варианта union и подписи ссылок. Раньше каждое из этого читало таблицу типов заново.
+        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        var ownerFields = FieldsOf(owner?.CompositeTypeId, typesById);
+
         var results = new List<BindingPreviewDto>();
         foreach (var binding in bindings)
         {
             try
             {
+                // Целевого поля в типе владельца больше нет — генерация такую привязку пропускает
+                // целиком (DataSetResolver), и предпросмотр обязан сказать то же, а не рисовать
+                // исправные данные под зелёной галкой. Тип владельца неизвестен — не утверждаем.
+                if (binding.TargetFieldKey is { } targetKey && ownerFields is not null
+                    && ownerFields.All(f => f.Key != targetKey))
+                {
+                    results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+                        "error", targetKey, 0, new { },
+                        $"Привязка указывает на поле «{targetKey}», которого в типе документа нет, — " +
+                        "данные в документ не попадают. Удалите привязку или переключите её на поле текущей схемы."));
+                    continue;
+                }
+
                 var rows = await rowLoader.LoadRowsAsync(binding.Source, access, ct);
 
                 // Материализация ссылкой на существующий документ (issue #725) — до маппинга, его в
@@ -250,7 +271,7 @@ public class DataSetBindingService(
                 // показывать то же, что получится.
                 var selector = binding.Source.MaterializeTypeId is not null
                     && DataSetMappingValue.IsEmptyMapping(binding.Mapping)
-                    ? await BuildVariantSelectorAsync(binding.Source.MaterializeDiscriminator, rows, ct)
+                    ? await BuildVariantSelectorAsync(binding.Source.MaterializeDiscriminator, rows, typesById, ct)
                     : null;
 
                 // Материализация настроена, а маппинг пуст (issue #715) — то же, о чём говорит
@@ -271,14 +292,22 @@ public class DataSetBindingService(
                     var row = rows.Count > 0 ? rows[0] : null;
                     var data = new Dictionary<string, object?>();
                     foreach (var (fieldKey, colName) in PairsFor(selector, mapping, row, ref skipped))
-                        if (!string.IsNullOrEmpty(colName))
-                            data[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
+                    {
+                        // Поля нет в типе владельца — генерация значение НЕ пишет (DataSetResolver), и
+                        // предпросмотр его не показывает: колонка останется с причиной, но без значения.
+                        // Иначе экран обещал бы то, что в документ не попадёт, а проверку данных
+                        // (`mergeBindingPreviewsIntoValues`) это значение и вовсе внесло бы в форму.
+                        if (string.IsNullOrEmpty(colName)
+                            || (ownerFields is not null && ownerFields.All(f => f.Key != fieldKey))) continue;
+                        data[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
+                    }
 
                     // Тип строки скалярной привязки — сам тип владельца: маппинг ложится на его поля.
-                    await DocRefPreviewLabeler.LabelAsync(db, [data], owner?.CompositeTypeId, ownerSetId, ct);
+                    await DocRefPreviewLabeler.LabelAsync(db, [data], owner?.CompositeTypeId, ownerSetId, ct, typesById);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
-                        "scalar", null, rows.Count, data, null));
+                        "scalar", null, rows.Count, data, null,
+                        BindingPreviewColumns.Build(MappedKeys(mapping), ownerFields)));
                 }
                 else
                 {
@@ -298,8 +327,8 @@ public class DataSetBindingService(
                     // Тип строки: у материализованного источника — его тип, иначе — тип элемента
                     // целевого поля. Без этого doc-ref-ячейки остались бы сырыми идентификаторами
                     // на экране, куда идут проверять, ТЕ ЛИ документы приедут.
-                    await DocRefPreviewLabeler.LabelAsync(db, mapped,
-                        await RowTypeIdAsync(binding, owner?.CompositeTypeId, ct), ownerSetId, ct);
+                    var rowTypeId = RowTypeId(binding, owner?.CompositeTypeId, typesById);
+                    await DocRefPreviewLabeler.LabelAsync(db, mapped, rowTypeId, ownerSetId, ct, typesById);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "tabular", binding.TargetFieldKey, mapped.Count, mapped,
@@ -307,7 +336,8 @@ public class DataSetBindingService(
                         // это то, ради чего сюда и смотрят.
                         skipped > 0
                             ? $"Строк пропущено при материализации: {skipped} — их тип документа не назначен ни одному варианту."
-                            : null));
+                            : null,
+                        BindingPreviewColumns.Build(MappedKeys(mapping), FieldsOf(rowTypeId, typesById))));
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -374,7 +404,8 @@ public class DataSetBindingService(
                   .Select(p => $"{p.Value} — {MaterializeSkipReason.Describe(p.Key)}"));
 
         return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
-            "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning);
+            "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning,
+            [new BindingPreviewColumnDto("Документ", "Документ")]);
     }
 
     /// <summary>
@@ -382,7 +413,8 @@ public class DataSetBindingService(
     /// источника — его тип материализации (маппинг взят оттуда), иначе — тип элемента целевого поля.
     /// null — вывести не удалось (тип владельца неизвестен либо поле не найдено).
     /// </summary>
-    private async Task<Guid?> RowTypeIdAsync(DataSetBinding binding, Guid? ownerTypeId, CancellationToken ct)
+    private static Guid? RowTypeId(
+        DataSetBinding binding, Guid? ownerTypeId, IReadOnlyDictionary<Guid, DocumentType> typesById)
     {
         if (binding.Source.MaterializeTypeId is { } materialized
             && DataSetMappingValue.IsEmptyMapping(binding.Mapping))
@@ -390,20 +422,27 @@ public class DataSetBindingService(
 
         if (ownerTypeId is not { } typeId || binding.TargetFieldKey is null) return null;
 
-        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         return DocumentTypeSchemaReader.Field(typeId, binding.TargetFieldKey, typesById)?.TypeId;
     }
+
+    /// <summary>Поля, которым маппинг назначил колонку: пустое назначение предпросмотр не заполняет.</summary>
+    private static IEnumerable<string> MappedKeys(Dictionary<string, string> mapping) =>
+        mapping.Where(p => !string.IsNullOrEmpty(p.Value)).Select(p => p.Key);
+
+    /// <summary>Поля типа строки; null — тип неизвестен или исчез (тогда колонки без пометок).</summary>
+    private static IReadOnlyList<SchemaFieldInfo>? FieldsOf(
+        Guid? typeId, IReadOnlyDictionary<Guid, DocumentType> typesById) =>
+        typeId is { } id && typesById.ContainsKey(id) ? DocumentTypeSchemaReader.EffectiveFields(id, typesById) : null;
 
     /// <summary>Тот же выбор варианта, что у генерации (issue #716); null — правила нет.</summary>
     private async Task<MaterializeVariantSelector?> BuildVariantSelectorAsync(
         string? discriminatorJson,
         IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        IReadOnlyDictionary<Guid, DocumentType> typesById,
         CancellationToken ct)
     {
         var config = MaterializeVariantSelector.ParseConfig(discriminatorJson);
         if (config is null) return null;
-
-        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         Dictionary<Guid, Guid>? typeByDocument = null;
         var documentIds = MaterializeVariantSelector.DocumentIdsIn(config, rows).ToList();
         if (documentIds.Count > 0)

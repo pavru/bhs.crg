@@ -171,8 +171,11 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             "{'ИНН':'7701','СРО':'СРО-С-001'}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.ContractorTypeId);
-        await Svc(scope).SetSourceProcessingAsync(sourceId, new SetSourceProcessingInput(
-            null, JsonSerializer.Deserialize<object>("""[{"alias":"ИННиСРО","expr":"get('ИНН') + '/' + get('СРО')"}]"""), null), default);
+        await Svc(scope).SetSourceProcessingAsync(sourceId, new SetSourceProcessingInput
+        {
+            ComputedColumns = ProcessingPart.Of(
+                JsonSerializer.Deserialize<object>("""[{"alias":"ИННиСРО","expr":"get('ИНН') + '/' + get('СРО')"}]""")),
+        }, TestAccess.All, default);
 
         var page = (await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
             .GetRowsAsync(sourceId, 0, 50, TestAccess.All))!;

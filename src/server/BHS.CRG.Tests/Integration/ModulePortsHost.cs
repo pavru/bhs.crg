@@ -2,7 +2,6 @@ using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -22,12 +21,9 @@ public sealed class ModulePortsHost : IntegrationTestFixture
 {
     private static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_ports";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("ports");
+
+    protected override string HostConnectionString => ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

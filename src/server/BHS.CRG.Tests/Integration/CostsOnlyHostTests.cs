@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -59,20 +58,23 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
     }
 
     /// <summary>
-    /// Включённый модуль отказом НЕ отвечает: под его путём обычный 404, потому что адресов у каркаса
-    /// пока нет.
+    /// Включённый модуль отказом «нет такого модуля» НЕ отвечает: его адрес требует токен (401), а не
+    /// сообщает, что модуля в поставке нет (501).
     ///
-    /// Различие не косметическое. 501 означает «экземпляр этого не умеет и не научится сам»; получив
-    /// его от включённого модуля, человек пошёл бы включать то, что уже включено. Сторож стоит здесь,
-    /// пока адресов нет: с первым адресом (C1) проверять это станет нечем — 404 перестанет быть
-    /// достижимым, а подмена кода останется возможной.
+    /// <para>Различие не косметическое. 501 означает «экземпляр этого не умеет и не научится сам»;
+    /// получив его от включённого модуля, человек пошёл бы включать то, что уже включено.</para>
+    ///
+    /// <para>⚠️ Проверка переписана в C1 (issue #1076). Прежде она ждала 404 — «адресов у каркаса
+    /// нет», — и это было верно ровно до первого адреса. Сам сторож при этом остался нужен: подмена
+    /// кода отказа возможна по-прежнему, а 401 от включённого модуля отличим от 501 так же хорошо, как
+    /// был отличим 404.</para>
     /// </summary>
     [Fact]
     public async Task Enabled_module_does_not_refuse_its_own_paths()
     {
         var response = await host.CreateClient().GetAsync("/api/costs/invoices");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     /// <summary>
@@ -124,9 +126,9 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
     /// администратор получил бы галки, которые не делают ничего, — ровно то, против чего зеркальный
     /// храповик и написан.</para>
     ///
-    /// <para>Сегодня в списке все восемь: у каркаса адресов нет (A1). Список — ратчет, и опустошать
-    /// его обязаны задачи, приносящие адреса: строка, у которой дверь появилась, роняет тест и
-    /// требует себя убрать.</para>
+    /// <para>Список — ратчет, и опустошать его обязаны задачи, приносящие адреса: строка, у которой
+    /// дверь появилась, роняет тест и требует себя убрать. В A1 в нём были все восемь прав (адресов у
+    /// каркаса не было), в C1 (issue #1076) ушли два — чтение и правка счёта.</para>
     /// </summary>
     [Fact]
     public void Module_permissions_open_a_door_or_are_named_as_doorless()
@@ -135,14 +137,13 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
 
         Dictionary<string, string> doorless = new()
         {
-            ["costs.invoice.read"] = "адреса счёта — C1 (#1076)",
-            ["costs.invoice.edit"] = "адреса счёта — C1 (#1076)",
+            // costs.invoice.read и costs.invoice.edit ушли отсюда в C1 (issue #1076): у них появились
+            // двери — адреса счёта. Храповик сработал ровно так, как написан: строки уронили тест и
+            // потребовали себя убрать. costs.articles.edit ушло в F3 (issue #1087) — справочник статей.
             ["costs.invoice.pay"] = "отметка оплаты — C5 (#1082)",
             ["costs.waybill.read"] = "адреса накладной — D1 (#1083)",
             ["costs.waybill.edit"] = "адреса накладной и загрузка 1С — D1 (#1083), D3 (#1084)",
-            ["costs.allocation.edit"] = "разноска — F1 (#1085)",
             ["costs.report.read"] = "реестр и затраты — G4 (#1097), G5 (#1098)",
-            ["costs.articles.edit"] = "справочник статей вне строек — F3 (#1087)",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
@@ -222,12 +223,9 @@ public sealed class CostsOnlyHost : IntegrationTestFixture
     /// </summary>
     private static string ConnectionString { get; } = Dedicated();
 
-    private static string Dedicated()
-    {
-        var builder = new NpgsqlConnectionStringBuilder(TestConnectionString);
-        builder.Database += "_costs";
-        return builder.ConnectionString;
-    }
+    private static string Dedicated() => TestDatabases.ConnectionString("costs");
+
+    protected override string HostConnectionString => ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

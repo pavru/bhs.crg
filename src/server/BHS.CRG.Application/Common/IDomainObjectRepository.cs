@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Objects;
 
 namespace BHS.CRG.Application.Common;
@@ -34,4 +35,17 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// </summary>
     Task<IReadOnlyDictionary<(Guid SetId, Guid TypeId), int>> CountReadyDocumentsByTypeAsync(
         IReadOnlyCollection<Guid> setIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Записи ОБЩИХ ДАННЫХ ссылками — имя и идентификатор, без JSONB (issue #1078). Тем же приёмом,
+    /// что <see cref="CountDocumentsInSetsAsync" />: выборка, в которой данные записи не нужны, не
+    /// имеет права их грузить.
+    ///
+    /// <para>Отбор — вид (и его подтипы, развёрнутые вызывающим), часть названия ИЛИ альтернативного
+    /// имени без учёта регистра (issue #1169), перечень известных идентификаторов. Отсечение <paramref name="limit" /> идёт ПОСЛЕ сортировки
+    /// по названию — иначе «первые N» означало бы «произвольные N».</para>
+    /// </summary>
+    Task<IReadOnlyList<CommonDataRef>> FindCommonDataRefsAsync(
+        IReadOnlyCollection<Guid> typeIds, string? search, IReadOnlyCollection<Guid>? ids, int? limit,
+        CancellationToken ct = default);
 }

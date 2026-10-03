@@ -11,6 +11,7 @@ import { usePlanSummary, planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
+import { useCan } from '@/shared/api/access';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 
@@ -85,6 +86,12 @@ export function ConstructionsList() {
   const { data: constructions = [], isLoading } = useListConstructions();
   const { data: problems } = useProblemSummary('System');
   const { data: plans } = usePlanSummary('System');
+  // Поиск идёт по комплектам — это модуль ИД (issue #1125). Без модуля поле отвечало бы
+  // «Ничего не найдено» на любой запрос: отказ сервера выглядел бы пустым результатом.
+  // Правка строек — своё право (issue #1128): «Бухгалтер» видит стройки, но не правит их, и каждая
+  // кнопка правки отвечала бы ему отказом.
+  const can = useCan();
+  const canEdit = can.permission('core.constructions.edit');
   const createMutation = useCreateConstruction();
   const deleteMutation = useDeleteConstruction();
   const renameMutation = useRenameConstruction();
@@ -113,19 +120,21 @@ export function ConstructionsList() {
     <div className="px-6 py-4">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-fg1">Стройки</h1>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-          Новая стройка
-        </Button>
+        {canEdit && (
+          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+            Новая стройка
+          </Button>
+        )}
       </div>
 
-      <DocumentSearchPanel />
+      {can.module('id') && <DocumentSearchPanel />}
 
       {isLoading ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
       ) : constructions.length === 0 ? (
         <EmptyState icon={<Building2 size={30} />} title="Пока нет строек"
           description="Создайте первую стройку, чтобы начать вести исполнительную документацию по её разделам и комплектам."
-          action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Новая стройка</Button>} />
+          action={canEdit ? <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Новая стройка</Button> : undefined} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {constructions.map(c => {
@@ -143,7 +152,7 @@ export function ConstructionsList() {
                   ) : (
                     <h3 className="text-base font-semibold text-fg1 flex-1">{c.name}</h3>
                   )}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
+                  {canEdit && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                     <IconButton label="Переименовать" size="sm"
                       onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }}>
                       <Pencil size={13} />
@@ -152,11 +161,12 @@ export function ConstructionsList() {
                       onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}>
                       <Trash2 size={13} />
                     </IconButton>
-                  </div>
+                  </div>}
                 </div>
                 <div className="flex items-center gap-4 text-xs text-fg4">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
-                  <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>
+                  {/* Комплекты — модуль ИД (issue #1128): без него счётчика нет, а не «0 комплектов». */}
+                  {can.module('id') && <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>}
                   {/* Строкой, а не пилюлей: красные пилюли на карточках дают «ёлку» раньше всего.
                       Готовность — там же и тем же тоном: это соседняя по смыслу цифра, а не бейдж. */}
                   {/* Оговорка «без плана» обязательна ВЕЗДЕ, где показан процент: стройка, где

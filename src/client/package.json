@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && npm run build:bundle",
+    "build:bundle": "vite build",
     "lint": "eslint .",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e:harness": "node e2e/harness-smoke.mjs",
     "test:e2e:keyboard": "node e2e/keyboard-smoke.mjs",
     "test:e2e:routing": "node e2e/routing-smoke.mjs",
     "test:e2e:fields": "node e2e/fields-smoke.mjs",
@@ -21,8 +23,13 @@
     "test:e2e:pages": "node e2e/pages-smoke.mjs",
     "test:e2e:types": "node e2e/types-smoke.mjs",
     "test:e2e:limited": "node e2e/limited-smoke.mjs",
+    "test:e2e:invoices": "node e2e/invoices-smoke.mjs",
+    "test:e2e:invoice-lines": "node e2e/invoice-lines-smoke.mjs",
+    "test:e2e:allocation-matrix": "node e2e/allocation-matrix-smoke.mjs",
+    "test:e2e:table-chips": "node e2e/table-chips-smoke.mjs",
+    "test:e2e:table-view": "node e2e/table-view-smoke.mjs",
     "test:e2e:seed": "node e2e/seed.mjs",
-    "test:e2e:ci": "node e2e/run-suites.mjs keyboard routing types settings shared-ui pages fields dialogs limited"
+    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix table-chips table-view"
   },
   "//engines": "Нижнюю границу Node задаёт react-router 8 (>=22.22.0). Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE. Образ сборки — node:22-alpine, см. deploy/Dockerfile.web.",
   "engines": {

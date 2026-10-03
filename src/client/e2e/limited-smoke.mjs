@@ -33,7 +33,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/limited-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
 
 // Учётная запись с ограниченными правами — та же, что заводит посев (e2e/seed.mjs): роль `User`,
 // она же «Инженер ИД». Отдельной заводить незачем; разойдясь, значения дали бы «не вошёл».
@@ -120,7 +120,7 @@ for (const section of SECTIONS) {
   await check(`section-opens-${section.path.slice(1)}`, async () => {
     screen = section.name;
     await page.goto(`${BASE}${section.path}`);
-    await page.waitForTimeout(2500);
+    await settled(page);
     const text = await page.locator('body').innerText();
     // Сначала — про отказ страницей: без этого «якоря нет» сказало бы «экран сломан» там, где
     // экрана не дали вовсе, и чинить пошли бы не то.
@@ -156,7 +156,7 @@ await check('document-editor-opens-under-limited-rights', async () => {
   try {
     await page.waitForSelector('[role=dialog]', { timeout: 20000 })
       .catch(() => { throw new Error('редактор документа не открылся'); });
-    await page.waitForTimeout(2500);
+    await settled(page);
     const dialog = await page.locator('[role=dialog]').first().innerText();
     if (!/АОСР/.test(dialog)) throw new Error(`открылось не то: ${dialog.slice(0, 200)}`);
   } finally {
@@ -166,7 +166,9 @@ await check('document-editor-opens-under-limited-rights', async () => {
     // то есть сторож поломки 3 из #974, не выполняется ВОВСЕ. Счётчик отказов при этом зелёный,
     // потому что запросов не было. Найдено ревью PR #1062.
     await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(1000);
+    // Отказ ожидания здесь глотаем: брошенный из `finally`, он подменил бы настоящую причину
+    // падения проверки своей — «страница не затихла».
+    await settled(page).catch(() => {});
   }
 });
 
@@ -182,7 +184,7 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
   // Уборка у неё есть (`finally` выше), но держаться на ней одной значит связать две проверки
   // так, что падение первой уносит вторую.
   await page.goto(`${BASE}/document-sets`);
-  await page.waitForTimeout(1500);
+  await settled(page);
   await page.getByText('Сообщить об ошибке').first().click();
   await page.waitForSelector('[role=dialog]', { timeout: 10000 });
   const dialog = page.locator('[role=dialog]').last();
@@ -191,9 +193,9 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
     'Проверка живого прогона под ролью с ограниченными правами (issue #975).');
   await dialog.locator('input[type=file]').setInputFiles(
     { name: 'shot.png', mimeType: 'image/png', buffer: PNG });
-  await page.waitForTimeout(800);
-  if (!(await dialog.locator('img[alt="Снимок экрана"]').count()))
-    throw new Error('вложение не показано — диалог не принял файл');
+  // Ждём САМ снимок: файл читается в браузере, без запроса, и «затихшая страница» о нём не знает.
+  await dialog.locator('img[alt="Снимок экрана"]').first().waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('вложение не показано — диалог не принял файл'); });
 
   await dialog.locator('button', { hasText: 'Отправить' }).last().click();
 

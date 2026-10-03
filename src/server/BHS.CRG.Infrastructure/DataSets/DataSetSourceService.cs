@@ -38,7 +38,12 @@ public partial class DataSetSourceService(
     public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(
         Guid fileId, DataAccess access, CancellationToken ct)
     {
-        var sources = await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct);
+        // Источники читаются ЧЕРЕЗ НАБОР, а не своим запросом (issue #1149): порядок у них один, и
+        // задаёт его набор (DataSetFile.Sources). Собственный запрос отдавал их в порядке строк в
+        // куче, и тот менялся правкой любого источника.
+        var file = await db.DataSetFiles.Include(f => f.Sources).AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null) return [];
+        var sources = file.Sources;
         var ids = sources.Select(s => s.Id).ToList();
         var bindingCounts = ids.Count == 0
             ? new Dictionary<Guid, int>()
@@ -47,11 +52,8 @@ public partial class DataSetSourceService(
                 .GroupBy(b => b.SourceId)
                 .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
 
-        // Системный набор: число строк живое (issue #613) — файл не запрашиваем, если нечего считать.
-        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
-        var liveStates = file is null
-            ? new Dictionary<Guid, SystemSourceCounter.SystemSourceState>()
-            : await systemCounts.StateAsync(file, sources, access, ct);
+        // Системный набор: число строк живое (issue #613).
+        var liveStates = await systemCounts.StateAsync([file], access, ct);
 
         return sources.Select(s => DataSetDtoMapper.MapSource(
             s, bindingCounts.GetValueOrDefault(s.Id),
@@ -82,7 +84,7 @@ public partial class DataSetSourceService(
             foreach (var provider in systemProviders.All)
             {
                 if (!SystemDataSetGate.Allows(provider.Declaration, access)) continue;
-                candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, ct))
+                candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, access, ct))
                     .Select(c => c with { ExistingCount = existingMarkers.Count(m => m == c.SheetOrPath) }));
             }
             return candidates;
@@ -268,37 +270,6 @@ public partial class DataSetSourceService(
             ? [.. live.Select(c => c.Name)]
             : [.. (JsonSerializer.Deserialize<CachedColumnInfo[]>(cachedSchema, CachedSchemaJson) ?? [])
                 .Select(c => c.Name)];
-
-    /// <summary>
-    /// Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает. Настройка
-    /// задаётся целиком: тип, маппинг и (issue #716) правило выбора варианта.
-    /// Сохраняется ЗАМЕЩЕНИЕМ — частичных правок здесь нет намеренно: маппинг и правила связаны, и
-    /// сохранить одно без другого значит оставить источник в состоянии, которого валидатор не пропустил бы.
-    /// </summary>
-    public async Task<DataSetSourceDto?> SetMaterializationAsync(
-        Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping,
-        MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-
-        var effectiveMapping = mapping ?? new Dictionary<string, string>();
-        if (typeId is { } id)
-        {
-            var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
-            if (!typesById.TryGetValue(id, out var type))
-                throw new NotFoundException($"Тип {id} не найден.");
-            MaterializeConfigValidator.Validate(type, effectiveMapping, discriminator, typesById, byIdColumn);
-        }
-
-        var mappingJson = typeId is null ? null : JsonSerializer.Serialize(effectiveMapping);
-        var discriminatorJson = typeId is null || discriminator is null
-            ? null
-            : JsonSerializer.Serialize(discriminator);
-        source.SetMaterialization(typeId, mappingJson, discriminatorJson, byIdColumn);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
 
     /// <summary>
     /// Предпросмотр материализации: строки источника (после всех обработок) → объекты формы типа по
@@ -586,27 +557,6 @@ public partial class DataSetSourceService(
         return DataSetDtoMapper.MapSource(source);
     }
 
-    public async Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-        // Определение системного источника — это выбор консолидации, менять в нём нечего: переименование
-        // идёт через RenameSourceAsync, а другая консолидация — другой источник.
-        if (source.File.IsSystem)
-            throw new InvalidRequestException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
-        if (string.IsNullOrWhiteSpace(input.Name)) throw new InvalidRequestException("Укажите название источника.");
-        await EnsureNameFreeAsync(source.FileId, input.Name.Trim(), sourceId, ct, source.Name);
-
-        var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
-        var (schema, rowCount) = await ParseForDefinitionAsync(
-            source.File.BlobPath, source.File.Format, input.SheetOrPath, columnExpressionsJson, ct);
-
-        source.UpdateDefinition(input.Name.Trim(), input.SheetOrPath.Trim(), columnExpressionsJson);
-        source.UpdateCache(DataSetDtoMapper.SerializeSchema(schema), rowCount);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
-
     public async Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct)
     {
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -667,7 +617,10 @@ public partial class DataSetSourceService(
     // ради которой копию и делают. Имя задаёт вызывающий (диалог), иначе берём ближайшее свободное.
     public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, string? name, CancellationToken ct)
     {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        // Набор — вместе с источниками: копия обязана встать после ВСЕХ, а не только после оригинала
+        // (см. DataSetFile.AddSource — о незагруженных источниках набор не знает).
+        var source = await db.DataSetSources.Include(s => s.File).ThenInclude(f => f.Sources)
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
         var copyName = string.IsNullOrWhiteSpace(name)
@@ -780,41 +733,5 @@ public partial class DataSetSourceService(
             : schema.Select(c => $"{c.Name}: {string.Join(", ", c.SampleValues)}").ToList();
 
         return new ExpressionPreviewDto(rowCount, samples);
-    }
-
-    public async Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-
-        source.SetProcessing(
-            DataSetDtoMapper.SerializeJson(input.RowFilter), DataSetDtoMapper.SerializeJson(input.ComputedColumns), DataSetDtoMapper.SerializeJson(input.SortSpec));
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
-
-    public async Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-
-        var template = await db.DataSetProcessingTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == templateId, ct)
-            ?? throw new NotFoundException($"DataSetProcessingTemplate {templateId} not found");
-
-        // Extraction в шаблоне — опциональна: если задана, пере-парсим файл (имя источника не
-        // трогаем — оно своё у каждого источника, не часть рецепта). У системного источника
-        // extraction — это ВЫБОР КОНСОЛИДАЦИИ, а не лист файла: подменять его рецептом нельзя
-        // (парсера у формата System нет — прежде здесь падало «Нет парсера для формата System»).
-        // Обработку при этом переносим: фильтр/колонки/сортировка к живым строкам применимы (#613).
-        if (!string.IsNullOrWhiteSpace(template.SheetOrPath) && !source.File.IsSystem)
-        {
-            var (schema, rowCount) = await ParseForDefinitionAsync(
-                source.File.BlobPath, source.File.Format, template.SheetOrPath, template.ColumnExpressions, ct);
-            source.UpdateDefinition(source.Name, template.SheetOrPath, template.ColumnExpressions);
-            source.UpdateCache(DataSetDtoMapper.SerializeSchema(schema), rowCount);
-        }
-        source.SetProcessing(template.RowFilter, template.ComputedColumns, template.SortSpec);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
     }
 }

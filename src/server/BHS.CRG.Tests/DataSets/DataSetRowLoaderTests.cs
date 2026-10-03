@@ -47,7 +47,7 @@ public class DataSetRowLoaderTests
         public bool Handles(string marker) => marker == SystemDataSets.SetDocumentsMarker;
 
         public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-            CatalogScope scope, Guid? scopeId, CancellationToken ct) => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
+            CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct) => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
 
         public DataAccess? SeenAccess;
 

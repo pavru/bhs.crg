@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Интеграционные тесты ходят в ЖИВОЙ Postgres: IntegrationTestFixture прибит к
-    # localhost:5433 с postgres/xxsystem, имя базы берётся из BHS_TEST_DB. Порт 5433, а не 5432 —
+    # 127.0.0.1:5433 с postgres/xxsystem, имя базы берётся из BHS_TEST_DB. Порт 5433, а не 5432 —
     # см. комментарий у фикстуры: на машине разработчика 5432 занимает нативная служба, и значение
     # держится одно на все окружения, чтобы «локально прошло, в CI упало» не случалось из-за порта. Базу заводить не нужно —
     # приложение мигрирует при старте, а миграция создаёт её сама. MinIO подменён фейком, Typst
@@ -47,6 +47,16 @@ jobs:
           POSTGRES_PASSWORD: xxsystem
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
+          # Сервер тестов не бережёт данные от сбоя питания (issue #1164): база живёт три минуты и
+          # нужна только этому прогону. Ради скорости одного потока это ничего не даёт (259 с против
+          # 251), а двум потокам — половину времени: 212 с против 134. Тесты переписи миграций и
+          # хосты модулей создают и сносят базы, каждое такое действие требует контрольной точки, а
+          # она обязана сбросить на диск каждый файл, заведённый очистками соседнего потока.
+          #
+          # Аргументами initdb, а не командой сервера: сервисам GitHub команду не передать. Только
+          # ЗДЕСЬ, не в работе живых прогонов и не на стенде: там база либо проверяет поставку,
+          # либо хранит данные разработчика.
+          POSTGRES_INITDB_ARGS: "-c fsync=off -c synchronous_commit=off -c full_page_writes=off"
         ports:
           - 5433:5432
         # Без health-проверки шаги стартуют раньше, чем сервер примет соединение, и падает первый
@@ -58,19 +68,19 @@ jobs:
           --health-retries 12
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
       - name: Кеш пакетов NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           # Только csproj: версии пакетов живут в них (центрального Directory.Packages.props нет).
-          # Directory.Build.props намеренно не в ключе — там номер версии, он меняется почти каждым
-          # PR и обнулял бы кеш на ровном месте.
+          # Directory.Build.props намеренно не в ключе — там номер версии, он меняется каждым
+          # слиянием и обнулял бы кеш на ровном месте.
           key: nuget-${{ runner.os }}-${{ hashFiles('src/server/**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
@@ -94,6 +104,7 @@ jobs:
           rc=0
           same() { # $1 — эталон, $2 — файл, $3 — sed-выражение, $4 — что сверяем (человеку)
             local want="$1" file="$2" expr="$3" what="$4" used found=0
+            # shellcheck disable=SC2013 # имя образа пробелов не содержит, разбиение по словам и нужно
             for used in $(sed -n "$expr" "$file" | sort -u); do
               found=1
               if [ "$used" != "$want" ]; then
@@ -160,15 +171,16 @@ jobs:
         working-directory: src/server
         run: dotnet build BHS.CRG.slnx -c Debug
 
+      # Двумя потоками — двумя процессами `dotnet test` на своих базах (issue #1164): интеграционные
+      # тесты идут строго по очереди, и одному потоку из четырёх ядер раннера доставалось одно.
+      # Как тесты делятся, почему поделить их неправильно нельзя и что печатает итог — в самом
+      # скрипте; его логику проверяет работа «Скрипт обновления».
+      #
+      # Имена баз потоков скрипт выводит из BHS_TEST_DB: bhs_crg_ci_s1 и bhs_crg_ci_s2.
       - name: Тесты
-        working-directory: src/server
         env:
           BHS_TEST_DB: bhs_crg_ci
-        # ⚠️ minimal, а не normal: при 2373 тестах normal печатает строку на КАЖДЫЙ прошедший,
-        # и единственный упавший тонет в тысячах строк — лог открывают ровно тогда, когда он
-        # красный. Про отказ minimal не теряет ничего: имя теста, Error Message целиком, Stack
-        # Trace с файлом и строкой, итоговая сводка. Проверено ломанием сторожа, а не догадкой.
-        run: dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj -c Debug --no-build --logger "console;verbosity=minimal"
+        run: bash scripts/backend-tests.sh --no-build -c Debug
 
   frontend:
     name: Frontend (типы + тесты + линт)
@@ -178,11 +190,11 @@ jobs:
         working-directory: src/client
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # 22, а не свежайший: ровно на этой версии собирается образ (deploy/Dockerfile.web). CI,
       # проверяющий не ту версию, что поедет в продакшн, проверяет не то.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -210,7 +222,7 @@ jobs:
         run: npm run lint:ratchet
 
   update-script:
-    # ⚠️ ИМЯ РАБОТЫ МЕНЯТЬ НЕЛЬЗЯ, хотя проверяются здесь уже ДВА скрипта и имя этого не отражает.
+    # ⚠️ ИМЯ РАБОТЫ МЕНЯТЬ НЕЛЬЗЯ, хотя проверяются здесь уже ТРИ скрипта и имя этого не отражает.
     # Оно названо в обязательных проверках master (Settings → Rules → «Master ruleset»), и правило
     # ждёт проверку ИМЕННО с этим именем. Переименование означает, что обязательная проверка не
     # появится никогда, а слияние блокируется навсегда — с сообщением «the base branch policy
@@ -228,7 +240,7 @@ jobs:
     # «задач нет» всегда, откат столько же отказывал всегда). Docker и сеть здесь не нужны —
     # проверяется то, что можно спросить без них.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Проверка логики update.sh
         run: bash deploy/update.tests.sh
@@ -237,6 +249,41 @@ jobs:
       # ошибка в нём встречает человека, который систему ещё не видел (issue #890).
       - name: Проверка логики install.sh
         run: bash deploy/install.tests.sh
+
+      # Скрипты версии запускает не человек, а workflow «Повышение версии» после слияния, и их
+      # результат сразу уходит коммитом в master — ошибку там глазами никто не увидит (issue #1153).
+      - name: Проверка логики bump-version.sh
+        run: bash scripts/bump-version.tests.sh
+
+      # Скрипт стоит между тестами backend и обязательной проверкой: ошибка в сведении двух кодов
+      # возврата в один дала бы зелёный шаг при красных тестах (issue #1164). Проверяется с
+      # подделкой вместо `dotnet` — ни .NET, ни база здесь не нужны.
+      - name: Проверка логики backend-tests.sh
+        run: bash scripts/backend-tests.tests.sh
+
+      # Тот же довод: скрипт сводит коды возврата трёх ветвей подготовки живых прогонов в один
+      # (issue #1178). Проверяется на командах оболочки.
+      - name: Проверка логики in-parallel.sh
+        run: bash scripts/in-parallel.tests.sh
+
+      # Сами workflow (issue #1179). `bump-version.yml` и `release.yml` на PR не запускаются: первый
+      # идёт только на push в master, второй — только вручную, и сломанный в них вызов всплыл бы
+      # уже в master — красным повышением версии, после которого выпуск отказывает, — или прямо в
+      # выпуске. actionlint читает все пять файлов: синтаксис, выражения (`github.actorr` — отказ)
+      # и `run:` через shellcheck.
+      #
+      # ⚠️ ВХОДЫ ДЕЙСТВИЙ ОН НЕ СВЕРЯЕТ. Действия закреплены по SHA, а по SHA версию он не узнаёт и
+      # проверку молча пропускает (проверено подсадкой: при `@v4` неизвестный вход
+      # `setup-buildx-action` был отказом, при SHA — тишина). Действия Docker проверяет пробный
+      # выпуск — release.yml с `dry_run`.
+      #
+      # Образ прибит дайджестом: проверка, которая сама приезжает по передвигаемому тегу, проверяет
+      # не то, что вчера.
+      - name: Проверка workflow (actionlint)
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+          -color
 
   e2e:
     name: Живые прогоны (браузер)
@@ -283,7 +330,7 @@ jobs:
 
       # ПУСТАЯ строка — заявление этого окружения о себе: набора с РАСПОЗНАННЫМИ страницами здесь
       # нет и не будет, потому что распознаёт их ИИ-движок. `dialogs-smoke`, увидев пустое
-      # значение, пропускает три проверки разбиения PDF и называет их в итоге — 10 из 13.
+      # значение, пропускает три проверки разбиения PDF и называет их в итоге — 15 из 18.
       #
       # Стоит это ЗДЕСЬ, а не в посеве, ровно по правилу выше: переменная уровня работы сильнее
       # дописанной в $GITHUB_ENV. Напечатай то же самое посев — значение приняли бы и молча
@@ -296,13 +343,13 @@ jobs:
       SMOKE_PDF_FILE_ID: ''
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -375,30 +422,36 @@ jobs:
           typst --version
 
       - name: Кеш пакетов NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: nuget-${{ runner.os }}-${{ hashFiles('src/server/**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
           path: ~/.nuget/packages
 
-      - name: Сборка сервера
-        run: dotnet publish src/server/BHS.CRG.Api -c Release -o ${{ runner.temp }}/api
-
-      - name: Установка зависимостей клиента
-        working-directory: src/client
-        run: npm ci
-
-      # Playwright ставится ТОЛЬКО здесь и БЕЗ записи в package.json (`--no-save`): остальным
-      # работам он не нужен, а в общем package-lock он утяжелял бы каждую из них.
-      - name: Playwright и браузер
-        working-directory: src/client
+      # Три ветви ОДНОВРЕМЕННО (issue #1178), сводит их `scripts/in-parallel.sh` (его логику
+      # проверяет работа «Скрипт обновления»). Замер и почему шаг не сжимается до самой долгой
+      # ветви — docs/DEV_NOTES.md, «Живые прогоны: подготовка тремя ветвями».
+      #
+      # - Клиент — без проверки типов (`build:bundle`): её делает обязательная работа Frontend, а
+      #   здесь однопоточный `tsc -b` был самым дорогим соседом сборки сервера.
+      # - Playwright ставится ОДИН раз, в свой каталог, а не в `node_modules` клиента: тот в эту
+      #   секунду пишет соседняя ветвь. Прогоны находят пакет по PLAYWRIGHT_PKG, и пакет с браузером
+      #   поэтому одной версии по построению. В package.json его нет: остальным работам он не нужен.
+      # - Браузер — только headless shell (`--only-shell`): обвязка запускает именно его, а полная
+      #   сборка Chrome качалась зря на самой долгой ветви.
+      # - Общий у ветвей только кеш npm — он рассчитан на одновременную работу.
+      #
+      # Срок — десять минут при обычной минуте: зависшая ветвь иначе держала бы работу шесть часов.
+      - name: Сборка сервера, клиента и установка браузера
+        timeout-minutes: 10
         run: |
-          npm i --no-save playwright@1.62.1
-          npx playwright install --with-deps chromium
-
-      - name: Сборка клиента
-        working-directory: src/client
-        run: npm run build
+          bash scripts/in-parallel.sh \
+            'Сборка сервера' \
+              'dotnet publish src/server/BHS.CRG.Api -c Release -o "$RUNNER_TEMP/api"' \
+            'Сборка клиента' \
+              'cd src/client && npm ci && npm run build:bundle' \
+            'Браузер' \
+              'npm i --prefix "$RUNNER_TEMP/playwright" playwright@1.62.1 && "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium'
 
       # Запускаем ИЗ каталога публикации. Запуск по полному пути к dll оставляет корнем содержимого
       # текущий каталог — приложение не находит свой appsettings.json, поднимается на умолчаниях и
@@ -409,7 +462,15 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: http://localhost:5055
-          ConnectionStrings__Postgres: Host=localhost;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          # Модули прогона: `id` — умолчание, `costs` нужен форме счёта (issue #1076). Без него
+          # экран счетов закрыт воротами модуля, и прогон счетов отказывает с названной причиной —
+          # молча зелёным он не станет.
+          Modules__Enabled: id,costs
+          # Адрес, а не имя localhost (issue #1151): одно значение на все окружения, как и порт. На
+          # машине разработчика имя разрешается сначала в ::1, а порт контейнера по IPv6 молчит —
+          # каждое новое подключение ждало по семь секунд. Здесь выигрыша не мерили: правка ради
+          # того, чтобы строка в CI не расходилась со стендом и тестами.
+          ConnectionStrings__Postgres: Host=127.0.0.1;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
           # Ключ подписи — одноразовый и живёт ровно столько, сколько работа. Секретом он не
           # является: база и адрес существуют только внутри этого прогона.
           Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
@@ -441,6 +502,57 @@ jobs:
           node e2e/seed.mjs | tee ${{ runner.temp }}/seed.out
           grep '^SMOKE_' ${{ runner.temp }}/seed.out >> "$GITHUB_ENV"
 
+      # ⚠️ ПЕРЕЗАПУСК ПОСЛЕ ПОСЕВА — не перестраховка, без него форма счёта не проверяется вовсе.
+      # Тип «СчётНаОплату» ссылается полями «Поставщик» и «Плательщик» на тип «Организация», а его
+      # заводит ЧЕЛОВЕК (ни ядро, ни миграция его не создают) — то есть на чистой базе его создаёт
+      # посев, уже после старта сервера. Проекция типов модуля идёт ОДИН раз, при запуске: к нему
+      # цели ещё нет, тип счёта пропускается с записью в журнал, и адреса счёта отвечают отказом
+      # «тип не заведён». Ровно это и обещает сообщение о пропуске — «появится при следующем
+      # запуске»; здесь этот следующий запуск и делается.
+      - name: Перезапуск сервера после посева
+        working-directory: ${{ runner.temp }}/api
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          ASPNETCORE_URLS: http://localhost:5055
+          ConnectionStrings__Postgres: Host=127.0.0.1;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
+          Modules__Enabled: id,costs
+          BlobStorage__Endpoint: 127.0.0.1:3900
+          BlobStorage__AccessKey: GK0123456789abcdef01234567
+          BlobStorage__SecretKey: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          BlobStorage__Bucket: bhs-crg-e2e
+          AllowedOrigins: http://localhost:4173
+          App__PublicUrl: http://localhost:4173
+          TYPST_PATH: /usr/local/bin/typst
+        run: |
+          # ⚠️ Сначала УБЕДИТЬСЯ, что прежний умер, и только потом поднимать новый. Иначе второй
+          # экземпляр падает на занятом порту, а `curl /api/version` отвечает от СТАРОГО сервера —
+          # шаг печатает «поднялся заново» и зеленеет на сервере без типа счёта. Красный прогон
+          # счетов после такого разбирают как поломку формы.
+          pkill -f 'BHS.CRG.Api.dll' || true
+          for _ in $(seq 1 30); do pgrep -f 'BHS.CRG.Api.dll' >/dev/null || break; sleep 1; done
+          if pgrep -f 'BHS.CRG.Api.dll' >/dev/null; then
+            echo "прежний сервер не остановился за 30 с — перезапуск отменён"; exit 1
+          fi
+          # Порт тоже обязан освободиться: процесс уходит раньше, чем ядро закрывает сокет.
+          for _ in $(seq 1 30); do curl -sf -o /dev/null http://localhost:5055/api/version || break; sleep 1; done
+          if curl -sf -o /dev/null http://localhost:5055/api/version; then
+            echo "на 5055 всё ещё кто-то отвечает — новый сервер не поднять"; exit 1
+          fi
+
+          nohup dotnet ./BHS.CRG.Api.dll >> ${{ runner.temp }}/api.log 2>&1 &
+          started=$!
+          for _ in $(seq 1 60); do
+            if ! kill -0 "$started" 2>/dev/null; then
+              echo "сервер завершился, не ответив"; tail -n 50 ${{ runner.temp }}/api.log; exit 1
+            fi
+            if curl -sf -o /dev/null http://localhost:5055/api/version; then
+              echo "сервер поднялся заново (pid $started)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "сервер не поднялся за две минуты"; tail -n 50 ${{ runner.temp }}/api.log; exit 1
+
       # Прогоны идут по СОБРАННОМУ клиенту, а не по dev-серверу: проверять надо то, что поедет
       # в продакшн. Прокси на API у preview свой — адрес берётся из API_TARGET.
       - name: Запуск клиента
@@ -449,7 +561,7 @@ jobs:
           API_TARGET: http://localhost:5055
         run: |
           nohup npx vite preview --port 4173 --strictPort > ${{ runner.temp }}/web.log 2>&1 &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf -o /dev/null http://localhost:4173/; then echo "клиент отвечает"; exit 0; fi
             sleep 2
           done
@@ -457,6 +569,9 @@ jobs:
 
       - name: Живые прогоны
         working-directory: src/client
+        env:
+          # Пакет, поставленный вместе с браузером в шаге подготовки (см. там).
+          PLAYWRIGHT_PKG: ${{ runner.temp }}/playwright/node_modules/playwright/index.js
         run: npm run test:e2e:ci
 
       # Разбирать красный прогон по одной строке «✗ …» невозможно: причина обычно в логе сервера.

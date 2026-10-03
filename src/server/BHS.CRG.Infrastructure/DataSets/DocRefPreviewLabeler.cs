@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,11 +27,13 @@ public static class DocRefPreviewLabeler
     /// </summary>
     public static async Task LabelAsync(
         AppDbContext db, IReadOnlyList<Dictionary<string, object?>> rows,
-        Guid? rowTypeId, Guid? setId, CancellationToken ct)
+        Guid? rowTypeId, Guid? setId, CancellationToken ct,
+        IReadOnlyDictionary<Guid, DocumentType>? knownTypes = null)
     {
         if (rows.Count == 0 || rowTypeId is not { } typeId) return;
 
-        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        // Типы, уже прочитанные вызывающим (предпросмотр привязок читает их один раз на все связки).
+        var typesById = knownTypes ?? await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         if (!typesById.ContainsKey(typeId)) return;
 
         var docRefKeys = DocumentTypeSchemaReader.EffectiveFields(typeId, typesById)

@@ -42,7 +42,7 @@ public class FileSizeRatchetTests
     /// <c>deploy/install.sh</c> — самые большие рукописные файлы репозитория и ровно те склады,
     /// против которых правило заведено (поймано ревью PR #1042).</para>
     /// </summary>
-    private static readonly string[] ScannedDirs = ["src", "deploy", "docs/tools"];
+    private static readonly string[] ScannedDirs = ["src", "deploy", "docs/tools", "scripts"];
 
     private static readonly string[] ScannedExt = [".cs", ".ts", ".tsx", ".js", ".mjs", ".sh"];
 

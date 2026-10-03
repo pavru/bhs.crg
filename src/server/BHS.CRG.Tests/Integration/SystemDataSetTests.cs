@@ -306,7 +306,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
                 """{"type":"condition","column":"НомерДокумента","op":"is_not_empty"}"""),
             null, null), default);
 
-        var updated = await svc.ApplyProcessingTemplateAsync(source.Id, template.Id, default);
+        var updated = await svc.ApplyProcessingTemplateAsync(source.Id, template.Id, TestAccess.All, default);
 
         Assert.Equal(SystemDataSets.SetDocumentsMarker, updated!.SheetOrPath);
         var preview = await svc.PreviewSourceAsync(source.Id, 50, TestAccess.All, default);

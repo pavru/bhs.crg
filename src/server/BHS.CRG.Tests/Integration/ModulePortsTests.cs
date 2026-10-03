@@ -3,10 +3,14 @@ using System.Text.Json;
 using BHS.CRG.Api.Activity;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Catalog;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
@@ -273,22 +277,118 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
 
     // ── Справочники ───────────────────────────────────────────────────────────
 
-    /// <summary>Справочник ядра читается через порт: запись находится и по виду, и по идентификатору.</summary>
+    /// <summary>
+    /// Справочник читается через порт — и записи берутся ОТТУДА, КУДА ПИШЕТ ЭКРАН.
+    ///
+    /// <para>⚠️ Прежний тест заводил запись прежней модели (<c>CreateCatalogEntityCommand</c>) и по ней
+    /// же спрашивал порт: писал и читал ОДНУ таблицу, а экран пишет в другую. Поэтому он проходил и с
+    /// видом «Organization» — вида с таким кодом в системе нет вовсе. На живых данных порт отвечал бы
+    /// пустотой на каждый настоящий поставщик, и в реестре счетов это выглядело бы как «ссылка есть,
+    /// названия нет», то есть как потеря. Здесь запись заводится КОМАНДОЙ ОБЩИХ ДАННЫХ — той самой,
+    /// которой пользуется раздел «Общие данные», — и вид называется кодом типа.</para>
+    /// </summary>
     [Fact]
     public async Task Справочник_ядра_читается_через_порт()
     {
-        var created = await SendAsync(new CreateCatalogEntityCommand(
-            "Organization", "ООО «Поставщик»", JsonDocument.Parse("""{"ИНН":"7701234567"}"""), null));
+        var created = await OrganizationAsync("ООО «Поставщик»", """{"ИНН":"7701234567"}""");
 
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var found = Assert.Single(await catalog.ListAsync("Organization"), e => e.Id == created.Id);
+        var found = Assert.Single(await catalog.ListAsync("Организация"), e => e.Id == created);
         Assert.Equal("ООО «Поставщик»", found.DisplayName);
         Assert.Contains("7701234567", found.DataJson);
+        Assert.Equal("Организация", found.EntityType);
 
-        Assert.NotNull(await catalog.GetAsync(created.Id));
+        Assert.NotNull(await catalog.GetAsync(created));
         Assert.Null(await catalog.GetAsync(Guid.NewGuid()));
+    }
+
+    /// <summary>
+    /// Запись ПОДТИПА приходит в списке вида: подтип организации — организация.
+    ///
+    /// <para>У заказчика так и есть: живые организации лежат подтипом «ОрганизацияСРО», и поставщик
+    /// может быть любым из подтипов. Отбирай порт строго по одному типу, список поставщиков был бы
+    /// пустым при полном справочнике — ровно тот отказ, который не выглядит отказом. Так же считает и
+    /// ядро, когда решает, годится ли запись полю.</para>
+    /// </summary>
+    [Fact]
+    public async Task Подтип_вида_приходит_в_списке_вида()
+    {
+        var parent = await TypeIdAsync("Организация");
+        var subtype = await SendAsync(new CreateDocumentTypeCommand(
+            $"Подрядчик {Guid.NewGuid():N}", $"Подрядчик{Guid.NewGuid():N}", DocumentTypeKind.Composite,
+            parent, JsonDocument.Parse("""{"fields":[]}""")));
+
+        var entry = await SendAsync(new CreateCommonDataEntryCommand(
+            "ООО «Подрядчик»", subtype.Id, JsonDocument.Parse("{}"), CatalogScope.System, null, null));
+
+        using var scope = host.Services.CreateScope();
+        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+
+        var found = Assert.Single(await catalog.ListAsync("Организация"), e => e.Id == entry.Id);
+
+        // Вид — свойство ЗАПИСИ, а не запроса: спросили «Организация», а запись своего подтипа.
+        Assert.Equal(subtype.Code, found.EntityType);
+    }
+
+    /// <summary>
+    /// «Вида нет» отличимо от «записей нет»: ноль против пустого списка.
+    ///
+    /// <para>Сведи мы эти два ответа, опечатка в коде вида и «организаций ещё не завели» выглядели бы
+    /// одинаково — пустым выпадающим списком, и выбирать между объяснениями пришлось бы человеку.
+    /// Именно так и жил этот порт: в контракте стояли английские имена видов, по которым список
+    /// приходил пустым, и ни одного отказа при этом не случалось.</para>
+    ///
+    /// <para>Отказом порт не отвечает нарочно: тип-справочник заводит человек, и его отсутствие —
+    /// состояние установки, а не промах модуля. Что показать, решает модуль.</para>
+    /// </summary>
+    [Fact]
+    public async Task Нет_вида_и_нет_записей_это_разные_ответы()
+    {
+        var empty = await TypeIdAsync($"ВидБезЗаписей{Guid.NewGuid():N}");
+
+        using var scope = host.Services.CreateScope();
+        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+
+        Assert.Null(await catalog.ListAsync("Органиазция"));
+        Assert.Empty((await catalog.ListAsync(await CodeOfAsync(empty)))!);
+    }
+
+    /// <summary>
+    /// ДОКУМЕНТ не выдаётся за запись справочника.
+    ///
+    /// <para>Документы и общие данные лежат в одной таблице и различаются фасетой. Список её
+    /// отбирает, а чтение по идентификатору — нет: подставь модуль идентификатор документа, и получил
+    /// бы его реквизиты под видом записи справочника, без единого отказа. Найдено ревизией второго
+    /// PR; продуктовых вызовов у <c>GetAsync</c> пока нет, значит ни один прогон это не показал бы.</para>
+    /// </summary>
+    [Fact]
+    public async Task Документ_не_выдаётся_за_запись_справочника()
+    {
+        var typeId = await TypeIdAsync("Организация");
+        var document = DomainObject.RestoreDocument(
+            Guid.CreateVersion7(), typeId, "Документ, а не организация", JsonDocument.Parse("{}"),
+            Guid.NewGuid(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null,
+            DocumentStatus.Draft, 0, null, null, null, JsonDocument.Parse("{}"));
+
+        using var scope = host.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+        await repo.AddAsync(document);
+        await repo.SaveChangesAsync();
+
+        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+
+        Assert.Null(await catalog.GetAsync(document.Id));
+        Assert.DoesNotContain(await catalog.ListAsync("Организация") ?? [], e => e.Id == document.Id);
+    }
+
+    /// <summary>Код типа по идентификатору — чтобы спросить порт тем же словом, каким тип заведён.</summary>
+    private async Task<string> CodeOfAsync(Guid typeId)
+    {
+        using var scope = host.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+        return (await repo.GetByIdAsync(typeId))!.Code;
     }
 
     /// <summary>
@@ -302,13 +402,42 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     public async Task Справочник_отдаётся_по_названию()
     {
         foreach (var name in (string[])["Яшма", "Берёза", "Ёлка", "Дуб"])
-            await SendAsync(new CreateCatalogEntityCommand(
-                "Project", name, JsonDocument.Parse("{}"), null));
+            await OrganizationAsync(name, "{}");
 
         using var scope = host.Services.CreateScope();
-        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync("Project");
+        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync("Организация");
 
-        Assert.Equal(["Берёза", "Дуб", "Ёлка", "Яшма"], entries.Select(e => e.DisplayName));
+        Assert.Equal(["Берёза", "Дуб", "Ёлка", "Яшма"],
+            entries.Where(e => e.DisplayName is "Яшма" or "Берёза" or "Ёлка" or "Дуб").Select(e => e.DisplayName));
+    }
+
+    /// <summary>
+    /// Узкие ответы порта (issue #1078): поиск по части названия, названия выбранных записей и
+    /// культурный порядок — те же три ответа, что у списка.
+    ///
+    /// <para>⚠️ Главное здесь — <b>ноль на неизвестный вид</b>: его не проверить через модуль, у которого
+    /// типы посеяны. А выбирать между «опечатка в коде вида» и «записей ещё не завели» человеку по пустому
+    /// выпадающему списку нечем.</para>
+    /// </summary>
+    [Fact]
+    public async Task Узкие_ответы_порта_ищут_отбирают_и_молчат_о_неизвестном_виде()
+    {
+        var first = await OrganizationAsync("Кабель-Торг (поиск)", "{}");
+        await OrganizationAsync("Ёлка (поиск)", "{}");
+
+        using var scope = host.Services.CreateScope();
+        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+
+        var found = await catalog.SearchAsync("Организация", "кабель-торг (поиск", 10);
+        Assert.Equal("Кабель-Торг (поиск)", Assert.Single(found!).DisplayName);
+
+        // Ссылка на выбранное: спрашиваем два, существует один — ненайденное в ответ НЕ попадает, и
+        // разбираться с этим обязан звавший (иначе «ссылка есть, записи нет» прошло бы молча).
+        var refs = await catalog.RefsAsync("Организация", [first, Guid.NewGuid()]);
+        Assert.Equal(first, Assert.Single(refs!).Id);
+
+        Assert.Null(await catalog.SearchAsync("ТипаТакогоНет", null, 10));
+        Assert.Null(await catalog.RefsAsync("ТипаТакогоНет", [first]));
     }
 
     // ── Охрана записи ─────────────────────────────────────────────────────────
@@ -575,6 +704,36 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
                 $"Задача {jobId} так и не пришла в состояние {expected}: сейчас {state.Status}, {state.Error}.");
             await Task.Delay(50);
         }
+    }
+
+    /// <summary>
+    /// Организация — ТАК, КАК ЕЁ ЗАВОДИТ ЭКРАН: запись общих данных типа «Организация». Не прежней
+    /// моделью: в неё не пишет ни один экран, и тест на ней сходился бы сам с собой.
+    /// </summary>
+    private async Task<Guid> OrganizationAsync(string name, string data) =>
+        (await SendAsync(new CreateCommonDataEntryCommand(
+            name, await TypeIdAsync("Организация"), JsonDocument.Parse(data),
+            CatalogScope.System, null, null))).Id;
+
+    /// <summary>
+    /// Идентификатор типа по коду; тип-справочник заводится, если его нет.
+    ///
+    /// <para>Заводить приходится потому, что «Организация» — тип, который у заказчика создал ЧЕЛОВЕК:
+    /// ни ядро, ни миграция его не создают (миграция лишь передаёт ему владельца). На чистой базе его
+    /// нет — и именно поэтому тип счёта объявлен с послаблением.</para>
+    /// </summary>
+    private async Task<Guid> TypeIdAsync(string code)
+    {
+        using var scope = host.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+
+        if ((await repo.FindAsync(t => t.Code == code)).FirstOrDefault() is { } existing) return existing.Id;
+
+        var created = DocumentType.Create(code, code, DocumentTypeKind.Composite, null,
+            JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
+        await repo.AddAsync(created);
+        await repo.SaveChangesAsync();
+        return created.Id;
     }
 
     private async Task<T> SendAsync<T>(IRequest<T> request)

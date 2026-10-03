@@ -33,7 +33,16 @@ public record DataSetSourceDto(
     DataOrigin Origin = DataOrigin.Parsed,
     /// <summary>Почему данные устарели; null — не устарели. Текст пишет клиент: он у каждой точки
     /// показа свой (у поля документа — без глагола, в списке источников — с действием).</summary>
-    DataSetStaleReason? StaleReason = null);
+    DataSetStaleReason? StaleReason = null,
+    /// <summary>Версия обработки (issue #1141): отпечаток извлечения и обработки, с которых страница
+    /// собирает диалоги. Правка обработки называет её обратно (<c>ifMatch</c>) — так сервер узнаёт,
+    /// что источник не изменили, пока диалог был открыт. Считает <c>SourceProcessingVersion</c>.
+    /// Её же называет правка извлечения.</summary>
+    string? ProcessingVersion = null,
+    /// <summary>Версия материализации: настройка материализации плюс всё, что входит в версию
+    /// обработки, — диалог материализации сопоставляет поля с колонками источника. Называется
+    /// обратно при сохранении материализации.</summary>
+    string? MaterializationVersion = null);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).
@@ -134,9 +143,25 @@ public record DataSetProcessingTemplateDto(
     object? RowFilter, object? ComputedColumns, object? SortSpec,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+/// <param name="Columns">
+/// Колонки предпросмотра — из СХЕМЫ типа строки, а не из первой строки (задача G1a этапа 2, issue
+/// #1088): строки собираются только из размеченных полей, и у union разные строки несут разные ключи —
+/// состав по первой строке терял колонки остальных. null — колонок нет (отказ привязки).
+/// </param>
 public record BindingPreviewDto(
     Guid BindingId, string SourceName, string FileName, string Mode,
-    string? TargetFieldKey, int TotalRows, object Data, string? Error);
+    string? TargetFieldKey, int TotalRows, object Data, string? Error,
+    IReadOnlyList<BindingPreviewColumnDto>? Columns = null);
+
+/// <param name="Unavailable">
+/// Почему колонка не отвечает схеме, или null — отвечает. Сегодня одна причина — <c>removed</c>: в
+/// маппинге поле есть, а в типе строки его нет. Что тогда с значением, решает генерация, и предпросмотр
+/// показывает то же: у скалярной привязки значения нет (генерация его не пишет), у табличной оно есть
+/// (строки таблицы генерация пишет как размечены). Причина — кодом, а не текстом: текст на экране
+/// выбирает общая сетка клиента, и у каждой причины он свой — иначе разные причины выглядели бы одним
+/// дефисом.
+/// </param>
+public record BindingPreviewColumnDto(string Key, string Label, string? Unavailable = null);
 
 /// <param name="Boundary">
 /// Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965): что именно отдано ЭТОМУ
@@ -205,7 +230,11 @@ public record ColumnExprDto(string Name, string Expr);
 
 public record CreateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
 
-public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
+/// <param name="IfMatch">Версия обработки источника (она включает извлечение), с которой открыт
+/// редактор (issue #1141); не совпала с сохранённой — <c>ConflictException</c>. <c>null</c> — не
+/// сверяется: так зовёт код, задающий извлечение заново; вход HTTP версию требует всегда.</param>
+public record UpdateSourceInput(
+    string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions, string? IfMatch = null);
 
 /// <summary>
 /// Ручное создание PDF-источника: без SheetOrPath/ColumnExpressions (Extraction для PDF —
@@ -235,9 +264,6 @@ public record RecognizePlan(bool Background, string Title, Guid FileId);
 /// (400); страница может не входить ни в одну группу (тогда выпадает из реестров — допустимо).
 /// </summary>
 public record ApplyGroupingInput(IReadOnlyList<GostGroupingGroupDto> Groups);
-
-/// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
-public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);
 
 public record CreateProcessingTemplateInput(
     string Name, string? SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions,

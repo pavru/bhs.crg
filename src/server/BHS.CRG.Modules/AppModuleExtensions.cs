@@ -76,7 +76,13 @@ public static class AppModuleExtensions
             var before = services.ToHashSet();
             module.RegisterServices(services, configuration);
             Data.ModuleDataDeclaration.Ensure(module, services, before);
+            Tables.ModuleTableCatalog.EnsureReaders(module, services);
         }
+
+        // Таблицы — из ВСЕЙ сборки, а не из включённых (G1b, issue #1089): таблица выключенного модуля
+        // отвечает «модуль выключен». Собирается здесь же, при старте: негодное объявление обязано
+        // ронять запуск, а не первый заход на экран.
+        services.AddSingleton(new Tables.ModuleTableCatalog(available));
 
         var registry = new ModuleRegistry(enabled, disabled);
         services.AddSingleton(registry);

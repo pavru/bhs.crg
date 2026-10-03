@@ -32,7 +32,7 @@ public partial class DataSetSourceService
             // должен отменять остальные. А показать его нельзя — кандидат несёт число своих строк,
             // то есть само предложение уже было бы чтением.
             if (!SystemDataSetGate.Allows(provider.Declaration, access)) continue;
-            candidates.AddRange(await provider.GetCandidatesAsync(scope, scopeId, ct));
+            candidates.AddRange(await provider.GetCandidatesAsync(scope, scopeId, access, ct));
         }
         return candidates;
     }

@@ -90,6 +90,11 @@ internal static class DomainRegistration
 
     // ── Backup ────────────────────────────────────────────────────────────────────
     builder.Services.AddScoped<BackupService>();
+    // Схемы модулей в копии (issue #1073). Реализация — в корне композиции, а не в инфраструктуре:
+    // состав схемы знает контекст модуля, а на контракты модулей инфраструктура ссылаться не может
+    // (обратная ссылка сделала бы её модулем в смысле ModuleBoundaryTests).
+    builder.Services.AddScoped<BHS.CRG.Application.Backup.IModuleSchemaBackup,
+        BHS.CRG.Api.Modules.ModuleSchemaBackup>();
     builder.Services.AddSingleton<BHS.CRG.Infrastructure.Backup.BackupFileStore>();
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Backup.BackupJobRunner>();
     // Плановое копирование (issue #832): служба ставит ту же задачу, что и кнопка в интерфейсе, —

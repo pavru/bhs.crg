@@ -440,6 +440,15 @@ export interface DataSetSource {
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;
+  /**
+   * Версия обработки (issue #1141) — отпечаток извлечения и обработки, считает сервер. Правка
+   * обработки и «Сохранить как шаблон» называют её обратно (`ifMatch`): так сервер узнаёт, что
+   * источник не изменили, пока был открыт диалог. Брать — из той копии, по которой диалог собран.
+   */
+  processingVersion: string;
+  /** Версия материализации: её настройка плюс всё, что входит в версию обработки (диалог
+   *  материализации сопоставляет поля с колонками источника). Называется при сохранении материализации. */
+  materializationVersion: string;
   /** Коды функциональных тэгов источника (scope Dataset) — только для PDF. */
   tags: string[] | null;
   /** Данные источника разошлись со своим происхождением — нужно перераспознать. */
@@ -608,7 +617,9 @@ export type FilterOp =
   | 'contains' | 'not_contains'
   | 'starts_with' | 'ends_with'
   | 'gt' | 'lt' | 'gte' | 'lte'
-  | 'is_empty' | 'is_not_empty';
+  | 'between' | 'in' | 'not_in'
+  | 'is_empty' | 'is_not_empty'
+  | 'is_null' | 'is_not_null';
 
 export const FILTER_OP_LABELS: Record<FilterOp, string> = {
   eq: '= равно',
@@ -621,18 +632,30 @@ export const FILTER_OP_LABELS: Record<FilterOp, string> = {
   lt: '< меньше',
   gte: '>= больше или равно',
   lte: '<= меньше или равно',
+  between: 'между',
+  in: 'в списке',
+  not_in: 'не в списке',
   is_empty: 'пусто',
   is_not_empty: 'не пусто',
+  // У числа и даты пустой строки не бывает, бывает отсутствие значения — «счёт без срока».
+  is_null: 'не определено',
+  is_not_null: 'определено',
 };
 
-export const FILTER_OPS_NO_VALUE: FilterOp[] = ['is_empty', 'is_not_empty'];
+export const FILTER_OPS_NO_VALUE: FilterOp[] = ['is_empty', 'is_not_empty', 'is_null', 'is_not_null'];
 
 /** Leaf node: one comparison condition. */
 export interface FilterCondition {
   type: 'condition';
   column: string;
   op: FilterOp;
+  /** Значение оператора с одним значением. */
   value?: string;
+  /**
+   * Значения списком — у «между» (две границы) и «в списке». Вместе с `value` не бывает: сервер
+   * такое условие отвергает — это два разных условия в одном узле.
+   */
+  values?: string[];
 }
 
 /** Branch node: logical group of child nodes (conditions or sub-groups). */
@@ -697,4 +720,9 @@ export interface DataSetBindingPreviewResult {
   /** Значение ячейки — строка (обычный/ref-маппинг) или FileAttachment-объект (файловый маппинг). */
   data: Record<string, unknown> | Record<string, unknown>[];
   error: string | null;
+  /**
+   * Колонки — из схемы типа строки, а не из первой строки (G1a, issue #1088). `unavailable` — код
+   * причины, по которой значения колонки не доедут (`removed` — поля нет в типе). null у отказа.
+   */
+  columns: { key: string; label: string; unavailable: string | null }[] | null;
 }

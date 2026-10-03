@@ -133,10 +133,10 @@ describe('cleanFilterNode', () => {
 
 describe('mergeBindingPreviewsIntoValues', () => {
   function scalar(data: Record<string, string | null>): DataSetBindingPreviewResult {
-    return { bindingId: '1', sourceName: 's', fileName: 'f', mode: 'scalar', targetFieldKey: null, totalRows: 1, data, error: null };
+    return { bindingId: '1', sourceName: 's', fileName: 'f', mode: 'scalar', targetFieldKey: null, totalRows: 1, data, error: null, columns: null };
   }
   function tabular(targetFieldKey: string, data: Record<string, string | null>[]): DataSetBindingPreviewResult {
-    return { bindingId: '2', sourceName: 's', fileName: 'f', mode: 'tabular', targetFieldKey, totalRows: data.length, data, error: null };
+    return { bindingId: '2', sourceName: 's', fileName: 'f', mode: 'tabular', targetFieldKey, totalRows: data.length, data, error: null, columns: null };
   }
 
   it('overwrites matching scalar key', () => {
@@ -156,7 +156,7 @@ describe('mergeBindingPreviewsIntoValues', () => {
   });
 
   it('skips error bindings', () => {
-    const errored: DataSetBindingPreviewResult = { bindingId: '3', sourceName: 's', fileName: 'f', mode: 'error', targetFieldKey: null, totalRows: 0, data: {}, error: 'нет источника' };
+    const errored: DataSetBindingPreviewResult = { bindingId: '3', sourceName: 's', fileName: 'f', mode: 'error', targetFieldKey: null, totalRows: 0, data: {}, error: 'нет источника', columns: null };
     const result = mergeBindingPreviewsIntoValues({ inn: 'прежнее' }, [errored]);
     expect(result.inn).toBe('прежнее');
   });

@@ -74,23 +74,18 @@ public partial class DataSetPdfRecognitionService
 
         file.SetInvoiceRawData(JsonSerializer.Serialize(new InvoiceRawData(headerRow, lineItemRows)));
 
-        var header = file.Sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker);
-        if (header is not null)
-        {
-            var headerColumns = headerFields
-                .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
-                .ToArray();
+        var headerColumns = headerFields
+            .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
+            .ToArray();
+        foreach (var header in ProjectionsOf(file.Sources, PdfProfiles.InvoiceHeaderMarker))
             header.UpdateCache(DataSetDtoMapper.SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
-        }
-        var lineItems = file.Sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker);
-        if (lineItems is not null)
-        {
-            var lineItemColumns = lineItemFields
-                .Select(f => new DataSetColumnInfo(f.Path,
-                    lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
-                .ToArray();
+
+        var lineItemColumns = lineItemFields
+            .Select(f => new DataSetColumnInfo(f.Path,
+                lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
+            .ToArray();
+        foreach (var lineItems in ProjectionsOf(file.Sources, PdfProfiles.InvoiceLineItemsMarker))
             lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
-        }
 
         await db.SaveChangesAsync(ct);
     }
@@ -408,17 +403,15 @@ public partial class DataSetPdfRecognitionService
             paths.Select(p => new DataSetColumnInfo(p, data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
 
         var sources = await db.DataSetSources.Where(s => s.FileId == fileId).ToListAsync(ct);
-        var cover = sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.GostCoverMarker);
-        var title = sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.GostTitlePageMarker);
-        var documents = sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.GostDocumentsMarker);
 
-        cover?.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
-        title?.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
-        if (documents is not null)
-        {
-            var docRows = projected.Documents.Select(d => (IReadOnlyDictionary<string, string?>)d.Fields).ToList();
+        foreach (var cover in ProjectionsOf(sources, PdfProfiles.GostCoverMarker))
+            cover.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
+        foreach (var title in ProjectionsOf(sources, PdfProfiles.GostTitlePageMarker))
+            title.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
+
+        var docRows = projected.Documents.Select(d => (IReadOnlyDictionary<string, string?>)d.Fields).ToList();
+        foreach (var documents in ProjectionsOf(sources, PdfProfiles.GostDocumentsMarker))
             documents.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(documentsColumnPaths, docRows)), docRows.Count, JsonSerializer.Serialize(docRows));
-        }
     }
 
     private static HashSet<string> ExtractGroupBlobPaths(GostGroupingData? grouping) =>

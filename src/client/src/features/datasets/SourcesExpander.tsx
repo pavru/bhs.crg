@@ -11,11 +11,11 @@ import { useToast } from '@/shared/ui/Toast';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
 import {
-  useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
+  useDeleteDataSetSource, useDuplicateDataSetSource, usePreviewDataSetSource, useRecognizeFile,
   isManualGroupingConflict, recognitionRefusal, type RecognitionRefusal, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
   useRecognizeDocumentTable, type SourceCandidate,
 } from '@/shared/api/datasets';
+import { useListProcessingTemplates, useApplyProcessingTemplate } from '@/shared/api/datasetProcessing';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -26,44 +26,8 @@ import { MaterializationDialog } from './MaterializationDialog';
 import { PdfSourceDialog } from './PdfSourceDialog';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
-import { RowFilterDialog } from './RowFilterDialog';
-import { ComputedColumnsDialog } from './ComputedColumnsDialog';
-import { SortSpecDialog } from './SortSpecDialog';
-import type {
-  DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec, ColumnExprDef,
-} from '@/shared/api/types';
-
-/** Мини-диалог: только имя нового шаблона — сама Extraction + обработка уже известны (текущие источника). */
-function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
-  defaultName: string; isPending: boolean;
-  onSave: (name: string) => void; onClose: () => void;
-}) {
-  const [name, setName] = useState(defaultName);
-  const canSave = !isPending && !!name.trim();
-
-  return (
-    <Modal
-      open
-      onOpenChange={o => { if (!o && !isPending) onClose(); }}
-      title="Сохранить как шаблон"
-      footer={
-        <div className="flex gap-2 justify-end">
-          <Button variant="text" size="sm" onClick={onClose} disabled={isPending}>Отмена</Button>
-          <Button variant="filled" size="sm" onClick={() => canSave && onSave(name.trim())}
-            disabled={!canSave} loading={isPending}>
-            {isPending ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </div>
-      }>
-      <p className="text-xs mb-3 text-fg3">
-        Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
-        станут переиспользуемым шаблоном — копия, не живая ссылка.
-      </p>
-      <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)} autoFocus
-        onKeyDown={e => { if (e.key === 'Enter' && canSave) onSave(name.trim()); }} />
-    </Modal>
-  );
-}
+import { SourceProcessingDialogs, type ProcessingDialogKind } from './SourceProcessingDialogs';
+import type { DataSetFile, DataSetProcessingTemplate, DataSetSource } from '@/shared/api/types';
 
 /**
  * Мини-диалог имени источника: переименование, копия, второй источник на ту же консолидацию
@@ -146,18 +110,17 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   templates: DataSetProcessingTemplate[]; maxColumns: number; siblingNames: string[];
   onEdit: (src: DataSetSource) => void;
 }) {
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [transformsOpen, setTransformsOpen] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
+  // Диалог обработки открывается со СНИМКА источника (issue #1141): `base` — копия, какой она была
+  // на странице в момент открытия. Почему не живой `src` — см. SourceProcessingDialogs.
+  const [processing, setProcessing] = useState<{ kind: ProcessingDialogKind; base: DataSetSource } | null>(null);
+  const openProcessing = (kind: ProcessingDialogKind) => setProcessing({ kind, base: src });
   const [previewing, setPreviewing] = useState(false);
-  const [materializing, setMaterializing] = useState(false);
+  // Тоже снимок (issue #1141): настройка материализации сохраняется замещением.
+  const [materializing, setMaterializing] = useState<DataSetSource | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
 
-  const setProcessing = useSetDataSetSourceProcessing();
-  const createTemplate = useCreateProcessingTemplate();
   const toast = useToast();
   const applyTemplateMutation = useApplyProcessingTemplate();
   const deleteMutation = useDeleteDataSetSource();
@@ -169,26 +132,13 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const sortCount = src.sortSpec?.length ?? 0;
   const hasActiveProcessing = filterCount > 0 || transformCount > 0 || sortCount > 0;
 
-  const computedAliases = (src.computedColumns ?? []).map(c => c.alias).filter(Boolean);
-  const columns = [...new Set([...parseSourceColumnNames(src.cachedSchema), ...computedAliases])];
   const cols = parseSourceColumnNames(src.cachedSchema);
 
-  function save(patch: { rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null }) {
-    setProcessing.mutate({
-      id: src.id, rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec, ...patch,
-    });
-  }
+  // Шаблон, чей отбор источник не выполнит, сервер отклоняет целиком (issue #1137). Действие — из
+  // меню, своего диалога у него нет, поэтому причина выходит тостом.
   function applyTemplate(templateId: string) {
-    applyTemplateMutation.mutate({ sourceId: src.id, templateId });
-  }
-  async function saveAsTemplate(name: string) {
-    let columnExpressions: ColumnExprDef[] | null;
-    try { columnExpressions = src.columnExpressions ? JSON.parse(src.columnExpressions) : null; } catch { columnExpressions = null; }
-    await createTemplate.mutateAsync({
-      name, sheetOrPath: src.sheetOrPath, columnExpressions,
-      rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec,
-    });
-    setSavingTemplate(false);
+    applyTemplateMutation.mutate({ sourceId: src.id, templateId },
+      { onError: e => toast.apiError(e, 'Не удалось применить шаблон') });
   }
   // Пассивные PDF-подисточники (обложка/титул/товары) заполняются вместе с главным — их не
   // распознают напрямую; показываем подпись-подсказку, но остальные действия доступны.
@@ -208,12 +158,12 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
 
   const badge = (n: number) => (n > 0 ? String(n) : undefined);
   const actions: RowAction[] = [
-    { key: 'filter', label: 'Фильтрация строк', icon: <Filter size={13} />, onSelect: () => setFilterOpen(true), active: filterCount > 0, badge: badge(filterCount) },
-    { key: 'transform', label: 'Вычисляемые колонки', icon: <FunctionSquare size={13} />, onSelect: () => setTransformsOpen(true), active: transformCount > 0, badge: badge(transformCount) },
-    { key: 'sort', label: 'Сортировка строк', icon: <ArrowUpDown size={13} />, onSelect: () => setSortOpen(true), active: sortCount > 0, badge: badge(sortCount) },
+    { key: 'filter', label: 'Фильтрация строк', icon: <Filter size={13} />, onSelect: () => openProcessing('filter'), active: filterCount > 0, badge: badge(filterCount) },
+    { key: 'transform', label: 'Вычисляемые колонки', icon: <FunctionSquare size={13} />, onSelect: () => openProcessing('transforms'), active: transformCount > 0, badge: badge(transformCount) },
+    { key: 'sort', label: 'Сортировка строк', icon: <ArrowUpDown size={13} />, onSelect: () => openProcessing('sort'), active: sortCount > 0, badge: badge(sortCount) },
     { key: 'apply-tpl', label: 'Применить шаблон', icon: <FileDown size={13} />, disabled: templates.length === 0 || applyTemplateMutation.isPending,
       submenu: templates.map(t => ({ key: t.id, label: t.name, onSelect: () => applyTemplate(t.id) })) },
-    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <BookmarkPlus size={13} />, onSelect: () => setSavingTemplate(true) },
+    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <BookmarkPlus size={13} />, onSelect: () => openProcessing('template') },
     { key: 'export', label: 'Экспорт', icon: <Download size={13} />, submenu: [
       { key: 'export-xlsx', label: 'XLSX', onSelect: () => runExport('xlsx') },
       { key: 'export-xls', label: 'XLS', onSelect: () => runExport('xls') },
@@ -221,7 +171,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
     ] },
     { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => setRenaming(true) },
     { key: 'duplicate', label: 'Создать копию…', icon: <Copy size={13} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
-    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
+    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(src) },
     ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
@@ -285,28 +235,11 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
         </div>
       </div>
 
-      {filterOpen && (
-        <RowFilterDialog columns={columns} initial={src.rowFilter}
-          onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
-      )}
-      {/* Диалогу отдаём только колонки САМОГО источника, без вычисляемых псевдонимов (issue #539):
-          фишка несёт номер позиции, а позиции вычисляемых колонок меняются по ходу — при вычислении
-          N-й предыдущие уже есть, а следующих ещё нет, и номер врал бы. Сослаться на предыдущую
-          вычисляемую колонку по-прежнему можно, просто вручную. */}
-      {transformsOpen && (
-        <ComputedColumnsDialog initial={src.computedColumns} sourceColumns={cols}
-          onSave={c => save({ computedColumns: c })} onClose={() => setTransformsOpen(false)} />
-      )}
-      {sortOpen && (
-        <SortSpecDialog columns={columns} initial={src.sortSpec}
-          onSave={s => save({ sortSpec: s })} onClose={() => setSortOpen(false)} />
-      )}
-      {savingTemplate && (
-        <SaveAsTemplateDialog defaultName={src.name} isPending={createTemplate.isPending}
-          onSave={saveAsTemplate} onClose={() => setSavingTemplate(false)} />
+      {processing && (
+        <SourceProcessingDialogs kind={processing.kind} base={processing.base} onClose={() => setProcessing(null)} />
       )}
       {previewing && <SourcePreviewDialog source={src} onClose={() => setPreviewing(false)} />}
-      {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
+      {materializing && <MaterializationDialog source={materializing} onClose={() => setMaterializing(null)} />}
 
       {renaming && (
         <SourceNameDialog title="Переименовать источник" defaultName={src.name} takenNames={siblingNames}

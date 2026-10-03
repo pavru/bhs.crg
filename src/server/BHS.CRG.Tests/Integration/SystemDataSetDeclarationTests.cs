@@ -47,7 +47,11 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
 
         // Пять — число из ТЗ (CORE-24.1, сверка 20.09.2026). Не педантизм: поставщик, выпавший из
         // регистрации, унёс бы с собой и свои ворота, а прогон объявлений остался бы зелёным.
-        Assert.Equal(5, providers.All.Count);
+        // Плюс по поставщику на каждую таблицу модуля (G1b, issue #1089) — включая таблицы
+        // выключенных модулей: источник на них отвечает «модуль не подключён», а не пропадает.
+        var tables = scope.ServiceProvider.GetRequiredService<BHS.CRG.Modules.Tables.ModuleTableCatalog>().All.Count;
+        Assert.True(tables > 0, "Таблица счетов объявлена модулем costs — поставщиков таблиц не может быть ноль.");
+        Assert.Equal(5 + tables, providers.All.Count);
         providers.EnsureDeclared();
     }
 
@@ -257,10 +261,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         // В резервную копию строки не едут тем же следствием: копия выгружает CachedData источников
         // (иначе восстановленный файловый источник приехал бы пустым), и пустой кеш — единственная
         // причина, по которой строк опубликованного набора там не окажется.
-        var (zip, _) = await new BackupService(
-            db, scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-            NullLogger<BackupService>.Instance,
-            scope.ServiceProvider.GetRequiredService<Application.Activity.IActivityLog>())
+        var (zip, _) = await scope.ServiceProvider.GetRequiredService<BackupService>()
             .ExportAsync(BackupScope.Full);
         await using var _handle = zip;
         using var ms = new MemoryStream();
@@ -307,7 +308,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         public bool Handles(string m) => m == marker;
 
         public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-            Domain.Catalog.CatalogScope scope, Guid? scopeId, CancellationToken ct)
+            Domain.Catalog.CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
 
         public Task<DataSetParseResult> ProvideAsync(string m, Domain.Catalog.CatalogScope scope,

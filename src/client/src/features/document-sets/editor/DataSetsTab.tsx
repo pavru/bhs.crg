@@ -1,14 +1,14 @@
 import { useState, useMemo } from 'react';
-import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Link2 } from 'lucide-react';
+import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, ChevronDown, ChevronRight, Link2 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
+import { BindingPreviewPanel } from './BindingPreviewPanel';
 import {
   useAvailableDataSetFiles, useListDataSetBindings,
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
   useAutoMapDataSetSource, usePreviewDataSetBindings,
 } from '@/shared/api/datasets';
-import type { DocumentInstance, DocumentType, DataSetBinding, DataSetBindingPreviewResult, ComputedColumn } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, DataSetBinding, ComputedColumn } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { bindableFields } from '../fields/bindableFields';
@@ -16,7 +16,6 @@ import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRe
 import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
 import { ruCount } from '@/shared/utils/pluralize';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
-import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
   let cur: string | null = childId;
@@ -699,104 +698,6 @@ function BindingRow({
   );
 }
 
-/** Ячейка превью: строка как есть, FileAttachment (файловый маппинг) — имя + размер, иначе null. */
-function renderCellValue(v: unknown) {
-  if (v == null) return <em>null</em>;
-  if (isFileAttachment(v)) return <>📎 {v.fileName} <span className="text-fg4">({formatBytes(v.size)})</span></>;
-  return String(v);
-}
-
-function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
-  if (results.length === 0)
-    return <p className="text-xs py-2 text-fg4">Нет привязок для проверки</p>;
-
-  return (
-    <div className="space-y-3">
-      {results.map(r => (
-        <div key={r.bindingId} className="rounded-lg overflow-hidden border border-stroke">
-          {/* Header */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-base">
-            {r.error
-              ? <AlertCircle size={13} className="text-danger shrink-0" />
-              : <CheckCircle2 size={13} className="text-success shrink-0" />
-            }
-            <span className="text-xs font-medium flex-1 text-fg1">
-              {r.sourceName}
-              <span className="font-normal ml-1.5 text-fg4">
-                {r.fileName} · {r.mode === 'scalar' ? 'скалярный' : r.mode === 'tabular' ? `табличный → ${r.targetFieldKey}` : 'ошибка'}
-              </span>
-            </span>
-            {r.mode !== 'error' && (
-              <span className="text-xs text-fg4">{r.totalRows} строк</span>
-            )}
-          </div>
-
-          {/* Body */}
-          {r.error ? (
-            <div className="px-3 py-2 text-xs text-danger bg-surface">
-              {r.error}
-            </div>
-          ) : r.mode === 'scalar' ? (
-            <div className="px-3 py-2 overflow-x-auto bg-surface">
-              <table className="text-xs w-full">
-                <tbody>
-                  {Object.entries(r.data as Record<string, unknown>).map(([k, v]) => (
-                    <tr key={k} className="border-b border-stroke last:border-0">
-                      <td className="py-1 pr-4 font-medium w-1/3 text-fg3">{k}</td>
-                      <td className={`py-1 ${v == null ? 'text-fg4' : 'text-fg1'}`}>
-                        {renderCellValue(v)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            // Tabular — show first 5 rows
-            <div className="overflow-x-auto bg-surface">
-              {(() => {
-                const rows = r.data as Record<string, unknown>[];
-                const preview = rows.slice(0, 5);
-                const keys = preview.length > 0 ? Object.keys(preview[0]) : [];
-                if (keys.length === 0) return (
-                  <p className="px-3 py-2 text-xs text-fg4">Нет данных</p>
-                );
-                return (
-                  <table className={dtTable}>
-                    <thead>
-                      <tr>
-                        {keys.map(k => (
-                          <th key={k} className={dtTh}>{k}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.map((row, i) => (
-                        <tr key={i} className={dtRow}>
-                          {keys.map(k => (
-                            <td key={k} className={`${dtTd} whitespace-nowrap ${row[k] == null ? 'text-fg4' : 'text-fg1'}`}>
-                              {renderCellValue(row[k])}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                );
-              })()}
-              {(r.data as Record<string, unknown>[]).length > 5 && (
-                <p className="px-3 py-1.5 text-xs border-t border-stroke text-fg4">
-                  +{(r.data as Record<string, unknown>[]).length - 5} строк не показано
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docType }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
@@ -897,7 +798,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
               {previewError instanceof Error ? previewError.message : 'Ошибка проверки'}
             </p>
           ) : previewResults ? (
-            <PreviewPanel results={previewResults} />
+            <BindingPreviewPanel results={previewResults} />
           ) : null}
         </div>
       )}

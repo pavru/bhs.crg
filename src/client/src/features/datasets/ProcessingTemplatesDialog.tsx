@@ -5,8 +5,9 @@ import { IconButton } from '@/shared/ui/Button';
 import {
   useListProcessingTemplates, useCreateProcessingTemplate,
   useUpdateProcessingTemplate, useDeleteProcessingTemplate,
-} from '@/shared/api/datasets';
+} from '@/shared/api/datasetProcessing';
 import { countFilterConditions } from '@/shared/api/datasetHelpers';
+import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
@@ -85,10 +86,12 @@ function TemplateForm({
   initial, onSave, onCancel, saving,
 }: {
   initial?: DataSetProcessingTemplate;
-  onSave: (state: TemplateFormState) => void;
+  onSave: (state: TemplateFormState) => Promise<unknown>;
   onCancel: () => void;
   saving: boolean;
 }) {
+  // Шаблон с негодным отбором сервер не сохранит (issue #1137) — причину показываем в форме.
+  const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(initial?.name ?? '');
   const [sheetOrPath, setSheetOrPath] = useState(initial?.sheetOrPath ?? '');
   const [columns, setColumns] = useState<ColumnExprDef[]>(() => parseColumnExpressions(initial?.columnExpressions));
@@ -110,10 +113,11 @@ function TemplateForm({
 
   function handleSave() {
     const cleanColumns = columns.filter(c => c.name.trim() && c.expr.trim());
+    setError(null);
     onSave({
       name, sheetOrPath: sheetOrPath.trim() || null, columnExpressions: cleanColumns.length ? cleanColumns : null,
       rowFilter, computedColumns, sortSpec,
-    });
+    }).catch(e => setError(apiError(e, 'Не удалось сохранить шаблон')));
   }
 
   return (
@@ -145,6 +149,8 @@ function TemplateForm({
           {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-[10px] bg-brand">{sortCount}</span>}
         </button>
       </div>
+
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
 
       <div className="flex gap-2 pt-1">
         <button

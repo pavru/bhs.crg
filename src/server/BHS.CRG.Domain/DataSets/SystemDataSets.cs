@@ -36,6 +36,13 @@ public static class SystemDataSets
     /// </summary>
     public const string ObjectsMarkerPrefix = "system:objects:";
 
+    /// <summary>
+    /// Таблица модуля (ТЗ CORE-33, CORE-24; задача G1b, issue #1089): маркер несёт адрес таблицы
+    /// (<c>system:table:costs.invoices</c>). Поставщик заводится на каждую таблицу — у каждой своё
+    /// объявление доступа.
+    /// </summary>
+    public const string TableMarkerPrefix = "system:table:";
+
     /// <summary>Идентификатор типа из маркера общих данных; false — маркер не тот или не разбирается.</summary>
     public static bool TryParseObjectsMarker(string marker, out Guid typeId)
     {

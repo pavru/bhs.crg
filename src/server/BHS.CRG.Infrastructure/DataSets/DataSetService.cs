@@ -63,8 +63,8 @@ public class DataSetService(
         sources.CreateSourceAsync(fileId, input, access, ct);
     public Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
-        string? byIdColumn, CancellationToken ct) =>
-        sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct);
+        string? byIdColumn, CancellationToken ct, string? ifMatch = null) =>
+        sources.SetMaterializationAsync(sourceId, typeId, mapping, discriminator, byIdColumn, ct, ifMatch);
     public Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
         string? byIdColumn, DataAccess access, CancellationToken ct) =>
@@ -83,10 +83,12 @@ public class DataSetService(
         sources.ListZipXmlEntriesAsync(fileId, ct);
     public Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct) =>
         sources.PreviewExpressionAsync(fileId, rowSelector, expr, ct);
-    public Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct) =>
-        sources.SetSourceProcessingAsync(sourceId, input, ct);
-    public Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct) =>
-        sources.ApplyProcessingTemplateAsync(sourceId, templateId, ct);
+    public Task<DataSetSourceDto?> SetSourceProcessingAsync(
+        Guid sourceId, SetSourceProcessingInput input, DataAccess access, CancellationToken ct) =>
+        sources.SetSourceProcessingAsync(sourceId, input, access, ct);
+    public Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(
+        Guid sourceId, Guid templateId, DataAccess access, CancellationToken ct) =>
+        sources.ApplyProcessingTemplateAsync(sourceId, templateId, access, ct);
 
     // ── PDF-распознавание ───────────────────────────────────────────────────────
     public Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct) =>
@@ -121,6 +123,9 @@ public class DataSetService(
         processingTemplates.ListAsync(ct);
     public Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct) =>
         processingTemplates.CreateAsync(input, ct);
+    public Task<DataSetProcessingTemplateDto?> CreateProcessingTemplateFromSourceAsync(
+        Guid sourceId, string name, string? ifMatch, CancellationToken ct) =>
+        processingTemplates.CreateFromSourceAsync(sourceId, name, ifMatch, ct);
     public Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct) =>
         processingTemplates.UpdateAsync(id, input, ct);
     public Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct) =>

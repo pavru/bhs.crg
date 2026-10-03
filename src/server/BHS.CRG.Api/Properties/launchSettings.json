@@ -8,7 +8,8 @@
       "applicationUrl": "http://+:5000",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "SOFFICE_PATH": "C:\\Program Files\\LibreOffice\\program\\soffice.exe"
+        "SOFFICE_PATH": "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+        "Modules__Enabled": "id,costs"
       }
     },
     "https": {
@@ -17,7 +18,8 @@
       "launchBrowser": false,
       "applicationUrl": "https://localhost:7007;http://localhost:5000",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Modules__Enabled": "id,costs"
       }
     }
   }

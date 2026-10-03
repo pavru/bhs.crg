@@ -190,4 +190,37 @@ public class DataSetRowFilterExecutorTests
         var refusal = Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(json, Sample()));
         Assert.Contains(expectedInMessage, refusal.Message);
     }
+
+    /// <summary>
+    /// Проверка при сохранении (issue #1137) — тот же разбор, что при чтении: причина, названная
+    /// сохранению, дословно стоит в отказе чтения. Разойдись они — сохранение пропускало бы то, на
+    /// чём источник откажет, либо отклоняло бы то, что источник выполняет.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"type":"condition","column":"Кол","op":"betwen","value":"5"}""")]
+    [InlineData("""{"type":"group","logic":"xor","children":[]}""")]
+    [InlineData("""{"type":"group","logic":"and","children":[{"type":"group","logic":"or","children":[{"type":"condition","op":"eq","value":"1"}]}]}""")]
+    [InlineData("""{"type":"condition","column":"Кол","op":"eq","value":"1","values":["2"]}""")]
+    [InlineData("null")]
+    [InlineData("{")]
+    // «null» среди узлов: разбор его пропускает, и прежде отказом был NullReferenceException — 500
+    // без текста и на сохранении, и на чтении отбора, приехавшего из копии.
+    [InlineData("""{"type":"group","logic":"and","children":[null]}""")]
+    [InlineData("""{"type":"group","logic":"and","children":[{"type":"group","logic":"or","children":[{"type":"condition","column":"Кол","value":"1"},null]}]}""")]
+    public void Причина_для_сохранения_та_же_что_в_отказе_чтения(string json)
+    {
+        var problem = DataSetRowFilterExecutor.Problem(json);
+
+        Assert.NotNull(problem);
+        var refusal = Assert.Throws<ConflictException>(() => DataSetRowFilterExecutor.Apply(json, Sample()));
+        Assert.Contains(problem, refusal.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("""{"type":"group","logic":"and","children":[]}""")]
+    [InlineData("""{"type":"condition","column":"Кол","value":"5"}""")]
+    public void Годный_отбор_и_его_отсутствие_возражений_не_вызывают(string? json) =>
+        Assert.Null(DataSetRowFilterExecutor.Problem(json));
 }

@@ -22,11 +22,16 @@
 // `ci.yml` (сегодня там `SMOKE_BASE`): переменная работы сильнее дописанной в `$GITHUB_ENV`, и
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
+import { seedInvoices } from './seed-invoices.mjs';
+
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 const ADMIN_PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
 const USER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
+// Бухгалтер — чтение счетов БЕЗ права разноски (F2, issue #1086): под ним прогон матрицы проверяет, что
+// матрица открывается только для чтения и кнопок «поровну» и «по %» нет вовсе.
+const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
 
 let token = null;
 
@@ -79,16 +84,17 @@ async function ensureAdmin() {
   token = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
 }
 
-/** Не-администратор нужен ровно одной проверке: раздел настроек обязан его не пускать. */
-async function ensureUser() {
+/**
+ * Не-администраторы: «Инженер ИД» (раздел настроек обязан его не пускать) и «Бухгалтер» (матрица разноски
+ * обязана открываться ему только для чтения).
+ */
+async function ensureUser(email = USER_EMAIL, displayName = 'Пётр Петров', role = 'User') {
   const users = await api('GET', '/users');
   const list = Array.isArray(users) ? users : users.items ?? [];
-  if (list.some(u => (u.email ?? '').toLowerCase() === USER_EMAIL.toLowerCase())) return;
-  await api('POST', '/users', {
-    // Роли СПИСКОМ (issue #984): адрес назначения один и принимает перечень.
-    email: USER_EMAIL, displayName: 'Пётр Петров', password: USER_PASSWORD, roles: ['User'],
-  });
-  console.log(`  + пользователь ${USER_EMAIL}`);
+  if (list.some(u => (u.email ?? '').toLowerCase() === email.toLowerCase())) return;
+  // Роли СПИСКОМ (issue #984): адрес назначения один и принимает перечень.
+  await api('POST', '/users', { email, displayName, password: USER_PASSWORD, roles: [role] });
+  console.log(`  + пользователь ${email}`);
 }
 
 // Сверять здесь нечего: стройка ищется по имени, а имя — единственное её поле. Как только у
@@ -483,6 +489,7 @@ async function main() {
 
   await ensureAdmin();
   await ensureUser();
+  await ensureUser(ACCOUNTANT_EMAIL, 'Анна Бухгалтерова', 'Accountant');
   const constructionId = await ensureConstruction();
   const primitiveTypeId = await ensurePrimitiveType();
   await ensureEnumType();
@@ -789,6 +796,12 @@ async function main() {
   }
 
   await ensureCatalogEntries(orgTypeId, personTypeId);
+
+  /**
+   * Организации и счета модуля — своим файлом (храповик размера): здесь остаётся вызов, а всё, что
+   * знает про счета, живёт в `seed-invoices.mjs`.
+   */
+  await seedInvoices({ api, findType, ensureEntry, ensureUser, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
   await ensureSystemDataSet();
 
   // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
@@ -918,6 +931,11 @@ async function main() {
   console.log(`SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`);
   console.log(`SMOKE_DATASET_FILE=${NAME.datasetFile}`);
   console.log(`SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`);
+  // Счета печатаются только если модуль включён. Пустое значение прогон счетов встречает ОТКАЗОМ, а
+  // не пропуском: проверять форму счёта, не открыв счёта, — это отчёт о работе, которой не было.
+  // ⚠️ Счета переменных прогону НЕ дают, и это осознанно: свои счета он заводит сам, потому что
+  // проверки снимают метки — на посеянных второй запуск проверял бы пустоту. Посеянные счета живут
+  // ради человека, который откроет стенд глазами, и о них печатает сам `seed-invoices.mjs`.
   // ⚠️ `SMOKE_PDF_FILE_ID` здесь НЕ печатается, и это осознанно. Набора с распознанными страницами
   // посев не создаёт (распознаёт их ИИ-движок), но объявляет это не он, а сама работа CI —
   // переменной уровня работы. Причина в порядке сильнее-слабее: переменная работы перекрывает

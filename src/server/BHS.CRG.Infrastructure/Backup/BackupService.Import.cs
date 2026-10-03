@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BHS.CRG.Infrastructure.Backup;
 
@@ -95,7 +96,14 @@ public partial class BackupService
             // Перечень работ — ПОСЛЕ общих данных: позиция ссылается на запись классификатора
             // и на единицу измерения, а это объекты общего типа. До них перечень уехал бы
             // в сироты целиком, с предупреждением «нет вида работы или единицы».
-            await RestoreWorkPlanItemsAsync(manifest.WorkPlanItems ?? [], stats, warnings, ct);
+            // «Данные модулей в копии есть» считается по СТРОКАМ, а не по числу секций (ревью
+            // PR #1108): у модуля costs сегодня ноль таблиц, но секция всё равно есть — и оговорка про
+            // оборванные ссылки модуля выдавалась бы при любом сопоставлении позиции по ключу. Человек
+            // пошёл бы искать то, чего нет, а тревога, звучащая без повода, перестаёт значить что-либо.
+            var moduleRowsInCopy =
+                manifest.ModuleData?.Any(m => m.Tables.Any(t => t.Rows.Length > 0)) == true;
+            await RestoreWorkPlanItemsAsync(
+                manifest.WorkPlanItems ?? [], moduleRowsInCopy, stats, warnings, ct);
             // Документы комплектов — после типов (тип документа) и после комплектов (носитель).
             await RestoreDocumentsAsync(manifest.Documents ?? [], stats, warnings, ct);
             // После типов документов: шаблон маппинга висит на типе и без него бессмыслен.
@@ -119,6 +127,20 @@ public partial class BackupService
             await RestoreMaterialQualityLinksAsync(manifest.MaterialQualityLinks ?? [], stats, warnings, ct);
             await RestoreAppSettingsAsync(manifest.AppSettings ?? [], stats, warnings, ct);
             await RestoreActivityLogAsync(manifest.ActivityLog ?? [], stats, ct);
+            // Схемы модулей — ПОСЛЕДНИМИ и в ЭТОЙ ЖЕ транзакции (issue #1073). Последними потому,
+            // что строка модуля адресует объект ядра идентификатором: до объектов ей ссылаться не на
+            // что. В той же транзакции потому, что отказ на данных модуля обязан откатить
+            // восстановление целиком — иначе у заказчика остаётся ядро из копии и счета прежние, а
+            // отличить это от исправного восстановления нечем (см. IModuleSchemaBackup).
+            //
+            // null — копия снята версией до A2b, схем модулей она не знала (или копия
+            // конфигурационная); пустой массив — знала, а модулей со схемой на том экземпляре не было.
+            // Первое молчит. Второе восстановление модулей называет само: данных включённого здесь
+            // модуля в копии нет, а на этом экземпляре они есть (issue #1158).
+            if (manifest.ModuleData is { } moduleData)
+                foreach (var section in await modules.RestoreAsync(
+                             moduleData, tx.GetDbTransaction(), warnings, ct))
+                    stats.Count(section.Label, section.Created, section.Updated);
             await tx.CommitAsync(ct);
 
             return new RestoreReport(true, conversionNotice, warnings,

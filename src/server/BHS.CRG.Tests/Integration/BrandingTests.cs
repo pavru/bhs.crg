@@ -14,7 +14,6 @@ using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -277,11 +276,7 @@ public class BrandingTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(Png, await logo.Content.ReadAsByteArrayAsync());
     }
 
-    private static BackupService BackupOf(IServiceScope scope) => new(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Common.IBlobStorage>(),
-        NullLogger<BackupService>.Instance,
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
+    private static BackupService BackupOf(IServiceScope scope) => scope.ServiceProvider.GetRequiredService<BackupService>();
 
     private static async Task<HttpResponseMessage> UploadLogoAsync(
         HttpClient client, string fileName, byte[] bytes)

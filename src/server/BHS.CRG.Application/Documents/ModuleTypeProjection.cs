@@ -74,7 +74,8 @@ public sealed record ModuleFieldSpec(
 public sealed record ModuleTypeSpec(
     string Module, string Code, string Name, SchemaEditLevel Level,
     IReadOnlyList<ModuleFieldSpec> Fields, string? Group = null, DocumentTypeKind Kind = DocumentTypeKind.Document,
-    string? Parent = null, bool SkipWhenBlocked = false);
+    string? Parent = null, bool SkipWhenBlocked = false,
+    TypeStorage Storage = TypeStorage.SharedObject);
 
 /// <summary>
 /// Проекция объявленного модулем типа в схему (ТЗ CORE-20.1, CORE-20.2, issue #958).
@@ -164,7 +165,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
 
             type = DocumentType.Create(spec.Name, spec.Code, spec.Kind, parentId,
                 JsonDocument.Parse(Schema(spec, existing: null, targets).ToJsonString()),
-                spec.Module, TypeVisibility.Shared, editLevel: spec.Level);
+                spec.Module, TypeVisibility.Shared, storage: spec.Storage, editLevel: spec.Level);
             type.SetGroup(spec.Group);
             EnsureCardinalityHolds(type, all, spec);
             await repo.AddAsync(type, ct);
@@ -182,6 +183,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         // Ставим ДО проверки кратности: она считает по цепочке наследования, и посчитанная по
         // прежней цепочке сказала бы про набор полей, которого уже не будет.
         if (spec.Parent is { Length: > 0 }) type.SetParent(parentId);
+        EnsureCarrierUnchanged(type, spec);
         EnsureCardinalityHolds(type.WithSchema(projected), all, spec);
         type.UpdateSchema(projected);
         // Уровень и владелец — свойства модуля, и он их подтверждает каждым стартом.
@@ -192,6 +194,29 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         repo.Update(type);
         await repo.SaveChangesAsync(ct);
         return type;
+    }
+
+    /// <summary>
+    /// Носитель данных у заведённого типа не меняется проекцией (ТЗ CORE-16, issue #1076).
+    ///
+    /// <para>Объявить носитель модуль вправе — но объявление подтверждается каждым запуском, а
+    /// перенос данных запуском не делается. Пропусти мы смену молча, записи прежнего носителя
+    /// остались бы лежать там, где их больше никто не читает: объекты общей таблицы — вне модуля,
+    /// строки таблицы модуля — вне общих списков. Ни одного отказа при этом не случилось бы, и
+    /// «данные пропали» пришло бы от заказчика.</para>
+    ///
+    /// <para>Отказ останавливает старт, как и прочие расхождения объявления с базой. Выход — своя
+    /// миграция модуля, которая данные переносит, и уже после неё объявление, которое совпадает.</para>
+    /// </summary>
+    private static void EnsureCarrierUnchanged(DocumentType type, ModuleTypeSpec spec)
+    {
+        if (type.Storage == spec.Storage) return;
+        throw new ConflictException(
+            $"{Who(spec)} объявляет для типа «{spec.Code}» носитель данных «{spec.Storage}», а " +
+            $"заведён он с носителем «{type.Storage}». Проекция носитель не меняет: перенос записей " +
+            "из одного носителя в другой — миграция модуля, а не свойство, которое подтверждают " +
+            "запуском. Перенесите данные своей миграцией, и тогда объявление сойдётся; до тех пор " +
+            "записи прежнего носителя читать было бы некому.");
     }
 
     /// <summary>

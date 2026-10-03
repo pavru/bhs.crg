@@ -46,7 +46,7 @@ public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository o
     public bool Handles(string marker) => marker == SystemDataSets.SubtreeDocumentsMarker;
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         // На комплекте не предлагаем: там «Документы комплекта», и два похожих кандидата в одном
         // списке сбивают — выбирать пришлось бы по догадке, чем они отличаются.

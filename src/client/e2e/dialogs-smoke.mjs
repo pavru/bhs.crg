@@ -5,21 +5,22 @@
 // инициализаторы состояния и локальный ОВЕРРАЙД поверх серверного значения. Ошибка в такой замене
 // не падает, а тихо показывает не то: пустой список групп, чужой поиск, забытый выбор шаблонов.
 //
-// Почти ничего не сохраняет: правки разбиения и материализации бросаются вместе с браузером. Одна
-// проверка пишет по-настоящему — галка шаблона на демо-документе уезжает PUT'ом, — и возвращает
-// исходное состояние в finally, чтобы прерванный прогон не оставил документ с чужим выбором.
+// Почти ничего не сохраняет: правки разбиения и материализации бросаются вместе с браузером. Пишут
+// по-настоящему две группы проверок — галка шаблона на демо-документе уезжает PUT'ом, обработка
+// источника правится «чужой» правкой и сохраняется (issue #1141), — и обе возвращают исходное
+// состояние в finally, чтобы прерванный прогон не оставил за собой чужой выбор и чужую обработку.
 //
 // Требует поднятых фронта (:5173), бэка (:5000) и хранилища (Garage, :3900) — экран разбиения
 // читает страницы PDF из него. Плюс демо-данные, см. e2e/README.md.
 //
-// В CI гоняются 10 проверок из 13: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
+// В CI гоняются 13 проверок из 16: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
 // есть ИИ-движка, которого там нет (issue #872). Пропуск включается пустым `SMOKE_PDF_FILE_ID` и
-// называется вслух в итоге прогона — молчаливый превратил бы «10 из 13» в «10 из 10».
+// называется вслух в итоге прогона — молчаливый превратил бы «13 из 16» в «13 из 13».
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -74,21 +75,47 @@ try {
 // `save` — локатор, а не найденный элемент: он ленив, поэтому объявляется до перехода на экран.
 const save = page.getByRole('button', { name: /^Сохранить$/ }).first();
 
+/**
+ * Листы — ПО ПОДПИСИ, а не по тегу `img`.
+ *
+ * ⚠️ Картинка на этом экране не только лист: первым в разметке идёт ЛОГОТИП оболочки
+ * (`/api/branding/logo`, 24×20, alt = имя продукта) — если он загружен. На дев-стенде он загружен,
+ * в посеве CI нет, поэтому `img.first()` оказывался листом ровно там, где проверку никто не читает.
+ * На стенде он щёлкал логотип: лист не выделялся, панель «Выделено страниц» не рисовалась, и клик
+ * по «Отделить в новый документ» висел до истечения срока — красным без поломки (issue #1120).
+ *
+ * ⚠️ И счётчик тоже: `img.count() >= 1` выполнялся ОДНИМ ЛОГОТИПОМ, то есть «ни одного листа» не
+ * срабатывало бы и при нуле листов — утверждение было зелёным, не проверяя обещанного.
+ *
+ * Та же ловушка, что уже описана ниже про `nth(1)` и колокольчик уведомлений: общая оболочка
+ * подмешивает в выборку свои элементы, и адресоваться надо тем, что принадлежит самому экрану.
+ */
+const sheets = page.locator('img[alt^="Страница"]');
+
+// ⚠️ В этих трёх проверках фиксированные паузы ОСТАВЛЕНЫ (issue #1160), и это не недосмотр. Им нужны
+// распознанные страницы, то есть ИИ-движок: в CI они пропускаются и времени прогона не стоят, а на
+// стенде с посевом их не запустить вовсе. Перевести их на ожидание условий, не прогнав ни разу,
+// значило бы объявить проверенным непроверенное.
 const pdfChecks = [
 ['pdf-grouping-loads-groups', async () => {
   const t = await page.locator('body').innerText();
   for (const g of ['Обложка', 'Титульный лист', 'Без группы']) {
     if (!t.includes(g)) throw new Error(`группы «${g}» на экране нет`);
   }
-  if ((await page.locator('img').count()) < 1) throw new Error('ни одного листа');
+  if ((await sheets.count()) < 1) throw new Error('ни одного листа');
   // Правки ещё не было — сохранять нечего. Если бы «грязно» и содержимое разошлись, здесь бы и
   // вылезло: кнопка активна на нетронутом экране.
   if (!(await save.isDisabled())) throw new Error('«Сохранить» активна на нетронутом разбиении');
 }],
 
 ['pdf-grouping-edit-enables-save', async () => {
-  await page.locator('img').first().click();
-  await page.waitForTimeout(600);
+  await sheets.first().click();
+  // Панель действий рисуется ТОЛЬКО когда в группе есть выделенный лист (`hasSelectionHere`).
+  // Ждём её и называем отсутствие словами: иначе отказ приезжает сырым таймаутом щелчка по
+  // «Отделить в новый документ», по которому не видно, что не сработало ВЫДЕЛЕНИЕ, а не кнопка
+  // (проверено сломом выделения, issue #1120).
+  await page.getByText(/Выделено страниц/).first().waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('лист не выделился — панель действий над выделением не появилась'); });
   await page.getByRole('button', { name: /Отделить в новый документ/ }).first().click();
   await page.waitForTimeout(900);
   if (await save.isDisabled()) throw new Error('после правки «Сохранить» так и не стала активной');
@@ -116,16 +143,22 @@ if (!PDF_FILE) {
   for (const [name] of pdfChecks) skip(name, why);
 } else {
   await page.goto(`${BASE}/datasets/files/${PDF_FILE}/grouping`);
-  await page.waitForSelector('img', { timeout: 30000 });
+  // Ждём ЛИСТ, а не любую картинку: логотип оболочки есть на экране с первого кадра, и ожидание
+  // `img` заканчивалось бы до того, как приедет хоть одна страница (см. `sheets` выше).
+  //
+  // Истечение срока тут ГЛОТАЕМ: сказать «ни одного листа» — дело утверждения ниже, у которого есть
+  // имя проверки и слова. Брошенное отсюда, оно убило бы набор целиком, и тринадцать проверок
+  // превратились бы в один сырой таймаут посреди перехода.
+  await sheets.first().waitFor({ timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(1500);
   for (const [name, fn] of pdfChecks) await check(name, fn);
 }
 
 // ── Материализация: активный вариант union ────────────────────────────────────
 await page.goto(`${BASE}/datasets`);
-await page.waitForTimeout(2500);
+await settled(page);
 await page.getByText(DATASET_FILE, { exact: false }).first().click();
-await page.waitForTimeout(2500);
+await settled(page);
 // Кебаб источника — ПО ИМЕНИ, а не порядковым номером. Раньше стояло `nth(1)` с пояснением
 // «кебаб первого источника», и пояснение было верным лишь по совпадению: `aria-haspopup` на этой
 // странице есть и у КОЛОКОЛЬЧИКА уведомлений в оболочке (`haspopup="dialog"`), он идёт нулевым и
@@ -137,9 +170,9 @@ if (!(await sourceMenu.count())) {
   throw new Error(`у набора «${DATASET_FILE}» нет ни одного источника — материализацию открывать не из чего`);
 }
 await sourceMenu.click();
-await page.waitForTimeout(700);
+await settled(page);
 await page.getByText('Материализация', { exact: false }).first().click();
-await page.waitForTimeout(1800);
+await settled(page);
 
 await check('materialize-dialog-opens', async () => {
   const t = await page.locator('[role=dialog]').last().innerText();
@@ -149,12 +182,12 @@ await check('materialize-dialog-opens', async () => {
 await check('materialize-union-shows-variants', async () => {
   const dlg = page.locator('[role=dialog]').last();
   await dlg.getByText('не материализовать', { exact: false }).first().click();
-  await page.waitForTimeout(1000);
+  await settled(page);
   const picker = page.locator('[role=dialog]').last();
   await picker.locator('input').first().fill(UNION_TYPE);
-  await page.waitForTimeout(800);
+  await settled(page);
   await picker.getByText(UNION_TYPE, { exact: true }).first().click();
-  await page.waitForTimeout(1800);
+  await settled(page);
   const on = await checkedVariant();
   if (on !== 'Документ') throw new Error(`активен вариант «${on}», ждали первый — «Документ»`);
 });
@@ -170,11 +203,11 @@ await check('materialize-union-switch-to-empty-variant-sticks', async () => {
   const column = columns.find(c => c && !/не привязано/i.test(c));
   if (!column) throw new Error('в селекторе нет ни одной колонки источника');
   await select.selectOption({ label: column });
-  await page.waitForTimeout(900);
+  await settled(page);
   if ((await checkedVariant()) !== 'Документ') throw new Error('маппинг сбил активный вариант');
 
   await dlg.getByRole('radio', { name: /^Проект$/ }).first().click();
-  await page.waitForTimeout(1000);
+  await settled(page);
   const on = await checkedVariant();
   if (on !== 'Проект') throw new Error(`после переключения активен «${on}» — выбор не удержался`);
 });
@@ -190,17 +223,17 @@ await check('materialize-type-change-resets-chosen-variant', async () => {
     // с посеянным типом молча — кнопка не нашлась бы, а сказано было бы про варианты.
     const shown = new RegExp(`${escapeRe(UNION_TYPE)}|${escapeRe(WORKS_TYPE)}`);
     await dlg.locator('button').filter({ hasText: shown }).first().click();
-    await page.waitForTimeout(900);
+    await settled(page);
     const picker = page.locator('[role=dialog]').last();
     await picker.locator('input').first().fill(name);
-    await page.waitForTimeout(800);
+    await settled(page);
     await picker.getByText(name, { exact: true }).first().click();
-    await page.waitForTimeout(1600);
+    await settled(page);
   };
   await pickType(WORKS_TYPE);
   if ((await checkedVariant()) !== 'Работы') throw new Error('новый тип открылся не на первом варианте');
   await dlg.getByRole('radio', { name: /^Реестр$/ }).first().click();
-  await page.waitForTimeout(900);
+  await settled(page);
   if ((await checkedVariant()) !== 'Реестр') throw new Error('второй вариант не выбрался');
 
   await pickType(MATERIALS_TYPE);
@@ -209,18 +242,295 @@ await check('materialize-type-change-resets-chosen-variant', async () => {
 });
 
 await page.keyboard.press('Escape');
-await page.waitForTimeout(800);
+await settled(page);
+
+// ── Обработка источника: правка с устаревшей копии (issue #1141) ───────────────
+// Диалог обработки собран по копии источника на странице. Источник тем временем правит другой
+// человек — сохранение обязано получить отказ и показать его в диалоге, а не затереть чужую правку.
+//
+// «Другой человек» здесь — запрос к API мимо страницы, от имени того же пользователя: серверу важна
+// не личность, а версия обработки, которую называет правка.
+const apiAs = (method, path, body) => page.evaluate(async ([method, path, body]) => {
+  const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+  const res = await fetch(`/api${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text.slice(0, 200)}`);
+  return text ? JSON.parse(text) : null;
+}, [method, path, body]);
+
+/**
+ * Источник, на котором идут проверки обработки. Выбирается ОДИН раз — первый в списке открытого
+ * набора — и дальше ищется по идентификатору, а его меню на странице — по имени (`openSourceMenu`).
+ *
+ * ⚠️ «Первый в списке» каждый раз заново брать нельзя: порядок источников у набора сервер не
+ * закрепляет (упорядочивания в запросе нет), и после правки строки источника в базе тот же запрос
+ * отдаёт их в другом порядке. Проверка посреди прогона получала ДРУГОЙ источник и краснела про
+ * «чужая правка пропала», хотя правка лежала на месте, — через раз, в зависимости от того, сколько
+ * раз источник правили до неё.
+ *
+ * Список — тем же запросом, что у страницы; набор — по `?file=` из адреса, а не по имени: имя
+ * приходит из окружения и ищется вхождением.
+ */
+let smokeSourceId = null;
+const smokeSource = async () => {
+  const files = await apiAs('GET', '/datasets/files?scope=System&includeInherited=true');
+  const opened = new URL(page.url()).searchParams.get('file');
+  const file = files.find(f => (opened ? f.id === opened : f.name.includes(DATASET_FILE)));
+  if (!file?.sources?.length) throw new Error(`открытый набор «${DATASET_FILE}» с источником не найден в списке наборов`);
+  smokeSourceId ??= file.sources[0].id;
+  const source = file.sources.find(s => s.id === smokeSourceId);
+  if (!source) throw new Error('источник, выбранный в начале проверок обработки, пропал из набора');
+  return source;
+};
+/**
+ * Меню ТОГО ЖЕ источника на странице — по его имени. Строка источника — ближайший предок кнопки
+ * меню, в котором эта кнопка одна: выше начинается список, и там имя нашлось бы у любой кнопки.
+ */
+const openSourceMenu = async (known) => {
+  const { name } = known ?? await smokeSource();
+  const selector = 'button[aria-label="Действия над источником"]';
+  const buttons = page.locator(selector);
+  const index = await buttons.evaluateAll((els, [name, selector]) => els.findIndex(el => {
+    for (let row = el.parentElement; row; row = row.parentElement) {
+      if (row.querySelectorAll(selector).length > 1) return false;
+      if (row.innerText.includes(name)) return true;
+    }
+    return false;
+  }), [name, selector]);
+  if (index < 0) throw new Error(`на странице нет строки источника «${name}»`);
+  await buttons.nth(index).click();
+};
+/**
+ * Диалог обработки по пункту меню источника; заголовок диалога совпадает с пунктом.
+ *
+ * ⚠️ Ждём САМ диалог, а не затихшую страницу, — и `known` здесь по той же причине. Проверка
+ * «следующий диалог открывается со своей же правки» держит перечитывание списка наборов задержанным
+ * на четыре секунды: `settled()` честно дождалась бы его, а `smokeSource()` — это тот же запрос
+ * списка, задержанный тем же перехватом. И то и другое открывало бы диалог ПОСЛЕ перечитывания, то
+ * есть проверяло бы не то, ради чего задержка поставлена.
+ */
+const openProcessingDialog = async (item, known) => {
+  await openSourceMenu(known);
+  await page.getByText(item, { exact: true }).first().click();
+  const dlg = page.locator('[role=dialog]').last();
+  await until(async () => {
+    if (!(await dlg.count()) || !(await dlg.innerText()).includes(item))
+      throw new Error(`диалог «${item}» не открылся`);
+  });
+  return dlg;
+};
+const openSortDialog = (known) => openProcessingDialog('Сортировка строк', known);
+/** Ждём, пока диалог закроется сам (сохранение прошло); остался — отдаём его отказ. */
+const closedAfterSave = async (dlg, what) => {
+  await page.waitForFunction(() => !document.querySelector('[role=dialog]'), null, { timeout: 15000 })
+    .catch(() => {});
+  if (await page.locator('[role=dialog]').count())
+    throw new Error(`${what} не сохранилось: «${(await refusalOf(dlg)).slice(0, 160)}»`);
+};
+const saveButton = (dlg) => dlg.getByRole('button', { name: /^Сохранить$/ });
+const refusalOf = async (dlg) => (await dlg.locator('[role=alert]').count())
+  ? (await dlg.locator('[role=alert]').first().innerText()) : '';
+/** Перечитывание списка наборов страницей — то, что подменяет копию источника под диалогом. */
+const filesRefetched = () => page.waitForResponse(
+  r => r.request().method() === 'GET' && /\/api\/datasets\/files(\?|$)/.test(r.url()), { timeout: 10000 });
+
+const FOREIGN = 'smoke_чужая_правка';
+// Источник до прогона — его обработку вернём в finally. Берётся ВНУТРИ первой проверки, а не здесь:
+// брошенное вне check() убило бы прогон целиком, и проверки копирования, генерации и документов
+// качества ниже не запустились бы вовсе.
+let sourceBefore = null;
+try {
+  let staleDialog = null;
+
+  await check('processing-save-from-stale-copy-is-refused', async () => {
+    sourceBefore = await smokeSource();
+    staleDialog = await openSortDialog();
+    await apiAs('PUT', `/datasets/sources/${sourceBefore.id}/processing`, {
+      ifMatch: sourceBefore.processingVersion,
+      computedColumns: [...(sourceBefore.computedColumns ?? []), { alias: FOREIGN, expr: '1' }],
+    });
+
+    const refetched = filesRefetched();
+    await saveButton(staleDialog).click();
+    await staleDialog.locator('[role=alert]').first().waitFor({ timeout: 10000 }).catch(() => {});
+    const said = await refusalOf(staleDialog);
+    if (!/тем временем изменили/.test(said)) throw new Error(`отказа в диалоге нет: «${said.slice(0, 160)}»`);
+    // Отказ страница встречает перечитыванием источников — ждём его: следующая проверка стоит на нём.
+    await refetched;
+    await settled(page);
+  });
+
+  // Ключевая проверка. Страница уже перечитала источник и знает его НОВУЮ версию, а диалог открыт с
+  // прежней копии. Возьми сохранение версию из страницы, а не из снимка, с которого диалог открыт, —
+  // оно прошло бы: черновик по старым данным уехал бы с версией «я видел новые».
+  await check('processing-stale-dialog-stays-refused-after-page-refresh', async () => {
+    if (!sourceBefore || !staleDialog || !(await staleDialog.count()))
+      throw new Error('диалог с устаревшей копии не открыт — предыдущая проверка не дошла до него');
+    // Ждём ОТВЕТ на само сохранение: отказ от первого нажатия ещё на экране, и без ответа «отказ
+    // показан» было бы правдой и при кнопке, которая ничего не отправила.
+    const answered = page.waitForResponse(
+      r => r.request().method() === 'PUT'
+        && new URL(r.url()).pathname.endsWith(`/datasets/sources/${sourceBefore.id}/processing`),
+      { timeout: 10000 }).catch(() => null);
+    await saveButton(staleDialog).click();
+    if (!(await answered)) throw new Error('повторное «Сохранить» не ушло на сервер — судить об отказе не по чему');
+    await settled(page);
+    if (!(await staleDialog.count()) || !/Сортировка строк/.test(await staleDialog.innerText()))
+      throw new Error('диалог закрылся — устаревшая правка сохранена');
+    if (!/тем временем изменили/.test(await refusalOf(staleDialog)))
+      throw new Error('повторное сохранение из того же диалога не получило отказа');
+    const now = await smokeSource();
+    if (JSON.stringify(now.sortSpec) !== JSON.stringify(sourceBefore.sortSpec))
+      throw new Error('сортировка источника изменилась, хотя сохранение отклонено');
+    if (!(now.computedColumns ?? []).some(c => c.alias === FOREIGN))
+      throw new Error('чужая правка вычисляемых колонок пропала');
+  });
+
+  // То же — у материализации: настройка сохраняется замещением, а её версия включает обработку
+  // (диалог сопоставляет поля с колонками источника). «Сохранить» жмём дважды: после первого отказа
+  // страница перечитывает источник, и второе нажатие прошло бы, бери диалог версию из страницы, а не
+  // из снимка, с которого открыт. От проверок выше не зависит: диалог открывает и источник меняет сама.
+  await check('materialize-save-from-stale-copy-is-refused', async () => {
+    if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+    await settled(page);
+    await openSourceMenu();
+    await page.getByText('Материализация', { exact: false }).first().click();
+    await settled(page);
+    const dlg = page.locator('[role=dialog]').last();
+    if (!/Материализация источника/.test(await dlg.innerText())) throw new Error('диалог материализации не открылся');
+
+    const seen = await smokeSource();
+    sourceBefore ??= seen;
+    await apiAs('PUT', `/datasets/sources/${seen.id}/processing`, {
+      ifMatch: seen.processingVersion,
+      computedColumns: [...(seen.computedColumns ?? []), { alias: `${FOREIGN}_2`, expr: '1' }],
+    });
+    for (const attempt of ['первое', 'повторное']) {
+      const refetched = filesRefetched().catch(() => {});
+      // Судим по ответу на САМО сохранение, а не по тексту в диалоге: отказ от первого нажатия ещё
+      // на экране, когда уходит второе, и проверка по тексту была зелёной при принятом сохранении.
+      const answered = page.waitForResponse(
+        r => r.request().method() === 'PUT' && /\/materialization$/.test(new URL(r.url()).pathname),
+        { timeout: 10000 });
+      await saveButton(dlg).click();
+      const status = (await answered).status();
+      await settled(page);
+      if (status !== 409 || !(await dlg.count()) || !/тем временем изменили/.test(await refusalOf(dlg)))
+        throw new Error(`${attempt} сохранение материализации с устаревшей копии не получило отказа (ответ ${status})`);
+      await refetched;
+      await settled(page);
+    }
+    if ((await smokeSource()).materializeTypeId !== seen.materializeTypeId)
+      throw new Error('материализация источника изменилась, хотя сохранение отклонено');
+    await page.keyboard.press('Escape');
+    await settled(page);
+  });
+
+  // И у «Редактировать»: извлечение входит в ту же версию, что обработка. Одного нажатия здесь
+  // достаточно — редактор открыт с копии, которую страница запомнила при выборе пункта меню.
+  await check('source-edit-from-stale-copy-is-refused', async () => {
+    if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+    await settled(page);
+    await openSourceMenu();
+    await page.getByText('Редактировать', { exact: true }).first().click();
+    await settled(page);
+    const dlg = page.locator('[role=dialog]').last();
+    if (!/Редактировать источник/.test(await dlg.innerText())) throw new Error('редактор источника не открылся');
+
+    const seen = await smokeSource();
+    sourceBefore ??= seen;
+    await apiAs('PUT', `/datasets/sources/${seen.id}/processing`, {
+      ifMatch: seen.processingVersion,
+      computedColumns: [...(seen.computedColumns ?? []), { alias: `${FOREIGN}_3`, expr: '1' }],
+    });
+    const answered = page.waitForResponse(
+      r => r.request().method() === 'PUT' && new URL(r.url()).pathname.endsWith(`/datasets/sources/${seen.id}`),
+      { timeout: 10000 });
+    await saveButton(dlg).click();
+    const status = (await answered).status();
+    await settled(page);
+    if (status !== 409 || !(await dlg.count()) || !/тем временем изменили/.test(await refusalOf(dlg)))
+      throw new Error(`правка источника с устаревшей копии не получила отказа (ответ ${status})`);
+    await page.keyboard.press('Escape');
+    await settled(page);
+  });
+
+  // Своя правка — и сразу следующая. Первая меняет версию обработки, и диалог, открытый следом,
+  // обязан назвать уже НОВУЮ: страница узнаёт её из ответа на сохранение, не дожидаясь перечитывания
+  // списка наборов. Перечитывание здесь нарочно задержано — без задержки оно успевает и так, и
+  // проверка была бы зелёной при любом коде (поломка «страница не знает о своей правке» её не роняла).
+  //
+  // От двух проверок выше не зависит: страницу перезагружает и условие себе собирает сама.
+  await check('processing-next-dialog-opens-from-saved-copy', async () => {
+    sourceBefore ??= await smokeSource();
+    // Условие проверки — у источника есть вычисляемая колонка: тогда у диалога есть «Сбросить», а
+    // сброс меняет версию обработки.
+    const current = await smokeSource();
+    if (!(current.computedColumns ?? []).length) {
+      await apiAs('PUT', `/datasets/sources/${current.id}/processing`, {
+        ifMatch: current.processingVersion, computedColumns: [{ alias: FOREIGN, expr: '1' }],
+      });
+    }
+    await page.reload();
+    await sourceMenu.waitFor({ timeout: 15000 });
+    await settled(page);
+
+    // Имя источника — ДО перехвата: взятое под ним, оно стоило бы тех же четырёх секунд на каждый
+    // диалог, и второй открывался бы уже после перечитывания (см. openProcessingDialog).
+    const source = await smokeSource();
+    const slowFiles = /\/api\/datasets\/files(\?|$)/;
+    await page.route(slowFiles, async route => {
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      // Перехват снимают раньше, чем истекает задержка: проверке хватает пары секунд. Задержанный
+      // запрос к тому времени уже отпущен самим снятием, и «продолжить» его второй раз — отказ,
+      // брошенный мимо check(): он ронял прогон целиком, вместе с проверками ниже.
+      await route.continue().catch(() => {});
+    });
+    try {
+      const computed = await openProcessingDialog('Вычисляемые колонки', source);
+      await computed.getByRole('button', { name: /^Сбросить$/ }).click();
+      await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
+
+      const sort = await openSortDialog(source);
+      await saveButton(sort).click();
+      await closedAfterSave(sort, 'сохранение сортировки сразу после своей же правки');
+    } finally {
+      await page.unroute(slowFiles);
+    }
+    if (((await smokeSource()).computedColumns ?? []).length)
+      throw new Error('вычисляемые колонки не сброшены, хотя диалог закрылся');
+  });
+} finally {
+  // Вернуть обработку, какой она была до прогона, — с версией, какая у источника сейчас. Сбой возврата
+  // называем и идём дальше: остальным проверкам он не мешает, а прогон целиком ронять не должен.
+  try {
+    if (await page.locator('[role=dialog]').count()) await page.keyboard.press('Escape');
+    if (sourceBefore) {
+      const now = await smokeSource();
+      await apiAs('PUT', `/datasets/sources/${now.id}/processing`, {
+        ifMatch: now.processingVersion,
+        computedColumns: sourceBefore.computedColumns, sortSpec: sourceBefore.sortSpec,
+      });
+    }
+  } catch (e) {
+    console.log(`  ! обработка источника не возвращена в исходное состояние: ${e.message}`);
+  }
+}
 
 // ── Копирование документа: цель забывается при закрытии ────────────────────────
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });
-await page.waitForTimeout(1000);
+await settled(page);
 
 const openCopy = async () => {
   await page.locator('tbody tr').first().locator('button[aria-haspopup]').first().click();
-  await page.waitForTimeout(700);
+  await settled(page);
   await page.getByText('Скопировать', { exact: false }).first().click();
-  await page.waitForTimeout(1200);
+  await settled(page);
 };
 
 await check('copy-dialog-opens-on-set-picker', async () => {
@@ -234,29 +544,29 @@ await check('copy-dialog-reopens-at-picker-not-confirm', async () => {
   const target = picker.getByRole('option').or(picker.locator('button')).filter({ hasText: /ЭОМ|СКС|ОВиК/ }).first();
   if (!(await target.count())) throw new Error('в пикере нет ни одного комплекта-цели');
   await target.click();
-  await page.waitForTimeout(1500);
+  await settled(page);
   const confirm = await page.locator('[role=dialog]').last().innerText();
   if (!/Скопировать «/.test(confirm)) throw new Error(`подтверждение не открылось: ${confirm.slice(0, 200)}`);
   await page.keyboard.press('Escape');   // отмена — цель обязана забыться вместе с закрытием
-  await page.waitForTimeout(900);
+  await settled(page);
   await openCopy();
   const again = await page.locator('[role=dialog]').last().innerText();
   if (!/Скопировать в комплект/.test(again))
     throw new Error(`повторное открытие показало не пикер, а: ${again.slice(0, 200)}`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(700);
+  await settled(page);
 });
 
 // ── Вкладка генерации: выбор шаблонов ─────────────────────────────────────────
 await page.getByText(AOSR, { exact: false }).first().click();
 await page.waitForSelector('[role=dialog]', { timeout: 15000 });
-await page.waitForTimeout(2000);
+await settled(page);
 const editor = page.locator('[role=dialog]').first();
 
 await check('generation-tab-shows-templates', async () => {
   // Вкладки редактора — не role=button (getByRole их не видит), поэтому ищем по тексту кнопки.
   await editor.locator('button').filter({ hasText: /^Генерация$/ }).first().click();
-  await page.waitForTimeout(2000);
+  await settled(page);
   const t = await editor.innerText();
   if (!/Статус:/.test(t)) throw new Error(`вкладка генерации не открылась: ${t.slice(0, 200)}`);
   const boxes = await editor.locator('input[type=checkbox]').count();
@@ -268,14 +578,14 @@ await check('generation-tab-selection-follows-click', async () => {
   const before = await box.isChecked();
   try {
     await box.click();
-    await page.waitForTimeout(1200);
+    await settled(page);
     if ((await box.isChecked()) === before) throw new Error('галка не переключилась');
   } finally {
     // Возврат — в finally: выбор шаблонов уходит на сервер, и провалившаяся проверка не должна
     // оставлять демо-документ с чужой настройкой (следующий прогон стартовал бы с неё).
     if ((await box.isChecked()) !== before) {
       await box.click();
-      await page.waitForTimeout(1200);
+      await settled(page);
     }
   }
   if ((await box.isChecked()) !== before) throw new Error('галка не вернулась в исходное состояние');
@@ -287,22 +597,22 @@ await check('generation-tab-selection-follows-click', async () => {
 // одну и ту же работу столько раз, сколько строк в реестре (поймано ревью PR #862).
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });
-await page.waitForTimeout(1000);
+await settled(page);
 await page.getByText(MATERIALS_DOC, { exact: false }).first().click();
 await page.waitForSelector('[role=dialog]', { timeout: 15000 });
-await page.waitForTimeout(2500);
+await settled(page);
 const matEditor = page.locator('[role=dialog]').first();
 await matEditor.locator('button').filter({ hasText: /^Документы качества$/ }).first().click();
-await page.waitForTimeout(3000);
+await settled(page);
 
 const openLinkPicker = async () => {
   // Без якорей: hasText сверяет textContent (с переносами вокруг значка), а не innerText.
   await matEditor.locator('button').filter({ hasText: /Связать/ }).first().click();
-  await page.waitForTimeout(2000);
+  await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   if (!/Документ качества/.test(await dlg.innerText())) throw new Error('пикер документа качества не открылся');
   await dlg.locator('button').filter({ hasText: /^Поиск в интернете$/ }).first().click();
-  await page.waitForTimeout(900);
+  await settled(page);
   return dlg;
 };
 // Поле типа — триггер TypePickerField с aria-label «Тип документа качества»; показанное значение
@@ -322,24 +632,24 @@ await check('quality-picker-opens-with-default-search-type', async () => {
 await check('quality-picker-keeps-chosen-search-type-across-close', async () => {
   const dlg = page.locator('[role=dialog]').last();
   await dlg.locator(TYPE_TRIGGER).first().click();
-  await page.waitForTimeout(1200);
+  await settled(page);
   const picker = page.locator('[role=dialog]').last();
   const options = await picker.locator('button')
     .evaluateAll(els => els.map(e => e.innerText.split(/\r?\n/)[0].trim()).filter(Boolean));
   const other = options.find(o => o !== firstType && /письмо|Декларация|Паспорт|Сертификат/i.test(o));
   if (!other) throw new Error(`второго типа в пикере нет: ${options.slice(0, 12).join(' | ')}`);
   await picker.getByText(other, { exact: true }).first().click();
-  await page.waitForTimeout(1200);
+  await settled(page);
   if ((await shownSearchType(page.locator('[role=dialog]').last())) !== other)
     throw new Error('тип не сменился в самом окне');
 
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(1000);
+  await settled(page);
   const again = await openLinkPicker();
   const kept = await shownSearchType(again);
   if (kept !== other) throw new Error(`после повторного открытия тип «${kept}», а выбирали «${other}»`);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(700);
+  await settled(page);
 });
 
 } finally {

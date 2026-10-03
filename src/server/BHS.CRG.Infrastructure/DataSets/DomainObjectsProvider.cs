@@ -50,7 +50,7 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
     public bool Handles(string marker) => SystemDataSets.TryParseObjectsMarker(marker, out _);
 
     public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
-        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
     {
         if (scope != CatalogScope.System && scopeId is null) return [];
 

@@ -47,6 +47,18 @@ public partial class DataSetPdfRecognitionService(
         return null;
     }
 
+    /// <summary>
+    /// ВСЕ источники-проекции с этим маркером — их бывает больше одного (issue #1149).
+    ///
+    /// «Создать копию» (issue #717) заводит второй источник на том же маркере: те же строки, другой
+    /// отбор. Пока распознавание брало «первый с маркером», свежие строки получала одна копия, а
+    /// вторая оставалась со старыми и без пометки об устаревании — причём какая из двух, решал
+    /// порядок строк в куче, и после правки любой из них это была уже другая. Сырьё у копий общее,
+    /// поэтому и обновляются они вместе.
+    /// </summary>
+    private static IEnumerable<DataSetSource> ProjectionsOf(IEnumerable<DataSetSource> sources, string marker) =>
+        sources.Where(s => s.SheetOrPath == marker);
+
     // ── Набор-centric распознавание ГОСТ (issue #38): всё по fileId, источников не создаёт ──
 
     /// <summary>Определяет профиль набора (issue #44) — по PreprocessingProfile, либо (обратная

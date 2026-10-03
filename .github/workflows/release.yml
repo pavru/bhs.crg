@@ -3,14 +3,32 @@
 # Номер версии НЕ вводится руками: workflow читает <Version> из src/server/Directory.Build.props и
 # сам называет по нему тег, релиз и образы. Ввести номер во второй раз негде — значит нечему и
 # разъехаться (в .env.example значение подставляется этим же workflow при выкладке ассета).
-# Проверка «тег уже существует» заодно ловит забытый bump версии: тот самый случай, когда 104 PR
-# подряд прошли на одной версии и никто не заметил (issue #550).
+# Проверка «тег уже существует» заодно ловит несостоявшееся повышение версии: тот самый случай,
+# когда 104 PR подряд прошли на одной версии и никто не заметил (issue #550). Версию поднимает
+# workflow «Повышение версии» (bump-version.yml) после каждого слияния; тегов он НЕ ставит — тег
+# принадлежит выпуску, иначе эта проверка отказывала бы всегда (issue #1153).
 #
-# Запуск ручной: версия меняется почти каждым PR, а релиз — решение о том, что накопилось.
+# Запуск ручной: версия меняется каждым слиянием, а релиз — решение о том, что накопилось.
+#
+# ПРОБНЫЙ ВЫПУСК (`dry_run`, issue #1179): собрать все три образа теми же действиями и с тем же
+# кешем — и не опубликовать НИЧЕГО: ни образов, ни тега, ни Release. Запускается с любой ветки:
+#   gh workflow run release.yml --ref <ветка> -f dry_run=true
+# Зачем. Выпуск необратим, а действия Docker в нём больше нигде не исполняются: новая их версия
+# (или новый Dockerfile) иначе впервые встретилась бы с раннером в настоящем выпуске — и упади
+# сборка web после опубликованного api, номер версии оказался бы занят наполовину. Пробный выпуск
+# с ветки PR проверяет это до слияния.
+#
+# ⚠️ Пробный выпуск держится на одном: `push` у сборок и `if` у шагов публикации смотрят на
+# `inputs.dry_run`. Добавляя шаг, который что-то публикует, — закройте его тем же условием.
 name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Пробный выпуск: собрать образы, ничего не публикуя (ни образов, ни тега, ни Release)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # тег и Release
@@ -25,35 +43,60 @@ jobs:
       - name: Выпускаем только master
         # Диалог запуска предлагает любую ветку, а промах в нём необратим: версия ушла бы в GHCR и
         # заняла номер, перевыпустить который потом нельзя.
-        if: github.ref != 'refs/heads/master'
+        if: github.ref != 'refs/heads/master' && !inputs.dry_run
         run: |
           echo "::error::Выпуск делается только из master, а запрошен ${{ github.ref }}."
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # нужны теги: по ним проверяем, что версия действительно новая
 
       - name: Версия из Directory.Build.props
         id: ver
         run: |
-          # `|| true` обязателен: шаги идут под `bash -e`, и grep без совпадения оборвал бы шаг
-          # прямо на присваивании — с голым «exit 1» вместо внятного сообщения ниже.
-          version=$(grep -oPm1 '(?<=<Version>)[^<]+' src/server/Directory.Build.props || true)
-          if [ -z "$version" ]; then
-            echo "::error::В src/server/Directory.Build.props не найден <Version>"; exit 1
+          # Тем же скриптом, которым версию читает и поднимает повышение. Свой разбор здесь уже был
+          # — `grep` по первому упоминанию тега в файле — и разошёлся бы с этим на первом же
+          # комментарии с примером: повышение правило бы настоящую строку, а выпуск необратимо ушёл
+          # бы под номером из комментария (issue #1153).
+          # `if !` обязателен: шаги идут под `bash -e`, и отказ скрипта оборвал бы шаг прямо на
+          # присваивании — раньше аннотации ниже.
+          if ! version=$(bash scripts/get-version.sh); then
+            echo "::error::Версия в src/server/Directory.Build.props не прочиталась — причина строкой выше."; exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "Версия: $version"
 
-      - uses: docker/login-action@v3
+      - name: Версия поднята за все слияния
+        # Пробному выпуску не нужна: он ничего не выпускает, а с ветки PR граница «с прошлого
+        # повышения» и не обязана сходиться.
+        if: ${{ !inputs.dry_run }}
+        # Выпускаем только то состояние master, за которое версия уже поднята. Иначе номер, выданный
+        # одному состоянию, достался бы другому: повышение после слияния упало (или ещё не дошло —
+        # его коммит появляется секунд через двадцать), голова master — слитый PR со СТАРЫМ номером,
+        # тег этого номера свободен, CI зелёный — и выпуск прошёл бы без единого возражения.
+        # Проверка «Тег ещё не занят» этого не видит: она ловит только номер, который уже выпущен.
+        run: |
+          # Двумя строками, а не конвейером: `|| true` нужен grep (без совпадений он выходит с 1), но
+          # в одном конвейере он проглотил бы и отказ скрипта — «граница не нашлась» читалось бы
+          # как «всё поднято». Так отказ скрипта остаётся отказом шага (`bash -e`).
+          merges=$(bash scripts/unbumped-merges.sh)
+          pending=$(grep '^after ' <<<"$merges" || true)
+          if [ -n "$pending" ]; then
+            echo "$pending"
+            echo "::error::Версия ${{ steps.ver.outputs.version }} не поднята за слияния выше. Дождитесь прогона workflow «Повышение версии» на master; если он красный — перезапустите его (Re-run jobs) и выпускайте после."
+            exit 1
+          fi
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Проверки CI на этом коммите прошли
+        if: ${{ !inputs.dry_run }}
         # Выпуск необратим: образы уходят в GHCR под номером версии, который переиздать нельзя.
         # Значит и решение «выпускаем» обязано опираться не на веру. Пока в репозитории не включены
         # required status checks, красный master сливается молча — эта проверка закрывает дверь
@@ -87,10 +130,11 @@ jobs:
           fi
 
       - name: Тег ещё не занят
+        if: ${{ !inputs.dry_run }}
         run: |
           tag="${{ steps.ver.outputs.tag }}"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "::error::Тег $tag уже существует — версия не менялась с прошлого выпуска. Поднимите <Version> в Directory.Build.props."
+            echo "::error::Тег $tag уже существует — версия не менялась с прошлого выпуска. Либо после него ничего не слито, либо не сработало повышение: смотрите последний прогон workflow «Повышение версии»."
             exit 1
           fi
           # Тот же довод и для образов: пересборка того же тега дала бы ДРУГОЙ бинарь (базовые
@@ -116,14 +160,14 @@ jobs:
             fi
           done
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Образ api
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: deploy/Dockerfile.api
-          push: true
+          push: ${{ !inputs.dry_run }}
           # Хеш коммита в образ: .git в контекст сборки не попадает (.dockerignore), сам себя
           # образ пометить не может.
           build-args: |
@@ -135,11 +179,11 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Образ web
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: deploy/Dockerfile.web
-          push: true
+          push: ${{ !inputs.dry_run }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/bhs.crg-web:${{ steps.ver.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/bhs.crg-web:latest
@@ -151,11 +195,11 @@ jobs:
       # Едет тем же тегом версии, что api и web: compose тянет его по ${APP_VERSION}, и разъехаться
       # с остальной поставкой он не может.
       - name: Образ garage-init
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: deploy
           file: deploy/Dockerfile.garage-init
-          push: true
+          push: ${{ !inputs.dry_run }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/bhs.crg-garage-init:${{ steps.ver.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/bhs.crg-garage-init:latest
@@ -163,6 +207,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Тег и Release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.ver.outputs.version }}
@@ -223,6 +268,7 @@ jobs:
       # переключить видимость пакета, и всё. Поэтому: красная аннотация с точным указанием, что
       # сделать, при зелёной работе.
       - name: Образы доступны анонимно
+        if: ${{ !inputs.dry_run }}
         continue-on-error: true
         run: |
           owner="${{ github.repository_owner }}"
@@ -242,6 +288,6 @@ jobs:
           exit $rc
 
       - name: Что делать, если выпуск оборвался
-        if: failure()
+        if: failure() && !inputs.dry_run
         run: |
           echo "::warning::Если образы уже опубликованы, а тег ${{ steps.ver.outputs.tag }} не создан, повторный запуск упрётся в проверку неизменяемости. Удалите версию ${{ steps.ver.outputs.version }} обоих пакетов (GitHub → Packages → bhs.crg-api / bhs.crg-web → Manage versions) и запустите выпуск заново."

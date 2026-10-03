@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { RECONCILIATION_KEY } from './reconciliations';
+import { RECONCILIATION_KEY, useCanReconcile } from './reconciliations';
 
 /**
  * Замечания внешнего анализа (issue #440). Пишет их агент через MCP; здесь их только читают и
@@ -56,8 +56,10 @@ const KEY = ['observations'] as const;
 const PROBLEM_COUNTERS_KEY = RECONCILIATION_KEY;
 
 export function useObservations(scopeId?: string | null, status?: ObservationStatus) {
+  const allowed = useCanReconcile();
   return useQuery({
     queryKey: [...KEY, scopeId ?? null, status ?? null],
+    enabled: allowed,
     queryFn: async () => (await apiClient.get<Observation[]>('/observations', {
       params: { scopeId: scopeId ?? undefined, status },
     })).data,
