@@ -68,14 +68,14 @@ jobs:
           --health-retries 12
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
       - name: Кеш пакетов NuGet
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           # Только csproj: версии пакетов живут в них (центрального Directory.Packages.props нет).
@@ -104,6 +104,7 @@ jobs:
           rc=0
           same() { # $1 — эталон, $2 — файл, $3 — sed-выражение, $4 — что сверяем (человеку)
             local want="$1" file="$2" expr="$3" what="$4" used found=0
+            # shellcheck disable=SC2013 # имя образа пробелов не содержит, разбиение по словам и нужно
             for used in $(sed -n "$expr" "$file" | sort -u); do
               found=1
               if [ "$used" != "$want" ]; then
@@ -189,11 +190,11 @@ jobs:
         working-directory: src/client
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # 22, а не свежайший: ровно на этой версии собирается образ (deploy/Dockerfile.web). CI,
       # проверяющий не ту версию, что поедет в продакшн, проверяет не то.
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -239,7 +240,7 @@ jobs:
     # «задач нет» всегда, откат столько же отказывал всегда). Docker и сеть здесь не нужны —
     # проверяется то, что можно спросить без них.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Проверка логики update.sh
         run: bash deploy/update.tests.sh
@@ -264,6 +265,25 @@ jobs:
       # (issue #1178). Проверяется на командах оболочки.
       - name: Проверка логики in-parallel.sh
         run: bash scripts/in-parallel.tests.sh
+
+      # Сами workflow (issue #1179). `bump-version.yml` и `release.yml` на PR не запускаются: первый
+      # идёт только на push в master, второй — только вручную, и сломанный в них вызов всплыл бы
+      # уже в master — красным повышением версии, после которого выпуск отказывает, — или прямо в
+      # выпуске. actionlint читает все пять файлов: синтаксис, выражения (`github.actorr` — отказ)
+      # и `run:` через shellcheck.
+      #
+      # ⚠️ ВХОДЫ ДЕЙСТВИЙ ОН НЕ СВЕРЯЕТ. Действия закреплены по SHA, а по SHA версию он не узнаёт и
+      # проверку молча пропускает (проверено подсадкой: при `@v4` неизвестный вход
+      # `setup-buildx-action` был отказом, при SHA — тишина). Действия Docker проверяет пробный
+      # выпуск — release.yml с `dry_run`.
+      #
+      # Образ прибит дайджестом: проверка, которая сама приезжает по передвигаемому тегу, проверяет
+      # не то, что вчера.
+      - name: Проверка workflow (actionlint)
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+          -color
 
   e2e:
     name: Живые прогоны (браузер)
@@ -323,13 +343,13 @@ jobs:
       SMOKE_PDF_FILE_ID: ''
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -402,7 +422,7 @@ jobs:
           typst --version
 
       - name: Кеш пакетов NuGet
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: nuget-${{ runner.os }}-${{ hashFiles('src/server/**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
@@ -510,19 +530,19 @@ jobs:
           # шаг печатает «поднялся заново» и зеленеет на сервере без типа счёта. Красный прогон
           # счетов после такого разбирают как поломку формы.
           pkill -f 'BHS.CRG.Api.dll' || true
-          for i in $(seq 1 30); do pgrep -f 'BHS.CRG.Api.dll' >/dev/null || break; sleep 1; done
+          for _ in $(seq 1 30); do pgrep -f 'BHS.CRG.Api.dll' >/dev/null || break; sleep 1; done
           if pgrep -f 'BHS.CRG.Api.dll' >/dev/null; then
             echo "прежний сервер не остановился за 30 с — перезапуск отменён"; exit 1
           fi
           # Порт тоже обязан освободиться: процесс уходит раньше, чем ядро закрывает сокет.
-          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:5055/api/version || break; sleep 1; done
+          for _ in $(seq 1 30); do curl -sf -o /dev/null http://localhost:5055/api/version || break; sleep 1; done
           if curl -sf -o /dev/null http://localhost:5055/api/version; then
             echo "на 5055 всё ещё кто-то отвечает — новый сервер не поднять"; exit 1
           fi
 
           nohup dotnet ./BHS.CRG.Api.dll >> ${{ runner.temp }}/api.log 2>&1 &
           started=$!
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if ! kill -0 "$started" 2>/dev/null; then
               echo "сервер завершился, не ответив"; tail -n 50 ${{ runner.temp }}/api.log; exit 1
             fi
@@ -541,7 +561,7 @@ jobs:
           API_TARGET: http://localhost:5055
         run: |
           nohup npx vite preview --port 4173 --strictPort > ${{ runner.temp }}/web.log 2>&1 &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf -o /dev/null http://localhost:4173/; then echo "клиент отвечает"; exit 0; fi
             sleep 2
           done

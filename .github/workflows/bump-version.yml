@@ -65,7 +65,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master      # голова ветки, а не коммит события: за время ожидания в группе она ушла вперёд
           fetch-depth: 0   # граница «с прошлого изменения версии» ищется по истории
@@ -122,7 +122,7 @@ jobs:
               if grep -qxF 'version:minor' <<<"$labels"; then
                 level=minor
               elif [ "$kind" = after ] && [ "$level" = none ]; then
-                level=patch
+                level='patch'   # в кавычках: иначе shellcheck (actionlint) принимает patch за команду
               fi
             done <<<"$pending"
 
