@@ -10,7 +10,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 interface Report {
   registered: number;
   referenced: number;
-  /** Из используемых — файлы, которые держат данные модулей (скан счёта), включая выключенные. */
+  /** Из используемых — файлы, которые держат ТОЛЬКО данные модулей (скан счёта), включая выключенные. */
   heldByModules: number;
   orphans: number;
   /** Без ссылок, но моложе порога — их сборщик не трогает: файл может прямо сейчас прикрепляться. */
@@ -123,8 +123,8 @@ export function OrphanBlobsSection() {
             <li>Всего числится за приложением: {report.registered}, из них используются: {report.referenced}</li>
             {report.heldByModules > 0 && (
               <li className="text-fg3">
-                Из используемых {report.heldByModules} держат данные модулей (например, сканы счетов) —
-                в том числе выключенных: их файлы остаются на месте.
+                Из используемых {report.heldByModules} держат только данные модулей (например, сканы
+                счетов) — в том числе выключенных: их файлы остаются на месте.
               </li>
             )}
             {nothingToDo && <li className="text-fg3">Осиротевших файлов нет.</li>}

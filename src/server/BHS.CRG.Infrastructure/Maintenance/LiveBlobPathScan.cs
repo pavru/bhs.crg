@@ -21,10 +21,11 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// держатели берутся из <c>information_schema</c>: все JSONB-колонки плюс текстовые, у которых в
 /// имени есть <c>BlobPath</c>.</para>
 ///
-/// <para>Тот же способ выбран разовым сбором реестра (<see cref="BlobRegistryBackfill" />), и это
-/// не совпадение: там ищут «что уже создано», здесь — «что ещё нужно», а множество мест одно.
-/// Расхождение двух списков означало бы, что сборщик считает сиротой то, что сбор считает живым, —
-/// на это есть тест (<c>OrphanBlobCleanupTests</c>).</para>
+/// <para>Тот же способ выбран разовым сбором реестра (<see cref="BlobRegistryBackfill" />): там
+/// искали «что уже создано», здесь — «что ещё нужно». В схеме ЯДРА множество мест у них одно, и
+/// расхождение означало бы, что сборщик считает сиротой то, что сбор считает живым, — на это есть
+/// тест (<c>OrphanBlobCleanupTests</c>). Схем модулей сбор не смотрит и не должен: он прошёл один
+/// раз, миграцией ядра, до появления первого модуля, а файлы модулей попадают в реестр при записи.</para>
 ///
 /// <para>Текстовые колонки ЯДРА берём по имени, а не все подряд: иначе под выражение пришлось бы
 /// прогнать содержимое шаблонов и кэшей наборов — мегабайты ради пяти колонок.</para>
@@ -35,32 +36,50 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// snake_case. Уборка считала сканы счетов ничьими, и настоящий прогон удалил бы их безвозвратно
 /// (найдено ревизией Архитектора, подтверждено сухим прогоном на дев-стенде).</para>
 ///
-/// <para>У схем вне ядра берутся ВСЕ текстовые и JSONB-колонки, без соглашения об именах: о том,
-/// как модуль назовёт колонку, ядро не знает и знать не должно, а таблицы модуля малы. Объявлением
-/// модуля («вот мои колонки с файлами») этот вопрос решать нельзя по той же причине, по которой
-/// нельзя списком: объявление — тот же список, выписанный руками, только в другом месте, и
-/// разойдётся он в ту же сторону. К тому же схема ВЫКЛЮЧЕННОГО модуля отстаёт от его кода (его
-/// миграции не применяются), и объявление, написанное для нынешних имён колонок, прежних не нашло
-/// бы — а данные и файлы выключенного модуля обязаны его пережить (ТЗ AUTH-19).</para>
+/// <para>О данных модуля ядро не знает ничего — ни имён колонок, ни их типов, ни того, в каком виде
+/// модуль хранит путь. Поэтому вне ядра читается КАЖДАЯ колонка, кроме заведомо не текстовых (числа,
+/// даты, идентификаторы), — приведённая к тексту, — и ищется в ней не путь целиком, а его ключ
+/// (<see cref="BlobPathShape.KeyInText" />): так находится путь в массиве, в JSON, записанном
+/// строкой, после адреса сервера. Список типов — запретительный нарочно: неизвестный тип читается,
+/// а не пропускается (ревью PR #1183: разрешительный список из трёх типов не видел массивов).
+/// Лишнее совпадение стоит одного неубранного файла, пропущенное — одного удалённого.</para>
+///
+/// <para>Объявлением модуля («вот мои колонки с файлами») этот вопрос решать нельзя по той же
+/// причине, по которой нельзя списком: объявление — тот же список, выписанный руками, только в
+/// другом месте, и разойдётся он в ту же сторону. К тому же схема ВЫКЛЮЧЕННОГО модуля отстаёт от его
+/// кода (его миграции не применяются), и объявление, написанное для нынешних имён колонок, прежних
+/// не нашло бы — а данные и файлы выключенного модуля обязаны его пережить (ТЗ AUTH-19).</para>
+///
+/// <para><b>Цена.</b> Таблицы модуля читаются целиком, без грубого предварительного отбора. Для
+/// действия, которое администратор запускает руками, это приемлемо; станет заметно — мерить, а не
+/// сужать отбор по догадке.</para>
 /// </summary>
 public class LiveBlobPathScan(AppDbContext db)
 {
-    /// <summary>Схема ядра. Всё, что лежит вне её, — данные модулей.</summary>
-    private const string CoreSchema = "public";
+    /// <summary>Как читать колонку: строки JSONB ядра, текст ядра целиком, что угодно вне ядра.</summary>
+    private enum Kind { CoreJsonb, CoreText, Module }
 
     /// <summary>Колонка, в которой может лежать путь.</summary>
-    private readonly record struct PathColumn(string Schema, string Table, string Column, bool IsJsonb);
+    private readonly record struct PathColumn(string Schema, string Table, string Column, Kind Kind)
+    {
+        public string Address => $"{Schema}.{Table}.{Column}";
+    }
 
     /// <summary>
     /// Реестр из отбора исключён: он перечисляет то, что создано, а не то, на что ссылаются.
     /// Не исключи мы его — живым оказался бы каждый путь, и уборка не нашла бы ничего никогда.
     /// </summary>
     /// <remarks>
-    /// Схемы не перечисляются, а берутся все, кроме служебных: в этой базе живут только ядро и
-    /// модули, а список схем модулей, выписанный здесь, пропустил бы первую же новую.
+    /// Схемы не перечисляются, а берутся все, кроме служебных: список схем модулей, выписанный здесь,
+    /// пропустил бы первую же новую, а схему модуля, вынутого из сборки, не назвал бы никто. Если в
+    /// базе живёт что-то постороннее, его колонки тоже читаются — и колонка, которую прочитать
+    /// нельзя, останавливает уборку (см. <see cref="BlobScanRefusedException" />).
     /// </remarks>
     private const string ColumnsSql = """
-        SELECT c.table_schema, c.table_name, c.column_name, (c.data_type = 'jsonb') AS is_jsonb
+        SELECT c.table_schema, c.table_name, c.column_name,
+               CASE WHEN c.table_schema <> 'public' THEN 2
+                    WHEN c.data_type = 'jsonb' THEN 0
+                    ELSE 1 END AS kind
         FROM information_schema.columns c
         JOIN information_schema.tables t
           ON t.table_schema = c.table_schema AND t.table_name = c.table_name
@@ -68,67 +87,92 @@ public class LiveBlobPathScan(AppDbContext db)
           AND c.table_schema NOT LIKE 'pg\_%'
           AND t.table_type = 'BASE TABLE'
           AND NOT (c.table_schema = 'public' AND c.table_name = 'blob_registry')
-          AND (c.data_type = 'jsonb'
-            OR (c.data_type IN ('text', 'character varying')
-                AND (c.table_schema <> 'public' OR c.column_name ILIKE '%BlobPath%')))
+          AND CASE WHEN c.table_schema = 'public'
+                   THEN c.data_type = 'jsonb'
+                     OR (c.data_type IN ('text', 'character varying') AND c.column_name ILIKE '%BlobPath%')
+                   ELSE c.data_type NOT IN (
+                     'uuid', 'boolean', 'smallint', 'integer', 'bigint', 'numeric', 'real',
+                     'double precision', 'date', 'interval', 'bytea',
+                     'timestamp with time zone', 'timestamp without time zone',
+                     'time with time zone', 'time without time zone')
+              END
+        ORDER BY c.table_schema, c.table_name, c.ordinal_position
         """;
 
-    /// <summary>Все живые пути — одним множеством.</summary>
-    public async Task<HashSet<string>> RunAsync(CancellationToken ct = default) =>
-        (await ScanAsync(ct)).All;
-
     /// <summary>
-    /// Живые пути и отдельно те, что держат данные модулей: отчёт уборки обязан сказать, ПОЧЕМУ файл
-    /// не предложен к удалению, а «используется» без адреса читается как «кем-то, не знаю кем».
+    /// Кто что держит. Список колонок и чтение каждой идут в ОДНОМ снимке базы.
+    ///
+    /// <para>Снимок — не аккуратность (ревью PR #1183). Колонок десятки, читаются они по очереди, и
+    /// без общего снимка ссылка, переехавшая за это время из ещё не прочитанной колонки в уже
+    /// прочитанную, не нашлась бы ни там, ни там: файл с живой ссылкой ушёл бы в кандидаты. То, что
+    /// появилось ПОСЛЕ снимка, скан не видит вовсе, и защищает такие файлы возрастной порог уборки.</para>
     /// </summary>
+    /// <exception cref="BlobScanRefusedException">Колонку не удалось прочитать.</exception>
     public async Task<LiveBlobPaths> ScanAsync(CancellationToken ct = default)
     {
+        // Чужую транзакцию не трогаем: снимок в ней задаёт тот, кто её открыл. Своя закрывается
+        // вместе со сканом — после него идёт цикл удаления, который на большой партии длится минуты,
+        // и держать под него соединение со снимком незачем.
+        await using var snapshot = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct)
+            : null;
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
 
-        // Открыли — закрываем сами. Открытие через EF увеличивает его счётчик, и без парного
-        // закрытия соединение из пула остаётся приколотым к контексту до конца запроса — а после
-        // скана идёт цикл удаления, который на большой партии длится минуты.
-        var openedHere = connection.State != System.Data.ConnectionState.Open;
-        if (openedHere) await db.Database.OpenConnectionAsync(ct);
-        try
+        var columns = new List<PathColumn>();
+        await using (var cmd = connection.CreateCommand())
         {
-            var columns = new List<PathColumn>();
-            await using (var cmd = connection.CreateCommand())
-            {
-                cmd.CommandText = ColumnsSql;
-                cmd.CommandTimeout = 600;
-                await using var reader = await cmd.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
-                    columns.Add(new PathColumn(
-                        reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetBoolean(3)));
-            }
+            cmd.CommandText = ColumnsSql;
+            cmd.CommandTimeout = 600;
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                columns.Add(new PathColumn(
+                    reader.GetString(0), reader.GetString(1), reader.GetString(2), (Kind)reader.GetInt32(3)));
+        }
 
-            var paths = new HashSet<string>(StringComparer.Ordinal);
-            var inModules = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var column in columns)
+        var core = new HashSet<string>(StringComparer.Ordinal);
+        var moduleKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var column in columns)
+        {
+            try
             {
                 await using var cmd = connection.CreateCommand();
-                cmd.CommandText = column.IsJsonb ? JsonbSql(column) : TextSql(column);
                 cmd.CommandTimeout = 600;
-                cmd.Parameters.Add(new NpgsqlParameter("shape", BlobPathShape.Pattern));
-                if (column.IsJsonb) cmd.Parameters.Add(new NpgsqlParameter("rough", BlobPathShape.RoughPattern));
+                switch (column.Kind)
+                {
+                    case Kind.CoreJsonb:
+                        cmd.CommandText = JsonbSql(column);
+                        cmd.Parameters.Add(new NpgsqlParameter("shape", BlobPathShape.Pattern));
+                        cmd.Parameters.Add(new NpgsqlParameter("rough", BlobPathShape.RoughPattern));
+                        break;
+                    case Kind.CoreText:
+                        cmd.CommandText = TextSql(column);
+                        cmd.Parameters.Add(new NpgsqlParameter("shape", BlobPathShape.Pattern));
+                        break;
+                    default:
+                        cmd.CommandText = AnyTextSql(column);
+                        cmd.Parameters.Add(new NpgsqlParameter("key", BlobPathShape.KeyInText));
+                        break;
+                }
 
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
                 {
                     if (reader.IsDBNull(0)) continue;
-                    var path = reader.GetString(0);
-                    paths.Add(path);
-                    if (column.Schema != CoreSchema) inModules.Add(path);
+                    var found = reader.GetString(0);
+                    if (column.Kind != Kind.Module) core.Add(found);
+                    else if (BlobPathShape.KeyOf(found) is { } key) moduleKeys.Add(key);
                 }
             }
+            catch (PostgresException ex)
+            {
+                // Пропустить колонку и идти дальше нельзя: «не смог прочитать» превратилось бы в
+                // «держателей нет», а это и есть удаление живого файла. Отказываем, называя адрес, —
+                // иначе это 500 без единого слова о том, какая таблица виновата.
+                throw new BlobScanRefusedException(column.Address, ex);
+            }
+        }
 
-            return new LiveBlobPaths(paths, inModules);
-        }
-        finally
-        {
-            if (openedHere) await db.Database.CloseConnectionAsync();
-        }
+        return new LiveBlobPaths(core, moduleKeys);
     }
 
     /// <remarks>
@@ -151,6 +195,13 @@ public class LiveBlobPathScan(AppDbContext db)
         SELECT DISTINCT x.{Id(c.Column)} FROM {Id(c.Schema)}.{Id(c.Table)} x WHERE x.{Id(c.Column)} ~ @shape
         """;
 
+    /// <summary>Все ключи путей в колонке любого типа: значение приводится к тексту.</summary>
+    private static string AnyTextSql(PathColumn c) => $"""
+        SELECT DISTINCT (regexp_matches(x.{Id(c.Column)}::text, @key, 'g'))[1]
+        FROM {Id(c.Schema)}.{Id(c.Table)} x
+        WHERE x.{Id(c.Column)}::text ~ @key
+        """;
+
     /// <summary>
     /// Идентификатор в кавычках: имена таблиц в схеме snake_case, а колонок — PascalCase, и без
     /// кавычек Postgres сложил бы <c>BlobPath</c> в <c>blobpath</c>. Кавычку внутри имени удваиваем —
@@ -160,7 +211,39 @@ public class LiveBlobPathScan(AppDbContext db)
     private static string Id(string name) => '"' + name.Replace("\"", "\"\"") + '"';
 }
 
-/// <summary>Что нашёл скан держателей.</summary>
-/// <param name="All">Все пути, на которые ссылается база.</param>
-/// <param name="InModules">Из них те, что найдены в схемах модулей (включённых и выключенных).</param>
-public sealed record LiveBlobPaths(HashSet<string> All, HashSet<string> InModules);
+/// <summary>
+/// Что нашёл скан держателей. Держатели ядра известны полными путями, держатели вне ядра — ключами
+/// путей (<see cref="BlobPathShape.KeyOf" />): в каком виде модуль хранит путь, ядро не знает.
+/// </summary>
+public sealed class LiveBlobPaths(HashSet<string> core, HashSet<string> moduleKeys)
+{
+    /// <summary>Пути, на которые ссылается схема ядра.</summary>
+    public IReadOnlySet<string> Core => core;
+
+    public bool HeldByCore(string path) => core.Contains(path);
+
+    /// <summary>Файл упомянут в данных вне ядра — модуля, включённого или выключенного.</summary>
+    public bool HeldByModules(string path) =>
+        BlobPathShape.KeyOf(path) is { } key && moduleKeys.Contains(key);
+
+    public bool IsLive(string path) => HeldByCore(path) || HeldByModules(path);
+}
+
+/// <summary>
+/// Скан держателей не дочитан — уборка не делается (ревью PR #1183).
+///
+/// <para>Скан читает все схемы базы, и первая же колонка, которую прочитать нельзя (нет прав на
+/// постороннюю схему, таблицу убрала идущая миграция модуля), роняла уборку ответом 500 без адреса.
+/// Отказ остаётся — неполный скан опаснее несделанной уборки, — но называет колонку и отдаётся
+/// человеку текстом.</para>
+/// </summary>
+public sealed class BlobScanRefusedException(string address, PostgresException cause)
+    : InvalidOperationException(
+        $"Уборка не выполнена: не удалось прочитать {address} ({cause.MessageText}). "
+        + "Пока эти данные не прочитаны, нельзя сказать, на какие файлы они ссылаются, и удалять "
+        + "что-либо небезопасно. Если таблица посторонняя — дайте учётной записи приложения право "
+        + "чтения или вынесите таблицу из этой базы; если идёт обновление модуля — повторите позже.",
+        cause)
+{
+    public string Address { get; } = address;
+}

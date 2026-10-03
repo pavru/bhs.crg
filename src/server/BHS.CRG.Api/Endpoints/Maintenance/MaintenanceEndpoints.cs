@@ -57,7 +57,10 @@ public static class MaintenanceEndpoints
             OrphanBlobCleanup cleanup, bool? dryRun, CancellationToken ct) =>
         {
             var isDryRun = dryRun ?? true;
-            var report = await cleanup.RunAsync(isDryRun, minAgeHours: null, ct);
+            OrphanBlobReport report;
+            // Скан держателей не дочитан — отказ с адресом, а не 500: текст написан для человека.
+            try { report = await cleanup.RunAsync(isDryRun, minAgeHours: null, ct); }
+            catch (BlobScanRefusedException ex) { return Results.Conflict(new { error = ex.Message }); }
             return Results.Ok(new
             {
                 report.Registered, report.Referenced, report.HeldByModules, report.Orphans,
