@@ -399,6 +399,35 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     }
 
     /// <summary>
+    /// Скан счёта переживает уборку осиротевших файлов (issue #1094): путь лежит в схеме модуля, и
+    /// сборщик, смотревший только схему ядра, считал скан ничьим — настоящий прогон удалил бы его.
+    /// Порог возраста снят: иначе файл уцелел бы как «слишком свежий», и тест не проверял бы ничего.
+    /// </summary>
+    [Fact]
+    public async Task Скан_переживает_уборку_осиротевших_файлов()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var id = (await CreateAsync(client, Requisites(number: "СЧ-24"))).GetProperty("id").GetGuid();
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.UTF8.GetBytes("%PDF-1.4 скан под уборку"));
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", "Счёт 24.pdf");
+        (await client.PostAsync($"/api/costs/invoices/{id}/scan", form)).EnsureSuccessStatusCode();
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var report = await scope.ServiceProvider
+                .GetRequiredService<BHS.CRG.Infrastructure.Maintenance.OrphanBlobCleanup>()
+                .RunAsync(dryRun: false, minAgeHours: 0);
+            Assert.True(report.HeldByModules >= 1, "скан счёта держателем не посчитан");
+        }
+
+        var content = await client.GetAsync($"/api/costs/invoices/{id}/scan");
+        content.EnsureSuccessStatusCode();
+        Assert.Contains("скан под уборку", await content.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Замена скана убирает прежний файл из хранилища.
     ///
     /// <para>Иначе каждая замена оставляла бы файл, на который никто не ссылается: заметно это стало бы

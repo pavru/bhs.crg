@@ -136,6 +136,69 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.True(InStorage(attachment));
     }
 
+    /// <summary>
+    /// Файл, который держит только схема МОДУЛЯ (issue #1094). Скан счёта лежит в
+    /// <c>costs.invoices.scan_blob_path</c>, и сборщик, смотревший одну схему ядра, считал его ничьим:
+    /// настоящий прогон удалил бы сканы счетов безвозвратно.
+    ///
+    /// <para>Схема здесь подставная, а не <c>costs</c>, нарочно: проверяется, что сборщик не знает
+    /// модулей по имени. Колонки названы так, как их не назвал бы никто из ядра, — узнавать держателя
+    /// по имени колонки вне ядра нельзя.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("text")]
+    [InlineData("character varying(512)")]
+    [InlineData("jsonb")]
+    public async Task Cleanup_KeepsBlobHeldByModuleSchema(string columnType)
+    {
+        var held = await UploadAsync("скан-счёта.pdf");
+        var orphan = await UploadAsync("ничей.pdf");
+        var schema = $"probe_{Guid.NewGuid():N}";
+        var value = columnType == "jsonb"
+            ? JsonSerializer.Serialize(new { Вложение = new { blobPath = held } })
+            : held;
+
+        await SqlAsync($"CREATE SCHEMA {schema}");
+        try
+        {
+            await SqlAsync($"CREATE TABLE {schema}.bills (id uuid PRIMARY KEY, paper {columnType})");
+            await SqlAsync($"INSERT INTO {schema}.bills VALUES (gen_random_uuid(), @p0::{columnType})", value);
+
+            var report = await RunAsync(dryRun: false);
+
+            Assert.True(InStorage(held), "файл, который держит схема модуля, удалён уборкой");
+            Assert.False(InStorage(orphan));
+            Assert.Equal(1, report.Referenced);
+            Assert.Equal(1, report.HeldByModules);
+            Assert.Equal(1, report.Deleted);
+        }
+        finally
+        {
+            await SqlAsync($"DROP SCHEMA {schema} CASCADE");
+        }
+    }
+
+    /// <summary>Файл, который держит только ядро, модулям не приписывается.</summary>
+    [Fact]
+    public async Task Report_DoesNotCountCoreHolderAsModule()
+    {
+        await SeedQualityDocAsync(await UploadAsync("cert.pdf"));
+
+        var report = await RunAsync(dryRun: true);
+
+        Assert.Equal(1, report.Referenced);
+        Assert.Equal(0, report.HeldByModules);
+    }
+
+    private async Task SqlAsync(string sql, params object[] parameters)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+#pragma warning disable EF1002 // Имя схемы — из теста, значения — параметрами.
+        await db.Database.ExecuteSqlRawAsync(sql, parameters);
+#pragma warning restore EF1002
+    }
+
     [Fact]
     public async Task Cleanup_SeparatesReferencedFromOrphan()
     {

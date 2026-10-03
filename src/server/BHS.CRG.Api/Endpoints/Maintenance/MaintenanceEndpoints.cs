@@ -60,7 +60,8 @@ public static class MaintenanceEndpoints
             var report = await cleanup.RunAsync(isDryRun, minAgeHours: null, ct);
             return Results.Ok(new
             {
-                report.Registered, report.Referenced, report.Orphans, report.TooYoung, report.Batch,
+                report.Registered, report.Referenced, report.HeldByModules, report.Orphans,
+                report.TooYoung, report.Batch,
                 report.Bytes, report.Missing, report.Sample, report.Deleted, report.Failed,
                 report.Remaining, report.StorageUnreachable, report.MinAgeHours, dryRun = isDryRun,
             });

@@ -8,6 +8,9 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// <summary>Осиротевшие объекты хранилища — сколько, сколько весят и сколько ещё рано трогать.</summary>
 /// <param name="Registered">Всего объектов числится за приложением.</param>
 /// <param name="Referenced">Из них на что-то ссылается база.</param>
+/// <param name="HeldByModules">Из используемых — те, что держат данные модулей (issue #1094): скан
+/// счёта лежит в схеме модуля, и отчёт называет это, чтобы «не предложен к удалению» имело причину.
+/// Считаются и выключенные модули: их данные и файлы переживают выключение (ТЗ AUTH-19).</param>
 /// <param name="Orphans">Ни на что не ссылается и достаточно старые — кандидаты на уборку.</param>
 /// <param name="TooYoung">Ни на что не ссылается, но моложе порога — пропускаем (см. класс).</param>
 /// <param name="Batch">Сколько из них берёт ЭТОТ прогон: не больше <see cref="OrphanBlobCleanup.MaxPerRun" />.</param>
@@ -20,7 +23,7 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// <param name="StorageUnreachable">Хранилище не отвечает — числа недостоверны, уборка не делалась.</param>
 /// <param name="MinAgeHours">Возрастной порог, с которым считали.</param>
 public record OrphanBlobReport(
-    int Registered, int Referenced, int Orphans, int TooYoung, int Batch,
+    int Registered, int Referenced, int HeldByModules, int Orphans, int TooYoung, int Batch,
     long Bytes, int Missing, IReadOnlyList<string> Sample,
     int Deleted, int Failed, int Remaining, bool StorageUnreachable, int MinAgeHours);
 
@@ -92,7 +95,8 @@ public class OrphanBlobCleanup(
         var ageHours = Math.Max(0, minAgeHours ?? DefaultMinAgeHours);
         var cutoff = DateTimeOffset.UtcNow.AddHours(-ageHours);
 
-        var live = await scan.RunAsync(ct);
+        var found = await scan.ScanAsync(ct);
+        var live = found.All;
 
         // Реестр тянем проекцией: путь, дата и имя — всё, что нужно, а строк там столько же, сколько
         // объектов в бакете.
@@ -108,6 +112,7 @@ public class OrphanBlobCleanup(
         OrphanBlobReport Report(long bytes, int missing, int deleted, int failed, bool unreachable) =>
             new(Registered: registered.Count,
                 Referenced: registered.Count - unreferenced.Count,
+                HeldByModules: registered.Count(e => found.InModules.Contains(e.Path)),
                 Orphans: doomed.Count,
                 TooYoung: young,
                 Batch: batch.Count,
