@@ -14,8 +14,9 @@ export const EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 export const PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
 
 /**
- * Путь к пакету Playwright, если он лежит в npx-кеше. `null` — не нашли: значит попробуем
- * обычный `import('playwright')` (так пакет стоит в CI, где npx-кеша нет вовсе).
+ * Путь к пакету Playwright: из PLAYWRIGHT_PKG (так его находит CI — пакет стоит в своём
+ * каталоге, рядом с браузером, см. ci.yml) или из npx-кеша. `null` — не нашли: тогда обычный
+ * `import('playwright')`.
  */
 export function findPlaywright() {
   if (process.env.PLAYWRIGHT_PKG) return process.env.PLAYWRIGHT_PKG;
@@ -29,7 +30,8 @@ export function findPlaywright() {
 
 /**
  * Путь к исполняемому файлу браузера, если он найден в локальной установке. `null` — не нашли:
- * тогда браузер выбирает сам Playwright (в CI он ставит его себе `playwright install chromium`).
+ * тогда браузер выбирает сам Playwright (в CI он ставит себе headless shell — `playwright install
+ * --only-shell chromium`; запуск ниже берёт именно его).
  * Ищем ТОЛЬКО windows-сборку headless shell: это путь для машины разработчика, где Playwright
  * приехал через npx и обычно ждёт версию браузера свежее установленной.
  */
@@ -49,7 +51,7 @@ export function findChromium() {
 /**
  * Запускает браузер. Два разных окружения:
  *  - машина разработчика: Playwright из npx-кеша + УЖЕ установленная сборка браузера;
- *  - CI (linux): пакет в node_modules, браузер ставит сам Playwright — путь не подставляем.
+ *  - CI (linux): пакет по PLAYWRIGHT_PKG, браузер ставит сам Playwright — путь не подставляем.
  * Оба находятся сами, оба переопределяются `PLAYWRIGHT_PKG` / `CHROMIUM_EXE`.
  */
 export async function launchBrowser() {
