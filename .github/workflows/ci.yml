@@ -260,6 +260,11 @@ jobs:
       - name: Проверка логики backend-tests.sh
         run: bash scripts/backend-tests.tests.sh
 
+      # Тот же довод: скрипт сводит коды возврата трёх ветвей подготовки живых прогонов в один
+      # (issue #1178). Проверяется на командах оболочки.
+      - name: Проверка логики in-parallel.sh
+        run: bash scripts/in-parallel.tests.sh
+
   e2e:
     name: Живые прогоны (браузер)
     runs-on: ubuntu-latest
@@ -403,24 +408,30 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
           path: ~/.nuget/packages
 
-      - name: Сборка сервера
-        run: dotnet publish src/server/BHS.CRG.Api -c Release -o ${{ runner.temp }}/api
-
-      - name: Установка зависимостей клиента
-        working-directory: src/client
-        run: npm ci
-
-      # Playwright ставится ТОЛЬКО здесь и БЕЗ записи в package.json (`--no-save`): остальным
-      # работам он не нужен, а в общем package-lock он утяжелял бы каждую из них.
-      - name: Playwright и браузер
-        working-directory: src/client
+      # Три ветви ОДНОВРЕМЕННО (issue #1178), сводит их `scripts/in-parallel.sh` (его логику
+      # проверяет работа «Скрипт обновления»). Замер и почему шаг не сжимается до самой долгой
+      # ветви — docs/DEV_NOTES.md, «Живые прогоны: подготовка тремя ветвями».
+      #
+      # - Клиент — без проверки типов (`build:bundle`): её делает обязательная работа Frontend, а
+      #   здесь однопоточный `tsc -b` был самым дорогим соседом сборки сервера.
+      # - Playwright ставится ОДИН раз, в свой каталог, а не в `node_modules` клиента: тот в эту
+      #   секунду пишет соседняя ветвь. Прогоны находят пакет по PLAYWRIGHT_PKG, и пакет с браузером
+      #   поэтому одной версии по построению. В package.json его нет: остальным работам он не нужен.
+      # - Браузер — только headless shell (`--only-shell`): обвязка запускает именно его, а полная
+      #   сборка Chrome качалась зря на самой долгой ветви.
+      # - Общий у ветвей только кеш npm — он рассчитан на одновременную работу.
+      #
+      # Срок — десять минут при обычной минуте: зависшая ветвь иначе держала бы работу шесть часов.
+      - name: Сборка сервера, клиента и установка браузера
+        timeout-minutes: 10
         run: |
-          npm i --no-save playwright@1.62.1
-          npx playwright install --with-deps chromium
-
-      - name: Сборка клиента
-        working-directory: src/client
-        run: npm run build
+          bash scripts/in-parallel.sh \
+            'Сборка сервера' \
+              'dotnet publish src/server/BHS.CRG.Api -c Release -o "$RUNNER_TEMP/api"' \
+            'Сборка клиента' \
+              'cd src/client && npm ci && npm run build:bundle' \
+            'Браузер' \
+              'npm i --prefix "$RUNNER_TEMP/playwright" playwright@1.62.1 && "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium'
 
       # Запускаем ИЗ каталога публикации. Запуск по полному пути к dll оставляет корнем содержимого
       # текущий каталог — приложение не находит свой appsettings.json, поднимается на умолчаниях и
@@ -538,6 +549,9 @@ jobs:
 
       - name: Живые прогоны
         working-directory: src/client
+        env:
+          # Пакет, поставленный вместе с браузером в шаге подготовки (см. там).
+          PLAYWRIGHT_PKG: ${{ runner.temp }}/playwright/node_modules/playwright/index.js
         run: npm run test:e2e:ci
 
       # Разбирать красный прогон по одной строке «✗ …» невозможно: причина обычно в логе сервера.
