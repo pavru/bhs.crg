@@ -14,7 +14,7 @@ import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageC
 import { hasShownTotals, totalText } from './tableTotals';
 import {
   DEFAULT_VIEW, PAGE_SIZES, presetLookup, presetView, rowsWanted, wholeTableHash, withColumnShown, withFilter,
-  withPage, withRow, withSize, withSort, type TableView, type ViewChange,
+  withFilterChange, withPageStep, withRow, withSize, withSort, type TableView, type ViewChange,
 } from './tableViewState';
 import { useTableView } from './useTableView';
 
@@ -112,7 +112,7 @@ export function TablePage() {
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <FilterChips columns={filterColumns} filter={view.filter} suggested={preset?.filters}
-              onChange={next => setView(v => withFilter(v, next))} onAdvanced={() => setAdvanced(true)} />
+              onChange={change => setView(v => withFilterChange(v, change))} onAdvanced={() => setAdvanced(true)} />
           </div>
           {!off && (
             <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title}
@@ -229,12 +229,12 @@ function Pager({ view, data, onChange }: {
       {(pages > 1 || view.page > 1) && (
         <div className="flex items-center gap-1">
           <button type="button" className={button} disabled={view.page <= 1} aria-label="Предыдущая страница"
-            onClick={() => onChange(v => withPage(v, view.page - 1))}>
+            onClick={() => onChange(v => withPageStep(v, view, -1))}>
             <ChevronLeft size={15} aria-hidden />
           </button>
           <span>Страница {view.page} из {pages}</span>
           <button type="button" className={button} disabled={view.page >= pages} aria-label="Следующая страница"
-            onClick={() => onChange(v => withPage(v, view.page + 1))}>
+            onClick={() => onChange(v => withPageStep(v, view, 1))}>
             <ChevronRight size={15} aria-hidden />
           </button>
         </div>

@@ -5,7 +5,8 @@ import { MoveButtons } from '@/shared/ui/MoveButtons';
 import type { TableColumn } from '@/shared/api/tables';
 import { AGGREGATES, aggregatesFor } from './tableTotals';
 import {
-  chooserOrder, columnsCustomised, withColumnMoved, withColumnShown, withColumnsReset, withPinned, withTotal,
+  chooserOrder, columnsCustomised, withColumnMoved, withColumnReturned, withColumnShown, withColumnsReset, withPinned,
+  withTotal,
   type Aggregate, type TableView, type ViewChange,
 } from './tableViewState';
 
@@ -66,10 +67,10 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
               const place = shown.indexOf(key);
               const column = byKey.get(key) ?? null;
               // Возвращённая колонка встаёт туда, где стоит в списке, — среди показанных выше неё.
-              const above = order.slice(0, i).filter(k => shown.includes(k)).length;
+              const above = order.slice(0, i);
               return place < 0 ? (
                 <ColumnRow key={key} column={column} label={column?.label ?? key} checked={false} total={null}
-                  onShown={() => onChange(v => withColumnShown(v, all, key, true, above))} />
+                  onShown={() => onChange(v => withColumnReturned(v, all, key, above))} />
               ) : (
                 <ColumnRow key={key} column={column} label={column?.label ?? key} checked
                   total={view.totals.find(t => t.column === key)?.aggregate ?? null}

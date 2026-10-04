@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
-import type { FilterCondition, FilterGroup, FilterNode } from '@/shared/api/types';
+import type { FilterCondition, FilterNode } from '@/shared/api/types';
 import { ConditionEditor } from './ConditionEditor';
 import {
-  chipProblem, chipsView, chipText, conditionEntered, offeredColumns, offeredCondition, withChip, withoutChip,
+  chipAdded, chipProblem, chipRemoved, chipReplaced, chipsView, chipText, conditionEntered, offeredColumns,
+  offeredCondition, type FilterChange,
 } from './chipsModel';
 import { columnLabel, type FilterColumn } from './rowFilterModel';
 
@@ -12,8 +13,9 @@ import { columnLabel, type FilterColumn } from './rowFilterModel';
  * Чипы отбора над таблицей (ТЗ CORE-33; задача G1d, issue #1091): каждое условие — чип, который
  * называет колонку, оператор и значение, правится на месте и снимается одним действием.
  *
- * Чипы — лицо того же дерева условий, что правит расширенный режим: `onChange` отдаёт дерево, и
- * снятие чипа меняет сам отбор, а не только его вид. Значение вводится полем по виду колонки — у
+ * Чипы — лицо того же дерева условий, что правит расширенный режим, и снятие чипа меняет сам отбор,
+ * а не только его вид. `onChange` отдаёт ИЗМЕНЕНИЕ отбора, а не готовое дерево (`FilterChange`): ряд
+ * нарисован по отбору прошлой отрисовки, и применять правку положено к тому, что стоит сейчас. Значение вводится полем по виду колонки — у
  * колонки-выбора списком её значений, у срока календарём; набрать строку мимо вида нечем.
  *
  * Отбор, который рядом чипов не прочитать («ИЛИ», вложенные группы), чипами не подменяется: он назван
@@ -23,7 +25,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
   /** Колонки таблицы с видами, операторами и перечнями — как их прислал сервер. */
   columns: FilterColumn[];
   filter: FilterNode | null;
-  onChange: (filter: FilterGroup | null) => void;
+  onChange: (change: FilterChange) => void;
   /** Открыть расширенный режим — то же дерево целиком. Нет — кнопки нет. */
   onAdvanced?: () => void;
   /**
@@ -57,14 +59,14 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
           </span>
         ) : conditions.map((cond, i) => (
           <Chip key={`${i}:${cond.column}:${cond.op}`} cond={cond} columns={columns}
-            onChange={next => onChange(withChip(conditions, next, i))}
-            onRemove={() => onChange(withoutChip(conditions, i))} />
+            onChange={next => onChange(chipReplaced(cond, next))}
+            onRemove={() => onChange(chipRemoved(cond))} />
         ))}
 
         {offered.map(name => (
           <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить" requireValue
             initial={offeredCondition(name, columns)}
-            onSubmit={cond => onChange(withChip(conditions, cond))}>
+            onSubmit={cond => onChange(chipAdded(cond))}>
             <button type="button" className={`${CHIP_CLS} border-dashed border-stroke text-fg3 hover:text-fg1 px-2.5 py-1 gap-1`}>
               <Plus size={12} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
             </button>
@@ -73,7 +75,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
         {view.mode === 'chips' && (
           <ConditionPopover columns={columns} initial={NEW_CONDITION} submit="Добавить"
-            onSubmit={cond => onChange(withChip(conditions, cond))}>
+            onSubmit={cond => onChange(chipAdded(cond))}>
             <button type="button" className={`${CHIP_CLS} border-dashed border-stroke text-fg3 hover:text-fg1 px-2.5 py-1 gap-1`}>
               <Plus size={12} aria-hidden /> условие
             </button>
@@ -88,7 +90,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
         )}
 
         {hasAny && (
-          <button type="button" onClick={() => onChange(null)}
+          <button type="button" onClick={() => onChange(() => null)}
             className="text-xs text-fg3 hover:text-danger px-1.5 py-1">
             Снять отбор
           </button>

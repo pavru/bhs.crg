@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterNode } from '@/shared/api/types';
 import type { TablePreset } from '@/shared/api/tables';
+import { chipAdded, chipRemoved } from '@/shared/filter/chipsModel';
 import {
   DEFAULT_VIEW, addressChange, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
-  viewHash, wholeTableHash, withColumnMoved, withColumnShown, withColumnsReset,
-  withFilter, withPage, withPinned, withRow, withSize, withSort, withTotal, type TableView,
+  viewHash, wholeTableHash, withColumnMoved, withColumnReturned, withColumnShown, withColumnsReset,
+  withFilter, withFilterChange, withPage, withPageStep, withPinned, withRow, withSize, withSort, withTotal,
+  type TableView,
 } from './tableViewState';
 
 /** Состояние экрана таблицы ↔ адрес страницы (задача G1e, issue #1092). */
@@ -218,6 +220,56 @@ describe('изменение считается от адреса, а не от 
     expect(addressChange('', DEFAULT_VIEW, v => withFilter(v, unpaid))!.replace).toBe(false);
     expect(addressChange(viewHash(view({ filter: unpaid })), DEFAULT_VIEW, v => withFilter(v, unpaid))).toBeNull();
     expect(addressChange('', DEFAULT_VIEW, v => v)).toBeNull();
+  });
+
+  it('два крестика подряд снимают оба чипа: второй считается от отбора без первого', () => {
+    // Ряд чипов нарисован под обоими условиями; оба щелчка сделаны по этому ряду.
+    let address = viewHash(view({ filter: both }));
+    address = after(address, v => withFilterChange(v, chipRemoved(purpose)));
+    address = after(address, v => withFilterChange(v, chipRemoved(unpaid)));
+
+    expect(parseView(address).filter).toBeNull();
+  });
+
+  it('чип, которого в отборе уже нет, ничего не меняет — ни страницу, ни открытую строку', () => {
+    const now = view({ filter: { type: 'group', logic: 'and', children: [unpaid] }, page: 2, row: 'строка' });
+
+    expect(withFilterChange(now, chipRemoved(purpose))).toBe(now);
+    expect(withFilterChange(now, chipAdded(purpose)).page).toBe(1);
+  });
+
+  it('негодный отбор правка чипами снимает, даже когда дерево осталось пустым', () => {
+    const broken = view({ brokenFilter: '{"type":"condi' });
+
+    expect(withFilterChange(broken, () => null).brokenFilter).toBeNull();
+  });
+
+  it('шаг по страницам — от показанной: под сменившимся отбором он не делается', () => {
+    const shown = view({ filter: purpose, page: 3 });
+
+    expect(withPageStep(shown, shown, 1).page).toBe(4);
+    expect(withPageStep(shown, shown, -1).page).toBe(2);
+    // Отбор уже другой, и адрес стоит на первой странице: «следующая» от третьей — это страница не той выдачи.
+    const refiltered = withFilter(shown, both);
+    expect(withPageStep(refiltered, shown, 1)).toBe(refiltered);
+    // Второй щелчок до перерисовки: страница в адресе уже четвёртая, на экране — третья.
+    const stepped = withPageStep(shown, shown, 1);
+    expect(withPageStep(stepped, shown, 1)).toBe(stepped);
+    expect(withPageStep(withSize(shown, 50), shown, 1).page).toBe(1);
+  });
+
+  it('возвращённая колонка встаёт на своё место и после только что снятой соседней', () => {
+    // Список окошка: Номер, Дата, Поставщик (скрыта), Итого. Снята «Дата» — и сразу возвращён «Поставщик».
+    const hidden = view({ columns: ['Номер', 'Дата', 'Итого'] });
+    const now = withColumnShown(hidden, all, 'Дата', false);
+
+    expect(withColumnReturned(now, all, 'Поставщик', ['Номер', 'Дата']).columns).toEqual(['Номер', 'Поставщик', 'Итого']);
+    expect(withColumnReturned(hidden, all, 'Поставщик', ['Номер', 'Дата']).columns).toEqual(all);
+  });
+
+  it('закрепить можно не больше колонок, чем показано сейчас', () => {
+    expect(withPinned(view({ columns: ['Номер', 'Дата'] }), 5).pinned).toBe(2);
+    expect(withPinned(view({}), 5).pinned).toBe(5);
   });
 
   it('под готовым представлением отсчёт — от его настройки', () => {
