@@ -178,16 +178,12 @@ public sealed class InvoiceDesk(
         var boundaries = await periods.BoundariesAsync(ct);
         var locked = ClosedPeriodGuard.LockOf(invoice, parts, boundaries);
 
-        // Учётные месяцы — те, куда легли ДЕНЬГИ: доля без денег (в строке не вписана цена, разноска
-        // ждёт пересчёта) дату несёт, а в затраты месяца не входит, и назвать её месяц «периодом счёта»
-        // значило бы показать месяц, в котором денег счёта нет (ревью PR #1191).
-        var funded = balance.Money.Where(share => share.Amount is not null).Select(share => share.Id).ToHashSet();
-        var dates = parts.Where(p => p.AccountingOn is not null && funded.Contains(p.Id)).Select(p => p.AccountingOn!.Value)
-            .Concat(invoice.RemainderAccountingOn is { } rest ? [rest] : []);
+        // Учётные месяцы — те, куда легли ДЕНЬГИ (ревью PR #1191), и той же функцией, что у реестра.
+        var months = PaymentPosting.Months(balance, invoice.Total, parts, invoice.RemainderAccountingOn);
 
         // Замок стройки возможен, только когда доли есть, — а тогда места уже прочитаны.
         return new PaymentView(true, invoice.PaidOn, invoice.PaymentDocument, invoice.PaidAt, null,
-            locked is null ? null : PaymentViews.Text(locked, known), PaymentViews.Months(dates));
+            locked is null ? null : PaymentViews.Text(locked, known), [.. months.Select(m => PaymentViews.Month(m.Month))]);
     }
 
     /// <summary>Почему неоплаченный счёт оплатить нельзя — тем же правилом, что откажет запись.</summary>

@@ -81,9 +81,6 @@ public static class PaymentViews
     /// <summary>Месяц учётной даты — с годом: «12 + 01» на границе года не читается.</summary>
     public static string Month(DateOnly date) => $"{date:MM.yyyy}";
 
-    public static IReadOnlyList<string> Months(IEnumerable<DateOnly> dates) =>
-        [.. dates.Select(d => new DateOnly(d.Year, d.Month, 1)).Distinct().Order().Select(Month)];
-
     /// <summary>Чем заперт счёт — словами: их показывает форма и ими же отказывает запись.</summary>
     public static string Text(PeriodLock locked, AllocationPlaces places) =>
         locked.ConstructionId is { } site

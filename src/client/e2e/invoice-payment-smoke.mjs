@@ -6,6 +6,7 @@
 //      называет расхождение числом сервера, полей и кнопки оплаты в нём нет.
 //   2. `preview-matches-recorded` — стройка закрыта, платёж задним числом: диалог называет перенос и
 //      меняет подпись кнопки; после записи расклад счёта показывает ТЕ ЖЕ учётные даты.
+//   2а. `registry-names-the-accounting-month` — реестр показывает тот же учётный месяц и деньги в нём.
 //   3. `locked-invoice-says-why` — оплаченный счёт, попавший в закрытый период: полоса с причиной,
 //      кнопок сохранения и отмены оплаты нет вовсе (а не «есть и получают 409»), и ни один запрос
 //      экрана отказа не получил.
@@ -184,6 +185,21 @@ await check('preview-matches-recorded', async () => {
 
   // Доля легла в открытый день — счёт не заперт и правится.
   if (await page.getByText(/Счёт заперт/).count()) throw new Error('счёт с долей в открытом периоде показан запертым');
+});
+
+// ── Реестр называет учётный месяц и деньги, вошедшие в него ────────────────────────────────────────
+await check('registry-names-the-accounting-month', async () => {
+  const filter = { type: 'condition', column: 'Номер', op: 'eq', value: movedNumber };
+  await page.goto('about:blank');
+  await page.goto(`${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`,
+    { waitUntil: 'networkidle' });
+  const row = page.locator('tbody tr').filter({ hasText: movedNumber }).first();
+  await row.waitFor({ timeout: 10_000 });
+
+  // Месяц — тот, куда доля ПЕРЕНЕСЕНА, а не месяц платежа: реестр и расклад счёта обязаны сойтись.
+  const month = ru(shift(through, 1)).slice(3);
+  const text = (await row.innerText()).replace(/[  ]/g, ' ');
+  if (!text.includes(`300,00 (${month})`)) throw new Error(`в реестре нет «300,00 (${month})»: ${text.slice(0, 300)}`);
 });
 
 // ── 3. Запертый счёт говорит почему, и действий над ним нет ────────────────────────────────────────

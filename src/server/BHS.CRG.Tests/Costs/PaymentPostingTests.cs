@@ -58,6 +58,41 @@ public class PaymentPostingTests
         Assert.Equal(100_000m, plan.Shares.Sum(s => s.Amount ?? 0) + plan.Remainder!.Amount);
     }
 
+    /// <summary>
+    /// Строки больше суммы к оплате в пределах допуска — остаток отрицательный. Это поправка к деньгам
+    /// долей, и своего месяца у неё нет (ревью PR #1192): она ложится в день самой поздней доли с
+    /// деньгами, а не в день платежа по контуру компании.
+    /// </summary>
+    [Fact]
+    public void Отрицательная_поправка_идёт_днём_самой_поздней_доли_и_своего_месяца_не_называет()
+    {
+        InvoiceAllocation[] parts =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteA), quantity: 100),
+            Part(Second, 1, AllocationTarget.Site(SiteB), amount: 59_999.80m),
+        ];
+        const decimal total = 99_999.50m;
+
+        var plan = PaymentPosting.Plan(D(9, 15), total, [First, Second], parts, PostedBefore.None, Closed);
+
+        // Стройка А закрыта по 30.09 — её доля в октябре; поправка идёт с ней, а не остаётся в сентябре.
+        Assert.Equal(new PostedRemainder(-0.30m, D(10, 1), true), plan.Remainder);
+
+        PaymentPosting.Apply(Invoice(total), parts, plan);
+        var months = PaymentPosting.Months(
+            PaymentPosting.Balance([First, Second], parts, total), total, parts, plan.Remainder!.AccountingOn);
+        Assert.Equal(
+            [new PostedMonth(D(9, 1), 59_999.80m), new PostedMonth(D(10, 1), 39_999.70m)],
+            months);
+        Assert.Equal(total, months.Sum(m => m.Amount));
+
+        // Под отбором по объекту — только доли на него, без поправки: она не лежит ни на одном объекте.
+        Assert.Equal(
+            [new PostedMonth(D(10, 1), 40_000m)],
+            PaymentPosting.Months(PaymentPosting.Balance([First, Second], parts, total), total, parts,
+                plan.Remainder.AccountingOn, p => p.ConstructionId == SiteA));
+    }
+
     [Fact]
     public void Платёж_в_закрытый_месяц_компании_переносит_всё_но_каждого_в_свой_первый_открытый_день()
     {
