@@ -449,6 +449,23 @@ public class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
             Assert.Single(foreign.GetProperty("rows").EnumerateArray()).GetProperty("СуммаПоОтбору").ValueKind);
         Assert.Equal(0, Total(foreign, "СуммаПоОтбору").GetProperty("count").GetInt32());
 
+        // Ветки «любое» называют ПАРЫ: «(стройка А и прошлый месяц) или (вторая стройка и этот)» — ни
+        // одной пары у счёта нет, хотя и обе стройки, и оба месяца у него есть (ревью PR #1195).
+        object Pair(string site, string month) => new
+        {
+            type = "group", logic = "and",
+            children = new object[]
+            {
+                new { type = "condition", column = "ОбъектыРазноски", op = "contains", value = site },
+                new { type = "condition", column = "УчётныйПериод", op = "eq", value = month },
+            },
+        };
+        var crossed = await MoneyAsync(new { type = "group", logic = "or", children = new[] { Pair("Оплата А ", was), Pair("Оплата Б ", now) } });
+        Assert.Equal(JsonValueKind.Null,
+            Assert.Single(crossed.GetProperty("rows").EnumerateArray()).GetProperty("СуммаПоОтбору").ValueKind);
+        var straight = await MoneyAsync(new { type = "group", logic = "or", children = new[] { Pair("Оплата А ", now), Pair("Оплата Б ", was) } });
+        Assert.Equal(100_000m, Total(straight, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
+
         // «Пусто» и отрицание идут тем же объединением долей и остатка, что и «равно».
         Assert.Empty((await TableAsync(admin, new { type = "condition", column = "УчётныйПериод", op = "is_empty" }))
             .GetProperty("rows").EnumerateArray());

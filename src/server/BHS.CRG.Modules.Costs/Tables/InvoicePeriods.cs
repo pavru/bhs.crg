@@ -8,9 +8,14 @@ namespace BHS.CRG.Modules.Costs.Tables;
 
 /// <summary>Учётные месяцы счёта в реестре.</summary>
 /// <param name="All">Все месяцы счёта — клетка «Учётный период»: это факт о счёте, отбор его не сужает.</param>
-/// <param name="Named">Деньги по месяцам для «Сумм по периодам»: под отбором по объекту — только доли на
-/// названные объекты, без остатка (остаток не лежит ни на одном объекте); иначе то же, что <paramref name="All" />.</param>
+/// <param name="Named">Деньги по месяцам, НАЗВАННЫЕ отбором, — «Сумма» и её расшифровка «Суммы по
+/// периодам»: под отбором по объекту — только доли на него, без остатка (остаток не лежит ни на одном
+/// объекте), под отбором по учётному периоду — только названные месяцы. Отбор не сужает — то же, что
+/// <paramref name="All" />.</param>
 internal sealed record InvoiceMonths(IReadOnlyList<PostedMonth> All, IReadOnlyList<PostedMonth> Named);
+
+/// <summary>Оплаченный счёт — ровно то, что нужно арифметике месяцев.</summary>
+internal sealed record PaidInvoice(Guid Id, decimal? Total, DateOnly? RemainderAccountingOn);
 
 /// <summary>
 /// Учётные месяцы счетов в реестре (задача C5, issue #1082, ТЗ COST-16, COST-20.1).
@@ -22,8 +27,9 @@ internal sealed record InvoiceMonths(IReadOnlyList<PostedMonth> All, IReadOnlyLi
 /// <para>⚠️ <b>Отбор и сортировка идут по ЗАПИСАННЫМ датам долей, а клетка — по долям с деньгами.</b>
 /// Расходятся они на одном случае: у оплаченного счёта есть доля без денег (в строке не вписана цена,
 /// разноска ждёт пересчёта) в месяце, куда больше ничего не легло. Такой счёт отбор по этому месяцу
-/// найдёт, а в клетке месяца не будет. Посчитать «есть ли у доли деньги» запросом нельзя — по той же
-/// причине, по какой нельзя посчитать долю.</para>
+/// найдёт, а в клетке месяца не будет — и «Сумма» под таким отбором у него пуста: в итог он не идёт, и
+/// итог называет число счетов, вошедших в него, а не число строк отбора. Посчитать «есть ли у доли
+/// деньги» запросом нельзя — по той же причине, по какой нельзя посчитать долю.</para>
 /// </summary>
 internal static class InvoicePeriods
 {
@@ -62,24 +68,41 @@ internal static class InvoicePeriods
         return labels;
     }
 
-    /// <summary>Деньги по месяцам — оплаченным счетам; у неоплаченного учётных дат нет.</summary>
-    /// <param name="invoices">Счета страницы — либо ВСЕГО отбора, когда по ним считается итог «Суммы»:
+    /// <summary>
+    /// Как месяц назван ОТБОРУ: названием из перечня, а вне перечня — <see cref="Unknown" />. То же
+    /// название ядро сверяет с условием, отбирая счета, — иначе счёт с месяцем вне календаря отбор
+    /// нашёл бы, а деньги его под тем же условием не подошли бы.
+    /// </summary>
+    public static string Label(IReadOnlyDictionary<int, string> labels, DateOnly day) =>
+        labels.TryGetValue(Key(day), out var label) ? label : Unknown;
+
+    /// <summary>Оплаченные из уже прочитанных счетов страницы; у неоплаченного учётных дат нет.</summary>
+    public static IReadOnlyList<PaidInvoice> Paid(IEnumerable<Invoice> invoices) =>
+        [.. invoices.Where(i => i.Payment == InvoicePaymentState.Paid)
+            .Select(i => new PaidInvoice(i.Id, i.Total, i.RemainderAccountingOn))];
+
+    /// <summary>Деньги по месяцам — оплаченным счетам.</summary>
+    /// <param name="paid">Счета страницы — либо ВСЕГО отбора, когда по ним считается итог «Суммы»:
     /// посчитать деньги месяца запросом нельзя, как и долю (см. <see cref="InvoiceShares" />).</param>
+    /// <param name="owners">Те же счета запросом — когда это весь отбор: тысячи идентификаторов списком
+    /// параметров в запрос не идут (ревью PR #1195). null — счета страницы, их немного.</param>
     /// <param name="loaded">Доли этих счетов, если их уже прочитали ради другой колонки.</param>
-    /// <param name="named">Отбор называет объекты: какие доли на них легли. null — объектов отбор не называет.</param>
+    /// <param name="named">Какие деньги отбор назвал (см. <see cref="PaymentPosting.Months" />); null —
+    /// отбор не сужает.</param>
     public static async Task<IReadOnlyDictionary<Guid, InvoiceMonths>> ReadAsync(
-        CostsDbContext db, IQueryable<Invoice> invoices, IReadOnlyList<InvoiceAllocation>? loaded,
-        Func<InvoiceAllocation, bool>? named, CancellationToken ct)
+        CostsDbContext db, IReadOnlyList<PaidInvoice> paid, IQueryable<Guid>? owners,
+        IReadOnlyList<InvoiceAllocation>? loaded, Func<InvoiceAllocation?, DateOnly, bool>? named, CancellationToken ct)
     {
-        // Только то, что нужно арифметике: читается, бывает, весь отбор.
-        var paid = await invoices.Where(i => i.Payment == InvoicePaymentState.Paid)
-            .Select(i => new { i.Id, i.Total, i.RemainderAccountingOn }).ToListAsync(ct);
         if (paid.Count == 0) return None;
 
         var ids = paid.Select(i => i.Id).ToList();
-        var parts = (loaded ?? await db.InvoiceAllocations.AsNoTracking().Where(a => ids.Contains(a.InvoiceId)).ToListAsync(ct))
+        var of = owners ?? db.Invoices.Where(i => ids.Contains(i.Id)).Select(i => i.Id);
+        var parts = (loaded ?? await db.InvoiceAllocations.AsNoTracking()
+                .Where(a => of.Contains(a.InvoiceId)).ToListAsync(ct))
             .ToLookup(a => a.InvoiceId);
-        var lines = (await db.InvoiceLines.AsNoTracking().Where(l => ids.Contains(l.InvoiceId))
+        // Только то, что нужно арифметике: тексты строк счёта ей ни к чему, а читается, бывает, весь отбор.
+        var lines = (await db.InvoiceLines.AsNoTracking()
+                .Where(l => of.Contains(l.InvoiceId))
                 .Select(l => new { l.InvoiceId, l.Id, l.Ordinal, l.Quantity, l.Amount }).ToListAsync(ct))
             .ToLookup(l => l.InvoiceId, l => new AllocationLine(l.Id, l.Ordinal, l.Quantity, l.Amount));
 
@@ -95,34 +118,24 @@ internal static class InvoicePeriods
 
     /// <summary>
     /// «Сумма» под отбором, называющим учётный период (задача G4, issue #1097): деньги счёта, вошедшие в
-    /// названные месяцы; под отбором ещё и по объекту — только доли на него. Складываются те же месяцы,
-    /// что стоят в «Суммах по периодам», — клетка и её расшифровка не могут разойтись.
+    /// названные месяцы; под отбором ещё и по объекту — только доли на него. Складываются РОВНО те
+    /// месяцы, что стоят в «Суммах по периодам» (<see cref="InvoiceMonths.Named" />), — число и его
+    /// расшифровка разойтись не могут: условие «названо отбором» у них одно.
     /// </summary>
     /// <returns>По счёту — деньги; null — в названные месяцы у счёта не вошло ничего.</returns>
-    public static IReadOnlyDictionary<Guid, decimal?> Amounts(
-        IReadOnlyDictionary<Guid, InvoiceMonths> periods, IReadOnlyList<TableFilterCondition> named) =>
-        periods.ToDictionary(p => p.Key, p =>
-        {
-            var money = p.Value.Named.Where(m => named.Any(c => c.Matches(PaymentViews.Month(m.Month)))).ToList();
-            return money.Count == 0 ? (decimal?)null : money.Sum(m => m.Amount);
-        });
+    public static IReadOnlyDictionary<Guid, decimal?> Amounts(IReadOnlyDictionary<Guid, InvoiceMonths> periods) =>
+        periods.ToDictionary(p => p.Key,
+            p => p.Value.Named.Count == 0 ? (decimal?)null : p.Value.Named.Sum(m => m.Amount));
 
     /// <summary>Клетка «Учётный период»: месяцы по возрастанию.</summary>
     public static IReadOnlyList<string> Cell(IReadOnlyList<PostedMonth> months) =>
         [.. months.Select(m => PaymentViews.Month(m.Month))];
 
     /// <summary>
-    /// Клетка «Суммы по периодам»: «40 000,00 (09.2026) + 60 000,00 (10.2026)»; пусто — счёт не оплачен.
+    /// Клетка «Суммы по периодам»: «40 000,00 (09.2026) + 60 000,00 (10.2026)»; пусто — счёт не оплачен
+    /// либо отбор не назвал ни одного его месяца.
     /// </summary>
-    /// <param name="named">Условия отбора, называющие период; есть — в клетке только подошедшие месяцы.</param>
-    public static string? Sums(IReadOnlyList<PostedMonth> months, IReadOnlyList<TableFilterCondition> named)
-    {
-        var shown = months
-            .Select(m => (Label: PaymentViews.Month(m.Month), m.Amount))
-            .Where(m => named.Count == 0 || named.Any(c => c.Matches(m.Label)))
-            .Select(m => $"{m.Amount.ToString("N2", Russian)} ({m.Label})")
-            .ToList();
-
-        return shown.Count == 0 ? null : string.Join(" + ", shown);
-    }
+    public static string? Sums(IReadOnlyList<PostedMonth> months) => months.Count == 0
+        ? null
+        : string.Join(" + ", months.Select(m => $"{m.Amount.ToString("N2", Russian)} ({PaymentViews.Month(m.Month)})"));
 }

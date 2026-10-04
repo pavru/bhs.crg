@@ -51,6 +51,27 @@ public static class TableFilters
                 return [];
         }
     }
+
+    /// <summary>
+    /// Подходит ли под отбор ЧАСТЬ строки с такими значениями колонок — доля счёта на объект в месяце.
+    /// Смотрит только на положительные условия по названным колонкам; всё остальное — другие колонки,
+    /// отрицания, «пусто» — считает выполненным: строка под отбор уже попала, вопрос лишь в том, какие
+    /// её части отбор назвал.
+    ///
+    /// <para>Нужно, когда колонок, зависящих от отбора, две и условия по ним стоят в ветках «любое»:
+    /// «(объект А и период 09) или (объект Б и период 10)». Два списка из <see cref="Naming" /> дали бы
+    /// произведение — А и Б в обоих месяцах, — а отбор назвал две ПАРЫ (ревью PR #1195).</para>
+    /// </summary>
+    /// <param name="values">Значения названных колонок у части; null — у части такого значения нет.</param>
+    public static bool Admits(TableFilter? filter, IReadOnlyDictionary<string, string?> values) => filter switch
+    {
+        TableFilterCondition condition =>
+            !values.TryGetValue(condition.Column, out var value) || IsNegative(condition.Op) || IsPresence(condition.Op)
+            || condition.Matches(value),
+        TableFilterGroup { Any: false } all => all.Children.All(c => Admits(c, values)),
+        TableFilterGroup { Children.Count: > 0 } any => any.Children.Any(c => Admits(c, values)),
+        _ => true,
+    };
 }
 
 /// <summary>Условие по колонке.</summary>

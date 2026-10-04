@@ -34,9 +34,10 @@ namespace BHS.CRG.Modules.Costs.Tables;
 /// работает сегодня. С отметкой оплаты (C5, issue #1082) в нём есть дата платежа — «Оплачен», —
 /// «Учётный период» и «Суммы по периодам»: счёт, чьи доли вошли в затраты разных месяцев, читается
 /// как «40 000,00 (09.2026) + 60 000,00 (10.2026)».
-/// ⚠️ ИТОГ суммы по учётному периоду реестр пока не считает: «Сумма» под отбором периода остаётся
-/// суммой счёта, а отбор по ДАТЕ СЧЁТА называет свою ось подписью — такой итог с «Затратами по
-/// стройке» (COST-20) не сходится и сходиться не должен. Ось периода по оплате — задача G4.</para>
+/// Под отбором по УЧЁТНОМУ периоду «Сумма» — деньги счёта, вошедшие в названные месяцы, в клетке и в
+/// итоге; «Сумма к оплате» и НДС остаются счетами целиком и говорят это подписью. Отбор по ДАТЕ СЧЁТА
+/// суммы не сужает и называет свою ось подписью — такой итог с «Затратами по стройке» (COST-20) не
+/// сходится и сходиться не должен.</para>
 /// </summary>
 public static class InvoiceTable
 {
@@ -49,7 +50,10 @@ public static class InvoiceTable
     /// </summary>
     public const string ObjectsKey = "ОбъектыРазноски";
 
-    /// <summary>Сумма по отбору: вся сумма счёта либо его доля на названные отбором объекты.</summary>
+    /// <summary>
+    /// Сумма по отбору: вся сумма счёта — либо то, что из неё отбор назвал: доля на названные объекты,
+    /// деньги названных учётных месяцев, доля объекта в этих месяцах.
+    /// </summary>
     public const string AmountKey = "СуммаПоОтбору";
 
     /// <summary>Сколько дней до срока оплаты; у просроченного счёта — отрицательное.</summary>
@@ -114,10 +118,11 @@ public static class InvoiceTable
     private const string Amounts = "суммы";
 
     /// <summary>
-    /// Денежные колонки, чей ИТОГ под отбором периода называет ось подписью. «Сумма» сюда не входит:
-    /// её подпись длиннее — она же называет долю — и приходит ещё и к заголовку.
+    /// Денежные колонки, которые отбор НЕ сужает: под любым отбором это счёт целиком. Поэтому их ИТОГ
+    /// под отбором периода подписывается — осью «по дате счёта» либо словами «счета целиком» под
+    /// учётным периодом. «Сумма» сюда не входит: она сужается сама и подпись у неё своя.
     /// </summary>
-    internal static readonly IReadOnlyList<string> MoneyByIssueDate =
+    internal static readonly IReadOnlyList<string> WholeInvoiceMoney =
         [InvoiceRequisites.TotalKey, InvoiceRequisites.VatTotalKey];
 
     public static ModuleTable Declaration { get; } = new(
@@ -216,7 +221,8 @@ public sealed class InvoiceTableRows(
         // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
         var today = await clock.TodayAsync(ct);
 
-        var sql = Sql(names, shares.Labels, InvoicePeriods.Labels(today), today);
+        var calendar = InvoicePeriods.Labels(today);
+        var sql = Sql(names, shares.Labels, calendar, today);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Одна строка по ключу — тот же отбор и ещё одно условие: счёт вне отбора не приходит. Ключ,
@@ -261,21 +267,36 @@ public sealed class InvoiceTableRows(
             ? await db.InvoiceAllocations.AsNoTracking()
                 .Where(a => scope.Select(i => i.Id).Contains(a.InvoiceId)).ToListAsync(ct)
             : [];
-        Func<InvoiceAllocation, bool>? onNamed =
-            naming.Count > 0 ? p => naming.Any(c => c.Matches(shares.Label(p))) : null;
+        // Какие деньги счёта отбор назвал: долю спрашиваем ВМЕСТЕ с её месяцем, а не двумя списками —
+        // под «(объект А и 09) или (объект Б и 10)» названы две пары, а не А и Б в обоих месяцах.
+        // У остатка объекта нет: условие по объекту его не пропускает.
+        Func<InvoiceAllocation?, DateOnly, bool>? named = narrowed
+            ? (part, day) => TableFilters.Admits(query.Filter, new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [InvoiceTable.ObjectsKey] = part is null ? null : shares.Label(part),
+                [InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, day),
+            })
+            : null;
 
-        // Учётные месяцы — той же функцией, что у формы счёта. По счетам страницы; по всему отбору —
-        // когда отбор называет период и по «Сумме» считается итог. Доли, уже прочитанные ради «Объекта»
-        // или суммы, второй раз не читаем.
+        // Учётные месяцы — той же функцией, что у формы счёта. По счетам страницы — они уже прочитаны; по
+        // всему отбору — когда отбор называет период и по «Сумме» считается итог. Доли, прочитанные ради
+        // «Объекта» или суммы, второй раз не читаем.
         var byMonths = months.Count > 0 && (shareTotal || shareCells);
+        var whole = byMonths && shareTotal ? scope.Where(i => i.Payment == InvoicePaymentState.Paid) : null;
         var periods = byMonths || query.Columns.Contains(InvoiceTable.PeriodKey) || query.Columns.Contains(InvoiceTable.PeriodSumsKey)
-            ? await InvoicePeriods.ReadAsync(db, byMonths ? scope : db.Invoices.AsNoTracking().Where(i => ids.Contains(i.Id)),
-                partsRead ? parts : null, onNamed, ct)
+            ? await InvoicePeriods.ReadAsync(db,
+                whole is null
+                    ? InvoicePeriods.Paid(invoices)
+                    : await whole.Select(i => new PaidInvoice(i.Id, i.Total, i.RemainderAccountingOn)).ToListAsync(ct),
+                whole?.Select(i => i.Id), partsRead ? parts : null, named, ct)
             : InvoicePeriods.None;
 
-        var amounts = byMonths ? InvoicePeriods.Amounts(periods, months)
-            : shareTotal || shareCells ? await InvoiceShares.ReadAsync(db, scope, parts, onNamed!, ct)
-            : null;
+        // Под отбором по периоду деньги — из месяцев; под отбором только по объекту — доли: они есть и у
+        // неоплаченного счёта, у которого месяцев нет.
+        var amounts = byMonths ? InvoicePeriods.Amounts(periods)
+            : shareTotal || shareCells
+                ? await InvoiceShares.ReadAsync(db, scope, parts, p => naming.Any(c => c.Matches(shares.Label(p))), ct)
+                : null;
         if (shareTotal) totals[InvoiceTable.AmountKey] = InvoiceShares.Total(amounts!.Values);
 
         // Чем сужены деньги: по объекту — до долей на него, по учётному периоду — до названных месяцев.
@@ -289,10 +310,10 @@ public sealed class InvoiceTableRows(
         var note = Joined(sums, byIssueDate ? InvoiceTable.ByIssueDateNote : null);
         Annotate(totals, InvoiceTable.AmountKey, note);
         if (byIssueDate)
-            foreach (var money in InvoiceTable.MoneyByIssueDate) Annotate(totals, money, InvoiceTable.ByIssueDateNote);
+            foreach (var money in InvoiceTable.WholeInvoiceMoney) Annotate(totals, money, InvoiceTable.ByIssueDateNote);
         // «Сумма к оплате» и НДС под отбором по учётному периоду — счета целиком, и это сказано под ними.
         if (months.Count > 0)
-            foreach (var money in InvoiceTable.MoneyByIssueDate)
+            foreach (var money in InvoiceTable.WholeInvoiceMoney)
                 Annotate(totals, money, Joined(totals.GetValueOrDefault(money)?.Note, InvoiceTable.WholeInvoicesNote));
 
         // Счётчик «ждут позиции» — по счетам страницы, одним запросом; условие то же, что у колонки
@@ -311,7 +332,7 @@ public sealed class InvoiceTableRows(
         var objects = shares.Objects(parts);
         return new(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today,
-                periods.GetValueOrDefault(i.Id), months))],
+                periods.GetValueOrDefault(i.Id)))],
             count, totals, notes.Count == 0 ? null : notes,
             [.. invoices.Select(i => i.Id.ToString())]);
     }
@@ -382,8 +403,7 @@ public sealed class InvoiceTableRows(
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts,
-        Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods,
-        IReadOnlyList<TableFilterCondition> named)
+        Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -410,7 +430,7 @@ public sealed class InvoiceTableRows(
             row[InvoiceTable.AmountKey] = amounts is null ? invoice.Total : amounts.GetValueOrDefault(invoice.Id);
 
         if (open.Contains(InvoiceTable.PeriodSumsKey))
-            row[InvoiceTable.PeriodSumsKey] = InvoicePeriods.Sums(periods?.Named ?? [], named);
+            row[InvoiceTable.PeriodSumsKey] = InvoicePeriods.Sums(periods?.Named ?? []);
 
         if (open.Contains(InvoiceTable.DaysLeftKey)) row[InvoiceTable.DaysLeftKey] = InvoiceDue.DaysLeftOf(invoice, today);
         if (open.Contains(InvoiceTable.OverdueKey)) row[InvoiceTable.OverdueKey] = InvoiceDue.OverdueOf(invoice, today);
