@@ -107,10 +107,36 @@ public static class InvoiceTable
     public const string WholeInvoicesNote = "счета целиком, а не деньги названного периода";
 
     /// <summary>
-    /// Подпись суммы под отбором по ДАТЕ СЧЁТА: чем период назван — и чем он НЕ является. Оси у реестра
-    /// две — дата счёта и учётный период (C5); каждая называет себя своей подписью.
+    /// Куда идти за затратами периода. Отдельного переключателя «оси» у реестра нет (решение владельца
+    /// 05.10.2026, ревизия Архитектора): ось — колонка, на которой стоит условие, и подпись называет
+    /// нужную по имени. «Не по оплате» вело бы человека к колонке «Оплачен» — а это третья ось.
     /// </summary>
-    public const string ByIssueDateNote = "период — по дате счёта, не по оплате";
+    private const string CostsPath = "затраты периода — отбор «Учётный период»";
+
+    /// <summary>
+    /// Подпись суммы под отбором по ДАТЕ СЧЁТА: чем период назван — и где то, чем он не является.
+    /// Итог под таким отбором — счета, выставленные в периоде; с затратами он не сходится.
+    /// </summary>
+    public const string ByIssueDateNote = "период — по дате счёта; " + CostsPath;
+
+    /// <summary>
+    /// Подпись суммы под отбором по ДНЮ ПЛАТЕЖА («Оплачен»). Ось, больше всех похожая на «затраты за
+    /// период» — и с ними не сходящаяся: счёт идёт целиком, а доли, перенесённые закрытием периода,
+    /// лежат в другом месяце.
+    /// </summary>
+    public const string ByPaidOnNote = "период — по дню платежа; " + CostsPath;
+
+    /// <summary>Отбор назвал период и датой счёта, и днём платежа.</summary>
+    public const string ByIssueDateAndPaidOnNote = "период — по дате счёта и дню платежа; " + CostsPath;
+
+    /// <summary>Подпись оси периода; null — ни датой счёта, ни днём платежа отбор период не называет.</summary>
+    internal static string? AxisNote(bool byIssueDate, bool byPaidOn) => (byIssueDate, byPaidOn) switch
+    {
+        (true, true) => ByIssueDateAndPaidOnNote,
+        (true, false) => ByIssueDateNote,
+        (false, true) => ByPaidOnNote,
+        _ => null,
+    };
 
     /// <summary>Код готового представления «Реестр счетов» (ТЗ COST-20.1).</summary>
     public const string RegistryView = "registry";
@@ -237,6 +263,7 @@ public sealed class InvoiceTableRows(
         var months = TableFilters.Naming(query.Filter, InvoiceTable.PeriodKey);
         // Отбор называет период ДАТОЙ СЧЁТА — вторая ось; под ней сумма не сужается, а подписывается.
         var byIssueDate = TableFilters.Naming(query.Filter, InvoiceRequisites.DateKey).Count > 0;
+        var byPaidOn = TableFilters.Naming(query.Filter, InvoiceTable.PaidOnKey).Count > 0;
         var narrowed = naming.Count > 0 || months.Count > 0;
         var shareTotal = narrowed && query.Totals?.ContainsKey(InvoiceTable.AmountKey) == true;
         var shareCells = narrowed && query.Columns.Contains(InvoiceTable.AmountKey);
@@ -312,10 +339,10 @@ public sealed class InvoiceTableRows(
         // дате счёта итог «Суммы к оплате» — тоже «за счета, выставленные в периоде», и без оговорки
         // он читается как то, что сходится с затратами по стройке.
         //
-        // Оговорка «по дате счёта, не по оплате» — только пока учётный период отбором НЕ назван: с ним
+        // Оговорка оси — дата счёта, день платежа — только пока учётный период отбором НЕ назван: с ним
         // «Сумма» сужена именно по учётному периоду, и оговорка спорила бы с соседней подписью
         // (ревизия Архитектора). «Сумма к оплате» и НДС под учётным периодом — счета целиком.
-        var axis = byIssueDate && months.Count == 0 ? InvoiceTable.ByIssueDateNote : null;
+        var axis = months.Count == 0 ? InvoiceTable.AxisNote(byIssueDate, byPaidOn) : null;
         var note = Joined(sums, axis);
         Annotate(totals, InvoiceTable.AmountKey, note);
         foreach (var money in InvoiceTable.WholeInvoiceMoney)
