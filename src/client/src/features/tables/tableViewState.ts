@@ -1,4 +1,5 @@
 import type { FilterNode } from '@/shared/api/types';
+import type { FilterChange } from '@/shared/filter/chipsModel';
 import { TABLE_PAGE, type TableDeclaration, type TablePreset, type TableSort } from '@/shared/api/tables';
 
 /**
@@ -194,11 +195,45 @@ export function filterChanged(from: TableView, to: TableView): boolean {
   return JSON.stringify(from.filter) !== JSON.stringify(to.filter) || from.brokenFilter !== to.brokenFilter;
 }
 
+/** Изменение состояния: из того, что стоит в адресе СЕЙЧАС, — что должно стоять. */
+export type ViewChange = (current: TableView) => TableView;
+
+/**
+ * Куда и как записать изменение: новый фрагмент и «заменить ли текущую запись истории»; null —
+ * менять нечего.
+ *
+ * ⚠️ Изменение применяется к состоянию из АДРЕСА на момент действия, а не к состоянию, с которым
+ * экран был нарисован. Адрес меняется сразу, а перерисовка под него приходит позже (маршрутизатор
+ * отдаёт её переходом), и в этом просвете экран ещё показывает прежнее. Действие, посчитанное от
+ * нарисованного, записывало в адрес прежнее состояние с одной своей правкой — и молча стирало
+ * предыдущую: щелчок по шапке сразу после добавления условия снимал это условие, причём заменой
+ * записи истории, так что и «назад» его не возвращал. Ловил это живой прогон, через раз.
+ */
+export function addressChange(
+  hash: string, base: TableView, change: ViewChange,
+): { hash: string; replace: boolean } | null {
+  const current = parseView(hash, base);
+  const next = change(current);
+  const target = viewHash(next, base);
+  if (target === viewHash(current, base)) return null;
+  return { hash: target, replace: !filterChanged(current, next) };
+}
+
 // ── Изменения состояния ──────────────────────────────────────────────────────────────────────────
 
 /** Новый отбор: страница — первая, открытая строка закрывается (под новым отбором её может не быть). */
 export function withFilter(view: TableView, filter: FilterNode | null): TableView {
   return { ...view, filter, brokenFilter: null, page: 1, row: null };
+}
+
+/**
+ * Правка отбора чипами — изменением от отбора, который стоит сейчас (`FilterChange`). Изменение,
+ * которому менять нечего, не трогает ничего: иначе чип, снятый дважды, сбрасывал бы страницу и
+ * закрывал открытую строку под тем же самым отбором.
+ */
+export function withFilterChange(view: TableView, change: FilterChange): TableView {
+  const filter = change(view.filter);
+  return filter === view.filter && view.brokenFilter === null ? view : withFilter(view, filter);
 }
 
 /**
@@ -232,6 +267,17 @@ export function withColumnShown(
 }
 
 /**
+ * Вернуть колонку из окошка выбора: она встаёт туда, где стоит в списке, — после показанных колонок,
+ * что в списке выше неё (`above`). Сколько из них показано, считается по состоянию, к которому
+ * изменение применяется: число, посчитанное при отрисовке списка, после только что снятой галочки
+ * уже на единицу больше, и колонка вставала бы правее своего места.
+ */
+export function withColumnReturned(view: TableView, all: string[], column: string, above: string[]): TableView {
+  const current = view.columns ?? all;
+  return withColumnShown(view, all, column, true, above.filter(key => current.includes(key)).length);
+}
+
+/**
  * Порядок строк в окошке выбора колонок. `snapshot` — порядок на момент, когда окошко открыли:
  * показанные колонки, за ними остальные.
  *
@@ -262,11 +308,22 @@ export function withTotal(view: TableView, column: string, aggregate: Aggregate 
 }
 
 export function withPinned(view: TableView, pinned: number): TableView {
-  return { ...view, pinned: Math.max(0, pinned) };
+  return settled({ ...view, pinned: Math.max(0, pinned) });
 }
 
 export function withPage(view: TableView, page: number): TableView {
   return { ...view, page: Math.max(1, page) };
+}
+
+/**
+ * Шаг на соседнюю страницу — действие над ПОКАЗАННОЙ страницей: «следующая» значит «следующая за
+ * той, что на экране». `shown` — состояние, с которым экран нарисован. Отбор, размер страницы или
+ * сама страница в адресе уже другие — шаг не делается вовсе: номер, посчитанный от прежней выдачи,
+ * под новым отбором указывал бы за её конец, на пустую страницу.
+ */
+export function withPageStep(view: TableView, shown: TableView, delta: -1 | 1): TableView {
+  if (view.page !== shown.page || view.size !== shown.size || filterChanged(view, shown)) return view;
+  return withPage(view, shown.page + delta);
 }
 
 export function withSize(view: TableView, size: number): TableView {
