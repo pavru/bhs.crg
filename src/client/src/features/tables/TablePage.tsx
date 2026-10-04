@@ -4,8 +4,10 @@ import { ChevronLeft, ChevronRight, Table2 } from 'lucide-react';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
+import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
+import { recordLink } from '@/shared/ui/recordRoutes';
 import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
@@ -29,10 +31,17 @@ import { useTableView } from './useTableView';
  * `/tables/costs.invoices/registry` открывает «Реестр счетов» с его колонками, итогами и местами под
  * отбор. Настройку поставляет модуль, и приходит она в описании таблицы; адрес страницы отсчитан от
  * неё, поэтому пуст, пока человек ничего не менял. Сохранённые представления — G3a.</p>
+ *
+ * <p><b>Из строки — в форму записи</b> (G4, issue #1097). Про счета экран не знает: таблица называет
+ * тип записи за строкой, ключ строки — её идентификатор, а где запись открывается и кому, решает
+ * `recordLink`. Ссылки нет у того, кому экран записи закрыт. «Назад» возвращает сюда с тем же
+ * отбором и сортировкой — они в адресе.</p>
  */
 export function TablePage() {
   const { address = '', view: presetCode } = useParams();
   const [advanced, setAdvanced] = useState(false);
+  // Пока доступ не известен, ссылок нет: обещать переход раньше, чем известно право, нельзя.
+  const { data: access = NO_ACCESS } = useAccess();
 
   // Описание и строки — двумя запросами. Отказ отбора приходит БЕЗ таблицы: ни колонок, ни названия.
   // Экрану они нужны и тогда — иначе негодное условие нечем было бы назвать и нечем исправить, а
@@ -86,6 +95,7 @@ export function TablePage() {
   const sortable = new Set(decl.columns.filter(c => !c.unavailable && !c.dependsOnFilter).map(c => c.key));
   const data = table.data;
   const grid = data ? gridColumns(data.columns) : [];
+  const linkOf = (key: string | null) => recordLink(decl.recordType, key, access);
 
   return (
     <div className="h-full flex min-h-0">
@@ -166,6 +176,7 @@ export function TablePage() {
               rowKey={data.keys ? (_, i) => data.keys![i] : undefined}
               onRowOpen={data.keys ? (_, i) => setView(withRow(view, data.keys![i])) : undefined}
               rowOpen={(_, i) => view.row !== null && data.keys?.[i] === view.row}
+              rowLink={data.keys ? (_, i) => linkOf(data.keys![i]) : undefined}
               onRemoveColumn={c => setView(withColumnShown(view, allKeys, c.key, false))} />
             {!off && <Pager view={view} data={data} onChange={setView} />}
           </>
@@ -178,7 +189,7 @@ export function TablePage() {
       </div>
 
       {view.row && !off && (
-        <RowPanel address={address} rowKey={view.row} filter={filter} grain={decl.grain}
+        <RowPanel address={address} rowKey={view.row} filter={filter} grain={decl.grain} link={linkOf(view.row)}
           onClose={() => setView(withRow(view, null))} />
       )}
     </div>

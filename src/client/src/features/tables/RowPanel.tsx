@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router';
 import { X } from 'lucide-react';
 import { DataGridValue } from '@/shared/ui/DataGrid';
 import { columnUnavailable } from '@/shared/ui/dataGridStates';
@@ -16,12 +17,14 @@ import { cellText } from './tableCells';
  * оказаться на другой странице. И отбор нужен тот же: «Сумма» под отбором по стройке — доля, и в
  * панели она обязана значить то же, что в клетке.
  */
-export function RowPanel({ address, rowKey, filter, grain, onClose }: {
+export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
   address: string;
   rowKey: string;
   filter: FilterNode | string | null;
   /** Зерно таблицы — что считается строкой: «счёт». */
   grain: string;
+  /** Куда ведёт строка — форма записи; null — вести некуда либо экран записи человеку закрыт. */
+  link: { to: string; label: string } | null;
   onClose: () => void;
 }) {
   const row = useTable(address, { filter, row: rowKey, limit: 1 });
@@ -39,6 +42,7 @@ export function RowPanel({ address, rowKey, filter, grain, onClose }: {
       className="w-[360px] shrink-0 border-l border-stroke bg-surface flex flex-col min-h-0">
       <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-stroke">
         <h2 className="flex-1 text-sm font-medium text-fg1">Строка: {grain}</h2>
+        {link && <Link to={link.to} className="text-xs text-brand underline hover:text-fg1">{link.label}</Link>}
         <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
           className="p-1 rounded-md text-fg3 hover:text-fg1 hover:bg-muted">
           <X size={15} aria-hidden />

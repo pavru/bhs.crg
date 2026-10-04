@@ -97,6 +97,31 @@ public sealed class ModuleTableScreenTests(InvoiceLineHost host) : InvoiceLineTe
     }
 
     /// <summary>
+    /// Куда ведёт строка (G4, issue #1097): описание называет ТИП ЗАПИСИ, а ключ строки — её
+    /// идентификатор; по этой паре экран открывает форму счёта. Проверяются обе половины разом — и
+    /// настоящим адресом счёта: тип без ключа-идентификатора дал бы ссылку, которая ведёт в отказ.
+    ///
+    /// <para>Тип называется и тому, у кого права на счета нет: это не данные, а устройство таблицы.
+    /// Пойдёт ли человек по ссылке, решает право экрана — и адрес счёта ему отказывает.</para>
+    /// </summary>
+    [Fact]
+    public async Task Описание_называет_тип_записи_а_ключ_строки_открывает_её_адресом_счёта()
+    {
+        var (supplier, _) = await SignInAsync("Supplier");
+        var (waybills, _) = await SignInAsync(await RoleAsync("costs.waybill.read"));
+        var invoice = await CreateAsync(supplier);
+
+        foreach (var client in new[] { supplier, waybills })
+            Assert.Equal("СчётНаОплату",
+                (await GetAsync(client, $"/api/tables/{Address}/columns")).GetProperty("recordType").GetString());
+
+        var key = Assert.Single((await GetAsync(waybills, $"/api/tables/{Address}?row={invoice}"))
+            .GetProperty("keys").EnumerateArray()).GetString();
+        Assert.Equal(invoice, (await GetAsync(supplier, $"/api/costs/invoices/{key}")).GetProperty("id").GetGuid());
+        Assert.Equal(HttpStatusCode.Forbidden, (await waybills.GetAsync($"/api/costs/invoices/{key}")).StatusCode);
+    }
+
+    /// <summary>
     /// Строка читается под ТЕМ ЖЕ отбором, что и таблица: счёт вне отбора по ключу не приходит. Иначе
     /// панель показывала бы строку, которой в таблице под этим отбором нет.
     /// </summary>

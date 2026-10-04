@@ -162,10 +162,14 @@ public record TableColumnDto(
 /// <param name="Views">Готовые представления таблицы, которые поставляет модуль (G4, issue #1097):
 /// «Реестр счетов». Пусто — готовых нет. У таблицы выключенного модуля — тоже пусто: настраивать
 /// нечего, строк нет.</param>
+/// <param name="RecordType">Код типа записи, которая стоит за строкой (G4, issue #1097): ключ строки
+/// такой таблицы — идентификатор записи этого типа, и экран по коду находит, где запись открывается.
+/// Адреса экрана здесь нет нарочно: какие экраны есть у клиента, знает клиент. null — за строкой
+/// записи нет либо модуль выключен, и вести строке некуда.</param>
 public record TableDeclarationDto(
     string Address, string Title, string Grain, string Boundary,
     IReadOnlyList<TableColumnDto> Columns, string? State = null,
-    IReadOnlyList<TableViewDto>? Views = null);
+    IReadOnlyList<TableViewDto>? Views = null, string? RecordType = null);
 
 /// <summary>
 /// Готовое представление таблицы — её настройка от модуля (ТЗ CORE-33, COST-20.1; задача G4,

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, EyeOff, Unlink, X } from 'lucide-react';
+import { Link } from 'react-router';
+import { ArrowDown, ArrowUp, ArrowUpRight, EyeOff, Unlink, X } from 'lucide-react';
 import { dtCard, dtTable, dtTh, dtTd, dtRow, dtNum } from './dataTable';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
@@ -71,7 +72,7 @@ export function DataGridValue({ row, column, renderValue }: {
 
 export function DataGrid<Row extends Record<string, unknown>>({
   columns, rows, state, renderValue, rowKey, framed = true, className = '',
-  sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, onRemoveColumn,
+  sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, rowLink, onRemoveColumn,
 }: {
   columns: DataGridColumn[];
   rows: Row[];
@@ -100,6 +101,12 @@ export function DataGrid<Row extends Record<string, unknown>>({
   onRowOpen?: (row: Row, index: number) => void;
   /** Какая строка сейчас открыта — она подсвечена. */
   rowOpen?: (row: Row, index: number) => boolean;
+  /**
+   * Куда ведёт строка: ссылка стоит в её первой клетке — та закрепляется первой и не уезжает вбок.
+   * Настоящая ссылка, а не щелчок по строке: её открывают в новой вкладке и до неё доходят
+   * клавишей Tab. null — этой строке вести некуда, и ссылки у неё нет.
+   */
+  rowLink?: (row: Row, index: number) => { to: string; label: string } | null;
   /**
    * Убрать колонку, которой в типе больше нет. Действие стоит в шапке такой колонки: она не
    * исчезает сама, но и держать её на экране человек не обязан.
@@ -170,6 +177,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
             </tr>
           ) : shown.map((row, i) => {
             const open = rowOpen?.(row, i) ?? false;
+            const link = rowLink?.(row, i) ?? null;
             return (
               <tr key={rowKey ? rowKey(row, i) : i}
                 className={`${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : ''}`}
@@ -187,6 +195,15 @@ export function DataGrid<Row extends Record<string, unknown>>({
                   <td key={c.key} style={pinStyle(ci, 5)}
                     className={`${dtTd} whitespace-nowrap text-fg1 ${c.align === 'right' ? dtNum : ''} `
                       + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : 'bg-surface') : ''}`}>
+                    {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
+                        перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
+                    {ci === 0 && link && (
+                      <Link to={link.to} aria-label={link.label} title={link.label}
+                        onClick={e => e.stopPropagation()}
+                        className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
+                        <ArrowUpRight size={14} aria-hidden />
+                      </Link>
+                    )}
                     <DataGridValue row={row} column={c}
                       renderValue={renderValue ? v => renderValue(v, c) : undefined} />
                   </td>
