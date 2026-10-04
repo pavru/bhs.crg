@@ -136,6 +136,164 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.True(InStorage(attachment));
     }
 
+    /// <summary>
+    /// Файл, который держит только схема МОДУЛЯ (issue #1094). Скан счёта лежит в
+    /// <c>costs.invoices.scan_blob_path</c>, и сборщик, смотревший одну схему ядра, считал его ничьим:
+    /// настоящий прогон удалил бы сканы счетов безвозвратно.
+    ///
+    /// <para>Схема здесь подставная, а не <c>costs</c>, нарочно: проверяется, что сборщик не знает
+    /// модулей по имени. Колонки названы так, как их не назвал бы никто из ядра, — узнавать держателя
+    /// по имени колонки вне ядра нельзя.</para>
+    /// </summary>
+    /// <remarks>
+    /// В каком виде модуль хранит путь, ядро не знает, поэтому случаи — про ВИД, а не про тип: путь
+    /// как есть, в массиве, в JSON (колонкой и строкой), с экранированной чертой, после адреса
+    /// сервера, рядом с соседним. Первая редакция знала три типа и путь только целиком — массив
+    /// <c>text[]</c>, который в схеме счетов уже есть, она не видела (ревью PR #1183).
+    /// <c>§</c> — путь, <c>¤</c> — он же с чертой, записанной как <c>\/</c>.
+    /// </remarks>
+    [Theory]
+    [InlineData("text", "§")]
+    [InlineData("character varying(512)", "§")]
+    [InlineData("character(400)", "§")]
+    [InlineData("jsonb", "{\"Вложение\":{\"blobPath\":\"§\"}}")]
+    [InlineData("json", "{\"Вложение\":{\"blobPath\":\"§\"}}")]
+    [InlineData("text[]", "{\"первый\",\"§\"}")]
+    [InlineData("jsonb[]", "{\"{\\\"p\\\":\\\"§\\\"}\"}")]
+    [InlineData("text", "{\"files\":[\"§\"]}")]
+    [InlineData("text", "{\"files\":[\"¤\"]}")]
+    [InlineData("text", "https://files.example/get/§?inline=1")]
+    [InlineData("text", "прежний.pdf;§;следующий.pdf")]
+    public async Task Cleanup_KeepsBlobHeldByModuleSchema(string columnType, string template)
+    {
+        var held = await UploadAsync("скан-счёта.pdf");
+        var orphan = await UploadAsync("ничей.pdf");
+        var schema = $"probe_{Guid.NewGuid():N}";
+        var value = template.Replace("§", held).Replace("¤", held.Replace("/", "\\/"));
+
+        await SqlAsync($"CREATE SCHEMA {schema}");
+        try
+        {
+            await SqlAsync($"CREATE TABLE {schema}.bills (id uuid PRIMARY KEY, paper {columnType})");
+            await SqlAsync($"INSERT INTO {schema}.bills VALUES (gen_random_uuid(), @p0::{columnType})", value);
+
+            var report = await RunAsync(dryRun: false);
+
+            Assert.True(InStorage(held), "файл, который держит схема модуля, удалён уборкой");
+            Assert.False(InStorage(orphan));
+            Assert.Equal(1, report.Referenced);
+            Assert.Equal(1, report.HeldByModules);
+            Assert.Equal(1, report.Deleted);
+        }
+        finally
+        {
+            await SqlAsync($"DROP SCHEMA {schema} CASCADE");
+        }
+    }
+
+    /// <summary>
+    /// Файл, на который ссылаются и ядро, и модуль, в строку «держат только данные модулей» не идёт:
+    /// причина «не предложен к удалению» у него в ядре, и искать её в модуле незачем.
+    /// </summary>
+    [Fact]
+    public async Task Report_DoesNotCountBlobHeldByCoreToo_AsModuleOnly()
+    {
+        var shared = await UploadAsync("cert.pdf");
+        await SeedQualityDocAsync(shared);
+        var schema = $"probe_{Guid.NewGuid():N}";
+
+        await SqlAsync($"CREATE SCHEMA {schema}");
+        try
+        {
+            await SqlAsync($"CREATE TABLE {schema}.bills (id uuid PRIMARY KEY, paper text)");
+            await SqlAsync($"INSERT INTO {schema}.bills VALUES (gen_random_uuid(), @p0)", shared);
+
+            var report = await RunAsync(dryRun: true);
+
+            Assert.Equal(1, report.Referenced);
+            Assert.Equal(0, report.HeldByModules);
+        }
+        finally
+        {
+            await SqlAsync($"DROP SCHEMA {schema} CASCADE");
+        }
+    }
+
+    /// <summary>
+    /// Колонку вне ядра прочитать нельзя — уборка ОТКАЗЫВАЕТ, называя адрес, и ничего не удаляет
+    /// (ревью PR #1183). Пропустить колонку значило бы принять «не смог прочитать» за «держателей
+    /// нет»; упасть без адреса — оставить администратора с ответом 500.
+    ///
+    /// <para>Роль видит колонку (есть право вставки), но читать не может — ровно тот случай, когда
+    /// <c>information_schema</c> колонку показывает, а <c>SELECT</c> отвечает отказом.</para>
+    /// </summary>
+    [Fact]
+    public async Task Cleanup_Refuses_WhenColumnOutsideCoreIsUnreadable()
+    {
+        var orphan = await UploadAsync("ничей.pdf");
+        var schema = $"probe_{Guid.NewGuid():N}";
+        var role = $"probe_role_{Guid.NewGuid():N}";
+
+        await SqlAsync($"CREATE SCHEMA {schema}");
+        await SqlAsync($"CREATE ROLE {role} NOLOGIN");
+        try
+        {
+            await SqlAsync($"CREATE TABLE {schema}.bills (id uuid PRIMARY KEY, paper text)");
+            await SqlAsync($"GRANT USAGE ON SCHEMA public TO {role}");
+            await SqlAsync($"GRANT SELECT ON ALL TABLES IN SCHEMA public TO {role}");
+            await SqlAsync($"GRANT INSERT ON {schema}.bills TO {role}");
+
+            using var scope = fixture.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.OpenConnectionAsync();
+            try
+            {
+#pragma warning disable EF1002 // Имя роли — из теста.
+                await db.Database.ExecuteSqlRawAsync($"SET ROLE {role}");
+#pragma warning restore EF1002
+                var refused = await Assert.ThrowsAsync<BlobScanRefusedException>(() =>
+                    scope.ServiceProvider.GetRequiredService<OrphanBlobCleanup>().RunAsync(dryRun: false, 0));
+
+                Assert.Equal($"{schema}.bills.paper", refused.Address);
+                Assert.Contains(refused.Address, refused.Message);
+            }
+            finally
+            {
+                await db.Database.ExecuteSqlRawAsync("RESET ROLE");
+                await db.Database.CloseConnectionAsync();
+            }
+
+            Assert.True(InStorage(orphan), "уборка, отказавшая на скане, всё же что-то удалила");
+        }
+        finally
+        {
+            await SqlAsync($"DROP SCHEMA {schema} CASCADE");
+            await SqlAsync($"DROP OWNED BY {role}");
+            await SqlAsync($"DROP ROLE {role}");
+        }
+    }
+
+    /// <summary>Файл, который держит только ядро, модулям не приписывается.</summary>
+    [Fact]
+    public async Task Report_DoesNotCountCoreHolderAsModule()
+    {
+        await SeedQualityDocAsync(await UploadAsync("cert.pdf"));
+
+        var report = await RunAsync(dryRun: true);
+
+        Assert.Equal(1, report.Referenced);
+        Assert.Equal(0, report.HeldByModules);
+    }
+
+    private async Task SqlAsync(string sql, params object[] parameters)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+#pragma warning disable EF1002 // Имя схемы — из теста, значения — параметрами.
+        await db.Database.ExecuteSqlRawAsync(sql, parameters);
+#pragma warning restore EF1002
+    }
+
     [Fact]
     public async Task Cleanup_SeparatesReferencedFromOrphan()
     {
@@ -283,10 +441,14 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
     // ── Согласованность со сбором реестра ────────────────────────────────────────
 
     /// <summary>
-    /// Сбор реестра (issue #672) и поиск живых ссылок смотрят в одни и те же места. Разъедься эти
-    /// два списка — сборщик посчитал бы сиротой путь, который сбор считает живым, то есть удалил бы
-    /// работающий файл. Тест держит их вместе: сбор по чистому реестру обязан найти ровно то же
-    /// множество путей, что и скан.
+    /// Сбор реестра (issue #672) и поиск живых ссылок смотрят в одни и те же места СХЕМЫ ЯДРА.
+    /// Разъедься эти два списка — сборщик посчитал бы сиротой путь, который сбор считает живым, то
+    /// есть удалил бы работающий файл. Тест держит их вместе: сбор по чистому реестру обязан найти
+    /// ровно то же множество путей, что и скан в ядре.
+    ///
+    /// <para>Сверяется именно часть ядра, а не всё найденное (ревью PR #1183): скан читает ещё и
+    /// схемы вне ядра, а в общей тестовой базе они остаются от других классов и от оборванных
+    /// прогонов — сверка целиком краснела бы от истории базы, а не от расхождения.</para>
     /// </summary>
     [Fact]
     public async Task Scan_FindsSamePaths_AsRegistryBackfill()
@@ -299,7 +461,7 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var live = await scope.ServiceProvider.GetRequiredService<LiveBlobPathScan>().RunAsync();
+        var live = await scope.ServiceProvider.GetRequiredService<LiveBlobPathScan>().ScanAsync();
 
         // Реестр очищаем и собираем заново по данным — так он покажет, что нашёл БЫ сбор.
         await db.BlobRegistry.ExecuteDeleteAsync();
@@ -307,7 +469,7 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         var collected = await db.BlobRegistry.AsNoTracking().Select(e => e.Path).ToListAsync();
 
         var expected = new[] { scanPath, attachment }.OrderBy(p => p, StringComparer.Ordinal).ToList();
-        Assert.Equal(expected, live.OrderBy(p => p, StringComparer.Ordinal).ToList());
+        Assert.Equal(expected, live.Core.OrderBy(p => p, StringComparer.Ordinal).ToList());
         Assert.Equal(expected, collected.OrderBy(p => p, StringComparer.Ordinal).ToList());
     }
 }
