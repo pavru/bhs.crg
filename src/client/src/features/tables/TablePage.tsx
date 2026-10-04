@@ -16,7 +16,7 @@ import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageC
 import { hasShownTotals, totalText } from './tableTotals';
 import {
   DEFAULT_VIEW, PAGE_SIZES, presetLookup, presetView, rowsWanted, wholeTableHash, withColumnShown, withFilter,
-  withPage, withRow, withSize, withSort, type TableView,
+  withFilterChange, withPageStep, withRow, withSize, withSort, type TableView, type ViewChange,
 } from './tableViewState';
 import { useTableView } from './useTableView';
 
@@ -122,7 +122,7 @@ export function TablePage() {
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <FilterChips columns={filterColumns} filter={view.filter} suggested={preset?.filters}
-              onChange={next => setView(withFilter(view, next))} onAdvanced={() => setAdvanced(true)} />
+              onChange={change => setView(v => withFilterChange(v, change))} onAdvanced={() => setAdvanced(true)} />
           </div>
           {!off && (
             <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title}
@@ -148,12 +148,12 @@ export function TablePage() {
             <p>{apiError(table.error, 'Таблица не применила отбор или сортировку')}</p>
             <div className="mt-1.5 flex gap-3 text-xs">
               {filter !== null && (
-                <button type="button" className="underline" onClick={() => setView(withFilter(view, null))}>
+                <button type="button" className="underline" onClick={() => setView(v => withFilter(v, null))}>
                   Снять отбор
                 </button>
               )}
               {view.sort.length > 0 && (
-                <button type="button" className="underline" onClick={() => setView({ ...view, sort: [] })}>
+                <button type="button" className="underline" onClick={() => setView(v => ({ ...v, sort: [] }))}>
                   Снять сортировку
                 </button>
               )}
@@ -168,29 +168,29 @@ export function TablePage() {
               state={gridState(decl, filter !== null)}
               renderValue={(value, column) => cellText(value, kinds.get(column.key))}
               sort={view.sort} sortable={c => sortable.has(c.key)}
-              onSort={(c, additive) => setView(withSort(view, c.key, additive))}
+              onSort={(c, additive) => setView(v => withSort(v, c.key, additive))}
               pinned={view.pinned}
               footer={hasShownTotals(view.totals, data.totals, grid)
                 ? c => <Total view={view} data={data} column={c} kind={kinds.get(c.key)} />
                 : undefined}
               rowKey={data.keys ? (_, i) => data.keys![i] : undefined}
-              onRowOpen={data.keys ? (_, i) => setView(withRow(view, data.keys![i])) : undefined}
+              onRowOpen={data.keys ? (_, i) => setView(v => withRow(v, data.keys![i])) : undefined}
               rowOpen={(_, i) => view.row !== null && data.keys?.[i] === view.row}
               rowLink={data.keys ? (_, i) => linkOf(data.keys![i]) : undefined}
-              onRemoveColumn={c => setView(withColumnShown(view, allKeys, c.key, false))} />
+              onRemoveColumn={c => setView(v => withColumnShown(v, allKeys, c.key, false))} />
             {!off && <Pager view={view} data={data} onChange={setView} />}
           </>
         )}
 
         {advanced && (
           <RowFilterDialog columns={filterColumns} initial={asRoot(view.filter)} wording={ADVANCED_WORDING}
-            onSave={next => setView(withFilter(view, next))} onClose={() => setAdvanced(false)} />
+            onSave={next => setView(v => withFilter(v, next))} onClose={() => setAdvanced(false)} />
         )}
       </div>
 
       {view.row && !off && (
         <RowPanel address={address} rowKey={view.row} filter={filter} grain={decl.grain} link={linkOf(view.row)}
-          onClose={() => setView(withRow(view, null))} />
+          onClose={() => setView(v => withRow(v, null))} />
       )}
     </div>
   );
@@ -222,7 +222,7 @@ function Total({ view, data, column, kind }: {
 
 /** Страницы: какие строки показаны, сколько их в отборе, и переход между страницами. */
 function Pager({ view, data, onChange }: {
-  view: TableView; data: TableData; onChange: (next: TableView) => void;
+  view: TableView; data: TableData; onChange: (change: ViewChange) => void;
 }) {
   const pages = pageCount(data.count, view.size);
   const button = 'p-1 rounded-md text-fg3 hover:text-fg1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent';
@@ -232,7 +232,7 @@ function Pager({ view, data, onChange }: {
       <div className="flex-1" />
       <label className="flex items-center gap-1.5">
         Строк на странице
-        <select value={view.size} onChange={e => onChange(withSize(view, Number(e.target.value)))}
+        <select value={view.size} onChange={e => onChange(v => withSize(v, Number(e.target.value)))}
           className="rounded-md border border-stroke bg-surface px-1 py-0.5 text-xs text-fg2">
           {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
         </select>
@@ -240,12 +240,12 @@ function Pager({ view, data, onChange }: {
       {(pages > 1 || view.page > 1) && (
         <div className="flex items-center gap-1">
           <button type="button" className={button} disabled={view.page <= 1} aria-label="Предыдущая страница"
-            onClick={() => onChange(withPage(view, view.page - 1))}>
+            onClick={() => onChange(v => withPageStep(v, view, -1))}>
             <ChevronLeft size={15} aria-hidden />
           </button>
           <span>Страница {view.page} из {pages}</span>
           <button type="button" className={button} disabled={view.page >= pages} aria-label="Следующая страница"
-            onClick={() => onChange(withPage(view, view.page + 1))}>
+            onClick={() => onChange(v => withPageStep(v, view, 1))}>
             <ChevronRight size={15} aria-hidden />
           </button>
         </div>

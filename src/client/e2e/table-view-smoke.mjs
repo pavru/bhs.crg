@@ -13,7 +13,8 @@
 //      кода; строка у администратора.
 //   3. view-state-survives-reload-and-back — отбор, сортировка и состав колонок переживают F5;
 //      «назад» возвращает ПРЕДЫДУЩИЙ ОТБОР, а не предыдущий щелчок. Ломается: писать в историю
-//      каждое изменение — краснеет на числе шагов назад.
+//      каждое изменение — краснеет на числе шагов назад. И два действия быстрее перерисовки
+//      складываются: считать изменение от нарисованного, а не от адреса, — второе сотрёт первое.
 //   4. total-counts-the-selection-not-the-page — итог при отборе БОЛЬШЕ страницы равен сумме по
 //      всему отбору. Ломается: считать итог по строкам страницы.
 //   5. broken-filter-refuses-visibly — негодный отбор даёт видимый отказ с названием колонки, а не
@@ -342,6 +343,27 @@ try {
     await page.goBack();
     await page.waitForFunction(() => !location.pathname.startsWith('/tables/'), null, { timeout: 5000 })
       .catch(() => { throw new Error(`третий шаг назад остался в таблице: ${page.url()} — в историю легло лишнее`); });
+  });
+
+  await check('view-state-survives-reload-and-back: два действия быстрее перерисовки складываются, а не стирают друг друга', async () => {
+    await open(page, { filter: seeded });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета');
+
+    // Оба щелчка — ОДНОЙ задачей браузера: между ними экран перерисоваться не может, и второй
+    // заведомо сделан по состоянию, нарисованному до первого. Так человек щёлкает по шапке сразу
+    // после чипа; у него это вопрос везения, а здесь — нет. Двумя шагами прогона то же самое
+    // проверялось через раз (на дев-стенде) либо ни разу (в CI): перерисовка обычно успевала.
+    // Ломается: считать изменение от нарисованного состояния — щелчок по строке сотрёт сортировку.
+    await page.evaluate(() => {
+      [...document.querySelectorAll('thead th button')].find(b => b.textContent.trim() === 'Дата счёта').click();
+      [...document.querySelectorAll('tbody tr')].find(r => !r.querySelector('td[colspan]')).click();
+    });
+    await page.waitForFunction(() => location.hash.includes('row='), null, { timeout: 5000 })
+      .catch(() => { throw new Error('щелчок по строке в адрес не попал'); });
+    const address = decodeURIComponent(new URL(page.url()).hash);
+    if (!address.includes('sort=Дата:asc'))
+      throw new Error(`щелчок по строке стёр сортировку, поставленную мгновением раньше: «${address}»`);
+    if (!address.includes(TABLE_SEED.purpose)) throw new Error(`отбор из адреса пропал: «${address}»`);
   });
 
   // ── 4. Итог по отбору ─────────────────────────────────────────────────────────────────────────

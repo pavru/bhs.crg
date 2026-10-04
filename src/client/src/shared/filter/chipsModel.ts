@@ -95,6 +95,49 @@ export function withChip(conditions: FilterCondition[], cond: FilterCondition, i
   return fromChips(index === undefined ? [...conditions, cond] : conditions.map((c, i) => (i === index ? cond : c)));
 }
 
+/**
+ * Правка отбора — изменением, а не готовым деревом: из отбора, который стоит СЕЙЧАС, — какой должен
+ * стоять. Ряд чипов нарисован по отбору прошлой отрисовки, а к моменту щелчка отбор может быть уже
+ * другим (экран таблицы: адрес меняется сразу, перерисовка приходит позже). Дерево, собранное из
+ * нарисованного ряда, возвращало бы только что снятый чип: два крестика подряд — и первый чип снова
+ * на месте.
+ *
+ * Чип при этом адресуется САМИМ УСЛОВИЕМ, а не местом в ряду: место после снятия соседа уже другое.
+ * Условия, по которому щёлкнули, в отборе больше нет (либо отбор стал сложным) — менять нечего, и
+ * отбор возвращается ТЕМ ЖЕ объектом: по этому вызывающий отличает «не изменилось».
+ */
+export type FilterChange = (current: FilterNode | null) => FilterNode | null;
+
+export function chipAdded(cond: FilterCondition): FilterChange {
+  return current => onChips(current, conditions => withChip(conditions, cond));
+}
+
+export function chipReplaced(shown: FilterCondition, cond: FilterCondition): FilterChange {
+  return current => onChips(current, conditions => {
+    const index = indexOfChip(conditions, shown);
+    return index < 0 ? current : withChip(conditions, cond, index);
+  });
+}
+
+export function chipRemoved(shown: FilterCondition): FilterChange {
+  return current => onChips(current, conditions => {
+    const index = indexOfChip(conditions, shown);
+    return index < 0 ? current : withoutChip(conditions, index);
+  });
+}
+
+function onChips(
+  current: FilterNode | null, change: (conditions: FilterCondition[]) => FilterNode | null,
+): FilterNode | null {
+  const view = chipsView(current);
+  return view.mode === 'chips' ? change(view.conditions) : current;
+}
+
+function indexOfChip(conditions: FilterCondition[], shown: FilterCondition): number {
+  const text = JSON.stringify(shown);
+  return conditions.findIndex(c => JSON.stringify(c) === text);
+}
+
 // ─── Текст чипа ───────────────────────────────────────────────────────────────
 
 const SIGNS: Partial<Record<string, string>> = { neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤' };
