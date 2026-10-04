@@ -194,6 +194,30 @@ export function filterChanged(from: TableView, to: TableView): boolean {
   return JSON.stringify(from.filter) !== JSON.stringify(to.filter) || from.brokenFilter !== to.brokenFilter;
 }
 
+/** Изменение состояния: из того, что стоит в адресе СЕЙЧАС, — что должно стоять. */
+export type ViewChange = (current: TableView) => TableView;
+
+/**
+ * Куда и как записать изменение: новый фрагмент и «заменить ли текущую запись истории»; null —
+ * менять нечего.
+ *
+ * ⚠️ Изменение применяется к состоянию из АДРЕСА на момент действия, а не к состоянию, с которым
+ * экран был нарисован. Адрес меняется сразу, а перерисовка под него приходит позже (маршрутизатор
+ * отдаёт её переходом), и в этом просвете экран ещё показывает прежнее. Действие, посчитанное от
+ * нарисованного, записывало в адрес прежнее состояние с одной своей правкой — и молча стирало
+ * предыдущую: щелчок по шапке сразу после добавления условия снимал это условие, причём заменой
+ * записи истории, так что и «назад» его не возвращал. Ловил это живой прогон, через раз.
+ */
+export function addressChange(
+  hash: string, base: TableView, change: ViewChange,
+): { hash: string; replace: boolean } | null {
+  const current = parseView(hash, base);
+  const next = change(current);
+  const target = viewHash(next, base);
+  if (target === viewHash(current, base)) return null;
+  return { hash: target, replace: !filterChanged(current, next) };
+}
+
 // ── Изменения состояния ──────────────────────────────────────────────────────────────────────────
 
 /** Новый отбор: страница — первая, открытая строка закрывается (под новым отбором её может не быть). */

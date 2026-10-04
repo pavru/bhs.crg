@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { FilterNode } from '@/shared/api/types';
 import type { TablePreset } from '@/shared/api/tables';
 import {
-  DEFAULT_VIEW, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
+  DEFAULT_VIEW, addressChange, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
   viewHash, wholeTableHash, withColumnMoved, withColumnShown, withColumnsReset,
   withFilter, withPage, withPinned, withRow, withSize, withSort, withTotal, type TableView,
 } from './tableViewState';
@@ -182,6 +182,54 @@ describe('изменения состояния', () => {
 });
 
 /** Готовое представление модуля — основа, от которой отсчитан адрес (задача G4, issue #1097). */
+describe('изменение считается от адреса, а не от нарисованного', () => {
+  const purpose: FilterNode = { type: 'condition', column: 'Назначение', op: 'eq', value: 'Посев' };
+  const both: FilterNode = { type: 'group', logic: 'and', children: [purpose, unpaid] };
+  /** Адрес после изменения; изменение, которому менять нечего, оставляет адрес прежним. */
+  const after = (hash: string, change: (v: TableView) => TableView, base = DEFAULT_VIEW) =>
+    addressChange(hash, base, change)?.hash ?? hash;
+
+  it('щелчок по шапке сразу после нового условия условие не стирает', () => {
+    // Экран нарисован под одним условием; второе уже в адресе, но перерисовка под него не пришла.
+    const drawn = viewHash(view({ filter: purpose }));
+    const address = after(drawn, v => withFilter(v, both));
+
+    const sorted = addressChange(address, DEFAULT_VIEW, v => withSort(v, 'Номер', false));
+
+    expect(parseView(sorted!.hash).filter).toEqual(both);
+    expect(parseView(sorted!.hash).sort).toEqual([{ column: 'Номер', descending: false }]);
+    // Отбор сортировкой не сменился — запись истории заменяется, а не добавляется.
+    expect(sorted!.replace).toBe(true);
+  });
+
+  it('два действия подряд складываются: второе видит первое', () => {
+    let address = viewHash(view({ filter: purpose }));
+    address = after(address, v => withSort(v, 'Дата', false));
+    address = after(address, v => withColumnShown(v, all, 'Поставщик', false));
+    address = after(address, v => withPinned(v, 1));
+
+    expect(parseView(address)).toEqual(view({
+      filter: purpose, sort: [{ column: 'Дата', descending: false }],
+      columns: ['Номер', 'Дата', 'Итого'], pinned: 1,
+    }));
+  });
+
+  it('смена отбора — новая запись истории; изменение без отличий адрес не трогает', () => {
+    expect(addressChange('', DEFAULT_VIEW, v => withFilter(v, unpaid))!.replace).toBe(false);
+    expect(addressChange(viewHash(view({ filter: unpaid })), DEFAULT_VIEW, v => withFilter(v, unpaid))).toBeNull();
+    expect(addressChange('', DEFAULT_VIEW, v => v)).toBeNull();
+  });
+
+  it('под готовым представлением отсчёт — от его настройки', () => {
+    const base = view({ columns: ['Номер', 'Итого'], sort: [{ column: 'Дата', descending: true }] });
+    const address = after('', v => withFilter(v, unpaid), base);
+
+    const next = parseView(after(address, v => withPinned(v, 1), base), base);
+
+    expect(next).toEqual({ ...base, filter: unpaid, pinned: 1 });
+  });
+});
+
 describe('готовое представление', () => {
   const registry: TablePreset = {
     code: 'registry', title: 'Реестр счетов',
