@@ -46,7 +46,7 @@ public static class InvoiceLineEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, InvoiceLinesRequest body, CostsDbContext db, IModuleCatalog catalog,
-        AllocationPlacesSource places,
+        AllocationPlacesSource places, InvoiceDesk desk,
         IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Lines is null)
@@ -55,7 +55,6 @@ public static class InvoiceLineEndpoints
                 "(все удалены). Отсутствие поля прочитать как «строки не менять» нельзя: адрес заменяет " +
                 "набор целиком, и «не менять» — это просто не звать его.");
 
-        var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         var incoming = body.Lines;
 
         var parsed = new List<(Guid? Id, InvoiceLineValues Values)>(incoming.Count);
@@ -66,74 +65,81 @@ public static class InvoiceLineEndpoints
         EnsureIdsDistinct(parsed);
         await EnsureNomenclatureExistsAsync(catalog, parsed, ct);
 
-        var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
-        var kept = new HashSet<Guid>();
-
-        // Снимок ДО правки — им отличается настоящая правка от повторной отправки того же набора.
-        // Форма присылает строки целиком на каждое сохранение, и запись «строки изменены» без этой
-        // сверки появлялась бы в журнале там, где не изменилось ничего: журнал заполнился бы шумом, а
-        // настоящая правка в нём потерялась бы.
-        var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
-        var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
-
-        for (var index = 0; index < parsed.Count; index++)
-        {
-            var (lineId, values) = parsed[index];
-
-            var line = lineId is { } known
-                ? existing.FirstOrDefault(l => l.Id == known)
-                    ?? throw new InvalidRequestException(
-                        $"Строка {index + 1}: строки {known} у этого счёта нет. Так бывает, когда форму " +
-                        "оставили открытой, а строку тем временем удалили: присланное состояние опирается " +
-                        "на то, чего уже нет. Перечитайте счёт и повторите правку — иначе удалённая " +
-                        "строка вернулась бы молча.")
-                : Added(db, invoice.Id);
-
-            // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
-            // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
-            // строки из ста давала бы сто обновлений, а время правки у девяноста девяти врало бы.
-            // У новой строки место ещё нулевое, поэтому она сюда попадает всегда.
-            if (line.Ordinal != index + 1 || line.Snapshot() != values) line.Apply(index + 1, values);
-            kept.Add(line.Id);
-            now.Add((line.Id, values));
-        }
-
-        db.InvoiceLines.RemoveRange(existing.Where(l => !kept.Contains(l.Id)));
-
-        // Возврат в черновик — ДО сохранения: одна запись в базу на всю правку.
-        //
-        // ⚠️ Условие повторяет условие перехода «разобран», и повторяется оно нарочно: здесь его
-        // проверяют по ПРИСЛАННОМУ (строки ещё не в базе), а там — по лежащему. Свести их в один
-        // помощник значило бы читать базу дважды на одно сохранение; расхождение же ловится тестами с
-        // двух сторон — «разобран отказывает, пока строка ждёт позиции» и «правка строк возвращает
-        // счёт в черновик».
-        var count = parsed.Count;
-        var reason = invoice.State != InvoiceState.Parsed ? null
-            : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
-                ? "позиция номенклатуры есть не у всех строк"
-            : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
-                [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
-                ct)
-                ? "баланс разноски не сходится"
-            : null;
-        if (reason is not null) invoice.ReturnToDraft();
-
-        // Правка строк — правка счёта: время его правки обязано сдвинуться. Повторная отправка того же
-        // набора правкой не является — ни для журнала, ни для времени.
-        var changed = !was.SequenceEqual(now);
-        if (changed) invoice.ContentChanged();
-
-        await db.SaveChangesAsync(ct);
+        var (invoice, changed, reason) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         if (changed)
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
-                InvoiceEndpoints.Label(invoice), after: $"строк: {count}", ct: ct);
+                InvoiceEndpoints.Label(invoice), after: $"строк: {parsed.Count}", ct: ct);
 
         if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"правка строк: {reason}", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+
+        // Сама правка — под замком записи, по счёту, прочитанному после него.
+        async Task<(Invoice Invoice, bool Changed, string? Reason)> PlaceAsync(Invoice invoice)
+        {
+            var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+            var kept = new HashSet<Guid>();
+
+            // Снимок ДО правки — им отличается настоящая правка от повторной отправки того же набора.
+            // Форма присылает строки целиком на каждое сохранение, и запись «строки изменены» без этой
+            // сверки появлялась бы в журнале там, где не изменилось ничего: журнал заполнился бы шумом, а
+            // настоящая правка в нём потерялась бы.
+            var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
+            var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
+
+            for (var index = 0; index < parsed.Count; index++)
+            {
+                var (lineId, values) = parsed[index];
+
+                var line = lineId is { } known
+                    ? existing.FirstOrDefault(l => l.Id == known)
+                        ?? throw new InvalidRequestException(
+                            $"Строка {index + 1}: строки {known} у этого счёта нет. Так бывает, когда форму " +
+                            "оставили открытой, а строку тем временем удалили: присланное состояние опирается " +
+                            "на то, чего уже нет. Перечитайте счёт и повторите правку — иначе удалённая " +
+                            "строка вернулась бы молча.")
+                    : Added(db, invoice.Id);
+
+                // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
+                // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
+                // строки из ста давала бы сто обновлений, а время правки у девяноста девяти врало бы.
+                // У новой строки место ещё нулевое, поэтому она сюда попадает всегда.
+                if (line.Ordinal != index + 1 || line.Snapshot() != values) line.Apply(index + 1, values);
+                kept.Add(line.Id);
+                now.Add((line.Id, values));
+            }
+
+            db.InvoiceLines.RemoveRange(existing.Where(l => !kept.Contains(l.Id)));
+
+            // Возврат в черновик — ДО сохранения: одна запись в базу на всю правку.
+            //
+            // ⚠️ Условие повторяет условие перехода «разобран», и повторяется оно нарочно: здесь его
+            // проверяют по ПРИСЛАННОМУ (строки ещё не в базе), а там — по лежащему. Свести их в один
+            // помощник значило бы читать базу дважды на одно сохранение; расхождение же ловится тестами с
+            // двух сторон — «разобран отказывает, пока строка ждёт позиции» и «правка строк возвращает
+            // счёт в черновик».
+            var count = parsed.Count;
+            var reason = invoice.State != InvoiceState.Parsed ? null
+                : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
+                    ? "позиция номенклатуры есть не у всех строк"
+                : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
+                    [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
+                    ct)
+                    ? "баланс разноски не сходится"
+                : null;
+            if (reason is not null) invoice.ReturnToDraft();
+
+            // Правка строк — правка счёта: время его правки обязано сдвинуться. Повторная отправка того же
+            // набора правкой не является — ни для журнала, ни для времени.
+            var changed = !was.SequenceEqual(now);
+            if (changed) invoice.ContentChanged();
+
+            await db.SaveChangesAsync(ct);
+            return (invoice, changed, reason);
+        }
     }
 
     /// <summary>
@@ -147,11 +153,22 @@ public static class InvoiceLineEndpoints
     /// полностью, цели на месте, расхождение суммы строк с суммой к оплате — в пределах допуска.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> ParsedAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places,
+        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, InvoiceDesk desk,
         IModuleActivityLog log, CancellationToken ct)
     {
-        var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
+        var (invoice, lines) = await desk.WriteAsync(id, write => MarkAsync(write.Invoice, db, catalog, places, ct), ct);
 
+        // Ноль строк — «уже был разобран»: решения не было, и в журнал писать нечего.
+        if (lines > 0)
+            await log.RecordAsync(InvoiceActions.Parsed, invoice.Id.ToString(),
+                InvoiceEndpoints.Label(invoice), after: $"строк: {lines}", ct: ct);
+
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+    }
+
+    private static async Task<(Invoice Invoice, int Lines)> MarkAsync(
+        Invoice invoice, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, CancellationToken ct)
+    {
         if (invoice.State == InvoiceState.Rejected)
             throw new ConflictException(
                 $"{InvoiceEndpoints.Label(invoice)} отклонён — разбирать его незачем. Верните счёт в " +
@@ -160,8 +177,7 @@ public static class InvoiceLineEndpoints
         // Уже разобран — подтверждать нечего, и в журнал не пишем: запись «счёт разобран» означает
         // решение человека, а повторное нажатие (или повтор запроса после обрыва связи) новым решением
         // не является. Так же молчит возврат в черновик у черновика.
-        if (invoice.State == InvoiceState.Parsed)
-            return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+        if (invoice.State == InvoiceState.Parsed) return (invoice, 0);
 
         var missing = InvoiceRequisites.Missing(invoice);
         if (missing.Count > 0)
@@ -197,28 +213,27 @@ public static class InvoiceLineEndpoints
 
         invoice.MarkParsed();
         await db.SaveChangesAsync(ct);
-        await log.RecordAsync(InvoiceActions.Parsed, invoice.Id.ToString(),
-            InvoiceEndpoints.Label(invoice), after: $"строк: {lines.Count}", ct: ct);
-
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+        return (invoice, lines.Count);
     }
 
     /// <summary>Вернуть счёт в черновик — решением человека (см. <see cref="Invoice.ReturnToDraft" />).</summary>
     private static async Task<Ok<InvoiceView>> DraftAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places,
-        IModuleActivityLog log, CancellationToken ct)
+        Guid id, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log, CancellationToken ct)
     {
-        var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
-
-        if (invoice.State != InvoiceState.Draft)
+        var (invoice, returned) = await desk.WriteAsync(id, async write =>
         {
-            invoice.ReturnToDraft();
+            if (write.Invoice.State == InvoiceState.Draft) return (write.Invoice, false);
+
+            write.Invoice.ReturnToDraft();
             await db.SaveChangesAsync(ct);
+            return (write.Invoice, true);
+        }, ct);
+
+        if (returned)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: "решением человека", ct: ct);
-        }
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>

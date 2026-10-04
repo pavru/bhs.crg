@@ -21,9 +21,13 @@ import { NO_PLACE, chosen, samePlace, usePlaces, type Place } from './places';
  * ещё не разнесён — записывается сразу (показывать нечего: всё на один объект). Разнесён иначе — выбор
  * открывает матрицу с предпросмотром поверх прежней разноски: заменять чужое решение молча нельзя.</p>
  */
-export function InvoiceObject({ view }: { view: InvoiceView }) {
+export function InvoiceObject({ view, locked }: {
+  view: InvoiceView;
+  /** Счёт заперт закрытым периодом: разноска только читается. */
+  locked: boolean;
+}) {
   const { data: access = NO_ACCESS } = useAccess();
-  const canEdit = hasPermission(access, 'costs.allocation.edit');
+  const canEdit = hasPermission(access, 'costs.allocation.edit') && !locked;
   const places = usePlaces();
   const previewing = usePreviewAllocation();
   const replace = useReplaceMatrix();

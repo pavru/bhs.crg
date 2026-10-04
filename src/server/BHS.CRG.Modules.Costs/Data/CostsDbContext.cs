@@ -117,6 +117,20 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.State).HasColumnName("state").HasConversion<string>().HasMaxLength(32);
         invoice.Property(i => i.Payment).HasColumnName("payment").HasConversion<string>().HasMaxLength(32);
 
+        invoice.Property(i => i.PaidOn).HasColumnName("paid_on");
+        invoice.Property(i => i.PaymentDocument).HasColumnName("payment_document");
+        invoice.Property(i => i.PaidAt).HasColumnName("paid_at");
+        invoice.Property(i => i.PaidBy).HasColumnName("paid_by");
+        invoice.Property(i => i.RemainderAccountingOn).HasColumnName("remainder_accounting_on");
+
+        // «Оплачен» и дата платежа — одно утверждение в двух колонках, и держит его база: оплаченный
+        // счёт без даты не попал бы ни в один период, а дата у неоплаченного — попала бы в затраты.
+        invoice.ToTable(t => t.HasCheckConstraint("ck_invoices_paid_on",
+            "(payment = 'Paid') = (paid_on IS NOT NULL) AND (payment = 'Paid' OR remainder_accounting_on IS NULL)"));
+
+        // Реестр отбирает период по дате платежа (ТЗ COST-20.1). Частичный: неоплаченных большинство.
+        invoice.HasIndex(i => i.PaidOn).HasDatabaseName("ix_invoices_paid_on").HasFilter("paid_on IS NOT NULL");
+
         invoice.Property(i => i.ScanBlobPath).HasColumnName("scan_blob_path");
         invoice.Property(i => i.ScanFileName).HasColumnName("scan_file_name");
         invoice.Property(i => i.ScanMimeType).HasColumnName("scan_mime_type");
@@ -246,8 +260,14 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         part.Property(a => a.Quantity).HasColumnName("quantity").HasPrecision(18, 3);
         part.Property(a => a.Amount).HasColumnName("amount").HasPrecision(18, 2);
 
+        part.Property(a => a.AccountingOn).HasColumnName("accounting_on");
         part.Property(a => a.CreatedAt).HasColumnName("created_at");
         part.Property(a => a.UpdatedAt).HasColumnName("updated_at");
+
+        // Затраты периода отбирают доли по учётной дате (ТЗ COST-16, COST-20). Частичный: у неоплаченных
+        // счетов даты нет.
+        part.HasIndex(a => a.AccountingOn)
+            .HasDatabaseName("ix_invoice_allocations_accounting").HasFilter("accounting_on IS NOT NULL");
 
         // Удалили строку — уходят и её части: разноска строки без строки — это деньги ниоткуда. Строки
         // при правке набора правятся на месте (C2), так что каскад срабатывает только на настоящем

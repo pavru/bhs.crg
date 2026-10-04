@@ -36,6 +36,9 @@ public static class CostsReferences
         // делает (ревью PR #1188).
         ModuleReference.Remembering("invoices", "created_by", ReferenceTarget.User,
             "кто завёл счёт — справочное поле; удаление учётной записи счетов не касается"),
+        // То же с отметившим оплату (C5): кто нажал — справка для разбора, а не связь.
+        ModuleReference.Remembering("invoices", "paid_by", ReferenceTarget.User,
+            "кто отметил оплату — справочное поле; удаление учётной записи счетов не касается"),
 
         ModuleReference.Holding("invoice_lines", "nomenclature_id", ReferenceTarget.Record,
             "строки счетов с этой позицией номенклатуры", Invoice("invoice_id")),

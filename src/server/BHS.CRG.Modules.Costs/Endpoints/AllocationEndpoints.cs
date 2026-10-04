@@ -44,7 +44,7 @@ public static class AllocationEndpoints
     /// заведомую ошибку ввода.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
-        Guid id, Guid lineId, AllocationRequest body, CostsDbContext db, IModuleCatalog catalog,
+        Guid id, Guid lineId, AllocationRequest body, CostsDbContext db, InvoiceDesk desk,
         AllocationPlacesSource places, IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Parts is null)
@@ -52,65 +52,10 @@ public static class AllocationEndpoints
                 "Набор частей не прислан. Пустой набор — это «parts»: [], и он означает «строка не разнесена». " +
                 "Отсутствие поля прочитать как «не менять» нельзя: адрес заменяет набор целиком.");
 
-        var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
-        var line = await db.InvoiceLines.AsNoTracking()
-            .FirstOrDefaultAsync(l => l.Id == lineId && l.InvoiceId == invoice.Id, ct)
-            ?? throw new NotFoundException(
-                "Строки у этого счёта нет. Так бывает, когда строку удалили, пока форма была открыта: " +
-                "перечитайте счёт.");
-
-        var mode = AllocationMath.ModeOf(line.Quantity, line.Amount);
-        var parsed = body.Parts
-            .Select((part, index) => (Id: InvoiceAllocations.Id(part, index + 1),
-                Values: InvoiceAllocations.Values(part, index + 1, mode)))
-            .ToList();
-
-        EnsureIdsDistinct(parsed.Select(p => p.Id));
         var known = await places.LoadAsync(ct);
-        var values = parsed.Select(p => p.Values).ToList();
-        InvoiceAllocations.EnsureTargets(values, known);
-        EnsureNotOver(line, values);
+        var (invoice, line, was, values, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
-        var existing = await db.InvoiceAllocations
-            .Where(a => a.LineId == line.Id)
-            .OrderBy(a => a.Ordinal)
-            .ToListAsync(ct);
-        var was = existing.Select(a => a.Snapshot()).ToList();
-        var now = new List<InvoiceAllocation>(parsed.Count);
-
-        for (var index = 0; index < parsed.Count; index++)
-        {
-            var (partId, part) = parsed[index];
-            var entity = partId is { } sent
-                ? existing.FirstOrDefault(a => a.Id == sent)
-                    ?? throw new InvalidRequestException(
-                        $"Часть {index + 1}: части {sent} у этой строки нет. Так бывает, когда её удалили, " +
-                        "пока форма была открыта. Перечитайте счёт и повторите правку — иначе удалённая часть " +
-                        "вернулась бы молча.")
-                : Added(db, invoice.Id, line.Id);
-
-            entity.Apply(index + 1, part);
-            now.Add(entity);
-        }
-
-        var removed = existing.Except(now).ToList();
-        db.InvoiceAllocations.RemoveRange(removed);
-
-        // Возврат в черновик — ДО сохранения, по состоянию после правки: части прочих строк из базы,
-        // части этой строки — те, что сейчас лягут.
-        var returned = invoice.State == InvoiceState.Parsed
-            && !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
-                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, id => id == line.Id, now);
-        if (returned) invoice.ReturnToDraft();
-
-        // Разноска — часть счёта: её правка отмечается у него самого. От этого зависит и время правки
-        // счёта, и защита от одновременной записи (issue #1173).
-        var changed = !was.SequenceEqual(values);
-        if (changed) invoice.ContentChanged();
-
-        await db.SaveChangesAsync(ct);
-
-        if (changed)
+        if (!was.SequenceEqual(values))
             await log.RecordAsync(InvoiceActions.AllocationChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice),
                 before: $"строка {line.Ordinal}: {InvoiceAllocations.Describe(was, known, line.Unit)}",
@@ -121,7 +66,68 @@ public static class AllocationEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: "правка разноски: баланс не сходится", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+
+        // Сама правка — под замком записи, по счёту, прочитанному после него.
+        async Task<(Invoice, InvoiceLine, List<AllocationValues>, List<AllocationValues>, bool)> PlaceAsync(Invoice invoice)
+        {
+            var line = await db.InvoiceLines.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == lineId && l.InvoiceId == invoice.Id, ct)
+                ?? throw new NotFoundException(
+                    "Строки у этого счёта нет. Так бывает, когда строку удалили, пока форма была открыта: " +
+                    "перечитайте счёт.");
+
+            var mode = AllocationMath.ModeOf(line.Quantity, line.Amount);
+            var parsed = body.Parts
+                .Select((part, index) => (Id: InvoiceAllocations.Id(part, index + 1),
+                    Values: InvoiceAllocations.Values(part, index + 1, mode)))
+                .ToList();
+
+            EnsureIdsDistinct(parsed.Select(p => p.Id));
+            var values = parsed.Select(p => p.Values).ToList();
+            InvoiceAllocations.EnsureTargets(values, known);
+            EnsureNotOver(line, values);
+
+            var existing = await db.InvoiceAllocations
+                .Where(a => a.LineId == line.Id)
+                .OrderBy(a => a.Ordinal)
+                .ToListAsync(ct);
+            var was = existing.Select(a => a.Snapshot()).ToList();
+            var now = new List<InvoiceAllocation>(parsed.Count);
+
+            for (var index = 0; index < parsed.Count; index++)
+            {
+                var (partId, part) = parsed[index];
+                var entity = partId is { } sent
+                    ? existing.FirstOrDefault(a => a.Id == sent)
+                        ?? throw new InvalidRequestException(
+                            $"Часть {index + 1}: части {sent} у этой строки нет. Так бывает, когда её удалили, " +
+                            "пока форма была открыта. Перечитайте счёт и повторите правку — иначе удалённая часть " +
+                            "вернулась бы молча.")
+                    : Added(db, invoice.Id, line.Id);
+
+                entity.Apply(index + 1, part);
+                now.Add(entity);
+            }
+
+            var removed = existing.Except(now).ToList();
+            db.InvoiceAllocations.RemoveRange(removed);
+
+            // Возврат в черновик — ДО сохранения, по состоянию после правки: части прочих строк из базы,
+            // части этой строки — те, что сейчас лягут.
+            var returned = invoice.State == InvoiceState.Parsed
+                && !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
+                    await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, id => id == line.Id, now);
+            if (returned) invoice.ReturnToDraft();
+
+            // Разноска — часть счёта: её правка отмечается у него самого. От этого зависит и время правки
+            // счёта, и защита от одновременной записи (issue #1173).
+            var changed = !was.SequenceEqual(values);
+            if (changed) invoice.ContentChanged();
+
+            await db.SaveChangesAsync(ct);
+            return (invoice, line, was, values, returned);
+        }
     }
 
     /// <summary>Стройки с разделами — для выбора цели части. Узким списком модуля, как организации.</summary>

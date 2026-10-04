@@ -178,7 +178,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     [Theory]
     [InlineData("core.user.deleted", "Удалён пользователь", "core")]
     [InlineData("costs.paid", "Оплачен", "трёх частей")]
-    [InlineData("costs.invoice.paid", "Другое название", "дважды")]
+    [InlineData("costs.probe.marked", "Другое название", "дважды")]
     public void Каталог_действий_отказывает_негодному_объявлению(string code, string title, string expected)
     {
         var modules = host.Services.GetRequiredService<ModuleRegistry>();

@@ -23,16 +23,18 @@ import { usePlaces } from './places';
  * на СОХРАНЁННУЮ строку: у новой строки нет идентификатора, а у изменённой количество в форме уже не то,
  * что на сервере, — и остаток, посчитанный по одному, разошёлся бы с отказом, посчитанным по другому.</p>
  */
-export function LineAllocationCell({ invoiceId, line, number, blocked }: {
+export function LineAllocationCell({ invoiceId, line, number, blocked, locked }: {
   invoiceId: string;
   line: InvoiceLineView | undefined;
   number: number;
   /** Причина, по которой разносить сейчас нельзя (строки не сохранены), либо `null`. */
   blocked: string | null;
+  /** Счёт заперт закрытым периодом: разноска строки открывается только на чтение. */
+  locked: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { data: access = NO_ACCESS } = useAccess();
-  const canEdit = hasPermission(access, 'costs.allocation.edit');
+  const canEdit = hasPermission(access, 'costs.allocation.edit') && !locked;
 
   if (!line || blocked)
     return (

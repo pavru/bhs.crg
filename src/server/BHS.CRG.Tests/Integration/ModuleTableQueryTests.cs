@@ -98,9 +98,9 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
         var byWeight = await Order($"{seed.Weight}:desc,Номер");
         Assert.Equal(["5", "1", "3", "4"], byWeight[..4]);
 
-        // Справочник-перечисление (в базе код строкой): по НАЗВАНИЮ — «Не оплачен», «Оплачен»,
-        // «Частично оплачен», — а не по коду и не по порядку значений перечисления.
-        Assert.Equal(["1", "4", "5", "7", "8", "2", "6", "3"], await Order("СостояниеОплаты,Номер"));
+        // Справочник-перечисление (в базе код строкой): по НАЗВАНИЮ — «Не оплачен», «Оплачен», —
+        // а не по коду и не по порядку значений перечисления.
+        Assert.Equal(["1", "3", "4", "5", "7", "8", "2", "6"], await Order("СостояниеОплаты,Номер"));
     }
 
     /// <summary>
@@ -289,7 +289,7 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
 
         // Выбор (#1091) — с перечнем значений: диалог предлагает его списком, а не полем для строки.
         Assert.Equal(["eq", "neq", "in", "not_in"], Operators("СостояниеОплаты"));
-        Assert.Equal(["Не оплачен", "Частично оплачен", "Оплачен"], [.. schema.EnumerateArray()
+        Assert.Equal(["Не оплачен", "Оплачен"], [.. schema.EnumerateArray()
             .Single(c => c.GetProperty("name").GetString() == "СостояниеОплаты")
             .GetProperty("options").EnumerateArray().Select(o => o.GetString())]);
     }

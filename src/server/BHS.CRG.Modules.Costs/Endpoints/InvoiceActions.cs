@@ -14,9 +14,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// строкой при записи — правка названия не доехала бы до старых записей, а расхождение названий порт
 /// отвергает.</para>
 ///
-/// <para>⚠️ Чего здесь НЕТ: «отклонён», «оплачен». Каждое приезжает со своей задачей (C5), и
-/// объявленное заранее действие означало бы фильтр на экране журнала, по которому никогда ничего не
-/// находится. «Разобран» приехал задачей C2 (issue #1078), правка разноски — задачей F1 (issue #1085),
+/// <para>⚠️ Чего здесь НЕТ: «отклонён». Оно приедет со своим переходом, и объявленное заранее
+/// действие означало бы фильтр на экране журнала, по которому никогда ничего не находится. «Разобран» приехал задачей C2 (issue #1078), правка разноски — задачей F1 (issue #1085),
 /// каждое вместе с адресом, который его записывает.</para>
 /// </summary>
 public sealed class InvoiceActions : IModuleActivityActions
@@ -61,6 +60,18 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction AllocationChanged =
         new("costs.invoice.allocation", "Разноска счёта изменена");
 
+    /// <summary>
+    /// Отметка оплаты (C5, issue #1082). ⚠️ Сумм событие не несёт: журнал ядра читают по
+    /// <c>core.audit.read</c>, без права на счета, — названы дата, платёжный документ и перенос учётной даты.
+    /// </summary>
+    public static readonly ModuleActivityAction Paid = new("costs.invoice.paid", "Счёт оплачен");
+
+    /// <summary>Отмена ошибочной отметки — с причиной: версий оплата не создаёт, и другого следа нет.</summary>
+    public static readonly ModuleActivityAction Unpaid = new("costs.invoice.unpaid", "Оплата счёта отменена");
+
+    public static readonly ModuleActivityAction PaymentDescribed =
+        new("costs.invoice.paydoc", "Платёжный документ счёта изменён");
+
     // Справочник статей вне строек (F3, issue #1087): статья меняет то, куда попадут новые затраты, и
     // «кто убрал «Склад»» — вопрос, на который журнал обязан отвечать.
     public static readonly ModuleActivityAction ArticleCreated =
@@ -74,5 +85,5 @@ public sealed class InvoiceActions : IModuleActivityActions
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
         [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft, AllocationChanged,
-         ArticleCreated, ArticleRenamed, ArticleDeleted];
+         Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted];
 }

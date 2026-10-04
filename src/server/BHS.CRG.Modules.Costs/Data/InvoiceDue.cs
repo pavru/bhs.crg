@@ -22,9 +22,8 @@ namespace BHS.CRG.Modules.Costs.Data;
 public static class InvoiceDue
 {
     /// <summary>
-    /// Счёт ждёт оплаты к сроку: не отклонён, оплачен не полностью, срок определён. Частично
-    /// оплаченный — ждёт: долг по нему есть. Отклонённый («не платим») — не ждёт, и срока у него по
-    /// смыслу нет: иначе он висел бы в просроченных вечно.
+    /// Счёт ждёт оплаты к сроку: не отклонён, не оплачен, срок определён. Отклонённый («не платим») —
+    /// не ждёт, и срока у него по смыслу нет: иначе он висел бы в просроченных вечно.
     ///
     /// <para>Состояния оплаты названы ПЕРЕЧНЕМ, а не «всё, кроме оплаченного», по двум причинам. Новое
     /// состояние не станет «ждущим» само, молча. И перечень ложится на индекс «оплата + срок»
@@ -32,7 +31,7 @@ public static class InvoiceDue
     /// </summary>
     private static readonly Expression<Func<Invoice, bool>> Awaited =
         i => i.State != InvoiceState.Rejected
-             && (i.Payment == InvoicePaymentState.Unpaid || i.Payment == InvoicePaymentState.Partial)
+             && i.Payment == InvoicePaymentState.Unpaid
              && i.DueDate != null;
 
     private static readonly Expression<Func<Invoice, DateOnly, decimal?>> DaysLeftRule = WhenAwaited(

@@ -31,8 +31,8 @@ namespace BHS.CRG.Modules.Costs.Tables;
 ///
 /// <para><b>«Реестр счетов» — готовое представление этой таблицы, а не отдельный отчёт</b> (ТЗ
 /// COST-20.1; задача G4, issue #1097): колонки и их порядок — как в таблице, с которой заказчик
-/// работает сегодня. ⚠️ Оплаты в нём пока нет ничего, кроме состояния: колонка «Оплачено: дата, сумма»
-/// и отбор периода по дате оплаты приезжают вместе с отметкой оплаты (C5, issue #1082). До тех пор
+/// работает сегодня. С отметкой оплаты (C5, issue #1082) в нём есть дата платежа — «Оплачен».
+/// ⚠️ Учётного периода и сумм по периодам пока НЕТ: они приезжают вторым PR той же задачи. До тех пор
 /// период отбирается по дате счёта — и колонка суммы говорит это подписью, потому что такой итог с
 /// «Затратами по стройке» (COST-20) не сходится и сходиться не должен.</para>
 /// </summary>
@@ -66,6 +66,12 @@ public static class InvoiceTable
     /// держит тест.</para>
     /// </summary>
     public const string UnmatchedKey = "СтрокБезПозиции";
+
+    /// <summary>
+    /// Дата платежа; пусто — счёт не оплачен. ⚠️ Это день ПЛАТЕЖА, а не учётная дата: в затраты доли
+    /// счёта входят каждая своим днём, по периоду своей стройки (ТЗ COST-16).
+    /// </summary>
+    public const string PaidOnKey = "ДатаПлатежа";
 
     /// <summary>
     /// Подпись суммы под отбором периода: чем период назван — и чем он НЕ является. Другой оси у
@@ -118,6 +124,7 @@ public static class InvoiceTable
                 Options: [.. Enum.GetValues<InvoiceState>().Select(InvoiceRequisites.Label)]),
             new(InvoiceRequisites.PaymentKey, "Состояние оплаты", ModuleTableColumnKind.Choice,
                 Options: [.. Enum.GetValues<InvoicePaymentState>().Select(InvoiceRequisites.Label)]),
+            new(PaidOnKey, "Оплачен", ModuleTableColumnKind.Date),
         ],
         typeof(InvoiceTableRows),
         CostsRecordTypes.InvoiceCode,
@@ -132,7 +139,7 @@ public static class InvoiceTable
                     InvoiceRequisites.SupplierKey, AmountKey, InvoiceRequisites.TotalKey,
                     InvoiceRequisites.NumberKey, InvoiceRequisites.DateKey, InvoiceRequisites.ShippedOnKey,
                     InvoiceRequisites.DeferralKey, InvoiceRequisites.DueDateKey, DaysLeftKey,
-                    InvoiceRequisites.PaymentKey, ObjectsKey, InvoiceRequisites.PayerKey,
+                    InvoiceRequisites.PaymentKey, PaidOnKey, ObjectsKey, InvoiceRequisites.PayerKey,
                     InvoiceRequisites.PurposeKey, UnmatchedKey,
                 ],
                 Totals: [new(AmountKey, "sum"), new(InvoiceRequisites.TotalKey, "sum")],
@@ -289,6 +296,7 @@ public sealed class InvoiceTableRows(
                 .GroupBy(l => l.InvoiceId).Select(g => (decimal?)g.Count()).FirstOrDefault())
             .Choice(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Choice(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
+            .Date(InvoiceTable.PaidOnKey, i => i.PaidOn)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
 
     /// <param name="amounts">Доли счетов на названные отбором объекты; null — отбор объектов не называет,
@@ -311,6 +319,7 @@ public sealed class InvoiceTableRows(
             [InvoiceRequisites.DueDateKey] = invoice.DueDate,
             [InvoiceRequisites.StateKey] = InvoiceRequisites.Label(invoice.State),
             [InvoiceRequisites.PaymentKey] = InvoiceRequisites.Label(invoice.Payment),
+            [InvoiceTable.PaidOnKey] = invoice.PaidOn,
         };
 
         // Деньги и срок — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле,

@@ -20,11 +20,14 @@ public enum InvoiceState
 ///
 /// ⚠️ «Просрочен» здесь НЕТ нарочно: это признак, который считается по дате и состоянию оплаты, а не
 /// состояние, которое кто-то ставит. Храни мы его значением — он был бы верен ровно до полуночи.
+///
+/// <para>«Частично оплачен» тоже НЕТ — решение владельца 04.10.2026: счёт оплачивается целиком,
+/// одним платежом, в одну дату. Значение было объявлено до отметки оплаты, выставить его было нечем,
+/// и миграция, убравшая его, останавливается, если всё же нашла такое в базе.</para>
 /// </summary>
 public enum InvoicePaymentState
 {
     Unpaid,
-    Partial,
     Paid,
 }
 
@@ -118,6 +121,32 @@ public sealed class Invoice
     public InvoiceState State { get; private set; }
 
     public InvoicePaymentState Payment { get; private set; }
+
+    /// <summary>
+    /// Дата платежа — фактическая, как в платёжке. Учётная дата — НЕ она: у каждой доли разноски своя
+    /// (<see cref="InvoiceAllocation.AccountingOn" />), потому что периоды закрывают по стройкам, и
+    /// платёж задним числом в закрытый месяц одной стройки переносится только у неё (ТЗ COST-16).
+    /// </summary>
+    public DateOnly? PaidOn { get; private set; }
+
+    /// <summary>
+    /// Платёжный документ — свободный текст («п/п № 45»). Не «основание»: поле «Основание» у счёта уже
+    /// есть, и оно про договор.
+    /// </summary>
+    public string? PaymentDocument { get; private set; }
+
+    /// <summary>Когда оплату отметили — не путать с датой платежа.</summary>
+    public DateTimeOffset? PaidAt { get; private set; }
+
+    /// <summary>Кто отметил. Помнит, а не держит — как <see cref="CreatedBy" />.</summary>
+    public Guid? PaidBy { get; private set; }
+
+    /// <summary>
+    /// Учётная дата НЕРАЗНЕСЁННОГО остатка оплаченного счёта — по контуру компании. Пусто, пока счёт
+    /// не оплачен или разнесён весь: дата у нуля рублей заперла бы счёт закрытием компании, хотя все
+    /// его деньги лежат в открытом месяце стройки.
+    /// </summary>
+    public DateOnly? RemainderAccountingOn { get; private set; }
 
     public string? ScanBlobPath { get; private set; }
 
@@ -267,6 +296,50 @@ public sealed class Invoice
     /// позвавший этот метод, оставляет гонку открытой — молча.</para>
     /// </summary>
     public void ContentChanged() => Touch();
+
+    /// <summary>
+    /// Отметить оплату (C5, issue #1082): целиком, одной датой. Учётные даты долей здесь НЕ ставятся —
+    /// их раскладывает <c>PaymentPosting</c> по границам периодов, которых сущность не видит.
+    ///
+    /// <para>⚠️ Отклонить оплаченный счёт нельзя — сначала отменяют оплату (решение владельца
+    /// 04.10.2026). Перехода «отклонён» в коде ещё нет; появится — обязан это проверить.</para>
+    /// </summary>
+    public void Pay(DateOnly paidOn, string? document, Guid? by)
+    {
+        Payment = InvoicePaymentState.Paid;
+        PaidOn = paidOn;
+        PaymentDocument = document;
+        PaidAt = DateTimeOffset.UtcNow;
+        PaidBy = by;
+        Touch();
+    }
+
+    /// <summary>Отменить ошибочную отметку оплаты. Версий это не создаёт: след — событие журнала.</summary>
+    public void Unpay()
+    {
+        Payment = InvoicePaymentState.Unpaid;
+        PaidOn = null;
+        PaymentDocument = null;
+        PaidAt = null;
+        PaidBy = null;
+        RemainderAccountingOn = null;
+        Touch();
+    }
+
+    /// <summary>Поправить платёжный документ: это текст, цифр и дат он не меняет.</summary>
+    public void DescribePayment(string? document)
+    {
+        PaymentDocument = document;
+        Touch();
+    }
+
+    /// <summary>Учётная дата остатка — её считает <c>PaymentPosting</c>, вместе с датами долей.</summary>
+    public void PostRemainder(DateOnly? accountingOn)
+    {
+        if (RemainderAccountingOn == accountingOn) return;
+        RemainderAccountingOn = accountingOn;
+        Touch();
+    }
 
     /// <summary>Скан счёта: пришёл файлом или сканом (ТЗ COST-5).</summary>
     public void AttachScan(string blobPath, string fileName, string mimeType, long size)
