@@ -58,7 +58,7 @@ describe('totalText', () => {
   });
 
   it('что итог значит под отбором — словами сервера; оговорки нет — и подписи нет', () => {
-    const axis = 'период — по дате счёта, не по оплате';
+    const axis = 'период — по дате счёта; затраты периода — отбор «Учётный период»';
     expect(totalText(total({ note: axis }), 'sum', 'number')?.meaning).toBe(axis);
     expect(totalText(total({}), 'sum', 'number')?.meaning).toBeNull();
   });

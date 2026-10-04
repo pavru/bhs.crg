@@ -90,7 +90,7 @@ public class PaymentPostingTests
         Assert.Equal(
             [new PostedMonth(D(10, 1), 40_000m)],
             PaymentPosting.Months(PaymentPosting.Balance([First, Second], parts, total), total, parts,
-                plan.Remainder.AccountingOn, p => p.ConstructionId == SiteA));
+                plan.Remainder.AccountingOn, (p, _) => p?.ConstructionId == SiteA));
     }
 
     [Fact]

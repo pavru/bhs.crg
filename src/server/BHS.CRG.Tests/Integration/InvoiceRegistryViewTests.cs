@@ -116,6 +116,17 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
         // А клетка «Суммы к оплате» значит прежнее — её заголовок подписи не получает.
         Assert.Equal(JsonValueKind.Null, Column(september, "Итого").GetProperty("note").ValueKind);
 
+        // День платежа — третья ось, и самая похожая на «затраты за период»: она тоже называет себя и
+        // тоже говорит, где затраты (ревизия Архитектора, решение владельца 05.10.2026).
+        var paidOn = Condition(InvoiceTable.PaidOnKey, "between", "2026-09-01", "2026-09-30");
+        var byPayment = await ReadAsync(client, $"columns=Номер,{Amount},Итого&totals={Amount},Итого&filter={Own(tag, paidOn)}");
+        Assert.Equal(InvoiceTable.ByPaidOnNote, Column(byPayment, Amount).GetProperty("note").GetString());
+        Assert.Equal(InvoiceTable.ByPaidOnNote, TotalNote(byPayment, "Итого"));
+        Assert.EndsWith("затраты периода — отбор «Учётный период»", InvoiceTable.ByPaidOnNote);
+        var twoDates = await ReadAsync(client,
+            $"columns=Номер,{Amount}&totals={Amount}&filter={Own(tag, Group(paidOn, Period("2026-09-01", "2026-09-30")))}");
+        Assert.Equal(InvoiceTable.ByIssueDateAndPaidOnNote, TotalNote(twoDates, Amount));
+
         var all = await ReadAsync(client, $"columns=Номер,{Amount},Итого&totals={Amount},Итого&filter={Own(tag)}");
         Assert.Equal(JsonValueKind.Null, Column(all, Amount).GetProperty("note").ValueKind);
         Assert.Null(TotalNote(all, Amount));
