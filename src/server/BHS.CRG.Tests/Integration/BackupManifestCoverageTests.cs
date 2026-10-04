@@ -167,6 +167,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["MaterialQualityLink"] = nameof(BackupManifest.MaterialQualityLinks),
         // Журнал действий (ТЗ CORE-28 требует его переносить) — в любой копии, не только полной.
         ["ActivityRecord"] = nameof(BackupManifest.ActivityLog),
+        // Закрытия учётного периода (ТЗ CORE-35, issue #1081) — в полной копии.
+        ["PeriodClosure"] = nameof(BackupManifest.PeriodClosures),
     };
 
     [Fact]
@@ -388,5 +390,11 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         await scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>()
             .RecordAsync(BHS.CRG.Application.Activity.ActivityActions.UserRoleChanged,
                 Guid.NewGuid().ToString(), "покрытие@test.local", before: "Инженер ИД", after: "Администратор");
+
+        // Закрытие периода (issue #1081) — тоже через службу, по той же причине.
+        var closures = scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Periods.IPeriodClosures>();
+        var through = (await closures.TodayAsync()).AddDays(-10);
+        await closures.CloseAsync(new BHS.CRG.Application.Periods.ClosePeriod(
+            BHS.CRG.Domain.Periods.PeriodContour.Company, through.AddDays(-30), through, null, null));
     }
 }
