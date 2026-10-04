@@ -75,7 +75,6 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
         using var scope = host.Services.CreateScope();
         var found = await scope.ServiceProvider.GetRequiredService<IRecordHolders>().FindAsync([position]);
 
-        Assert.Equal([position], found.Held);
         var line = Assert.Single(found.Lines);
         Assert.Contains("строки счетов с этой позицией номенклатуры — 1", line);
         Assert.DoesNotContain(number, line);
@@ -100,7 +99,7 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
 
         var found = await switchedOff.FindAsync([position]);
 
-        Assert.Equal([position], found.Held);
+        Assert.Equal([position], (await switchedOff.HeldAsync([position])).Ids);
         Assert.Contains("«Счета и накладные» (модуль выключен)", Assert.Single(found.Lines));
         Assert.Throws<ConflictException>(() => found.EnsureNone("запись"));
     }
@@ -147,8 +146,8 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
         var usage = await scope.ServiceProvider.GetRequiredService<IMediator>()
             .Send(new GetDocumentTypeUsageQuery(type));
 
-        var reason = Assert.Single(usage.Reasons, r => r.Kind == "modules");
-        Assert.Contains(reason.Names, n => n.Contains("счета этого типа"));
+        var reason = Assert.Single(usage.Reasons, r => r.Kind.StartsWith("modules"));
+        Assert.Contains("счета этого типа", reason.Label);
     }
 
     // ── Скан: о модулях по имени не знает ──────────────────────────────────────
@@ -174,9 +173,10 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
         await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0::{columnType})", value);
 
         using var scope = host.Services.CreateScope();
-        var found = await scope.ServiceProvider.GetRequiredService<IRecordHolders>().FindAsync([record]);
+        var holders = scope.ServiceProvider.GetRequiredService<IRecordHolders>();
+        var found = await holders.FindAsync([record]);
 
-        Assert.Equal([record], found.Held);
+        Assert.Equal([record], (await holders.HeldAsync([record])).Ids);
         Assert.Contains("данные модуля, которого нет в этой сборке: 1", Assert.Single(found.Lines));
 
         var refusal = await Assert.ThrowsAsync<ConflictException>(() =>
@@ -219,12 +219,141 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
 
         var silent = HoldersWith(scope, new ModuleRegistry([new ProbeModule(probe.Schema, [])], []));
         var held = await silent.FindAsync([record]);
-        Assert.Equal([record], held.Held);
         Assert.Contains("«Проба»: записей — 1", Assert.Single(held.Lines));
 
         var remembering = HoldersWith(scope, new ModuleRegistry([new ProbeModule(probe.Schema,
             [ModuleReference.Remembering("things", "seen", ReferenceTarget.Record, "история просмотров")])], []));
         Assert.False((await remembering.FindAsync([record])).Any);
+        Assert.Empty((await remembering.HeldAsync([record])).Ids);
+    }
+
+    /// <summary>
+    /// Число в отказе — строки модуля, а не попадания: удаление уровня спрашивает о многих записях
+    /// разом, и счёт, в чьих полях стоят две из них, — один счёт, а не два (ревью PR #1188).
+    /// </summary>
+    [Fact]
+    public async Task Строка_с_двумя_спрошенными_записями_считается_один_раз()
+    {
+        var first = await OwnPositionAsync();
+        var second = await OwnPositionAsync();
+        await using var probe = await ProbeAsync("id uuid PRIMARY KEY, held jsonb");
+        await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0::jsonb)",
+            $$"""{"a":"{{first}}","b":"{{second}}","again":"{{first}}"}""");
+
+        using var scope = host.Services.CreateScope();
+        var holders = scope.ServiceProvider.GetRequiredService<IRecordHolders>();
+
+        Assert.Contains(": 1", Assert.Single((await holders.FindAsync([first, second])).Lines));
+        Assert.Equal(new[] { first, second }.Order(), (await holders.HeldAsync([first, second])).Ids.Order());
+    }
+
+    /// <summary>
+    /// Остальные пути удаления: документ комплекта, документ качества и уборка сирот. Вызов у каждого
+    /// свой, и перепись по исходникам стережёт только то, что файл спрашивает ХОТЬ ГДЕ-ТО, — убранный
+    /// вызов при оставленной зависимости она не заметит. Поэтому здесь — поведением.
+    /// </summary>
+    [Fact]
+    public async Task Документ_и_документ_качества_занятые_данными_модуля_не_удаляются()
+    {
+        using var scope = host.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var code = $"T{Guid.NewGuid():N}"[..12];
+        var type = await m.Send(new CreateDocumentTypeCommand(
+            $"Акт {code}", code, BHS.CRG.Domain.Documents.DocumentTypeKind.Document, null, JsonDocument.Parse("""{"fields":[]}""")));
+        var (site, sections) = await SiteAsync("Под документы", "ЭОМ");
+        var set = await m.Send(new CreateDocumentSetCommand(sections[0], "ЭОМ-1"));
+        var document = await m.Send(new AddDocumentToSetCommand(set.Id, type.Id));
+        var certificate = await m.Send(new BHS.CRG.Application.QualityDocs.CreateQualityDocumentCommand(
+            type.Id, "Сертификат", JsonDocument.Parse("{}"), BHS.CRG.Domain.Catalog.CatalogScope.System, null,
+            BHS.CRG.Domain.Documents.QualityDocSource.Manual, null, null, null));
+
+        await using var probe = await ProbeAsync("id uuid PRIMARY KEY, held uuid");
+        await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0)", document.Id);
+        await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0)", certificate.Id);
+
+        await Assert.ThrowsAsync<ConflictException>(() => m.Send(new DeleteDocumentInstanceCommand(document.Id)));
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            m.Send(new BHS.CRG.Application.QualityDocs.DeleteQualityDocumentCommand(certificate.Id)));
+        // И комплект, и стройка над документом: каскад уровня спрашивает о содержимом.
+        await Assert.ThrowsAsync<ConflictException>(() => m.Send(new DeleteDocumentSetCommand(set.Id)));
+        await Assert.ThrowsAsync<ConflictException>(() => m.Send(new DeleteConstructionCommand(site)));
+    }
+
+    /// <summary>
+    /// Уборка сирот — путь без человека: то, в чём человеку отказано, она не делает. А когда проверить
+    /// не удалось, не трогает никого, но ОТЧЁТ отдаёт — сухой прогон обязан отвечать числом, а не
+    /// отказом (ревью PR #1188).
+    /// </summary>
+    [Fact]
+    public async Task Уборка_сирот_не_трогает_занятое_а_без_проверки_не_трогает_никого()
+    {
+        Guid held, free;
+        using (var seed = host.Services.CreateScope())
+        {
+            var m = seed.ServiceProvider.GetRequiredService<IMediator>();
+            var code = $"T{Guid.NewGuid():N}"[..12];
+            var type = await m.Send(new CreateDocumentTypeCommand(
+                $"Акт {code}", code, BHS.CRG.Domain.Documents.DocumentTypeKind.Document, null, JsonDocument.Parse("""{"fields":[]}""")));
+            var (_, sections) = await SiteAsync("Под сирот", "ЭОМ");
+            var set = await m.Send(new CreateDocumentSetCommand(sections[0], "ЭОМ-1"));
+            held = (await m.Send(new AddDocumentToSetCommand(set.Id, type.Id))).Id;
+            free = (await m.Send(new AddDocumentToSetCommand(set.Id, type.Id))).Id;
+            // Комплект исчезает мимо каскада — так и получаются сироты.
+            await SqlAsync("""DELETE FROM document_sets WHERE "Id" = @p0""", set.Id);
+        }
+
+        await using var probe = await ProbeAsync("id uuid PRIMARY KEY, held uuid");
+        await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0)", held);
+
+        var role = $"probe_role_{Guid.NewGuid():N}";
+        await SqlAsync($"CREATE ROLE {role} NOLOGIN");
+        try
+        {
+            // Сначала — без проверки: роль читает ядро, но не схемы вне его.
+            await SqlAsync($"GRANT USAGE ON SCHEMA public TO {role}");
+            await SqlAsync($"GRANT SELECT, DELETE ON ALL TABLES IN SCHEMA public TO {role}");
+            using (var scope = host.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await db.Database.OpenConnectionAsync();
+                try
+                {
+#pragma warning disable EF1002 // Имя роли — из теста.
+                    await db.Database.ExecuteSqlRawAsync($"SET ROLE {role}");
+#pragma warning restore EF1002
+                    var blind = await scope.ServiceProvider
+                        .GetRequiredService<BHS.CRG.Infrastructure.Maintenance.OrphanObjectCleanup>().RunAsync(dryRun: false);
+                    Assert.True(blind.HoldersUnverified);
+                    Assert.Equal(0, blind.Total);
+                }
+                finally
+                {
+                    await db.Database.ExecuteSqlRawAsync("RESET ROLE");
+                    await db.Database.CloseConnectionAsync();
+                }
+            }
+            Assert.True(await ExistsAsync(free), "уборка без проверки держателей удалила сироту");
+
+            using (var scope = host.Services.CreateScope())
+            {
+                var report = await scope.ServiceProvider
+                    .GetRequiredService<BHS.CRG.Infrastructure.Maintenance.OrphanObjectCleanup>().RunAsync(dryRun: false);
+                Assert.False(report.HoldersUnverified);
+            }
+            Assert.True(await ExistsAsync(held), "уборка удалила сироту, которую держат данные модуля");
+            Assert.False(await ExistsAsync(free));
+        }
+        finally
+        {
+            await SqlAsync($"DROP OWNED BY {role}");
+            await SqlAsync($"DROP ROLE {role}");
+        }
+    }
+
+    private async Task<bool> ExistsAsync(Guid id)
+    {
+        using var scope = host.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().DomainObjects.AnyAsync(o => o.Id == id);
     }
 
     /// <summary>
@@ -249,12 +378,13 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
 #pragma warning disable EF1002 // Имя роли — из теста.
                 await db.Database.ExecuteSqlRawAsync($"SET ROLE {role}");
 #pragma warning restore EF1002
-                var found = await scope.ServiceProvider.GetRequiredService<IRecordHolders>().FindAsync([record]);
+                var holders = scope.ServiceProvider.GetRequiredService<IRecordHolders>();
+                var found = await holders.FindAsync([record]);
 
-                // Отказывают ОБА способа прочесть ответ: человеку — отказ в удалении, а пути без
-                // человека (уборка сирот) — отказ вместо пустого «никого не держат».
+                // Оба вопроса отвечают «не проверено»: человеку — отказом в удалении, а пути без
+                // человека — признаком, с которым пустое множество нельзя прочесть как «свободны все».
                 var refusal = Assert.Throws<ConflictException>(() => found.EnsureNone("запись"));
-                Assert.Throws<ConflictException>(() => found.Held);
+                Assert.False((await holders.HeldAsync([record])).Verified);
                 Assert.Contains("Удаление отменено", refusal.Message);
                 Assert.DoesNotContain("probe_", refusal.Message); // адрес — только администратору
                 Assert.DoesNotContain("costs.", refusal.Message);

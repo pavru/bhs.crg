@@ -5,11 +5,13 @@ using NpgsqlTypes;
 namespace BHS.CRG.Infrastructure.Persistence;
 
 /// <summary>Колонка вне ядра, в которой нашлись спрошенные идентификаторы.</summary>
-/// <param name="Hits">Идентификатор → сколько раз встречается в колонке.</param>
-public sealed record HeldColumn(string Schema, string Table, string Column, IReadOnlyDictionary<Guid, int> Hits)
+/// <param name="Hits">Идентификатор → в скольких строках таблицы он стоит в этой колонке.</param>
+/// <param name="Rows">Сколько строк таблицы держат хотя бы один из спрошенных идентификаторов. Не
+/// сумма <paramref name="Hits" />: строка с двумя спрошенными идентификаторами — одна строка.</param>
+public sealed record HeldColumn(
+    string Schema, string Table, string Column, IReadOnlyDictionary<Guid, int> Hits, int Rows)
 {
     public string Address => $"{Schema}.{Table}.{Column}";
-    public int Total => Hits.Values.Sum();
 }
 
 /// <summary>Данные вне ядра прочитать не удалось — сказать «никто не держит» нельзя.</summary>
@@ -98,50 +100,100 @@ public class ModuleReferenceScan(AppDbContext db)
     {
         if (ids.Count == 0) return [];
 
-        // Чужую транзакцию не трогаем: снимок в ней задаёт тот, кто её открыл.
-        await using var snapshot = db.Database.CurrentTransaction is null
+        // Чужую транзакцию не трогаем: снимок в ней задаёт тот, кто её открыл. Но отказ базы внутри
+        // неё прерывает транзакцию целиком — следующий запрос вызывающего упал бы «current transaction
+        // is aborted», внутренней ошибкой вместо отказа (ревью PR #1188). Поэтому в чужой транзакции
+        // скан идёт под точкой сохранения и откатывается к ней.
+        var foreign = db.Database.CurrentTransaction;
+        await using var snapshot = foreign is null
             ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct)
             : null;
+        if (foreign is not null) await foreign.CreateSavepointAsync(Savepoint, ct);
+
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
-
-        var columns = new List<RefColumn>();
-        await using (var cmd = connection.CreateCommand())
+        var address = "каталог базы";
+        try
         {
-            cmd.CommandText = ColumnsSql;
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-                columns.Add(new RefColumn(
-                    reader.GetString(0), reader.GetString(1), reader.GetString(2), (Kind)reader.GetInt32(3)));
-        }
+            // Своя транзакция — свои пределы: миграция модуля держит таблицу исключительным замком, и
+            // без предела удаление записи висело бы на нём, пока не истечёт таймаут запроса у клиента.
+            // С пределом это отказ «повторите позже». В чужой транзакции пределы задаёт её хозяин.
+            if (foreign is null)
+                await ExecuteAsync(connection, $"SET LOCAL lock_timeout = '{LockTimeout}'; SET LOCAL statement_timeout = '{StatementTimeout}'", ct);
 
-        var asked = ids.Distinct().ToArray();
-        var found = new List<HeldColumn>();
-        foreach (var column in columns)
-        {
-            try
+            var columns = new List<RefColumn>();
+            await using (var cmd = connection.CreateCommand())
             {
-                await using var cmd = connection.CreateCommand();
-                cmd.CommandText = Sql(column);
-                cmd.Parameters.Add(new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = asked });
-                if (column.Kind == Kind.Json)
-                    cmd.Parameters.Add(new NpgsqlParameter("uuid", UuidInText));
-
-                var hits = new Dictionary<Guid, int>();
+                cmd.CommandText = ColumnsSql;
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
-                    hits[reader.GetGuid(0)] = reader.GetInt32(1);
-
-                if (hits.Count > 0)
-                    found.Add(new HeldColumn(column.Schema, column.Table, column.Column, hits));
+                    columns.Add(new RefColumn(
+                        reader.GetString(0), reader.GetString(1), reader.GetString(2), (Kind)reader.GetInt32(3)));
             }
-            catch (PostgresException ex)
+
+            var asked = ids.Distinct().ToArray();
+            var found = new List<HeldColumn>();
+            foreach (var column in columns)
             {
-                // Пропустить колонку нельзя: «не смог прочитать» превратилось бы в «никто не держит».
-                throw new ModuleDataUnreadableException(column.Address, ex);
-            }
-        }
+                address = column.Address;
+                await using var cmd = connection.CreateCommand();
+                cmd.CommandText = Sql(column, asked.Length);
+                cmd.Parameters.Add(new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = asked });
+                if (column.Kind == Kind.Json)
+                {
+                    cmd.Parameters.Add(new NpgsqlParameter("uuid", UuidInText));
+                    if (asked.Length <= LikeUpTo)
+                        cmd.Parameters.Add(new NpgsqlParameter("likes", asked.Select(id => $"%{id}%").ToArray()));
+                }
 
-        return found;
+                // Строка ответа — строка ТАБЛИЦЫ (или группа строк с одним значением) и те из спрошенных
+                // идентификаторов, что в ней стоят. Считать приходится так, а не суммой по
+                // идентификаторам: удаление уровня спрашивает о многих записях разом, и счёт, в чьих
+                // полях стоят две из них, шёл бы в отказ как два (ревью PR #1188).
+                var hits = new Dictionary<Guid, int>();
+                var rows = 0;
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    var inRow = reader.GetFieldValue<Guid[]>(0);
+                    if (inRow.Length == 0) continue;
+
+                    var count = reader.GetInt32(1);
+                    rows += count;
+                    foreach (var id in inRow) hits[id] = hits.GetValueOrDefault(id) + count;
+                }
+
+                if (rows > 0)
+                    found.Add(new HeldColumn(column.Schema, column.Table, column.Column, hits, rows));
+            }
+
+            if (foreign is not null) await foreign.ReleaseSavepointAsync(Savepoint, ct);
+            return found;
+        }
+        catch (PostgresException ex)
+        {
+            if (foreign is not null) await foreign.RollbackToSavepointAsync(Savepoint, ct);
+            // Пропустить колонку нельзя: «не смог прочитать» превратилось бы в «никто не держит».
+            throw new ModuleDataUnreadableException(address, ex);
+        }
+    }
+
+    private const string Savepoint = "record_holders_scan";
+    private const string LockTimeout = "5s";
+    private const string StatementTimeout = "60s";
+
+    /// <summary>
+    /// До скольких идентификаторов строки JSON отбираются поиском подстроки, а не выражением. Одна
+    /// запись — обычный случай (удаление записи, карточка типа), и подстрока на порядок дешевле
+    /// разбора каждой строки выражением. Удаление уровня спрашивает о сотнях — там сотня подстрок на
+    /// строку дороже одного выражения.
+    /// </summary>
+    private const int LikeUpTo = 20;
+
+    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql, CancellationToken ct)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>
@@ -149,36 +201,44 @@ public class ModuleReferenceScan(AppDbContext db)
     /// объявил, чем назвать документ. Не больше <paramref name="limit" />: отказ — не отчёт.
     ///
     /// <para>Не удалось (схема отстала от объявления, колонка оказалась не идентификатором) — пустой
-    /// список, а не отказ: число держателей уже посчитано сканом, названия — пояснение к нему.</para>
+    /// список, а не отказ: число держателей уже посчитано сканом, названия — пояснение к нему. В
+    /// чужой транзакции запрос идёт под точкой сохранения — по той же причине, что и скан.</para>
     /// </summary>
     public async Task<IReadOnlyList<string>> LabelsAsync(
         HeldColumn held, string documentTable, string documentKey, string labelColumn, string via,
         int limit, CancellationToken ct = default)
     {
+        var foreign = db.Database.CurrentTransaction;
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
         var opened = connection.State != System.Data.ConnectionState.Open;
         if (opened) await db.Database.OpenConnectionAsync(ct);
+        if (foreign is not null) await foreign.CreateSavepointAsync(Savepoint, ct);
         try
         {
-            await using var cmd = connection.CreateCommand();
-            cmd.CommandText = $"""
-                SELECT DISTINCT d.{Id(labelColumn)}::text
-                FROM {Id(held.Schema)}.{Id(held.Table)} r
-                JOIN {Id(held.Schema)}.{Id(documentTable)} d ON d.{Id(documentKey)} = r.{Id(via)}
-                WHERE r.{Id(held.Column)} = ANY(@ids) AND d.{Id(labelColumn)} IS NOT NULL
-                ORDER BY 1 LIMIT @limit
-                """;
-            cmd.Parameters.Add(new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid)
-                { Value = held.Hits.Keys.ToArray() });
-            cmd.Parameters.Add(new NpgsqlParameter("limit", limit));
-
             var labels = new List<string>();
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct)) labels.Add(reader.GetString(0));
+            await using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = $"""
+                    SELECT DISTINCT d.{Id(labelColumn)}::text
+                    FROM {Id(held.Schema)}.{Id(held.Table)} r
+                    JOIN {Id(held.Schema)}.{Id(documentTable)} d ON d.{Id(documentKey)} = r.{Id(via)}
+                    WHERE r.{Id(held.Column)} = ANY(@ids) AND d.{Id(labelColumn)} IS NOT NULL
+                    ORDER BY 1 LIMIT @limit
+                    """;
+                cmd.Parameters.Add(new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid)
+                    { Value = held.Hits.Keys.ToArray() });
+                cmd.Parameters.Add(new NpgsqlParameter("limit", limit));
+
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct)) labels.Add(reader.GetString(0));
+            }
+
+            if (foreign is not null) await foreign.ReleaseSavepointAsync(Savepoint, ct);
             return labels;
         }
         catch (PostgresException)
         {
+            if (foreign is not null) await foreign.RollbackToSavepointAsync(Savepoint, ct);
             return [];
         }
         finally
@@ -187,27 +247,33 @@ public class ModuleReferenceScan(AppDbContext db)
         }
     }
 
-    private static string Sql(RefColumn c)
+    /// <summary>
+    /// Запрос по колонке. Форма ответа у всех видов одна: спрошенные идентификаторы, стоящие в строке,
+    /// и сколько строк таблицы за этой строкой ответа стоит.
+    /// </summary>
+    private static string Sql(RefColumn c, int asked)
     {
         var table = $"{Id(c.Schema)}.{Id(c.Table)}";
         var column = $"x.{Id(c.Column)}";
         return c.Kind switch
         {
             Kind.Uuid => $"""
-                SELECT {column}, count(*)::int FROM {table} x
+                SELECT ARRAY[{column}], count(*)::int FROM {table} x
                 WHERE {column} = ANY(@ids) GROUP BY {column}
                 """,
             Kind.UuidArray => $"""
-                SELECT u, count(*)::int FROM {table} x, LATERAL unnest({column}) u
-                WHERE {column} && @ids AND u = ANY(@ids) GROUP BY u
+                SELECT ARRAY(SELECT DISTINCT u FROM unnest({column}) u WHERE u = ANY(@ids)), 1
+                FROM {table} x WHERE {column} && @ids
                 """,
-            // Все идентификаторы колонки вырезаются одним проходом и сравниваются с массивом: поиск
-            // подстроки на каждый идентификатор для каскада уровня был бы запросом на запись.
+            // Идентификаторы строки вырезаются выражением и сравниваются с массивом — но только у строк,
+            // прошедших дешёвый отбор: подстрокой, когда спрошено немного, иначе «есть ли идентификатор
+            // вообще».
             _ => $"""
-                SELECT m.id, count(*)::int
-                FROM {table} x,
-                     LATERAL (SELECT DISTINCT (regexp_matches(lower({column}::text), @uuid, 'g'))[1]::uuid AS id) m
-                WHERE m.id = ANY(@ids) GROUP BY m.id
+                SELECT ARRAY(SELECT DISTINCT m[1]::uuid
+                             FROM regexp_matches(lower({column}::text), @uuid, 'g') m
+                             WHERE m[1]::uuid = ANY(@ids)), 1
+                FROM {table} x
+                WHERE {(asked <= LikeUpTo ? $"lower({column}::text) LIKE ANY(@likes)" : $"lower({column}::text) ~ @uuid")}
                 """,
         };
     }

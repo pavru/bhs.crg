@@ -14,6 +14,11 @@ namespace BHS.CRG.Tests.Configuration;
 /// <para>Проверка по исходникам и нарочно грубая: файл, который и удаляет что-то, и работает с
 /// записями ядра, либо спрашивает держателей (сам или через каскад уровня), либо назван здесь с
 /// причиной. Ложное срабатывание стоит одной строки в переписи, пропуск — потерянных ссылок.</para>
+///
+/// <para>⚠️ <b>Стережёт ФАЙЛ, а не путь удаления</b> (ревью PR #1188). Второй обработчик с удалением в
+/// файле, который уже спрашивает, она пропустит. Каждый существующий путь поэтому проверен ещё и
+/// поведением — <c>OccupiedRecordDeleteTests</c>; новый путь в старом файле обязан прийти со своим
+/// тестом, и напомнить об этом может только ревью.</para>
 /// </summary>
 public class RecordDeletionInventoryTests
 {
@@ -26,7 +31,7 @@ public class RecordDeletionInventoryTests
     private static readonly Regex TouchesRecords = new(
         @"IRepository<(DomainObject|Construction|Section|DocumentSet|DocumentType|WorkPlanItem|QualityDocument)>" +
         @"|IDomainObjectRepository" +
-        @"|\bdb\.(DomainObjects|Constructions|Sections|DocumentSets|DocumentTypes|WorkPlanItems|QualityDocuments)\b",
+        @"|\.(DomainObjects|Constructions|Sections|DocumentSets|DocumentTypes|WorkPlanItems|QualityDocuments)\b",
         RegexOptions.Compiled);
 
     /// <summary>Файл спрашивает держателей — сам или через каскад уровня, который спрашивает за него.</summary>
@@ -65,7 +70,7 @@ public class RecordDeletionInventoryTests
     public void Каждый_путь_удаления_записи_ядра_спрашивает_держателей_в_модулях()
     {
         var silent = Projects.SelectMany(SourceFiles)
-            .Select(file => (Rel: Relative(file), Text: File.ReadAllText(file)))
+            .Select(file => (Rel: Relative(file), Text: Code(File.ReadAllText(file))))
             .Where(f => Deletes.IsMatch(f.Text) && TouchesRecords.IsMatch(f.Text))
             .Where(f => !Asks.IsMatch(f.Text) && !DeletesSomethingElse.ContainsKey(f.Rel))
             .Select(f => f.Rel)
@@ -93,7 +98,7 @@ public class RecordDeletionInventoryTests
             {
                 var path = Path.Combine(SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
                 if (!File.Exists(path)) return true;
-                var text = File.ReadAllText(path);
+                var text = Code(File.ReadAllText(path));
                 return !Deletes.IsMatch(text) || !TouchesRecords.IsMatch(text) || Asks.IsMatch(text);
             })
             .Order(StringComparer.Ordinal)
@@ -103,6 +108,13 @@ public class RecordDeletionInventoryTests
             "В переписи файлы, которым исключение больше не нужно: " + string.Join(", ", stale) +
             ".\nУберите строки — иначе перепись разрешает то, чего уже не делают.");
     }
+
+    /// <summary>
+    /// Исходник без комментариев: упоминание порта в комментарии — не вопрос держателям, а удаление,
+    /// описанное словами, — не удаление.
+    /// </summary>
+    private static string Code(string source) =>
+        string.Join('\n', source.Split('\n').Where(line => !line.TrimStart().StartsWith("//")));
 
     private static IEnumerable<string> SourceFiles(string project) =>
         Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)

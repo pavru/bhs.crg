@@ -35,6 +35,24 @@ public sealed class ModuleRecordHolders(
     /// <summary>Сколько документов назвать в отказе. Отказ — не отчёт: хватит, чтобы узнать место.</summary>
     private const int NamedDocuments = 5;
 
+    public async Task<HeldRecords> HeldAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new HeldRecords(new HashSet<Guid>(), Verified: true);
+
+        try
+        {
+            var held = new HashSet<Guid>();
+            foreach (var column in await scan.FindAsync(ids, ct))
+                if (Declared(column) is not { Holds: false }) held.UnionWith(column.Hits.Keys);
+            return new HeldRecords(held, Verified: true);
+        }
+        catch (ModuleDataUnreadableException ex)
+        {
+            log.LogWarning(ex, "Держатели записей не проверены: не прочитана колонка {Address}", ex.Address);
+            return new HeldRecords(new HashSet<Guid>(), Verified: false);
+        }
+    }
+
     public async Task<RecordHoldings> FindAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
         if (ids.Count == 0) return RecordHoldings.None;
@@ -55,31 +73,30 @@ public sealed class ModuleRecordHolders(
             // сервера: её текст — не наш, и человеку его отдавать незачем.
             log.LogWarning(ex, "Держатели записи не проверены: не прочитана колонка {Address}", ex.Address);
             return RecordHoldings.Unverified(
-                "Удаление отменено: не удалось проверить, ссылаются ли на это данные модулей. " +
+                "Не удалось проверить, ссылаются ли на это данные модулей. " +
                 (admin
-                    ? $"Не прочитана колонка {ex.Address}. Если таблица посторонняя — дайте учётной " +
+                    ? $"Не прочитано: {ex.Address}. Если таблица посторонняя — дайте учётной " +
                       "записи приложения право чтения или вынесите таблицу из этой базы; если идёт " +
                       "обновление модуля — повторите позже. Ответ базы записан в журнал сервера."
-                    : "Обратитесь к администратору: причина видна ему в том же отказе."));
+                    : "Обратитесь к администратору: причина видна ему в том же сообщении."));
         }
 
-        var held = new HashSet<Guid>();
         var lines = new List<string>();
         foreach (var column in columns)
         {
-            var module = ModuleOf(column.Schema);
-            var declared = module?.References.FirstOrDefault(r =>
-                string.Equals(r.Table, column.Table, StringComparison.Ordinal)
-                && string.Equals(r.Column, column.Column, StringComparison.Ordinal));
-
+            var declared = Declared(column);
             if (declared is { Holds: false }) continue;
 
-            held.UnionWith(column.Hits.Keys);
-            lines.Add(await DescribeAsync(column, module, declared, granted, admin, ct));
+            lines.Add(await DescribeAsync(column, ModuleOf(column.Schema), declared, granted, admin, ct));
         }
 
-        return new RecordHoldings(held, lines);
+        return new RecordHoldings(lines);
     }
+
+    private ModuleReference? Declared(HeldColumn column) =>
+        ModuleOf(column.Schema)?.References.FirstOrDefault(r =>
+            string.Equals(r.Table, column.Table, StringComparison.Ordinal)
+            && string.Equals(r.Column, column.Column, StringComparison.Ordinal));
 
     private async Task<string> DescribeAsync(
         HeldColumn column, IAppModule? module, ModuleReference? declared,
@@ -88,16 +105,16 @@ public sealed class ModuleRecordHolders(
         var address = admin ? $" ({column.Address})" : "";
 
         if (module is null)
-            return $"данные модуля, которого нет в этой сборке: {column.Total}{address}";
+            return $"данные модуля, которого нет в этой сборке: {column.Rows}{address}";
 
         var owner = $"«{module.Title}»" + (registry.IsEnabled(module.Code) ? "" : " (модуль выключен)");
 
         // Колонку модуль не объявил: держит она так же, а назвать её нечем, кроме числа. Адрес
         // помогает тому, кто пойдёт разбираться, — и показывается только ему.
         if (declared is null)
-            return $"{owner}: записей — {column.Total}{address}";
+            return $"{owner}: записей — {column.Rows}{address}";
 
-        var line = $"{owner}: {declared.What} — {column.Total}";
+        var line = $"{owner}: {declared.What} — {column.Rows}";
         if (declared.Document is { } doc && granted.Contains(doc.Permission))
         {
             var labels = await scan.LabelsAsync(

@@ -42,7 +42,7 @@ public static class MaintenanceEndpoints
             return Results.Ok(new
             {
                 report.Objects, report.QualityDocuments, report.MaterialLinks,
-                report.WithData, report.Referenced, report.Total, dryRun = isDryRun,
+                report.WithData, report.Referenced, report.Total, report.HoldersUnverified, dryRun = isDryRun,
             });
         });
 

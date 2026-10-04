@@ -21,58 +21,55 @@ namespace BHS.CRG.Application.Objects;
 public interface IRecordHolders
 {
     /// <summary>
-    /// Кто держит эти записи. Спрашивается о ГРУППЕ: удаление уровня уносит поддерево разом.
+    /// Кто держит эти записи — словами, для отказа человеку. Спрашивается о ГРУППЕ: удаление уровня
+    /// уносит поддерево разом.
     /// </summary>
     Task<RecordHoldings> FindAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>
+    /// Какие из записей держат — без слов. Для пути без человека (уборка сирот): ему нужно множество,
+    /// а названия документов стоили бы запроса на каждую держащую колонку впустую.
+    /// </summary>
+    Task<HeldRecords> HeldAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 }
+
+/// <param name="Ids">Какие из спрошенных записей держат.</param>
+/// <param name="Verified">
+/// Удалось ли проверить. <c>false</c> — данные вне ядра не прочитаны, и <paramref name="Ids" /> пуст
+/// НЕ потому, что никто не держит: трогать нельзя ни одну из спрошенных записей. Отдельным полем, а
+/// не исключением, потому что сухой прогон уборки обязан ответить отчётом, а не отказом.
+/// </param>
+public sealed record HeldRecords(IReadOnlySet<Guid> Ids, bool Verified);
 
 /// <summary>
 /// Ответ на вопрос «кто держит». У него три исхода, а не два: держат, не держат — и «проверить не
-/// удалось». Третий обязан читаться как отказ на любом пути: непрочитанные данные могли держать, и
-/// принять его за «никто не держит» значило бы удалить занятое.
+/// удалось». Третий обязан читаться как отказ: непрочитанные данные могли держать, и принять его за
+/// «никто не держит» значило бы удалить занятое.
 /// </summary>
 public sealed class RecordHoldings
 {
-    private readonly IReadOnlySet<Guid> held;
-    private readonly string? unverified;
-
-    /// <param name="held">Какие из спрошенных записей держат.</param>
     /// <param name="lines">
     /// Держатели строками «что — сколько», готовыми для отказа. Составлены ДЛЯ ТОГО, КТО СПРАШИВАЕТ:
     /// названия документов — только при праве чтения модуля, адрес таблицы — только администратору.
     /// </param>
-    public RecordHoldings(IReadOnlySet<Guid> held, IReadOnlyList<string> lines)
-    {
-        this.held = held;
-        Lines = lines;
-    }
+    public RecordHoldings(IReadOnlyList<string> lines) => Lines = lines;
 
-    private RecordHoldings(string unverified)
-    {
-        held = new HashSet<Guid>();
-        Lines = [unverified];
-        this.unverified = unverified;
-    }
-
-    public static readonly RecordHoldings None = new(new HashSet<Guid>(), []);
+    public static readonly RecordHoldings None = new([]);
 
     /// <summary>
     /// Проверить не удалось: данные вне ядра не прочитаны. <paramref name="why" /> — текст для того,
-    /// кто спрашивает.
+    /// кто спрашивает; о действии он молчит — тем же ответом пользуется и показ «чем занят тип», где
+    /// никто ничего не удаляет.
     /// </summary>
-    public static RecordHoldings Unverified(string why) => new(why);
+    public static RecordHoldings Unverified(string why) => new([why]) { IsUnverified = true };
 
+    public bool IsUnverified { get; private init; }
+
+    /// <summary>Строки держателей; у непроверенного ответа — одна, с объяснением.</summary>
     public IReadOnlyList<string> Lines { get; }
 
     /// <summary>Держат — или проверить не удалось: удалять нельзя в обоих случаях.</summary>
     public bool Any => Lines.Count > 0;
-
-    /// <summary>
-    /// Какие записи держат. Непроверенный ответ здесь ОТКАЗЫВАЕТ, а не отдаёт пустое множество: этим
-    /// свойством пользуется путь без человека (уборка сирот), и пустое множество он прочёл бы как
-    /// «свободны все».
-    /// </summary>
-    public IReadOnlySet<Guid> Held => unverified is null ? held : throw new ConflictException(unverified);
 
     /// <summary>
     /// Отказ, если запись держат. <paramref name="what" /> — что удаляют, в винительном падеже:
@@ -83,7 +80,7 @@ public sealed class RecordHoldings
     /// </summary>
     public void EnsureNone(string what)
     {
-        if (unverified is not null) throw new ConflictException(unverified);
+        if (IsUnverified) throw new ConflictException($"Удаление отменено. {Lines[0]}");
         if (!Any) return;
 
         throw new ConflictException(

@@ -30,10 +30,12 @@ public static class CostsReferences
         ModuleReference.Holding("invoices", "data", target: null,
             "счета, где запись выбрана в дополнительном поле"),
 
-        // Учётные записи путями, которые спрашивают держателей, не удаляются (CORE-7). Объявлено
-        // держащим на случай, если начнут: потерять автора счёта молча хуже, чем получить отказ.
-        ModuleReference.Holding("invoices", "created_by", ReferenceTarget.User,
-            "счета, заведённые пользователем", Invoice("id")),
+        // Автор счёта — справка, а не связь: удаление учётной записи держателей не спрашивает и
+        // спрашивать не должно — иначе сотрудника, заводившего счета, нельзя было бы убрать никогда,
+        // а освободить колонку нечем. Объявить её держащей значило бы обещать то, чего система не
+        // делает (ревью PR #1188).
+        ModuleReference.Remembering("invoices", "created_by", ReferenceTarget.User,
+            "кто завёл счёт — справочное поле; удаление учётной записи счетов не касается"),
 
         ModuleReference.Holding("invoice_lines", "nomenclature_id", ReferenceTarget.Record,
             "строки счетов с этой позицией номенклатуры", Invoice("invoice_id")),

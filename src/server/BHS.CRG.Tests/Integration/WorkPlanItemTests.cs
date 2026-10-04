@@ -38,10 +38,11 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         public Task<RecordHoldings> FindAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
         {
             Asked = ids;
-            return Task.FromResult(count == 0
-                ? RecordHoldings.None
-                : new RecordHoldings(ids.ToHashSet(), [$"{what}: {count}"]));
+            return Task.FromResult(count == 0 ? RecordHoldings.None : new RecordHoldings([$"{what}: {count}"]));
         }
+
+        public Task<HeldRecords> HeldAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            Task.FromResult(new HeldRecords(count == 0 ? new HashSet<Guid>() : ids.ToHashSet(), Verified: true));
     }
 
     // ── Сторож задачи: в позицию не добавить чужого поля ───────────────────────

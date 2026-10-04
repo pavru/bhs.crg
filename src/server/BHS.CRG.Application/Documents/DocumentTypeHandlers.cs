@@ -545,9 +545,11 @@ public class DocumentTypeHandlers(
         // Данные модулей (issue #1094): счёт ссылается на свой тип колонкой в схеме модуля, и ни
         // одна из проверок выше её не видит. Здесь же, а не только в удалении: причины показываются
         // и заранее (issue #275), и разойтись им нельзя.
+        // Причина на держателя, а не одна с перечнем: строка держателя сама содержит запятые и скобки
+        // («… — 3 (счета: № 12, № 15)»), и склеенные через запятую они не читаются.
         var inModules = await holders.FindAsync([dt.Id], ct);
-        if (inModules.Any)
-            reasons.Add(new("modules", "Данные модулей", 0, inModules.Lines));
+        reasons.AddRange(inModules.Lines.Select((line, i) =>
+            new DocumentTypeUsageReason($"modules-{i}", $"Данные модулей — {line}", 0, [])));
 
         return new DocumentTypeUsage(reasons);
     }
