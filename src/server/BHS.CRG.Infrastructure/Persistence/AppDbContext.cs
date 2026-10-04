@@ -87,6 +87,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Activity.ActivityRecord> ActivityRecords
         => Set<BHS.CRG.Domain.Activity.ActivityRecord>();
 
+    /// <summary>
+    /// Закрытия учётного периода (ТЗ CORE-35). Обращаться к набору напрямую позволено ОДНОЙ службе —
+    /// <c>Infrastructure/Periods/PeriodClosureService.cs</c>; сторож
+    /// <c>PeriodClosureInventoryTests</c> перечисляет упоминания и падает на новом.
+    /// </summary>
+    public DbSet<BHS.CRG.Domain.Periods.PeriodClosure> PeriodClosures
+        => Set<BHS.CRG.Domain.Periods.PeriodClosure>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -95,19 +103,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        RefuseActivityLogEdits();
+        RefuseAppendOnlyEdits();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
     {
-        RefuseActivityLogEdits();
+        RefuseAppendOnlyEdits();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
     }
 
     /// <summary>
-    /// Журнал только дописывается (ТЗ CORE-28): правка и удаление записи отвергаются здесь, в
+    /// Дописываемые записи ядра (<see cref="BHS.CRG.Domain.Common.IAppendOnlyRecord" />) — журнал
+    /// действий (ТЗ CORE-28) и закрытия периода (ТЗ CORE-35): правка и удаление отвергаются здесь, в
     /// единственной точке сохранения.
+    ///
+    /// По пометке на сущности, а не по имени типа: защита, знавшая один журнал, оставила бы вторую
+    /// дописываемую таблицу без себя молча (issue #1081).
     ///
     /// Приватных сеттеров для этого мало: <c>ChangeTracker</c> ставит состояние <c>Modified</c> и по
     /// прямому <c>Entry(...).State</c>, и по правке через рефлексию, и запись ушла бы в базу без
@@ -117,18 +129,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     /// ⚠️ Чего это НЕ закрывает: <c>ExecuteUpdate</c>/<c>ExecuteDelete</c> и голый SQL идут мимо
     /// трекера. Их закрывает сторож по исходникам — там, где такую строку ещё можно не дописать.
     /// </summary>
-    private void RefuseActivityLogEdits()
+    private void RefuseAppendOnlyEdits()
     {
-        var touched = ChangeTracker.Entries<BHS.CRG.Domain.Activity.ActivityRecord>()
+        var touched = ChangeTracker.Entries<BHS.CRG.Domain.Common.IAppendOnlyRecord>()
             .Where(e => e.State is EntityState.Modified or EntityState.Deleted)
-            .Select(e => $"{e.Entity.Action} от {e.Entity.OccurredAt:u} ({e.State})")
+            .Select(e => $"{e.Entity.AppendOnlyLabel} ({e.State})")
             .ToList();
 
         if (touched.Count == 0) return;
 
         throw new InvalidOperationException(
-            "Записи журнала действий изменению и удалению не подлежат (ТЗ CORE-28), а изменены: " +
+            "Дописываемые записи изменению и удалению не подлежат (ТЗ CORE-28, CORE-35), а изменены: " +
             string.Join("; ", touched) +
-            ". Новое событие записывается новой строкой через IActivityLog.RecordAsync.");
+            ". Новое событие записывается новой строкой: журнал — через IActivityLog.RecordAsync, " +
+            "закрытие периода и его отмена — через IPeriodClosures.");
     }
 }

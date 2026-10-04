@@ -498,7 +498,8 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
         NullLogger<BackupService>.Instance,
         scope.ServiceProvider.GetRequiredService<IActivityLog>(),
-        modules);
+        modules,
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Periods.IPeriodClosures>());
 
     /// <summary>Копия целиком в памяти: её читают дважды — как манифест и как вход восстановления.</summary>
     private static async Task<MemoryStream> ArchiveAsync(BackupService service, BackupScope scope)

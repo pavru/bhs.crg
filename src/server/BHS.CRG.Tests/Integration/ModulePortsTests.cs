@@ -490,22 +490,9 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
 
     // ── Учётный период ────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Закрытых периодов пока не бывает, и это правда об экземпляре, а не заглушка: закрывать период
-    /// нечем — служба закрытия приезжает задачей E1a этапа 2 (issue #1081).
-    ///
-    /// Тест стоит здесь, чтобы ответ «не закрыто ничего» не остался незамеченным решением: когда
-    /// служба появится, он упадёт и потребует переписать себя под неё.
-    /// </summary>
-    [Fact]
-    public async Task Периоды_пока_не_закрываются()
-    {
-        using var scope = host.Services.CreateScope();
-        var periods = scope.ServiceProvider.GetRequiredService<IModulePeriods>();
-
-        Assert.Null(await periods.ClosedThroughAsync());
-        Assert.False(await periods.IsClosedAsync(DateOnly.FromDateTime(DateTime.UtcNow)));
-    }
+    // Порт периодов отвечает границами службы закрытия ядра (задача E1a, issue #1081) — проверяется
+    // там же, где сама служба: PeriodClosureTests. Прежний тест «периоды пока не закрываются» умер
+    // вместе с ответом-постоянной, который он стерёг.
 
     // ── Состав поставки ───────────────────────────────────────────────────────
 

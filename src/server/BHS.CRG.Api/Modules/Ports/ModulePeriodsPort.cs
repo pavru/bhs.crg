@@ -1,26 +1,28 @@
+using BHS.CRG.Application.Periods;
 using BHS.CRG.Modules.Ports;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
 /// <summary>
-/// Учётный период: пока закрывать его нечем — не закрыто ничего (ТЗ COST-Q8).
+/// Учётный период для модулей — границы из службы закрытия ядра (ТЗ CORE-35; задача E1a,
+/// issue #1081).
 ///
-/// <para>⚠️ Это НЕ заглушка и не «пока так»: на любом сегодняшнем экземпляре закрытых периодов
-/// действительно нет, потому что службы закрытия в системе нет вовсе — она приезжает задачей E1a
-/// этапа 2 (issue #1081). Ответ «не закрыто ничего» — правда об этом экземпляре, и модуль, который
-/// на него опирается, ведёт себя верно.</para>
+/// <para>Переходник не считает ничего: границы сводит <c>PeriodLedger</c> ядра, здесь они
+/// перекладываются в снимок контрактов. Стройки отдаются с ДЕЙСТВУЮЩЕЙ границей — позднейшей из
+/// своей и границы компании: модуль, прочитавший словарь мимо функций снимка, не должен получить
+/// дату раньше настоящей.</para>
 ///
-/// <para>Порт заведён раньше службы нарочно. Первый же модуль, которому понадобился период, спросил
-/// бы про него базу напрямую — то есть завёл бы своё представление о закрытии, и потом их стало бы
-/// два. Цена решения названа: этот класс обязан УМЕРЕТЬ вместе с E1a, а не остаться рядом со
-/// службой. Что он умер, проверит тест самой службы; что он ещё жив и почему — говорит
-/// <c>ModulePortsTests.Периоды_пока_не_закрываются</c>, и он назовёт задачу.</para>
+/// <para>⚠️ Замка переходник не берёт: он читает соединением ядра, а замок записи обязан жить на
+/// соединении модуля, в его транзакции (см. <c>OpenPeriodWrite</c>).</para>
 /// </summary>
-public sealed class NoClosedPeriods : IModulePeriods
+public sealed class ModulePeriodsPort(IPeriodClosures closures) : IModulePeriods
 {
-    public Task<DateOnly?> ClosedThroughAsync(CancellationToken ct = default) =>
-        Task.FromResult<DateOnly?>(null);
-
-    public Task<bool> IsClosedAsync(DateOnly date, CancellationToken ct = default) =>
-        Task.FromResult(false);
+    public async Task<PeriodBoundaries> BoundariesAsync(CancellationToken ct = default)
+    {
+        var ledger = await closures.LedgerAsync(ct);
+        var constructions = ledger.ConstructionsWithOwn.ToDictionary(
+            id => id,
+            id => ledger.ClosedThrough(Domain.Periods.PeriodContour.Construction(id))!.Value);
+        return new PeriodBoundaries(ledger.Company, constructions);
+    }
 }

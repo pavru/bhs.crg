@@ -25,7 +25,7 @@ internal static class TestRunDatabase
     internal static readonly string[] IdentityTables = ["AspNetUsers", "AspNetRoles", "RefreshTokens"];
 
     /// <summary>Ключ замка прогона: число произвольное, важно лишь, что у всех прогонов оно одно.</summary>
-    private const long RunLock = 1142_2026;
+    internal const long RunLock = 1142_2026;
 
     /// <summary>Подключения, которыми этот процесс держит свои базы: замок живёт, пока живо оно.</summary>
     private static readonly ConcurrentDictionary<string, NpgsqlConnection> Claims = new();

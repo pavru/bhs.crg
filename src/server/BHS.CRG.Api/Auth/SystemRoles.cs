@@ -66,7 +66,7 @@ public static class SystemRoles
         new("ProjectManager", "Менеджер проекта",
             "Назначение монтажников на свои стройки, приёмка отчётов, графики",
             [
-                "core.employees.read", "core.constructions.edit", "core.period.close", CorePermissions.FilesUse,
+                "core.employees.read", "core.constructions.edit", CorePermissions.PeriodClose, CorePermissions.FilesUse,
                 .. ReferenceReads,
                 "work.report.review", "work.assign", "work.crew.approve", "work.devices.manage",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
@@ -101,7 +101,7 @@ public static class SystemRoles
         new("Accountant", "Бухгалтер",
             "Отметка оплаты, реестр счетов, отчёты по затратам",
             [
-                "core.employees.read", "core.period.close", CorePermissions.FilesUse, .. ReferenceReads,
+                "core.employees.read", CorePermissions.PeriodClose, CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.pay", "costs.report.read", "costs.articles.edit",
             ]),
 

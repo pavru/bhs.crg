@@ -205,6 +205,12 @@ internal static class WorkerRegistration
     // у него своя схема и своя транзакция (задача A2a, issue #1072): порядок «сначала своё, потом
     // журнал» назван в IActivityLog и в порту модуля.
     builder.Services.AddScoped<IActivityLog, BHS.CRG.Infrastructure.Activity.ActivityLog>();
+
+    // Закрытие учётного периода — служба ЯДРА (ТЗ CORE-35): регистрируется здесь, а не с портами
+    // модулей, потому что обязана работать и при пустом Modules__Enabled. Часы ей регистрирует
+    // AddModulePorts — он зовётся при любом составе поставки.
+    builder.Services.AddScoped<BHS.CRG.Application.Periods.IPeriodClosures,
+        BHS.CRG.Infrastructure.Periods.PeriodClosureService>();
     // Редактор матрицы ролей (ТЗ AUTH-5): правит роли Identity и пишет в журнал — scoped, как и они.
     builder.Services.AddScoped<BHS.CRG.Api.Auth.RoleEditor>();
     builder.Services.AddSingleton<IActivityActor, BHS.CRG.Api.Activity.HttpContextActivityActor>();

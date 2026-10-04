@@ -82,6 +82,9 @@ public static class CorePermissions
     /// </summary>
     public const string AuditRead = "core.audit.read";
 
+    /// <summary>Закрывать учётный период и отменять ошибочное закрытие (ТЗ CORE-35).</summary>
+    public const string PeriodClose = "core.period.close";
+
     /// <summary>Управление аудиторией уведомлений: кто на что подписан.</summary>
     public const string NotifyManage = "core.notify.manage";
 
@@ -154,9 +157,13 @@ public static class CorePermissions
             "справочник строек — основу, на которую ссылаются все модули",
             [ConstructionsRead]),
 
-        new("core.period.close",
+        new(PeriodClose,
             "закрывать учётный период",
-            "итоги периода по всем включённым модулям; после закрытия правка идёт версиями",
+            // ⚠️ Ни слова про суммы: закрытие их не показывает — итоги модуля открывает право самого
+            // модуля (ТЗ CORE-35, H1). И ни слова про «правку версиями»: до версий записи правка в
+            // закрытом периоде попросту отказывает.
+            "закрытие периода компании или стройки и отмену ошибочного закрытия; записи закрытого "
+            + "периода модули больше не дают править",
             [AuditRead]),
 
         new(AuditRead,

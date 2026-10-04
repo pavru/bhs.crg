@@ -68,6 +68,8 @@ public partial class BackupService
         // означало бы копию, которая тем короче помнит, чем дольше ею пользуются.
         var activity = await journal.ExportAsync(ct);
         var appSettings = await db.AppSettings.AsNoTracking().OrderBy(a => a.Key).ToListAsync(ct);
+        // Закрытия периода — через службу: прямой доступ к набору есть только у неё.
+        var closures = scope == BackupScope.Full ? await periods.ExportAsync(ct) : [];
 
         // Проектные данные (issue #833) читаются ТОЛЬКО для полной копии: конфигурационная
         // остаётся ровно тем, чем была, и весит столько же. Порядок чтения не важен - снимок один.
@@ -212,6 +214,9 @@ public partial class BackupService
             ActivityLog: activity.Select(r => new BackupActivityRecord(
                 r.Id, r.OccurredAt, r.Action, r.ActorId, r.ActorName,
                 r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray(),
+            PeriodClosures: full ? closures.Select(c => new BackupPeriodClosure(
+                c.Id, c.Kind.ToString(), c.Contour.ToString(), c.ConstructionId, c.From, c.Through,
+                c.At, c.ById, c.ByName, c.Reason, c.CancelsId)).ToArray() : null,
             AppSettings: appSettings.Select(a => new BackupAppSetting(a.Key, a.Value, a.UpdatedAt)).ToArray());
     }
 }

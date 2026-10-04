@@ -15,7 +15,7 @@ namespace BHS.CRG.Domain.Activity;
 /// время последней правки у того, что не правят. Колонка, которой нечего показывать, рано или
 /// поздно чем-нибудь заполняется.
 /// </summary>
-public class ActivityRecord
+public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
 {
     /// <summary>
     /// Ширины колонок-снимков. Объявлены ЗДЕСЬ, а не только в настройке EF, потому что обрезать
@@ -30,6 +30,8 @@ public class ActivityRecord
 
     // ReSharper disable once UnusedMember.Local — конструктор для EF.
     private ActivityRecord() { }
+
+    string BHS.CRG.Domain.Common.IAppendOnlyRecord.AppendOnlyLabel => $"запись журнала {Action} от {OccurredAt:u}";
 
     public Guid Id { get; private set; }
 
