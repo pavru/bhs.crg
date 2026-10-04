@@ -21,13 +21,17 @@ public sealed partial class TableSql<T>
     /// ⚠️ Потерянная ссылка — НЕ пустое место, в отличие от справочника: у счёта, разнесённого на
     /// удалённую стройку, разноска есть, и «объект пуст» на нём было бы ложью — он попал бы в «не
     /// разнесённые».</param>
+    /// <param name="byKey">Сортировать по КЛЮЧУ, а не по названию. Нужно перечню, у которого порядок
+    /// названий не совпадает с порядком значений: месяцы «09.2026» и «01.2027» по алфавиту стоят
+    /// наоборот (учётный период счёта, задача C5, issue #1082).</param>
     public TableSql<T> List<TKey>(
         string key, Expression<Func<T, IEnumerable<TKey?>>> keys, IReadOnlyDictionary<TKey, string> labels,
-        string lost)
-        where TKey : struct => Add(key, new ListColumn<TKey>(keys, labels, lost));
+        string lost, bool byKey = false)
+        where TKey : struct => Add(key, new ListColumn<TKey>(keys, labels, lost, byKey));
 
     private sealed class ListColumn<TKey>(
-        Expression<Func<T, IEnumerable<TKey?>>> keys, IReadOnlyDictionary<TKey, string> labels, string lost) : Column
+        Expression<Func<T, IEnumerable<TKey?>>> keys, IReadOnlyDictionary<TKey, string> labels, string lost,
+        bool byKey) : Column
         where TKey : struct
     {
         private readonly TKey?[] _known = [.. labels.Keys.Select(k => (TKey?)k)];
@@ -64,8 +68,9 @@ public sealed partial class TableSql<T>
         /// </summary>
         public override IOrderedQueryable<T> Order(IQueryable<T> rows, bool descending, bool first)
         {
-            var ordered = labels
-                .OrderBy(l => l.Value, StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true))
+            var ordered = (byKey
+                    ? labels.OrderBy(l => l.Key)
+                    : labels.OrderBy(l => l.Value, StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true)))
                 .Select(l => (TKey?)l.Key).ToArray();
             return By(By(rows, Not(NotEmpty), false, first),
                 Compose(keys, all => all.Min(key => (int?)Array.IndexOf(ordered, key))), descending, false);
