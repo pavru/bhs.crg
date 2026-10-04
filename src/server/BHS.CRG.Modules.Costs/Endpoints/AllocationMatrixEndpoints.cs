@@ -99,9 +99,11 @@ public static class AllocationMatrixEndpoints
                 "с «parts»: [] — отсутствие поля прочитать как «не менять» нельзя.");
 
         var known = await places.LoadAsync(ct);
-        var (invoice, was, after, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
+        var (invoice, was, after, changed, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
-        if (was != after)
+        // Писать ли событие, решают сами части, а не их описание: сумм в описании нет (issue #1190), и
+        // правка одних сумм описывается теми же словами — сравнение текстов промолчало бы о ней вовсе.
+        if (changed)
             await log.RecordAsync(InvoiceActions.AllocationChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), before: was, after: after, ct: ct);
 
@@ -112,7 +114,7 @@ public static class AllocationMatrixEndpoints
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
 
         // Сама правка — под замком записи, по счёту, прочитанному после него.
-        async Task<(Invoice Invoice, string Was, string After, bool Returned)> PlaceAsync(Invoice invoice)
+        async Task<(Invoice Invoice, string Was, string After, bool Changed, bool Returned)> PlaceAsync(Invoice invoice)
         {
             var lines = await db.InvoiceLines.AsNoTracking()
                 .Where(l => l.InvoiceId == invoice.Id)
@@ -150,11 +152,12 @@ public static class AllocationMatrixEndpoints
             if (returned) invoice.ReturnToDraft();
 
             // Разноска — часть счёта: её правка отмечается у него самого (issue #1173).
-            if (!stored.SequenceEqual(Parts(now))) invoice.ContentChanged();
+            var changed = !stored.SequenceEqual(Parts(now));
+            if (changed) invoice.ContentChanged();
 
             await db.SaveChangesAsync(ct);
 
-            return (invoice, was, Describe(lines, now.ToLookup(a => a.LineId, a => a.Snapshot()), known), returned);
+            return (invoice, was, Describe(lines, now.ToLookup(a => a.LineId, a => a.Snapshot()), known), changed, returned);
         }
     }
 
