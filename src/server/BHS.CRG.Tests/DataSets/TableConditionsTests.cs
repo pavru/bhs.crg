@@ -104,6 +104,44 @@ public class TableConditionsTests
         Assert.Empty(TableFilters.Naming(Any(), "О"));
     }
 
+    /// <summary>
+    /// Часть строки под отбором: спрашивают пару значений, а не два списка. Чужие колонки, отрицания и
+    /// «пусто» части не отсеивают — строка под отбор уже попала.
+    /// </summary>
+    [Fact]
+    public void Отбор_допускает_часть_строки_по_паре_значений_а_не_по_двум_спискам()
+    {
+        static Dictionary<string, string?> Part(string? o, string? m) => new() { ["О"] = o, ["М"] = m };
+        var pairs = Any(All(On("О", "eq", "А"), On("М", "eq", "09")), All(On("О", "eq", "Б"), On("М", "eq", "10")));
+
+        Assert.True(TableFilters.Admits(pairs, Part("А", "09")));
+        Assert.True(TableFilters.Admits(pairs, Part("Б", "10")));
+        Assert.False(TableFilters.Admits(pairs, Part("А", "10")));
+        // Значения у части нет (остаток счёта не лежит ни на одном объекте) — условие по нему не выполнено.
+        Assert.False(TableFilters.Admits(On("О", "eq", "А"), Part(null, "09")));
+        Assert.True(TableFilters.Admits(On("М", "eq", "09"), Part(null, "09")));
+
+        // Два условия по одной колонке «все разом» — альтернативы: их исполняют две разные части.
+        var both = All(On("М", "eq", "09"), All(On("М", "eq", "10"), On("О", "eq", "А")));
+        Assert.True(TableFilters.Admits(both, Part("А", "09")));
+        Assert.True(TableFilters.Admits(both, Part("А", "10")));
+        Assert.False(TableFilters.Admits(both, Part("А", "11")));
+        Assert.False(TableFilters.Admits(both, Part("Б", "10")));
+
+        // По одной колонке допуск и «названо отбором» — один ответ.
+        var named = All(On("О", "eq", "А"), On("О", "in", "Б", "В"), On("Номер", "contains", "1"));
+        foreach (var value in new[] { "А", "Б", "В", "Г" })
+            Assert.Equal(
+                TableFilters.Naming(named, "О").Any(c => c.Matches(value)),
+                TableFilters.Admits(named, new Dictionary<string, string?> { ["О"] = value }));
+
+        Assert.True(TableFilters.Admits(null, Part("А", "09")));
+        Assert.True(TableFilters.Admits(On("Номер", "contains", "1"), Part("А", "09")));
+        Assert.True(TableFilters.Admits(On("О", "neq", "А"), Part("А", "09")));
+        Assert.True(TableFilters.Admits(On("О", "is_empty"), Part("А", "09")));
+        Assert.True(TableFilters.Admits(Any(On("О", "eq", "Б"), On("Номер", "contains", "1")), Part("А", "09")));
+    }
+
     // ── Узлы у файловых наборов: та же догадка, что у остальных сравнений ──────
 
     [Fact]

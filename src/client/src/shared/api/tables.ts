@@ -75,7 +75,7 @@ export interface TableTotal {
   average: number | null;
   min: number | string | null;
   max: number | string | null;
-  /** Что итог значит под этим отбором: «период — по дате счёта, не по оплате». */
+  /** Что итог значит под этим отбором: «период — по дате счёта; затраты периода — отбор «Учётный период»». */
   note?: string | null;
 }
 

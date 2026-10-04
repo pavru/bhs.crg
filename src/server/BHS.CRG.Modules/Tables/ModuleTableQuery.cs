@@ -51,6 +51,51 @@ public static class TableFilters
                 return [];
         }
     }
+
+    /// <summary>
+    /// Подходит ли под отбор ЧАСТЬ строки с такими значениями колонок — доля счёта на объект в месяце.
+    /// Смотрит только на положительные условия по названным колонкам; всё остальное — другие колонки,
+    /// отрицания, «пусто» — считает выполненным: строка под отбор уже попала, вопрос лишь в том, какие
+    /// её части отбор назвал.
+    ///
+    /// <para>Нужно, когда колонок, зависящих от отбора, две и условия по ним стоят в ветках «любое»:
+    /// «(объект А и период 09) или (объект Б и период 10)». Два списка из <see cref="Naming" /> дали бы
+    /// произведение — А и Б в обоих месяцах, — а отбор назвал две ПАРЫ (ревью PR #1195).</para>
+    ///
+    /// <para><b>В группе «все разом» условия по ОДНОЙ колонке — альтернативы, по РАЗНЫМ — пара.</b> У
+    /// части значение одно, и «объект А и объект Б» исполняют две разные части: строка под таким отбором
+    /// есть (у перечня это два независимых «есть такая часть»), и названы обе. Потребуй мы оба условия
+    /// от одной части — под отбором «период 09 и период 10» деньги счёта, разведённого на два месяца,
+    /// пропали бы целиком (ревизия Архитектора).</para>
+    ///
+    /// <para>⚠️ «Пара» — ТОЛКОВАНИЕ, а не то, что исполняет отбор строк: тот не связывает «объект А» и
+    /// «период 09» одной частью. Строка, у которой А — в октябре, а в сентябре — Б, под «А и 09» в
+    /// отбор попадает, а названных денег у неё нет.</para>
+    /// </summary>
+    /// <param name="values">Значения названных колонок у части; null — у части такого значения нет.</param>
+    public static bool Admits(TableFilter? filter, IReadOnlyDictionary<string, string?> values) => filter switch
+    {
+        TableFilterCondition condition => !Narrows(condition, values) || condition.Matches(values[condition.Column]),
+        TableFilterGroup { Any: false } all => AdmitsAll(Flat(all), values),
+        TableFilterGroup { Children.Count: > 0 } any => any.Children.Any(c => Admits(c, values)),
+        _ => true,
+    };
+
+    /// <summary>Условие сужает части строки: положительное и по одной из названных колонок.</summary>
+    private static bool Narrows(TableFilterCondition condition, IReadOnlyDictionary<string, string?> values) =>
+        values.ContainsKey(condition.Column) && !IsNegative(condition.Op) && !IsPresence(condition.Op);
+
+    /// <summary>Вложенные «все разом» — та же группа: условия одной колонки собираются со всех уровней.</summary>
+    private static IEnumerable<TableFilter> Flat(TableFilterGroup all) =>
+        all.Children.SelectMany(c => c is TableFilterGroup { Any: false } inner ? Flat(inner) : [c]);
+
+    private static bool AdmitsAll(IEnumerable<TableFilter> children, IReadOnlyDictionary<string, string?> values)
+    {
+        var narrowing = children.ToLookup(c => c is TableFilterCondition condition && Narrows(condition, values));
+        return narrowing[false].All(c => Admits(c, values))
+               && narrowing[true].Cast<TableFilterCondition>().GroupBy(c => c.Column, StringComparer.Ordinal)
+                   .All(column => column.Any(c => c.Matches(values[c.Column])));
+    }
 }
 
 /// <summary>Условие по колонке.</summary>

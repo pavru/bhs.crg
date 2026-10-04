@@ -135,20 +135,23 @@ public static class PaymentPosting
     /// однажды разошёлся бы с колонкой реестра. Доля без денег (в строке не вписана цена, разноска ждёт
     /// пересчёта) дату несёт, а в затраты месяца не входит — её месяц периодом счёта не называется.</para>
     /// <param name="balance">Баланс счёта — посчитанный вызывающим: он нужен ему и сам по себе.</param>
-    /// <param name="only">Какие доли считать: реестр под отбором по объекту называет доли на эти объекты.
-    /// С ним остаток в месяцы не идёт — он не лежит ни на одном объекте.</param>
+    /// <param name="only">Какие деньги считать: реестр под сужающим отбором называет доли на объект и
+    /// (или) месяцы. Спрашивается о каждой доле с её учётным днём и об остатке — у него доли нет (null):
+    /// остаток не лежит ни на одном объекте, и под отбором по объекту условие его не пропустит.</param>
     public static IReadOnlyList<PostedMonth> Months(
         AllocationBalance balance, decimal? total, IReadOnlyList<InvoiceAllocation> parts, DateOnly? remainderOn,
-        Func<InvoiceAllocation, bool>? only = null)
+        Func<InvoiceAllocation?, DateOnly, bool>? only = null)
     {
         var money = balance.Money
             .Where(share => share.Amount is not null)
             .ToDictionary(share => share.Id, share => share.Amount!.Value);
 
-        var dated = parts.Where(p => p.AccountingOn is not null && money.ContainsKey(p.Id) && only?.Invoke(p) != false)
+        var dated = parts
+            .Where(p => p.AccountingOn is { } day && money.ContainsKey(p.Id) && only?.Invoke(p, day) != false)
             .Select(p => (On: p.AccountingOn!.Value, Amount: money[p.Id]));
         // Нулевой остаток месяца не называет: дата у него могла остаться, а денег в ней нет.
-        if (only is null && remainderOn is { } on && (total ?? 0) - money.Values.Sum() is var rest && rest != 0)
+        if (remainderOn is { } on && (total ?? 0) - money.Values.Sum() is var rest && rest != 0
+            && only?.Invoke(null, on) != false)
             dated = dated.Append((on, rest));
 
         return [.. dated
