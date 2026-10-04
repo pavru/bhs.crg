@@ -13,6 +13,8 @@ interface Report {
   withData: number;
   /** Сирот, на которые ещё ссылаются живые записи — их уборка не трогает. */
   referenced: number;
+  /** Данные модулей прочитать не удалось: держат ли они сирот, неизвестно, и уборка не трогает никого. */
+  holdersUnverified?: boolean;
   total: number;
   dryRun: boolean;
 }
@@ -103,7 +105,15 @@ export function OrphanObjectsSection() {
                     восстановить будет неоткуда.
                   </li>
                 )}
-                {report.referenced > 0 && (
+                {report.holdersUnverified && (
+                  <li className="text-warning">
+                    Не удалось проверить, ссылаются ли на эти записи данные модулей, — поэтому уборка
+                    не тронет ни одной. Причина записана в журнале сервера: обычно это посторонняя
+                    таблица в базе приложения, которую оно не может прочитать, или идущее обновление
+                    модуля.
+                  </li>
+                )}
+                {report.referenced > 0 && !report.holdersUnverified && (
                   <li className="text-fg3">
                     Останутся: {report.referenced} — на них ещё ссылаются живые записи, и ссылки эти
                     работают. Удалить их значило бы своими руками сделать ссылку висячей.

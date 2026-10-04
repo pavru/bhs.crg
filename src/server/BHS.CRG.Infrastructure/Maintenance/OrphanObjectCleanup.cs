@@ -15,7 +15,8 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// <param name="WithData">Объектов с непустыми данными — их потеря заметна, в отличие от пустых профилей.</param>
 /// <param name="Referenced">На стольких сирот ссылаются живые записи; такие не удаляются.</param>
 public record OrphanCleanupReport(
-    int Objects, int QualityDocuments, int MaterialLinks, int WithData, int Referenced)
+    int Objects, int QualityDocuments, int MaterialLinks, int WithData, int Referenced,
+    bool HoldersUnverified = false)
 {
     /// <summary>Сколько будет удалено: найденное за вычетом того, на что ещё ссылаются.</summary>
     public int Total => Objects + QualityDocuments + MaterialLinks - Referenced;
@@ -45,7 +46,8 @@ public class OrphanObjectCleanup(
     AppDbContext db,
     IRepository<DomainObject> objRepo,
     IRepository<QualityDocument> qualityRepo,
-    IReferenceIndex refIndex)
+    IReferenceIndex refIndex,
+    IRecordHolders holders)
 {
     /// <param name="dryRun">Только посчитать, ничего не удаляя.</param>
     public async Task<OrphanCleanupReport> RunAsync(bool dryRun, CancellationToken ct = default)
@@ -107,12 +109,20 @@ public class OrphanObjectCleanup(
             if (candidates.Contains(refs.UnitId)) held.Add(refs.UnitId);
         }
 
+        // И данные модулей (ТЗ CORE-34.2, issue #1094): сироту, на которую ссылается строка счёта,
+        // уборка не трогает — путь без человека не вправе делать то, в чём человеку отказано.
+        // Проверить не удалось — не трогаем НИКОГО из кандидатов, но отчёт отдаём: сухой прогон
+        // обязан отвечать «сколько сирот», а не отказом, и причину администратор видит в нём же.
+        var inModules = await holders.HeldAsync(candidates, ct);
+        held.UnionWith(inModules.Verified ? inModules.Ids : candidates);
+
         var report = new OrphanCleanupReport(
             Objects: objectIds.Count,
             QualityDocuments: qualityIds.Count,
             MaterialLinks: linkIds.Count,
             WithData: withData,
-            Referenced: held.Count);
+            Referenced: held.Count,
+            HoldersUnverified: !inModules.Verified);
 
         if (!dryRun && report.Total > 0)
         {

@@ -336,7 +336,7 @@ try {
   // кнопку снятия у такой клетки прятала. Сервер же отказывается сохранять строку с битой ссылкой —
   // значит строку нельзя было ни сохранить, ни починить: счёт застревал целиком. Теперь потерю
   // называет сервер, а снять ссылку можно всегда, пока она есть.
-  await check('удалённая позиция названа потерей, и ссылку есть чем снять', async () => {
+  await check('занятую позицию удалить нельзя, а потерянную ссылку есть чем снять', async () => {
     const doomed = await position(`Позиция под снос ${stamp}`);
 
     const number = `СЧ-У${stamp}`;
@@ -351,8 +351,26 @@ try {
     await page.getByRole('button', { name: `Позиция под снос ${stamp}` }).click();
     await saveLines();
 
-    // Позицию удаляют из справочника — так бывает, и строка счёта об этом узнаёт только перечитав.
-    await api('DELETE', `/common-data/${doomed}`);
+    // Позицию, стоящую в строке счёта, справочник больше не отдаёт (issue #1094): отказ называет,
+    // кто держит. До правки удаление проходило, и этот прогон сам получал потерянную ссылку именно им.
+    const refusal = await api('DELETE', `/common-data/${doomed}`).then(() => null, e => String(e));
+    if (refusal === null) throw new Error('позиция, стоящая в строке счёта, удалилась');
+    if (!refusal.includes('409') || !refusal.includes('строки счетов'))
+      throw new Error(`отказ не называет держателя: ${refusal}`);
+
+    // Потерянная ссылка теперь приходит только мимо удаления — восстановлением копии, гонкой с
+    // записью модуля, — и через адреса её не получить. Экран проверяем на ответе сервера о потере:
+    // он подменяется здесь, а что сервер так отвечает на настоящую потерю, стережёт InvoiceLineTests.
+    const asLost = async route => {
+      const response = await route.fetch();
+      const view = await response.json();
+      for (const line of view.lines ?? [])
+        if (line.nomenclatureId) { line.nomenclatureName = null; line.nomenclatureLost = true; }
+      await route.fulfill({ response, json: view });
+    };
+    const invoiceRead = url => /\/api\/costs\/invoices\/[0-9a-f-]{36}$/.test(url.pathname);
+    await page.route(invoiceRead, route => (route.request().method() === 'GET' ? asLost(route) : route.continue()));
+
     await page.reload({ waitUntil: 'networkidle' });
     await open(number);
 
@@ -360,6 +378,7 @@ try {
 
     // Главное: выход есть. Снимаем ссылку и сохраняем — до правки сервер отказывал, а снять было нечем.
     await page.getByRole('button', { name: 'Снять позицию' }).first().click();
+    await page.unroute(invoiceRead);
     await saveLines();
 
     await page.reload({ waitUntil: 'networkidle' });

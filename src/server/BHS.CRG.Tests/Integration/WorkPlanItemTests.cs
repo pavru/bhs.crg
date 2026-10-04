@@ -31,16 +31,18 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     /// <summary>Подставной держатель ссылок: столько ссылок, сколько велел тест.</summary>
-    private sealed class FakeReferrer(string what, int count) : IWorkPlanItemReferrer
+    private sealed class FakeReferrer(string what, int count) : IRecordHolders
     {
-        public string What => what;
         public IReadOnlyCollection<Guid>? Asked { get; private set; }
 
-        public Task<int> CountAsync(IReadOnlyCollection<Guid> itemIds, CancellationToken ct)
+        public Task<RecordHoldings> FindAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
         {
-            Asked = itemIds;
-            return Task.FromResult(count);
+            Asked = ids;
+            return Task.FromResult(count == 0 ? RecordHoldings.None : new RecordHoldings([$"{what}: {count}"]));
         }
+
+        public Task<HeldRecords> HeldAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            Task.FromResult(new HeldRecords(count == 0 ? new HashSet<Guid>() : ids.ToHashSet(), Verified: true));
     }
 
     // ── Сторож задачи: в позицию не добавить чужого поля ───────────────────────
@@ -136,7 +138,7 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         using var scope = fixture.Services.CreateScope();
         var refusal = await Assert.ThrowsAsync<ConflictException>(() => new WorkPlanItemHandlers(
-                scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>(), [referrer])
+                scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>(), referrer)
             .Handle(new DeleteWorkPlanItemCommand(item.Id), default));
 
         Assert.Contains("позиции смет: 3", refusal.Message);
@@ -157,7 +159,7 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         using var scope = fixture.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>();
-        await new WorkPlanItemHandlers(repo, [new FakeReferrer("позиции смет", 0)])
+        await new WorkPlanItemHandlers(repo, new FakeReferrer("позиции смет", 0))
             .Handle(new DeleteWorkPlanItemCommand(item.Id), default);
 
         using var after = fixture.Services.CreateScope();
@@ -234,13 +236,13 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>Каскад уровня с подставным держателем ссылок на позиции.</summary>
-    private static ScopeCascade CascadeWith(IServiceScope scope, IWorkPlanItemReferrer referrer) =>
+    private static ScopeCascade CascadeWith(IServiceScope scope, IRecordHolders referrer) =>
         new(scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>(),
             scope.ServiceProvider.GetRequiredService<IRepository<QualityDocument>>(),
             scope.ServiceProvider.GetRequiredService<IRepository<MaterialQualityLink>>(),
             scope.ServiceProvider.GetRequiredService<IRepository<Section>>(),
             scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>(),
-            [referrer],
+            referrer,
             scope.ServiceProvider.GetRequiredService<IReferenceIndex>(),
             scope.ServiceProvider.GetRequiredService<IScopeSubtree>());
 

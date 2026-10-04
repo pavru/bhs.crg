@@ -57,11 +57,12 @@ public interface IScopeCascade
 /// <c>23001</c>, и человек видит внутреннюю ошибку сервера вместо удаления стройки. Нашло ревью
 /// PR #1056 — воспроизведением на живой базе, а не разбором.</para>
 /// </param>
-/// <param name="WorkPlanReferrers">
-/// Держатели ссылок на позиции перечня работ этого уровня — строками «что: сколько» (ТЗ CORE-11,
-/// issue #964). Без этого вопроса удаление уровня унесло бы перечень из-под модулей, у которых на
-/// него план, факт и акты: правило «удаляем только то, на что не ссылаются» обходится удалением
-/// уровня с фланга — тем же, каким оно однажды обошлось для объектов уровня (issue #739).
+/// <param name="ModuleHolders">
+/// Кто в данных модулей держит то, что уходит с уровнем (ТЗ CORE-34.2, issue #1094): сам уровень и
+/// уровни под ним, объекты и документы качества поддерева, позиции перечня работ (CORE-11,
+/// issue #964). Без этого вопроса удаление стройки унесло бы её из-под разноски счетов, а перечень —
+/// из-под плана и факта: правило «удаляем только то, на что не ссылаются» обходится удалением уровня
+/// с фланга — тем же, каким оно однажды обошлось для объектов уровня (issue #739).
 /// </param>
 /// <param name="WorkPlanItemsHoldingObjects">
 /// Сколько позиций перечня ИЗВНЕ поддерева ссылаются на его записи — на запись классификатора или
@@ -74,7 +75,7 @@ public sealed record ScopeCascadePlan(
     IReadOnlyList<MaterialQualityLink> MaterialLinks,
     IReadOnlyList<DomainObjectReferences.Referrer> ExternalReferrers,
     IReadOnlyList<WorkPlanItem> WorkPlanItems,
-    IReadOnlyList<string> WorkPlanReferrers,
+    RecordHoldings ModuleHolders,
     int WorkPlanItemsHoldingObjects);
 
 /// <inheritdoc cref="IScopeCascade" />
@@ -84,7 +85,7 @@ public class ScopeCascade(
     IRepository<MaterialQualityLink> linkRepo,
     IRepository<Section> sectionRepo,
     IRepository<WorkPlanItem> planRepo,
-    IEnumerable<IWorkPlanItemReferrer> workPlanReferrers,
+    IRecordHolders holders,
     IReferenceIndex refIndex,
     IScopeSubtree subtree) : IScopeCascade
 {
@@ -143,7 +144,13 @@ public class ScopeCascade(
             p => constructionIds.Contains(p.ConstructionId)
                  || (p.SectionId != null && sectionIds.Contains(p.SectionId.Value)), ct);
         var itemIds = items.Select(p => p.Id).ToList();
-        var planRefs = await WorkPlanItemReferences.DescribeAsync(workPlanReferrers, itemIds, ct);
+
+        // Данные модулей спрашиваются обо ВСЁМ, что уходит, одним вопросом: и о самих уровнях (счёт
+        // разнесён на стройку), и об их содержимом (строка счёта стоит на записи, заведённой на
+        // уровне стройки), и о позициях перечня.
+        var leaving = targetIds.Concat(itemIds)
+            .Concat(setIds).Concat(sectionIds).Concat(constructionIds).ToHashSet();
+        var moduleHolders = await holders.FindAsync(leaving, ct);
 
         // И обратная сторона: на запись содержимого может ссылаться позиция ЧУЖОГО перечня — если
         // заказчик держит запись классификатора или единицу на уровне стройки. Свои позиции не в
@@ -155,7 +162,7 @@ public class ScopeCascade(
                     p => objectIds.Contains(p.WorkTypeId) || objectIds.Contains(p.UnitId), ct))
                 .Count(p => !itemIds.Contains(p.Id));
 
-        return new ScopeCascadePlan(objects, quality, links, referrers, items, planRefs, held);
+        return new ScopeCascadePlan(objects, quality, links, referrers, items, moduleHolders, held);
     }
 
     /// <inheritdoc />
@@ -178,9 +185,9 @@ public class ScopeCascade(
     /// <inheritdoc />
     public void EnsureDeletable(ScopeCascadePlan plan, string levelAccusative)
     {
-        // Ссылки модулей на позиции перечня — первыми: удаление уровня уносит перечень целиком, и
-        // это самая дорогая из потерь здесь (план, факт и акты потеряли бы то, к чему относятся).
-        WorkPlanItemReferences.EnsureNone(plan.WorkPlanReferrers, levelAccusative);
+        // Ссылки модулей — первыми: это самая дорогая из потерь здесь (счета потеряли бы стройку, а
+        // план, факт и акты — позицию перечня, к которой относятся).
+        plan.ModuleHolders.EnsureNone(levelAccusative);
 
         if (plan.WorkPlanItemsHoldingObjects > 0)
             throw new ConflictException(

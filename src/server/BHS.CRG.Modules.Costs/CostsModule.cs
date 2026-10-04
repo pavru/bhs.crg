@@ -154,6 +154,8 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public IReadOnlyList<ModuleTable> Tables => [InvoiceTable.Declaration];
 
+    public IReadOnlyList<ModuleReference> References => CostsReferences.All;
+
     /// <summary>
     /// Единственная служба каркаса — свой контекст базы. Строку подключения модуль берёт из настроек,
     /// которые ему передали: своего источника у него нет, а спрашивать её у ядра портом незачем —

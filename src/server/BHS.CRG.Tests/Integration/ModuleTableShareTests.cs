@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Infrastructure.DataSets;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -249,8 +250,12 @@ public sealed class ModuleTableShareTests(InvoiceLineHost host) : ModuleTableSee
         var (client, user) = await SignInAsync("Admin");
         var seed = await SeedSharesAsync(client);
 
+        // Мимо команды удаления: она стройку с разноской больше не отдаёт (issue #1094). Потерянная
+        // ссылка сегодня приходит другими путями — восстановлением копии, гонкой проверки с записью
+        // модуля, — и экран обязан её пережить так же.
         using (var scope = host.Services.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new DeleteConstructionCommand(seed.SiteB));
+            await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Persistence.AppDbContext>()
+                .Database.ExecuteSqlRawAsync("""DELETE FROM constructions WHERE "Id" = {0}""", seed.SiteB);
 
         var cases = new (string Name, string Filter, int Expected)[]
         {

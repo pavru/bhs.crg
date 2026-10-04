@@ -13,7 +13,8 @@ public class QualityDocHandlers(
     IRepository<DocumentType> typeRepo,
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<DomainObject> objRepo,
-    IReferenceIndex refIndex
+    IReferenceIndex refIndex,
+    IRecordHolders holders
 ) :
     IRequestHandler<CreateQualityDocumentCommand, QualityDocument>,
     IRequestHandler<UpdateQualityDocumentCommand, QualityDocument>,
@@ -116,6 +117,7 @@ public class QualityDocHandlers(
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить документ качества — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
+        (await holders.FindAsync([cmd.Id], ct)).EnsureNone("документ качества"); // данные модулей, issue #1094
 
         // удаляем связи, ссылающиеся на документ
         var links = await linkRepo.FindAsync(l => l.QualityDocumentId == cmd.Id, ct);

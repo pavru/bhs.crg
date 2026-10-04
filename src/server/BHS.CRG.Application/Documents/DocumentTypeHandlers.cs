@@ -1,6 +1,7 @@
 ﻿using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -19,6 +20,7 @@ public class DocumentTypeHandlers(
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<DocumentSetPlanItem> planRepo,
     IDataSetService dataSetService,
+    IRecordHolders holders,
     IActivityLog journal,
     TagCatalog tags) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
@@ -539,6 +541,15 @@ public class DocumentTypeHandlers(
         var usedInSchemas = all.Where(t => t.Id != dt.Id && DocumentTypeSchemaReader.ReferencesType(t.Schema, dt.Id)).ToList();
         if (usedInSchemas.Count > 0)
             reasons.Add(new("subtype", "Используется как составной подтип в схеме", usedInSchemas.Count, usedInSchemas.Select(t => t.Name).ToList()));
+
+        // Данные модулей (issue #1094): счёт ссылается на свой тип колонкой в схеме модуля, и ни
+        // одна из проверок выше её не видит. Здесь же, а не только в удалении: причины показываются
+        // и заранее (issue #275), и разойтись им нельзя.
+        // Причина на держателя, а не одна с перечнем: строка держателя сама содержит запятые и скобки
+        // («… — 3 (счета: № 12, № 15)»), и склеенные через запятую они не читаются.
+        var inModules = await holders.FindAsync([dt.Id], ct);
+        reasons.AddRange(inModules.Lines.Select((line, i) =>
+            new DocumentTypeUsageReason($"modules-{i}", $"Данные модулей — {line}", 0, [])));
 
         return new DocumentTypeUsage(reasons);
     }

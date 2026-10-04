@@ -156,6 +156,11 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // «просрочен»), и отбирается он на каждом открытии экрана.
         invoice.HasIndex(i => new { i.Payment, i.DueDate }).HasDatabaseName("ix_invoices_due");
 
+        // Удаление записи ядра спрашивает, кто её держит (ТЗ CORE-34.1, issue #1094), — и спрашивает по
+        // этой колонке у каждой записи справочника. Частичный: пустых значений вопрос не касается.
+        // Поставщика тот же вопрос находит по ix_invoices_duplicate — он там первый.
+        invoice.HasIndex(i => i.PayerId).HasDatabaseName("ix_invoices_payer").HasFilter("payer_id IS NOT NULL");
+
         MapLines(builder);
         MapAllocations(builder);
     }
@@ -208,6 +213,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         line.HasIndex(l => l.InvoiceId)
             .HasDatabaseName("ix_invoice_lines_unmatched")
             .HasFilter("nomenclature_id IS NULL");
+
+        // Удаление записи ядра спрашивает, кто её держит (ТЗ CORE-34.1, issue #1094), — и спрашивает по
+        // этой колонке у каждой записи справочника. Частичный: пустых значений вопрос не касается.
+        line.HasIndex(l => l.NomenclatureId)
+            .HasDatabaseName("ix_invoice_lines_nomenclature")
+            .HasFilter("nomenclature_id IS NOT NULL");
     }
 
     /// <summary>
@@ -252,9 +263,18 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
             .OnDelete(DeleteBehavior.Cascade);
 
         // Разноску читают счётом целиком и в порядке частей строки.
-        // Индекса по стройке здесь нет нарочно: отбирать части по стройке будут затраты (G5), и индекс
-        // приедет с тем запросом, которому он нужен.
         part.HasIndex(a => new { a.InvoiceId, a.LineId, a.Ordinal }).HasDatabaseName("ix_invoice_allocations_order");
+
+        // Удаление записи ядра спрашивает, кто её держит (ТЗ CORE-34.1, issue #1094), — и спрашивает по
+        // этой колонке у каждой записи справочника. Частичный: пустых значений вопрос не касается.
+        // Отбор частей по стройке для затрат (G5) — отдельный вопрос со своим индексом, если этого
+        // ему не хватит.
+        part.HasIndex(a => a.ConstructionId)
+            .HasDatabaseName("ix_invoice_allocations_construction").HasFilter("construction_id IS NOT NULL");
+        part.HasIndex(a => a.SectionId)
+            .HasDatabaseName("ix_invoice_allocations_section").HasFilter("section_id IS NOT NULL");
+        part.HasIndex(a => a.ArticleId)
+            .HasDatabaseName("ix_invoice_allocations_article").HasFilter("article_id IS NOT NULL");
 
         // Часть счёта целиком (без строки, F2) — только суммой: делить количество не из чего. Ограничением
         // базы, а не одной проверкой разбора: часть счёта с метрами разнесла бы ничто, и узнали бы об этом
