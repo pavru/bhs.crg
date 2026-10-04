@@ -123,6 +123,28 @@ await check('reconciliations-view-param-opens-section', async () => {
   if (!/Алиас|алиас/i.test(t)) throw new Error(`секция алиасов не открылась: ${t.slice(-300)}`);
 });
 
+// ── Учётный период: границы и диалог закрытия ─────────────────────────────────
+// Закрытие НЕ подтверждаем: запись о нём не удаляется, а база прогонов общая на все наборы —
+// закрытый здесь период остался бы соседям. Сама запись проверена на сервере (PeriodClosureTests);
+// здесь — что экран дочитал границы и диалог предлагает период, а не пустые поля.
+await check('periods-page-offers-a-period-to-close', async () => {
+  await page.goto(`${BASE}/periods`);
+  await settled(page);
+  const body = await page.locator('main').innerText();
+  if (!/Компания/.test(body)) throw new Error(`строки компании нет: ${body.slice(0, 300)}`);
+  if (!/Сегодня по часам компании — \d{2}\.\d{2}\.\d{4}/.test(body))
+    throw new Error('экран не назвал «сегодня» — границы с сервера не пришли');
+
+  await page.locator('button').filter({ hasText: /Закрыть период/ }).first().click();
+  const dialog = page.locator('[role=dialog]').first();
+  await dialog.waitFor({ timeout: 10000 });
+  const text = await dialog.innerText();
+  if (!/Закрыть период: Компания/.test(text)) throw new Error(`диалог не про компанию: ${text.slice(0, 200)}`);
+  if (!/Будет закрыто всё по \d{2}\.\d{2}\.\d{4} включительно/.test(text))
+    throw new Error(`диалог не предложил конец периода: ${text.slice(0, 300)}`);
+  await page.keyboard.press('Escape');
+});
+
 // ── Диалог источника: подставлен первый кандидат ──────────────────────────────
 // Набор системных данных выбран за то, что у него ЕСТЬ свободные кандидаты: у демо-PDF все
 // проекции уже добавлены источниками, и подставлять диалогу нечего — проверка была бы пустой.

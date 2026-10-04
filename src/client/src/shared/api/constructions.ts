@@ -10,10 +10,12 @@ const KEYS = {
 
 // ── Constructions ──────────────────────────────────────────────────────────────
 
-export function useListConstructions() {
+/** @param enabled false — не спрашивать вовсе: у экрана без права на справочник запрос дал бы 403. */
+export function useListConstructions(enabled = true) {
   return useQuery({
     queryKey: KEYS.list,
     queryFn: () => apiClient.get<Construction[]>('/constructions').then(r => r.data),
+    enabled,
   });
 }
 

@@ -19,6 +19,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
 import { ReconciliationsPage } from '@/features/reconciliations/ReconciliationsPage';
+import { PeriodsPage } from '@/features/periods/PeriodsPage';
 import { UsersPage } from '@/features/settings/UsersPage';
 import { BugReportsPage } from '@/features/settings/BugReportsPage';
 import { ActivityPage } from '@/features/settings/ActivityPage';
@@ -80,6 +81,7 @@ export default function App() {
                   <Route path="tables/:address" element={<TablePage />} />
                   {/* Та же таблица под готовым представлением модуля: «Реестр счетов» (G4). */}
                   <Route path="tables/:address/:view" element={<TablePage />} />
+                  <Route path="periods" element={<PeriodsPage />} />
                   <Route path="reconciliations" element={<ReconciliationsPage />} />
                 </Route>
                 <Route element={<RequireAccess />}>
