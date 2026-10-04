@@ -13,7 +13,8 @@ using Microsoft.Extensions.Logging;
 namespace BHS.CRG.Infrastructure.Backup;
 
 public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger,
-    BHS.CRG.Application.Activity.IActivityLog journal, IModuleSchemaBackup modules)
+    BHS.CRG.Application.Activity.IActivityLog journal, IModuleSchemaBackup modules,
+    BHS.CRG.Application.Periods.IPeriodClosures periods)
 {
     // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
     // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.
@@ -169,6 +170,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             new("Привязки наборов", manifest.DataSetBindings?.Length ?? 0),
             new("Сверки", manifest.Reconciliations?.Length ?? 0),
             new("Связки с материалами", manifest.MaterialQualityLinks?.Length ?? 0),
+            new("Закрытия периода", manifest.PeriodClosures?.Length ?? 0),
         ];
 
         // Схемы модулей (issue #1073): состав перечисляется НАЙДЕННЫМ, таблица за таблицей. Имён

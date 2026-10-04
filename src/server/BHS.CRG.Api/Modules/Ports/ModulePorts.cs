@@ -49,10 +49,9 @@ public static class ModulePorts
         services.AddScoped<IModuleTypes, ModuleTypesPort>();
         services.AddScoped<IModuleWriteGuard, ModuleWriteGuardPort>();
 
-        // Закрытых периодов пока не бывает — служба закрытия приезжает задачей E1a (issue #1081).
-        // Ответ «не закрыто ничего» — правда об этом экземпляре, а не заглушка; подробнее в
-        // доккомментарии класса.
-        services.AddScoped<IModulePeriods, NoClosedPeriods>();
+        // Границы закрытия периода — из службы ядра (ТЗ CORE-35). Сама служба регистрируется с
+        // остальными службами ядра: она работает и при пустом составе модулей.
+        services.AddScoped<IModulePeriods, ModulePeriodsPort>();
 
         // «Сегодня» в поясе компании. Часы — службой, а не DateTime.Now: границу суток иначе нечем
         // проверить. TryAdd — часы мог уже зарегистрировать сам ASP.NET.

@@ -40,6 +40,10 @@ public record BackupManifest(
     BackupDocumentSetPlan[]? DocumentSetPlans = null,
     BackupWorkPlanItem[]? WorkPlanItems = null,
     BackupActivityRecord[]? ActivityLog = null,
+    // Закрытия учётного периода (issue #1081) — только в ПОЛНОЙ копии: закрытие стройки адресует
+    // стройку, а стройки едут только в ней. null — копия конфигурационная или снята версией, не
+    // знавшей о закрытиях.
+    BackupPeriodClosure[]? PeriodClosures = null,
     // Настройки экземпляра (issue #960): часовой пояс компании. В ЛЮБОЙ копии, как журнал: это
     // конфигурация, а не проектные данные, и потеря пояса при восстановлении означала бы молча
     // сдвинутые сутки — то есть неверные даты в документах на новой машине.
@@ -110,6 +114,15 @@ public record BackupActivityRecord(
     Guid Id, DateTimeOffset OccurredAt, string Action,
     Guid? ActorId, string ActorName,
     string? TargetId, string? TargetLabel, string? Before, string? After);
+
+/// <summary>
+/// Запись о закрытии периода или об отмене закрытия (ТЗ CORE-35). Едет только в ПОЛНОЙ копии.
+/// Переносится как есть — со своим временем и автором; при восстановлении дописываются только
+/// недостающие.
+/// </summary>
+public record BackupPeriodClosure(
+    Guid Id, string Kind, string Contour, Guid? ConstructionId, DateOnly From, DateOnly Through,
+    DateTimeOffset At, Guid? ById, string ByName, string? Reason, Guid? CancelsId);
 
 // ── Проектные данные (issue #833) ────────────────────────────────────────────────────────────
 

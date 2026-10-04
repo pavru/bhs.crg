@@ -127,6 +127,7 @@ public partial class BackupService
             await RestoreMaterialQualityLinksAsync(manifest.MaterialQualityLinks ?? [], stats, warnings, ct);
             await RestoreAppSettingsAsync(manifest.AppSettings ?? [], stats, warnings, ct);
             await RestoreActivityLogAsync(manifest.ActivityLog ?? [], stats, ct);
+            await RestorePeriodClosuresAsync(manifest.PeriodClosures ?? [], stats, warnings, ct);
             // Схемы модулей — ПОСЛЕДНИМИ и в ЭТОЙ ЖЕ транзакции (issue #1073). Последними потому,
             // что строка модуля адресует объект ядра идентификатором: до объектов ей ссылаться не на
             // что. В той же транзакции потому, что отказ на данных модуля обязан откатить

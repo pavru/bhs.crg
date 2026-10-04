@@ -57,9 +57,20 @@ public static class ActivityActions
     /// <summary>Удалена роль — вместе со всем, что она давала.</summary>
     public static readonly ActivityAction RoleDeleted = new("core.role.deleted", "Удалена роль");
 
+    /// <summary>
+    /// Закрыт учётный период (ТЗ CORE-35). ⚠️ Запись называет контур и даты — и НИ ОДНОГО числа
+    /// модулей: журнал ядра читают по праву <c>core.audit.read</c>, а суммы счетов закрыты правом
+    /// модуля. «Что при этом замёрзло» модуль пишет своим событием под своим правом (задача E1b).
+    /// </summary>
+    public static readonly ActivityAction PeriodClosed = new("core.period.closed", "Закрыт учётный период");
+
+    /// <summary>Отменено ошибочное закрытие периода — с причиной в записи.</summary>
+    public static readonly ActivityAction PeriodReopened =
+        new("core.period.reopened", "Отменено закрытие периода");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
-         RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted];
+         RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных
