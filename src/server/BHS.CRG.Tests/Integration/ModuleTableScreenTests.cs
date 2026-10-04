@@ -122,6 +122,36 @@ public sealed class ModuleTableScreenTests(InvoiceLineHost host) : InvoiceLineTe
     }
 
     /// <summary>
+    /// Расшифровка строки закрыта тем же правом, что суммы таблицы (G4, issue #1097): «Доля» следует за
+    /// «Суммой». Тот, кому суммы закрыты, видит объекты, колонку доли — с той же причиной и без
+    /// значений, итогов расшифровки нет, а подписи модуля нет вовсе: вычистить из неё сумму нечем.
+    /// </summary>
+    [Fact]
+    public async Task Расшифровка_строки_без_права_на_суммы_приходит_без_денег()
+    {
+        var (supplier, _) = await SignInAsync("Supplier");
+        var (waybills, _) = await SignInAsync(await RoleAsync("costs.waybill.read"));
+        var invoice = await CreateAsync(supplier, complete: true);
+        await OkAsync(await supplier.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(supplier, invoice, "Итого", 7_000m) }));
+
+        var seen = (await GetAsync(supplier, $"/api/tables/{Address}?row={invoice}")).GetProperty("breakdown");
+        Assert.All(seen.GetProperty("columns").EnumerateArray(), c => Assert.Equal(JsonValueKind.Null, c.GetProperty("unavailable").ValueKind));
+        Assert.NotEmpty(seen.GetProperty("totals").EnumerateArray());
+        Assert.Equal("счёт не оплачен — в затраты не вошёл", seen.GetProperty("note").GetString());
+
+        var closed = (await GetAsync(waybills, $"/api/tables/{Address}?row={invoice}")).GetProperty("breakdown");
+        var share = closed.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("key").GetString() == "Доля");
+        Assert.Equal("no-right", share.GetProperty("unavailable").GetString());
+        Assert.Equal("нет права на суммы", share.GetProperty("reason").GetString());
+        var row = Assert.Single(closed.GetProperty("rows").EnumerateArray()).GetProperty("values");
+        Assert.True(row.TryGetProperty("Объект", out _));
+        Assert.False(row.TryGetProperty("Доля", out _));
+        Assert.Empty(closed.GetProperty("totals").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, closed.GetProperty("note").ValueKind);
+    }
+
+    /// <summary>
     /// Строка читается под ТЕМ ЖЕ отбором, что и таблица: счёт вне отбора по ключу не приходит. Иначе
     /// панель показывала бы строку, которой в таблице под этим отбором нет.
     /// </summary>

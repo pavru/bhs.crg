@@ -146,6 +146,56 @@ public class ModuleTableViewTests
             registry.Filters!.Select(k => titles[k]));
     }
 
+    // ── Расшифровка строки (G4, issue #1097) ─────────────────────────────────
+
+    public static TheoryData<string, ModuleTableBreakdown, string> BrokenBreakdowns() => new()
+    {
+        { "нет заголовка", new("", [new("Объект", "Объект", ModuleTableColumnKind.Text)]), "нет заголовка" },
+        { "нет колонок", new("Разноска", []), "не объявлено ни одной колонки" },
+        { "колонка дважды", new("Разноска",
+            [new("Объект", "Объект", ModuleTableColumnKind.Text), new("Объект", "Ещё", ModuleTableColumnKind.Text)]),
+            "колонка «Объект» объявлена дважды" },
+        { "перечень", new("Разноска", [new("Объект", "Объект", ModuleTableColumnKind.List)]), "вид не текст, не число и не дата" },
+        // Главное правило: число, не сказавшее, чьим доступом закрыто, — отказ, а не «открыто всем».
+        { "число без доступа", new("Разноска", [new("Доля", "Доля", ModuleTableColumnKind.Number)]),
+            "у числовой колонки «Доля» не названо, за какой колонкой таблицы она следует" },
+        { "следует за ничем", new("Разноска", [new("Доля", "Доля", ModuleTableColumnKind.Number, "Нет")]),
+            "следует за колонкой «Нет», которой в таблице нет" },
+        { "сумма чужой колонки", new("Разноска", [new("Объект", "Объект", ModuleTableColumnKind.Text)],
+            [new("Доля", "Сумма")]), "сумма по колонке «Доля», которой в расшифровке нет" },
+        { "сумма текста", new("Разноска", [new("Объект", "Объект", ModuleTableColumnKind.Text)],
+            [new("Объект", "Сумма")]), "сумма по колонке «Объект», а она не число" },
+        { "сверка с ничем", new("Разноска", [new("Доля", "Доля", ModuleTableColumnKind.Number, "Сумма")],
+            [new("Доля", "Сумма", "Нет")]), "сверяется с колонкой «Нет», которой в таблице нет" },
+        { "сверка с текстом", new("Разноска", [new("Доля", "Доля", ModuleTableColumnKind.Number, "Сумма")],
+            [new("Доля", "Номер")]), "сверяется с колонкой «Номер», а она не число" },
+    };
+
+    [Theory]
+    [MemberData(nameof(BrokenBreakdowns))]
+    public void Негодная_расшифровка_строки_названа(string what, ModuleTableBreakdown breakdown, string expected)
+    {
+        _ = what;
+        var problem = Assert.Single(breakdown.Problems(Table().Columns), p => p.Contains(expected));
+        Assert.StartsWith("расшифровка строки: ", problem);
+
+        // И останавливает старт — как негодная таблица, а не всплывает на первом открытии панели.
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            new ModuleTableCatalog([new ProbeModule(Table() with { Breakdown = breakdown })]));
+        Assert.Contains(expected, refused.Message);
+    }
+
+    [Fact]
+    public void Разноска_счёта_объявлена_годно_и_доля_закрыта_правом_сумм()
+    {
+        var table = InvoiceTable.Declaration;
+        Assert.Empty(table.Breakdown!.Problems(table.Columns));
+
+        var share = Assert.Single(table.Breakdown.Columns, c => c.Kind == ModuleTableColumnKind.Number);
+        Assert.Equal(InvoiceTable.AmountKey, share.Follows);
+        Assert.NotNull(table.Columns.Single(c => c.Key == share.Follows).Requires);
+    }
+
     private static ModuleTableView Good() => new(
         "registry", "Реестр", ["Номер", "Сумма"],
         Sort: [new("Дата", Descending: true)], Totals: [new("Сумма", "sum")], Pinned: 1, Filters: ["Дата"]);

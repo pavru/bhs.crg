@@ -94,6 +94,26 @@ export interface TableData extends TableDeclaration {
   totals: Record<string, TableTotal> | null;
   /** Ключи строк — по одному на строку, в том же порядке. null — таблица ключей не называет. */
   keys: string[] | null;
+  /** Расшифровка строки — только в ответе на запрос одной строки; null — у строки её нет. */
+  breakdown?: TableBreakdown | null;
+}
+
+/**
+ * Расшифровка строки — её нижнее зерно под тем же отбором: «Разноска» счёта по объектам и учётным
+ * месяцам (G4, issue #1097). Всегда показывает строку ЦЕЛИКОМ; что из неё назвал отбор, говорят
+ * пометки строк. Что это разноска, экран не знает: заголовок, колонки и суммы приходят с сервера.
+ */
+export interface TableBreakdown {
+  title: string;
+  /** Закрытая колонка приходит с причиной и без значений — как колонка таблицы. */
+  columns: { key: string; label: string; kind: string; unavailable: string | null; reason: string | null }[];
+  rows: { values: Record<string, unknown>; named: boolean }[];
+  /** Отбор сужает строку до части: у строк расшифровки есть смысл «в отборе». */
+  narrowed: boolean;
+  /** Суммы числовых колонок: `whole` — строка целиком, `named` — названное отбором. */
+  totals: { column: string; whole: number | null; named: number | null }[];
+  /** Оговорка под заголовком: «счёт не оплачен — в затраты не вошёл». */
+  note: string | null;
 }
 
 export interface TableSort {

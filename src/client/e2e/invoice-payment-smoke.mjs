@@ -7,6 +7,8 @@
 //   2. `preview-matches-recorded` — стройка закрыта, платёж задним числом: диалог называет перенос и
 //      меняет подпись кнопки; после записи расклад счёта показывает ТЕ ЖЕ учётные даты.
 //   2а. `registry-names-the-accounting-month` — реестр показывает тот же учётный месяц и деньги в нём.
+//   2б. `registry-row-opens-the-allocation` — строка реестра раскрывается блоком «Разноска»; названное
+//       отбором помечено, и «В отборе» равно клетке «Сумма».
 //   3. `locked-invoice-says-why` — оплаченный счёт, попавший в закрытый период: полоса с причиной,
 //      кнопок сохранения и отмены оплаты нет вовсе (а не «есть и получают 409»), и ни один запрос
 //      экрана отказа не получил.
@@ -200,6 +202,37 @@ await check('registry-names-the-accounting-month', async () => {
   const month = ru(shift(through, 1)).slice(3);
   const text = (await row.innerText()).replace(/[  ]/g, ' ');
   if (!text.includes(`300,00 (${month})`)) throw new Error(`в реестре нет «300,00 (${month})»: ${text.slice(0, 300)}`);
+});
+
+// ── Счёт «раскрывается» в боковой панели: объект, доля, учётный месяц — и что из этого в отборе ────
+await check('registry-row-opens-the-allocation', async () => {
+  const month = ru(shift(through, 1)).slice(3);
+  const filter = {
+    type: 'group', logic: 'and', children: [
+      { type: 'condition', column: 'Номер', op: 'eq', value: movedNumber },
+      { type: 'condition', column: 'УчётныйПериод', op: 'eq', value: month },
+    ],
+  };
+  await page.goto('about:blank');
+  await page.goto(`${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`,
+    { waitUntil: 'networkidle' });
+  const row = page.locator('tbody tr').filter({ hasText: movedNumber }).first();
+  await row.waitFor({ timeout: 10_000 });
+  // Щелчок — по клетке с номером: в первой клетке стоит ссылка «Открыть счёт», она увела бы со страницы.
+  await row.getByText(movedNumber, { exact: true }).click();
+
+  const block = page.getByRole('region', { name: 'Разноска' });
+  await block.waitFor({ timeout: 10_000 });
+  const text = (await block.innerText()).replace(/[  ]/g, ' ');
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
+  for (const part of [SITE, month, 'в отборе', 'Счёт целиком', 'В отборе'])
+    if (!text.includes(part)) throw new Error(`в блоке «Разноска» нет «${part}»: ${text.slice(0, 400)}`);
+
+  // «В отборе» равно клетке «Сумма» этой строки: одно число, а не два похожих.
+  const named = text.split(/\s*\n\s*|\t/).map(l => l.trim()).filter(Boolean);
+  const total = named[named.indexOf('В отборе') + 1];
+  const cell = (await row.innerText()).replace(/[  ]/g, ' ');
+  if (!total || !cell.includes(total)) throw new Error(`«В отборе» — ${total}, а в строке реестра такого числа нет: ${cell.slice(0, 200)}`);
 });
 
 // ── 3. Запертый счёт говорит почему, и действий над ним нет ────────────────────────────────────────

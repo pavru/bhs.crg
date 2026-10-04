@@ -212,7 +212,8 @@ public static class InvoiceTable
                     InvoiceRequisites.DateKey, InvoiceRequisites.PayerKey, InvoiceRequisites.SupplierKey,
                     ObjectsKey, InvoiceRequisites.PaymentKey, PeriodKey,
                 ]),
-        ]);
+        ],
+        InvoiceBreakdown.Declaration);
 }
 
 /// <summary>
@@ -361,12 +362,17 @@ public sealed class InvoiceTableRows(
         if (note is not null) notes[InvoiceTable.AmountKey] = note;
         if (sums is not null) notes[InvoiceTable.PeriodSumsKey] = sums;
 
+        // Одна строка по ключу — с расшифровкой: счёт по объектам и учётным месяцам (боковая панель).
+        var breakdown = query.Row is not null && invoices is [var opened]
+            ? await InvoiceBreakdown.ReadAsync(db, opened, partsRead ? parts : null, shares, Admitted, narrowed, months.Count > 0, ct)
+            : null;
+
         var objects = shares.Objects(parts);
         return new(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today,
                 periods.GetValueOrDefault(i.Id)))],
             count, totals, notes.Count == 0 ? null : notes,
-            [.. invoices.Select(i => i.Id.ToString())]);
+            [.. invoices.Select(i => i.Id.ToString())], breakdown);
     }
 
     /// <summary>Две подписи одной — через «;»; пустые пропускаются.</summary>

@@ -7,6 +7,7 @@ import { useTable } from '@/shared/api/tables';
 import type { FilterNode } from '@/shared/api/types';
 import { apiError } from '@/shared/utils/apiError';
 import { cellText } from './tableCells';
+import { RowBreakdown } from './RowBreakdown';
 
 /**
  * Строка таблицы в боковой панели (ТЗ CORE-33: «строка открывается в боковой панели»; задача G1e,
@@ -65,6 +66,9 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
             отбор, либо отбор сменился.
           </p>
         ) : (
+          <>
+          {/* Расшифровка — первой: полей в панели два десятка, и под ними она ушла бы за прокрутку. */}
+          {data.breakdown && <RowBreakdown breakdown={data.breakdown} grain={grain} />}
           <dl className="space-y-2.5">
             {data.columns.map(c => (
               <div key={c.key}>
@@ -77,6 +81,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
               </div>
             ))}
           </dl>
+          </>
         )}
       </div>
     </aside>

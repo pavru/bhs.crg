@@ -196,6 +196,8 @@ public record TableViewTotalDto(string Column, string Aggregate);
 /// <param name="Totals">Итоги по запрошенным колонкам — по всему отбору, а не по странице.</param>
 /// <param name="Keys">Ключи строк — по одному на строку, в том же порядке; ими экран называет строку,
 /// открытую в боковой панели (<see cref="TableRequest.Row" />). null — таблица ключей не называет.</param>
+/// <param name="Breakdown">Расшифровка строки — только в ответе на запрос одной строки
+/// (<see cref="TableRequest.Row" />): «Разноска» счёта. null — у строки её нет.</param>
 public record TableDto(
     string Address, string Title, string Grain, string Boundary,
     IReadOnlyList<TableColumnDto> Columns,
@@ -203,7 +205,31 @@ public record TableDto(
     string? State = null,
     int Count = 0, int Offset = 0, int? Limit = null,
     IReadOnlyDictionary<string, TableTotalDto>? Totals = null,
-    IReadOnlyList<string>? Keys = null);
+    IReadOnlyList<string>? Keys = null,
+    TableBreakdownDto? Breakdown = null);
+
+/// <summary>
+/// Расшифровка строки — её нижнее зерно под тем же отбором (ТЗ CORE-33, COST-20.1; задача G4, issue
+/// #1097). Всегда показывает строку ЦЕЛИКОМ; что из неё назвал отбор, говорят пометки строк.
+/// </summary>
+/// <param name="Title">Заголовок блока: «Разноска».</param>
+/// <param name="Narrowed">Отбор сужает строку до части — у строк расшифровки есть смысл «в отборе».</param>
+/// <param name="Totals">Суммы числовых колонок; закрытой колонки среди них нет.</param>
+/// <param name="Note">Оговорка под заголовком; null — её нет либо часть расшифровки человеку закрыта.</param>
+public record TableBreakdownDto(
+    string Title, IReadOnlyList<TableBreakdownColumnDto> Columns, IReadOnlyList<TableBreakdownRowDto> Rows,
+    bool Narrowed, IReadOnlyList<TableBreakdownTotalDto> Totals, string? Note = null);
+
+/// <summary>Колонка расшифровки; закрытая приходит с причиной и без значений — как колонка таблицы.</summary>
+public record TableBreakdownColumnDto(string Key, string Label, string Kind, string? Unavailable = null, string? Reason = null);
+
+/// <param name="Values">Значения открытых колонок.</param>
+/// <param name="Named">Строка названа отбором; вне сужающего отбора — всегда false.</param>
+public record TableBreakdownRowDto(IReadOnlyDictionary<string, object?> Values, bool Named);
+
+/// <param name="Whole">Сумма всех строк расшифровки — строка целиком.</param>
+/// <param name="Named">Сумма названных отбором строк; null — отбор не сужает либо названных чисел нет.</param>
+public record TableBreakdownTotalDto(string Column, decimal? Whole, decimal? Named);
 
 /// <summary>
 /// Итог по колонке (ТЗ CORE-33): у числа сумма, среднее, минимум и максимум; у даты минимум и

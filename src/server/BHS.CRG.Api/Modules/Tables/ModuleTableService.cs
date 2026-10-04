@@ -98,6 +98,7 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
             Totals = page.Totals.Where(t => open.Contains(t.Key)).ToDictionary(
                 t => t.Key, t => ModuleTableQueries.Total(t.Value, query.Totals![t.Key]), StringComparer.Ordinal),
             Keys = page.Keys,
+            Breakdown = ModuleTableBreakdowns.Build(table, query, page, columns, open),
         }, null);
     }
 
