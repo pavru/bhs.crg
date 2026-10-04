@@ -1,32 +1,9 @@
-import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-// Оформительские куски страниц-редакторов типа list-detail (issue #197 / #210): диалог-гард
-// при уходе с несохранёнными правками и свёрнутая карточка-секция. Сам реестр редакторов —
-// в `typeEditorRegistry.ts` (issue #858: компонент и хуки в одном модуле лишают файл горячей
-// подмены).
-
-/** MD3-диалог-гард при уходе с выбранного элемента с несохранёнными правками. */
-export function LeaveGuardDialog({ open, saving, onSave, onDiscard, onCancel }: {
-  open: boolean; saving: boolean;
-  onSave: () => void; onDiscard: () => void; onCancel: () => void;
-}) {
-  return (
-    <Modal open={open} onOpenChange={o => { if (!o && !saving) onCancel(); }} title="Несохранённые изменения"
-      footer={
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onCancel} disabled={saving}>Отмена</Button>
-          <Button variant="tonal" onClick={onDiscard} disabled={saving}>Не сохранять</Button>
-          <Button variant="filled" onClick={onSave} loading={saving}>Сохранить и перейти</Button>
-        </div>
-      }>
-      <p className="text-sm text-fg2">
-        Есть несохранённые изменения. Сохранить их перед переходом к другому элементу?
-      </p>
-    </Modal>
-  );
-}
+// Оформительские куски страниц-редакторов типа list-detail (issue #197 / #210): свёрнутая
+// карточка-секция. Диалог-гард при уходе с несохранёнными правками переехал в общие компоненты
+// (`shared/ui/LeaveGuardDialog`): его же показывает форма счёта. Сам реестр редакторов — в
+// `typeEditorRegistry.ts` (issue #858: компонент и хуки в одном модуле лишают файл горячей подмены).
 
 /** Свёрнутая MD3-карточка-секция: заголовок с иконкой/счётчиком/chevron + раскрывающееся тело. */
 export function SectionCard({ icon, title, count, countClass, open, onToggle, children }: {

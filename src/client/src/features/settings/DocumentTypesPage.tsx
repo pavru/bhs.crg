@@ -8,7 +8,7 @@ import { useAccess } from '@/shared/api/access';
 import { offeredTypes } from '@/shared/api/typeOwners';
 import { useListDocumentTypes, useCreateDocumentType } from '@/shared/api/documentTypes';
 import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
-import { LeaveGuardDialog } from './typeEditorShell';
+import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useTypeEditorRegistry } from './typeEditorRegistry';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';

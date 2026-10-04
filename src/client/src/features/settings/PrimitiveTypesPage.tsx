@@ -40,7 +40,7 @@ import { ValuesEditor, EnumForm } from './EnumTypesSection';
 import { humanEnumPreview } from './enumPreview';
 import { uniqueCode } from './uniqueCode';
 import { withRowUids } from '@/shared/utils/rowIdentity';
-import { LeaveGuardDialog } from './typeEditorShell';
+import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
+import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
@@ -20,7 +21,6 @@ import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import { ScanUploadButton } from './InvoiceScanPanel';
-import { LeaveGuardDialog } from '@/features/settings/typeEditorShell';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
