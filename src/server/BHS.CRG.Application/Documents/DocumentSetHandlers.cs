@@ -17,6 +17,7 @@ public class DocumentSetHandlers(
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<QualityDocument> qualityDocRepo,
     IReferenceIndex refIndex,
+    IRecordHolders holders,
     IBlobStorage blobStorage,
     IScopeSubtree scopeSubtree,
     IScopeCascade cascade) :
@@ -153,6 +154,7 @@ public class DocumentSetHandlers(
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
+        (await holders.FindAsync([cmd.Id], ct)).EnsureNone("документ"); // данные модулей, issue #1094
         objRepo.Remove(obj);
         await objRepo.SaveChangesAsync(ct);
     }

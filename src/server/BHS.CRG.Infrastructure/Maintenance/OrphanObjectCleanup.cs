@@ -45,7 +45,8 @@ public class OrphanObjectCleanup(
     AppDbContext db,
     IRepository<DomainObject> objRepo,
     IRepository<QualityDocument> qualityRepo,
-    IReferenceIndex refIndex)
+    IReferenceIndex refIndex,
+    IRecordHolders holders)
 {
     /// <param name="dryRun">Только посчитать, ничего не удаляя.</param>
     public async Task<OrphanCleanupReport> RunAsync(bool dryRun, CancellationToken ct = default)
@@ -106,6 +107,10 @@ public class OrphanObjectCleanup(
             if (candidates.Contains(refs.WorkTypeId)) held.Add(refs.WorkTypeId);
             if (candidates.Contains(refs.UnitId)) held.Add(refs.UnitId);
         }
+
+        // И данные модулей (ТЗ CORE-34.2, issue #1094): сироту, на которую ссылается строка счёта,
+        // уборка не трогает — путь без человека не вправе делать то, в чём человеку отказано.
+        held.UnionWith((await holders.FindAsync(candidates, ct)).Held);
 
         var report = new OrphanCleanupReport(
             Objects: objectIds.Count,

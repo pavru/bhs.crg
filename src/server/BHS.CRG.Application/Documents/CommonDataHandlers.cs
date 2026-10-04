@@ -19,6 +19,7 @@ public class CommonDataHandlers(
     IRepository<QualityDocument> qualityDocRepo,
     IRepository<WorkPlanItem> planRepo,
     IReferenceIndex refIndex,
+    IRecordHolders holders,
     IDataSetResolver dataSetResolver,
     ILevelProfileService levelProfiles) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
@@ -92,6 +93,9 @@ public class CommonDataHandlers(
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
+        // issue #1094: и данные модулей. Индекс ссылок выше видит только таблицы ядра — позиция
+        // номенклатуры, стоящая в строке счёта, для него свободна (issue #1168).
+        (await holders.FindAsync([cmd.Id], ct)).EnsureNone("запись");
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
     }
