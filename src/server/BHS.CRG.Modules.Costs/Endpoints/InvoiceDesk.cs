@@ -59,15 +59,50 @@ public sealed class InvoiceDesk(
                 }
             }
 
-            var result = await write(new InvoiceWrite(invoice, boundaries, locked));
+            // Тронула ли правка ДЕНЬГИ — видит сама связка, по записям под сохранением: адрес об этом не
+            // спрашивают, он бы однажды ответил неверно.
+            var money = false;
+            void Watch(object? sender, SavingChangesEventArgs e) => money |= MoneyTouched();
+
+            T result;
+            db.SavingChanges += Watch;
+            try
+            {
+                result = await write(new InvoiceWrite(invoice, boundaries, locked));
+            }
+            finally
+            {
+                db.SavingChanges -= Watch;
+            }
+            // Правка, которую адрес не сохранил сам, уйдёт в базу сохранением связки — её считаем тоже.
+            money |= MoneyTouched();
 
             // Учётные даты — ПОСЛЕ правки адреса и одним местом: доли создаются в трёх местах, и ни одно
             // не знает, оплачен ли счёт. Счёт, не бывший и не ставший оплаченным, сюда не заходит.
-            if (paid || invoice.Payment == InvoicePaymentState.Paid)
+            //
+            // У оплаченного — только когда тронуты деньги (ревью PR #1191). «Всё верно», платёжный
+            // документ и скан расклада не меняют, а проверка «счёт обязан остаться сведённым» на них
+            // отказывала бы правке, которая денег не касалась, — словами «после этой правки сумма
+            // расходится».
+            var now = invoice.Payment == InvoicePaymentState.Paid;
+            if (paid != now || (now && money))
                 await PostAsync(invoice, before, boundaries, ct);
 
             return result;
         }, ct);
+
+    /// <summary>
+    /// Меняют ли записи под сохранением деньги счёта. Денег у расклада три источника, и других нет
+    /// (<see cref="PaymentPosting.Plan" /> берёт только их): сумма к оплате, строки и доли разноски.
+    ///
+    /// <para>⚠️ Видно только то, что идёт через отслеживание контекста. Запись мимо него
+    /// (<c>ExecuteUpdate</c>, <c>ExecuteSql</c>) связка не заметила бы — поэтому в модуле её нет, и
+    /// сторож по исходникам (<c>InvoiceWritePathTests</c>) не даёт ей появиться.</para>
+    /// </summary>
+    private bool MoneyTouched() => db.ChangeTracker.Entries().Any(entry =>
+        entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
+        && (entry.Entity is InvoiceLine or InvoiceAllocation
+            || (entry.Entity is Invoice && entry.Property(nameof(Invoice.Total)).IsModified)));
 
     /// <summary>
     /// Переложить учётные даты по состоянию ПОСЛЕ правки: оплачен — каждой доле и остатку, не оплачен —
@@ -142,12 +177,17 @@ public sealed class InvoiceDesk(
 
         var boundaries = await periods.BoundariesAsync(ct);
         var locked = ClosedPeriodGuard.LockOf(invoice, parts, boundaries);
-        var dates = parts.Where(p => p.AccountingOn is not null).Select(p => p.AccountingOn!.Value)
+
+        // Учётные месяцы — те, куда легли ДЕНЬГИ: доля без денег (в строке не вписана цена, разноска
+        // ждёт пересчёта) дату несёт, а в затраты месяца не входит, и назвать её месяц «периодом счёта»
+        // значило бы показать месяц, в котором денег счёта нет (ревью PR #1191).
+        var funded = balance.Money.Where(share => share.Amount is not null).Select(share => share.Id).ToHashSet();
+        var dates = parts.Where(p => p.AccountingOn is not null && funded.Contains(p.Id)).Select(p => p.AccountingOn!.Value)
             .Concat(invoice.RemainderAccountingOn is { } rest ? [rest] : []);
 
+        // Замок стройки возможен, только когда доли есть, — а тогда места уже прочитаны.
         return new PaymentView(true, invoice.PaidOn, invoice.PaymentDocument, invoice.PaidAt, null,
-            locked is null ? null : PaymentViews.Text(locked, locked.ConstructionId is null ? known : await places.LoadAsync(ct)),
-            PaymentViews.Months(dates));
+            locked is null ? null : PaymentViews.Text(locked, known), PaymentViews.Months(dates));
     }
 
     /// <summary>Почему неоплаченный счёт оплатить нельзя — тем же правилом, что откажет запись.</summary>

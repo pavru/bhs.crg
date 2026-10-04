@@ -322,7 +322,10 @@ public static class InvoiceEndpoints
         }
         catch
         {
-            await blobs.DeleteAsync(path, CancellationToken.None);
+            // Уборка не вправе подменить причину: откажи здесь хранилище, человек получил бы его ошибку
+            // вместо «заменить скан нельзя». Неубранный файл подберёт уборка осиротевших.
+            try { await blobs.DeleteAsync(path, CancellationToken.None); }
+            catch (Exception) { }
             throw;
         }
 

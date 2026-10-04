@@ -169,7 +169,9 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
 
   const posting = asked ?? first.data ?? null;
   const paidOn = date ?? posting?.paidOn ?? '';
-  const failed = refused ?? (first.error ? apiError(first.error, 'сервер не ответил') : null);
+  // Ошибка первого вопроса жива, только пока на него не ответили позже: запрос больше не повторяется,
+  // и без этого условия удачный повтор оставлял бы диалог в «расклад не получен» до закрытия.
+  const failed = refused ?? (asked === null && first.error ? apiError(first.error, 'сервер не ответил') : null);
 
   async function ask(date: string | null, after?: PaymentPosting) {
     const turn = ++turns.current;

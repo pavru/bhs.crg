@@ -104,7 +104,7 @@ try {
     const tag = await value.evaluate(el => el.tagName);
     if (tag !== 'SELECT') throw new Error(`значение вводится элементом ${tag}, а не выбором из списка`);
     const options = await value.locator('option').allTextContents();
-    const want = ['— значение —', 'Не оплачен', 'Частично оплачен', 'Оплачен'];
+    const want = ['— значение —', 'Не оплачен', 'Оплачен'];
     if (JSON.stringify(options) !== JSON.stringify(want))
       throw new Error(`в списке ${JSON.stringify(options)}, а перечень колонки — ${JSON.stringify(want.slice(1))}`);
     // Ни одного поля, куда строку можно набрать, в окошке условия нет.
@@ -189,8 +189,11 @@ try {
       throw new Error('отбор с «ИЛИ» показан чипами — ряд чипов читается как «И»');
     await requestAfter(before);
     if (!lastRequest().includes('"logic":"or"')) throw new Error('в запрос ушло не то дерево, что собрано в диалоге');
-    // «Номер равен своему ИЛИ оплачен» — свой счёт находится, хотя он не оплачен: ровно он один.
-    await rowsBecome(1, 'отбор с «ИЛИ»');
+    // «Номер равен своему ИЛИ оплачен» — свой счёт находится, хотя он не оплачен. Именно «находится»,
+    // а не «ровно он один»: оплаченные счета в общей базе прогонов заводит соседний набор (оплата
+    // счёта, C5), и под «ИЛИ» они тоже обязаны быть в выдаче.
+    await dataRows().filter({ hasText: number }).first().waitFor({ timeout: 8000 })
+      .catch(() => { throw new Error('отбор с «ИЛИ»: своего неоплаченного счёта в выдаче нет'); });
   });
 } finally {
   await browser.close();

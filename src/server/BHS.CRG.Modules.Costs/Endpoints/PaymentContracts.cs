@@ -114,7 +114,10 @@ public static class PaymentViews
             .ToList();
 
         if (plan.Remainder is { } rest)
-            rows.Add(new PostingRowView(Remainder, null, "Не разнесено", rest.Amount, rest.AccountingOn, rest.Moved,
+            // Отрицательный остаток — не «не разнесено», а поправка: строки больше суммы к оплате.
+            rows.Add(new PostingRowView(Remainder, null,
+                rest.Amount < 0 ? "Поправка: строки больше суммы к оплате" : "Не разнесено",
+                rest.Amount, rest.AccountingOn, rest.Moved,
                 Note(plan.PaidOn, rest.AccountingOn, new PeriodContour.Company(), boundaries), []));
 
         return [.. rows

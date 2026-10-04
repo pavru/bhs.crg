@@ -9,17 +9,18 @@ namespace BHS.CRG.Modules.Costs.Data;
 public sealed record PostedShare(
     Guid Id, Guid? LineId, AllocationTarget Target, decimal? Amount, DateOnly AccountingOn, bool Moved);
 
-/// <summary>Неразнесённый остаток оплаченного счёта — по контуру компании.</summary>
+/// <summary>
+/// Неразнесённый остаток оплаченного счёта — по контуру компании.
+///
+/// <para>⚠️ Бывает ОТРИЦАТЕЛЬНЫМ: строки больше суммы к оплате в пределах допуска (счёт на 1000,00 со
+/// строками на 1000,80), и доли несут деньги строк. Это не ошибка, а поправка: с ней строки расклада
+/// в сумме дают ровно сумму к оплате, а без неё затраты периодов разошлись бы с оплаченным на копейки.
+/// Экран называет её поправкой, а не «не разнесено».</para>
+/// </summary>
 public sealed record PostedRemainder(decimal Amount, DateOnly AccountingOn, bool Moved);
 
 /// <summary>Расклад оплаты: куда и каким днём легли деньги счёта.</summary>
-public sealed record PaymentPlan(DateOnly PaidOn, IReadOnlyList<PostedShare> Shares, PostedRemainder? Remainder)
-{
-    /// <summary>Все учётные даты расклада — по ним считается «учётный период» счёта.</summary>
-    public IEnumerable<DateOnly> Dates =>
-        Shares.Where(s => s.Amount is not null).Select(s => s.AccountingOn)
-            .Concat(Remainder is { } rest ? [rest.AccountingOn] : []);
-}
+public sealed record PaymentPlan(DateOnly PaidOn, IReadOnlyList<PostedShare> Shares, PostedRemainder? Remainder);
 
 /// <summary>
 /// Учётные даты, записанные ДО правки, — по значению: строка и цель. По ним правка разноски решает,
@@ -150,6 +151,11 @@ public sealed record PeriodLock(Guid? ConstructionId, DateOnly Through);
 /// последнюю часть счёта, так что правка открытой доли меняет деньги закрытой.</para>
 ///
 /// <para>Неоплаченный счёт не принадлежит ни одному периоду — его проверка не трогает.</para>
+///
+/// <para>⚠️ Запирает и доля БЕЗ ДЕНЕГ (в строке не вписана цена, разноска ждёт пересчёта), хотя в
+/// затраты закрытого месяца она не вошла (ревью PR #1191). Нарочно: деньги ей даёт правка — вписанная
+/// цена, — а дату доля при правке сохраняет, так что открытый для правок счёт положил бы деньги в
+/// закрытый период обычным сохранением строки. Отказать лишнему счёту дешевле, чем пустить такой.</para>
 /// </summary>
 public static class ClosedPeriodGuard
 {

@@ -34,6 +34,7 @@ public class InvoiceWritePathTests
 
     private static readonly Regex Save = new(@"\bSaveChanges(Async)?\(", RegexOptions.Compiled);
     private static readonly Regex Write = new(@"\bdesk\.WriteAsync\(", RegexOptions.Compiled);
+    private static readonly Regex Bulk = new(@"\.Execute(Update|Delete|Sql\w*)(Async)?\(", RegexOptions.Compiled);
     private static readonly Regex Period = new(@"\.AccountingDate\(|\.IsClosed\(", RegexOptions.Compiled);
 
     [Fact]
@@ -59,6 +60,22 @@ public class InvoiceWritePathTests
             "Каждая правка счёта, его строк и разноски идёт через связку: одна связка — одно сохранение. Только " +
             "она берёт замок против закрытия периода, отказывает запертому счёту и перекладывает учётные даты " +
             "оплаченного. Если сохранение мимо неё действительно нужно — впишите файл в OutsideTheDesk с причиной.");
+    }
+
+    /// <summary>
+    /// Запись мимо отслеживания контекста связка не видит вовсе: ни счётчик сохранений выше, ни её
+    /// собственное «тронуты ли деньги» (оно читает записи под сохранением). Такой записи в модуле нет —
+    /// и появиться ей нельзя.
+    /// </summary>
+    [Fact]
+    public void Модуль_не_пишет_мимо_отслеживания_контекста()
+    {
+        var bulk = Sources().Where(s => Bulk.IsMatch(s.Code)).Select(s => s.Rel).ToList();
+
+        Assert.True(bulk.Count == 0,
+            "Запись мимо отслеживания контекста (ExecuteUpdate, ExecuteDelete, ExecuteSql): " + string.Join(", ", bulk) +
+            ".\n\nСвязка записи счёта узнаёт о тронутых деньгах по записям под сохранением; правку, прошедшую " +
+            "мимо них, она не заметит — и оплаченный счёт останется с прежними учётными датами.");
     }
 
     [Fact]

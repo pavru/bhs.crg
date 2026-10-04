@@ -238,11 +238,21 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       // человек, ничего не трогая, сохранил бы счёт со ссылкой в пустоту. Реестр в том же случае
       // честно пишет «организация не найдена» — форма обязана говорить то же самое.
       const lost = entryId !== null && !organizations.some(o => o.id === entryId);
+      const title = fieldKey === K.supplier ? 'Поставщик' : 'Плательщик';
+
+      // Запертый счёт: выбор заменён полем для чтения, как у остальных, — отключённый выбор приглушён
+      // и читается как «здесь ничего нет».
+      if (locked)
+        return (
+          <TextField label={title} readOnly onChange={() => {}}
+            value={organizationsUnread ? 'справочник не прочитан'
+              : entryId === null ? '' : organizations.find(o => o.id === entryId)?.name ?? 'организация не найдена'} />
+        );
 
       return (
         <div className={lost ? 'rounded-md ring-1 ring-danger-border' : frame}>
-          <Select label={fieldKey === K.supplier ? 'Поставщик' : 'Плательщик'}
-            disabled={organizationsUnread || locked}
+          <Select label={title}
+            disabled={organizationsUnread}
             hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
               : lost ? 'Ссылка есть, а записи нет: организацию удалили' : hint}
             value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"

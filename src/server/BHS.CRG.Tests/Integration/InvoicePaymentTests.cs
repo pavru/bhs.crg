@@ -314,6 +314,36 @@ public class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Contains("не тот счёт", record.After);
     }
 
+    /// <summary>
+    /// Правило «оплаченный счёт обязан остаться сведённым» спрашивают с правки ДЕНЕГ, а не с любой
+    /// (ревью PR #1191). Счёт, переставший сходиться не по вине правки (сузили допуск, починили данные),
+    /// обязан принимать платёжный документ и скан: отказ «после этой правки сумма расходится» про
+    /// правку, которая сумм не касалась, был бы неправдой, а выхода из него не было бы.
+    /// </summary>
+    [Fact]
+    public async Task Правка_не_тронувшая_деньги_сведённости_не_проверяет()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, a, _) = await TwoSitesAsync(admin);
+        await PayAsync(admin, invoice, today, await PreviewAsync(admin, invoice, today), null);
+
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database
+                .ExecuteSqlInterpolatedAsync($"UPDATE costs.invoices SET total = 100500 WHERE id = {invoice}");
+
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}/paid", new { document = "п/п № 9" }));
+        await OkAsync(await ScanAsync(admin, invoice, "счёт.pdf"));
+
+        // А правка денег — по-прежнему отказ, и названа причина.
+        var view = await ReadAsync(admin, invoice);
+        var touched = await admin.PutAsJsonAsync(
+            $"/api/costs/invoices/{invoice}/lines/{LineId(view, 1)}/allocation",
+            new { parts = new object[] { Part(a, quantity: 60) } });
+        Assert.Equal(HttpStatusCode.BadRequest, touched.StatusCode);
+        Assert.Contains("Сначала отмените оплату", await ErrorAsync(touched));
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>Счёт на 100 000: строка 40 000 на стройку А и строка 60 000 на стройку Б.</summary>
