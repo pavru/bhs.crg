@@ -1,9 +1,11 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Periods;
 using BHS.CRG.Domain.Activity;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Ports;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -24,14 +26,23 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
-    // Суммы с копейками — нарочно: в названиях строек и номерах счетов сидит обрывок идентификатора, и
-    // целое «1234» нашлось бы в нём случайно. Числа с дробной частью там не встречаются.
     private const decimal Price = 1_234.5m;      // 7 м × 1 234,50 = 8 641,50; доли 3 м и 4 м — 3 703,50 и 4 938,00
     private const decimal Delivery = 3_777.25m;  // строка без количества: 2 777,25 + 1 000 → 1 777,25 + 2 000
     private const decimal Total = 12_418.75m;
 
-    private static readonly string[] Money =
-        ["8641.5", "3703.5", "4938.0", "3777.25", "2777.25", "1777.25", "1000.0", "2000.0", "12418.75", "1234.5"];
+    /// <summary>
+    /// Рубли каждой суммы сценария — цена, суммы строк, доли, итог. Ищется ЦЕЛАЯ часть отдельным числом,
+    /// с пробелом-разделителем или без: так находится и «2 777,25 ₽», и «2777.25», и округлённое «2777» —
+    /// сумма без копеек и без знака рубля остаётся суммой.
+    ///
+    /// <para>«Отдельным числом» — потому что в названиях строек и статей сидит обрывок идентификатора, и
+    /// «1000» внутри «e61000» суммой не является: слева и справа от найденного не должно быть ни буквы, ни
+    /// цифры.</para>
+    /// </summary>
+    private static readonly (string Rubles, Regex Pattern)[] Money =
+        [.. new[] { "8641", "3703", "4938", "3777", "2777", "1777", "1000", "2000", "12418", "1234" }
+            .Select(rubles => (rubles, new Regex(
+                @"(?<![\w])" + rubles[..^3] + @"[\s\u00A0\u202F]?" + rubles[^3..] + @"(?![\w])")))];
 
     [Fact]
     public async Task Ни_одно_событие_модуля_не_пишет_в_журнал_суммы()
@@ -41,10 +52,10 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
         var (b, _) = await SiteAsync("Журнал Б");
 
         // Статьи вне строек: заведена, переименована, убрана (занятую убрать нельзя — убирается вторая).
-        var article = await ArticleAsync(client, "Склад");
+        var (article, _) = await ArticleAsync(client, "Склад");
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/articles/{article}",
             new { name = $"Склад новый {Guid.NewGuid().ToString()[..6]}" }));
-        var spare = await ArticleAsync(client, "Лишняя");
+        var (spare, _) = await ArticleAsync(client, "Лишняя");
         await OkAsync(await client.DeleteAsync($"/api/costs/articles/{spare}"));
 
         // Счёт с меткой «распознано, не подтверждено» — чтобы «Всё верно» было что снимать.
@@ -79,18 +90,33 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
             [Part(a, amount: 2_777.25m), ArticlePart(article, amount: 1_000m)]);
 
         // Матрица: те же цели, у строки без количества сдвинуты ОДНИ СУММЫ. Описание без рублей от этого
-        // не меняется — и событие обязано быть всё равно.
+        // не меняется — событие обязано быть всё равно, и о том, что изменились суммы, сказать словами.
         var before = await CountAsync(InvoiceActions.AllocationChanged, invoice);
-        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/allocation", new
-        {
-            stamp = view.GetProperty("allocation").GetProperty("stamp").GetString(),
-            lines = new object[]
-            {
-                new { line = first, parts = new[] { Part(a, quantity: 3, section: sections[0]), Part(b, quantity: 4) } },
-                new { line = second, parts = new[] { Part(a, amount: 1_777.25m), ArticlePart(article, amount: 2_000m) } },
-            },
-        }));
+        view = await MatrixAsync(client, invoice, view,
+            (first, [Part(a, quantity: 3, section: sections[0]), Part(b, quantity: 4)]),
+            (second, [Part(a, amount: 1_777.25m), ArticlePart(article, amount: 2_000m)]));
         Assert.Equal(before + 1, await CountAsync(InvoiceActions.AllocationChanged, invoice));
+
+        var amounts = (await RecordsOfAsync(InvoiceActions.AllocationChanged, invoice)).First();
+        Assert.Equal(amounts.Before + " (изменены суммы долей)", amounts.After);
+
+        // Та же матрица ещё раз, без правок: раскладка не менялась — и записи нет.
+        view = await MatrixAsync(client, invoice, view,
+            (first, [Part(a, quantity: 3, section: sections[0]), Part(b, quantity: 4)]),
+            (second, [Part(a, amount: 1_777.25m), ArticlePart(article, amount: 2_000m)]));
+        Assert.Equal(before + 1, await CountAsync(InvoiceActions.AllocationChanged, invoice));
+
+        // Построчно — то же: одни суммы, одна запись, слова вместо чисел.
+        var stored = view.GetProperty("lines")[1].GetProperty("allocation").GetProperty("parts").EnumerateArray()
+            .Select(part => part.GetProperty("id").GetGuid()).ToList();
+        await AllocateAsync(client, invoice, second,
+        [
+            Part(a, amount: 2_777.25m, id: stored[0]),
+            With(ArticlePart(article, amount: 1_000m), "id", stored[1]),
+        ]);
+        amounts = (await RecordsOfAsync(InvoiceActions.AllocationChanged, invoice)).First();
+        Assert.Equal(amounts.Before + " (изменены суммы долей)", amounts.After);
+        Assert.Equal(before + 2, await CountAsync(InvoiceActions.AllocationChanged, invoice));
 
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
             new { requisites = await RequisitesWithAsync(client, invoice, "Итого", Total) }));
@@ -127,11 +153,9 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
             Assert.DoesNotContain("₽", text);
             Assert.DoesNotContain("руб", text, StringComparison.OrdinalIgnoreCase);
 
-            // Число могло быть записано с пробелом-разделителем и запятой: сверяем приведённое.
-            var digits = text.Replace(" ", "").Replace(" ", "").Replace(" ", "").Replace(',', '.');
-            foreach (var money in Money)
-                Assert.False(digits.Contains(money),
-                    $"Событие «{record.Action}» несёт сумму {money}: «{text}». Суммы счёта в журнал ядра не пишутся — " +
+            foreach (var (rubles, pattern) in Money)
+                Assert.False(pattern.IsMatch(text),
+                    $"Событие «{record.Action}» несёт сумму {rubles}: «{text}». Суммы счёта в журнал ядра не пишутся — " +
                     "его читают без права на счета (issue #1190).");
         }
 
@@ -143,32 +167,51 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
             && r.After.Contains("— суммой"));
     }
 
-    private async Task<Guid> ArticleAsync(HttpClient client, string name)
+    /// <summary>Записать разноску счёта матрицей — набором частей каждой строки, по отметке версии из вида.</summary>
+    private static async Task<JsonElement> MatrixAsync(
+        HttpClient client, Guid invoice, JsonElement view, params (Guid Line, Dictionary<string, object?>[] Parts)[] lines)
     {
-        var response = await client.PostAsJsonAsync("/api/costs/articles",
-            new { name = $"{name} {Guid.NewGuid().ToString()[..6]}" });
+        var response = await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/allocation", new
+        {
+            stamp = view.GetProperty("allocation").GetProperty("stamp").GetString(),
+            lines = lines.Select(l => new { line = l.Line, parts = l.Parts }),
+        });
         await OkAsync(response);
-        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
-
-    private static Dictionary<string, object?> ArticlePart(Guid article, decimal? amount = null) =>
-        new() { ["article"] = article.ToString(), ["amount"] = amount };
 
     /// <summary>Записи журнала по всем действиям модуля — только о счёте и статьях этого теста: база у хоста общая.</summary>
     private async Task<List<ActivityRecord>> RecordsOfAsync(params Guid[] targets)
     {
+        var records = new List<ActivityRecord>();
+        foreach (var action in new InvoiceActions().Actions)
+            records.AddRange(await RecordsOfAsync(action, targets));
+        return records;
+    }
+
+    /// <summary>
+    /// Записи одного действия, новые первыми. ⚠️ Журнал читается ДО КОНЦА, страница за страницей: база у
+    /// хоста общая на все классы, и записей «счёт заведён» в ней больше страницы — первая страница молча
+    /// отдала бы «записей нет» там, где они есть.
+    /// </summary>
+    private async Task<List<ActivityRecord>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets)
+    {
+        const int Page = 200;
         using var scope = host.Services.CreateScope();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
         var ids = targets.Select(t => t.ToString()).ToHashSet();
 
         var records = new List<ActivityRecord>();
-        foreach (var action in new InvoiceActions().Actions)
-            records.AddRange((await journal.ReadAsync(0, 200, action.Code)).Where(r => ids.Contains(r.TargetId!)));
-        return records;
+        for (var skip = 0; ; skip += Page)
+        {
+            var page = await journal.ReadAsync(skip, Page, action.Code);
+            records.AddRange(page.Where(r => r.TargetId is { } id && ids.Contains(id)));
+            if (page.Count < Page) return records;
+        }
     }
 
-    private async Task<int> CountAsync(BHS.CRG.Modules.Ports.ModuleActivityAction action, Guid invoice) =>
-        (await RecordsOfAsync(invoice)).Count(r => r.Action == action.Code);
+    private async Task<int> CountAsync(ModuleActivityAction action, Guid invoice) =>
+        (await RecordsOfAsync(action, invoice)).Count;
 
     private async Task<DateOnly> TodayAsync()
     {

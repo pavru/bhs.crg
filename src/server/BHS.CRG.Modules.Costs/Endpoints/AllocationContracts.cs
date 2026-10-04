@@ -332,6 +332,14 @@ public static class InvoiceAllocations
         }));
     }
 
+    /// <summary>
+    /// «Стало» для журнала. Правка одних сумм описывается теми же словами, что и прежняя раскладка (рублей в
+    /// описании нет), и запись с одинаковыми «было» и «стало» читалась бы как правка, которой не было.
+    /// Что изменились именно суммы, сказано словами — без самих сумм.
+    /// </summary>
+    public static string DescribeAfter(string was, string after) =>
+        was == after ? $"{after} (изменены суммы долей)" : after;
+
     private static string TargetText(AllocationTarget target, AllocationPlaces places)
     {
         if (target.ArticleId is { } article)

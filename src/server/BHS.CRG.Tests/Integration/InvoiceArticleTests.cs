@@ -215,22 +215,4 @@ public class InvoiceArticleTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
-    /// <summary>Статья с приметой — посев общий, и одноимённая статья соседнего теста дала бы отказ «уже есть».</summary>
-    private static async Task<(Guid Id, string Name)> ArticleAsync(HttpClient client, string name)
-    {
-        var unique = $"{name} {Guid.NewGuid().ToString()[..6]}";
-        var response = await client.PostAsJsonAsync("/api/costs/articles", new { name = unique });
-        await OkAsync(response);
-        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return (created.GetProperty("id").GetGuid(), unique);
-    }
-
-    private static Dictionary<string, object?> ArticlePart(Guid article, decimal? quantity = null, decimal? amount = null) =>
-        new() { ["article"] = article.ToString(), ["quantity"] = quantity, ["amount"] = amount };
-
-    private static Dictionary<string, object?> With(Dictionary<string, object?> part, string key, Guid value)
-    {
-        part[key] = value.ToString();
-        return part;
-    }
 }
