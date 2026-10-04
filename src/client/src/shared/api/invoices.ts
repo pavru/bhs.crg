@@ -141,6 +141,25 @@ export interface InvoiceLineTotals {
   vat: number;
 }
 
+/**
+ * Оплата в ответе счёта (C5, issue #1082). Всё здесь — слова и решения сервера: форма не выводит
+ * «заперт» из границ периодов и «оплатить нельзя» из сверки сумм своей формулой.
+ */
+export interface PaymentView {
+  paid: boolean;
+  paidOn: string | null;
+  /** Платёжный документ — необязательный текст. */
+  document: string | null;
+  paidAt: string | null;
+  /** Почему счёт сейчас оплатить нельзя; у оплаченного — `null`. */
+  refusal: string | null;
+  /** Чем счёт заперт («период закрыт по … у стройки …»); `null` — не заперт. Признак запертого —
+   *  только это поле, а не `paid`: оплаченный счёт открытого периода правится. */
+  lockedBy: string | null;
+  /** Учётные месяцы счёта — «09.2026», по возрастанию. */
+  periods: string[];
+}
+
 export interface InvoiceView {
   id: string;
   documentTypeId: string;
@@ -151,6 +170,7 @@ export interface InvoiceView {
   lines: InvoiceLineView[];
   totals: InvoiceLineTotals;
   allocation: AllocationSummaryView;
+  payment: PaymentView;
   createdAt: string;
   updatedAt: string;
 }

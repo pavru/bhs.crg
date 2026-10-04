@@ -26,10 +26,11 @@
     "test:e2e:invoices": "node e2e/invoices-smoke.mjs",
     "test:e2e:invoice-lines": "node e2e/invoice-lines-smoke.mjs",
     "test:e2e:allocation-matrix": "node e2e/allocation-matrix-smoke.mjs",
+    "test:e2e:invoice-payment": "node e2e/invoice-payment-smoke.mjs",
     "test:e2e:table-chips": "node e2e/table-chips-smoke.mjs",
     "test:e2e:table-view": "node e2e/table-view-smoke.mjs",
     "test:e2e:seed": "node e2e/seed.mjs",
-    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix table-chips table-view"
+    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix invoice-payment table-chips table-view"
   },
   "//engines": "Нижнюю границу Node задаёт react-router 8 (>=22.22.0). Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE. Образ сборки — node:22-alpine, см. deploy/Dockerfile.web.",
   "engines": {

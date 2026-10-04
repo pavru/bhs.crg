@@ -33,7 +33,12 @@ import { AllocationSummary, LineAllocationCell } from './LineAllocation';
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
+export function InvoiceLinesTable({ view, locked }: {
+  view: InvoiceView;
+  /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не
+   *  приглушены; причину называет полоса вверху формы. */
+  locked: boolean;
+}) {
   const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
   const [dirty, setDirty] = useState(false);
   const replace = useReplaceInvoiceLines();
@@ -82,14 +87,18 @@ export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
         <div className="flex-1" />
-        <InvoiceLinesPaste onAdd={add} />
-        <Button size="sm" variant="outlined" icon={<Plus size={13} />} onClick={() => add([emptyDraft()])}>
-          Добавить строку
-        </Button>
-        <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
-          loading={replace.isPending} onClick={save}>
-          Сохранить строки
-        </Button>
+        {!locked && (
+          <>
+            <InvoiceLinesPaste onAdd={add} />
+            <Button size="sm" variant="outlined" icon={<Plus size={13} />} onClick={() => add([emptyDraft()])}>
+              Добавить строку
+            </Button>
+            <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
+              loading={replace.isPending} onClick={save}>
+              Сохранить строки
+            </Button>
+          </>
+        )}
       </div>
 
       {drafts.length === 0
@@ -124,6 +133,7 @@ export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
                   <Row key={draft.key} draft={draft} number={index + 1} invoiceId={view.id}
                     line={view.lines.find(line => line.id === draft.id)}
                     blocked={dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null}
+                    locked={locked}
                     onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
                 ))}
               </tbody>
@@ -134,7 +144,7 @@ export function InvoiceLinesTable({ view }: { view: InvoiceView }) {
       <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty} />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {parsed
+        {locked ? null : parsed
           ? (
             <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
               onClick={() => move('draft')}>
@@ -205,17 +215,20 @@ function Reconciliation({ sums, paper, difference, unsaved }: {
   );
 }
 
-function Row({ draft, number, invoiceId, line, blocked, onEdit, onRemove }: {
+function Row({ draft, number, invoiceId, line, blocked, locked, onEdit, onRemove }: {
   draft: LineDraft;
   number: number;
   invoiceId: string;
   /** Строка, как её вернул сервер, — с разноской; у новой строки её нет. */
   line: InvoiceLineView | undefined;
   blocked: string | null;
+  locked: boolean;
   onEdit: (patch: Partial<LineDraft>) => void;
   onRemove: () => void;
 }) {
   const shown = preview(draft);
+
+  if (locked) return <LockedRow draft={draft} number={number} invoiceId={invoiceId} line={line} />;
 
   return (
     <tr className="border-t border-stroke align-top">
@@ -253,13 +266,46 @@ function Row({ draft, number, invoiceId, line, blocked, onEdit, onRemove }: {
         onChange={value => onEdit({ amount: value })} />
       <Cell value={draft.note} label={`Примечание, строка ${number}`}
         onChange={value => onEdit({ note: value })} />
-      <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={blocked} />
+      <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={blocked} locked={false} />
       <td className="py-1">
         <button type="button" onClick={onRemove} title={`Удалить строку ${number}`}
           className="text-fg4 hover:text-danger p-0.5">
           <Trash2 size={13} />
         </button>
       </td>
+    </tr>
+  );
+}
+
+/**
+ * Строка запертого счёта — текстом, без полей: править её нельзя, и поле, в которое можно печатать,
+ * обещало бы обратное. Разноска открывается — посмотреть.
+ */
+function LockedRow({ draft, number, invoiceId, line }: {
+  draft: LineDraft; number: number; invoiceId: string; line: InvoiceLineView | undefined;
+}) {
+  const shown = preview(draft);
+  const text = (value: string, numeric = false) => (
+    <td className={`py-1 pr-2 text-fg1 ${numeric ? 'text-right tabular-nums' : ''}`}>{value || '—'}</td>
+  );
+
+  return (
+    <tr className="border-t border-stroke align-top">
+      <td className="py-1 text-fg4">{number}</td>
+      <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
+        {draft.nomenclatureLost ? 'позиция не найдена' : draft.nomenclatureName ?? '—'}
+      </td>
+      {text(draft.supplierText)}
+      {text(draft.supplierCode)}
+      {text(draft.unit)}
+      {text(draft.quantity, true)}
+      {text(draft.price, true)}
+      {text(draft.vatRate, true)}
+      {text(draft.vatAmount || (shown.vat === null ? '' : formatNumber(shown.vat)), true)}
+      {text(draft.amount || (shown.amount === null ? '' : formatNumber(shown.amount)), true)}
+      {text(draft.note)}
+      <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={null} locked />
+      <td />
     </tr>
   );
 }

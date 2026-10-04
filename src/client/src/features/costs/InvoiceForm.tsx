@@ -11,12 +11,13 @@ import {
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, duplicateLabel, fromInput,
+  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, duplicateLabel, formatDate, fromInput,
   isMarked, moneyInput, refEntryId, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
   type InvoiceBlock,
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { InvoiceObject } from './InvoiceObject';
+import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import { ScanUploadButton } from './InvoiceScanPanel';
 
 /**
@@ -58,6 +59,9 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
 
+  // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
+  const locked = view.payment.lockedBy !== null;
+
   const scan = useMemo(() => scanOf(view), [view]);
   const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
 
@@ -86,22 +90,35 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
           <StateChip text={asInput(view.requisites[K.state])} />
-          <StateChip text={asInput(view.requisites[K.payment])} />
+          <StateChip text={view.payment.paid && view.payment.paidOn
+            ? `Оплачен ${formatDate(view.payment.paidOn)}` : asInput(view.requisites[K.payment])} />
+          {locked && <StateChip text="Заперт" />}
           {view.unconfirmed.length > 0 && (
             <span className="inline-flex items-center gap-1 text-xs text-warning">
               <Sparkles size={12} /> распознано, не подтверждено: {view.unconfirmed.length}
             </span>
           )}
           <div className="flex-1" />
-          <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
-            onPick={file => {
-              attach.mutateAsync({ id: view.id, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
-            }} />
-          <Button variant="filled" size="sm" icon={<Save size={14} />} disabled={!dirty}
-            loading={update.isPending} onClick={save}>
-            Сохранить
-          </Button>
+          {/* К запертому счёту скан приложить можно, заменить — нельзя: замена удалила бы документ
+              закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
+          {locked && scan !== null
+            ? <span className="text-xs text-fg3">Скан заменить нельзя: документ закрытого периода</span>
+            : (
+              <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
+                onPick={file => {
+                  attach.mutateAsync({ id: view.id, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
+                }} />
+            )}
+          {!locked && (
+            <Button variant="filled" size="sm" icon={<Save size={14} />} disabled={!dirty}
+              loading={update.isPending} onClick={save}>
+              Сохранить
+            </Button>
+          )}
         </div>
+
+        {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
+        <InvoicePayment view={view} dirty={dirty} />
 
         {organizationsError != null && (
           <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-subtle
@@ -119,13 +136,13 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         {scanSlot}
 
         <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-4"
-          view={view} edits={edits} organizations={organizations}
+          view={view} edits={edits} organizations={organizations} locked={locked}
           organizationsUnread={organizationsError != null} value={value} set={set}
           onConfirm={confirmBlock} confirming={confirm.isPending} />
 
         {/* Объект — в шапке, без прокрутки (ТЗ COST-6.2): для большинства счетов разноска на нём и
             заканчивается. */}
-        <InvoiceObject view={view} />
+        <InvoiceObject view={view} locked={locked} />
       </div>
 
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
@@ -133,7 +150,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         {BLOCKS.slice(1).map(block => (
           <section key={block.id} className="space-y-3">
             <BlockFields block={block} columns="sm:grid-cols-2" titled
-              view={view} edits={edits} organizations={organizations}
+              view={view} edits={edits} organizations={organizations} locked={locked}
               organizationsUnread={organizationsError != null} value={value} set={set}
               onConfirm={confirmBlock} confirming={confirm.isPending} />
           </section>
@@ -146,12 +163,11 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
-        <InvoiceLinesTable view={view} />
+        <InvoiceLinesTable view={view} locked={locked} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
-          по отдельности — колонка «Разноска». Отметка оплаты — отдельная задача этапа. Сохранение их не
-          ждёт: черновик уже в реестре.
+          по отдельности — колонка «Разноска». Сохранение их не ждёт: черновик уже в реестре.
         </p>
       </div>
     </div>
@@ -160,9 +176,9 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
 function BlockFields({
   block, columns, titled, view, edits, organizations, organizationsUnread, value, set,
-  onConfirm, confirming,
+  onConfirm, confirming, locked,
 }: {
-  block: InvoiceBlock; columns: string; titled?: boolean;
+  block: InvoiceBlock; columns: string; titled?: boolean; locked: boolean;
   view: InvoiceView; edits: Record<string, unknown>; organizations: CostsOrganization[];
   organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
@@ -178,7 +194,7 @@ function BlockFields({
           <div className="flex-1" />
           {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
               действие, которое заведомо откажет, — обман. */}
-          {marks.length > 0 && (
+          {marks.length > 0 && !locked && (
             <Button size="sm" variant="outlined" icon={<CheckCheck size={13} />} loading={confirming}
               onClick={() => onConfirm(block)}>
               Всё верно ({marks.length})
@@ -189,15 +205,18 @@ function BlockFields({
       <div className={`grid grid-cols-1 ${columns} gap-3`}>
         {block.fields.map(key => (
           <Field key={key} fieldKey={key} view={view} edits={edits} organizations={organizations}
-            organizationsUnread={organizationsUnread} value={value} set={set} />
+            organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
         ))}
       </div>
     </>
   );
 }
 
-function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set }: {
+function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set, locked }: {
   fieldKey: string; view: InvoiceView; edits: Record<string, unknown>;
+  /** Счёт заперт закрытым периодом: поля только читаются. Читаются, а не отключены — приглушённое
+   *  поле выглядит пустым, а причину называет полоса вверху. */
+  locked: boolean;
   organizations: CostsOrganization[]; organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
 }) {
@@ -223,7 +242,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       return (
         <div className={lost ? 'rounded-md ring-1 ring-danger-border' : frame}>
           <Select label={fieldKey === K.supplier ? 'Поставщик' : 'Плательщик'}
-            disabled={organizationsUnread}
+            disabled={organizationsUnread || locked}
             hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
               : lost ? 'Ссылка есть, а записи нет: организацию удалили' : hint}
             value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
@@ -244,6 +263,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       return (
         <div className={frame}>
           <DateField label={LABELS[fieldKey]} hint={hint} value={asInput(current).slice(0, 10)}
+            readOnly={locked}
             onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
         </div>
       );
@@ -264,7 +284,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       const numeric = money || fieldKey === K.deferral;
       return (
         <div className={frame}>
-          <TextField label={LABELS[fieldKey] ?? fieldKey} hint={hint}
+          <TextField label={LABELS[fieldKey] ?? fieldKey} hint={hint} readOnly={locked}
             value={money ? moneyInput(current) : asInput(current)}
             inputMode={numeric ? 'decimal' : undefined}
             onChange={e => set(fieldKey, fromInput(e.target.value))} />
