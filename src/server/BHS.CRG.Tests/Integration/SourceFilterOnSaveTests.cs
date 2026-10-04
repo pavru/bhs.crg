@@ -23,7 +23,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : SourceProces
     private const string Good = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"between","values":["80","110"]}]}""";
     private const string WrongKind = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Итого","op":"contains","value":"1"}]}""";
     private const string OutsideChoice = """{"type":"group","logic":"and","children":[{"type":"condition","column":"СостояниеОплаты","op":"eq","value":"Оплочен"}]}""";
-    private const string InsideChoice = """{"type":"group","logic":"and","children":[{"type":"condition","column":"СостояниеОплаты","op":"in","values":["Оплачен","Частично оплачен"]}]}""";
+    private const string InsideChoice = """{"type":"group","logic":"and","children":[{"type":"condition","column":"СостояниеОплаты","op":"in","values":["Оплачен","Не оплачен"]}]}""";
     private const string UnknownOp = """{"type":"group","logic":"and","children":[{"type":"condition","column":"Номер","op":"betwen","value":"1"}]}""";
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class SourceFilterOnSaveTests(InvoiceLineHost host) : SourceProces
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         var said = await refused.Content.ReadAsStringAsync();
         Assert.Contains("значения «Оплочен» в перечне колонки нет", said);
-        Assert.Contains("«Частично оплачен»", said);
+        Assert.Contains("«Не оплачен»", said);
         Assert.Null(await FilterAsync(id));
 
         Assert.Equal(HttpStatusCode.OK, (await PutFilterAsync(client, id, InsideChoice)).StatusCode);

@@ -56,11 +56,13 @@ public sealed class ModulePortsHost : IntegrationTestFixture
 /// <summary>
 /// Объявление действий журнала, как его делает модуль. Одно действие — больше для проверки пути не
 /// нужно: названием оно отличается от кода, и именно название обязано доехать до экрана.
+/// Код — пробный, а не настоящий: настоящее «costs.invoice.paid» с задачи C5 объявляет сам модуль, и
+/// второе объявление того же кода каталог отвергает при старте.
 /// </summary>
 public sealed class ProbeModuleActivity : IModuleActivityActions
 {
     public static readonly ModuleActivityAction InvoicePaid =
-        new("costs.invoice.paid", "Счёт отмечен оплаченным");
+        new("costs.probe.marked", "Счёт отмечен оплаченным");
 
     public IReadOnlyList<ModuleActivityAction> Actions => [InvoicePaid];
 }

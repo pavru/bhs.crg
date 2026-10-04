@@ -127,7 +127,7 @@ public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLine
         {
             ("Оплата за кабель", 110.00m, "2026-05-15", supplier, "Unpaid", $$"""{"{{seed.Weight}}": 12.5, "{{seed.Warranty}}": "2026-05-01", "{{seed.Note}}": "срочно, до пятницы"}"""),
             ("ОПЛАТА ЗА КАБЕЛЬ", 110m, "2026-05-20", supplier, "Paid", $$"""{"{{seed.Weight}}": "12 шт", "{{seed.Warranty}}": "скоро"}"""),
-            ("Оплата: кабель и труба", 5000m, "2026-06-30", supplier, "Partial", $$"""{"{{seed.Weight}}": 7, "{{seed.Warranty}}": "2026-07-01T00:00:00"}"""),
+            ("Оплата: кабель и труба", 5000m, "2026-06-30", supplier, "Unpaid", $$"""{"{{seed.Weight}}": 7, "{{seed.Warranty}}": "2026-07-01T00:00:00"}"""),
             ("Аванс", 50m, "2026-07-01", supplier, "Unpaid", $$"""{"{{seed.Weight}}": "7", "{{seed.Warranty}}": "2026-12-31"}"""),
             ("Труба", 99.99m, null, supplier, "Unpaid", $$"""{"{{seed.Weight}}": 100, "{{seed.Note}}": "СРОЧНО"}"""),
             (null, 1500m, null, payer, "Paid", "{}"),
@@ -141,10 +141,12 @@ public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLine
             var (purpose, total, due, org, payment, data) = rows[i];
             var number = $"{tag}-{i + 1}";
             DateOnly? dueDate = due is null ? null : DateOnly.Parse(due);
+            // Оплаченный счёт без даты платежа база не примет (ограничение ck_invoices_paid_on, C5).
+            DateOnly? paidOn = payment == "Paid" ? new DateOnly(2026, 5, 25) : null;
             await costs.Database.ExecuteSqlInterpolatedAsync($"""
                 UPDATE costs.invoices
                 SET number = {number}, purpose = {purpose}, total = {total}, due_date = {dueDate},
-                    supplier_id = {org}, payment = {payment}, data = {data}::jsonb
+                    supplier_id = {org}, payment = {payment}, paid_on = {paidOn}, data = {data}::jsonb
                 WHERE id = {ids[i]}
                 """);
         }
