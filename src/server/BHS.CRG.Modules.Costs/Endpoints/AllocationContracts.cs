@@ -310,7 +310,15 @@ public static class InvoiceAllocations
                 "решение одно.");
     }
 
-    /// <summary>Разноска текстом для журнала: «Стройка / раздел — 100 м; статья «Склад» — 5 м» (ТЗ COST-15).</summary>
+    /// <summary>
+    /// Разноска текстом для журнала: «Стройка / раздел — 100 м; статья «Склад» — суммой» (ТЗ COST-15).
+    ///
+    /// <para>⚠️ <b>Рублей здесь нет нарочно</b> (issue #1190, решение владельца 04.10.2026): журнал ядра
+    /// читают по <c>core.audit.read</c>, без права на счета, и сумма доли в нём — деньги счёта, показанные
+    /// мимо <c>costs.invoice.read</c>. Журнал отвечает на «кто, что и когда», а деньги показывает сам
+    /// модуль. Поэтому часть, заданная количеством, называет количество, а заданная суммой — только то,
+    /// что она задана суммой. Сторож — <c>CostsJournalMoneyTests</c>.</para>
+    /// </summary>
     public static string Describe(IReadOnlyList<AllocationValues> parts, AllocationPlaces places, string? unit)
     {
         if (parts.Count == 0) return "не разнесена";
@@ -319,10 +327,18 @@ public static class InvoiceAllocations
         {
             var size = p.Quantity is { } quantity
                 ? $"{quantity:0.###} {unit}".TrimEnd()
-                : $"{p.Amount:0.00} ₽";
+                : "суммой";
             return $"{TargetText(p.Target, places)} — {size}";
         }));
     }
+
+    /// <summary>
+    /// «Стало» для журнала. Правка одних сумм описывается теми же словами, что и прежняя раскладка (рублей в
+    /// описании нет), и запись с одинаковыми «было» и «стало» читалась бы как правка, которой не было.
+    /// Что изменились именно суммы, сказано словами — без самих сумм.
+    /// </summary>
+    public static string DescribeAfter(string was, string after) =>
+        was == after ? $"{after} (изменены суммы долей)" : after;
 
     private static string TargetText(AllocationTarget target, AllocationPlaces places)
     {

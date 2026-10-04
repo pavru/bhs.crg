@@ -59,7 +59,9 @@ public static class AllocationEndpoints
             await log.RecordAsync(InvoiceActions.AllocationChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice),
                 before: $"строка {line.Ordinal}: {InvoiceAllocations.Describe(was, known, line.Unit)}",
-                after: $"строка {line.Ordinal}: {InvoiceAllocations.Describe(values, known, line.Unit)}",
+                after: InvoiceAllocations.DescribeAfter(
+                    $"строка {line.Ordinal}: {InvoiceAllocations.Describe(was, known, line.Unit)}",
+                    $"строка {line.Ordinal}: {InvoiceAllocations.Describe(values, known, line.Unit)}"),
                 ct: ct);
 
         if (returned)
