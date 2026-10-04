@@ -404,11 +404,92 @@ public class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Empty((await TableAsync(admin,
             new { type = "condition", column = "УчётныйПериод", op = "eq", value = "01.1999" })).GetProperty("rows").EnumerateArray());
 
+        // Под отбором по объекту суммы — только доли на названную стройку: сентябрьские 60 000 второй
+        // стройки к ней не относятся (ревью PR #1192). Сам «Учётный период» — факт о счёте, он не сужается.
+        var byObject = await TableAsync(admin, new { type = "condition", column = "ОбъектыРазноски", op = "contains", value = "Оплата А " });
+        row = Assert.Single(byObject.GetProperty("rows").EnumerateArray());
+        Assert.Equal($"{Money(40_000m)} ({now})", row.GetProperty("СуммыПоПериодам").GetString());
+        Assert.Equal([was, now], row.GetProperty("УчётныйПериод").EnumerateArray().Select(m => m.GetString()));
+        Assert.StartsWith("доля: ", Column(byObject, "СуммыПоПериодам").GetProperty("note").GetString());
+
+        // Итог под отбором по учётному периоду — счета целиком, и это сказано под ним.
+        var totalled = await admin.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices?columns=Номер&totals=Итого&filter=" +
+            Uri.EscapeDataString(JsonSerializer.Serialize(new { type = "condition", column = "УчётныйПериод", op = "eq", value = now })));
+        Assert.Equal("счета целиком, а не деньги названного периода",
+            totalled.GetProperty("totals").GetProperty("Итого").GetProperty("note").GetString());
+
+        // «Пусто» и отрицание идут тем же объединением долей и остатка, что и «равно».
+        Assert.Empty((await TableAsync(admin, new { type = "condition", column = "УчётныйПериод", op = "is_empty" }))
+            .GetProperty("rows").EnumerateArray());
+        Assert.Empty((await TableAsync(admin, new { type = "condition", column = "УчётныйПериод", op = "neq", value = was }))
+            .GetProperty("rows").EnumerateArray());
+
         // Отмена оплаты — счёт в реестре остаётся, а месяцев и сумм у него больше нет.
         await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "проверка реестра" }));
         row = Assert.Single((await TableAsync(admin)).GetProperty("rows").EnumerateArray());
         Assert.Empty(row.GetProperty("УчётныйПериод").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, row.GetProperty("СуммыПоПериодам").ValueKind);
+    }
+
+    /// <summary>
+    /// Сортировка по «Учётному периоду» — по времени, а не по названию месяца: «09.2026» раньше
+    /// «01.2027», хотя по алфавиту наоборот. И месяц ОСТАТКА участвует в отборе наравне с месяцами долей:
+    /// остаток лежит в самом счёте, и условие по нему — второй подзапрос того же объединения.
+    /// </summary>
+    [Fact]
+    public async Task Учётный_период_сортируется_по_времени_и_видит_месяц_остатка()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (early, _, _) = await TwoSitesAsync(admin);
+        var (late, _, _) = await TwoSitesAsync(admin);
+        foreach (var invoice in new[] { early, late })
+            await PayAsync(admin, invoice, today, await PreviewAsync(admin, invoice, today), null);
+
+        // Даты — прямо в базу: сентябрь этого года и январь следующего через оплату не получить.
+        DateOnly september = new(today.Year, 9, 10), january = new(today.Year + 1, 1, 10), june = new(today.Year, 6, 5);
+        using (var scope = host.Services.CreateScope())
+        {
+            var costs = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+            await costs.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoice_allocations SET accounting_on = {september} WHERE invoice_id = {early}");
+            await costs.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoice_allocations SET accounting_on = {january} WHERE invoice_id = {late}");
+            await costs.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoices SET remainder_accounting_on = {june} WHERE id = {late}");
+        }
+
+        string Number(JsonElement view) => view.GetProperty("requisites").GetProperty("Номер").GetString()!;
+        string first = Number(await ReadAsync(admin, early)), second = Number(await ReadAsync(admin, late));
+
+        async Task<string[]> NumbersAsync(string sort, object? condition = null)
+        {
+            var own = new { type = "condition", column = "Номер", op = "in", values = new[] { first, second } };
+            var filter = JsonSerializer.Serialize(new
+            {
+                type = "group", logic = "and", children = condition is null ? [own] : new[] { own, condition },
+            });
+            var response = await admin.GetAsync(
+                $"/api/tables/costs.invoices?columns=Номер,УчётныйПериод&sort={Uri.EscapeDataString(sort)}&filter={Uri.EscapeDataString(filter)}");
+            await OkAsync(response);
+            return [.. (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("rows").EnumerateArray()
+                .Select(r => r.GetProperty("Номер").GetString()!)];
+        }
+
+        // У «позднего» счёта самый ранний месяц — июнь (остаток): по возрастанию он первый.
+        Assert.Equal([second, first], await NumbersAsync("УчётныйПериод"));
+        Assert.Equal([first, second], await NumbersAsync("УчётныйПериод:desc"));
+
+        // Отбор по месяцу остатка находит счёт, хотя ни одна доля в июнь не легла.
+        Assert.Equal([second], await NumbersAsync("Номер",
+            new { type = "condition", column = "УчётныйПериод", op = "eq", value = $"{june:MM.yyyy}" }));
+
+        // Без остатка порядок решают доли: сентябрь этого года раньше января следующего.
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoices SET remainder_accounting_on = NULL WHERE id = {late}");
+        Assert.Equal([first, second], await NumbersAsync("УчётныйПериод"));
+        Assert.Equal([second, first], await NumbersAsync("УчётныйПериод:desc"));
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────

@@ -92,7 +92,14 @@ public static class PaymentPosting
         var rest = total - money.Values.Sum();
         if (rest == 0) return new PaymentPlan(paidOn, shares, null);
 
-        var on = kept.Remainder ?? boundaries.AccountingDate(paidOn, new PeriodContour.Company());
+        // Отрицательный остаток — поправка к деньгам долей (строки больше суммы к оплате), и день у неё
+        // тот же, что у денег, которые она поправляет: самая поздняя доля с деньгами. Своей даты по
+        // контуру компании ей давать нельзя (ревью PR #1192): месяц, где лежит одна поправка, стал бы
+        // «учётным периодом» счёта с отрицательной суммой, а закрытие компании запирало бы счёт из-за неё.
+        var corrected = rest < 0 && shares.Any(s => s.Amount is not null)
+            ? shares.Where(s => s.Amount is not null).Max(s => s.AccountingOn)
+            : (DateOnly?)null;
+        var on = kept.Remainder ?? corrected ?? boundaries.AccountingDate(paidOn, new PeriodContour.Company());
         return new PaymentPlan(paidOn, shares, new PostedRemainder(rest, on, on != paidOn));
     }
 
@@ -127,18 +134,22 @@ public static class PaymentPosting
     /// <para>Одна функция на форму счёта и на реестр: посчитай они порознь, «учётный период» в форме
     /// однажды разошёлся бы с колонкой реестра. Доля без денег (в строке не вписана цена, разноска ждёт
     /// пересчёта) дату несёт, а в затраты месяца не входит — её месяц периодом счёта не называется.</para>
-    /// </summary>
+    /// <param name="balance">Баланс счёта — посчитанный вызывающим: он нужен ему и сам по себе.</param>
+    /// <param name="only">Какие доли считать: реестр под отбором по объекту называет доли на эти объекты.
+    /// С ним остаток в месяцы не идёт — он не лежит ни на одном объекте.</param>
     public static IReadOnlyList<PostedMonth> Months(
-        decimal? total, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts, DateOnly? remainderOn)
+        AllocationBalance balance, decimal? total, IReadOnlyList<InvoiceAllocation> parts, DateOnly? remainderOn,
+        Func<InvoiceAllocation, bool>? only = null)
     {
-        var money = Balance(lines, parts, total).Money
+        var money = balance.Money
             .Where(share => share.Amount is not null)
             .ToDictionary(share => share.Id, share => share.Amount!.Value);
 
-        var dated = parts.Where(p => p.AccountingOn is not null && money.ContainsKey(p.Id))
+        var dated = parts.Where(p => p.AccountingOn is not null && money.ContainsKey(p.Id) && only?.Invoke(p) != false)
             .Select(p => (On: p.AccountingOn!.Value, Amount: money[p.Id]));
-        if (remainderOn is { } on)
-            dated = dated.Append((on, (total ?? 0) - money.Values.Sum()));
+        // Нулевой остаток месяца не называет: дата у него могла остаться, а денег в ней нет.
+        if (only is null && remainderOn is { } on && (total ?? 0) - money.Values.Sum() is var rest && rest != 0)
+            dated = dated.Append((on, rest));
 
         return [.. dated
             .GroupBy(d => new DateOnly(d.On.Year, d.On.Month, 1))

@@ -179,8 +179,7 @@ public sealed class InvoiceDesk(
         var locked = ClosedPeriodGuard.LockOf(invoice, parts, boundaries);
 
         // Учётные месяцы — те, куда легли ДЕНЬГИ (ревью PR #1191), и той же функцией, что у реестра.
-        var months = PaymentPosting.Months(
-            invoice.Total, lines.Select(InvoiceAllocations.Line), parts, invoice.RemainderAccountingOn);
+        var months = PaymentPosting.Months(balance, invoice.Total, parts, invoice.RemainderAccountingOn);
 
         // Замок стройки возможен, только когда доли есть, — а тогда места уже прочитаны.
         return new PaymentView(true, invoice.PaidOn, invoice.PaymentDocument, invoice.PaidAt, null,
