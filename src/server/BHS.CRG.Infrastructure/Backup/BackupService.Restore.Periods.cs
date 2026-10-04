@@ -24,9 +24,13 @@ public partial class BackupService
         var valid = new List<PeriodClosure>();
         foreach (var item in items)
         {
-            if (!Enum.TryParse<PeriodClosureKind>(item.Kind, out var kind)
-                || !Enum.TryParse<PeriodContourKind>(item.Contour, out var contour)
-                || (contour == PeriodContourKind.Construction) != (item.ConstructionId is not null))
+            // IsDefined — потому что TryParse принимает и числа: «5» разобралось бы в значение,
+            // которого в перечислении нет, легло бы в таблицу, и каждое чтение границ падало бы на
+            // нём — а строку из дописываемой таблицы уже не убрать (ревью PR #1189).
+            if (!Enum.TryParse<PeriodClosureKind>(item.Kind, out var kind) || !Enum.IsDefined(kind)
+                || !Enum.TryParse<PeriodContourKind>(item.Contour, out var contour) || !Enum.IsDefined(contour)
+                || (contour == PeriodContourKind.Construction) != (item.ConstructionId is not null)
+                || (kind == PeriodClosureKind.Reopen) != (item.CancelsId is not null))
             {
                 warnings.Add($"Закрытие периода по {item.Through:dd.MM.yyyy}: запись не разобрана " +
                              $"(вид «{item.Kind}», контур «{item.Contour}»), пропущена.");

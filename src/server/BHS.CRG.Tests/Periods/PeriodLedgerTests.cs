@@ -180,6 +180,32 @@ public class PeriodLedgerTests
         Assert.Throws<ConflictException>(() => ledger.Reopenable(Contour.Construction(SiteB)));
     }
 
+    /// <summary>
+    /// Отмена закрытия компании не открывает стройку, закрывшуюся после него своим закрытием:
+    /// закрыто — префикс, и её собственная граница держит и отменяемые дни. Реестр обязан такие
+    /// стройки НАЗВАТЬ — иначе диалог обещал бы «дни откроются» там, где они не откроются.
+    /// </summary>
+    [Fact]
+    public void Отмена_закрытия_компании_называет_стройки_закрытые_своим_закрытием()
+    {
+        var october = Close(Contour.Company, D(8, 1), D(8, 31));
+        var ledger = PeriodLedger.From(
+        [
+            Close(Contour.Construction(SiteB), D(6, 1), D(6, 30)),   // раньше отменяемых дней — откроется
+            october,
+            Close(Contour.Construction(SiteA), D(9, 1), D(9, 30)),   // дальше компании — останется закрыта
+        ]);
+
+        Assert.Equal([SiteA], ledger.KeptClosedByOwn(ledger.Reopenable(Contour.Company)));
+
+        var reopened = PeriodLedger.From(
+        [
+            october, Reopen(october), Close(Contour.Construction(SiteA), D(9, 1), D(9, 30)),
+        ]);
+        Assert.True(reopened.IsClosed(D(8, 15), Contour.Construction(SiteA)));
+        Assert.False(reopened.IsClosed(D(8, 15), Contour.Company));
+    }
+
     [Fact]
     public void Отмена_требует_причину()
     {

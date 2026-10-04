@@ -163,6 +163,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
 
+        var before = await journal.CountAsync(ActivityActions.PeriodClosed.Code);
         await closures.CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
         await closures.ReopenAsync(new ReopenPeriod(Contour.Company, through, "закрыли не тот месяц"));
 
@@ -171,6 +172,9 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.Equal("Компания", closed.TargetLabel);
         Assert.Equal("не закрыто ничего", closed.Before);
         Assert.Equal($"закрыто по {through:dd.MM.yyyy}", closed.After);
+
+        // Сколько закрытий — столько и событий: журнал пишется в той же транзакции.
+        Assert.Equal(before + 1, await journal.CountAsync(ActivityActions.PeriodClosed.Code));
 
         var reopened = await journal.LastAsync(ActivityActions.PeriodReopened);
         Assert.NotNull(reopened);
@@ -316,6 +320,46 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
             var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
             Assert.Equal(through.AddDays(5), (await closures.LedgerAsync()).Company);
             Assert.Equal(2, (await closures.ExportAsync()).Count);
+        }
+    }
+
+    /// <summary>
+    /// Восстановление сдвигает границу — значит, идёт под тем же замком, что и закрытие: запись
+    /// модуля, проверившая «период открыт», не должна оказаться в периоде, закрытом копией посреди
+    /// неё. И повтор записи внутри самой копии — пропуск, а не падение.
+    /// </summary>
+    [Fact]
+    public async Task Записи_из_копии_ждут_запись_модуля_и_не_падают_на_повторе()
+    {
+        var through = (await TodayAsync()).AddDays(-10);
+        var closure = PeriodClosure.Close(Contour.Company, through.AddDays(-30), through, null, "Из копии", null,
+            DateTimeOffset.UtcNow);
+        var entered = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+
+        using var moduleScope = host.Services.CreateScope();
+        var costs = moduleScope.ServiceProvider.GetRequiredService<CostsDbContext>();
+        var writing = costs.InOpenPeriodAsync(moduleScope.ServiceProvider.GetRequiredService<IModulePeriods>(),
+            async _ =>
+            {
+                entered.SetResult();
+                await release.Task;
+            });
+        await entered.Task;
+
+        using (var scope = host.Services.CreateScope())
+            await Assert.ThrowsAsync<ConflictException>(() =>
+                scope.ServiceProvider.GetRequiredService<IPeriodClosures>().ImportAsync([closure]));
+
+        release.SetResult();
+        await writing;
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
+            Assert.Equal(1, await closures.ImportAsync([closure, closure]));
+            Assert.Equal(0, await closures.ImportAsync([closure]));
+            Assert.Equal(through, (await closures.LedgerAsync()).Company);
         }
     }
 

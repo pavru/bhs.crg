@@ -77,7 +77,8 @@ public static class PeriodEndpoints
             ledger.ClosedThrough(contour),
             ledger.Own(contour),
             ledger.ExpectedFrom(contour),
-            reopenable is null ? null : new ReopenableDto(reopenable.From, reopenable.Through));
+            reopenable is null ? null : new ReopenableDto(reopenable.From, reopenable.Through,
+                contour.Kind == PeriodContourKind.Company ? ledger.KeptClosedByOwn(reopenable) : []));
     }
 
     /// <summary>
@@ -125,7 +126,10 @@ public static class PeriodEndpoints
         Guid? ConstructionId, DateOnly? ClosedThrough, DateOnly? OwnClosedThrough, DateOnly? ExpectedFrom,
         ReopenableDto? Reopenable);
 
-    private record ReopenableDto(DateOnly From, DateOnly Through);
+    /// <param name="KeptClosed">
+    /// Стройки, которым отмена этих дней НЕ откроет: они закрыты своим закрытием. Только у компании.
+    /// </param>
+    private record ReopenableDto(DateOnly From, DateOnly Through, IReadOnlyList<Guid> KeptClosed);
 
     private record ClosureDto(
         Guid Id, string Kind, string Contour, Guid? ConstructionId, DateOnly From, DateOnly Through,

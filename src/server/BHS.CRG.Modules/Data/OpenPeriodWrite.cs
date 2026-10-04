@@ -27,7 +27,7 @@ public static class OpenPeriodWrite
     /// <summary>
     /// Ключ замка. ⚠️ Повторяет <c>AdvisoryLockKeys.PeriodWrite</c> ядра: сослаться туда контрактам
     /// нельзя. Разойдясь, две константы дали бы два разных замка — запись и закрытие перестали бы
-    /// друг друга видеть, и не упало бы ничего. Сверяет их сторож <c>AdvisoryLockKeyTests</c>.
+    /// друг друга видеть, и не упало бы ничего. Сверяет их сторож <c>PeriodClosureInventoryTests</c>.
     /// </summary>
     public const long LockKey = 1081_2026;
 

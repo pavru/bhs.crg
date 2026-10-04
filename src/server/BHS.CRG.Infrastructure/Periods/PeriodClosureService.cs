@@ -64,11 +64,14 @@ public sealed class PeriodClosureService(
             request.Contour, request.From, request.Through, who.Id, who.Name, request.Reason, time.GetUtcNow());
         db.PeriodClosures.Add(row);
         await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
 
+        // Журнал — В ТОЙ ЖЕ транзакции (ревью PR #1189): он пишет через тот же контекст. Запись после
+        // фиксации могла не случиться — оборванный запрос оставил бы закрытый период без события, а
+        // повтор ответил бы «уже закрыт», и журнал молчал бы о закрытии навсегда.
         await journal.RecordAsync(ActivityActions.PeriodClosed,
             targetId: TargetId(request.Contour), targetLabel: label,
             before: Boundary(before), after: Boundary(request.Through), ct: ct);
+        await tx.CommitAsync(ct);
         return row;
     }
 
@@ -88,12 +91,12 @@ public sealed class PeriodClosureService(
             ledger.Reopenable(request.Contour), who.Id, who.Name, request.Reason, time.GetUtcNow());
         db.PeriodClosures.Add(row);
         await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
 
         var after = (await LedgerAsync(ct)).ClosedThrough(request.Contour);
         await journal.RecordAsync(ActivityActions.PeriodReopened,
             targetId: TargetId(request.Contour), targetLabel: label,
             before: Boundary(before), after: $"{Boundary(after)}. Причина: {row.Reason}", ct: ct);
+        await tx.CommitAsync(ct);
         return row;
     }
 
@@ -112,11 +115,23 @@ public sealed class PeriodClosureService(
 
         var ids = records.Select(r => r.Id).ToList();
         var known = await db.PeriodClosures.Where(r => ids.Contains(r.Id)).Select(r => r.Id).ToHashSetAsync(ct);
-        var fresh = records.Where(r => !known.Contains(r.Id)).ToList();
+        // DistinctBy: копия, правленая руками, может нести запись дважды — отслеживание упало бы на
+        // втором экземпляре и откатило бы восстановление целиком вместо пропуска повтора.
+        var fresh = records.Where(r => !known.Contains(r.Id)).DistinctBy(r => r.Id).ToList();
         if (fresh.Count == 0) return 0;
+
+        // Дописанное закрытие СДВИГАЕТ границу — значит, идёт под тем же замком, что и закрытие
+        // (ревью PR #1189): иначе запись модуля, проверившая «период открыт», легла бы в период,
+        // закрытый восстановлением посреди неё. Восстановление копии зовёт нас в своей транзакции;
+        // вне транзакции открываем свою.
+        await using var own = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
+        await LockOutWritersAsync(ct);
 
         db.PeriodClosures.AddRange(fresh);
         await db.SaveChangesAsync(ct);
+        if (own is not null) await own.CommitAsync(ct);
         return fresh.Count;
     }
 
@@ -132,11 +147,14 @@ public sealed class PeriodClosureService(
             await db.Database.ExecuteSqlRawAsync($"SET LOCAL lock_timeout = '{LockTimeout}'", ct);
             await db.Database.ExecuteSqlRawAsync(
                 $"SELECT pg_advisory_xact_lock({AdvisoryLockKeys.PeriodWrite})", ct);
+            // Срок ожидания — только на этот замок: транзакция может быть чужой и долгой
+            // (восстановление копии), и оставленный срок оборвал бы её на первой занятой строке.
+            await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout TO DEFAULT", ct);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.LockNotAvailable)
         {
             throw new ConflictException(
-                "Сейчас в учёт идёт запись — закрытие периода ждёт её окончания и не дождалось. " +
+                "Сейчас в учёт идёт запись — изменение границы периода ждёт её окончания и не дождалось. " +
                 "Период не изменён. Повторите через минуту.");
         }
     }

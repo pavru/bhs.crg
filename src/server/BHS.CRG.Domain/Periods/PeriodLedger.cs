@@ -128,6 +128,15 @@ public sealed class PeriodLedger
     public PeriodClosure? ReopenableOrNull(PeriodContour contour) =>
         _last.TryGetValue(contour, out var last) && !CoveredByCompany(last) ? last : null;
 
+    /// <summary>
+    /// Стройки, которым отмена закрытия КОМПАНИИ не откроет отменяемые дни: они закрыты своим
+    /// закрытием, а закрыто — префикс. Стройка, закрывшая ноябрь после октября компании, держит и
+    /// октябрь; отмена октября у компании её не откроет, и молчать об этом нельзя (ревью PR #1189).
+    /// </summary>
+    public IReadOnlyList<Guid> KeptClosedByOwn(PeriodClosure companyClosure) =>
+        [.. _last.Where(p => p.Key.Kind == PeriodContourKind.Construction && p.Value.Through >= companyClosure.From)
+            .Select(p => p.Key.ConstructionId!.Value)];
+
     /// <summary>Закрытие стройки, которое не дальше границы компании: его отмена не открыла бы ни дня.</summary>
     private bool CoveredByCompany(PeriodClosure last) =>
         last.Contour == PeriodContourKind.Construction && Company is { } company && company >= last.Through;

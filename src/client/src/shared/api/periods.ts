@@ -19,7 +19,12 @@ export interface PeriodContourState {
   /** С какого дня начнётся следующее закрытие; null — закрытий не было, начало называет человек. */
   expectedFrom: string | null;
   /** Закрытие, которое отменит отмена; null — отменять нечего. */
-  reopenable: { from: string; through: string } | null;
+  reopenable: {
+    from: string;
+    through: string;
+    /** Стройки, которым отмена этих дней НЕ откроет: они закрыты своим закрытием. Только у компании. */
+    keptClosed: string[];
+  } | null;
 }
 
 export interface Periods {

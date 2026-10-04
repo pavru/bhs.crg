@@ -25,7 +25,12 @@ import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
  * (E1b), по данным каждого модуля и под его правом.
  */
 
-type Dialog = { kind: 'close' | 'reopen'; state: PeriodContourState; name: string } | null;
+/**
+ * Диалог помнит КОНТУР, а не его состояние: состояние берётся из свежего ответа сервера при каждой
+ * отрисовке. Со снимком на момент открытия повтор после отказа «границу тем временем изменили» слал
+ * бы ту же устаревшую границу и получал бы тот же отказ — выйти можно было только закрыв диалог.
+ */
+type Dialog = { kind: 'close' | 'reopen'; constructionId: string | null } | null;
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', {
@@ -39,12 +44,16 @@ export function PeriodsPage() {
   const { data: history = [] } = usePeriodHistory();
   // Названия строек открывает своё право: без него строки остаются, но безымянными.
   const namesAllowed = can.permission('core.constructions.read');
-  const { data: constructions = [] } = useListConstructions(namesAllowed);
+  const { data: constructions } = useListConstructions(namesAllowed);
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const nameOf = (id: string | null) => {
     if (!id) return 'Компания';
-    return constructions.find(c => c.id === id)?.name ?? (namesAllowed ? 'Стройка удалена' : 'Стройка');
+    if (!namesAllowed) return 'Стройка';
+    // «Ещё не знаем» — не «удалена»: пока справочник не пришёл (или не пришёл вовсе), имени нет, и
+    // сказать про стройку «удалена» значило бы выдать незнание за факт.
+    if (!constructions) return 'Стройка…';
+    return constructions.find(c => c.id === id)?.name ?? 'Стройка удалена';
   };
 
   if (isLoading || !data) {
@@ -52,6 +61,7 @@ export function PeriodsPage() {
   }
 
   const rows = [data.company, ...data.constructions];
+  const current = dialog && rows.find(r => r.constructionId === dialog.constructionId);
 
   return (
     <div className="px-6 py-4 max-w-5xl">
@@ -60,7 +70,7 @@ export function PeriodsPage() {
         Учётный период
       </h1>
       <p className="text-[13px] text-fg3 mb-4 max-w-3xl">
-        Закрытый период модули править не дают. Закрытие компании закрывает все стройки; стройку
+        Граница закрытого учёта компании и строек. Закрытие компании закрывает все стройки; стройку
         можно закрыть и дальше компании. Сегодня по часам компании — {ruDate(data.today)}:
         закрываются только прошедшие дни.
       </p>
@@ -87,12 +97,12 @@ export function PeriodsPage() {
                     <div className="flex items-center justify-end gap-1">
                       {state.reopenable && (
                         <Button size="sm" icon={<Undo2 size={14} />}
-                          onClick={() => setDialog({ kind: 'reopen', state, name })}>
+                          onClick={() => setDialog({ kind: 'reopen', constructionId: state.constructionId })}>
                           Отменить закрытие
                         </Button>
                       )}
                       <Button size="sm" variant="tonal" icon={<Lock size={14} />}
-                        onClick={() => setDialog({ kind: 'close', state, name })}>
+                        onClick={() => setDialog({ kind: 'close', constructionId: state.constructionId })}>
                         Закрыть период
                       </Button>
                     </div>
@@ -106,11 +116,14 @@ export function PeriodsPage() {
 
       <History records={history} nameOf={nameOf} />
 
-      {dialog?.kind === 'close' && (
-        <CloseDialog state={dialog.state} name={dialog.name} today={data.today} onDone={() => setDialog(null)} />
+      {dialog?.kind === 'close' && current && (
+        <CloseDialog state={current} name={nameOf(current.constructionId)} today={data.today}
+          onDone={() => setDialog(null)} />
       )}
-      {dialog?.kind === 'reopen' && (
-        <ReopenDialog state={dialog.state} name={dialog.name} onDone={() => setDialog(null)} />
+      {/* Отменять стало нечего (закрытие отменил кто-то другой) — диалог исчезает сам. */}
+      {dialog?.kind === 'reopen' && current?.reopenable && (
+        <ReopenDialog state={current} name={nameOf(current.constructionId)} nameOf={nameOf}
+          onDone={() => setDialog(null)} />
       )}
     </div>
   );
@@ -176,8 +189,7 @@ function CloseDialog({ state, name, today, onDone }: {
         </div>
         <p className="text-[13px] text-fg2">
           {through
-            ? <>Будет закрыто всё по {ruDate(through)} включительно. Записи этого периода модули
-                править не дадут.</>
+            ? <>Будет закрыто всё по {ruDate(through)} включительно.</>
             : <>Назовите последний день периода.</>}
           {!state.constructionId && ' Закрытие компании закрывает и все стройки.'}
         </p>
@@ -187,8 +199,8 @@ function CloseDialog({ state, name, today, onDone }: {
   );
 }
 
-function ReopenDialog({ state, name, onDone }: {
-  state: PeriodContourState; name: string; onDone: () => void;
+function ReopenDialog({ state, name, nameOf, onDone }: {
+  state: PeriodContourState; name: string; nameOf: (id: string | null) => string; onDone: () => void;
 }) {
   const toast = useToast();
   const reopen = useReopenPeriod();
@@ -218,10 +230,16 @@ function ReopenDialog({ state, name, onDone }: {
       }>
       <div className="space-y-4">
         <p className="text-[13px] text-fg2">
-          Отменяется последнее закрытие — с {ruDate(target.from)} по {ruDate(target.through)}. Период
-          снова откроется для правки. Учётные даты, записанные, пока он был закрыт, останутся как
+          Отменяется последнее закрытие — с {ruDate(target.from)} по {ruDate(target.through)}. Эти
+          дни снова станут открытыми. Учётные даты, записанные, пока период был закрыт, останутся как
           легли. Запись о закрытии не стирается: отмена записывается рядом, с причиной.
         </p>
+        {target.keptClosed.length > 0 && (
+          <p role="note" className="text-[13px] text-warning">
+            У этих строек дни останутся закрытыми — они закрыты своим закрытием, и его нужно
+            отменить отдельно: {target.keptClosed.map(nameOf).join(', ')}.
+          </p>
+        )}
         <TextAreaField label="Причина отмены" value={reason} onChange={e => setReason(e.target.value)}
           rows={3} required hint="её увидят в истории и в журнале действий" />
         {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}

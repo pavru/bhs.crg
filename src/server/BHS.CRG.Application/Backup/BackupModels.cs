@@ -110,18 +110,19 @@ public record BackupAppSetting(string Key, string Value, DateTimeOffset UpdatedA
 /// («переносятся отдельно»), но имя в записи — снимок, а не ссылка, и потому читается и на чужой
 /// системе.
 /// </summary>
-/// <summary>
-/// Запись о закрытии периода или об отмене закрытия (ТЗ CORE-35). Переносится как есть — со своим
-/// временем и автором; при восстановлении дописываются только недостающие.
-/// </summary>
-public record BackupPeriodClosure(
-    Guid Id, string Kind, string Contour, Guid? ConstructionId, DateOnly From, DateOnly Through,
-    DateTimeOffset At, Guid? ById, string ByName, string? Reason, Guid? CancelsId);
-
 public record BackupActivityRecord(
     Guid Id, DateTimeOffset OccurredAt, string Action,
     Guid? ActorId, string ActorName,
     string? TargetId, string? TargetLabel, string? Before, string? After);
+
+/// <summary>
+/// Запись о закрытии периода или об отмене закрытия (ТЗ CORE-35). Едет только в ПОЛНОЙ копии.
+/// Переносится как есть — со своим временем и автором; при восстановлении дописываются только
+/// недостающие.
+/// </summary>
+public record BackupPeriodClosure(
+    Guid Id, string Kind, string Contour, Guid? ConstructionId, DateOnly From, DateOnly Through,
+    DateTimeOffset At, Guid? ById, string ByName, string? Reason, Guid? CancelsId);
 
 // ── Проектные данные (issue #833) ────────────────────────────────────────────────────────────
 

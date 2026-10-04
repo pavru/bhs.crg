@@ -88,7 +88,20 @@ public class PeriodClosureInventoryTests
     public void Ключи_замков_сверены()
     {
         Assert.Equal(AdvisoryLockKeys.PeriodWrite, OpenPeriodWrite.LockKey);
-        Assert.NotEqual(TestRunDatabase.RunLock, AdvisoryLockKeys.PeriodWrite);
+
+        // ВСЕ ключи реестра, а не одна пара: следующий замок, добавленный в реестр с уже занятым
+        // числом, обязан упасть здесь, а не ждать чужой замок в бою (ревью PR #1189).
+        var keys = typeof(AdvisoryLockKeys)
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(f => f.IsLiteral)
+            .Select(f => (f.Name, Key: Convert.ToInt64(f.GetRawConstantValue())))
+            .Append((Name: "TestRunDatabase.RunLock", Key: TestRunDatabase.RunLock))
+            .ToList();
+
+        Assert.True(keys.Count >= 2);
+        var clashes = keys.GroupBy(k => k.Key).Where(g => g.Count() > 1)
+            .Select(g => $"{g.Key}: {string.Join(", ", g.Select(k => k.Name))}").ToList();
+        Assert.True(clashes.Count == 0, "Один ключ у двух замков: " + string.Join("; ", clashes));
     }
 
     private static IEnumerable<string> SourceFiles(string project) =>
