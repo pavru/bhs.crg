@@ -412,11 +412,42 @@ public class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Equal([was, now], row.GetProperty("УчётныйПериод").EnumerateArray().Select(m => m.GetString()));
         Assert.StartsWith("доля: ", Column(byObject, "СуммыПоПериодам").GetProperty("note").GetString());
 
-        // Итог под отбором по учётному периоду — счета целиком, и это сказано под ним.
-        var totalled = await admin.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices?columns=Номер&totals=Итого&filter=" +
-            Uri.EscapeDataString(JsonSerializer.Serialize(new { type = "condition", column = "УчётныйПериод", op = "eq", value = now })));
-        Assert.Equal("счета целиком, а не деньги названного периода",
-            totalled.GetProperty("totals").GetProperty("Итого").GetProperty("note").GetString());
+        // «Сумма» под отбором по учётному периоду — деньги названного месяца, в клетке и в итоге
+        // (G4, #1097); «Сумма к оплате» рядом остаётся счётом целиком, и это сказано под её итогом.
+        async Task<JsonElement> MoneyAsync(params object[] conditions) =>
+            await admin.GetFromJsonAsync<JsonElement>(
+                "/api/tables/costs.invoices?columns=Номер,СуммаПоОтбору,Итого&totals=СуммаПоОтбору,Итого&filter=" +
+                Uri.EscapeDataString(JsonSerializer.Serialize(new
+                {
+                    type = "group", logic = "and",
+                    children = conditions.Prepend(new { type = "condition", column = "Номер", op = "eq", value = number }),
+                })));
+        static JsonElement Total(JsonElement table, string key) => table.GetProperty("totals").GetProperty(key);
+
+        var inNow = await MoneyAsync(new { type = "condition", column = "УчётныйПериод", op = "eq", value = now });
+        Assert.Equal(40_000m, Assert.Single(inNow.GetProperty("rows").EnumerateArray()).GetProperty("СуммаПоОтбору").GetDecimal());
+        Assert.Equal(40_000m, Total(inNow, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
+        Assert.Equal(100_000m, Total(inNow, "Итого").GetProperty("sum").GetDecimal());
+        Assert.Equal("только периоды, названные отбором", Column(inNow, "СуммаПоОтбору").GetProperty("note").GetString());
+        Assert.Equal("только периоды, названные отбором", Total(inNow, "СуммаПоОтбору").GetProperty("note").GetString());
+        Assert.Equal("счета целиком, а не деньги названного периода", Total(inNow, "Итого").GetProperty("note").GetString());
+
+        // Оба месяца названы — счёт целиком; месяц и объект вместе — доля объекта В ЭТОМ месяце.
+        var inBoth = await MoneyAsync(new { type = "condition", column = "УчётныйПериод", op = "in", values = new[] { was, now } });
+        Assert.Equal(100_000m, Total(inBoth, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
+
+        var onA = new { type = "condition", column = "ОбъектыРазноски", op = "contains", value = "Оплата А " };
+        var mine = await MoneyAsync(onA, new { type = "condition", column = "УчётныйПериод", op = "eq", value = now });
+        Assert.Equal(40_000m, Total(mine, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
+        Assert.StartsWith("доля: ", Column(mine, "СуммаПоОтбору").GetProperty("note").GetString());
+        Assert.EndsWith("; только периоды, названные отбором", Column(mine, "СуммаПоОтбору").GetProperty("note").GetString());
+
+        // Счёт под отбором есть (сентябрьские деньги второй стройки), а доли стройки А в сентябре нет:
+        // клетка пуста, а не «вся доля стройки» и не ноль.
+        var foreign = await MoneyAsync(onA, new { type = "condition", column = "УчётныйПериод", op = "eq", value = was });
+        Assert.Equal(JsonValueKind.Null,
+            Assert.Single(foreign.GetProperty("rows").EnumerateArray()).GetProperty("СуммаПоОтбору").ValueKind);
+        Assert.Equal(0, Total(foreign, "СуммаПоОтбору").GetProperty("count").GetInt32());
 
         // «Пусто» и отрицание идут тем же объединением долей и остатка, что и «равно».
         Assert.Empty((await TableAsync(admin, new { type = "condition", column = "УчётныйПериод", op = "is_empty" }))
