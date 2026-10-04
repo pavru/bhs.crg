@@ -344,6 +344,73 @@ public class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Contains("Сначала отмените оплату", await ErrorAsync(touched));
     }
 
+    /// <summary>
+    /// Реестр показывает то же, что форма: учётные месяцы счёта и деньги каждого (ТЗ COST-16,
+    /// COST-20.1). Счёт на две стройки, одна закрыта по конец прошлого месяца: её 40 000 входят в
+    /// затраты этого месяца, 60 000 второй — прошлого.
+    /// </summary>
+    [Fact]
+    public async Task Реестр_называет_учётные_месяцы_счёта_и_деньги_каждого()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, a, _) = await TwoSitesAsync(admin);
+
+        var current = new DateOnly(today.Year, today.Month, 1);
+        var paidOn = current.AddDays(-1);
+        await CloseAsync(a, paidOn);
+        var paid = await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+
+        string was = $"{paidOn:MM.yyyy}", now = $"{current:MM.yyyy}";
+        var ru = System.Globalization.CultureInfo.GetCultureInfo("ru-RU");
+        string Money(decimal amount) => amount.ToString("N2", ru);
+        var number = paid.GetProperty("requisites").GetProperty("Номер").GetString()!;
+
+        async Task<JsonElement> TableAsync(HttpClient client, params object[] conditions)
+        {
+            var filter = JsonSerializer.Serialize(new
+            {
+                type = "group", logic = "and",
+                children = conditions.Prepend(new { type = "condition", column = "Номер", op = "eq", value = number }),
+            });
+            var response = await client.GetAsync(
+                $"/api/tables/costs.invoices?columns=Номер,УчётныйПериод,СуммыПоПериодам&filter={Uri.EscapeDataString(filter)}");
+            await OkAsync(response);
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+        static JsonElement Column(JsonElement table, string key) =>
+            table.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("key").GetString() == key);
+
+        // Без отбора по периоду — оба месяца, по возрастанию, и те же, что называет форма счёта.
+        var whole = await TableAsync(admin);
+        var row = Assert.Single(whole.GetProperty("rows").EnumerateArray());
+        Assert.Equal([was, now], row.GetProperty("УчётныйПериод").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal(
+            paid.GetProperty("payment").GetProperty("periods").EnumerateArray().Select(m => m.GetString()),
+            row.GetProperty("УчётныйПериод").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal($"{Money(60_000m)} ({was}) + {Money(40_000m)} ({now})", row.GetProperty("СуммыПоПериодам").GetString());
+        Assert.Equal(JsonValueKind.Null, Column(whole, "СуммыПоПериодам").GetProperty("note").ValueKind);
+
+        // Отбор называет месяц: счёт находится по ЛЮБОМУ из своих месяцев, а суммы — только названного.
+        var named = await TableAsync(admin, new { type = "condition", column = "УчётныйПериод", op = "eq", value = now });
+        row = Assert.Single(named.GetProperty("rows").EnumerateArray());
+        Assert.Equal($"{Money(40_000m)} ({now})", row.GetProperty("СуммыПоПериодам").GetString());
+        Assert.Equal([was, now], row.GetProperty("УчётныйПериод").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal("только периоды, названные отбором", Column(named, "СуммыПоПериодам").GetProperty("note").GetString());
+        Assert.Single((await TableAsync(admin,
+            new { type = "condition", column = "УчётныйПериод", op = "eq", value = was })).GetProperty("rows").EnumerateArray());
+
+        // Месяц, в который деньги счёта не вошли, — счёта под отбором нет.
+        Assert.Empty((await TableAsync(admin,
+            new { type = "condition", column = "УчётныйПериод", op = "eq", value = "01.1999" })).GetProperty("rows").EnumerateArray());
+
+        // Отмена оплаты — счёт в реестре остаётся, а месяцев и сумм у него больше нет.
+        await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "проверка реестра" }));
+        row = Assert.Single((await TableAsync(admin)).GetProperty("rows").EnumerateArray());
+        Assert.Empty(row.GetProperty("УчётныйПериод").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("СуммыПоПериодам").ValueKind);
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>Счёт на 100 000: строка 40 000 на стройку А и строка 60 000 на стройку Б.</summary>

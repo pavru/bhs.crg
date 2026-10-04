@@ -19,6 +19,10 @@ public sealed record PostedShare(
 /// </summary>
 public sealed record PostedRemainder(decimal Amount, DateOnly AccountingOn, bool Moved);
 
+/// <summary>Деньги счёта, вошедшие в затраты одного месяца.</summary>
+/// <param name="Month">Первый день месяца.</param>
+public sealed record PostedMonth(DateOnly Month, decimal Amount);
+
 /// <summary>Расклад оплаты: куда и каким днём легли деньги счёта.</summary>
 public sealed record PaymentPlan(DateOnly PaidOn, IReadOnlyList<PostedShare> Shares, PostedRemainder? Remainder);
 
@@ -115,6 +119,32 @@ public static class PaymentPosting
         IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total) =>
         AllocationMath.Of(lines,
             parts.Select(p => new AllocationPart(p.Id, p.LineId, p.Ordinal, p.Quantity, p.Amount)), total);
+
+    /// <summary>
+    /// Деньги оплаченного счёта по учётным МЕСЯЦАМ — как записано: доли с деньгами своими датами и
+    /// остаток своей. По возрастанию; месяц назван первым своим днём.
+    ///
+    /// <para>Одна функция на форму счёта и на реестр: посчитай они порознь, «учётный период» в форме
+    /// однажды разошёлся бы с колонкой реестра. Доля без денег (в строке не вписана цена, разноска ждёт
+    /// пересчёта) дату несёт, а в затраты месяца не входит — её месяц периодом счёта не называется.</para>
+    /// </summary>
+    public static IReadOnlyList<PostedMonth> Months(
+        decimal? total, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts, DateOnly? remainderOn)
+    {
+        var money = Balance(lines, parts, total).Money
+            .Where(share => share.Amount is not null)
+            .ToDictionary(share => share.Id, share => share.Amount!.Value);
+
+        var dated = parts.Where(p => p.AccountingOn is not null && money.ContainsKey(p.Id))
+            .Select(p => (On: p.AccountingOn!.Value, Amount: money[p.Id]));
+        if (remainderOn is { } on)
+            dated = dated.Append((on, (total ?? 0) - money.Values.Sum()));
+
+        return [.. dated
+            .GroupBy(d => new DateOnly(d.On.Year, d.On.Month, 1))
+            .OrderBy(g => g.Key)
+            .Select(g => new PostedMonth(g.Key, g.Sum(d => d.Amount)))];
+    }
 
     /// <summary>Что записано сейчас — снимок до правки.</summary>
     public static PostedBefore Before(Invoice invoice, IEnumerable<InvoiceAllocation> parts) => new(

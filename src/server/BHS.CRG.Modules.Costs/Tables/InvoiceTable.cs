@@ -31,10 +31,12 @@ namespace BHS.CRG.Modules.Costs.Tables;
 ///
 /// <para><b>«Реестр счетов» — готовое представление этой таблицы, а не отдельный отчёт</b> (ТЗ
 /// COST-20.1; задача G4, issue #1097): колонки и их порядок — как в таблице, с которой заказчик
-/// работает сегодня. С отметкой оплаты (C5, issue #1082) в нём есть дата платежа — «Оплачен».
-/// ⚠️ Учётного периода и сумм по периодам пока НЕТ: они приезжают вторым PR той же задачи. До тех пор
-/// период отбирается по дате счёта — и колонка суммы говорит это подписью, потому что такой итог с
-/// «Затратами по стройке» (COST-20) не сходится и сходиться не должен.</para>
+/// работает сегодня. С отметкой оплаты (C5, issue #1082) в нём есть дата платежа — «Оплачен», —
+/// «Учётный период» и «Суммы по периодам»: счёт, чьи доли вошли в затраты разных месяцев, читается
+/// как «40 000,00 (09.2026) + 60 000,00 (10.2026)».
+/// ⚠️ ИТОГ суммы по учётному периоду реестр пока не считает: «Сумма» под отбором периода остаётся
+/// суммой счёта, а отбор по ДАТЕ СЧЁТА называет свою ось подписью — такой итог с «Затратами по
+/// стройке» (COST-20) не сходится и сходиться не должен. Ось периода по оплате — задача G4.</para>
 /// </summary>
 public static class InvoiceTable
 {
@@ -72,6 +74,25 @@ public static class InvoiceTable
     /// счёта входят каждая своим днём, по периоду своей стройки (ТЗ COST-16).
     /// </summary>
     public const string PaidOnKey = "ДатаПлатежа";
+
+    /// <summary>
+    /// Учётные месяцы оплаченного счёта — «09.2026»; у неоплаченного пусто. Перечень, потому что это
+    /// поле НИЖНЕГО зерна: учётная дата — у доли разноски, и счёт на две стройки бывает в двух месяцах.
+    /// Условие — «есть доля в этом месяце».
+    /// </summary>
+    public const string PeriodKey = "УчётныйПериод";
+
+    /// <summary>
+    /// Деньги счёта по учётным месяцам: «40 000,00 (09.2026) + 60 000,00 (10.2026)». Отдельной колонкой
+    /// от месяцев — деньги закрыты правом на счета, а месяцы нет (ревизия Архитектора).
+    ///
+    /// <para>Под отбором, называющим период, — только названные месяцы: «что из этого счёта вошло в
+    /// октябрь». Поэтому колонка объявлена зависящей от отбора — по ней не отбирают и не сортируют.</para>
+    /// </summary>
+    public const string PeriodSumsKey = "СуммыПоПериодам";
+
+    /// <summary>Подпись «Сумм по периодам» под отбором, называющим период.</summary>
+    public const string NamedPeriodsNote = "только периоды, названные отбором";
 
     /// <summary>
     /// Подпись суммы под отбором периода: чем период назван — и чем он НЕ является. Другой оси у
@@ -125,6 +146,9 @@ public static class InvoiceTable
             new(InvoiceRequisites.PaymentKey, "Состояние оплаты", ModuleTableColumnKind.Choice,
                 Options: [.. Enum.GetValues<InvoicePaymentState>().Select(InvoiceRequisites.Label)]),
             new(PaidOnKey, "Оплачен", ModuleTableColumnKind.Date),
+            new(PeriodKey, "Учётный период", ModuleTableColumnKind.List),
+            new(PeriodSumsKey, "Суммы по периодам", ModuleTableColumnKind.Text, "costs.invoice.read", Amounts,
+                DependsOnFilter: true),
         ],
         typeof(InvoiceTableRows),
         CostsRecordTypes.InvoiceCode,
@@ -139,15 +163,15 @@ public static class InvoiceTable
                     InvoiceRequisites.SupplierKey, AmountKey, InvoiceRequisites.TotalKey,
                     InvoiceRequisites.NumberKey, InvoiceRequisites.DateKey, InvoiceRequisites.ShippedOnKey,
                     InvoiceRequisites.DeferralKey, InvoiceRequisites.DueDateKey, DaysLeftKey,
-                    InvoiceRequisites.PaymentKey, PaidOnKey, ObjectsKey, InvoiceRequisites.PayerKey,
-                    InvoiceRequisites.PurposeKey, UnmatchedKey,
+                    InvoiceRequisites.PaymentKey, PaidOnKey, PeriodKey, PeriodSumsKey, ObjectsKey,
+                    InvoiceRequisites.PayerKey, InvoiceRequisites.PurposeKey, UnmatchedKey,
                 ],
                 Totals: [new(AmountKey, "sum"), new(InvoiceRequisites.TotalKey, "sum")],
                 Pinned: 1,
                 Filters:
                 [
                     InvoiceRequisites.DateKey, InvoiceRequisites.PayerKey, InvoiceRequisites.SupplierKey,
-                    ObjectsKey, InvoiceRequisites.PaymentKey,
+                    ObjectsKey, InvoiceRequisites.PaymentKey, PeriodKey,
                 ]),
         ]);
 }
@@ -184,7 +208,7 @@ public sealed class InvoiceTableRows(
         // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
         var today = await clock.TodayAsync(ct);
 
-        var sql = Sql(names, shares.Labels, today);
+        var sql = Sql(names, shares.Labels, await InvoicePeriods.LabelsAsync(db, ct), today);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Одна строка по ключу — тот же отбор и ещё одно условие: счёт вне отбора не приходит. Ключ,
@@ -248,10 +272,22 @@ public sealed class InvoiceTableRows(
                 .ToDictionaryAsync(g => g.Key, g => g.Count, ct)
             : [];
 
+        // Учётные месяцы — по оплаченным счетам страницы и той же функцией, что у формы счёта.
+        var periods = query.Columns.Contains(InvoiceTable.PeriodKey) || query.Columns.Contains(InvoiceTable.PeriodSumsKey)
+            ? await InvoicePeriods.ReadAsync(db, invoices, ct)
+            : InvoicePeriods.None;
+        // Отбор НАЗЫВАЕТ период — «Суммы по периодам» показывают только названные месяцы.
+        var months = TableFilters.Naming(query.Filter, InvoiceTable.PeriodKey);
+
+        var notes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (note is not null) notes[InvoiceTable.AmountKey] = note;
+        if (months.Count > 0) notes[InvoiceTable.PeriodSumsKey] = InvoiceTable.NamedPeriodsNote;
+
         var objects = shares.Objects(parts);
         return new(
-            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today))], count, totals,
-            note is null ? null : new Dictionary<string, string> { [InvoiceTable.AmountKey] = note },
+            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today,
+                periods.GetValueOrDefault(i.Id) ?? [], months))],
+            count, totals, notes.Count == 0 ? null : notes,
             [.. invoices.Select(i => i.Id.ToString())]);
     }
 
@@ -266,7 +302,8 @@ public sealed class InvoiceTableRows(
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
     private TableSql<Invoice> Sql(
-        Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects, DateOnly today) =>
+        Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects,
+        IReadOnlyDictionary<int, string> months, DateOnly today) =>
         TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
@@ -297,6 +334,18 @@ public sealed class InvoiceTableRows(
             .Choice(InvoiceRequisites.StateKey, i => (InvoiceState?)i.State, States)
             .Choice(InvoiceRequisites.PaymentKey, i => (InvoicePaymentState?)i.Payment, Payments)
             .Date(InvoiceTable.PaidOnKey, i => i.PaidOn)
+            // Учётные месяцы — у долей и у остатка: остаток лежит в самом счёте, поэтому перечень —
+            // объединение двух подзапросов. По ключу, а не по названию: «09.2026» раньше «01.2027».
+            .List(InvoiceTable.PeriodKey,
+                i => db.InvoiceAllocations
+                    .Where(a => a.InvoiceId == i.Id && a.AccountingOn != null)
+                    .Select(a => (int?)(a.AccountingOn!.Value.Year * 100 + a.AccountingOn!.Value.Month))
+                    .Concat(db.Invoices
+                        .Where(o => o.Id == i.Id && o.RemainderAccountingOn != null)
+                        .Select(o => (int?)(o.RemainderAccountingOn!.Value.Year * 100 + o.RemainderAccountingOn!.Value.Month))),
+                months, InvoicePeriods.Unknown, byKey: true)
+            // Клетку собирает служба строк; запросу тут считать нечего — по колонке не отбирают.
+            .Text(InvoiceTable.PeriodSumsKey, i => null)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
 
     /// <param name="amounts">Доли счетов на названные отбором объекты; null — отбор объектов не называет,
@@ -304,7 +353,8 @@ public sealed class InvoiceTableRows(
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts,
-        Dictionary<Guid, int> unmatched, DateOnly today)
+        Dictionary<Guid, int> unmatched, DateOnly today, IReadOnlyList<PostedMonth> periods,
+        IReadOnlyList<TableFilterCondition> named)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -320,6 +370,7 @@ public sealed class InvoiceTableRows(
             [InvoiceRequisites.StateKey] = InvoiceRequisites.Label(invoice.State),
             [InvoiceRequisites.PaymentKey] = InvoiceRequisites.Label(invoice.Payment),
             [InvoiceTable.PaidOnKey] = invoice.PaidOn,
+            [InvoiceTable.PeriodKey] = InvoicePeriods.Labels(periods),
         };
 
         // Деньги и срок — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле,
@@ -328,6 +379,9 @@ public sealed class InvoiceTableRows(
         if (open.Contains(InvoiceRequisites.VatTotalKey)) row[InvoiceRequisites.VatTotalKey] = invoice.VatTotal;
         if (open.Contains(InvoiceTable.AmountKey))
             row[InvoiceTable.AmountKey] = amounts is null ? invoice.Total : amounts.GetValueOrDefault(invoice.Id);
+
+        if (open.Contains(InvoiceTable.PeriodSumsKey))
+            row[InvoiceTable.PeriodSumsKey] = InvoicePeriods.Sums(periods, named);
 
         if (open.Contains(InvoiceTable.DaysLeftKey)) row[InvoiceTable.DaysLeftKey] = InvoiceDue.DaysLeftOf(invoice, today);
         if (open.Contains(InvoiceTable.OverdueKey)) row[InvoiceTable.OverdueKey] = InvoiceDue.OverdueOf(invoice, today);
