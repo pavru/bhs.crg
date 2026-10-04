@@ -7,7 +7,7 @@ import { FilterChips } from '@/shared/filter/FilterChips';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
-import { recordLink } from '@/shared/ui/recordRoutes';
+import { recordLink, recordScreen } from '@/shared/ui/recordRoutes';
 import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
@@ -95,7 +95,9 @@ export function TablePage() {
   const sortable = new Set(decl.columns.filter(c => !c.unavailable && !c.dependsOnFilter).map(c => c.key));
   const data = table.data;
   const grid = data ? gridColumns(data.columns) : [];
-  const linkOf = (key: string | null) => recordLink(decl.recordType, key, access);
+  const screen = recordScreen(decl.recordType, access);
+  // Подпись ссылки называет строку значением первой показанной колонки — ею строки и различают.
+  const nameOf = (row: Record<string, unknown>) => (grid[0] ? cellText(row[grid[0].key], kinds.get(grid[0].key)) : '');
 
   return (
     <div className="h-full flex min-h-0">
@@ -176,7 +178,10 @@ export function TablePage() {
               rowKey={data.keys ? (_, i) => data.keys![i] : undefined}
               onRowOpen={data.keys ? (_, i) => setView(v => withRow(v, data.keys![i])) : undefined}
               rowOpen={(_, i) => view.row !== null && data.keys?.[i] === view.row}
-              rowLink={data.keys ? (_, i) => linkOf(data.keys![i]) : undefined}
+              // Ключи — этой таблицы: пока новый ответ в пути, на экране прежний, и ключи чужой
+              // таблицы с типом записи этой дали бы ссылки не туда.
+              rowLink={data.keys && data.address === decl.address
+                ? (row, i) => recordLink(screen, data.keys![i], nameOf(row)) : undefined}
               onRemoveColumn={c => setView(v => withColumnShown(v, allKeys, c.key, false))} />
             {!off && <Pager view={view} data={data} onChange={setView} />}
           </>
@@ -189,7 +194,7 @@ export function TablePage() {
       </div>
 
       {view.row && !off && (
-        <RowPanel address={address} rowKey={view.row} filter={filter} grain={decl.grain} link={linkOf(view.row)}
+        <RowPanel address={address} rowKey={view.row} filter={filter} grain={decl.grain} link={recordLink(screen, view.row)}
           onClose={() => setView(v => withRow(v, null))} />
       )}
     </div>

@@ -5,6 +5,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
+import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
@@ -19,6 +20,7 @@ import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import { ScanUploadButton } from './InvoiceScanPanel';
+import { LeaveGuardDialog } from '@/features/settings/typeEditorShell';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -65,15 +67,24 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const scan = useMemo(() => scanOf(view), [view]);
   const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
 
-  async function save() {
+  // Уход из раздела с несохранёнными правками спрашивает (G4, issue #1097). Открытый счёт назван в
+  // адресе, и пункт «Счета» в навигации ведёт на адрес БЕЗ счёта: форма закрылась бы вместе с
+  // правками — молча. Пока выбор жил в состоянии экрана, тот же щелчок не делал ничего.
+  const [leave, setLeave] = useState<(() => void) | null>(null);
+  useLeaveGuard(dirty, proceed => setLeave(() => proceed));
+
+  /** @returns сохранилось ли: уходить со страницы после отказа нельзя — правки бы пропали. */
+  async function save(): Promise<boolean> {
     try {
       await update.mutateAsync({ id: view.id, requisites: toRequisites(view.requisites, edits) });
       setEdits({});
+      return true;
     } catch (e) {
       // Текст отказа — ОТ СЕРВЕРА (`apiError` и заведён для этого): он называет поле и причину
       // («поле такое-то заперто», «не число»), а своя формулировка была бы пересказом, который
       // разойдётся с сервером на первом же новом отказе.
       toast.apiError(e, 'Счёт не сохранён');
+      return false;
     }
   }
 
@@ -86,6 +97,10 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      <LeaveGuardDialog open={leave !== null} saving={update.isPending}
+        onCancel={() => setLeave(null)}
+        onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
+        onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
         <div className="flex items-center gap-2 flex-wrap">

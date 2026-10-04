@@ -38,6 +38,8 @@
 //      ссылка, а «назад» возвращает реестр с тем же отбором и сортировкой; у человека без права на
 //      счета ссылки нет. Ломается: открыть экран счетов без счёта (параметр адреса не прочитан);
 //      вести щелчком вместо ссылки (нет `href` — нет новой вкладки); показать ссылку без права.
+//      Там же: несохранённая правка счёта не пропадает от щелчка по пункту «Счета» (он ведёт на
+//      адрес без счёта) — форма спрашивает; и у строки, которой под отбором нет, ссылки в панели нет.
 //
 // ⚠️ ДАННЫЕ — ТЕ ЖЕ, ЧТО СЕЕТ ПОСЕВ (e2e/seed-invoices.mjs, `TABLE_SEED`): счетов для итога нарочно
 // больше страницы, и человек «модуль есть, счетов нет» заведён там же. Счета прогон досеивает САМ, той
@@ -645,6 +647,20 @@ try {
       const number = await page.getByLabel('Номер', { exact: true }).inputValue();
       if (number !== last) throw new Error(`открылся счёт «${number}», а строка была ${last}`);
     });
+
+    // Открытый счёт назван в адресе, а пункт «Счета» ведёт на адрес БЕЗ счёта: с несохранённой
+    // правкой форма спрашивает, а не закрывается вместе с ней.
+    const edited = 'правка без сохранения';
+    await page.getByLabel('Назначение').fill(edited);
+    await page.getByRole('link', { name: 'Счета', exact: true }).click();
+    const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    await ask.waitFor({ timeout: 5000 })
+      .catch(() => { throw new Error('пункт «Счета» закрыл счёт с несохранённой правкой, не спросив'); });
+    await ask.getByRole('button', { name: 'Отмена' }).click();
+    await ask.waitFor({ state: 'detached', timeout: 5000 });
+    if (!new URL(page.url()).searchParams.get('invoice')) throw new Error('после «Отмена» счёт из адреса пропал');
+    if ((await page.getByLabel('Назначение').inputValue()) !== edited) throw new Error('после «Отмена» правка пропала');
+
     // Панель строки щелчок по ссылке не открывал: иначе она ждала бы по возвращении.
     await page.goBack();
     await until(() => {
@@ -660,6 +676,13 @@ try {
     const panel = page.getByRole('complementary', { name: 'Строка: счёт' });
     const fromPanel = await panel.getByRole('link', { name: 'Открыть счёт' }).getAttribute('href');
     if (fromPanel !== href) throw new Error(`ссылка панели ведёт на «${fromPanel}», а строки — на «${href}»`);
+
+    // Ключ в адресе, за которым строки нет: панель это говорит — и ссылки в ней нет. Иначе она вела
+    // бы в «Счёт не открылся».
+    await openRegistry(page, { filter: seeded, row: 'ne-kluch' });
+    await panel.getByText('такой строки нет').waitFor({ timeout: 8000 });
+    await settled(page);
+    if ((await panel.getByRole('link').count()) !== 0) throw new Error('у строки, которой нет, в панели стоит ссылка');
   });
 } finally {
   await browser.close();

@@ -23,7 +23,11 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
   filter: FilterNode | string | null;
   /** Зерно таблицы — что считается строкой: «счёт». */
   grain: string;
-  /** Куда ведёт строка — форма записи; null — вести некуда либо экран записи человеку закрыт. */
+  /**
+   * Куда ведёт строка — форма записи; null — вести некуда либо экран записи человеку закрыт.
+   * Показана только у ПРОЧИТАННОЙ строки: ключ пришёл из адреса страницы, и пока строка не пришла,
+   * не известно, есть ли за ним запись, — ссылка вела бы в отказ.
+   */
   link: { to: string; label: string } | null;
   onClose: () => void;
 }) {
@@ -42,7 +46,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
       className="w-[360px] shrink-0 border-l border-stroke bg-surface flex flex-col min-h-0">
       <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-stroke">
         <h2 className="flex-1 text-sm font-medium text-fg1">Строка: {grain}</h2>
-        {link && <Link to={link.to} className="text-xs text-brand underline hover:text-fg1">{link.label}</Link>}
+        {link && values && <Link to={link.to} className="text-xs text-brand underline hover:text-fg1">{link.label}</Link>}
         <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
           className="p-1 rounded-md text-fg3 hover:text-fg1 hover:bg-muted">
           <X size={15} aria-hidden />

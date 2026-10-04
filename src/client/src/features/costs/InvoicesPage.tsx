@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -173,8 +173,13 @@ export function InvoicesPage() {
 function ListRow({ item, active, onClick }: {
   item: InvoiceListItem; active: boolean; onClick: () => void;
 }) {
+  // Открытый счёт — на виду: сюда приходят и по ссылке из реестра, а там счёт мог стоять сотым.
+  // `nearest` — строка, которая и так видна, с места не сдвигается.
+  const row = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (active) row.current?.scrollIntoView({ block: 'nearest' }); }, [active]);
+
   return (
-    <button type="button" onClick={onClick}
+    <button ref={row} type="button" onClick={onClick}
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
         `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
       <div className="flex items-center gap-2">
