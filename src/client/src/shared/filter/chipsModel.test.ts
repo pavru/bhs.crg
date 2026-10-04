@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import { tableRequest } from '@/shared/api/tables';
 import {
-  chipProblem, chipsView, chipText, conditionEntered, fromChips, offeredColumns, offeredCondition, withChip,
-  withoutChip,
+  chipAdded, chipProblem, chipRemoved, chipReplaced, chipsView, chipText, conditionEntered, fromChips,
+  offeredColumns, offeredCondition, withChip, withoutChip,
 } from './chipsModel';
 import { withColumn, type FilterColumn } from './rowFilterModel';
 
@@ -165,6 +165,42 @@ describe('снятие чипа меняет запрос, а не только 
 });
 
 /** Места под условие, которые отбор предлагает готовыми (задача G4, issue #1097). */
+describe('правка чипа — изменение от отбора, который стоит сейчас', () => {
+  const a = cond({ column: 'Срок', op: 'lt', value: '2026-10-01' });
+  const b = cond({ column: 'СостояниеОплаты', value: 'Не оплачен' });
+  const c = cond({ column: 'Итого', op: 'gt', value: '100' });
+
+  it('два снятия по одному нарисованному ряду снимают оба чипа, а не возвращают первый', () => {
+    // Ряд нарисован под [a, b]; оба крестика нажаты до перерисовки.
+    const afterFirst = chipRemoved(a)(and(a, b));
+
+    expect(afterFirst).toEqual(and(b));
+    expect(chipRemoved(b)(afterFirst)).toBeNull();
+  });
+
+  it('чип адресуется условием, а не местом: после снятия соседа правится тот же чип', () => {
+    const edited = { ...b, value: 'Оплачен' };
+
+    expect(chipReplaced(b, edited)(chipRemoved(a)(and(a, b)))).toEqual(and(edited));
+  });
+
+  it('новое условие ложится к тем, что стоят сейчас, а не к нарисованным', () => {
+    expect(chipAdded(c)(and(a, b))).toEqual(and(a, b, c));
+    expect(chipAdded(c)(null)).toEqual(and(c));
+    expect(chipAdded(c)(a)).toEqual(and(a, c));
+  });
+
+  it('условия уже нет или отбор стал сложным — отбор возвращается тем же объектом', () => {
+    const now = and(b);
+    const complex: FilterGroup = { type: 'group', logic: 'or', children: [a, b] };
+
+    expect(chipRemoved(a)(now)).toBe(now);
+    expect(chipReplaced(a, c)(now)).toBe(now);
+    expect(chipRemoved(a)(complex)).toBe(complex);
+    expect(chipAdded(c)(complex)).toBe(complex);
+  });
+});
+
 describe('offeredCondition — предложенное место под условие', () => {
   it('у даты место сразу «между»: в реестре оно называется «период»', () => {
     expect(offeredCondition('Срок', columns)).toEqual({ type: 'condition', column: 'Срок', op: 'between', values: ['', ''] });

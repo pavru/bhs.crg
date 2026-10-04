@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { FilterNode } from '@/shared/api/types';
 import type { TablePreset } from '@/shared/api/tables';
+import { chipAdded, chipRemoved } from '@/shared/filter/chipsModel';
 import {
-  DEFAULT_VIEW, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
-  viewHash, wholeTableHash, withColumnMoved, withColumnShown, withColumnsReset,
-  withFilter, withPage, withPinned, withRow, withSize, withSort, withTotal, type TableView,
+  DEFAULT_VIEW, addressChange, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
+  viewHash, wholeTableHash, withColumnMoved, withColumnReturned, withColumnShown, withColumnsReset,
+  withFilter, withFilterChange, withPage, withPageStep, withPinned, withRow, withSize, withSort, withTotal,
+  type TableView,
 } from './tableViewState';
 
 /** Состояние экрана таблицы ↔ адрес страницы (задача G1e, issue #1092). */
@@ -182,6 +184,104 @@ describe('изменения состояния', () => {
 });
 
 /** Готовое представление модуля — основа, от которой отсчитан адрес (задача G4, issue #1097). */
+describe('изменение считается от адреса, а не от нарисованного', () => {
+  const purpose: FilterNode = { type: 'condition', column: 'Назначение', op: 'eq', value: 'Посев' };
+  const both: FilterNode = { type: 'group', logic: 'and', children: [purpose, unpaid] };
+  /** Адрес после изменения; изменение, которому менять нечего, оставляет адрес прежним. */
+  const after = (hash: string, change: (v: TableView) => TableView, base = DEFAULT_VIEW) =>
+    addressChange(hash, base, change)?.hash ?? hash;
+
+  it('щелчок по шапке сразу после нового условия условие не стирает', () => {
+    // Экран нарисован под одним условием; второе уже в адресе, но перерисовка под него не пришла.
+    const drawn = viewHash(view({ filter: purpose }));
+    const address = after(drawn, v => withFilter(v, both));
+
+    const sorted = addressChange(address, DEFAULT_VIEW, v => withSort(v, 'Номер', false));
+
+    expect(parseView(sorted!.hash).filter).toEqual(both);
+    expect(parseView(sorted!.hash).sort).toEqual([{ column: 'Номер', descending: false }]);
+    // Отбор сортировкой не сменился — запись истории заменяется, а не добавляется.
+    expect(sorted!.replace).toBe(true);
+  });
+
+  it('два действия подряд складываются: второе видит первое', () => {
+    let address = viewHash(view({ filter: purpose }));
+    address = after(address, v => withSort(v, 'Дата', false));
+    address = after(address, v => withColumnShown(v, all, 'Поставщик', false));
+    address = after(address, v => withPinned(v, 1));
+
+    expect(parseView(address)).toEqual(view({
+      filter: purpose, sort: [{ column: 'Дата', descending: false }],
+      columns: ['Номер', 'Дата', 'Итого'], pinned: 1,
+    }));
+  });
+
+  it('смена отбора — новая запись истории; изменение без отличий адрес не трогает', () => {
+    expect(addressChange('', DEFAULT_VIEW, v => withFilter(v, unpaid))!.replace).toBe(false);
+    expect(addressChange(viewHash(view({ filter: unpaid })), DEFAULT_VIEW, v => withFilter(v, unpaid))).toBeNull();
+    expect(addressChange('', DEFAULT_VIEW, v => v)).toBeNull();
+  });
+
+  it('два крестика подряд снимают оба чипа: второй считается от отбора без первого', () => {
+    // Ряд чипов нарисован под обоими условиями; оба щелчка сделаны по этому ряду.
+    let address = viewHash(view({ filter: both }));
+    address = after(address, v => withFilterChange(v, chipRemoved(purpose)));
+    address = after(address, v => withFilterChange(v, chipRemoved(unpaid)));
+
+    expect(parseView(address).filter).toBeNull();
+  });
+
+  it('чип, которого в отборе уже нет, ничего не меняет — ни страницу, ни открытую строку', () => {
+    const now = view({ filter: { type: 'group', logic: 'and', children: [unpaid] }, page: 2, row: 'строка' });
+
+    expect(withFilterChange(now, chipRemoved(purpose))).toBe(now);
+    expect(withFilterChange(now, chipAdded(purpose)).page).toBe(1);
+  });
+
+  it('негодный отбор правка чипами снимает, даже когда дерево осталось пустым', () => {
+    const broken = view({ brokenFilter: '{"type":"condi' });
+
+    expect(withFilterChange(broken, () => null).brokenFilter).toBeNull();
+  });
+
+  it('шаг по страницам — от показанной: под сменившимся отбором он не делается', () => {
+    const shown = view({ filter: purpose, page: 3 });
+
+    expect(withPageStep(shown, shown, 1).page).toBe(4);
+    expect(withPageStep(shown, shown, -1).page).toBe(2);
+    // Отбор уже другой, и адрес стоит на первой странице: «следующая» от третьей — это страница не той выдачи.
+    const refiltered = withFilter(shown, both);
+    expect(withPageStep(refiltered, shown, 1)).toBe(refiltered);
+    // Второй щелчок до перерисовки: страница в адресе уже четвёртая, на экране — третья.
+    const stepped = withPageStep(shown, shown, 1);
+    expect(withPageStep(stepped, shown, 1)).toBe(stepped);
+    expect(withPageStep(withSize(shown, 50), shown, 1).page).toBe(1);
+  });
+
+  it('возвращённая колонка встаёт на своё место и после только что снятой соседней', () => {
+    // Список окошка: Номер, Дата, Поставщик (скрыта), Итого. Снята «Дата» — и сразу возвращён «Поставщик».
+    const hidden = view({ columns: ['Номер', 'Дата', 'Итого'] });
+    const now = withColumnShown(hidden, all, 'Дата', false);
+
+    expect(withColumnReturned(now, all, 'Поставщик', ['Номер', 'Дата']).columns).toEqual(['Номер', 'Поставщик', 'Итого']);
+    expect(withColumnReturned(hidden, all, 'Поставщик', ['Номер', 'Дата']).columns).toEqual(all);
+  });
+
+  it('закрепить можно не больше колонок, чем показано сейчас', () => {
+    expect(withPinned(view({ columns: ['Номер', 'Дата'] }), 5).pinned).toBe(2);
+    expect(withPinned(view({}), 5).pinned).toBe(5);
+  });
+
+  it('под готовым представлением отсчёт — от его настройки', () => {
+    const base = view({ columns: ['Номер', 'Итого'], sort: [{ column: 'Дата', descending: true }] });
+    const address = after('', v => withFilter(v, unpaid), base);
+
+    const next = parseView(after(address, v => withPinned(v, 1), base), base);
+
+    expect(next).toEqual({ ...base, filter: unpaid, pinned: 1 });
+  });
+});
+
 describe('готовое представление', () => {
   const registry: TablePreset = {
     code: 'registry', title: 'Реестр счетов',

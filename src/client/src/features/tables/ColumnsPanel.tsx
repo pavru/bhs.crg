@@ -5,8 +5,9 @@ import { MoveButtons } from '@/shared/ui/MoveButtons';
 import type { TableColumn } from '@/shared/api/tables';
 import { AGGREGATES, aggregatesFor } from './tableTotals';
 import {
-  chooserOrder, columnsCustomised, withColumnMoved, withColumnShown, withColumnsReset, withPinned, withTotal,
-  type Aggregate, type TableView,
+  chooserOrder, columnsCustomised, withColumnMoved, withColumnReturned, withColumnShown, withColumnsReset, withPinned,
+  withTotal,
+  type Aggregate, type TableView, type ViewChange,
 } from './tableViewState';
 
 /**
@@ -27,7 +28,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
   baseTitle?: string;
   /** Сколько колонок сейчас в сетке: закрепить можно не больше. */
   gridColumns: number;
-  onChange: (next: TableView) => void;
+  onChange: (change: ViewChange) => void;
 }) {
   const all = columns.map(c => c.key);
   const byKey = new Map(columns.map(c => [c.key, c]));
@@ -66,19 +67,19 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
               const place = shown.indexOf(key);
               const column = byKey.get(key) ?? null;
               // Возвращённая колонка встаёт туда, где стоит в списке, — среди показанных выше неё.
-              const above = order.slice(0, i).filter(k => shown.includes(k)).length;
+              const above = order.slice(0, i);
               return place < 0 ? (
                 <ColumnRow key={key} column={column} label={column?.label ?? key} checked={false} total={null}
-                  onShown={() => onChange(withColumnShown(view, all, key, true, above))} />
+                  onShown={() => onChange(v => withColumnReturned(v, all, key, above))} />
               ) : (
                 <ColumnRow key={key} column={column} label={column?.label ?? key} checked
                   total={view.totals.find(t => t.column === key)?.aggregate ?? null}
-                  onShown={() => onChange(withColumnShown(view, all, key, false))}
-                  onTotal={aggregate => onChange(withTotal(view, key, aggregate))}
+                  onShown={() => onChange(v => withColumnShown(v, all, key, false))}
+                  onTotal={aggregate => onChange(v => withTotal(v, key, aggregate))}
                   move={{
                     isFirst: place === 0, isLast: place === shown.length - 1,
-                    onUp: () => onChange(withColumnMoved(view, all, key, -1)),
-                    onDown: () => onChange(withColumnMoved(view, all, key, 1)),
+                    onUp: () => onChange(v => withColumnMoved(v, all, key, -1)),
+                    onDown: () => onChange(v => withColumnMoved(v, all, key, 1)),
                   }} />
               );
             })}
@@ -87,7 +88,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
           <div className="mt-3 pt-2.5 border-t border-stroke flex items-center gap-2 text-xs text-fg2">
             <label htmlFor="table-pinned">Закрепить слева</label>
             <select id="table-pinned" value={Math.min(view.pinned, gridColumns)}
-              onChange={e => onChange(withPinned(view, Number(e.target.value)))}
+              onChange={e => onChange(v => withPinned(v, Number(e.target.value)))}
               className="rounded-md border border-stroke bg-surface px-1.5 py-1 text-xs">
               <option value={0}>не закреплять</option>
               {[1, 2, 3].filter(n => n <= gridColumns).map(n => (
@@ -95,7 +96,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
               ))}
             </select>
             <div className="flex-1" />
-            <button type="button" disabled={!customised} onClick={() => onChange(withColumnsReset(view, base))}
+            <button type="button" disabled={!customised} onClick={() => onChange(v => withColumnsReset(v, base))}
               className="text-fg3 hover:text-fg1 disabled:opacity-40 disabled:hover:text-fg3">
               {baseTitle ? `Как в «${baseTitle}»` : 'Как у таблицы'}
             </button>
