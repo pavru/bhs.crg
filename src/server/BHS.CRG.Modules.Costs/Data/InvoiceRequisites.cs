@@ -264,7 +264,6 @@ public static class InvoiceRequisites
     public static string Label(InvoicePaymentState payment) => payment switch
     {
         InvoicePaymentState.Unpaid => "Не оплачен",
-        InvoicePaymentState.Partial => "Частично оплачен",
         InvoicePaymentState.Paid => "Оплачен",
         _ => throw new InvalidRequestException($"Неизвестное состояние оплаты «{payment}»."),
     };

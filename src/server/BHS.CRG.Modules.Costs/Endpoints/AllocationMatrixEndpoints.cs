@@ -90,7 +90,7 @@ public static class AllocationMatrixEndpoints
     /// строка и объект, и идентификатор части ей не нужен.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
-        Guid id, AllocationMatrixRequest body, CostsDbContext db, IModuleCatalog catalog,
+        Guid id, AllocationMatrixRequest body, CostsDbContext db, InvoiceDesk desk,
         AllocationPlacesSource places, IModuleActivityLog log, CancellationToken ct)
     {
         if (body.Lines is null)
@@ -98,49 +98,9 @@ public static class AllocationMatrixEndpoints
                 "Набор строк не прислан. Адрес заменяет разноску всего счёта, и строки без частей присылаются " +
                 "с «parts»: [] — отсутствие поля прочитать как «не менять» нельзя.");
 
-        var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
-        var lines = await db.InvoiceLines.AsNoTracking()
-            .Where(l => l.InvoiceId == invoice.Id)
-            .OrderBy(l => l.Ordinal)
-            .ToListAsync(ct);
         var known = await places.LoadAsync(ct);
+        var (invoice, was, after, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
-        var byLine = ParseLines(body.Lines, lines, known);
-        var document = ParseDocument(body.Document ?? [], invoice, lines.Count, known);
-
-        var existing = await db.InvoiceAllocations.Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
-        if (body.Stamp is null)
-            throw new InvalidRequestException(
-                "Отметка версии разноски («stamp») не прислана. Набор заменяет разноску всего счёта, и без отметки " +
-                "не отличить свежий набор от собранного по устаревшему виду. Берётся из «allocation.stamp» счёта.");
-        if (body.Stamp != InvoiceAllocations.Stamp(existing))
-            throw new ConflictException(
-                $"{InvoiceEndpoints.Label(invoice)}: разноску изменили, пока матрица была открыта. Перечитайте счёт " +
-                "и повторите — записанный сейчас набор молча вернул бы удалённые части и стёр бы добавленные.");
-
-        var was = Describe(lines, existing.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot()), known);
-        // Что лежало — по значению, ДО раскладки: Place правит части на месте. Сравнивается не описание
-        // для журнала (оно для человека, и две разные раскладки могут описаться одинаково), а сами части.
-        var stored = Parts(existing);
-        var now = new List<InvoiceAllocation>();
-
-        foreach (var line in lines)
-            Place(db, invoice.Id, line.Id, byLine[line.Id], existing, now);
-        Place(db, invoice.Id, null, document, existing, now);
-
-        db.InvoiceAllocations.RemoveRange(existing.Except(now));
-
-        // Заменяется разноска ВСЕГО счёта — сохранённые части в расчёт не идут, и читать их снова незачем.
-        var returned = invoice.State == InvoiceState.Parsed
-            && !InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), now, known).Summary.Allocated;
-        if (returned) invoice.ReturnToDraft();
-
-        // Разноска — часть счёта: её правка отмечается у него самого (issue #1173).
-        if (!stored.SequenceEqual(Parts(now))) invoice.ContentChanged();
-
-        await db.SaveChangesAsync(ct);
-
-        var after = Describe(lines, now.ToLookup(a => a.LineId, a => a.Snapshot()), known);
         if (was != after)
             await log.RecordAsync(InvoiceActions.AllocationChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), before: was, after: after, ct: ct);
@@ -149,7 +109,53 @@ public static class AllocationMatrixEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: "правка разноски: баланс не сходится", ct: ct);
 
-        return TypedResults.Ok(await InvoiceEndpoints.ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+
+        // Сама правка — под замком записи, по счёту, прочитанному после него.
+        async Task<(Invoice Invoice, string Was, string After, bool Returned)> PlaceAsync(Invoice invoice)
+        {
+            var lines = await db.InvoiceLines.AsNoTracking()
+                .Where(l => l.InvoiceId == invoice.Id)
+                .OrderBy(l => l.Ordinal)
+                .ToListAsync(ct);
+
+            var byLine = ParseLines(body.Lines, lines, known);
+            var document = ParseDocument(body.Document ?? [], invoice, lines.Count, known);
+
+            var existing = await db.InvoiceAllocations.Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
+            if (body.Stamp is null)
+                throw new InvalidRequestException(
+                    "Отметка версии разноски («stamp») не прислана. Набор заменяет разноску всего счёта, и без отметки " +
+                    "не отличить свежий набор от собранного по устаревшему виду. Берётся из «allocation.stamp» счёта.");
+            if (body.Stamp != InvoiceAllocations.Stamp(existing))
+                throw new ConflictException(
+                    $"{InvoiceEndpoints.Label(invoice)}: разноску изменили, пока матрица была открыта. Перечитайте счёт " +
+                    "и повторите — записанный сейчас набор молча вернул бы удалённые части и стёр бы добавленные.");
+
+            var was = Describe(lines, existing.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot()), known);
+            // Что лежало — по значению, ДО раскладки: Place правит части на месте. Сравнивается не описание
+            // для журнала (оно для человека, и две разные раскладки могут описаться одинаково), а сами части.
+            var stored = Parts(existing);
+            var now = new List<InvoiceAllocation>();
+
+            foreach (var line in lines)
+                Place(db, invoice.Id, line.Id, byLine[line.Id], existing, now);
+            Place(db, invoice.Id, null, document, existing, now);
+
+            db.InvoiceAllocations.RemoveRange(existing.Except(now));
+
+            // Заменяется разноска ВСЕГО счёта — сохранённые части в расчёт не идут, и читать их снова незачем.
+            var returned = invoice.State == InvoiceState.Parsed
+                && !InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), now, known).Summary.Allocated;
+            if (returned) invoice.ReturnToDraft();
+
+            // Разноска — часть счёта: её правка отмечается у него самого (issue #1173).
+            if (!stored.SequenceEqual(Parts(now))) invoice.ContentChanged();
+
+            await db.SaveChangesAsync(ct);
+
+            return (invoice, was, Describe(lines, now.ToLookup(a => a.LineId, a => a.Snapshot()), known), returned);
+        }
     }
 
     /// <summary>Цели «поровну» и «по %». Проценты обязаны дать ровно 100 — иначе делить нечего и не на что.</summary>

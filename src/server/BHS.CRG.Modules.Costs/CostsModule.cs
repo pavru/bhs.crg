@@ -90,7 +90,7 @@ public sealed class CostsModule : IAppModule
         // costs.invoice.edit — оплату проставлял бы всякий, кто вводит счета, и снять это можно было
         // бы только вместе с вводом.
         new("costs.invoice.pay",
-            "отмечать оплату — полную и частичную — и отменять ошибочную отметку",
+            "отмечать оплату счёта и отменять ошибочную отметку",
             "суммы и сроки всех счетов; отметка задаёт и учётный период, в который попадёт платёж",
             ["costs.invoice.read"]),
 
@@ -188,6 +188,10 @@ public sealed class CostsModule : IAppModule
         // живут областью запроса.
         services.AddScoped<AllocationPlacesSource>();
 
+        // Связка записи счёта и его ответ (C5, issue #1082): замок «запись против закрытия периода»,
+        // отказ запертому счёту и учётные даты оплаченного — одним местом на все адреса.
+        services.AddScoped<InvoiceDesk>();
+
         // Служба строк таблицы счетов (G1b, issue #1089). Не зарегистрировать её — отказ старта:
         // объявленная таблица открылась бы и отказала на первом же чтении.
         services.AddScoped<InvoiceTableRows>();
@@ -222,6 +226,7 @@ public sealed class CostsModule : IAppModule
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
         AllocationEndpoints.MapAllocation(endpoints);
         AllocationMatrixEndpoints.Map(endpoints);
+        PaymentEndpoints.Map(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
         ArticleEndpoints.MapArticles(endpoints);

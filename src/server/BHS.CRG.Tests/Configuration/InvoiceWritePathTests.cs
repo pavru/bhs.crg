@@ -1,0 +1,116 @@
+using System.Text.RegularExpressions;
+
+namespace BHS.CRG.Tests.Configuration;
+
+/// <summary>
+/// Перепись путей записи счёта (задача C5, issue #1082): счёт пишут только через связку
+/// <c>InvoiceDesk.WriteAsync</c>, а учётную дату считают только два места.
+///
+/// <para><b>От чего это.</b> Связка даёт каждой правке три вещи, которые адрес по памяти не сделает:
+/// замок «запись против закрытия периода», отказ счёту, запертому закрытым периодом, и учётные даты
+/// долей оплаченного счёта. Адрес, сохранивший счёт мимо неё, работает — и молча пишет в закрытый месяц
+/// или оставляет долю оплаченного счёта без даты, то есть вне всех отчётов.</para>
+///
+/// <para>Проверка по исходникам, как у <see cref="PeriodClosureInventoryTests" />: на живом хосте
+/// «забытый путь» не падает ничем, пока период открыт.</para>
+/// </summary>
+public class InvoiceWritePathTests
+{
+    private const string Module = "BHS.CRG.Modules.Costs";
+
+    /// <summary>
+    /// Сохранения мимо связки — поимённо и с причиной. Число — сколько таких сохранений в файле.
+    /// </summary>
+    private static readonly Dictionary<string, (int Saves, string Why)> OutsideTheDesk = new()
+    {
+        ["Endpoints/InvoiceEndpoints.cs"] =
+            (1, "создание счёта: новый счёт не оплачен, а неоплаченный не принадлежит ни одному периоду"),
+        ["Endpoints/InvoiceDesk.cs"] =
+            (2, "сама связка: учётные даты после правки адреса — оплаченному и снятые у неоплаченного"),
+    };
+
+    /// <summary>Кто вправе считать учётную дату и спрашивать «закрыт ли день».</summary>
+    private static readonly string[] MayAskThePeriod = ["Data/PaymentPosting.cs"];
+
+    private static readonly Regex Save = new(@"\bSaveChanges(Async)?\(", RegexOptions.Compiled);
+    private static readonly Regex Write = new(@"\bdesk\.WriteAsync\(", RegexOptions.Compiled);
+    private static readonly Regex Period = new(@"\.AccountingDate\(|\.IsClosed\(", RegexOptions.Compiled);
+
+    [Fact]
+    public void Счёт_сохраняют_только_через_связку_записи()
+    {
+        var strays = new List<string>();
+
+        foreach (var (rel, code) in Sources())
+        {
+            // Контекст сам переводит гонку в отказ 409 — это обёртка сохранения, а не путь записи.
+            if (rel == "Data/CostsDbContext.cs") continue;
+
+            var saves = Save.Matches(code).Count;
+            var writes = Write.Matches(code).Count;
+            var allowed = OutsideTheDesk.TryGetValue(rel, out var listed) ? listed.Saves : 0;
+
+            if (saves != writes + allowed)
+                strays.Add($"{rel}: сохранений {saves}, связок записи {writes}, разрешено мимо {allowed}");
+        }
+
+        Assert.True(strays.Count == 0,
+            "Счёт сохраняют мимо InvoiceDesk.WriteAsync (или перепись устарела):\n" + string.Join("\n", strays) + "\n\n" +
+            "Каждая правка счёта, его строк и разноски идёт через связку: одна связка — одно сохранение. Только " +
+            "она берёт замок против закрытия периода, отказывает запертому счёту и перекладывает учётные даты " +
+            "оплаченного. Если сохранение мимо неё действительно нужно — впишите файл в OutsideTheDesk с причиной.");
+    }
+
+    [Fact]
+    public void Учётную_дату_считает_одно_место()
+    {
+        var outsiders = Sources()
+            .Where(s => !MayAskThePeriod.Contains(s.Rel) && Period.IsMatch(s.Code))
+            .Select(s => s.Rel)
+            .ToList();
+
+        Assert.True(outsiders.Count == 0,
+            "Учётную дату или «закрыт ли день» спросили мимо PaymentPosting и ClosedPeriodGuard: " +
+            string.Join(", ", outsiders) + ".\n\nФорма обещает перенос, запись его кладёт, разноска перекладывает, " +
+            "реестр показывает — и все обязаны считать одной функцией: посчитанное вторым местом однажды " +
+            "разойдётся с первым, и узнают об этом по отчёту закрытого месяца.");
+    }
+
+    [Fact]
+    public void Перепись_не_хранит_умерших_записей()
+    {
+        var files = Sources().ToDictionary(s => s.Rel, s => s.Code);
+
+        var stale = OutsideTheDesk.Keys.Where(rel => !files.TryGetValue(rel, out var code) || !Save.IsMatch(code))
+            .Concat(MayAskThePeriod.Where(rel => !files.TryGetValue(rel, out var code) || !Period.IsMatch(code)))
+            .ToList();
+
+        Assert.True(stale.Count == 0, "В переписи файлы, где названного больше нет: " + string.Join(", ", stale));
+    }
+
+    /// <summary>Исходники модуля без комментариев: упоминание в объяснении — не обращение.</summary>
+    private static IEnumerable<(string Rel, string Code)> Sources()
+    {
+        var root = Path.Combine(SolutionDir, Module);
+        return Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                     && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"))
+            .Select(f => (
+                Path.GetRelativePath(root, f).Replace('\\', '/'),
+                string.Join("\n", File.ReadAllLines(f).Where(l => !l.TrimStart().StartsWith("//")))));
+    }
+
+    private static string SolutionDir { get; } = FindSolutionDir();
+
+    private static string FindSolutionDir()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
+            dir = dir.Parent;
+        return dir?.FullName
+            ?? throw new InvalidOperationException(
+                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
+                " — тест читает исходники и без них проверять нечего.");
+    }
+}

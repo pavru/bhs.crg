@@ -68,9 +68,26 @@ public sealed class InvoiceAllocation
     /// <summary>Сумма части — ТОЛЬКО у строки без количества. У строки с количеством сумма считается.</summary>
     public decimal? Amount { get; private set; }
 
+    /// <summary>
+    /// Учётная дата доли — день, которым её деньги входят в затраты (C5, issue #1082, ТЗ COST-16): дата
+    /// платежа, если период её стройки открыт, иначе первый открытый день этой стройки. Пусто у
+    /// неоплаченного счёта.
+    ///
+    /// <para><b>Хранится, а не считается на чтении:</b> посчитанная от сегодняшних границ, она менялась
+    /// бы с каждым закрытием и отменой закрытия, и отчёт за сентябрь, снятый вчера, не сошёлся бы с
+    /// сегодняшним.</para>
+    ///
+    /// <para>⚠️ <see cref="UpdatedAt" /> она НЕ двигает: это отметка версии РАЗНОСКИ, по ней матрица
+    /// отличает свежий набор от устаревшего, а разноску оплата не меняет.</para>
+    /// </summary>
+    public DateOnly? AccountingOn { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>Положить учётную дату — её считает <c>PaymentPosting</c>, одним местом на все пути.</summary>
+    public void Post(DateOnly? accountingOn) => AccountingOn = accountingOn;
 
     public static InvoiceAllocation Create(Guid invoiceId, Guid? lineId) => new()
     {

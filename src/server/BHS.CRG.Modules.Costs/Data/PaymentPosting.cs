@@ -1,0 +1,178 @@
+using BHS.CRG.Modules.Ports;
+
+namespace BHS.CRG.Modules.Costs.Data;
+
+/// <summary>Доля разноски оплаченного счёта с её учётной датой.</summary>
+/// <param name="Amount">Деньги доли — посчитанные той же арифметикой, что и счёт; <c>null</c> — посчитать
+/// нечем (в строке не вписана цена) либо доля денег не несёт (разноска ждёт пересчёта по строкам).</param>
+/// <param name="Moved">Учётная дата не совпала с датой платежа: период стройки был закрыт.</param>
+public sealed record PostedShare(
+    Guid Id, Guid? LineId, AllocationTarget Target, decimal? Amount, DateOnly AccountingOn, bool Moved);
+
+/// <summary>Неразнесённый остаток оплаченного счёта — по контуру компании.</summary>
+public sealed record PostedRemainder(decimal Amount, DateOnly AccountingOn, bool Moved);
+
+/// <summary>Расклад оплаты: куда и каким днём легли деньги счёта.</summary>
+public sealed record PaymentPlan(DateOnly PaidOn, IReadOnlyList<PostedShare> Shares, PostedRemainder? Remainder)
+{
+    /// <summary>Все учётные даты расклада — по ним считается «учётный период» счёта.</summary>
+    public IEnumerable<DateOnly> Dates =>
+        Shares.Where(s => s.Amount is not null).Select(s => s.AccountingOn)
+            .Concat(Remainder is { } rest ? [rest.AccountingOn] : []);
+}
+
+/// <summary>
+/// Учётные даты, записанные ДО правки, — по значению: строка и цель. По ним правка разноски решает,
+/// какая доля дату сохраняет.
+/// </summary>
+public sealed record PostedBefore(
+    IReadOnlyDictionary<(Guid? LineId, AllocationTarget Target), DateOnly> Shares, DateOnly? Remainder)
+{
+    /// <summary>Счёт не был оплачен: сохранять нечего, все даты — по правилу оплаты.</summary>
+    public static PostedBefore None { get; } =
+        new(new Dictionary<(Guid? LineId, AllocationTarget Target), DateOnly>(), null);
+}
+
+/// <summary>
+/// Учётные даты оплаты (задача C5, issue #1082, ТЗ COST-16) — чистая арифметика, без базы.
+///
+/// <para><b>Одна функция на предпросмотр и на запись.</b> Форма обещает перенос, сервер записывает —
+/// посчитай они порознь, обещанное разошлось бы с записанным, и узнали бы об этом по отчёту закрытого
+/// месяца. Поэтому расклад считает <see cref="Plan" />, и зовут его все: предпросмотр, отметка оплаты,
+/// правка разноски оплаченного счёта и чтение расклада.</para>
+///
+/// <para><b>Своей формулы даты у модуля нет</b> — её даёт порт (<see cref="PeriodBoundaries.AccountingDate" />).
+/// Здесь решается только, ЧЕЙ это период: доля на стройку — контур стройки, доля на статью вне строек и
+/// неразнесённый остаток — контур компании.</para>
+///
+/// <para>⚠️ Учётную дату в модуле считают два файла — этот и <see cref="ClosedPeriodGuard" />; сторож по
+/// исходникам не даёт появиться третьему.</para>
+/// </summary>
+public static class PaymentPosting
+{
+    /// <summary>Чей период у доли: стройки, на которую она легла, иначе — компании.</summary>
+    public static PeriodContour ContourOf(AllocationTarget target) =>
+        target.ConstructionId is { } site ? new PeriodContour.Construction(site) : new PeriodContour.Company();
+
+    /// <summary>
+    /// Расклад оплаты.
+    ///
+    /// <para><b>Дата доли при правке — по значению.</b> Та же строка и та же цель — дата сохраняется;
+    /// цель сменилась или доля новая — дата по правилу оплаты. По значению, а не по идентификатору
+    /// части: построчная разноска правит цель на месте, и прежняя дата уехала бы на новую стройку.</para>
+    ///
+    /// <para><b>Остаток</b> — сумма к оплате минус деньги долей. Его дата сохраняется, пока остаток
+    /// есть, и ставится заново, когда он появился из нуля.</para>
+    /// </summary>
+    public static PaymentPlan Plan(
+        DateOnly paidOn, decimal total, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
+        PostedBefore kept, PeriodBoundaries boundaries)
+    {
+        var money = Balance(lines, parts, total).Money
+            .Where(share => share.Amount is not null)
+            .ToDictionary(share => share.Id, share => share.Amount!.Value);
+
+        var shares = parts
+            .OrderBy(p => p.LineId).ThenBy(p => p.Ordinal).ThenBy(p => p.Id)
+            .Select(p =>
+            {
+                var date = kept.Shares.TryGetValue((p.LineId, p.Target), out var was)
+                    ? was
+                    : boundaries.AccountingDate(paidOn, ContourOf(p.Target));
+                return new PostedShare(p.Id, p.LineId, p.Target,
+                    money.TryGetValue(p.Id, out var amount) ? amount : null, date, date != paidOn);
+            })
+            .ToList();
+
+        var rest = total - money.Values.Sum();
+        if (rest == 0) return new PaymentPlan(paidOn, shares, null);
+
+        var on = kept.Remainder ?? boundaries.AccountingDate(paidOn, new PeriodContour.Company());
+        return new PaymentPlan(paidOn, shares, new PostedRemainder(rest, on, on != paidOn));
+    }
+
+    /// <summary>
+    /// Почему счёт нельзя оплатить — и почему оплаченный нельзя так править; <c>null</c> — можно.
+    ///
+    /// <para>Сумма обязана биться со строками (решение владельца 04.10.2026): расхождение сверх допуска
+    /// — не остаток, а несведённый счёт. Допуск тот же, что у «разобран» (ТЗ COST-13), и число одно.
+    /// Счёт без строк сверять не с чем — его сумма целиком лежит в остатке или в разноске суммой.</para>
+    /// </summary>
+    public static string? Refusal(Invoice invoice, AllocationBalance balance)
+    {
+        if (invoice.Total is not { } total || total == 0)
+            return "у счёта не указана сумма к оплате";
+
+        if (!balance.WithinTolerance && balance.Discrepancy is { } gap)
+            return $"сумма строк {total - gap:0.00} расходится с суммой к оплате {total:0.00} на {Math.Abs(gap):0.00} ₽ " +
+                   $"(допуск {balance.Tolerance:0.00})";
+
+        return null;
+    }
+
+    public static AllocationBalance Balance(
+        IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total) =>
+        AllocationMath.Of(lines,
+            parts.Select(p => new AllocationPart(p.Id, p.LineId, p.Ordinal, p.Quantity, p.Amount)), total);
+
+    /// <summary>Что записано сейчас — снимок до правки.</summary>
+    public static PostedBefore Before(Invoice invoice, IEnumerable<InvoiceAllocation> parts) => new(
+        parts.Where(p => p.AccountingOn is not null)
+            .GroupBy(p => (p.LineId, p.Target))
+            .ToDictionary(g => g.Key, g => g.First().AccountingOn!.Value),
+        invoice.RemainderAccountingOn);
+
+    /// <summary>Положить расклад в записи.</summary>
+    public static void Apply(Invoice invoice, IReadOnlyList<InvoiceAllocation> parts, PaymentPlan plan)
+    {
+        var dates = plan.Shares.ToDictionary(s => s.Id, s => s.AccountingOn);
+        foreach (var part in parts) part.Post(dates[part.Id]);
+        invoice.PostRemainder(plan.Remainder?.AccountingOn);
+    }
+
+    /// <summary>Оплату отменили: учётных дат у счёта больше нет.</summary>
+    public static void Clear(Invoice invoice, IReadOnlyList<InvoiceAllocation> parts)
+    {
+        foreach (var part in parts) part.Post(null);
+        invoice.PostRemainder(null);
+    }
+}
+
+/// <summary>Чем заперт счёт: чьё закрытие и по какую дату.</summary>
+/// <param name="ConstructionId">Стройка со своим закрытием; <c>null</c> — закрытие компании.</param>
+public sealed record PeriodLock(Guid? ConstructionId, DateOnly Through);
+
+/// <summary>
+/// Закрытый период запирает оплаченный счёт (C5, issue #1082, ТЗ CORE-35).
+///
+/// <para><b>Запирается счёт целиком</b>, если закрыта хотя бы одна его учётная дата (решение владельца
+/// 04.10.2026). По долям нельзя: копейки округления уходят в последнюю часть строки, расхождение — в
+/// последнюю часть счёта, так что правка открытой доли меняет деньги закрытой.</para>
+///
+/// <para>Неоплаченный счёт не принадлежит ни одному периоду — его проверка не трогает.</para>
+/// </summary>
+public static class ClosedPeriodGuard
+{
+    public static PeriodLock? LockOf(Invoice invoice, IEnumerable<InvoiceAllocation> parts, PeriodBoundaries boundaries)
+    {
+        if (invoice.Payment != InvoicePaymentState.Paid) return null;
+
+        var company = new PeriodContour.Company();
+        var dated = parts.Where(p => p.AccountingOn is not null)
+            .Select(p => (Date: p.AccountingOn!.Value, Contour: PaymentPosting.ContourOf(p.Target), p.ConstructionId))
+            .ToList();
+        if (invoice.RemainderAccountingOn is { } rest) dated.Add((rest, company, null));
+
+        // Закрытие компании называем раньше закрытия стройки: оно закрывает всё, и «у стройки А» про
+        // день, закрытый для всех, отправило бы человека отменять не то закрытие.
+        foreach (var (date, _, _) in dated)
+            if (boundaries.IsClosed(date, company))
+                return new PeriodLock(null, boundaries.ClosedThrough(company)!.Value);
+
+        foreach (var (date, contour, site) in dated)
+            if (boundaries.IsClosed(date, contour))
+                return new PeriodLock(site, boundaries.ClosedThrough(contour)!.Value);
+
+        return null;
+    }
+}

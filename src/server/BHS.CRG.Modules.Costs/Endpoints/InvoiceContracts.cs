@@ -46,6 +46,8 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// позиции номенклатуры.</param>
 /// <param name="Allocation">«Разнесён» и чего ему не хватает (F1, issue #1085) — то самое условие,
 /// которое проверяет переход «разобран»: считай форма его сама, кнопка и отказ расходились бы.</param>
+/// <param name="Payment">Оплата (C5, issue #1082): оплачен ли, почему оплатить нельзя и чем счёт заперт —
+/// словами сервера, чтобы форма не выводила «заперт» из границ периодов своей формулой.</param>
 public sealed record InvoiceView(
     Guid Id,
     Guid DocumentTypeId,
@@ -55,6 +57,7 @@ public sealed record InvoiceView(
     IReadOnlyList<InvoiceLineView> Lines,
     InvoiceLineTotals Totals,
     AllocationSummaryView Allocation,
+    PaymentView Payment,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -93,7 +96,7 @@ public static class InvoiceViews
     public static InvoiceView Of(
         Invoice invoice, IReadOnlyList<InvoiceDuplicate> duplicates,
         IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
-        InvoiceAllocationRead allocation) => new(
+        InvoiceAllocationRead allocation, PaymentView payment) => new(
         invoice.Id,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
@@ -102,6 +105,7 @@ public static class InvoiceViews
         [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id]))],
         InvoiceLineTotals.Of(lines),
         allocation.Summary,
+        payment,
         invoice.CreatedAt,
         invoice.UpdatedAt);
 

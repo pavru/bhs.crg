@@ -69,7 +69,7 @@ public sealed class InvoiceDueTableTests(InvoiceClockHost host)
             (Today.AddDays(-1), "Unpaid", "Draft"),    // 1: срок вчера — просрочен на день
             (Today, "Unpaid", "Draft"),                // 2: срок сегодня — ещё не просрочен
             (Today.AddDays(1), "Unpaid", "Parsed"),    // 3: срок завтра
-            (Today.AddDays(-1), "Partial", "Draft"),   // 4: оплачен частично — долг есть, просрочен
+            (Today.AddDays(-1), "Unpaid", "Parsed"),   // 4: разобран, но не оплачен — просрочен
             (Today.AddDays(-1), "Paid", "Draft"),      // 5: оплачен — срока больше нет
             (Today.AddDays(-1), "Unpaid", "Rejected"), // 6: отклонён, «не платим» — оплаты не ждёт
             (null, "Unpaid", "Draft"));                // 7: срок не определён
@@ -151,7 +151,8 @@ public sealed class InvoiceDueTableTests(InvoiceClockHost host)
             var (due, payment, state) = rows[i];
             var number = $"{tag}-{i + 1}";
             await costs.Database.ExecuteSqlInterpolatedAsync($"""
-                UPDATE costs.invoices SET number = {number}, due_date = {due}, payment = {payment}, state = {state}
+                UPDATE costs.invoices SET number = {number}, due_date = {due}, payment = {payment}, state = {state},
+                    paid_on = CASE WHEN {payment} = 'Paid' THEN DATE '2026-09-01' END
                 WHERE id = {id}
                 """);
         }

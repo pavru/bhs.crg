@@ -126,10 +126,10 @@ public static class InvoiceEndpoints
     }
 
     private static async Task<Ok<InvoiceView>> GetAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, CancellationToken ct)
+        Guid id, CostsDbContext db, InvoiceDesk desk, CancellationToken ct)
     {
         var invoice = await FindAsync(db, id, ct);
-        return TypedResults.Ok(await ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>
@@ -139,11 +139,13 @@ public static class InvoiceEndpoints
     /// <para>Так требует жизнь документа: счёт приезжает сканом, его заводит фоновое распознавание, и
     /// человек открывает его потом. Запрети мы сохранение без строк — черновику негде было бы
     /// жить.</para>
+    ///
+    /// <para>Мимо связки записи (<see cref="InvoiceDesk.WriteAsync{T}" />) — и это названо в переписи
+    /// путей: новый счёт не оплачен, а неоплаченный не принадлежит ни одному периоду.</para>
     /// </summary>
     private static async Task<Created<InvoiceView>> CreateAsync(
         InvoiceSaveRequest body, CostsDbContext db, IModuleTypes types, IModuleUser user,
-        IModuleActivityLog log, IModuleWriteGuard guard, IModuleCatalog catalog,
-        AllocationPlacesSource places, CancellationToken ct)
+        IModuleActivityLog log, IModuleWriteGuard guard, InvoiceDesk desk, CancellationToken ct)
     {
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
             ?? throw new ConflictException(
@@ -174,7 +176,7 @@ public static class InvoiceEndpoints
 
         return TypedResults.Created(
             $"/api/costs/invoices/{invoice.Id}",
-            await ViewAsync(db, catalog, places, invoice, ct));
+            await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>
@@ -187,7 +189,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> UpdateAsync(
         Guid id, InvoiceSaveRequest body, CostsDbContext db, IModuleActivityLog log,
-        IModuleWriteGuard guard, IModuleCatalog catalog, AllocationPlacesSource places,
+        IModuleWriteGuard guard, InvoiceDesk desk, AllocationPlacesSource places,
         CancellationToken ct)
     {
         if (body.Unconfirmed is not null)
@@ -196,33 +198,37 @@ public static class InvoiceEndpoints
                 "заполнил поля (распознавание), а снимает правка поля или действие «Всё верно» " +
                 "(адрес «/confirmed»). Иначе форма, приславшая метки заново, возвращала бы снятые.");
 
-        var invoice = await FindAsync(db, id, ct);
-        var before = InvoiceRequisites.Merge(invoice);
+        var (invoice, changed, reason) = await desk.WriteAsync(id, async write =>
+        {
+            var invoice = write.Invoice;
+            var before = InvoiceRequisites.Merge(invoice);
 
-        var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
-        await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
-            InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
+            var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
+            await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
+                InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
 
-        var changed = InvoiceRequisites.Changed(before, body.Requisites);
+            var changed = InvoiceRequisites.Changed(before, body.Requisites);
 
-        // Правка — всегда человек: метки этот адрес не принимает (отказ выше), то есть фоновому
-        // заполнению сюда дороги нет.
-        invoice.Apply(columns, rest, dueDateByHand: true);
-        invoice.Confirm(changed);
+            // Правка — всегда человек: метки этот адрес не принимает (отказ выше), то есть фоновому
+            // заполнению сюда дороги нет.
+            invoice.Apply(columns, rest, dueDateByHand: true);
+            invoice.Confirm(changed);
 
-        // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
-        // при правке строк и разноски. Шапка задевает условие дважды: обязательным полем, которое
-        // стёрли, и суммой к оплате — с F1 (#1085) от неё зависит, сходится ли разноска.
-        var reason = invoice.State != InvoiceState.Parsed ? null
-            : InvoiceRequisites.Missing(invoice) is { Count: > 0 } missing
-                ? "не заполнено обязательное — " + string.Join(", ", missing.Select(m => $"«{m}»"))
-            : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
-                await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct)
-                ? "баланс разноски не сходится"
-            : null;
-        if (reason is not null) invoice.ReturnToDraft();
+            // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
+            // при правке строк и разноски. Шапка задевает условие дважды: обязательным полем, которое
+            // стёрли, и суммой к оплате — с F1 (#1085) от неё зависит, сходится ли разноска.
+            var reason = invoice.State != InvoiceState.Parsed ? null
+                : InvoiceRequisites.Missing(invoice) is { Count: > 0 } missing
+                    ? "не заполнено обязательное — " + string.Join(", ", missing.Select(m => $"«{m}»"))
+                : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
+                    await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct)
+                    ? "баланс разноски не сходится"
+                : null;
+            if (reason is not null) invoice.ReturnToDraft();
 
-        await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync(ct);
+            return (invoice, changed, reason);
+        }, ct);
 
         if (changed.Count > 0)
             await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
@@ -232,7 +238,7 @@ public static class InvoiceEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
                 after: $"правка счёта: {reason}", ct: ct);
 
-        return TypedResults.Ok(await ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>
@@ -244,7 +250,7 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> ConfirmAsync(
         Guid id, InvoiceConfirmRequest body, CostsDbContext db, IModuleActivityLog log,
-        IModuleCatalog catalog, AllocationPlacesSource places, CancellationToken ct)
+        InvoiceDesk desk, CancellationToken ct)
     {
         if (body.Fields is not { Count: > 0 })
             throw new InvalidRequestException(
@@ -252,17 +258,18 @@ public static class InvoiceEndpoints
                 "группа формы, и сервер о ней не знает. Пустой перечень прочитать как «снять все» " +
                 "нельзя: метки исчезли бы разом, а вернуть их было бы нечем.");
 
-        var invoice = await FindAsync(db, id, ct);
-        var cleared = invoice.Confirm(body.Fields);
+        var (invoice, cleared) = await desk.WriteAsync(id, async write =>
+        {
+            var cleared = write.Invoice.Confirm(body.Fields);
+            if (cleared > 0) await db.SaveChangesAsync(ct);
+            return (write.Invoice, cleared);
+        }, ct);
 
         if (cleared > 0)
-        {
-            await db.SaveChangesAsync(ct);
             await log.RecordAsync(InvoiceActions.Confirmed, invoice.Id.ToString(), Label(invoice),
                 after: string.Join(", ", body.Fields), ct: ct);
-        }
 
-        return TypedResults.Ok(await ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>
@@ -271,25 +278,53 @@ public static class InvoiceEndpoints
     ///
     /// <para>Файл уходит в хранилище ядра портом — своего хранилища у модуля нет и не будет: два
     /// хранилища в продукте означали бы две резервные копии, из которых сходится одна.</para>
+    ///
+    /// <para>⚠️ <b>К запертому счёту скан приложить можно, заменить — нельзя</b> (решение владельца
+    /// 04.10.2026): приложить — не правка цифр, а замена удаляет прежний файл, то есть первичку
+    /// закрытого периода.</para>
+    ///
+    /// <para>⚠️ Файл уходит в хранилище ДО связки записи: внутри неё выгрузка держала бы замок, и
+    /// закрытие периода упиралось бы в свой срок ожидания на всё время передачи большого скана.
+    /// Отказала запись — выгруженный файл убирается.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> AttachScanAsync(
         Guid id, IFormFile file, CostsDbContext db, IModuleBlobs blobs, IModuleActivityLog log,
-        IModuleCatalog catalog, AllocationPlacesSource places, CancellationToken ct)
+        InvoiceDesk desk, CancellationToken ct)
     {
         if (file.Length == 0)
             throw new InvalidRequestException(
                 "Файл пуст. Пустой скан прикладывать не к чему: в форме он выглядел бы приложенным, а " +
                 "показать было бы нечего.");
 
-        var invoice = await FindAsync(db, id, ct);
-        var replaced = invoice.ScanBlobPath;
+        // Счёта нет — отказ до выгрузки: иначе файл ушёл бы в хранилище ради ответа «не найден».
+        if (!await db.Invoices.AnyAsync(i => i.Id == id, ct)) throw new NotFoundException("Счёт не найден.");
 
-        await using var content = file.OpenReadStream();
-        var path = await blobs.PutAsync(
-            file.FileName, content, file.ContentType ?? "application/octet-stream", ct);
+        string path;
+        await using (var content = file.OpenReadStream())
+            path = await blobs.PutAsync(file.FileName, content, file.ContentType ?? "application/octet-stream", ct);
 
-        invoice.AttachScan(path, file.FileName, file.ContentType ?? "application/octet-stream", file.Length);
-        await db.SaveChangesAsync(ct);
+        Invoice invoice;
+        string? replaced;
+        try
+        {
+            (invoice, replaced) = await desk.WriteAsync(id, async write =>
+            {
+                var replaced = write.Invoice.ScanBlobPath;
+                if (write.Locked is { } locked && replaced is not null)
+                    throw new ConflictException(
+                        $"{Label(write.Invoice)} заперт: {locked}. Заменить скан нельзя: прежний файл — документ " +
+                        "закрытого периода, и замена его удалила бы.");
+
+                write.Invoice.AttachScan(path, file.FileName, file.ContentType ?? "application/octet-stream", file.Length);
+                await db.SaveChangesAsync(ct);
+                return (write.Invoice, replaced);
+            }, ct, evenLocked: true);
+        }
+        catch
+        {
+            await blobs.DeleteAsync(path, CancellationToken.None);
+            throw;
+        }
 
         // Прежний скан убираем из хранилища — ПОСЛЕ того, как запись о новом сохранилась. Порядок
         // обязателен: удали мы первым, отказ сохранения оставил бы счёт со ссылкой на файл, которого
@@ -302,7 +337,7 @@ public static class InvoiceEndpoints
         await log.RecordAsync(InvoiceActions.ScanAttached, invoice.Id.ToString(), Label(invoice),
             after: file.FileName, ct: ct);
 
-        return TypedResults.Ok(await ViewAsync(db, catalog, places, invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>
@@ -353,31 +388,6 @@ public static class InvoiceEndpoints
     }
 
     /// <summary>
-    /// Счёт целиком: реквизиты, метки, дубликаты, строки и сверка сумм (C2, issue #1078).
-    ///
-    /// <para>Одним помощником на все адреса — и это не про экономию строк: собери ответ каждый адрес
-    /// сам, часть из них однажды вернула бы счёт без строк, и форма получила бы пустую таблицу там, где
-    /// строки есть. Ошибка была бы видна только на одном действии из шести.</para>
-    ///
-    /// <para>⚠️ Названия позиций номенклатуры берутся ОДНИМ обращением к справочнику на весь счёт, и
-    /// «вида нет вовсе» на чтении не отказ: тип «Номенклатура» есть не в каждой установке, а счёт со
-    /// строками от этого не перестаёт существовать. Но и потерей это не считается — незнание
-    /// доезжает до формы незнанием (<c>InvoiceLineView.NomenclatureLost</c>).</para>
-    /// </summary>
-    internal static async Task<InvoiceView> ViewAsync(
-        CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, Invoice invoice, CancellationToken ct)
-    {
-        var lines = await db.InvoiceLines.AsNoTracking()
-            .Where(l => l.InvoiceId == invoice.Id)
-            .OrderBy(l => l.Ordinal)
-            .ToListAsync(ct);
-
-        return InvoiceViews.Of(invoice, await DuplicatesAsync(db, invoice, ct), lines,
-            await NomenclatureNamesAsync(catalog, lines, ct),
-            await InvoiceAllocations.ReadAsync(db, places, invoice, lines, ct));
-    }
-
-    /// <summary>
     /// Названия позиций номенклатуры одним обращением на весь счёт — либо <c>null</c>, если вида
     /// «Номенклатура» в системе нет вовсе.
     ///
@@ -405,7 +415,7 @@ public static class InvoiceEndpoints
     /// <para>Ищутся только когда все три части заполнены: у черновика без номера «дубликатом» оказался
     /// бы каждый второй черновик, и оговорка, звучащая без повода, перестаёт значить что-либо.</para>
     /// </summary>
-    private static async Task<IReadOnlyList<InvoiceDuplicate>> DuplicatesAsync(
+    internal static async Task<IReadOnlyList<InvoiceDuplicate>> DuplicatesAsync(
         CostsDbContext db, Invoice invoice, CancellationToken ct)
     {
         if (invoice.SupplierId is not { } supplier || invoice.Number is not { Length: > 0 } number
