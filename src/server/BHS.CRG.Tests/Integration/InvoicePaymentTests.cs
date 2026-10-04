@@ -432,6 +432,20 @@ public class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Equal("только периоды, названные отбором", Total(inNow, "СуммаПоОтбору").GetProperty("note").GetString());
         Assert.Equal("счета целиком, а не деньги названного периода", Total(inNow, "Итого").GetProperty("note").GetString());
 
+        // «Период прошлый И период этот» — счета, разведённые на оба месяца; названы оба, счёт целиком.
+        var split = await MoneyAsync(
+            new { type = "condition", column = "УчётныйПериод", op = "eq", value = was },
+            new { type = "condition", column = "УчётныйПериод", op = "eq", value = now });
+        Assert.Equal(100_000m, Total(split, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
+
+        // Отбор и по дате счёта, и по учётному периоду: «Сумма» сужена учётным периодом, и оговорки
+        // «по дате счёта» под ней нет — она спорила бы с подписью о сужении.
+        var twoAxes = await MoneyAsync(
+            new { type = "condition", column = "Дата", op = "between", values = new[] { "2000-01-01", "2100-01-01" } },
+            new { type = "condition", column = "УчётныйПериод", op = "eq", value = now });
+        Assert.Equal("только периоды, названные отбором", Total(twoAxes, "СуммаПоОтбору").GetProperty("note").GetString());
+        Assert.Equal("счета целиком, а не деньги названного периода", Total(twoAxes, "Итого").GetProperty("note").GetString());
+
         // Оба месяца названы — счёт целиком; месяц и объект вместе — доля объекта В ЭТОМ месяце.
         var inBoth = await MoneyAsync(new { type = "condition", column = "УчётныйПериод", op = "in", values = new[] { was, now } });
         Assert.Equal(100_000m, Total(inBoth, "СуммаПоОтбору").GetProperty("sum").GetDecimal());

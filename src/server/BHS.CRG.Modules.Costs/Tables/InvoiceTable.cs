@@ -269,14 +269,18 @@ public sealed class InvoiceTableRows(
             : [];
         // Какие деньги счёта отбор назвал: долю спрашиваем ВМЕСТЕ с её месяцем, а не двумя списками —
         // под «(объект А и 09) или (объект Б и 10)» названы две пары, а не А и Б в обоих месяцах.
-        // У остатка объекта нет: условие по объекту его не пропускает.
-        Func<InvoiceAllocation?, DateOnly, bool>? named = narrowed
-            ? (part, day) => TableFilters.Admits(query.Filter, new Dictionary<string, string?>(StringComparer.Ordinal)
+        // У остатка объекта нет: условие по объекту его не пропускает. Дня нет у доли неоплаченного
+        // счёта — тогда о периоде не спрашиваем вовсе: условия по нему долю не отсеивают.
+        bool Admitted(InvoiceAllocation? part, DateOnly? day)
+        {
+            var values = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 [InvoiceTable.ObjectsKey] = part is null ? null : shares.Label(part),
-                [InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, day),
-            })
-            : null;
+            };
+            if (day is { } on) values[InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, on);
+            return TableFilters.Admits(query.Filter, values);
+        }
+        Func<InvoiceAllocation?, DateOnly, bool>? named = narrowed ? (part, day) => Admitted(part, day) : null;
 
         // Учётные месяцы — той же функцией, что у формы счёта. По счетам страницы — они уже прочитаны; по
         // всему отбору — когда отбор называет период и по «Сумме» считается итог. Доли, прочитанные ради
@@ -295,7 +299,7 @@ public sealed class InvoiceTableRows(
         // неоплаченного счёта, у которого месяцев нет.
         var amounts = byMonths ? InvoicePeriods.Amounts(periods)
             : shareTotal || shareCells
-                ? await InvoiceShares.ReadAsync(db, scope, parts, p => naming.Any(c => c.Matches(shares.Label(p))), ct)
+                ? await InvoiceShares.ReadAsync(db, scope, parts, p => Admitted(p, null), ct)
                 : null;
         if (shareTotal) totals[InvoiceTable.AmountKey] = InvoiceShares.Total(amounts!.Values);
 
@@ -307,14 +311,15 @@ public sealed class InvoiceTableRows(
         // КАЖДЫМ денежным итогом. Ось периода — свойство отбора, а не одной колонки: под отбором по
         // дате счёта итог «Суммы к оплате» — тоже «за счета, выставленные в периоде», и без оговорки
         // он читается как то, что сходится с затратами по стройке.
-        var note = Joined(sums, byIssueDate ? InvoiceTable.ByIssueDateNote : null);
+        //
+        // Оговорка «по дате счёта, не по оплате» — только пока учётный период отбором НЕ назван: с ним
+        // «Сумма» сужена именно по учётному периоду, и оговорка спорила бы с соседней подписью
+        // (ревизия Архитектора). «Сумма к оплате» и НДС под учётным периодом — счета целиком.
+        var axis = byIssueDate && months.Count == 0 ? InvoiceTable.ByIssueDateNote : null;
+        var note = Joined(sums, axis);
         Annotate(totals, InvoiceTable.AmountKey, note);
-        if (byIssueDate)
-            foreach (var money in InvoiceTable.WholeInvoiceMoney) Annotate(totals, money, InvoiceTable.ByIssueDateNote);
-        // «Сумма к оплате» и НДС под отбором по учётному периоду — счета целиком, и это сказано под ними.
-        if (months.Count > 0)
-            foreach (var money in InvoiceTable.WholeInvoiceMoney)
-                Annotate(totals, money, Joined(totals.GetValueOrDefault(money)?.Note, InvoiceTable.WholeInvoicesNote));
+        foreach (var money in InvoiceTable.WholeInvoiceMoney)
+            Annotate(totals, money, months.Count > 0 ? InvoiceTable.WholeInvoicesNote : axis);
 
         // Счётчик «ждут позиции» — по счетам страницы, одним запросом; условие то же, что у колонки
         // в запросе (см. Sql).
