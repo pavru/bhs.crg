@@ -34,6 +34,12 @@
 //      таблицу целиком под видом того, о чём просили.
 //  10. registry-leads-to-the-whole-table — из реестра к таблице целиком ведёт ссылка, и отбор едет с
 //      ней. Ломается: убрать ссылку (другого входа в таблицу в интерфейсе нет) либо вести без отбора.
+//  11. registry-row-leads-to-the-invoice — из строки реестра в форму ЭТОГО счёта ведёт настоящая
+//      ссылка, а «назад» возвращает реестр с тем же отбором и сортировкой; у человека без права на
+//      счета ссылки нет. Ломается: открыть экран счетов без счёта (параметр адреса не прочитан);
+//      вести щелчком вместо ссылки (нет `href` — нет новой вкладки); показать ссылку без права.
+//      Там же: несохранённая правка счёта не пропадает от щелчка по пункту «Счета» (он ведёт на
+//      адрес без счёта) — форма спрашивает; и у строки, которой под отбором нет, ссылки в панели нет.
 //
 // ⚠️ ДАННЫЕ — ТЕ ЖЕ, ЧТО СЕЕТ ПОСЕВ (e2e/seed-invoices.mjs, `TABLE_SEED`): счетов для итога нарочно
 // больше страницы, и человек «модуль есть, счетов нет» заведён там же. Счета прогон досеивает САМ, той
@@ -228,6 +234,18 @@ try {
     for (const c of closed)
       if (shown.includes(c.label)) throw new Error(`закрытая колонка «${c.label}» нарисована в таблице`);
     if (!shown.includes('Номер счёта')) throw new Error(`открытой колонки «Номер счёта» в таблице нет: ${shown}`);
+  });
+
+  await check('registry-row-leads-to-the-invoice: без права на счета ссылки из строки нет — ни в строке, ни в панели', async () => {
+    await open(narrow, { filter: seeded });
+    await rowsBecome(narrow, TABLE_SEED.count, 'посеянные счета у человека без права на счета');
+    await dataRows(narrow).first().click();
+    const panel = narrow.getByRole('complementary', { name: 'Строка: счёт' });
+    await panel.getByText(TABLE_SEED.purpose).waitFor({ timeout: 8000 });
+    // «Нет» читают, когда экран доработал: в первый миг ссылки нет и у того, кому она положена.
+    await settled(narrow);
+    const links = await narrow.getByRole('link', { name: 'Открыть счёт' }).count();
+    if (links !== 0) throw new Error(`ссылок «Открыть счёт» — ${links}, а экран счетов этому человеку закрыт`);
   });
 
   await check('hidden-column-names-the-right: в реестре без права на суммы итоговой строки нет — а не пустая полоса', async () => {
@@ -604,6 +622,67 @@ try {
     });
     // Отбор приехал: строки — уже из ответа таблицы целиком, и их столько же, сколько посеяно.
     await rowsBecome(page, TABLE_SEED.count, 'те же счета в таблице целиком');
+  });
+
+  await check('registry-row-leads-to-the-invoice: строка ведёт в форму своего счёта, «назад» возвращает реестр с отбором и сортировкой', async () => {
+    await openRegistry(page, { filter: seeded, sort: 'Номер:desc' });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета под реестром');
+    const registry = page.url();
+
+    // Последний по номеру — первым: сортировка обязана уцелеть, и проверяется она этим же номером.
+    const last = `ИТОГ-${TABLE_SEED.count}`;
+    const row = dataRows(page).first();
+    if (!flat(await row.innerText()).includes(last)) throw new Error(`первая строка под сортировкой — не ${last}`);
+
+    // Настоящая ссылка: адрес у неё есть до щелчка — его и открывают в новой вкладке.
+    const link = row.getByRole('link', { name: 'Открыть счёт' });
+    const href = await link.getAttribute('href');
+    if (!/^\/invoices\?invoice=[0-9a-f-]{36}$/.test(href ?? '')) throw new Error(`адрес ссылки: «${href}»`);
+
+    // С клавиатуры: ссылка берёт фокус и открывается клавишей Enter, без мыши.
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await until(async () => {
+      if (new URL(page.url()).pathname !== '/invoices') throw new Error(`ссылка ведёт на ${new URL(page.url()).pathname}`);
+      const number = await page.getByLabel('Номер', { exact: true }).inputValue();
+      if (number !== last) throw new Error(`открылся счёт «${number}», а строка была ${last}`);
+    });
+
+    // Открытый счёт назван в адресе, а пункт «Счета» ведёт на адрес БЕЗ счёта: с несохранённой
+    // правкой форма спрашивает, а не закрывается вместе с ней.
+    const edited = 'правка без сохранения';
+    await page.getByLabel('Назначение').fill(edited);
+    await page.getByRole('link', { name: 'Счета', exact: true }).click();
+    const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    await ask.waitFor({ timeout: 5000 })
+      .catch(() => { throw new Error('пункт «Счета» закрыл счёт с несохранённой правкой, не спросив'); });
+    await ask.getByRole('button', { name: 'Отмена' }).click();
+    await ask.waitFor({ state: 'detached', timeout: 5000 });
+    if (!new URL(page.url()).searchParams.get('invoice')) throw new Error('после «Отмена» счёт из адреса пропал');
+    if ((await page.getByLabel('Назначение').inputValue()) !== edited) throw new Error('после «Отмена» правка пропала');
+
+    // Панель строки щелчок по ссылке не открывал: иначе она ждала бы по возвращении.
+    await page.goBack();
+    await until(() => {
+      if (page.url() !== registry) throw new Error(`«назад» привёл на ${decodeURIComponent(page.url())}`);
+    });
+    await page.getByRole('heading', { name: 'Реестр счетов' }).waitFor({ timeout: 10000 });
+    await rowsBecome(page, TABLE_SEED.count, 'те же счета по возвращении');
+    if (!flat(await dataRows(page).first().innerText()).includes(last))
+      throw new Error('по возвращении сортировка другая: первая строка сменилась');
+
+    // И из панели строки — той же ссылкой, тем же адресом.
+    await dataRows(page).first().click();
+    const panel = page.getByRole('complementary', { name: 'Строка: счёт' });
+    const fromPanel = await panel.getByRole('link', { name: 'Открыть счёт' }).getAttribute('href');
+    if (fromPanel !== href) throw new Error(`ссылка панели ведёт на «${fromPanel}», а строки — на «${href}»`);
+
+    // Ключ в адресе, за которым строки нет: панель это говорит — и ссылки в ней нет. Иначе она вела
+    // бы в «Счёт не открылся».
+    await openRegistry(page, { filter: seeded, row: 'ne-kluch' });
+    await panel.getByText('такой строки нет').waitFor({ timeout: 8000 });
+    await settled(page);
+    if ((await panel.getByRole('link').count()) !== 0) throw new Error('у строки, которой нет, в панели стоит ссылка');
   });
 } finally {
   await browser.close();

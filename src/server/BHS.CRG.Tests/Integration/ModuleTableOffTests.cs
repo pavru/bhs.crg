@@ -57,6 +57,8 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
             c => Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString()));
         // Готовых представлений у выключенной таблицы нет (G4, issue #1097): настраивать нечего, строк нет.
         Assert.Empty(described.GetProperty("views").EnumerateArray());
+        // Строк нет — и вести из них некуда: тип записи выключенный модуль не называет.
+        Assert.Equal(JsonValueKind.Null, described.GetProperty("recordType").ValueKind);
 
         // В перечне таблиц выключенного модуля нет: представления скрыты, но не удалены (AUTH-19).
         var list = await client.GetFromJsonAsync<JsonElement>("/api/tables");

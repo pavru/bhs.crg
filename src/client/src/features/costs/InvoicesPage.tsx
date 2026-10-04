@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
+import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
@@ -21,9 +23,21 @@ import { K, formatDate, formatMoney, scanFitsBeside } from './invoiceFields';
  * <p>⚠️ Это НЕ реестр из ТЗ. Реестр — готовое представление таблицы счетов, со своей сеткой, отбором
  * и постраничностью (задача G4, issue #1097), и у него свой пункт в навигации. Здесь список ровно
  * затем, чтобы дойти до формы и увидеть, что черновик в него попал.</p>
+ *
+ * <p><b>Открытый счёт назван в адресе</b> (`?invoice=…`; G4, issue #1097): по нему сюда ведёт строка
+ * реестра, и перезагрузка счёт не закрывает. Выбор в списке адрес ЗАМЕНЯЕТ, а не добавляет запись в
+ * историю (конвенция list-detail, issue #787): «назад» возвращает туда, откуда пришли, — в реестр с
+ * его отбором, — а не перебирает щелчки по списку. Счёт, которого нет, отвечает отказом чтения в
+ * форме, а не приглашением выбрать счёт.</p>
  */
 export function InvoicesPage() {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const selected = params.get(INVOICE_RECORD.param) || null;
+  const setSelected = (id: string) => setParams(prev => {
+    const next = new URLSearchParams(prev);
+    next.set(INVOICE_RECORD.param, id);
+    return next;
+  }, { replace: true });
   const [query, setQuery] = useState('');
   const [needsParsing, setNeedsParsing] = useState(false);
   const wide = useWideEnoughForScan();
@@ -159,8 +173,13 @@ export function InvoicesPage() {
 function ListRow({ item, active, onClick }: {
   item: InvoiceListItem; active: boolean; onClick: () => void;
 }) {
+  // Открытый счёт — на виду: сюда приходят и по ссылке из реестра, а там счёт мог стоять сотым.
+  // `nearest` — строка, которая и так видна, с места не сдвигается.
+  const row = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (active) row.current?.scrollIntoView({ block: 'nearest' }); }, [active]);
+
   return (
-    <button type="button" onClick={onClick}
+    <button ref={row} type="button" onClick={onClick}
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
         `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
       <div className="flex items-center gap-2">

@@ -115,7 +115,9 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
         var (entry, table) = (opened.Entry, opened.Entry.Table);
         return (new(entry.Address, table.Title, table.Grain, table.Boundary, opened.Columns,
             opened.Off is null ? null : TableColumnReasons.ModuleOff,
-            opened.Off is null ? Views(table) : []), null);
+            opened.Off is null ? Views(table) : [],
+            // У выключенного модуля строк нет — и вести из них некуда.
+            opened.Off is null ? table.RecordType : null), null);
     }
 
     /// <summary>
