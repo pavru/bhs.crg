@@ -77,6 +77,37 @@ public class SiteCostsTests
     }
 
     /// <summary>
+    /// Срез по разделам — те же доли, сгруппированные иначе (задача G5b, issue #1198): сумма его строк —
+    /// итог стройки. Разделы, которых больше нет, — ОДНОЙ строкой: реестр зовёт их одинаково, и счёт на
+    /// два таких раздела — один счёт, а не два.
+    /// </summary>
+    [Fact]
+    public void На_экране_стройки_доли_сложены_по_разделам_а_удалённые_разделы_одной_строкой()
+    {
+        Guid floor = Guid.NewGuid(), goneA = Guid.NewGuid(), goneB = Guid.NewGuid();
+        var invoice = new CostInvoice(Guid.NewGuid(), Supplier, 100_000m, null, false, true,
+        [
+            Money(Cable, AllocationTarget.Site(SiteA, floor), 40_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteA), 25_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteA, goneA), 10_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteA, goneB), 5_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteB, floor), 20_000m, D(9, 15)),
+        ]);
+
+        var site = SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), SiteA, withVat: true, sections: new HashSet<Guid> { floor });
+
+        Assert.Equal(new CostFigure(1, 80_000m), site.Total);
+        Assert.Equal(
+            [((Guid?)floor, false, new CostFigure(1, 40_000m)), (null, false, new CostFigure(1, 25_000m)), (null, true, new CostFigure(1, 15_000m))],
+            site.Sections);
+        Assert.Equal(site.Total.Amount, site.Sections.Sum(s => s.Figure.Amount));
+        Assert.Equal(site.Total.Amount, site.Suppliers.Sum(s => s.Figure.Amount));
+
+        // По всем стройкам среза по разделам нет: раздел без стройки ничего не значит.
+        Assert.Empty(SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), site: null, withVat: true).Sections);
+    }
+
+    /// <summary>
     /// «Без позиции номенклатуры» — доли таких СЧЕТОВ, а не сумма несопоставленных строк: так велит
     /// формулировка ТЗ («3 счёта на 58 000 ₽») и только так число сходится с реестром.
     /// </summary>

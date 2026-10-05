@@ -51,3 +51,15 @@ describe('число счетов словами', () => {
   it.each([[1, '1 счёт'], [3, '3 счёта'], [5, '5 счетов'], [11, '11 счетов'], [21, '21 счёт'], [104, '104 счёта']])(
     '%i', (count, text) => expect(invoicesText(count)).toBe(text));
 });
+
+// Срез по разделам (G5b, issue #1198).
+describe('ссылка раздела стройки', () => {
+  it('несёт объект, раздел так, как его зовёт реестр, период и «не отклонён»', () => {
+    expect(filterOf(siteCostsLinks.section(site, 'Комарова 36 / 4 эт.')).children).toEqual([
+      { type: 'condition', column: 'ОбъектыРазноски', op: 'eq', value: 'Комарова 36' },
+      { type: 'condition', column: 'УчётныйПериод', op: 'in', values: ['10.2026'] },
+      { type: 'condition', column: 'РазделыРазноски', op: 'eq', value: 'Комарова 36 / 4 эт.' },
+      NOT_REJECTED,
+    ]);
+  });
+});

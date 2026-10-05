@@ -49,6 +49,11 @@ export const siteCostsLinks = {
   /** Контрагент — на экране стройки; без названия — «поставщик не указан». */
   supplier: (report: Scope, name: string | null) => registryLink(costs(report,
     name === null ? { type: 'condition', column: 'Поставщик', op: 'is_empty' } : is('Поставщик', name))),
+  /**
+   * Раздел стройки — на её экране (G5b, issue #1198). Название — то, каким раздел зовёт РЕЕСТР: вместе со
+   * стройкой. Одинокое «4 эт.» нашло бы одноимённые разделы всех строек.
+   */
+  section: (report: Scope, registry: string) => registryLink(costs(report, is('РазделыРазноски', registry))),
   /** Из затрат — счета со строками без позиции номенклатуры. */
   unmatched: (report: Scope) =>
     registryLink(costs(report, { type: 'condition', column: 'СтрокБезПозиции', op: 'is_not_empty' })),

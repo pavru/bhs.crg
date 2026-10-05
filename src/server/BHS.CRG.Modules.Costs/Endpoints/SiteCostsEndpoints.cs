@@ -24,6 +24,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Unallocated">Деньги оплаченных счетов, не лёгшие ни на один объект.</param>
 /// <param name="Suppliers">Контрагенты — на экране стройки; строки без идентификатора — «поставщик не
 /// указан» и, без ссылки в реестр, «поставщик удалён».</param>
+/// <param name="Sections">Разделы стройки — на её экране, второй срез той же суммы; «без раздела» и
+/// «раздел удалён» — строками без идентификатора.</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры: в затраты вошли.</param>
 /// <param name="Payable">Не оплачено и не отклонено — НЕ затраты и от периода не зависит.</param>
 /// <param name="VatUnknown">Под «без НДС» — деньги, из которых НДС вычесть нечем: учтены полной суммой.</param>
@@ -31,7 +33,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
     IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
-    IReadOnlyList<CostLine> Suppliers,
+    IReadOnlyList<CostLine> Suppliers, IReadOnlyList<CostLine> Sections,
     CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown);
 
 /// <summary>
@@ -93,10 +95,10 @@ public static class SiteCostsEndpoints
             i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
             && (site == null || db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site)));
 
-        // Названия объектов — те же, какими реестр сверяет отбор (InvoiceShares): ссылка строки несёт
-        // название, и назови отчёт объект по-своему, реестр под ней не нашёл бы ничего.
-        var labels = known.Sites.Select(s => (s.Id, s.Name)).Concat(known.Articles.Select(a => (a.Id, a.Name)))
-            .ToDictionary(o => o.Id, o => o.Name);
+        // Названия объектов и разделов — те же, какими реестр сверяет отбор (InvoiceShares): ссылка
+        // строки несёт название, и назови отчёт объект по-своему, реестр под ней не нашёл бы ничего.
+        var shares = InvoiceShares.Of(known);
+        var labels = shares.Labels;
 
         var (costs, lines) = await InvoicesAsync(db, paid, ct);
         // «К оплате» с НДС по всем стройкам — суммы к оплате из самих записей: строки и части ВСЕХ
@@ -107,7 +109,8 @@ public static class SiteCostsEndpoints
                 new Dictionary<Guid, LineVat>())
             : await InvoicesAsync(db, unpaid, ct);
 
-        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet());
+        var ownSections = known.Site(site)?.Sections.ToDictionary(s => s.Id, s => s.Name) ?? [];
+        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet(), ownSections.Keys.ToHashSet());
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
         // Контрагенты — только на экране стройки: без неё справочник не читаем.
@@ -119,6 +122,11 @@ public static class SiteCostsEndpoints
             new(id, name, figure.Invoices, figure.Amount, linked);
         CostFigure Sum(IEnumerable<CostFigure> figures) => figures.Aggregate(new CostFigure(0, 0), (a, b) => new(a.Invoices + b.Invoices, a.Amount + b.Amount));
         var lostSuppliers = result.Suppliers.Where(s => s.Supplier is { } id && !suppliers.ContainsKey(id)).ToList();
+
+        // Разделы — на экране стройки. В отчёте раздел назван коротко («4 эт.»): стройка стоит в
+        // заголовке; реестр зовёт его вместе со стройкой, и это название строка несёт для ссылки.
+        CostLine Section(Guid? id, string name, CostFigure figure, string registry) =>
+            new(id, name, figure.Invoices, figure.Amount, Registry: registry);
 
         return TypedResults.Ok(new SiteCostsView(
             site is { } chosen ? new(chosen, labels[chosen], result.Total.Invoices, result.Total.Amount) : null,
@@ -134,6 +142,16 @@ public static class SiteCostsEndpoints
                 // счетов складывается: поставщик у счёта один.
                 .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), linked: false)])
                 // Строки без названия — последними: это не название, а его отсутствие.
+                .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
+            // Удалённые разделы — одной строкой: реестр зовёт их все одинаково, и отбор по этому названию
+            // вместе с объектом находит их разом.
+            [.. result.Sections
+                .Select(s => s switch
+                {
+                    { Lost: true } => Section(null, InvoiceShares.LostSection, s.Figure, InvoiceShares.LostSection),
+                    { Section: { } id } => Section(id, ownSections[id], s.Figure, shares.Sections[id]),
+                    _ => Section(null, InvoiceShares.NoSection, s.Figure, shares.Sections[site!.Value]),
+                })
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
             result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown));
     }

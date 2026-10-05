@@ -8,7 +8,9 @@ public sealed record CostFigure(int Invoices, decimal Amount);
 /// объекты или поставщики одной строкой.</param>
 /// <param name="Linked">Есть ли у реестра отбор, под которым его итог равен этому числу. Нет — стрелки
 /// у строки нет: ссылка, по которой цифры не сходятся, хуже её отсутствия.</param>
-public sealed record CostLine(Guid? Id, string Name, int Invoices, decimal Amount, bool Linked = true);
+/// <param name="Registry">Как эту строку зовёт реестр, если иначе, чем отчёт: раздел в отчёте стройки —
+/// «4 эт.», а колонка «Раздел» реестра — «Комарова 36 / 4 эт.». Отбор ссылки берёт это название.</param>
+public sealed record CostLine(Guid? Id, string Name, int Invoices, decimal Amount, bool Linked = true, string? Registry = null);
 
 /// <summary>Счёт так, как его видит отчёт о затратах.</summary>
 /// <param name="VatTotal">«В том числе НДС» из шапки — запасной источник НДС там, где его нет у строки.</param>
@@ -31,6 +33,9 @@ public sealed record LineVat(decimal? Amount, decimal? VatAmount);
 /// их вместе. null — таких нет.</param>
 /// <param name="Unallocated">Деньги оплаченных счетов, не лёгшие ни на один объект; null — таких нет.</param>
 /// <param name="Suppliers">По контрагентам — на экране стройки; ключ null — «поставщик не указан».</param>
+/// <param name="Sections">По разделам — на экране стройки, второй срез ТОЙ ЖЕ суммы (задача G5b, issue
+/// #1198): ключ — раздел доли, null — доля на стройку целиком, «без раздела». Разделы, которых больше
+/// нет, — ОДНОЙ строкой (<c>Lost</c>): реестр зовёт их одинаково.</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры; null — таких нет.</param>
 /// <param name="VatUnknown">Под «без НДС»: деньги, из которых НДС вычесть нечем, — учтены полной
 /// суммой; null — таких нет либо суммы показаны с НДС.</param>
@@ -40,6 +45,7 @@ public sealed record SiteCostsResult(
     CostFigure? Lost,
     CostFigure? Unallocated,
     IReadOnlyList<(Guid? Supplier, CostFigure Figure)> Suppliers,
+    IReadOnlyList<(Guid? Section, bool Lost, CostFigure Figure)> Sections,
     CostFigure Total,
     CostFigure? Unmatched,
     CostFigure? VatUnknown);
@@ -68,9 +74,11 @@ public static class SiteCosts
     /// <param name="site">Стройка — тогда строки по контрагентам; null — все стройки.</param>
     /// <param name="withVat">Суммы как в бумаге; иначе — без НДС, где его есть чем вычесть.</param>
     /// <param name="known">Объекты, у которых есть название; null — известны все.</param>
+    /// <param name="sections">Разделы, у которых есть название; null — известны все.</param>
     public static SiteCostsResult Of(
         IReadOnlyList<CostInvoice> invoices, IReadOnlyDictionary<Guid, LineVat> lines,
-        DateOnly from, DateOnly through, Guid? site, bool withVat, IReadOnlySet<Guid>? known = null)
+        DateOnly from, DateOnly through, Guid? site, bool withVat, IReadOnlySet<Guid>? known = null,
+        IReadOnlySet<Guid>? sections = null)
     {
         bool Known(Guid? id) => id is { } key && known?.Contains(key) != false;
 
@@ -105,6 +113,14 @@ public static class SiteCosts
                 : null,
             site is null ? Some(Figure(entries.Where(e => e.Money.Part is null))) : null,
             site is null ? [] : [.. entries.GroupBy(e => e.Invoice.SupplierId).Select(g => (g.Key, Figure(g)))],
+            // Тот же набор долей, сгруппированный иначе: сумма строк обоих срезов — один итог. А число
+            // счетов по разделам в итог НЕ складывается: счёт на два раздела стоит в двух строках.
+            // Разделы, которых больше нет, — одной группой: счёт на два таких раздела — один счёт.
+            site is null ? [] : [.. entries
+                .GroupBy(e => e.Money.Part!.SectionId is { } id
+                    ? sections?.Contains(id) == false ? (Section: (Guid?)null, Lost: true) : (Section: id, Lost: false)
+                    : (Section: null, Lost: false))
+                .Select(g => (g.Key.Section, g.Key.Lost, Figure(g)))],
             Figure(entries),
             Some(Figure(entries.Where(e => e.Invoice.Unmatched))),
             withVat ? null : Some(Figure(entries.Where(e => e.VatUnknown))));

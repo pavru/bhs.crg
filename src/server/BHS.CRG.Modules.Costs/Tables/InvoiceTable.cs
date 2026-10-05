@@ -51,6 +51,13 @@ public static class InvoiceTable
     public const string ObjectsKey = "ОбъектыРазноски";
 
     /// <summary>
+    /// Разделы строек, на которые разнесён счёт, — «Комарова 36 / 4 эт.»; доля на стройку целиком —
+    /// «Комарова 36 / без раздела» (задача G5b, issue #1198). Условие — «есть часть на этот раздел», и
+    /// «Сумму» оно сужает так же, как условие по объекту: до долей на названные разделы.
+    /// </summary>
+    public const string SectionsKey = "РазделыРазноски";
+
+    /// <summary>
     /// Сумма по отбору: вся сумма счёта — либо то, что из неё отбор назвал: доля на названные объекты,
     /// деньги названных учётных месяцев, доля объекта в этих месяцах.
     /// </summary>
@@ -166,6 +173,7 @@ public static class InvoiceTable
             new(InvoiceRequisites.PayerKey, "Плательщик", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.PurposeKey, "Назначение", ModuleTableColumnKind.Text),
             new(ObjectsKey, "Объект", ModuleTableColumnKind.List),
+            new(SectionsKey, "Раздел", ModuleTableColumnKind.List),
             new(AmountKey, "Сумма", ModuleTableColumnKind.Number, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),
             new(InvoiceRequisites.TotalKey, "Сумма к оплате", ModuleTableColumnKind.Number,
@@ -197,6 +205,10 @@ public static class InvoiceTable
             //
             // «Сумма к оплате» стоит сразу за «Суммой» нарочно: под отбором по объекту первая
             // становится долей, и одинокая доля неотличима от полной суммы (ревизия Дизайнера).
+            //
+            // «Раздел» в реестре — ОТБОРОМ, а не колонкой (G5b, issue #1198): колонки здесь — таблица
+            // заказчика, и раздела в ней нет. Ссылка отчёта отбирает по нему и без колонки, а что именно
+            // названо, говорит подпись «Суммы»; колонку человек включает сам.
             new(RegistryView, "Реестр счетов",
                 [
                     InvoiceRequisites.SupplierKey, AmountKey, InvoiceRequisites.TotalKey,
@@ -210,7 +222,7 @@ public static class InvoiceTable
                 Filters:
                 [
                     InvoiceRequisites.DateKey, InvoiceRequisites.PayerKey, InvoiceRequisites.SupplierKey,
-                    ObjectsKey, InvoiceRequisites.PaymentKey, PeriodKey,
+                    ObjectsKey, SectionsKey, InvoiceRequisites.PaymentKey, PeriodKey,
                 ]),
         ],
         InvoiceBreakdown.Declaration);
@@ -238,18 +250,15 @@ public sealed class InvoiceTableRows(
             ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
 
         // Объекты разноски — стройки и статьи вне строек одним списком названий: цель части — ровно
-        // одно из двух. Раздел стройки в перечень не идёт: отбор «по стройке» — по стройке целиком.
-        var known = await places.LoadAsync(ct);
-        var shares = new InvoiceShares(known.Sites.Select(s => (s.Id, s.Name))
-            .Concat(known.Articles.Select(a => (a.Id, a.Name)))
-            .ToDictionary(o => o.Id, o => o.Name));
+        // одно из двух. Раздел стройки — своей колонкой: отбор «по стройке» — по стройке целиком.
+        var shares = InvoiceShares.Of(await places.LoadAsync(ct));
 
         // «Сегодня» — одно на весь ответ: и отбору, и клеткам. Спроси мы его дважды, запрос на
         // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
         var today = await clock.TodayAsync(ct);
 
         var calendar = InvoicePeriods.Labels(today);
-        var sql = Sql(names, shares.Labels, calendar, today);
+        var sql = Sql(names, shares, calendar, today);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Одна строка по ключу — тот же отбор и ещё одно условие: счёт вне отбора не приходит. Ключ,
@@ -261,11 +270,13 @@ public sealed class InvoiceTableRows(
         // период — деньгами счёта, вошедшими в названные месяцы (G4); то и другое — долями на объект в
         // эти месяцы. Иначе это сумма счёта целиком, и считает её запрос, как любую числовую колонку.
         var naming = TableFilters.Naming(query.Filter, InvoiceTable.ObjectsKey);
+        // Раздел сужает сумму так же, как объект: до долей на названные разделы (G5b, issue #1198).
+        var sections = TableFilters.Naming(query.Filter, InvoiceTable.SectionsKey);
         var months = TableFilters.Naming(query.Filter, InvoiceTable.PeriodKey);
         // Отбор называет период ДАТОЙ СЧЁТА — вторая ось; под ней сумма не сужается, а подписывается.
         var byIssueDate = TableFilters.Naming(query.Filter, InvoiceRequisites.DateKey).Count > 0;
         var byPaidOn = TableFilters.Naming(query.Filter, InvoiceTable.PaidOnKey).Count > 0;
-        var narrowed = naming.Count > 0 || months.Count > 0;
+        var narrowed = naming.Count > 0 || sections.Count > 0 || months.Count > 0;
         var shareTotal = narrowed && query.Totals?.ContainsKey(InvoiceTable.AmountKey) == true;
         var shareCells = narrowed && query.Columns.Contains(InvoiceTable.AmountKey);
 
@@ -288,6 +299,7 @@ public sealed class InvoiceTableRows(
 
         // Какие деньги счёта отбор назвал: долю спрашиваем ВМЕСТЕ с её месяцем, а не двумя списками —
         // под «(объект А и 09) или (объект Б и 10)» названы две пары, а не А и Б в обоих месяцах.
+        // Раздел — третье в той же связке: «объект + раздел + месяц» спрашивают у ОДНОЙ доли.
         // У остатка объекта нет: условие по объекту его не пропускает. Дня нет у доли неоплаченного
         // счёта — тогда о периоде не спрашиваем вовсе: условия по нему долю не отсеивают.
         bool Admitted(InvoiceAllocation? part, DateOnly? day)
@@ -295,6 +307,7 @@ public sealed class InvoiceTableRows(
             var values = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 [InvoiceTable.ObjectsKey] = part is null ? null : shares.Label(part),
+                [InvoiceTable.SectionsKey] = part is null ? null : shares.Section(part),
             };
             if (day is { } on) values[InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, on);
             return TableFilters.Admits(query.Filter, values);
@@ -309,7 +322,7 @@ public sealed class InvoiceTableRows(
         var scope = shareTotal ? selected : db.Invoices.AsNoTracking().Where(i => ids.Contains(i.Id));
         var moneyRead = shareTotal || shareCells || query.Row is not null
                         || query.Columns.Contains(InvoiceTable.PeriodKey) || query.Columns.Contains(InvoiceTable.PeriodSumsKey);
-        var parts = moneyRead || query.Columns.Contains(InvoiceTable.ObjectsKey)
+        var parts = moneyRead || query.Columns.Contains(InvoiceTable.ObjectsKey) || query.Columns.Contains(InvoiceTable.SectionsKey)
             ? await db.InvoiceAllocations.AsNoTracking()
                 .Where(a => scope.Select(i => i.Id).Contains(a.InvoiceId)).ToListAsync(ct)
             : [];
@@ -341,9 +354,12 @@ public sealed class InvoiceTableRows(
             ? invoices.ToDictionary(i => i.Id, i => InvoicePeriods.Of(MoneyOf(i.Id), narrowed ? IsNamed : null))
             : InvoicePeriods.None;
 
-        // Чем сужены деньги: по объекту — до долей на него, по учётному периоду — до названных месяцев.
-        // Подпись одна на «Сумму» и на её расшифровку, «Суммы по периодам»: сужены они одинаково.
-        var sums = Joined(naming.Count > 0 ? shares.Note(naming) : null, months.Count > 0 ? InvoiceTable.NamedPeriodsNote : null);
+        // Чем сужены деньги: по объекту — до долей на него, по разделу — до долей на раздел, по учётному
+        // периоду — до названных месяцев. Подпись одна на «Сумму» и на её расшифровку, «Суммы по
+        // периодам»: сужены они одинаково.
+        var sums = Joined(
+            Joined(naming.Count > 0 ? shares.Note(naming) : null, sections.Count > 0 ? shares.SectionNote(sections) : null),
+            months.Count > 0 ? InvoiceTable.NamedPeriodsNote : null);
 
         // Что сумма значит под этим отбором — колонке «Сумма» (у неё меняется и смысл клетки) и под
         // КАЖДЫМ денежным итогом. Ось периода — свойство отбора, а не одной колонки: под отбором по
@@ -378,8 +394,9 @@ public sealed class InvoiceTableRows(
             : null;
 
         var objects = shares.Objects(parts);
+        var listed = shares.SectionsOf(parts);
         return new(
-            [.. invoices.Select(i => Row(i, names, query.Columns, objects, amounts, unmatched, today,
+            [.. invoices.Select(i => Row(i, names, query.Columns, objects, listed, amounts, unmatched, today,
                 periods.GetValueOrDefault(i.Id)))],
             count, totals, notes.Count == 0 ? null : notes,
             [.. invoices.Select(i => i.Id.ToString())], breakdown);
@@ -400,7 +417,7 @@ public sealed class InvoiceTableRows(
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
     private TableSql<Invoice> Sql(
-        Dictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> objects,
+        Dictionary<Guid, string> names, InvoiceShares shares,
         IReadOnlyDictionary<int, string> months, DateOnly today) =>
         TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
@@ -411,7 +428,14 @@ public sealed class InvoiceTableRows(
             // Условие по дочернему зерну: в базе это EXISTS по частям разноски счёта.
             .List(InvoiceTable.ObjectsKey,
                 i => db.InvoiceAllocations.Where(a => a.InvoiceId == i.Id).Select(a => a.ConstructionId ?? a.ArticleId),
-                objects, InvoiceShares.Lost)
+                shares.Labels, InvoiceShares.Lost)
+            // Раздел доли — то же выражение, что InvoiceShares.SectionKey: раздел либо, у доли на стройку
+            // целиком, сама стройка («без раздела»). Доли на статьи вне строек в перечень не идут —
+            // отсеяны ЗДЕСЬ, а не пустым ключом: пустой ключ построитель счёл бы «разделом, которого нет».
+            .List(InvoiceTable.SectionsKey,
+                i => db.InvoiceAllocations.Where(a => a.InvoiceId == i.Id && a.ConstructionId != null)
+                    .Select(a => a.SectionId ?? a.ConstructionId),
+                shares.Sections, InvoiceShares.LostSection)
             // Без отбора по объекту «Сумма» — сумма счёта, и итог по ней считает запрос. Отбирать и
             // сортировать по ней ядро не даёт: колонка объявлена зависящей от отбора.
             .Number(InvoiceTable.AmountKey, i => i.Total)
@@ -450,7 +474,8 @@ public sealed class InvoiceTableRows(
     /// названных месяцев; null — отбор не называет ни того, ни другого, и «Сумма» — сумма счёта целиком.</param>
     private static IReadOnlyDictionary<string, object?> Row(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
-        IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects, IReadOnlyDictionary<Guid, decimal?>? amounts,
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects,
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> sections, IReadOnlyDictionary<Guid, decimal?>? amounts,
         Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -461,6 +486,7 @@ public sealed class InvoiceTableRows(
             [InvoiceRequisites.PayerKey] = Name(invoice.PayerId, names),
             [InvoiceRequisites.PurposeKey] = invoice.Purpose,
             [InvoiceTable.ObjectsKey] = objects.GetValueOrDefault(invoice.Id) ?? [],
+            [InvoiceTable.SectionsKey] = sections.GetValueOrDefault(invoice.Id) ?? [],
             [InvoiceRequisites.ShippedOnKey] = invoice.ShippedOn,
             [InvoiceRequisites.DeferralKey] = invoice.DeferralDays is { } days ? (decimal)days : null,
             [InvoiceRequisites.DueDateKey] = invoice.DueDate,
