@@ -57,11 +57,22 @@ internal static class InvoicePeriods
     public static IReadOnlyDictionary<int, string> Labels(DateOnly today)
     {
         var labels = new Dictionary<int, string>();
-        // До конца следующего года: учётная дата бывает позже «сегодня» только на первый открытый день.
-        for (var month = new DateOnly(FirstYear, 1, 1); month.Year <= today.Year + 1; month = month.AddMonths(1))
+        for (var month = First; month <= Last(today); month = month.AddMonths(1))
             labels[Key(month)] = PaymentViews.Month(month);
         return labels;
     }
+
+    /// <summary>Первый месяц перечня.</summary>
+    public static DateOnly First { get; } = new(FirstYear, 1, 1);
+
+    /// <summary>
+    /// Последний месяц перечня — декабрь следующего года: учётная дата бывает позже «сегодня» только на
+    /// первый открытый день.
+    /// </summary>
+    public static DateOnly Last(DateOnly today) => new(today.Year + 1, 12, 1);
+
+    /// <summary>Есть ли месяц в перечне — то есть назовёт ли его реестр и найдёт ли по нему отбор.</summary>
+    public static bool Covers(DateOnly month, DateOnly today) => month >= First && month <= Last(today);
 
     /// <summary>
     /// Как месяц назван ОТБОРУ: названием из перечня, а вне перечня — <see cref="Unknown" />. То же

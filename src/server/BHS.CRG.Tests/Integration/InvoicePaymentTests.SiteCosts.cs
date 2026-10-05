@@ -108,6 +108,15 @@ public partial class InvoicePaymentTests
         Assert.Equal(HttpStatusCode.BadRequest, reversed.StatusCode);
         Assert.Contains("Период задан наоборот", await ErrorAsync(reversed));
 
+        // Месяц вне календаря реестра — отказ: реестр такой не называет, и ссылка отчёта не нашла бы
+        // ничего. Край календаря дат — тоже отказ словами, а не исключение (ревью PR #1200).
+        foreach (var outside in new[] { "from=2019-06&to=2019-06", "to=9999-12" })
+        {
+            var beyond = await admin.GetAsync($"/api/costs/site-costs?{outside}");
+            Assert.Equal(HttpStatusCode.BadRequest, beyond.StatusCode);
+            Assert.Contains("в календаре нет", await ErrorAsync(beyond));
+        }
+
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/costs/site-costs?site={Guid.NewGuid()}")).StatusCode);
 
         // Без параметров — текущий месяц компании и все стройки.

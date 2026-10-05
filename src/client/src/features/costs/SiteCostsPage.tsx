@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ArrowUpRight, ChartNoAxesColumn } from 'lucide-react';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -138,8 +138,9 @@ function Report({ data, onSite, stale }: { data: SiteCosts; onSite: (id: string)
             <tbody>
               {data.site ? (
                 data.suppliers.map(line => (
-                  <Row key={line.id ?? 'none'} name={line.name} muted={line.id === null} figure={line}
-                    link={siteCostsLinks.supplier(data, line.id === null ? null : line.name)} linkNote={linkNote} />
+                  // Удалённый поставщик — без стрелки: реестр его не называет, отбора под него нет.
+                  <Row key={line.id ?? line.name} name={line.name} muted={line.id === null} figure={line} linkNote={linkNote}
+                    link={line.linked ? siteCostsLinks.supplier(data, line.id === null ? null : line.name) : undefined} />
                 ))
               ) : (
                 <>
@@ -154,6 +155,9 @@ function Report({ data, onSite, stale }: { data: SiteCosts; onSite: (id: string)
                     <Row key={line.id} indent name={line.name} figure={line}
                       link={siteCostsLinks.object(data, line.name)} linkNote={linkNote} />
                   ))}
+                  {/* Удалённые объекты — одной строкой и без перехода «внутрь»: стройки больше нет. */}
+                  {data.lost && <Row name={data.lost.name} muted figure={data.lost}
+                    link={siteCostsLinks.object(data, data.lost.name)} linkNote={linkNote} />}
                   {/* Без ссылки: отбора «есть неразнесённый остаток» у реестра нет, а «Объект: пусто»
                       находит только счета без разноски вовсе — число бы не сошлось. */}
                   {data.unallocated && <Row name="Не разнесено" figure={data.unallocated} />}
@@ -190,6 +194,11 @@ function Report({ data, onSite, stale }: { data: SiteCosts; onSite: (id: string)
               name={<>К оплате <span className="text-fg4">· не оплачено, на сегодня, от периода не зависит</span></>} />
           </tbody>
         </table>
+        {data.payableVatUnknown && (
+          <p className="mt-1 pl-4 text-sm text-fg3">
+            НДС не указан: {invoicesText(data.payableVatUnknown.invoices)} на {formatMoney(data.payableVatUnknown.amount)} — учтены полной суммой
+          </p>
+        )}
       </section>
     </div>
   );
@@ -236,14 +245,23 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
   );
 }
 
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
 function MonthField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  // Поле месяца есть не во всех браузерах: в настольных Firefox и Safari это обычная строка, и
+  // человек печатает «2026-09» посимвольно. Поэтому набираемое живёт здесь, а в адрес (и на сервер)
+  // уходит только готовый месяц — иначе каждый символ сменял бы отчёт отказом «месяц назван не так».
+  const [draft, setDraft] = useState(value);
+  const [shown, setShown] = useState(value);
+  if (shown !== value) { setShown(value); setDraft(value); }
+
   return (
     <label className="block">
       <span className="block text-xs text-fg3 mb-1">{label}</span>
-      <input type="month" value={value} required
-        // Пустое поле месяца — не «без периода»: отчёт без периода не строится, и стирание значения
-        // оставляет прежнее.
-        onChange={e => { if (e.target.value) onChange(e.target.value); }}
+      <input type="month" value={draft} required placeholder="ГГГГ-ММ" pattern="\d{4}-(0[1-9]|1[0-2])"
+        onChange={e => { setDraft(e.target.value); if (MONTH.test(e.target.value)) onChange(e.target.value); }}
+        // Недописанное или стёртое — не «без периода»: отчёт без периода не строится, поле возвращает прежнее.
+        onBlur={() => setDraft(value)}
         className="h-8 rounded-md border border-stroke bg-surface px-2 text-sm text-fg1 focus-visible:outline-2" />
     </label>
   );

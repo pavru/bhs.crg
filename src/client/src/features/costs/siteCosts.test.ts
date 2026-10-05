@@ -10,7 +10,7 @@ function filterOf(link: string): FilterGroup {
 }
 
 const all = { months: ['09.2026', '10.2026'], site: null };
-const site = { months: ['10.2026'], site: { id: '1', name: 'Комарова 36', invoices: 1, amount: 1 } };
+const site = { months: ['10.2026'], site: { id: '1', name: 'Комарова 36', invoices: 1, amount: 1, linked: true } };
 const NOT_REJECTED = { type: 'condition', column: 'Состояние', op: 'neq', value: 'Отклонён' };
 
 describe('ссылки отчёта «Затраты по стройке» в реестр', () => {

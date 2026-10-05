@@ -19,16 +19,20 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// собирает отбор «Учётный период — один из».</param>
 /// <param name="Sites">Стройки — на экране всех строек.</param>
 /// <param name="Articles">Статьи вне строек — отдельной группой (ТЗ COST-10.1).</param>
+/// <param name="Lost">Деньги на удалённых объектах — одной строкой, названной так же, как их называет
+/// реестр.</param>
 /// <param name="Unallocated">Деньги оплаченных счетов, не лёгшие ни на один объект.</param>
-/// <param name="Suppliers">Контрагенты — на экране стройки; строка без идентификатора — «поставщик не указан».</param>
+/// <param name="Suppliers">Контрагенты — на экране стройки; строки без идентификатора — «поставщик не
+/// указан» и, без ссылки в реестр, «поставщик удалён».</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры: в затраты вошли.</param>
 /// <param name="Payable">Не оплачено и не отклонено — НЕ затраты и от периода не зависит.</param>
 /// <param name="VatUnknown">Под «без НДС» — деньги, из которых НДС вычесть нечем: учтены полной суммой.</param>
+/// <param name="PayableVatUnknown">То же — в «к оплате».</param>
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
-    IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostFigure? Unallocated,
+    IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
     IReadOnlyList<CostLine> Suppliers,
-    CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown);
+    CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown);
 
 /// <summary>
 /// «Затраты по стройке» (задача G5 этапа 2, issue #1098, ТЗ COST-20).
@@ -47,8 +51,10 @@ public sealed record SiteCostsView(
 /// </summary>
 public static class SiteCostsEndpoints
 {
-    public const string Lost = "стройка удалена";
     public const string NoSupplier = "поставщик не указан";
+
+    /// <summary>Организации счёта больше нет в справочнике. Без ссылки: реестр такую не называет никак.</summary>
+    public const string LostSupplier = "поставщик удалён";
 
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/costs/site-costs", ReadAsync)
@@ -68,6 +74,13 @@ public static class SiteCostsEndpoints
         var last = Month(to, "to") ?? first;
         if (last < first)
             throw new InvalidRequestException($"Период задан наоборот: «по» ({last:MM.yyyy}) раньше, чем «с» ({first:MM.yyyy}).");
+        // Период — в пределах календаря реестра: месяц вне него реестр называет «период не определён»,
+        // и ссылка отчёта под таким месяцем не нашла бы ничего. Заодно это граница размера ответа —
+        // месяцы периода уходят в отбор ссылки списком (ревью PR #1200).
+        foreach (var month in new[] { first, last })
+            if (!InvoicePeriods.Covers(month, today))
+                throw new InvalidRequestException(
+                    $"Учётного месяца {month:MM.yyyy} в календаре нет: отчёт строится с {InvoicePeriods.First:MM.yyyy} по {InvoicePeriods.Last(today):MM.yyyy}.");
         var through = last.AddMonths(1).AddDays(-1);
         var withVat = vat != "without";
 
@@ -86,31 +99,49 @@ public static class SiteCostsEndpoints
             i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
             && (site == null || db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site)));
 
+        // Названия объектов — те же, какими реестр сверяет отбор (InvoiceShares): ссылка строки несёт
+        // название, и назови отчёт объект по-своему, реестр под ней не нашёл бы ничего.
+        var labels = known.Sites.Select(s => (s.Id, s.Name)).Concat(known.Articles.Select(a => (a.Id, a.Name)))
+            .ToDictionary(o => o.Id, o => o.Name);
+
         var (costs, lines) = await InvoicesAsync(db, paid, ct);
-        var (waiting, waitingLines) = await InvoicesAsync(db, unpaid, ct);
+        // «К оплате» с НДС по всем стройкам — суммы к оплате из самих записей: строки и части ВСЕХ
+        // неоплаченных счетов ради них не читаются.
+        var (waiting, waitingLines) = site is null && withVat
+            ? ([.. (await unpaid.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal }).ToListAsync(ct))
+                    .Select(i => new CostInvoice(i.Id, i.SupplierId, i.Total, i.VatTotal, false, false, []))],
+                new Dictionary<Guid, LineVat>())
+            : await InvoicesAsync(db, unpaid, ct);
 
-        var result = SiteCosts.Of(costs, lines, first, through, site, withVat);
-        var payable = SiteCosts.Payable(waiting, waitingLines, site, withVat);
+        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet());
+        var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
-        var suppliers = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))
-            ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
-        var byName = StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true);
-        CostLine Line(Guid? id, string name, CostFigure figure) => new(id, name, figure.Invoices, figure.Amount);
+        // Контрагенты — только на экране стройки: без неё справочник не читаем.
+        var suppliers = site is null
+            ? []
+            : (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
+        var byName = InvoiceShares.ByName;
+        CostLine Line(Guid? id, string name, CostFigure figure, bool linked = true) =>
+            new(id, name, figure.Invoices, figure.Amount, linked);
+        CostFigure Sum(IEnumerable<CostFigure> figures) => figures.Aggregate(new CostFigure(0, 0), (a, b) => new(a.Invoices + b.Invoices, a.Amount + b.Amount));
+        var lostSuppliers = result.Suppliers.Where(s => s.Supplier is { } id && !suppliers.ContainsKey(id)).ToList();
 
         return TypedResults.Ok(new SiteCostsView(
-            site is { } chosen ? new(chosen, known.Sites.First(s => s.Id == chosen).Name, result.Total.Invoices, result.Total.Amount) : null,
+            site is { } chosen ? new(chosen, labels[chosen], result.Total.Invoices, result.Total.Amount) : null,
             $"{first:yyyy-MM}", $"{last:yyyy-MM}", withVat,
             [.. Months(first, last).Select(PaymentViews.Month)],
-            [.. result.Sites.Select(s => Line(s.Key, known.Sites.FirstOrDefault(k => k.Id == s.Key)?.Name ?? Lost, s.Value))
-                .OrderBy(l => l.Name, byName)],
-            [.. result.Articles.Select(a => Line(a.Key, known.Articles.FirstOrDefault(k => k.Id == a.Key)?.Name ?? InvoiceShares.Lost, a.Value))
-                .OrderBy(l => l.Name, byName)],
+            [.. result.Sites.Select(s => Line(s.Key, labels[s.Key], s.Value)).OrderBy(l => l.Name, byName)],
+            [.. result.Articles.Select(a => Line(a.Key, labels[a.Key], a.Value)).OrderBy(l => l.Name, byName)],
+            result.Lost is { } lost ? Line(null, InvoiceShares.Lost, lost) : null,
             result.Unallocated,
-            [.. result.Suppliers
-                .Select(s => Line(s.Supplier, s.Supplier is { } id && suppliers.TryGetValue(id, out var name) ? name : NoSupplier, s.Figure))
-                // «Поставщик не указан» — последним: это не название, а его отсутствие.
+            [.. result.Suppliers.Except(lostSuppliers)
+                .Select(s => Line(s.Supplier, s.Supplier is { } id ? suppliers[id] : NoSupplier, s.Figure))
+                // Удалённые — одной строкой и без ссылки: реестр их не называет, отбора под них нет. Число
+                // счетов складывается: поставщик у счёта один.
+                .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), linked: false)])
+                // Строки без названия — последними: это не название, а его отсутствие.
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
-            result.Total, result.Unmatched, payable, result.VatUnknown));
+            result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown));
     }
 
     /// <summary>Счета отчёта с их деньгами — тем же читателем, что у реестра, — и НДС их строк.</summary>
@@ -124,9 +155,10 @@ public static class SiteCostsEndpoints
         var lines = await db.InvoiceLines.AsNoTracking().Where(l => owners.Contains(l.InvoiceId))
             .Select(l => new { l.Id, l.InvoiceId, l.Amount, l.VatAmount, l.NomenclatureId }).ToListAsync(ct);
         var unmatched = lines.Where(l => l.NomenclatureId is null).Select(l => l.InvoiceId).ToHashSet();
+        var vatByLines = lines.Where(l => l.VatAmount is not null).Select(l => l.InvoiceId).ToHashSet();
 
         return (
-            [.. heads.Select(h => new CostInvoice(h.Id, h.SupplierId, h.Total, h.VatTotal, unmatched.Contains(h.Id),
+            [.. heads.Select(h => new CostInvoice(h.Id, h.SupplierId, h.Total, h.VatTotal, unmatched.Contains(h.Id), vatByLines.Contains(h.Id),
                 money.GetValueOrDefault(h.Id) ?? []))],
             lines.ToDictionary(l => l.Id, l => new LineVat(l.Amount, l.VatAmount)));
     }

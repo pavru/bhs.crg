@@ -34,8 +34,8 @@ public class SiteCostsTests
     }
 
     /// <summary>Счёт на две стройки и склад: А — в октябре (её сентябрь закрыт), остальное — в сентябре.</summary>
-    private static CostInvoice Split(bool unmatched = false, decimal? vatTotal = null) => new(
-        Guid.NewGuid(), Supplier, 126_500m, vatTotal, unmatched,
+    private static CostInvoice Split(bool unmatched = false, decimal? vatTotal = null, bool vatByLines = true) => new(
+        Guid.NewGuid(), Supplier, 126_500m, vatTotal, unmatched, vatByLines,
         [
             Money(Cable, AllocationTarget.Site(SiteA), 72_000m, D(10, 1)),
             Money(Cable, AllocationTarget.Site(SiteB), 48_000m, D(9, 15)),
@@ -91,9 +91,10 @@ public class SiteCostsTests
     }
 
     /// <summary>
-    /// «Без НДС» вычитает НДС там, где он назван, — у строки, а нет у строки — долей «в том числе НДС»
-    /// из шапки. Где не назван нигде, часть учтена ПОЛНОЙ суммой и это сказано числом: «ставка не
-    /// указана» — не «без НДС».
+    /// «Без НДС» вычитает НДС там, где он назван, — у строки, а если строки об НДС молчат ВСЕ — долей
+    /// «в том числе НДС» из шапки. Где не назван нигде, часть учтена ПОЛНОЙ суммой и это сказано числом:
+    /// «ставка не указана» — не «без НДС». НДС шапки при строках с НДС уже лежит в них: взять его долю
+    /// ещё и на строку без НДС значило бы вычесть один налог дважды (ревью PR #1200).
     /// </summary>
     [Fact]
     public void Без_НДС_вычитает_названный_а_неназванный_называет_числом()
@@ -105,8 +106,17 @@ public class SiteCostsTests
         Assert.Equal(6_000m, bare.Articles[Stock].Amount);
         Assert.Equal(new CostFigure(1, 6_500m), bare.VatUnknown);
 
-        // В шапке НДС назван — доставка и остаток берут его долю, неназванного не остаётся.
-        var headed = SiteCosts.Of([Split(vatTotal: 12_650m)], Lines, D(9, 1), D(10, 31), site: null, withVat: false);
+        // НДС назван и в шапке, но у кабеля он свой: шапочный уже лежит в строке кабеля, и доставка с
+        // остатком идут полной суммой — названной числом.
+        var mixed = SiteCosts.Of([Split(vatTotal: 20_000m)], Lines, D(9, 1), D(10, 31), site: null, withVat: false);
+        Assert.Equal(6_000m, mixed.Articles[Stock].Amount);
+        Assert.Equal(new CostFigure(1, 6_500m), mixed.VatUnknown);
+        Assert.Equal(106_500m, mixed.Total.Amount);
+
+        // Строки об НДС молчат все, а в шапке он назван — каждая часть берёт его долю, неназванного нет.
+        Dictionary<Guid, LineVat> silent = new() { [Cable] = new(120_000m, null), [Delivery] = new(6_000m, null) };
+        var headed = SiteCosts.Of([Split(vatTotal: 12_650m, vatByLines: false)], silent, D(9, 1), D(10, 31), site: null, withVat: false);
+        Assert.Equal(64_800m, headed.Sites[SiteA].Amount);
         Assert.Equal(5_400m, headed.Articles[Stock].Amount);
         Assert.Equal(450m, headed.Unallocated!.Amount);
         Assert.Null(headed.VatUnknown);
@@ -124,9 +134,33 @@ public class SiteCostsTests
     {
         var unpaid = Split() with { Money = [.. Split().Money.Select(m => m with { AccountingOn = null })] };
 
-        Assert.Equal(new CostFigure(1, 126_500m), SiteCosts.Payable([unpaid], Lines, site: null, withVat: true));
-        Assert.Equal(new CostFigure(1, 72_000m), SiteCosts.Payable([unpaid], Lines, SiteA, withVat: true));
-        Assert.Equal(new CostFigure(1, 60_000m), SiteCosts.Payable([unpaid], Lines, SiteA, withVat: false));
-        Assert.Equal(new CostFigure(0, 0m), SiteCosts.Payable([unpaid], Lines, Guid.NewGuid(), withVat: true));
+        Assert.Equal((new CostFigure(1, 126_500m), null), SiteCosts.Payable([unpaid], Lines, site: null, withVat: true));
+        Assert.Equal((new CostFigure(1, 72_000m), null), SiteCosts.Payable([unpaid], Lines, SiteA, withVat: true));
+        Assert.Equal((new CostFigure(1, 60_000m), null), SiteCosts.Payable([unpaid], Lines, SiteA, withVat: false));
+        Assert.Equal((new CostFigure(0, 0m), null), SiteCosts.Payable([unpaid], Lines, Guid.NewGuid(), withVat: true));
+
+        // «Без НДС» по всем стройкам — тем же правилом, что по одной: доли складываются в общее, а
+        // учтённое полной суммой названо (ревью PR #1200). 60 000 + 40 000 + доставка 6 000 + остаток 500.
+        var (all, blind) = SiteCosts.Payable([unpaid], Lines, site: null, withVat: false);
+        Assert.Equal(new CostFigure(1, 106_500m), all);
+        Assert.Equal(new CostFigure(1, 6_500m), blind);
+    }
+
+    /// <summary>
+    /// Объект, которого больше нет, реестр называет одним названием на всех — и отчёт складывает такие
+    /// деньги в одну строку: по ссылке с этим названием реестр покажет ровно их (ревью PR #1200).
+    /// </summary>
+    [Fact]
+    public void Деньги_на_удалённых_объектах_идут_одной_строкой()
+    {
+        var result = SiteCosts.Of([Split()], Lines, D(9, 1), D(10, 31), site: null, withVat: true,
+            known: new HashSet<Guid> { SiteB });
+
+        Assert.Equal([SiteB], result.Sites.Keys);
+        Assert.Empty(result.Articles);
+        Assert.Equal(new CostFigure(1, 78_000m), result.Lost);
+        Assert.Equal(126_500m, result.Sites[SiteB].Amount + result.Lost!.Amount + result.Unallocated!.Amount);
+
+        Assert.Null(SiteCosts.Of([Split()], Lines, D(9, 1), D(10, 31), site: null, withVat: true).Lost);
     }
 }
