@@ -184,7 +184,19 @@ await check('closing-dialog-lists-what-it-records', async () => {
   const listen = response => {
     if (response.status() >= 400 && response.url().includes('/api/periods')) refused.push(`${response.status()} ${response.url()}`);
   };
+  // После отправки закрытия перечень не запрашивается ВОВСЕ — ни с отказом, ни без: граница сдвинулась,
+  // и запрос за прежние дни получил бы «уже закрыт», а за новые — период «наоборот». Ловим сам запрос,
+  // а не только отказ: уходил ли он, зависело от скорости машины, и на стенде отказа не было.
+  // Счёт идёт с самой отправки, а не с подписки: до неё перечень вправе перечитаться — по фокусу окна,
+  // например, — и это законный запрос с верными датами.
+  const asked = [];
+  let sent = false;
+  const ask = request => {
+    if (request.url().endsWith('/periods/close')) sent = true;
+    else if (sent && request.url().includes('/periods/close/preview')) asked.push(request.postData() ?? '');
+  };
   page.on('response', listen);
+  page.on('request', ask);
   try {
     await Promise.all([
       page.waitForResponse(r => r.url().endsWith('/periods/close') && r.request().method() === 'POST' && r.ok()),
@@ -197,9 +209,11 @@ await check('closing-dialog-lists-what-it-records', async () => {
     await settled(page);
   } finally {
     page.off('response', listen);
+    page.off('request', ask);
   }
   // После удавшегося закрытия перечень за закрытые дни не перезапрашивается — иначе сервер ответил бы
   // «уже закрыт», и поверх успеха мелькнула бы ошибка.
+  if (asked.length) throw new Error(`после отправки закрытия диалог запросил перечень: ${asked.join(' | ')}`);
   if (refused.length) throw new Error(`закрытие удалось, а экран получил отказы: ${refused.join('; ')}`);
 
   // «История» показывает то, что показал диалог, — из записи о закрытии.
