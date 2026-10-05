@@ -145,8 +145,8 @@ public static class InvoiceViews
         line.NomenclatureId is { } id && names is not null && names.TryGetValue(id, out var name)
             ? name
             : null,
-        line.NomenclatureId is { } missing
-            && (lost?.Contains(missing) == true || (names is not null && !names.ContainsKey(missing))),
+        Issue(line.NomenclatureId, names, lost) is not null,
+        Issue(line.NomenclatureId, names, lost),
         line.SupplierText,
         line.SupplierCode,
         line.Unit,
@@ -157,6 +157,16 @@ public static class InvoiceViews
         line.Amount,
         line.Note,
         allocation);
+
+    public const string NomenclatureGone = "lost";
+    public const string NomenclatureMoved = "moved";
+
+    private static string? Issue(Guid? position, IReadOnlyDictionary<Guid, string?>? names, IReadOnlySet<Guid>? lost) =>
+        position is not { } id ? null
+        : lost?.Contains(id) == true ? NomenclatureGone
+        // Без обратного опроса (lost не дан) отличить нечем — зовём потерей, как звали всегда.
+        : names is not null && !names.ContainsKey(id) ? lost is null ? NomenclatureGone : NomenclatureMoved
+        : null;
 
     public static InvoiceListItem Item(
         Invoice invoice, string? supplierName, int lines, int withoutNomenclature) => new(

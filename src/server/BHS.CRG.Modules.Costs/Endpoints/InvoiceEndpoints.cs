@@ -147,7 +147,7 @@ public static class InvoiceEndpoints
     private static async Task<Created<InvoiceView>> CreateAsync(
         InvoiceSaveRequest body, CostsDbContext db, IModuleTypes types, IModuleUser user,
         IModuleActivityLog log, IModuleWriteGuard guard, InvoiceDesk desk, IModuleReferenceTargets targets,
-        CancellationToken ct)
+        IModuleCatalog catalog, CancellationToken ct)
     {
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
             ?? throw new ConflictException(
@@ -158,7 +158,7 @@ public static class InvoiceEndpoints
 
         var (columns, rest) = InvoiceRequisites.Split(body.Requisites, stored: null);
         await EnsureAllowedAsync(guard, typeId, stored: null, body.Requisites.GetRawText(), ct);
-        await EnsurePartiesExistAsync(targets, columns, supplierWas: null, payerWas: null, ct);
+        await EnsurePartiesExistAsync(targets, catalog, columns, supplierWas: null, payerWas: null, ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         var marks = body.Unconfirmed ?? [];
@@ -193,7 +193,7 @@ public static class InvoiceEndpoints
     private static async Task<Ok<InvoiceView>> UpdateAsync(
         Guid id, InvoiceSaveRequest body, CostsDbContext db, IModuleActivityLog log,
         IModuleWriteGuard guard, InvoiceDesk desk, AllocationPlacesSource places,
-        IModuleReferenceTargets targets, CancellationToken ct)
+        IModuleReferenceTargets targets, IModuleCatalog catalog, CancellationToken ct)
     {
         if (body.Unconfirmed is not null)
             throw new InvalidRequestException(
@@ -210,7 +210,7 @@ public static class InvoiceEndpoints
             await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
                 InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
 
-            await EnsurePartiesExistAsync(targets, columns, invoice.SupplierId, invoice.PayerId, ct);
+            await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
 
             var changed = InvoiceRequisites.Changed(before, body.Requisites);
 
@@ -422,7 +422,8 @@ public static class InvoiceEndpoints
     /// в пустоту — это потеря, заведённая своими руками.</para>
     /// </summary>
     private static async Task EnsurePartiesExistAsync(
-        IModuleReferenceTargets targets, InvoiceColumns columns, Guid? supplierWas, Guid? payerWas, CancellationToken ct)
+        IModuleReferenceTargets targets, IModuleCatalog catalog, InvoiceColumns columns,
+        Guid? supplierWas, Guid? payerWas, CancellationToken ct)
     {
         var named = new[]
             {
@@ -439,6 +440,16 @@ public static class InvoiceEndpoints
                 $"«{party.Key}»: такой записи в справочнике нет. Так бывает, когда организацию удалили, пока " +
                 "форма была открыта. Выберите организацию заново — записать ссылку в пустоту значило бы " +
                 "получить счёт, у которого поставщика не узнать.");
+
+        // Запись есть — но организация ли она? Позицию номенклатуры в поле поставщика форма показала бы
+        // пустым полем, реестр — счётом без поставщика (ревью PR #1211). Типа «Организация» в установке
+        // нет — сверять не с чем, и это не повод отказывать в записи.
+        if (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [.. named.Select(p => p.Id!.Value)], ct) is not { } organizations)
+            return;
+        var known = organizations.Select(o => o.Id).ToHashSet();
+        foreach (var party in named.Where(p => !known.Contains(p.Id!.Value)))
+            throw new InvalidRequestException(
+                $"«{party.Key}»: выбранная запись — не организация. Выберите организацию из справочника.");
     }
 
     internal static async Task<Invoice> FindAsync(CostsDbContext db, Guid id, CancellationToken ct) =>

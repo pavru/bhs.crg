@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import { useState } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -211,7 +212,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                     onChange={e => edit(draft.key, { sectionId: e.target.value })} className={FIELD}>
                     <option value="">— вся стройка —</option>
                     {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
-                      <option value={draft.sectionId}>раздел удалён</option>
+                      <option value={draft.sectionId}>{LOST.section}</option>
                     )}
                     {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>

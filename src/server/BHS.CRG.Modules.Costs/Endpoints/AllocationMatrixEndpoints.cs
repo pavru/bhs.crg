@@ -45,7 +45,11 @@ public static class AllocationMatrixEndpoints
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
-        var known = await places.LoadAsync(ct);
+        // Предпросмотр существует ради записи и обязан принимать то же, что она: цели, уже записанные
+        // у счёта, — и потерянными (ТЗ CORE-34.4). Иначе «пересчитать по строкам» отказывало бы на
+        // разноске, которую запись приняла бы (ревью PR #1211).
+        var known = (await places.LoadAsync(ct)).Keeping(
+            await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == id).ToListAsync(ct));
 
         var targets = body.Method switch
         {

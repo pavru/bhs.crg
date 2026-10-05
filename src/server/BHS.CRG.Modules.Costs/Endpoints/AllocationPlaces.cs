@@ -27,6 +27,14 @@ public sealed record AllocationPlaces(
     /// </summary>
     public IReadOnlySet<AllocationTarget> Kept { get; init; } = new HashSet<AllocationTarget>();
 
+    /// <summary>
+    /// Записи, которые в ядре ЕСТЬ, — по обратному опросу; <c>null</c> — не спрашивали. Нужны, чтобы
+    /// отличить удалённую статью от записи, переведённой в другой вид: в списке статей нет обеих, а
+    /// потеряна только первая. Счётчик потерянных ссылок вторую не считает — не должна и пометка
+    /// (ревью PR #1211).
+    /// </summary>
+    public IReadOnlySet<Guid>? Existing { get; init; }
+
     public AllocationPlaces Keeping(IEnumerable<InvoiceAllocation> stored) => this with
     {
         Kept = stored.Select(p => new AllocationTarget(p.ConstructionId, p.SectionId, p.ArticleId)).ToHashSet(),

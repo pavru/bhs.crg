@@ -38,6 +38,8 @@ export interface LineDraft {
    * <p>У новой строки — <c>false</c>: ссылки ещё нет, терять нечего.</p>
    */
   nomenclatureLost: boolean;
+  /** Запись есть, но она больше не позиция номенклатуры: помечается иначе, чем удалённая. */
+  nomenclatureMoved?: boolean;
   supplierText: string;
   supplierCode: string;
   unit: string;
@@ -80,6 +82,7 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
     nomenclatureId: line.nomenclatureId,
     nomenclatureName: line.nomenclatureName,
     nomenclatureLost: line.nomenclatureLost,
+    nomenclatureMoved: line.nomenclatureIssue === 'moved',
     supplierText: line.supplierText ?? '',
     supplierCode: line.supplierCode ?? '',
     unit: line.unit ?? '',

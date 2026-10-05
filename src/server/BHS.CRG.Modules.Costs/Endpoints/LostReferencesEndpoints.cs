@@ -12,7 +12,10 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="References">Ссылок. Удалённая стройка уносит и разделы — часть разноски даёт две.</param>
 /// <param name="Invoices">В скольких счетах.</param>
 /// <param name="Waybills">В скольких накладных.</param>
-public sealed record LostTally(int References, int Invoices, int Waybills);
+/// <param name="Other">Ссылок, у которых документ не назван: колонка новой таблицы, которую этот счётчик
+/// ещё не знает, либо объявление без документа. Числом ссылок, а не документов, — и отдельно, чтобы они
+/// не выдавали себя за накладные (ревью PR #1211).</param>
+public sealed record LostTally(int References, int Invoices, int Waybills, int Other);
 
 /// <summary>Объявленная ссылка модуля, которую опрос не проверил, — словами.</summary>
 public sealed record UncheckedReferenceView(string What, string Reason);
@@ -45,25 +48,30 @@ public static class LostReferencesEndpoints
             .RequireAuthorization(AppPolicies.Permission("costs.invoice.read"));
 
     private static readonly string[] InvoiceTables = ["invoices", "invoice_lines", "invoice_allocations"];
+    private static readonly string[] WaybillTables = ["waybills", "waybill_lines"];
 
     private static async Task<Ok<LostReferencesView>> ReadAsync(
         CostsDbContext db, IModuleReferenceTargets targets, IModulePeriods periods, CancellationToken ct)
     {
         var found = await targets.LostAsync(CostsModule.ModuleCode, ct);
 
-        var ofInvoices = found.Lost.Where(l => InvoiceTables.Contains(l.Table)).ToList();
-        var ofWaybills = found.Lost.Except(ofInvoices).ToList();
+        var ofInvoices = found.Lost.Where(l => l.DocumentKey is not null && InvoiceTables.Contains(l.Table)).ToList();
+        var ofWaybills = found.Lost.Where(l => l.DocumentKey is not null && WaybillTables.Contains(l.Table)).ToList();
+        var ofOther = found.Lost.Except(ofInvoices).Except(ofWaybills).ToList();
         var locked = await LockedAsync(db, periods, [.. ofInvoices.Select(l => l.DocumentKey).OfType<Guid>().Distinct()], ct);
 
         LostTally Tally(bool closed)
         {
             var invoices = ofInvoices.Where(l => (l.DocumentKey is { } key && locked.Contains(key)) == closed).ToList();
             // Накладная закрытым периодом не запирается: её потери — всегда из тех, что можно исправить.
+            // То же с тем, чей документ не назван: запереть их нечем.
             var waybills = closed ? [] : ofWaybills;
+            var other = closed ? 0 : ofOther.Sum(l => l.Rows);
             return new(
-                invoices.Sum(l => l.Rows) + waybills.Sum(l => l.Rows),
+                invoices.Sum(l => l.Rows) + waybills.Sum(l => l.Rows) + other,
                 invoices.Select(l => l.DocumentKey).Distinct().Count(),
-                waybills.Select(l => l.DocumentKey).Distinct().Count());
+                waybills.Select(l => l.DocumentKey).Distinct().Count(),
+                other);
         }
 
         return TypedResults.Ok(new LostReferencesView(

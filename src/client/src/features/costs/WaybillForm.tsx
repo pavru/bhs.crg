@@ -207,7 +207,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
             <select className={input} value={draft.construction} disabled={locked}
               aria-label="Получатель — стройка" onChange={e => edit({ construction: e.target.value })}>
               <option value="">не выбрана</option>
-              {orphan && <option value={draft.construction}>{view.constructionName ?? 'стройка не найдена'}</option>}
+              {orphan && <option value={draft.construction}>{view.constructionName ?? LOST.construction}</option>}
               {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </Field>

@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import { useMemo, useState } from 'react';
 import { Calculator, Check, Divide, Percent, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -290,7 +291,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
           onChange={e => onChange({ section: e.target.value || null })}>
           <option value="">— вся стройка —</option>
           {site && target.section && !site.sections.some(s => s.id === target.section) && (
-            <option value={target.section}>раздел удалён</option>
+            <option value={target.section}>{LOST.section}</option>
           )}
           {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>

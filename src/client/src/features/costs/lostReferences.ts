@@ -1,10 +1,13 @@
-import type { AllocationPartView, InvoiceView, TargetIssue } from '@/shared/api/invoices';
+import type { AllocationPartView, InvoiceLineView, InvoiceView, TargetIssue } from '@/shared/api/invoices';
 
 /**
  * Слова пометки потерянной ссылки (issue #1184) — по виду записи: человек должен увидеть, ЧТО пропало,
  * а не что «запись справочника удалена» (решение владельца 06.10.2026). Общая фраза остаётся сводке.
  *
  * <p>«Удалена», а не «не найдена»: второе читается как промах поиска, который можно повторить.</p>
+ *
+ * <p>⚠️ Слова — только отсюда. Литерал в одном из экранов разводит форму и матрицу при первой же смене
+ * формулировки.</p>
  */
 export const LOST = {
   organization: 'организация удалена',
@@ -12,8 +15,12 @@ export const LOST = {
   construction: 'стройка удалена',
   section: 'раздел удалён',
   article: 'статья удалена',
-  /** Не потеря: раздел на месте, но у другой стройки. В число потерянных ссылок не входит. */
+  // Ниже — НЕ потеря: запись на месте, и в число потерянных ссылок она не входит.
   foreignSection: 'раздел другой стройки',
+  movedPosition: 'позиция другого вида',
+  movedArticle: 'статья другого вида',
+  movedOrganization: 'запись другого вида',
+  unreadArticle: 'статьи не прочитаны',
 } as const;
 
 export function issueText(issue: TargetIssue): string {
@@ -22,8 +29,13 @@ export function issueText(issue: TargetIssue): string {
     case 'section-lost': return LOST.section;
     case 'article-lost': return LOST.article;
     case 'section-foreign': return LOST.foreignSection;
+    case 'article-moved': return LOST.movedArticle;
+    case 'article-unread': return LOST.unreadArticle;
   }
 }
+
+/** Потерянная ссылка — записи больше нет. Остальные состояния цели потерей не считаются. */
+const isLost = (issue: TargetIssue | null) => issue !== null && issue.endsWith('-lost');
 
 /**
  * Что не так с целью части. Старый сервер поля `targetIssue` не присылает — тогда вид потери
@@ -35,22 +47,30 @@ export function issueOf(part: AllocationPartView): TargetIssue | null {
   return part.articleId ? 'article-lost' : 'construction-lost';
 }
 
+/** Позиция строки потеряна — а не переведена в другой вид. */
+const positionLost = (line: InvoiceLineView) => line.nomenclatureLost && line.nomenclatureIssue !== 'moved';
+
 export interface LostSummary {
-  /** Потерянных ссылок — тем же счётом, что у сервера: удалённая стройка с разделом даёт две. */
+  /**
+   * В скольких МЕСТАХ счёта стоит удалённая запись. Не число ссылок счётчика модуля: тот считает
+   * колонки (удалённая стройка с разделом — две ссылки), а узнать это по ответу счёта нельзя — и
+   * выдавать догадку за то же число не нужно.
+   */
   count: number;
   /** Где они: «поставщик; позиция в строках 3, 7; разноска строки 5». */
   places: string;
-  /** Строки с разделом другой стройки — не потеря, называется отдельно. */
-  foreign: number[];
+  /** Что на месте, но не то: «раздел другой стройки — разноска строки 2». Не потеря. */
+  others: string[];
 }
 
 const numbers = (ordinals: number[]) => ordinals.join(', ');
+const inLines = (ordinals: number[]) => `${ordinals.length === 1 ? 'строки' : 'строк'} ${numbers(ordinals)}`;
 
 /**
  * Сводка потерянных ссылок счёта — для шапки формы. Нужна потому, что потеря бывает за краем экрана:
  * строка под прокруткой, колонка «Разноска», свёрнутая матрица.
  *
- * @returns `null` — потерь и чужих разделов нет.
+ * @returns `null` — сказать не о чем.
  */
 export function lostSummary(view: InvoiceView): LostSummary | null {
   const places: string[] = [];
@@ -61,30 +81,29 @@ export function lostSummary(view: InvoiceView): LostSummary | null {
   if (references?.payer === 'lost') { places.push('плательщик'); count++; }
   if (references?.documentType === 'lost') { places.push('тип счёта'); count++; }
 
-  const positions = view.lines.filter(l => l.nomenclatureLost).map(l => l.ordinal);
+  const positions = view.lines.filter(positionLost).map(l => l.ordinal);
   if (positions.length > 0) {
     places.push(`позиция в ${positions.length === 1 ? 'строке' : 'строках'} ${numbers(positions)}`);
     count += positions.length;
   }
 
-  // Удалённая стройка уносит разделы: часть с разделом на ней — две потерянные ссылки.
-  const weight = (part: AllocationPartView) => {
-    const issue = issueOf(part);
-    if (issue === null || issue === 'section-foreign') return 0;
-    return issue === 'construction-lost' && part.sectionId ? 2 : 1;
-  };
   const allocated: number[] = [];
-  const foreign: number[] = [];
+  const odd = new Map<string, number[]>();
   for (const line of view.lines) {
-    const lost = line.allocation.parts.reduce((sum, part) => sum + weight(part), 0);
+    const issues = line.allocation.parts.map(issueOf);
+    const lost = issues.filter(isLost).length;
     if (lost > 0) { allocated.push(line.ordinal); count += lost; }
-    if (line.allocation.parts.some(p => issueOf(p) === 'section-foreign')) foreign.push(line.ordinal);
+    for (const issue of new Set(issues.filter(i => i !== null && !isLost(i))))
+      odd.set(issueText(issue!), [...(odd.get(issueText(issue!)) ?? []), line.ordinal]);
   }
-  if (allocated.length > 0)
-    places.push(`разноска ${allocated.length === 1 ? 'строки' : 'строк'} ${numbers(allocated)}`);
+  if (allocated.length > 0) places.push(`разноска ${inLines(allocated)}`);
 
-  const whole = view.allocation.document.parts.reduce((sum, part) => sum + weight(part), 0);
+  const whole = view.allocation.document.parts.map(issueOf).filter(isLost).length;
   if (whole > 0) { places.push('разноска счёта'); count += whole; }
 
-  return count === 0 && foreign.length === 0 ? null : { count, places: places.join('; '), foreign };
+  const others = [...odd].map(([text, lines]) => `${text} — разноска ${inLines(lines)}`);
+  const moved = view.lines.filter(l => l.nomenclatureIssue === 'moved').map(l => l.ordinal);
+  if (moved.length > 0) others.unshift(`${LOST.movedPosition} — в ${moved.length === 1 ? 'строке' : 'строках'} ${numbers(moved)}`);
+
+  return count === 0 && others.length === 0 ? null : { count, places: places.join('; '), others };
 }

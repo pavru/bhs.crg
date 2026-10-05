@@ -20,7 +20,9 @@ public sealed record AllocationRequest(IReadOnlyList<JsonElement>? Parts);
 /// чему, и «разобран» с ней не проходит. Сюда же входит раздел другой стройки.</param>
 /// <param name="TargetIssue">Что именно не так с целью (issue #1184): <c>construction-lost</c>,
 /// <c>section-lost</c>, <c>article-lost</c> — записи больше нет; <c>section-foreign</c> — раздел на месте,
-/// но принадлежит другой стройке. Последнее — не потеря: в счётчик потерянных ссылок не идёт.</param>
+/// но принадлежит другой стройке; <c>article-moved</c> — запись есть, но она больше не статья;
+/// <c>article-unread</c> — справочник статей не прочитан, сказать о цели нечего. Три последних — не
+/// потеря: в счётчик потерянных ссылок не идут, но «разобран» с ними не проходит так же.</param>
 /// <param name="Quantity">Количество части — у строки, разносимой количеством.</param>
 /// <param name="Amount">Сумма части: у строки с количеством — ПОСЧИТАННАЯ (доля суммы строки), у
 /// строки без количества — введённая. <c>null</c> — посчитать нечем.</param>
@@ -388,6 +390,8 @@ public static class InvoiceAllocations
     public const string SectionLost = "section-lost";
     public const string ArticleLost = "article-lost";
     public const string SectionForeign = "section-foreign";
+    public const string ArticleMoved = "article-moved";
+    public const string ArticleUnread = "article-unread";
 
     /// <summary>
     /// Что не так с целью части; <c>null</c> — цель на месте.
@@ -398,8 +402,12 @@ public static class InvoiceAllocations
     /// </summary>
     private static string? Issue(InvoiceAllocation part, AllocationPlaces places)
     {
+        // Справочник статей не прочитан — не «потеряна», но и не «на месте»: существование цели не
+        // проверено, и «разобран» с такой частью не проходит, как не проходил (ревью PR #1211).
         if (part.ArticleId is { } article)
-            return places.ArticlesKnown && places.Article(article) is null ? ArticleLost : null;
+            return !places.ArticlesKnown ? ArticleUnread
+                : places.Article(article) is not null ? null
+                : places.Existing?.Contains(article) == true ? ArticleMoved : ArticleLost;
 
         if (places.Site(part.ConstructionId) is not { } site) return ConstructionLost;
         if (part.SectionId is not { } id || site.Sections.Any(s => s.Id == id)) return null;

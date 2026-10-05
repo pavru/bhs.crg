@@ -216,7 +216,9 @@ public sealed class InvoiceDesk(
         // «есть ли запись», а не «есть ли она в списке организаций»: список не различает удалённую
         // запись, запись другого вида и вид, которого нет в установке (issue #1184).
         var records = await targets.StatesAsync(ReferenceTarget.Record,
-            [.. new[] { invoice.SupplierId, invoice.PayerId }.Concat(lines.Select(l => l.NomenclatureId)).OfType<Guid>().Distinct()], ct);
+            [.. new[] { invoice.SupplierId, invoice.PayerId }.Concat(lines.Select(l => l.NomenclatureId))
+                .Concat(parts.Select(p => p.ArticleId)).OfType<Guid>().Distinct()], ct);
+        known = known with { Existing = records.Where(r => r.Value != ReferenceState.Lost).Select(r => r.Key).ToHashSet() };
         var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
         string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
 

@@ -38,6 +38,11 @@ export interface InvoiceLineView {
   nomenclatureId: string | null;
   nomenclatureName: string | null;
   nomenclatureLost: boolean;
+  /**
+   * Что именно не так со ссылкой (issue #1184): `lost` — записи нет; `moved` — запись есть, но она больше
+   * не позиция номенклатуры (это не потерянная ссылка). Старый сервер поля не присылает.
+   */
+  nomenclatureIssue?: 'lost' | 'moved' | null;
   supplierText: string | null;
   supplierCode: string | null;
   unit: string | null;
@@ -60,10 +65,14 @@ export interface InvoiceLineView {
  * опечаткой.
  */
 /**
- * Что не так с целью части разноски: записи больше нет (`…-lost`) либо раздел на месте, но принадлежит
- * другой стройке (`section-foreign`) — это не потеря, и в число потерянных ссылок она не входит.
+ * Что не так с целью части разноски. `…-lost` — записи больше нет: это потерянная ссылка. Остальное —
+ * не потеря, и в число потерянных ссылок не входит: `section-foreign` — раздел на месте, но принадлежит
+ * другой стройке; `article-moved` — запись есть, но она больше не статья; `article-unread` — справочник
+ * статей не прочитан, сказать о цели нечего.
  */
-export type TargetIssue = 'construction-lost' | 'section-lost' | 'article-lost' | 'section-foreign';
+export type TargetIssue =
+  | 'construction-lost' | 'section-lost' | 'article-lost'
+  | 'section-foreign' | 'article-moved' | 'article-unread';
 
 export interface AllocationPartView {
   id: string;

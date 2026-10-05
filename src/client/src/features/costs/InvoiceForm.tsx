@@ -296,6 +296,10 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       const lost = entryId !== null && (view.references
         ? stored && state === 'lost'
         : !organizationsUnread && !organizations.some(o => o.id === entryId));
+      // Запись есть, но в списке организаций её нет — перевели в другой вид. Не потеря, но и молчать
+      // нельзя: без своего пункта Radix показал бы плейсхолдер, и поле со ссылкой выглядело бы пустым
+      // (ревью PR #1211). Пока список не пришёл (он пуст), судить не о чем.
+      const foreign = entryId !== null && !lost && organizations.length > 0 && !organizations.some(o => o.id === entryId);
       const title = fieldKey === K.supplier ? 'Поставщик' : 'Плательщик';
 
       // Запертый счёт: выбор заменён полем для чтения, как у остальных, — отключённый выбор приглушён
@@ -304,7 +308,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
         return (
           <TextField label={title} readOnly onChange={() => {}}
             value={organizationsUnread ? 'справочник не прочитан'
-              : entryId === null ? '' : organizations.find(o => o.id === entryId)?.name ?? (lost ? LOST.organization : '')} />
+              : entryId === null ? '' : organizations.find(o => o.id === entryId)?.name ?? (lost ? LOST.organization : foreign ? LOST.movedOrganization : '')} />
         );
 
       return (
@@ -312,13 +316,15 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
           <Select label={title}
             disabled={organizationsUnread}
             hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
-              : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию' : hint}
+              : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию'
+              : foreign ? 'Запись есть, но она больше не организация. Выберите организацию заново' : hint}
             value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
             onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
             {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
                 отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
             <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
             {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
+            {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
             {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </Select>
         </div>

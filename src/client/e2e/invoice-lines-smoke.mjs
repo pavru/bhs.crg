@@ -441,7 +441,7 @@ try {
     await page.getByRole('button', { name: 'позиция удалена' }).waitFor({ timeout: 10_000 });
 
     // Потеря бывает за краем экрана — строка под прокруткой. Шапка говорит о ней сама (issue #1184).
-    const note = page.getByRole('note').filter({ hasText: 'Ссылки на удалённые записи справочников' });
+    const note = page.getByRole('note').filter({ hasText: 'Удалённые записи справочников' });
     await note.waitFor({ timeout: 10_000 });
     if (!(await note.innerText()).includes('позиция в строке 1'))
       throw new Error(`сводка не называет строку с потерянной позицией: ${await note.innerText()}`);

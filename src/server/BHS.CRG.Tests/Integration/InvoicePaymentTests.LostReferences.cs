@@ -179,6 +179,19 @@ public partial class InvoicePaymentTests
 
         var newPart = await AllocateRawAsync(admin, lost.Invoice, second.GetProperty("id").GetGuid(), [Part(lost.Site, quantity: 50)]);
         Assert.Equal(HttpStatusCode.BadRequest, newPart.StatusCode);
+
+        // Запись, которая есть, но не организация, — тоже отказ: в поле поставщика ей не место.
+        var notParty = await admin.PutAsJsonAsync($"/api/costs/invoices/{lost.Invoice}",
+            new { requisites = await RequisitesWithAsync(admin, lost.Invoice, "Поставщик", Reference(cable)) });
+        Assert.Equal(HttpStatusCode.BadRequest, notParty.StatusCode);
+        Assert.Contains("не организация", await notParty.Content.ReadAsStringAsync());
+
+        // Предпросмотр принимает то же, что запись: цель, уже стоящую у счёта, — и потерянной.
+        await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{lost.Invoice}/allocation/preview", new
+        {
+            method = "equal",
+            targets = new object[] { new { construction = lost.Site, section = lost.Section }, new { construction = lost.KeptSite } },
+        }));
     }
 
     /// <summary>
@@ -242,5 +255,56 @@ public partial class InvoicePaymentTests
         Assert.Equal("section-foreign", part.GetProperty("targetIssue").GetString());
         Assert.True(part.GetProperty("targetLost").GetBoolean());
         Assert.DoesNotContain((await LostAsync()).Lost, l => l.DocumentKey == invoice);
+    }
+
+    /// <summary>
+    /// <b>Запись, переведённая в другой вид, — не потерянная ссылка</b> (ревью PR #1211): она есть, и
+    /// обратный опрос её не считает. Пометка обязана говорить то же — иначе число в шапке счёта и
+    /// счётчик модуля расходились бы на одной и той же ссылке. «Разобран» с ней не проходит по-прежнему.
+    /// </summary>
+    [Fact]
+    public async Task Запись_другого_вида_названа_отдельно_и_потерей_не_считается()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var organizations = await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация");
+        var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var position = await EntryAsync(nomenclature, $"Позиция переведённая {Guid.NewGuid().ToString()[..6]}");
+        var (article, _) = await ArticleAsync(admin, "Статья переведённая");
+
+        var invoice = await CreateAsync(admin, complete: true);
+        var view = await LinesAsync(admin, invoice, [Line(position, 100, 400)]);
+        await AllocateAsync(admin, invoice, LineId(view, 1), [ArticlePart(article, quantity: 100)]);
+
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlRawAsync(
+                """UPDATE domain_objects SET "CompositeTypeId" = {0} WHERE "Id" IN ({1}, {2})""", organizations, position, article);
+
+        var line = (await ReadAsync(admin, invoice)).GetProperty("lines")[0];
+        Assert.Equal("moved", line.GetProperty("nomenclatureIssue").GetString());
+        Assert.True(line.GetProperty("nomenclatureLost").GetBoolean());
+        var part = line.GetProperty("allocation").GetProperty("parts")[0];
+        Assert.Equal("article-moved", part.GetProperty("targetIssue").GetString());
+        Assert.True(part.GetProperty("targetLost").GetBoolean());
+        Assert.DoesNotContain((await LostAsync()).Lost, l => l.DocumentKey == invoice);
+    }
+
+    /// <summary>
+    /// Справочник статей не прочитан (типа статей в установке нет) — часть на статью НЕ потеряна, но и
+    /// не «на месте»: существование цели не проверено, и «разобран» с ней не проходит, как не проходил.
+    /// </summary>
+    [Fact]
+    public void Часть_на_статью_при_непрочитанном_справочнике_не_потеряна_но_и_не_на_месте()
+    {
+        var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);
+        var part = BHS.CRG.Modules.Costs.Data.InvoiceAllocation.Create(invoice.Id, null);
+        part.Apply(1, new(BHS.CRG.Modules.Costs.Data.AllocationTarget.Article(Guid.NewGuid()), null, 100m));
+
+        var read = BHS.CRG.Modules.Costs.Endpoints.InvoiceAllocations.Read(invoice, [], [part],
+            new BHS.CRG.Modules.Costs.Endpoints.AllocationPlaces([], [], ArticlesKnown: false));
+
+        var seen = Assert.Single(read.Summary.Document.Parts);
+        Assert.Equal("article-unread", seen.TargetIssue);
+        Assert.True(seen.TargetLost);
+        Assert.False(read.Summary.Allocated);
     }
 }

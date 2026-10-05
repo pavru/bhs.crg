@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView } from '@/shared/api/invoices';
 import { issueOf, lostSummary } from './lostReferences';
 import { allocationStatus } from './allocation';
-import { LOADING_PLACE, placeName } from './places';
+import { LOADING_PLACE, UNREAD_PLACE, placeName } from './places';
 
 const part = (over: Partial<AllocationPartView>): AllocationPartView => ({
   id: 'p', ordinal: 1, constructionId: 's', constructionName: null, sectionId: null, sectionName: null,
@@ -27,7 +27,7 @@ describe('lostSummary', () => {
     expect(lostSummary(invoice({ lines: [line(1, false, [part({})])] }))).toBeNull();
   });
 
-  it('называет, где потери, и считает их как сервер: стройка с разделом — две ссылки', () => {
+  it('называет, где потери, и считает МЕСТА, а не ссылки: о каскаде удаления клиент не гадает', () => {
     const summary = lostSummary(invoice({
       references: { supplier: 'lost', payer: 'present', documentType: 'present' },
       lines: [
@@ -42,9 +42,9 @@ describe('lostSummary', () => {
     }));
 
     expect(summary).toEqual({
-      count: 6,
+      count: 5,
       places: 'поставщик; позиция в строках 3, 7; разноска строки 5',
-      foreign: [],
+      others: [],
     });
   });
 
@@ -53,7 +53,17 @@ describe('lostSummary', () => {
       lines: [line(2, false, [part({ targetLost: true, targetIssue: 'section-foreign', sectionId: 'x' })])],
     }));
 
-    expect(summary).toEqual({ count: 0, places: '', foreign: [2] });
+    expect(summary).toEqual({ count: 0, places: '', others: ['раздел другой стройки — разноска строки 2'] });
+  });
+
+  it('запись другого вида — не потеря: позиция и статья названы отдельно', () => {
+    const moved = { ...line(4, true, [part({ targetLost: true, targetIssue: 'article-moved', constructionId: null, articleId: 'a' })]),
+      nomenclatureIssue: 'moved' } as InvoiceLineView;
+
+    expect(lostSummary(invoice({ lines: [moved] }))).toEqual({
+      count: 0, places: '',
+      others: ['позиция другого вида — в строке 4', 'статья другого вида — разноска строки 4'],
+    });
   });
 
   it('без состояния ссылок от сервера шапку потерянной не объявляет', () => {
@@ -84,5 +94,10 @@ describe('placeName', () => {
     expect(placeName({ construction: 's', section: null, article: null }, loading)).toBe(LOADING_PLACE);
     expect(placeName({ construction: null, section: null, article: 'a' }, loading)).toBe(LOADING_PLACE);
     expect(placeName({ construction: 's', section: null, article: null }, { sites: [], articles: [] })).toBe('стройка удалена');
+  });
+
+  it('справочник не пришёл — это отказ, а не вечная загрузка', () => {
+    const failed = { sites: undefined, articles: undefined, unread: true };
+    expect(placeName({ construction: 's', section: null, article: null }, failed)).toBe(UNREAD_PLACE);
   });
 });
