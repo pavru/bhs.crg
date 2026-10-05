@@ -61,6 +61,14 @@ public enum ModuleTagScope
 /// Группа для редактора схем («Строка документа», «Организация»). Тэгов к концу ТЗ около
 /// пятидесяти, и одной строкой значков они уже не читаются. Пусто — тэг идёт под названием модуля.
 /// </param>
+/// <param name="Money">
+/// Поле с этим тэгом — ДЕНЬГИ: сумма, цена, налог. Такое поле не объявляют у типа, который хранится в
+/// общей таблице объектов, — старт откажет и назовёт тип (<see cref="ModuleMoneyStorage" />, задача H1,
+/// issue #1104): общую таблицу читают пути, которые на права модуля не смотрят.
+///
+/// ⚠️ Признак ставит автор тэга, и забытый признак правило не поймает. Поэтому у модуля, который
+/// ведёт деньги, есть второй сторож — перепись его числовых полей (<c>ModuleMoneyStorageTests</c>).
+/// </param>
 public sealed record ModuleTag(
     string Code,
     string Label,
@@ -68,7 +76,8 @@ public sealed record ModuleTag(
     ModuleTagScope Scope,
     IReadOnlyList<string>? AppliesTo = null,
     bool Multiple = false,
-    string? Group = null)
+    string? Group = null,
+    bool Money = false)
 {
     public IReadOnlyList<string> AppliesTo { get; init; } = AppliesTo ?? [];
 }

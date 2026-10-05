@@ -35,7 +35,10 @@ public static class ModuleTagCollector
         AppliesTo: [.. t.AppliesTo],
         Multiple: t.Multiple,
         Owner: moduleCode,
-        Group: t.Group);
+        Group: t.Group,
+        // Без этой строки правило о деньгах действовало бы только на объявления модулей: редактор схем
+        // о признаке не узнал бы и сохранил сумму в общую таблицу (ревью PR #1204).
+        Money: t.Money);
 
     /// <summary>
     /// Зеркало уровней тэга. Переключатель, а не приведение по числу, — ровно по той причине, что

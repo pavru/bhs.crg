@@ -75,11 +75,11 @@ public static class CostsRecordTypes
         new(TotalTag, "Итоговая сумма документа",
             "Сумма к оплате — та, что стоит в бумаге поставщика. Код сверяет её с суммой строк и с " +
             "суммой разносок по стройкам; расхождение показывается числом и ничего не запрещает.",
-            ModuleTagScope.Field, ["number"], Group: "Счета и накладные"),
+            ModuleTagScope.Field, ["number"], Group: "Счета и накладные", Money: true),
 
         new(VatTotalTag, "В том числе НДС",
             "Сумма НДС по документу целиком — для отчётов и сверки с итогом по строкам.",
-            ModuleTagScope.Field, ["number"], Group: "Счета и накладные"),
+            ModuleTagScope.Field, ["number"], Group: "Счета и накладные", Money: true),
     ];
 
     /// <summary>

@@ -61,6 +61,10 @@ public static class AppModuleExtensions
         var enabled = codes.Select(c => byCode[c]).ToList();
         var disabled = available.Except(enabled).ToList();
 
+        // Деньги модуля — не в общей таблице объектов (H1, issue #1104). По всей сборке, а не по
+        // включённым: тип выключенного модуля уже лежит в базе и читается теми же путями.
+        ModuleMoneyStorage.Ensure(available);
+
         // Службы регистрирует только включённый модуль: выключенный не должен висеть в контейнере
         // и попадать в фоновые задания (AUTH-19). Его адреса при этом всё равно появятся — отказом,
         // см. MapAppModules.

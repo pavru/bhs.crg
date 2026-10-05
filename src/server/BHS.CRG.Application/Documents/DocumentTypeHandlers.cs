@@ -434,6 +434,8 @@ public class DocumentTypeHandlers(
             .Validate(tags, saving.Schema, saving.Id, saving.Name, all)
             .Select(v => v.Describe())
             .Concat(TagCardinalityValidator.Validate(tags, saving, all).Select(v => v.Describe()))
+            // Третья — про место хранения: денежный тэг у типа в общей таблице (H1, issue #1104).
+            .Concat(TagMoneyStorageValidator.Validate(tags, saving, all).Select(v => v.Describe()))
             .ToList();
         if (messages.Count > 0) throw new ConflictException(string.Join(" ", messages));
     }

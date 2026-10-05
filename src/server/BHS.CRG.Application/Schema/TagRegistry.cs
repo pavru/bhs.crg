@@ -64,7 +64,10 @@ public record TagDefinition(
     TagRestriction? Restriction = null,
     TagParameter? Parameter = null,
     string Owner = TagOwners.Core,
-    string? Group = null);
+    string? Group = null,
+    // Поле с тэгом — деньги: у типа в общей таблице объектов такой тэг не ставится
+    // (TagMoneyStorageValidator, issue #1104).
+    bool Money = false);
 
 /// <summary>
 /// Тэги ЯДРА — те, что читает общий код (см. <see cref="FunctionalTag"/>). Модули добавляют свои

@@ -35,6 +35,32 @@ public class InvoiceArticleTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.True(view.GetProperty("allocation").GetProperty("allocated").GetBoolean());
     }
 
+    /// <summary>
+    /// Справочник статей лежит в общей таблице и ОТКРЫТ для правки: администратор вправе дописать ему
+    /// поле. Денежный тэг такому полю не сохраняется — сумму из общей таблицы прочитал бы любой вошедший
+    /// (H1, issue #1104). Через живой адрес: правило без вызова из обработчика ничего бы не держало.
+    /// </summary>
+    [Fact]
+    public async Task Денежный_тэг_полю_справочника_статей_не_сохраняется()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var types = await client.GetFromJsonAsync<JsonElement>("/api/document-types");
+        var article = types.EnumerateArray().Single(t => t.GetProperty("code").GetString() == "СтатьяВнеСтроек");
+        var address = $"/api/document-types/{article.GetProperty("id").GetGuid()}/schema";
+        string Schema(string tags) => $$"""{"fields":[{"key":"Лимит","type":"number"{{tags}}}]}""";
+
+        var refused = await client.PutAsJsonAsync(address, new { schema = Schema(""","tags":["doc.total"]""") });
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var said = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("означает деньги", said);
+        Assert.Contains("общей таблице", said);
+
+        // То же поле без денежного тэга сохраняется: отказ — про тэг, а не про правку типа.
+        var plain = await client.PutAsJsonAsync(address, new { schema = Schema("") });
+        Assert.True(plain.IsSuccessStatusCode, await plain.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task Статья_не_появляется_там_где_выбирают_стройку()
     {
