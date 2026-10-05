@@ -59,6 +59,36 @@ public class PaymentPostingTests
     }
 
     /// <summary>
+    /// Деньги счёта по частям — зерно, из которого сложены клетка реестра, её расшифровка и затраты
+    /// (G5, issue #1098). Части и остаток вместе дают сумму к оплате; нулевого остатка нет вовсе, а у
+    /// счёта без суммы к оплате остатку взяться не из чего.
+    /// </summary>
+    [Fact]
+    public void Деньги_по_частям_складываются_в_сумму_к_оплате_а_нулевого_остатка_нет()
+    {
+        InvoiceAllocation[] parts =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteA), quantity: 100),
+            Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000m),
+        ];
+        IReadOnlyList<PostedMoney> Money(decimal? total) =>
+            PaymentPosting.Money(PaymentPosting.Balance([First, Second], parts, total), total, parts, D(9, 15));
+
+        var exact = Money(100_000m);
+        Assert.Equal([40_000m, 60_000m], exact.Select(m => m.Amount!.Value));
+        Assert.All(exact, m => Assert.NotNull(m.Part));
+
+        var over = Money(100_500m);
+        Assert.Equal(new PostedMoney(null, 500m, D(9, 15)), over[^1]);
+        Assert.Equal(100_500m, over.Sum(m => m.Amount));
+
+        Assert.All(Money(null), m => Assert.NotNull(m.Part));
+
+        // Месяцы — из тех же строк: неоплаченный счёт (дней нет) месяцев не называет, а остаток с днём — называет.
+        Assert.Equal([new PostedMonth(D(9, 1), 500m)], PaymentPosting.Months(over));
+    }
+
+    /// <summary>
     /// Строки больше суммы к оплате в пределах допуска — остаток отрицательный. Это поправка к деньгам
     /// долей, и своего месяца у неё нет (ревью PR #1192): она ложится в день самой поздней доли с
     /// деньгами, а не в день платежа по контуру компании.

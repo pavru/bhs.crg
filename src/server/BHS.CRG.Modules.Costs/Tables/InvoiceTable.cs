@@ -286,15 +286,6 @@ public sealed class InvoiceTableRows(
 
         var invoices = await page.ToListAsync(ct);
 
-        // Разноску читаем по счетам СТРАНИЦЫ; по всему отбору — только ради итога доли: он обязан
-        // считаться по всему отбору, а посчитать долю запросом нельзя (см. InvoiceShares).
-        var ids = invoices.Select(i => i.Id).ToList();
-        var scope = shareTotal ? selected : db.Invoices.AsNoTracking().Where(i => ids.Contains(i.Id));
-        var partsRead = shareTotal || shareCells || query.Columns.Contains(InvoiceTable.ObjectsKey);
-        var parts = partsRead
-            ? await db.InvoiceAllocations.AsNoTracking()
-                .Where(a => scope.Select(i => i.Id).Contains(a.InvoiceId)).ToListAsync(ct)
-            : [];
         // Какие деньги счёта отбор назвал: долю спрашиваем ВМЕСТЕ с её месяцем, а не двумя списками —
         // под «(объект А и 09) или (объект Б и 10)» названы две пары, а не А и Б в обоих месяцах.
         // У остатка объекта нет: условие по объекту его не пропускает. Дня нет у доли неоплаченного
@@ -308,28 +299,36 @@ public sealed class InvoiceTableRows(
             if (day is { } on) values[InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, on);
             return TableFilters.Admits(query.Filter, values);
         }
-        Func<InvoiceAllocation?, DateOnly, bool>? named = narrowed ? (part, day) => Admitted(part, day) : null;
+        var byPeriod = months.Count > 0;
 
-        // Учётные месяцы — той же функцией, что у формы счёта. По счетам страницы — они уже прочитаны; по
-        // всему отбору — когда отбор называет период и по «Сумме» считается итог. Доли, прочитанные ради
-        // «Объекта» или суммы, второй раз не читаем.
-        var byMonths = months.Count > 0 && (shareTotal || shareCells);
-        var whole = byMonths && shareTotal ? scope.Where(i => i.Payment == InvoicePaymentState.Paid) : null;
-        var periods = byMonths || query.Columns.Contains(InvoiceTable.PeriodKey) || query.Columns.Contains(InvoiceTable.PeriodSumsKey)
-            ? await InvoicePeriods.ReadAsync(db,
-                whole is null
-                    ? InvoicePeriods.Paid(invoices)
-                    : await whole.Select(i => new PaidInvoice(i.Id, i.Total, i.RemainderAccountingOn)).ToListAsync(ct),
-                whole?.Select(i => i.Id), partsRead ? parts : null, named, ct)
-            : InvoicePeriods.None;
+        // Деньги счетов по частям — ОДНИМ проходом на всё, что из них складывается: «Сумму» под отбором,
+        // учётные месяцы и расшифровку строки (см. InvoiceMoney). По счетам СТРАНИЦЫ; по всему отбору —
+        // только ради итога «Суммы»: он обязан считаться по всему отбору, а запросом доля не считается.
+        var ids = invoices.Select(i => i.Id).ToList();
+        var scope = shareTotal ? selected : db.Invoices.AsNoTracking().Where(i => ids.Contains(i.Id));
+        var moneyRead = shareTotal || shareCells || query.Row is not null
+                        || query.Columns.Contains(InvoiceTable.PeriodKey) || query.Columns.Contains(InvoiceTable.PeriodSumsKey);
+        var parts = moneyRead || query.Columns.Contains(InvoiceTable.ObjectsKey)
+            ? await db.InvoiceAllocations.AsNoTracking()
+                .Where(a => scope.Select(i => i.Id).Contains(a.InvoiceId)).ToListAsync(ct)
+            : [];
+        var money = moneyRead
+            ? await InvoiceMoney.ReadAsync(db,
+                shareTotal ? await InvoiceMoney.HeadsAsync(scope, ct) : InvoiceMoney.Heads(invoices),
+                shareTotal ? scope.Select(i => i.Id) : null, parts, ct)
+            : InvoiceMoney.None;
 
-        // Под отбором по периоду деньги — из месяцев; под отбором только по объекту — доли: они есть и у
-        // неоплаченного счёта, у которого месяцев нет.
-        var amounts = byMonths ? InvoicePeriods.Amounts(periods)
-            : shareTotal || shareCells
-                ? await InvoiceShares.ReadAsync(db, scope, parts, p => Admitted(p, null), ct)
-                : null;
+        // «Сумма» под сужающим отбором — названные деньги счёта; иначе — счёт целиком, из самой записи.
+        var amounts = shareTotal || shareCells
+            ? money.ToDictionary(m => m.Key, m => InvoiceMoney.Named(m.Value, Admitted, byPeriod))
+            : null;
         if (shareTotal) totals[InvoiceTable.AmountKey] = InvoiceShares.Total(amounts!.Values);
+
+        // Учётные месяцы — из тех же денег и той же функцией, что у формы счёта.
+        Func<InvoiceAllocation?, DateOnly, bool>? named = narrowed ? (part, day) => Admitted(part, day) : null;
+        var periods = query.Columns.Contains(InvoiceTable.PeriodKey) || query.Columns.Contains(InvoiceTable.PeriodSumsKey)
+            ? invoices.ToDictionary(i => i.Id, i => InvoicePeriods.Of(money[i.Id], named))
+            : InvoicePeriods.None;
 
         // Чем сужены деньги: по объекту — до долей на него, по учётному периоду — до названных месяцев.
         // Подпись одна на «Сумму» и на её расшифровку, «Суммы по периодам»: сужены они одинаково.
@@ -346,8 +345,8 @@ public sealed class InvoiceTableRows(
         var axis = months.Count == 0 ? InvoiceTable.AxisNote(byIssueDate, byPaidOn) : null;
         var note = Joined(sums, axis);
         Annotate(totals, InvoiceTable.AmountKey, note);
-        foreach (var money in InvoiceTable.WholeInvoiceMoney)
-            Annotate(totals, money, months.Count > 0 ? InvoiceTable.WholeInvoicesNote : axis);
+        foreach (var whole in InvoiceTable.WholeInvoiceMoney)
+            Annotate(totals, whole, months.Count > 0 ? InvoiceTable.WholeInvoicesNote : axis);
 
         // Счётчик «ждут позиции» — по счетам страницы, одним запросом; условие то же, что у колонки
         // в запросе (см. Sql).
@@ -364,7 +363,7 @@ public sealed class InvoiceTableRows(
 
         // Одна строка по ключу — с расшифровкой: счёт по объектам и учётным месяцам (боковая панель).
         var breakdown = query.Row is not null && invoices is [var opened]
-            ? await InvoiceBreakdown.ReadAsync(db, opened, partsRead ? parts : null, shares, Admitted, narrowed, months.Count > 0, ct)
+            ? InvoiceBreakdown.Of(opened, money[opened.Id], shares, m => InvoiceMoney.IsNamed(m, Admitted, byPeriod), narrowed)
             : null;
 
         var objects = shares.Objects(parts);

@@ -1,7 +1,6 @@
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Tables;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Tables;
 
@@ -43,49 +42,36 @@ internal static class InvoiceBreakdown
         ],
         [new(ShareKey, Named: InvoiceTable.AmountKey, Whole: InvoiceRequisites.TotalKey)]);
 
-    /// <param name="loaded">Доли счёта, если их уже прочитали ради колонки.</param>
-    /// <param name="admitted">Назван ли отбором объект доли (null — остаток) в её учётный день; день
-    /// null — о периоде не спрашиваем (см. <c>InvoiceTableRows</c>).</param>
+    /// <param name="money">Деньги счёта по частям — те же строки, из которых сложена клетка «Сумма»:
+    /// поэтому «В отборе» расходиться с клеткой нечем.</param>
+    /// <param name="named">Названы ли деньги отбором (<see cref="InvoiceMoney.IsNamed" />); вне сужающего
+    /// отбора не спрашивается.</param>
     /// <param name="narrowed">Отбор сужает «Сумму» — называет объекты или учётные месяцы.</param>
-    /// <param name="byPeriod">Отбор называет учётные месяцы: тогда названными бывают только деньги с
-    /// учётным днём — как и в клетке.</param>
     /// <returns>null — у счёта нет суммы к оплате: раскладывать нечего.</returns>
-    public static async Task<TableRowBreakdown?> ReadAsync(
-        CostsDbContext db, Invoice invoice, IReadOnlyList<InvoiceAllocation>? loaded, InvoiceShares shares,
-        Func<InvoiceAllocation?, DateOnly?, bool> admitted, bool narrowed, bool byPeriod, CancellationToken ct)
+    public static TableRowBreakdown? Of(
+        Invoice invoice, IReadOnlyList<PostedMoney> money, InvoiceShares shares, Func<PostedMoney, bool> named, bool narrowed)
     {
-        if (invoice.Total is not { } total) return null;
+        if (invoice.Total is null) return null;
+        bool Named(PostedMoney part) => narrowed && named(part);
 
-        var parts = loaded?.Where(p => p.InvoiceId == invoice.Id).ToList()
-                    ?? await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
-        var lines = (await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id)
-                .Select(l => new { l.Id, l.Ordinal, l.Quantity, l.Amount }).ToListAsync(ct))
-            .Select(l => new AllocationLine(l.Id, l.Ordinal, l.Quantity, l.Amount));
-        var money = PaymentPosting.Balance(lines, parts, total).Money.ToDictionary(share => share.Id, share => share.Amount);
-
-        // Доля без денег (в строке не вписана цена) под отбором по периоду не названа: в затраты месяца
-        // она не входит, и в клетке её нет.
-        bool Named(InvoiceAllocation? part, DateOnly? day, bool hasMoney) =>
-            narrowed && (byPeriod ? day is not null && hasMoney && admitted(part, day) : admitted(part, null));
-
-        var rows = parts
-            .Select(p => (Part: p, Amount: money.GetValueOrDefault(p.Id), Month: Month(p.AccountingOn)))
-            .GroupBy(p => (Label: shares.Label(p.Part), p.Month))
+        var rows = money.Where(m => m.Part is not null)
+            .GroupBy(m => (Label: shares.Label(m.Part!), Month: Month(m.AccountingOn)))
             .OrderBy(g => g.Key.Label, InvoiceShares.ByName).ThenBy(g => g.Key.Month)
-            .Select(g => Row(g.Key.Label, g.Any(p => p.Amount is not null) ? g.Sum(p => p.Amount ?? 0) : null, g.Key.Month,
-                g.Any(p => Named(p.Part, p.Part.AccountingOn, p.Amount is not null))))
+            .Select(g => Row(g.Key.Label, g.Any(m => m.Amount is not null) ? g.Sum(m => m.Amount ?? 0) : null, g.Key.Month,
+                g.Any(Named)))
             .ToList();
 
         // Остаток существует только из-за денег, и само его название — факт о суммах («строки больше
         // суммы к оплате»): тому, кому суммы закрыты, строка не приходит (ревью PR #1197). У счёта без
         // разноски она есть и при нулевой сумме: иначе в блоке не было бы ни одной строки.
-        var rest = total - money.Values.Sum(amount => amount ?? 0);
-        if (rest != 0 || parts.Count == 0)
-            rows.Add(Row(parts.Count == 0 ? NotAllocated : rest < 0 ? Correction : Unallocated, rest,
-                Month(invoice.RemainderAccountingOn), Named(null, invoice.RemainderAccountingOn, true)) with
-            {
-                Follows = InvoiceTable.AmountKey,
-            });
+        var allocated = rows.Count > 0;
+        var rest = money.Where(m => m.Part is null).ToList();
+        if (rest.Count == 0 && !allocated) rest.Add(new(null, 0m, invoice.RemainderAccountingOn));
+        rows.AddRange(rest.Select(m => Row(
+            !allocated ? NotAllocated : m.Amount < 0 ? Correction : Unallocated, m.Amount, Month(m.AccountingOn), Named(m)) with
+        {
+            Follows = InvoiceTable.AmountKey,
+        }));
 
         return new(rows, narrowed, invoice.Payment == InvoicePaymentState.Paid ? null : UnpaidNote);
     }
