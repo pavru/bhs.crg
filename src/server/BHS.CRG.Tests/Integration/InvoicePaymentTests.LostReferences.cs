@@ -180,6 +180,15 @@ public partial class InvoicePaymentTests
         var newPart = await AllocateRawAsync(admin, lost.Invoice, second.GetProperty("id").GetGuid(), [Part(lost.Site, quantity: 50)]);
         Assert.Equal(HttpStatusCode.BadRequest, newPart.StatusCode);
 
+        // «Уже стояла» — у СЧЁТА: ту же потерянную цель можно поставить и в соседней строке, а
+        // потерянных поставщика и плательщика — поменять местами. Это перестановка, а не новая ссылка.
+        await AllocateAsync(admin, lost.Invoice, second.GetProperty("id").GetGuid(),
+            [Part(lost.Site, quantity: 50, section: lost.Section)]);
+        var swapped = JsonSerializer.Deserialize<Dictionary<string, object?>>(
+            (await RequisitesWithAsync(admin, lost.Invoice, "Поставщик", Reference(lost.Payer))).GetRawText())!;
+        swapped["Плательщик"] = Reference(lost.Supplier);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{lost.Invoice}", new { requisites = swapped }));
+
         // Запись, которая есть, но не организация, — тоже отказ: в поле поставщика ей не место.
         var notParty = await admin.PutAsJsonAsync($"/api/costs/invoices/{lost.Invoice}",
             new { requisites = await RequisitesWithAsync(admin, lost.Invoice, "Поставщик", Reference(cable)) });
@@ -284,6 +293,13 @@ public partial class InvoicePaymentTests
         Assert.True(line.GetProperty("nomenclatureLost").GetBoolean());
         var part = line.GetProperty("allocation").GetProperty("parts")[0];
         Assert.Equal("article-moved", part.GetProperty("targetIssue").GetString());
+
+        // Предпросмотр говорит о той же части теми же словами, что открытый счёт.
+        var preview = await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/allocation/preview",
+            new { method = "equal", targets = new object[] { new { article } } });
+        await OkAsync(preview);
+        Assert.Contains("article-moved", await preview.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("article-lost", await preview.Content.ReadAsStringAsync());
         Assert.True(part.GetProperty("targetLost").GetBoolean());
         Assert.DoesNotContain((await LostAsync()).Lost, l => l.DocumentKey == invoice);
     }

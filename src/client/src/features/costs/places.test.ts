@@ -23,6 +23,6 @@ describe('цель разноски', () => {
   it('название: стройка с разделом, статья, удалённая статья', () => {
     expect(placeName({ construction: 's1', section: 'r1', article: null }, places)).toBe('Комарова 36 / 4 эт.');
     expect(placeName({ construction: null, section: null, article: 'a1' }, places)).toBe('Склад');
-    expect(placeName({ construction: null, section: null, article: 'нет' }, places)).toBe('статья удалена');
+    expect(placeName({ construction: null, section: null, article: 'нет' }, places)).toBe('статьи нет в справочнике');
   });
 });

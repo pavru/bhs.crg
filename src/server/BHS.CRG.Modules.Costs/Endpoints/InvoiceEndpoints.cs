@@ -430,7 +430,9 @@ public static class InvoiceEndpoints
                 (Key: InvoiceRequisites.SupplierKey, Id: columns.SupplierId, Was: supplierWas),
                 (Key: InvoiceRequisites.PayerKey, Id: columns.PayerId, Was: payerWas),
             }
-            .Where(p => p.Id is not null && p.Id != p.Was)
+            // «Уже стояла» — у СЧЁТА, в любом из двух полей: поменять потерянных поставщика и плательщика
+            // местами — не новая ссылка (ревью PR #1211).
+            .Where(p => p.Id is not null && p.Id != supplierWas && p.Id != payerWas)
             .ToList();
         if (named.Count == 0) return;
 

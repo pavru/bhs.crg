@@ -47,16 +47,18 @@ public static class LostReferencesEndpoints
             .WithTags("Счета")
             .RequireAuthorization(AppPolicies.Permission("costs.invoice.read"));
 
-    private static readonly string[] InvoiceTables = ["invoices", "invoice_lines", "invoice_allocations"];
-    private static readonly string[] WaybillTables = ["waybills", "waybill_lines"];
+    // Чей документ — говорит объявление ссылки (ReferenceDocument.Table), а не список таблиц здесь:
+    // новая таблица, дочерняя к счёту, попадёт в счета сама — и под проверку закрытого периода тоже.
+    private const string Invoices = "invoices";
+    private const string Waybills = "waybills";
 
     private static async Task<Ok<LostReferencesView>> ReadAsync(
         CostsDbContext db, IModuleReferenceTargets targets, IModulePeriods periods, CancellationToken ct)
     {
         var found = await targets.LostAsync(CostsModule.ModuleCode, ct);
 
-        var ofInvoices = found.Lost.Where(l => l.DocumentKey is not null && InvoiceTables.Contains(l.Table)).ToList();
-        var ofWaybills = found.Lost.Where(l => l.DocumentKey is not null && WaybillTables.Contains(l.Table)).ToList();
+        var ofInvoices = found.Lost.Where(l => l is { DocumentKey: not null, DocumentTable: Invoices }).ToList();
+        var ofWaybills = found.Lost.Where(l => l is { DocumentKey: not null, DocumentTable: Waybills }).ToList();
         var ofOther = found.Lost.Except(ofInvoices).Except(ofWaybills).ToList();
         var locked = await LockedAsync(db, periods, [.. ofInvoices.Select(l => l.DocumentKey).OfType<Guid>().Distinct()], ct);
 

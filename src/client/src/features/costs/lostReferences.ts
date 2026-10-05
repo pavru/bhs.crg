@@ -23,6 +23,17 @@ export const LOST = {
   unreadArticle: 'статьи не прочитаны',
 } as const;
 
+/**
+ * Слова для мест, где известно только «ссылка есть, названия нет»: списки (реестр счетов, накладные) и
+ * подписи по справочнику без ответа сервера о ссылке. Удалена запись или переведена в другой вид, там
+ * не различить — и «удалена» было бы утверждением, которого никто не проверял (ревью PR #1211).
+ */
+export const MISSING = {
+  organization: 'организации нет в справочнике',
+  construction: 'стройки нет в справочнике',
+  article: 'статьи нет в справочнике',
+} as const;
+
 export function issueText(issue: TargetIssue): string {
   switch (issue) {
     case 'construction-lost': return LOST.construction;
@@ -61,6 +72,8 @@ export interface LostSummary {
   places: string;
   /** Что на месте, но не то: «раздел другой стройки — разноска строки 2». Не потеря. */
   others: string[];
+  /** Что проверить не удалось: о записи не известно ничего — ни «на месте», ни «удалена». */
+  unchecked: string[];
 }
 
 const numbers = (ordinals: number[]) => ordinals.join(', ');
@@ -87,23 +100,36 @@ export function lostSummary(view: InvoiceView): LostSummary | null {
     count += positions.length;
   }
 
+  // Разноска: части строк и части счёта целиком (счёт без строк разносится суммой) — одной меркой.
+  // Не-потеря собирается по виду: «раздел другой стройки» → где.
   const allocated: number[] = [];
-  const odd = new Map<string, number[]>();
-  for (const line of view.lines) {
-    const issues = line.allocation.parts.map(issueOf);
+  const odd = new Map<TargetIssue, { lines: number[]; whole: boolean }>();
+  const collect = (parts: AllocationPartView[], ordinal: number | null) => {
+    const issues = parts.map(issueOf);
     const lost = issues.filter(isLost).length;
-    if (lost > 0) { allocated.push(line.ordinal); count += lost; }
-    for (const issue of new Set(issues.filter(i => i !== null && !isLost(i))))
-      odd.set(issueText(issue!), [...(odd.get(issueText(issue!)) ?? []), line.ordinal]);
-  }
+    count += lost;
+    if (lost > 0 && ordinal !== null) allocated.push(ordinal);
+    for (const issue of new Set(issues)) {
+      if (issue === null || isLost(issue)) continue;
+      const seen = odd.get(issue) ?? { lines: [], whole: false };
+      if (ordinal === null) seen.whole = true; else seen.lines.push(ordinal);
+      odd.set(issue, seen);
+    }
+    return lost;
+  };
+  for (const line of view.lines) collect(line.allocation.parts, line.ordinal);
   if (allocated.length > 0) places.push(`разноска ${inLines(allocated)}`);
+  if (collect(view.allocation.document.parts, null) > 0) places.push('разноска счёта');
 
-  const whole = view.allocation.document.parts.map(issueOf).filter(isLost).length;
-  if (whole > 0) { places.push('разноска счёта'); count += whole; }
-
-  const others = [...odd].map(([text, lines]) => `${text} — разноска ${inLines(lines)}`);
+  const said = (issue: TargetIssue, where: { lines: number[]; whole: boolean }) => `${issueText(issue)} — ${[
+    ...(where.lines.length > 0 ? [`разноска ${inLines(where.lines)}`] : []),
+    ...(where.whole ? ['разноска счёта'] : []),
+  ].join(', ')}`;
+  const others = [...odd].filter(([issue]) => issue !== 'article-unread').map(([issue, where]) => said(issue, where));
+  const unchecked = [...odd].filter(([issue]) => issue === 'article-unread').map(([issue, where]) => said(issue, where));
   const moved = view.lines.filter(l => l.nomenclatureIssue === 'moved').map(l => l.ordinal);
   if (moved.length > 0) others.unshift(`${LOST.movedPosition} — в ${moved.length === 1 ? 'строке' : 'строках'} ${numbers(moved)}`);
 
-  return count === 0 && others.length === 0 ? null : { count, places: places.join('; '), others };
+  return count === 0 && others.length === 0 && unchecked.length === 0
+    ? null : { count, places: places.join('; '), others, unchecked };
 }

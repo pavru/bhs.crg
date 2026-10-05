@@ -365,6 +365,7 @@ public static class InvoiceAllocations
     {
         var site = places.Site(part.ConstructionId);
         var section = part.SectionId is { } id ? site?.Sections.FirstOrDefault(s => s.Id == id) : null;
+        var issue = Issue(part, places);
 
         return new AllocationPartView(
             part.Id,
@@ -375,8 +376,8 @@ public static class InvoiceAllocations
             section?.Name,
             part.ArticleId,
             places.Article(part.ArticleId)?.Name,
-            Issue(part, places) is not null,
-            Issue(part, places),
+            issue is not null,
+            issue,
             part.Quantity,
             share.Amount,
             share.Rounding,

@@ -1,4 +1,4 @@
-import { LOST } from './lostReferences';
+import { LOST, MISSING } from './lostReferences';
 import { useCostsArticles, type CostsArticle } from '@/shared/api/articles';
 import { useCostsConstructions, type AllocationPartView, type CostsConstruction } from '@/shared/api/invoices';
 import type { Place } from '@/shared/api/allocationMatrix';
@@ -72,12 +72,22 @@ export function placeName(place: Place, places: Places): string {
   if (place.article) {
     if (!places.articles) return pending;
     const article = places.articles.find(a => a.id === place.article);
-    return article ? article.name : LOST.article;
+    // По справочнику не различить, удалена статья или переведена в другой вид, — так и говорим.
+    return article ? article.name : MISSING.article;
   }
 
   if (place.construction && !places.sites) return pending;
   const site = places.sites?.find(s => s.id === place.construction);
   if (!site) return place.construction ? LOST.construction : 'объект не выбран';
   if (!place.section) return site.name;
-  return `${site.name} / ${site.sections.find(s => s.id === place.section)?.name ?? LOST.section}`;
+  return `${site.name} / ${site.sections.find(s => s.id === place.section)?.name ?? missingSection(place.section, places)}`;
+}
+
+/**
+ * Чем назвать раздел, которого нет у его стройки: он удалён — или на месте, но у другой стройки. Второе
+ * видно по справочнику, и назвать его «удалён» значило бы сказать на одном экране два разных об одной
+ * ссылке: статус строки говорит «раздел другой стройки» (ревью PR #1211).
+ */
+export function missingSection(section: string, places: Places): string {
+  return places.sites?.some(site => site.sections.some(s => s.id === section)) ? LOST.foreignSection : LOST.section;
 }

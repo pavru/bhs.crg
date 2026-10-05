@@ -63,13 +63,6 @@ public static class InvoiceLineEndpoints
                 InvoiceLineRequests.Values(incoming[index], index + 1)));
 
         EnsureIdsDistinct(parsed);
-        // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
-        // потеря в строке 3 не должна мешать поправить цену в строке 7.
-        var kept = await db.InvoiceLines.AsNoTracking()
-            .Where(l => l.InvoiceId == id && l.NomenclatureId != null)
-            .Select(l => l.NomenclatureId!.Value).Distinct().ToListAsync(ct);
-        await EnsureNomenclatureExistsAsync(catalog, parsed, kept, ct);
-
         var (invoice, changed, reason) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         if (changed)
@@ -86,6 +79,13 @@ public static class InvoiceLineEndpoints
         async Task<(Invoice Invoice, bool Changed, string? Reason)> PlaceAsync(Invoice invoice)
         {
             var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+
+            // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
+            // потеря в строке 3 не должна мешать поправить цену в строке 7. По строкам, прочитанным под
+            // замком записи: набор, собранный до него, назвал бы «стоящей» позицию, которую уже убрали.
+            await EnsureNomenclatureExistsAsync(catalog, parsed,
+                [.. existing.Select(l => l.NomenclatureId).OfType<Guid>().Distinct()], ct);
+
             var kept = new HashSet<Guid>();
 
             // Снимок ДО правки — им отличается настоящая правка от повторной отправки того же набора.

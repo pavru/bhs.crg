@@ -24,8 +24,12 @@ public enum ReferenceState
 /// <param name="DocumentKey">Ключ документа-держателя (<see cref="ReferenceDocument.Via" />): счёт у
 /// строки счёта. <c>null</c> — у объявления документ не назван.</param>
 /// <param name="Rows">Сколько строк таблицы несут эту ссылку в этом документе.</param>
+/// <param name="DocumentTable">Таблица документа-держателя (<see cref="ReferenceDocument.Table" />):
+/// <c>invoices</c> у строки счёта. Чей это документ, говорит объявление, а не список таблиц у читателя —
+/// второй список разошёлся бы с первым на первой же новой таблице (ревью PR #1211).</param>
 public sealed record LostReference(
-    string Table, string Column, ReferenceTarget Target, Guid TargetId, Guid? DocumentKey, int Rows);
+    string Table, string Column, ReferenceTarget Target, Guid TargetId, Guid? DocumentKey, int Rows,
+    string? DocumentTable = null);
 
 /// <summary>Почему колонку не удалось проверить.</summary>
 public enum UncheckedReason

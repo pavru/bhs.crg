@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView } from '@/shared/api/invoices';
 import { issueOf, lostSummary } from './lostReferences';
 import { allocationStatus } from './allocation';
-import { LOADING_PLACE, UNREAD_PLACE, placeName } from './places';
+import { LOADING_PLACE, UNREAD_PLACE, missingSection, placeName } from './places';
 
 const part = (over: Partial<AllocationPartView>): AllocationPartView => ({
   id: 'p', ordinal: 1, constructionId: 's', constructionName: null, sectionId: null, sectionName: null,
@@ -44,7 +44,7 @@ describe('lostSummary', () => {
     expect(summary).toEqual({
       count: 5,
       places: 'поставщик; позиция в строках 3, 7; разноска строки 5',
-      others: [],
+      others: [], unchecked: [],
     });
   });
 
@@ -53,7 +53,7 @@ describe('lostSummary', () => {
       lines: [line(2, false, [part({ targetLost: true, targetIssue: 'section-foreign', sectionId: 'x' })])],
     }));
 
-    expect(summary).toEqual({ count: 0, places: '', others: ['раздел другой стройки — разноска строки 2'] });
+    expect(summary).toEqual({ count: 0, places: '', others: ['раздел другой стройки — разноска строки 2'], unchecked: [] });
   });
 
   it('запись другого вида — не потеря: позиция и статья названы отдельно', () => {
@@ -63,7 +63,27 @@ describe('lostSummary', () => {
     expect(lostSummary(invoice({ lines: [moved] }))).toEqual({
       count: 0, places: '',
       others: ['позиция другого вида — в строке 4', 'статья другого вида — разноска строки 4'],
+      unchecked: [],
     });
+  });
+
+  it('разноска счёта целиком (счёт без строк) видна сводке так же, как разноска строк', () => {
+    const whole = (issue: AllocationPartView['targetIssue']) => invoice({
+      allocation: { document: { parts: [part({ targetLost: true, targetIssue: issue, constructionId: null, articleId: 'a' })] } },
+    } as unknown as Partial<InvoiceView>);
+
+    expect(lostSummary(whole('article-moved'))).toEqual({
+      count: 0, places: '', others: ['статья другого вида — разноска счёта'], unchecked: [],
+    });
+    expect(lostSummary(whole('article-lost'))).toMatchObject({ count: 1, places: 'разноска счёта' });
+  });
+
+  it('непрочитанный справочник — «не проверено», а не «запись на месте»', () => {
+    const summary = lostSummary(invoice({
+      lines: [line(1, false, [part({ targetLost: true, targetIssue: 'article-unread', constructionId: null, articleId: 'a' })])],
+    }));
+
+    expect(summary).toEqual({ count: 0, places: '', others: [], unchecked: ['статьи не прочитаны — разноска строки 1'] });
   });
 
   it('без состояния ссылок от сервера шапку потерянной не объявляет', () => {
@@ -94,6 +114,16 @@ describe('placeName', () => {
     expect(placeName({ construction: 's', section: null, article: null }, loading)).toBe(LOADING_PLACE);
     expect(placeName({ construction: null, section: null, article: 'a' }, loading)).toBe(LOADING_PLACE);
     expect(placeName({ construction: 's', section: null, article: null }, { sites: [], articles: [] })).toBe('стройка удалена');
+  });
+
+  it('раздел, которого нет у стройки, но есть у другой, удалённым не называет', () => {
+    const places = {
+      sites: [{ id: 'a', name: 'А', sections: [] }, { id: 'b', name: 'Б', sections: [{ id: 'x', name: 'раздел' }] }],
+      articles: [],
+    };
+    expect(missingSection('x', places)).toBe('раздел другой стройки');
+    expect(missingSection('нет', places)).toBe('раздел удалён');
+    expect(placeName({ construction: 'a', section: 'x', article: null }, places)).toBe('А / раздел другой стройки');
   });
 
   it('справочник не пришёл — это отказ, а не вечная загрузка', () => {

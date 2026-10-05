@@ -138,15 +138,18 @@ public static class InvoiceViews
     /// потерей. Запись, переехавшая в другой вид, потеряна для строки тоже — её называет словарь.</param>
     public static InvoiceLineView Line(
         InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation,
-        IReadOnlySet<Guid>? lost = null) => new(
+        IReadOnlySet<Guid>? lost = null) => Line(line, names, allocation, Issue(line.NomenclatureId, names, lost));
+
+    private static InvoiceLineView Line(
+        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation, string? issue) => new(
         line.Id,
         line.Ordinal,
         line.NomenclatureId,
         line.NomenclatureId is { } id && names is not null && names.TryGetValue(id, out var name)
             ? name
             : null,
-        Issue(line.NomenclatureId, names, lost) is not null,
-        Issue(line.NomenclatureId, names, lost),
+        issue is not null,
+        issue,
         line.SupplierText,
         line.SupplierCode,
         line.Unit,

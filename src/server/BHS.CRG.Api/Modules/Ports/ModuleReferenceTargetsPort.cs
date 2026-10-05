@@ -61,7 +61,7 @@ public sealed class ModuleReferenceTargetsPort(ModuleRegistry registry, ModuleLo
             [.. found.Lost.Select(hit =>
             {
                 var reference = columns[hit.Column];
-                return new LostReference(reference.Table, reference.Column, reference.Target!.Value, hit.TargetId, hit.DocumentKey, hit.Rows);
+                return new LostReference(reference.Table, reference.Column, reference.Target!.Value, hit.TargetId, hit.DocumentKey, hit.Rows, reference.Document?.Table);
             })],
             [.. found.Unscanned.Select(skipped =>
             {
