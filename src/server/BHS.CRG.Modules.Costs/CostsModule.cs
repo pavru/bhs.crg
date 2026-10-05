@@ -195,6 +195,10 @@ public sealed class CostsModule : IAppModule
         // Служба строк таблицы счетов (G1b, issue #1089). Не зарегистрировать её — отказ старта:
         // объявленная таблица открылась бы и отказала на первом же чтении.
         services.AddScoped<InvoiceTableRows>();
+
+        // Раздел модуля в диалоге закрытия периода (E1b, issue #1099): что войдёт в закрытый период
+        // и что не завершено. Спрашивает его служба закрытия ядра.
+        services.AddScoped<IModuleClosingReport, CostsClosingReport>();
     }
 
     /// <summary>

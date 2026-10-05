@@ -56,7 +56,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var refused = await installer.PostAsJsonAsync("/api/periods/close", CloseBody(through.AddDays(-30), through, "none"));
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
 
-        await OkAsync(await accountant.PostAsJsonAsync("/api/periods/close", CloseBody(through.AddDays(-30), through, "none")));
+        await ClosedAsync(accountant, through.AddDays(-30), through, "none");
 
         var view = await installer.GetFromJsonAsync<JsonElement>("/api/periods");
         Assert.Equal(Iso(through), view.GetProperty("company").GetProperty("closedThrough").GetString());
@@ -97,7 +97,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
         Assert.Contains("только прошедшие дни", await ErrorAsync(future));
 
-        await OkAsync(await accountant.PostAsJsonAsync("/api/periods/close", CloseBody(through.AddDays(-5), through, "none")));
+        await ClosedAsync(accountant, through.AddDays(-5), through, "none");
 
         // Вторая вкладка всё ещё видит «не закрыто ничего».
         var stale = await accountant.PostAsJsonAsync("/api/periods/close",
@@ -122,10 +122,9 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var (site, _) = await SiteAsync("Под отмену");
         var through = (await TodayAsync()).AddDays(-20);
 
-        await OkAsync(await accountant.PostAsJsonAsync("/api/periods/close", CloseBody(through.AddDays(-5), through, "none")));
+        await ClosedAsync(accountant, through.AddDays(-5), through, "none");
         // Стройка закрывается дальше компании — и начало её периода считается от границы компании.
-        await OkAsync(await accountant.PostAsJsonAsync("/api/periods/close",
-            CloseBody(through.AddDays(1), through.AddDays(5), Iso(through), site)));
+        await ClosedAsync(accountant, through.AddDays(1), through.AddDays(5), Iso(through), site);
 
         var silent = await accountant.PostAsJsonAsync("/api/periods/reopen",
             new { contour = "construction", constructionId = site, ifMatch = Iso(through.AddDays(5)) });
@@ -333,7 +332,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     {
         var through = (await TodayAsync()).AddDays(-10);
         var closure = PeriodClosure.Close(Contour.Company, through.AddDays(-30), through, null, "Из копии", null,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow, ClosingReport.Empty);
         var entered = new TaskCompletionSource();
         var release = new TaskCompletionSource();
 
@@ -371,14 +370,27 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         return await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().TodayAsync();
     }
 
-    private static object CloseBody(DateOnly from, DateOnly through, string ifMatch, Guid? site = null) => new
+    /// <param name="report">Отпечаток перечня. По умолчанию — выдуманный: отказам по границе и датам
+    /// он не нужен, они случаются раньше сверки перечня.</param>
+    private static object CloseBody(
+        DateOnly from, DateOnly through, string ifMatch, Guid? site = null, string report = "не смотрел") => new
     {
         contour = site is null ? "company" : "construction",
         constructionId = site,
         from = Iso(from),
         through = Iso(through),
         ifMatch,
+        report,
     };
+
+    /// <summary>Закрыть так, как закрывает экран: посмотреть перечень и назвать его отпечаток.</summary>
+    private static async Task ClosedAsync(HttpClient client, DateOnly from, DateOnly through, string ifMatch, Guid? site = null)
+    {
+        var preview = await client.PostAsJsonAsync("/api/periods/close/preview", CloseBody(from, through, ifMatch, site));
+        await OkAsync(preview);
+        var stamp = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("stamp").GetString()!;
+        await OkAsync(await client.PostAsJsonAsync("/api/periods/close", CloseBody(from, through, ifMatch, site, stamp)));
+    }
 
     private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd");
 

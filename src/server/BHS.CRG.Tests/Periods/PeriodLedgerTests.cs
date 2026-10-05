@@ -21,7 +21,7 @@ public class PeriodLedgerTests
     private static DateOnly D(int month, int day) => new(2026, month, day);
 
     private static PeriodClosure Close(Contour contour, DateOnly from, DateOnly through) =>
-        PeriodClosure.Close(contour, from, through, null, "Бухгалтер", null, DateTimeOffset.UtcNow);
+        PeriodClosure.Close(contour, from, through, null, "Бухгалтер", null, DateTimeOffset.UtcNow, ClosingReport.Empty);
 
     private static PeriodClosure Reopen(PeriodClosure closure) =>
         PeriodClosure.Reopen(closure, null, "Бухгалтер", "закрыли не тот месяц", DateTimeOffset.UtcNow);

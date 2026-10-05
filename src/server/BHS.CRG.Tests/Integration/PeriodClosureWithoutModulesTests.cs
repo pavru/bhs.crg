@@ -36,7 +36,13 @@ public class PeriodClosureWithoutModulesTests(IntegrationTestFixture fixture) : 
         var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
         var through = (await closures.TodayAsync()).AddDays(-10);
 
-        await closures.CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
+        // Перечень диалога без модулей пуст, но ЕСТЬ: отпечаток обязателен и тут, и в записи лежит
+        // «разделов нет», а не «перечень не записывался» (E1b, issue #1099).
+        var preview = await closures.PreviewAsync(new PreviewClosing(Contour.Company, through.AddDays(-30), through));
+        Assert.Empty(preview.Report.Sections);
+        var row = await closures.CloseAsync(
+            new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null, preview.Stamp));
+        Assert.Empty(BHS.CRG.Domain.Periods.ClosingReport.FromJson(row.Report)!.Sections);
 
         Assert.Equal(through, (await closures.LedgerAsync()).Company);
     }

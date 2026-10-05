@@ -25,6 +25,7 @@ public class PeriodClosureConfiguration : IEntityTypeConfiguration<PeriodClosure
 
         b.Property(e => e.ByName).IsRequired().HasMaxLength(PeriodClosure.ByNameMax);
         b.Property(e => e.Reason).HasMaxLength(PeriodClosure.ReasonMax);
+        b.Property(e => e.Report).HasColumnType("jsonb");
 
         // Уникального индекса «одно закрытие на границу» нет: гонку двух закрывающих решает замок
         // службы и сверка увиденной границы, а у контура «компания» индекс и не ловил бы ничего —

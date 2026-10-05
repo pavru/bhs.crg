@@ -63,6 +63,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         Dictionary<string, string> providedByModules = new()
         {
             [nameof(IModuleJobHandler)] = "обработчик фоновой операции регистрирует сам модуль",
+            [nameof(IModuleClosingReport)] = "раздел диалога закрытия периода регистрирует сам модуль",
         };
 
         using var scope = host.Services.CreateScope();

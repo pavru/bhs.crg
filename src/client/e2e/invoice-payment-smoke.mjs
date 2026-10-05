@@ -142,9 +142,10 @@ await api('POST', `/costs/invoices/${lockedId}/paid`, { paidOn, document: 'п/п
 const movedNumber = `ОПЛ-П-${stamp}`;
 await invoice(movedNumber, 300, 300);
 
-await api('POST', '/periods/close', {
-  contour: 'construction', constructionId: site.id, from: shift(through, -30), through, ifMatch: 'none',
-});
+// Закрывают так же, как экран: сначала перечень диалога, затем его отпечаток — без него сервер откажет.
+const closing = { contour: 'construction', constructionId: site.id, from: shift(through, -30), through };
+const shown = await api('POST', '/periods/close/preview', closing);
+await api('POST', '/periods/close', { ...closing, ifMatch: 'none', report: shown.stamp });
 closedThrough = through;
 
 // ── 2. Перенос назван до сохранения, и записанное равно показанному ────────────────────────────────

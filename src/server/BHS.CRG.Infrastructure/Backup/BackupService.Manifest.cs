@@ -216,7 +216,7 @@ public partial class BackupService
                 r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray(),
             PeriodClosures: full ? closures.Select(c => new BackupPeriodClosure(
                 c.Id, c.Kind.ToString(), c.Contour.ToString(), c.ConstructionId, c.From, c.Through,
-                c.At, c.ById, c.ByName, c.Reason, c.CancelsId)).ToArray() : null,
+                c.At, c.ById, c.ByName, c.Reason, c.CancelsId, c.Report)).ToArray() : null,
             AppSettings: appSettings.Select(a => new BackupAppSetting(a.Key, a.Value, a.UpdatedAt)).ToArray());
     }
 }

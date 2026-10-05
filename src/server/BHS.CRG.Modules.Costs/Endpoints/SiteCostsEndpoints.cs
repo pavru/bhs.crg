@@ -88,13 +88,7 @@ public static class SiteCostsEndpoints
         if (site is { } asked && known.Sites.All(s => s.Id != asked))
             throw new NotFoundException("Такой стройки нет: её удалили либо ссылка устарела.");
 
-        // Оплаченные неотклонённые счета, у которых в период вошла хоть часть денег; у стройки — её доля.
-        // Те же слова, какими счета отберёт ссылка в реестр, — иначе число отчёта и итог реестра разойдутся.
-        var paid = db.Invoices.AsNoTracking().Where(i =>
-            i.Payment == InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
-            && (db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.AccountingOn >= first && a.AccountingOn <= through
-                                               && (site == null || a.ConstructionId == site))
-                || (site == null && i.RemainderAccountingOn >= first && i.RemainderAccountingOn <= through)));
+        var paid = Paid(db, first, through, site);
         var unpaid = db.Invoices.AsNoTracking().Where(i =>
             i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
             && (site == null || db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site)));
@@ -144,8 +138,23 @@ public static class SiteCostsEndpoints
             result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown));
     }
 
+    /// <summary>
+    /// Оплаченные счета, у которых в дни периода вошла хоть одна учётная дата; у стройки — дата её доли.
+    /// Неотклонённые — те же слова, какими счета отберёт ссылка в реестр: иначе число отчёта и итог
+    /// реестра разойдутся.
+    /// </summary>
+    /// <param name="rejectedToo">И отклонённые: в затраты они не входят, но закрытый период запирает и
+    /// их (см. <see cref="ClosedPeriodGuard" />) — так считает диалог закрытия.</param>
+    internal static IQueryable<Invoice> Paid(
+        CostsDbContext db, DateOnly first, DateOnly through, Guid? site, bool rejectedToo = false) =>
+        db.Invoices.AsNoTracking().Where(i =>
+            i.Payment == InvoicePaymentState.Paid && (rejectedToo || i.State != InvoiceState.Rejected)
+            && (db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.AccountingOn >= first && a.AccountingOn <= through
+                                               && (site == null || a.ConstructionId == site))
+                || (site == null && i.RemainderAccountingOn >= first && i.RemainderAccountingOn <= through)));
+
     /// <summary>Счета отчёта с их деньгами — тем же читателем, что у реестра, — и НДС их строк.</summary>
-    private static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
+    internal static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
         CostsDbContext db, IQueryable<Invoice> invoices, CancellationToken ct)
     {
         var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment }).ToListAsync(ct);
