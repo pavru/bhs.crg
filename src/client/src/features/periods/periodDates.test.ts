@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
+import { inverted, ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 
 describe('даты закрытия периода', () => {
+  it('период «наоборот» — конец раньше начала; неназванная дата таким не считается', () => {
+    expect(inverted('2026-10-01', '2026-09-30')).toBe(true);
+    expect(inverted('2026-09-01', '2026-09-30')).toBe(false);
+    expect(inverted('2026-09-30', '2026-09-30')).toBe(false);
+    expect(inverted('', '2026-09-30')).toBe(false);
+    expect(inverted('2026-10-01', '')).toBe(false);
+  });
+
   it('показывает день по-русски, не сдвигая его поясом', () => {
     expect(ruDate('2026-09-30')).toBe('30.09.2026');
     expect(ruDate('2026-01-01')).toBe('01.01.2026');

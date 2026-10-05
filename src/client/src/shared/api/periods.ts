@@ -113,13 +113,17 @@ function contourOf(state: PeriodContourState) {
  * Что покажет диалог закрытия (задача E1b, issue #1099): перечень по модулям и отпечаток увиденного.
  * Всегда с сервера и без кеша между открытиями диалога: закрывают по тому, что есть сейчас.
  */
-export function useClosingPreview(state: PeriodContourState, from: string, through: string, enabled = true) {
+export function useClosingPreview(state: PeriodContourState, from: string, through: string) {
   return useQuery({
     queryKey: [...KEY, CLOSING, state.constructionId, from, through],
     queryFn: () => apiClient
       .post<ClosingPreview>('/periods/close/preview', { ...contourOf(state), from, through })
       .then(r => r.data),
-    enabled: enabled && !!from && !!through,
+    // Перечень за период «наоборот» не спрашиваем: сервер на него только откажет. Инвариант стоит ЗДЕСЬ,
+    // а не в обработчике кнопки: начало периода сдвигается под открытым диалогом любым путём — своим
+    // закрытием, чужим, перечитыванием состояния по фокусу окна, — и отказ появлялся бы красной строкой
+    // поверх того, что на самом деле удалось (ревью PR #1212). Что даты перепутаны, говорит диалог.
+    enabled: !!from && !!through && from <= through,
     // Смена даты не гасит перечень: прежние числа стоят приглушёнными, пока не пришли новые.
     placeholderData: keepPreviousData,
     staleTime: 0,
@@ -137,10 +141,16 @@ export function useClosePeriod() {
         ...contourOf(v.state), from: v.from, through: v.through, ifMatch: seen(v.state), report: v.report,
       }),
     // И при отказе тоже: 409 «границу тем временем изменили» или «данные изменились» означает, что на
-    // экране устаревшее, — перечень диалога перечитывается этим же сбросом.
+    // экране устаревшее, — перечень диалога перечитывается этим же сбросом, и mutateAsync его дожидается:
+    // сообщение об отказе появляется уже рядом со свежим перечнем.
     // ⚠️ А после УСПЕХА перечень не перечитываем: диалог ещё открыт (mutateAsync ждёт этот сброс), и
     // запрос перечня за только что закрытые дни получил бы отказ «уже закрыт» — человек увидел бы
     // красное «Без перечня закрыть нельзя» поверх удавшегося закрытия (ревью PR #1201).
+    //
+    // Это запрет для запроса С ПРЕЖНИМИ датами: в момент сброса состояние контура ещё не перечитано, и
+    // он активен. Когда оно перечитается, начало периода сдвинется и ключ запроса сменится — тот запрос
+    // выключает уже условие «начало не позже конца» в useClosingPreview. Нужны оба: один без другого
+    // оставляет по запросу.
     onSettled: (_data, error) => qc.invalidateQueries({
       queryKey: KEY,
       predicate: q => !!error || q.queryKey[1] !== CLOSING,

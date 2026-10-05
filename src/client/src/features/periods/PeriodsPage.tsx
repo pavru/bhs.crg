@@ -14,7 +14,7 @@ import {
   usePeriods, usePeriodHistory, useClosePeriod, useReopenPeriod, useClosingPreview,
   type PeriodContourState, type PeriodClosureRecord, type ClosingSection,
 } from '@/shared/api/periods';
-import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
+import { inverted, ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 import { ClosingSections } from './ClosingSections';
 import { unfinishedSummary, visiblyChanged } from './closing';
 
@@ -156,16 +156,12 @@ function CloseDialog({ state, name, today, onDone }: {
   // сравнивать уже не с чем.
   const [refused, setRefused] = useState<{ dates: string; sections: ClosingSection[] } | null>(null);
 
-  // Закрытие отправлено: перечень больше не спрашиваем. После успеха граница контура сдвигается, начало
-  // следующего периода оказывается ПОЗЖЕ выбранного конца, и диалог, не успевший закрыться, спросил бы
-  // перечень «наоборот» — сервер ответил бы отказом поверх удавшегося закрытия. Запрет перечитывать
-  // кеш (см. useClosePeriod) от этого не спасает: у запроса с новым началом другой ключ. Успевал ли
-  // запрос уйти, решала скорость машины — так живой прогон и краснел на раннере, а не на стенде.
-  const [sent, setSent] = useState(false);
-
   const from = state.expectedFrom ?? firstFrom;
   const dates = `${from}|${through}`;
-  const preview = useClosingPreview(state, from, through, !sent);
+  // Конец раньше начала: перечень за такие даты не спрашивается (см. useClosingPreview), и сказать об
+  // этом — дело диалога. Так бывает, когда период по этот день закрыли, пока диалог был открыт.
+  const backwards = inverted(from, through);
+  const preview = useClosingPreview(state, from, through);
   // Закрыть можно только то, что видел: перечень получен, он — про эти даты, а не про прежние, и он
   // сейчас на экране. Упавший перезапрос оставляет прежние data, а показывает уже отказ — отпечаток
   // того, чего на экране нет, подтверждать нечем.
@@ -191,21 +187,21 @@ function CloseDialog({ state, name, today, onDone }: {
             onClick={async () => {
               setError(null);
               const shown = seen!;
-              setSent(true);
+              // Под «не удалось закрыть» — только само закрытие. Сбой после него (уведомление, закрытие
+              // диалога) отказом закрытия не является, и называть его так нельзя: период уже закрыт.
               try {
                 await close.mutateAsync({ state, from, through, report: shown.stamp });
-                const left = unfinishedSummary(shown.sections);
-                toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
-                onDone();
               } catch (e) {
-                // Отказ — перечень снова нужен: он перечитается, как только запрос включится.
-                setSent(false);
                 // 409 — границу или данные тем временем изменили: перечень перечитывается, и новому есть
                 // с чем сравниться.
                 if ((e as { response?: { status?: number } })?.response?.status === 409)
                   setRefused({ dates, sections: shown.sections });
                 setError(apiError(e, 'Не удалось закрыть период.'));
+                return;
               }
+              const left = unfinishedSummary(shown.sections);
+              toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
+              onDone();
             }}>
             Закрыть период
           </Button>
@@ -228,7 +224,14 @@ function CloseDialog({ state, name, today, onDone }: {
             : <>Назовите последний день периода.</>}
           {!state.constructionId && ' Закрытие компании закрывает и все стройки.'}
         </p>
-        {preview.isError ? (
+        {backwards ? (
+          <p role="alert" className="text-[13px] text-danger">
+            {state.expectedFrom
+              ? <>Период по {ruDate(through)} уже закрыт: следующий начинается {ruDate(from)}. Назовите конец
+                не раньше этого дня.</>
+              : <>Конец периода раньше начала. Поправьте одну из дат.</>}
+          </p>
+        ) : preview.isError ? (
           <p role="alert" className="text-[13px] text-danger">
             {apiError(preview.error, 'Не удалось узнать, что попадёт в период.')} Без перечня закрыть нельзя.
           </p>
