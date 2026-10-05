@@ -60,12 +60,20 @@ export async function launchBrowser() {
   const pw = await import(pkg ? pathToFileURL(pkg).href : 'playwright');
   const { chromium } = pw.default ?? pw;   // пакет CJS — интероп кладёт экспорт в default
   const executablePath = findChromium();
+  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+
   // Язык браузера назван явно (задача N2, issue #1103): формат чисел и дат у «системного» языка
   // следует браузеру, а проверки сверяют текст экрана. Без этого прогон зелёный на машине
   // разработчика и красный на раннере, у которого язык английский.
-  return chromium.launch({
-    headless: true, args: [`--lang=${LOCALE}`], ...(executablePath ? { executablePath } : {}),
-  });
+  //
+  // ⚠️ Языком контекста, а не ключом запуска `--lang`: на Linux безголовый Chromium ключ не слушает
+  // (проверено раннером — прогон остался английским), а язык контекста действует везде. Подставляется
+  // здесь, чтобы ни одному прогону не пришлось о нём помнить; названный прогоном язык сильнее.
+  for (const open of ['newContext', 'newPage']) {
+    const original = browser[open].bind(browser);
+    browser[open] = (options = {}) => original({ locale: LOCALE, ...options });
+  }
+  return browser;
 }
 
 /**
