@@ -1,4 +1,5 @@
 import type { InvoiceDuplicate, InvoiceRequisites } from '@/shared/api/invoices';
+import { formatMoney } from '@/shared/utils/money';
 
 /**
  * Правила формы счёта, отделённые от разметки (задача C1, issue #1076, ТЗ COST-6.2).
@@ -174,6 +175,5 @@ export function formatDate(iso: string): string {
   return day && month && year ? `${day}.${month}.${year}` : iso;
 }
 
-export function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
-}
+// Формат рублей — общий: им пишет и экран ядра (диалог закрытия периода).
+export { formatMoney };

@@ -80,9 +80,13 @@ public interface IClosingReports
 {
     /// <param name="from">Первый день, который закрытие закроет ВПЕРВЫЕ; <c>null</c> — у контура ещё
     /// ничего не закрыто, и закрывается всё по <paramref name="through" />.</param>
+    /// <param name="closedAhead">Стройки, чьи дни по названную дату уже закрыты их собственным закрытием
+    /// (<see cref="PeriodLedger.ClosedAheadOfCompany" />); у закрытия стройки — пусто.</param>
     /// <returns>Раздел на каждый включённый модуль, которому есть что сказать. Отказ модуля — отказ, а
     /// не пропущенный раздел: пропуск выглядел бы как «незавершённого нет».</returns>
-    Task<ClosingReport> CollectAsync(PeriodContour contour, DateOnly? from, DateOnly through, CancellationToken ct = default);
+    Task<ClosingReport> CollectAsync(
+        PeriodContour contour, DateOnly? from, DateOnly through, IReadOnlyDictionary<Guid, DateOnly> closedAhead,
+        CancellationToken ct = default);
 }
 
 /// <inheritdoc cref="ClosePeriod" />

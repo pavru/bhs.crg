@@ -209,4 +209,70 @@ public partial class InvoicePaymentTests
         Assert.Equal(Line(byLate, "frozen", "entering").Count - Line(byEarly, "frozen", "entering").Count, Line(rest, "frozen", "entering").Count);
         Assert.Equal(Line(byLate, "frozen", "entering").Amount - Line(byEarly, "frozen", "entering").Amount, Line(rest, "frozen", "entering").Amount);
     }
+
+    /// <summary>
+    /// «Впервые» — не «с границы компании по дату» (ревью PR #1201). Стройка, закрытая своим закрытием
+    /// дальше компании, свои дни уже держит: закрывая компанию, её долю второй раз не называют — ни
+    /// деньгами, ни числом запираемых счетов. И «не разнесён» — только остаток закрываемых дней: счёт с
+    /// долями в периоде и остатком, перенесённым за него, здесь завершён.
+    /// </summary>
+    [Fact]
+    public async Task Уже_закрытые_дни_стройки_и_перенесённый_остаток_в_перечень_не_идут()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (from, through, paidOn) = (today.AddDays(-30), today.AddDays(-1), today.AddDays(-5));
+
+        var before = await ClosingPreviewAsync(admin, from, through);
+        // Сколько счетов запрётся: строка «Запрутся целиком» есть, только когда число другое.
+        static int Locked(JsonElement preview) =>
+            Line(preview, "frozen", "locked") is { Count: > 0 } locked ? locked.Count : Line(preview, "frozen", "entering").Count;
+        async Task<(int Count, decimal? Amount, int Unsettled, int Locked)> GrownAsync()
+        {
+            var now = await ClosingPreviewAsync(admin, from, through);
+            return (Line(now, "frozen", "entering").Count - Line(before, "frozen", "entering").Count,
+                Line(now, "frozen", "entering").Amount - Line(before, "frozen", "entering").Amount,
+                Line(now, "unfinished", "unsettled").Count - Line(before, "unfinished", "unsettled").Count,
+                Locked(now) - Locked(before));
+        }
+
+        // Счёт на 100 000: 40 000 на стройку А и 60 000 на Б, оплачен в периоде; остаток в 500 ₽ — уже
+        // за периодом. В период входят доли, а незавершённым счёт не назван.
+        var (invoice, a, b) = await TwoSitesAsync(admin);
+        await OkAsync(await admin.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        await LeaveRemainderAsync(invoice, today);
+        Assert.Equal((1, 100_000m, 0, 1), await GrownAsync());
+
+        // А остаток в самих закрываемых днях — «не разнесён».
+        await LeaveRemainderAsync(invoice, paidOn);
+        Assert.Equal((1, 100_500m, 1, 1), await GrownAsync());
+        await LeaveRemainderAsync(invoice, today);
+
+        // Стройку А закрыли своим закрытием по день оплаты: её доля уже заперта, компания закроет впервые
+        // только долю Б. Счёт всё ещё запирается — долей Б.
+        await CloseAsync(a, paidOn);
+        Assert.Equal((1, 60_000m, 0, 1), await GrownAsync());
+
+        // Закрыта и Б — от счёта в закрываемых впервые днях не осталось ничего.
+        await CloseAsync(b, paidOn);
+        Assert.Equal((0, 0m, 0, 0), await GrownAsync());
+    }
+
+    /// <summary>
+    /// Предпросмотр отказывает теми же словами, что закрытие: стройки нет — «не найдена» сразу, а не
+    /// перечень с открытой кнопкой и отказ по её нажатию.
+    /// </summary>
+    [Fact]
+    public async Task Перечень_по_несуществующей_стройке_отказ_как_у_закрытия()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/periods/close/preview",
+            Closing(today.AddDays(-30), today.AddDays(-1), site: Guid.NewGuid()));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("Стройка не найдена", await ErrorAsync(response));
+    }
 }

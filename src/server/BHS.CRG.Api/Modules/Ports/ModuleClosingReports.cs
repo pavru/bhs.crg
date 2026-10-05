@@ -22,7 +22,8 @@ public sealed class ModuleClosingReports(IEnumerable<IModuleClosingReport> repor
     : IClosingReports
 {
     public async Task<ClosingReport> CollectAsync(
-        PeriodContour contour, DateOnly? from, DateOnly through, CancellationToken ct = default)
+        PeriodContour contour, DateOnly? from, DateOnly through, IReadOnlyDictionary<Guid, DateOnly> closedAhead,
+        CancellationToken ct = default)
     {
         var byModule = reports.ToLookup(r => r.Module, StringComparer.Ordinal);
         foreach (var group in byModule)
@@ -37,7 +38,7 @@ public sealed class ModuleClosingReports(IEnumerable<IModuleClosingReport> repor
                     string.Join(", ", group.Select(r => r.GetType().FullName)) + ". Раздел у модуля один.");
         }
 
-        var scope = new ModuleClosingScope(contour.ConstructionId, from, through);
+        var scope = new ModuleClosingScope(contour.ConstructionId, from, through, closedAhead);
         var sections = new List<ClosingSection>();
         foreach (var code in modules.Codes)
         {

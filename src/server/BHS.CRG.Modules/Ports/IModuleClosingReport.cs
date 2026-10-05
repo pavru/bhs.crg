@@ -5,7 +5,19 @@ namespace BHS.CRG.Modules.Ports;
 /// <param name="From">Первый день, который закрытие закроет ВПЕРВЫЕ; <c>null</c> — у контура ещё ничего
 /// не закрыто, и закрывается всё по <paramref name="Through" /> включительно.</param>
 /// <param name="Through">Последний закрываемый день.</param>
-public sealed record ModuleClosingScope(Guid? ConstructionId, DateOnly? From, DateOnly Through);
+/// <param name="ClosedAhead">Стройки, закрытые СВОИМ закрытием дальше компании, — и по какой день
+/// включительно. Только у закрытия компании; у закрытия стройки пусто. ⚠️ Их документы за эти дни уже
+/// заперты и в перечень не идут: отрезок «с <paramref name="From" /> по <paramref name="Through" />» для
+/// них закрывается впервые не целиком. Спрашивайте <see cref="ClosesAnew" />, а не сравнивайте даты сами.</param>
+public sealed record ModuleClosingScope(
+    Guid? ConstructionId, DateOnly? From, DateOnly Through, IReadOnlyDictionary<Guid, DateOnly> ClosedAhead)
+{
+    /// <summary>Закроет ли это закрытие день документа ВПЕРВЫЕ.</summary>
+    /// <param name="constructionId">Стройка, на которую лёг документ (его доля); <c>null</c> — не на стройку.</param>
+    public bool ClosesAnew(Guid? constructionId, DateOnly day) =>
+        (From is not { } from || day >= from) && day <= Through
+        && !(constructionId is { } site && ClosedAhead.TryGetValue(site, out var closed) && day <= closed);
+}
 
 /// <summary>Чем считают документы строки: «счёт», «счёта», «счетов» — склоняет ядро.</summary>
 public sealed record ModuleClosingUnit(string One, string Few, string Many);

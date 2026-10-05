@@ -1,5 +1,6 @@
 import { TriangleAlert } from 'lucide-react';
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
+import { formatMoney } from '@/shared/utils/money';
 
 /**
  * Перечень диалога закрытия периода: по разделу на модуль — что не завершено и что войдёт в закрытый
@@ -9,7 +10,10 @@ import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
  * останется как есть. «Войдёт в период» — справка. Правило даты — серой подписью раздела: по нему
  * человек понимает, почему счёт, выставленный в сентябре, попал в октябрь.
  *
- * Тексты строк — модуля, а не экрана: экран ядра не знает, что такое «счёт».
+ * Тексты строк — модуля, а не экрана: экран ядра не знает, что такое «счёт». Поэтому и о скрытых
+ * суммах сказано без названия права: право называет модуль, и у другого модуля оно будет другим.
+ *
+ * Тот же перечень показывает «История» — из записи о закрытии.
  */
 export function ClosingSections({ sections, stale }: { sections: ClosingSection[]; stale?: boolean }) {
   if (sections.length === 0)
@@ -29,7 +33,7 @@ export function ClosingSections({ sections, stale }: { sections: ClosingSection[
             empty="В эти дни ничего не попадает — замораживать нечего." />
 
           {section.amountsHidden && (
-            <p className="mt-1.5 text-[12px] text-fg3">Суммы не показаны: у вас нет права на отчёты по затратам.</p>
+            <p className="mt-1.5 text-[12px] text-fg3">Суммы не показаны: у вас нет права их видеть.</p>
           )}
         </section>
       ))}
@@ -51,7 +55,7 @@ function Group({ title, lines, empty, warn }: { title: string; lines: ClosingLin
                 {warn && <TriangleAlert size={13} className="shrink-0 self-center text-warning" aria-hidden />}
                 <span>
                   {line.text}: <span className="tabular-nums font-medium">{line.counted}</span>
-                  {line.amount !== null && <span className="tabular-nums"> на {money(line.amount)}</span>}
+                  {line.amount !== null && <span className="tabular-nums"> на {formatMoney(line.amount)}</span>}
                 </span>
               </div>
               {line.note && <p className={`text-[12px] text-fg3 ${warn ? 'pl-5' : ''}`}>{line.note}</p>}
@@ -62,6 +66,3 @@ function Group({ title, lines, empty, warn }: { title: string; lines: ClosingLin
     </div>
   );
 }
-
-const money = (amount: number) =>
-  `${amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;

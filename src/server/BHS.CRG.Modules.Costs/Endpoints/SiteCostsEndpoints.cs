@@ -157,7 +157,7 @@ public static class SiteCostsEndpoints
     internal static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
         CostsDbContext db, IQueryable<Invoice> invoices, CancellationToken ct)
     {
-        var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment }).ToListAsync(ct);
+        var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment, i.State }).ToListAsync(ct);
         var owners = invoices.Select(i => i.Id);
         var money = await InvoiceMoney.ReadAsync(db,
             [.. heads.Select(h => new InvoiceHead(h.Id, h.Total, h.RemainderAccountingOn, h.Payment == InvoicePaymentState.Paid))], owners, null, ct);
@@ -168,7 +168,7 @@ public static class SiteCostsEndpoints
 
         return (
             [.. heads.Select(h => new CostInvoice(h.Id, h.SupplierId, h.Total, h.VatTotal, unmatched.Contains(h.Id), vatByLines.Contains(h.Id),
-                money.GetValueOrDefault(h.Id) ?? []))],
+                money.GetValueOrDefault(h.Id) ?? [], h.State == InvoiceState.Parsed))],
             lines.ToDictionary(l => l.Id, l => new LineVat(l.Amount, l.VatAmount)));
     }
 

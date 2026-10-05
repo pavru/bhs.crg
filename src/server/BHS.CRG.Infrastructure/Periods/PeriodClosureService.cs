@@ -40,8 +40,16 @@ public sealed class PeriodClosureService(
     /// <summary>Сколько закрытие ждёт начатые записи модулей, прежде чем отказать.</summary>
     private const string LockTimeout = "5s";
 
-    public async Task<PeriodLedger> LedgerAsync(CancellationToken ct = default) =>
-        PeriodLedger.From(await db.PeriodClosures.AsNoTracking().ToListAsync(ct));
+    public async Task<PeriodLedger> LedgerAsync(CancellationToken ct = default)
+    {
+        // Без перечня диалога (Report): границы спрашивает каждая запись модуля в учёт, а перечень —
+        // jsonb с текстами и суммами на каждое закрытие. Читает его только «История».
+        var rows = await db.PeriodClosures.AsNoTracking()
+            .Select(r => new { r.Id, r.Kind, r.Contour, r.ConstructionId, r.From, r.Through, r.At, r.ById, r.ByName, r.Reason, r.CancelsId })
+            .ToListAsync(ct);
+        return PeriodLedger.From(rows.Select(r => PeriodClosure.Restore(
+            r.Id, r.Kind, r.Contour, r.ConstructionId, r.From, r.Through, r.At, r.ById, r.ByName, r.Reason, r.CancelsId)));
+    }
 
     public async Task<IReadOnlyList<Guid>> ConstructionsAsync(CancellationToken ct = default) =>
         await db.Constructions.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Id).ToListAsync(ct);
@@ -56,19 +64,27 @@ public sealed class PeriodClosureService(
 
     public async Task<ClosingPreview> PreviewAsync(PreviewClosing request, CancellationToken ct = default)
     {
+        // Стройки нет — отказ теми же словами, что у закрытия, и сразу: иначе диалог показал бы перечень,
+        // открыл кнопку, и «стройка не найдена» пришло бы только по её нажатию.
+        await ContourLabelAsync(request.Contour, ct);
         var ledger = await LedgerAsync(ct);
         ledger.EnsureCanClose(request.Contour, request.From, request.Through, await TodayAsync(ct));
 
-        var report = await reports.CollectAsync(request.Contour, FirstNewDay(ledger, request.Contour), request.Through, ct);
+        var report = await CollectAsync(ledger, request.Contour, request.Through, ct);
         return new(report, report.Stamp(request.Contour, request.From, request.Through));
     }
 
     /// <summary>
-    /// С какого дня закрытие закрывает ВПЕРВЫЕ: следующий после действующей границы контура. Не «С» из
-    /// запроса: у первого закрытия оно справочное — всё до него закрывается тоже.
+    /// Перечень по дням, которые закрытие закрывает ВПЕРВЫЕ: со следующего после действующей границы
+    /// контура — не с «С» из запроса (у первого закрытия оно справочное: всё до него закрывается тоже) — и
+    /// без дней строек, закрытых своим закрытием дальше компании.
     /// </summary>
-    private static DateOnly? FirstNewDay(PeriodLedger ledger, PeriodContour contour) =>
-        ledger.ClosedThrough(contour)?.AddDays(1);
+    private Task<ClosingReport> CollectAsync(PeriodLedger ledger, PeriodContour contour, DateOnly through, CancellationToken ct)
+    {
+        var from = ledger.ClosedThrough(contour)?.AddDays(1);
+        return reports.CollectAsync(contour, from, through,
+            contour.Kind == PeriodContourKind.Company ? ledger.ClosedAheadOfCompany(from) : new Dictionary<Guid, DateOnly>(), ct);
+    }
 
     public async Task<PeriodClosure> CloseAsync(ClosePeriod request, CancellationToken ct = default)
     {
@@ -86,7 +102,7 @@ public sealed class PeriodClosureService(
         // Перечень — заново и под замком: в запись ложится состояние на момент закрытия, а не то, что
         // прислал клиент. Отпечаток сверяет его с увиденным; расхождение — это деньги, которые «останутся
         // неверными», и человек подтверждал не их.
-        var report = await reports.CollectAsync(request.Contour, FirstNewDay(ledger, request.Contour), request.Through, ct);
+        var report = await CollectAsync(ledger, request.Contour, request.Through, ct);
         if (request.ReportSeen is { } seen && seen != report.Stamp(request.Contour, request.From, request.Through))
             throw new ConflictException(
                 "Пока диалог был открыт, данные изменились: в период попадает уже не то, что вы видели. " +

@@ -69,19 +69,30 @@ public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
     /// Перечень из записи. null — перечня у записи нет: закрытие сделано до E1b либо это отмена.
     /// Неразобранное — тоже null, а не отказ: «История» обязана открываться и с записью, приехавшей
     /// копией от другой версии.
+    ///
+    /// <para>⚠️ «Разобралось» — не «годно»: <c>{"sections":[{}]}</c> десериализуется без ошибки, а
+    /// разделом без строк и строкой без единицы счёта. Такой перечень уронил бы «Историю» целиком, на
+    /// первой же записи (ревью PR #1201), — поэтому годность проверяется здесь, до последнего поля.</para>
     /// </summary>
     public static ClosingReport? FromJson(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
         try
         {
-            return JsonSerializer.Deserialize<ClosingReport>(json, Json) is { Sections: not null } report ? report : null;
+            return JsonSerializer.Deserialize<ClosingReport>(json, Json) is { } report && Sound(report) ? report : null;
         }
         catch (JsonException)
         {
             return null;
         }
     }
+
+    // Типы объявлены ненулевыми, но десериализатор этого не знает: пропущенное поле — null.
+    private static bool Sound(ClosingReport? report) =>
+        report?.Sections is { } sections && sections.All(s =>
+            s is { Module: not null, Title: not null, DateRule: not null, Unfinished: not null, Frozen: not null }
+            && s.Unfinished.Concat(s.Frozen).All(l =>
+                l is { Key: not null, Text: not null, Unit: { One: not null, Few: not null, Many: not null } }));
 
     /// <summary>
     /// Отпечаток увиденного: контур, даты и весь перечень С СУММАМИ — и у того, кому суммы не

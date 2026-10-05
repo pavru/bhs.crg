@@ -79,6 +79,8 @@ export interface ClosingPreview {
 }
 
 const KEY = ['periods'] as const;
+/** Второй сегмент ключа у перечня диалога закрытия. */
+const CLOSING = 'closing';
 
 export function usePeriods() {
   return useQuery({
@@ -111,7 +113,7 @@ function contourOf(state: PeriodContourState) {
  */
 export function useClosingPreview(state: PeriodContourState, from: string, through: string) {
   return useQuery({
-    queryKey: [...KEY, 'closing', state.constructionId, from, through],
+    queryKey: [...KEY, CLOSING, state.constructionId, from, through],
     queryFn: () => apiClient
       .post<ClosingPreview>('/periods/close/preview', { ...contourOf(state), from, through })
       .then(r => r.data),
@@ -134,7 +136,13 @@ export function useClosePeriod() {
       }),
     // И при отказе тоже: 409 «границу тем временем изменили» или «данные изменились» означает, что на
     // экране устаревшее, — перечень диалога перечитывается этим же сбросом.
-    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+    // ⚠️ А после УСПЕХА перечень не перечитываем: диалог ещё открыт (mutateAsync ждёт этот сброс), и
+    // запрос перечня за только что закрытые дни получил бы отказ «уже закрыт» — человек увидел бы
+    // красное «Без перечня закрыть нельзя» поверх удавшегося закрытия (ревью PR #1201).
+    onSettled: (_data, error) => qc.invalidateQueries({
+      queryKey: KEY,
+      predicate: q => !!error || q.queryKey[1] !== CLOSING,
+    }),
   });
 }
 
