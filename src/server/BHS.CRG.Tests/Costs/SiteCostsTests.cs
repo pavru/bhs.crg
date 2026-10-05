@@ -199,4 +199,35 @@ public class SiteCostsTests
 
         Assert.Null(SiteCosts.Of([Split()], Lines, D(9, 1), D(10, 31), site: null, withVat: true).Lost);
     }
+
+    /// <summary>
+    /// Раздел, названный «без раздела», сливается со строкой долей на стройку целиком — и строка эта
+    /// остаётся «отсутствием названия» В ЛЮБОМ порядке долей. По первой попавшейся доле она была то
+    /// разделом (среди названных), то нет (последней) — от запроса к запросу.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Строка_слившихся_долей_не_зависит_от_порядка_их_чтения(bool reversed)
+    {
+        Guid literal = Guid.NewGuid(), twinA = Guid.NewGuid(), twinB = Guid.NewGuid();
+        PostedMoney[] money =
+        [
+            Money(Cable, AllocationTarget.Site(SiteA, literal), 4_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteA), 6_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteA, twinA), 20_000m, D(9, 15)),
+            Money(Cable, AllocationTarget.Site(SiteA, twinB), 10_000m, D(9, 15)),
+        ];
+        var invoice = new CostInvoice(Guid.NewGuid(), Supplier, 40_000m, null, false, true, reversed ? [.. money.Reverse()] : money);
+
+        SectionName Named(InvoiceAllocation part) =>
+            part.SectionId is { } id && id != literal ? new("А / тёзка", "тёзка", id)
+            : new("А / без раздела", "без раздела", part.SectionId);
+
+        var sections = SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), SiteA, withVat: true, section: Named).Sections;
+
+        Assert.Equal(
+            [("без раздела", (Guid?)null, 10_000m), ("тёзка", twinA < twinB ? twinA : twinB, 30_000m)],
+            sections.OrderBy(s => s.Section.Short, StringComparer.Ordinal).Select(s => (s.Section.Short, s.Section.Id, s.Figure.Amount)));
+    }
 }
