@@ -45,7 +45,7 @@ export function InvoiceObject({ view, locked }: {
       // Отметка версии — ТОГО вида, по которому решено «счёт не разнесён»: сосед успел разнести — запись
       // откажет, а не заменит его разноску молча.
       const stamp = view.allocation.stamp;
-      if (current.kind === 'none') await replace.mutateAsync({ id: view.id, state: { ...preview.apply, stamp } });
+      if (current.kind === 'none') await replace.mutateAsync({ id: view.id, seen: view.version, state: { ...preview.apply, stamp } });
       else {
         // Прежние объекты — колонками рядом с новым: предпросмотр показывает, что именно заменит «Применить».
         const columns = targetsOf(view).filter(t => !samePlace(t, place));

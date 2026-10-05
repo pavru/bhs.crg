@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import {
-  INVOICES_KEY, QK, type AllocationSummaryView, type InvoiceView, type LineAllocationView,
+  INVOICES_KEY, QK, rereadOnConflict, seenBy,
+  type AllocationSummaryView, type InvoiceView, type LineAllocationView,
 } from './invoices';
 
 /**
@@ -78,11 +79,12 @@ export function usePreviewAllocation() {
 export function useReplaceMatrix() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, state }: { id: string; state: MatrixState }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}/allocation`, state).then(r => r.data),
+    mutationFn: ({ id, seen, state }: { id: string; seen: string; state: MatrixState }) =>
+      apiClient.put<InvoiceView>(`/costs/invoices/${id}/allocation`, state, seenBy(seen)).then(r => r.data),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }

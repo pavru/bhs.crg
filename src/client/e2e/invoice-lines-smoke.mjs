@@ -310,6 +310,52 @@ try {
     if ((await page.getByRole('button', { name: new RegExp(`СЧ-Н${stamp}`) }).count()) !== 0)
       throw new Error('в отборе «Разобрать» остался счёт, у которого все строки разобраны');
   });
+  // ── 6а. Двое правят один счёт: второй получает отказ, а набранное остаётся (issue #1176) ──
+  //
+  // До правки сервер сверял версию, прочитанную тем же запросом, и второй затирал строки первого
+  // молча. Проверяется глазами человека: отказ назван, поле держит набранное, а «Перечитать счёт»
+  // показывает то, что лежит в базе. «Сосед» — запрос самого прогона: он называет свежую версию.
+  await check('чужая правка строк: сохранение отказывает, набранное цело, «Перечитать счёт» показывает сохранённое', async () => {
+    const number = `СЧ-В${stamp}`;
+    const created = await invoice(number);
+    const lines = `/costs/invoices/${created.id}/lines`;
+    await api('PUT', lines, { lines: [{ supplierText: 'первая строка', quantity: '1', price: '10' }] });
+    await open(number);
+
+    await cell('Количество', 1).fill('7');
+    await api('PUT', lines, { lines: [{ supplierText: 'строка соседа', quantity: '3', price: '10' }] });
+
+    const [refusal] = await Promise.all([
+      page.waitForResponse(r => r.url().endsWith(lines) && r.request().method() === 'PUT'),
+      page.getByRole('button', { name: 'Сохранить строки' }).click(),
+    ]);
+    if (refusal.status() !== 409) throw new Error(`устаревшие строки записались: ответ ${refusal.status()}`);
+
+    const notice = page.getByRole('alert').filter({ hasText: 'Счёт тем временем изменили' });
+    await notice.waitFor({ timeout: 10_000 });
+    if ((await cell('Количество', 1).inputValue()) !== '7')
+      throw new Error('после отказа набранное количество пропало из поля');
+
+    await page.getByRole('button', { name: 'Перечитать счёт' }).click();
+    await notice.waitFor({ state: 'detached', timeout: 10_000 });
+    const shown = [await cell('Наименование в счёте', 1).inputValue(), await cell('Количество', 1).inputValue()];
+    if (shown.join('|') !== 'строка соседа|3') throw new Error(`после перечитывания на экране не сохранённое: ${shown}`);
+
+    // Версия у счёта одна, а части разные: сосед поправил ШАПКУ — строки, которых он не трогал,
+    // сохраняются. Без сверки со свежим видом это был бы отказ на ровном месте.
+    await cell('Количество', 1).fill('9');
+    const seenByNeighbour = await api('GET', `/costs/invoices/${created.id}`);
+    await api('PUT', `/costs/invoices/${created.id}`,
+      { requisites: { ...seenByNeighbour.requisites, 'Назначение': 'правка соседа' } });
+
+    const [accepted] = await Promise.all([
+      page.waitForResponse(r => r.url().endsWith(lines) && r.request().method() === 'PUT'),
+      page.getByRole('button', { name: 'Сохранить строки' }).click(),
+    ]);
+    if (accepted.status() !== 200)
+      throw new Error(`правка шапки соседом отказала сохранению строк: ответ ${accepted.status()}`);
+  });
+
   // ── 7. Неполный список позиций НАЗВАН неполным ───────────────────────────────
   //
   // Отсечение, о котором промолчали, читается как «такой позиции нет» — и человек заводит вторую

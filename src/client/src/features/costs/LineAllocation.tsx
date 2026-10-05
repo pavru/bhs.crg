@@ -4,8 +4,12 @@ import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
-import { useReplaceAllocation, type AllocationSummaryView, type InvoiceLineView } from '@/shared/api/invoices';
+import {
+  useFreshInvoice, useReplaceAllocation, type AllocationSummaryView, type InvoiceLineView,
+} from '@/shared/api/invoices';
 import { formatMoney, formatQuantity } from '@/shared/format/format';
+import { useDraftBase } from './draftBase';
+import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import {
   allocationStatus, emptyPart, estimateRemainder, toPartDrafts, toPartsPayload, type PartDraft,
@@ -24,8 +28,9 @@ import { usePlaces } from './places';
  * на СОХРАНЁННУЮ строку: у новой строки нет идентификатора, а у изменённой количество в форме уже не то,
  * что на сервере, — и остаток, посчитанный по одному, разошёлся бы с отказом, посчитанным по другому.</p>
  */
-export function LineAllocationCell({ invoiceId, line, number, blocked, locked }: {
+export function LineAllocationCell({ invoiceId, version, line, number, blocked, locked }: {
   invoiceId: string;
+  version: string;
   line: InvoiceLineView | undefined;
   number: number;
   /** Причина, по которой разносить сейчас нельзя (строки не сохранены), либо `null`. */
@@ -55,7 +60,7 @@ export function LineAllocationCell({ invoiceId, line, number, blocked, locked }:
         className={`text-left underline decoration-dotted underline-offset-2 disabled:no-underline ${tone}`}>
         {status.text}
       </button>
-      {open && <LineAllocationDialog invoiceId={invoiceId} line={line} number={number} canEdit={canEdit}
+      {open && <LineAllocationDialog invoiceId={invoiceId} version={version} line={line} number={number} canEdit={canEdit}
         onClose={() => setOpen(false)} />}
     </td>
   );
@@ -68,8 +73,15 @@ export function LineAllocationCell({ invoiceId, line, number, blocked, locked }:
  * <p>⚠️ Строка «не разнесено» стоит ВСЕГДА, в том числе при нуле (ТЗ COST-13): исчезающая строка
  * остатка не отличима от забытой.</p>
  */
-function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
+/** Из чего собран черновик частей: строка и её разноска. Строки не стало — подпись своя, ни с чем не совпадёт. */
+function partsSignature(line: InvoiceLineView | undefined): string {
+  return line === undefined ? 'строки нет'
+    : JSON.stringify([line.quantity, line.amount, line.unit, line.allocation.mode, line.allocation.parts]);
+}
+
+function LineAllocationDialog({ invoiceId, version, line, number, canEdit, onClose }: {
   invoiceId: string;
+  version: string;
   line: InvoiceLineView;
   number: number;
   /** Без права разноски диалог — только для чтения: ни полей, ни «Сохранить», а не кнопка с отказом. */
@@ -82,6 +94,22 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
     return saved.length > 0 ? saved : [emptyPart()];
   });
   const [dirty, setDirty] = useState(false);
+
+  // Черновик частей собран по строке и её разноске: изменили их — он устарел (issue #1176).
+  const fresh = () => {
+    const saved = toPartDrafts(line.allocation);
+    return saved.length > 0 ? saved : [emptyPart()];
+  };
+  const base = useDraftBase(version, partsSignature(line), dirty);
+  const readFresh = useFreshInvoice();
+  if (base.rebuild) setDrafts(fresh());
+
+  function reread() {
+    setDrafts(fresh());
+    setDirty(false);
+    base.rebase();
+  }
+
   const places = usePlaces();
   const replace = useReplaceAllocation();
   const toast = useToast();
@@ -99,7 +127,9 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
 
   async function save() {
     try {
-      await replace.mutateAsync({ id: invoiceId, lineId: line.id, parts: toPartsPayload(drafts, mode) });
+      const fresh = await readFresh(invoiceId);
+      const seen = base.seenAgainst(fresh.version, partsSignature(fresh.lines.find(l => l.id === line.id)));
+      await replace.mutateAsync({ id: invoiceId, seen, lineId: line.id, parts: toPartsPayload(drafts, mode) });
       onClose();
     } catch (e) {
       toast.apiError(e, 'Разноска не сохранена');
@@ -127,6 +157,7 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
           )}
         </>
       )}>
+      {base.stale && <div className="mb-3"><StaleInvoiceNotice what="части разноски" onReread={reread} /></div>}
       <table className="w-full text-xs">
         <thead className="text-fg4">
           <tr className="text-left">

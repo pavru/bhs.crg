@@ -10,7 +10,7 @@ import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
 import {
-  useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
+  useAttachInvoiceScan, useConfirmInvoiceFields, useFreshInvoice, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
@@ -20,6 +20,8 @@ import {
 } from './invoiceFields';
 import { formatDate } from '@/shared/format/format';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
+import { useDraftBase } from './draftBase';
+import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import { ScanUploadButton } from './InvoiceScanPanel';
@@ -63,6 +65,19 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
 
+  // Правки шапки лежат поверх вида (issue #1176). Вид обновился, а поля, которые человек правит,
+  // остались прежними — правки в силе. Изменили именно их — поле на экране показывает набранное, а не
+  // чужое значение, и сохранение затёрло бы то, чего человек не видел: это и есть «устарело».
+  const fieldsSignature = (of: InvoiceView) =>
+    JSON.stringify(Object.keys(edits).sort().map(key => [key, of.requisites[key]]));
+  const base = useDraftBase(view.version, fieldsSignature(view), dirty);
+  const readFresh = useFreshInvoice();
+
+  function reread() {
+    setEdits({});
+    base.rebase();
+  }
+
   // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
   const closed = view.payment.lockedBy !== null;
   // Без права вводить счета (бухгалтер) форма читается так же, как запертая: действий записи нет вовсе,
@@ -83,7 +98,13 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   /** @returns сохранилось ли: уходить со страницы после отказа нельзя — правки бы пропали. */
   async function save(): Promise<boolean> {
     try {
-      await update.mutateAsync({ id: view.id, requisites: toRequisites(view.requisites, edits) });
+      // Правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает таким, каким оно
+      // лежит сейчас, а не каким было на экране минуту назад.
+      const fresh = await readFresh(view.id);
+      await update.mutateAsync({
+        id: view.id, seen: base.seenAgainst(fresh.version, fieldsSignature(fresh)),
+        requisites: toRequisites(fresh.requisites, edits),
+      });
       setEdits({});
       return true;
     } catch (e) {
@@ -98,7 +119,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   async function confirmBlock(block: InvoiceBlock) {
     const fields = unconfirmedInBlock(block, view.unconfirmed);
     if (fields.length === 0) return;
-    try { await confirm.mutateAsync({ id: view.id, fields }); }
+    try { await confirm.mutateAsync({ id: view.id, seen: view.version, fields }); }
     catch (e) { toast.apiError(e, 'Метки не сняты'); }
   }
 
@@ -110,6 +131,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
+        {base.stale && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
         <div className="flex items-center gap-2 flex-wrap">
           <StateChip text={asInput(view.requisites[K.state])} />
           <StateChip text={view.payment.paid && view.payment.paidOn
@@ -130,7 +152,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           {canEdit && !(closed && scan !== null) && (
             <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
               onPick={file => {
-                attach.mutateAsync({ id: view.id, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
+                attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
               }} />
           )}
           {!locked && (

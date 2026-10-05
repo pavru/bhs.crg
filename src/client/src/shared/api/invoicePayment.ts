@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { INVOICES_KEY, QK, type InvoiceView } from './invoices';
+import { INVOICES_KEY, QK, rereadOnConflict, seenBy, type InvoiceView } from './invoices';
 
 /**
  * Оплата счёта (задача C5, issue #1082, ТЗ COST-4, COST-9, COST-16).
@@ -82,7 +82,7 @@ export function usePostedPayment(id: string, enabled: boolean) {
   });
 }
 
-function useInvoiceWrite<T>(send: (input: T) => Promise<InvoiceView>) {
+function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Promise<InvoiceView>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
@@ -90,23 +90,28 @@ function useInvoiceWrite<T>(send: (input: T) => Promise<InvoiceView>) {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
-/** Отметить оплату. `seen` — отметка расклада, который человек видел: разошлась — отказ 409. */
+/**
+ * Отметить оплату. `seen` — отметка расклада, который человек видел: разошлась — отказ 409.
+ * `version` — версия счёта (issue #1176); у оплаты она названа так, потому что `seen` здесь уже занято.
+ */
 export function usePayInvoice() {
-  return useInvoiceWrite(({ id, paidOn, document, seen }: {
-    id: string; paidOn: string; document: string | null; seen: string;
-  }) => apiClient.post<InvoiceView>(`/costs/invoices/${id}/paid`, { paidOn, document, seen }).then(r => r.data));
+  return useInvoiceWrite(({ id, version, paidOn, document, seen }: {
+    id: string; version: string; paidOn: string; document: string | null; seen: string;
+  }) => apiClient.post<InvoiceView>(`/costs/invoices/${id}/paid`, { paidOn, document, seen }, seenBy(version))
+    .then(r => r.data));
 }
 
 /** Поправить платёжный документ. Дату так не меняют — только отменой и новой отметкой. */
 export function useDescribePayment() {
-  return useInvoiceWrite(({ id, document }: { id: string; document: string | null }) =>
-    apiClient.put<InvoiceView>(`/costs/invoices/${id}/paid`, { document }).then(r => r.data));
+  return useInvoiceWrite(({ id, version, document }: { id: string; version: string; document: string | null }) =>
+    apiClient.put<InvoiceView>(`/costs/invoices/${id}/paid`, { document }, seenBy(version)).then(r => r.data));
 }
 
 export function useCancelPayment() {
-  return useInvoiceWrite(({ id, reason }: { id: string; reason: string }) =>
-    apiClient.post<InvoiceView>(`/costs/invoices/${id}/unpaid`, { reason }).then(r => r.data));
+  return useInvoiceWrite(({ id, version, reason }: { id: string; version: string; reason: string }) =>
+    apiClient.post<InvoiceView>(`/costs/invoices/${id}/unpaid`, { reason }, seenBy(version)).then(r => r.data));
 }

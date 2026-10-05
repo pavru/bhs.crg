@@ -28,6 +28,19 @@ namespace BHS.CRG.Tests.Integration;
 public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
     /// <summary>
+    /// Клиент теста. Тот же, что даёт фабрика (переходы и куки), и ещё одно: правка счёта называет его
+    /// версию сама — см. <see cref="SeenInvoiceVersion" /> (issue #1176).
+    ///
+    /// <para>Здесь, а не в базовом классе тестов счёта: счёт правят проверки десятка классов (реестр,
+    /// таблицы модуля, занятые записи, журнал), и клиент каждый из них создаёт по-своему. Подставлять
+    /// версию в каждом значило бы однажды её забыть — и получить отказ, который читается как дефект.</para>
+    /// </summary>
+    public new HttpClient CreateClient() => CreateDefaultClient(
+        new Microsoft.AspNetCore.Mvc.Testing.Handlers.RedirectHandler(),
+        new Microsoft.AspNetCore.Mvc.Testing.Handlers.CookieContainerHandler(),
+        new SeenInvoiceVersion());
+
+    /// <summary>
     /// Имя тестовой БД — из переменной окружения <c>BHS_TEST_DB</c>, по умолчанию прежнее (issue #618).
     ///
     /// Разработка идёт в нескольких worktree одновременно, и прогоны в них пересекаются. База была

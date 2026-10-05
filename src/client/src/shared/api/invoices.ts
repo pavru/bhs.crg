@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 /**
@@ -162,6 +162,8 @@ export interface PaymentView {
 
 export interface InvoiceView {
   id: string;
+  /** Версия счёта: её называет каждая правка (`seen`), и устаревшая получает отказ 409 (issue #1176). */
+  version: string;
   documentTypeId: string;
   requisites: InvoiceRequisites;
   /** Ключи полей, заполненных распознаванием и не подтверждённых человеком. */
@@ -250,12 +252,51 @@ export function useInvoice(id: string | undefined) {
   });
 }
 
+/**
+ * Счёт, прочитанный СЕЙЧАС, — перед сохранением черновика (issue #1176).
+ *
+ * Версия у счёта одна на все его части, и вид на экране мог отстать: сосед сохранил шапку минуту назад,
+ * а кэш ещё прежний. Сохрани форма строки по версии из кэша — получила бы отказ, хотя её строки никто
+ * не трогал. Свежий вид отвечает на вопрос, который отказ задал бы всё равно: изменилась ли МОЯ часть.
+ */
+export function useFreshInvoice() {
+  const qc = useQueryClient();
+  return (id: string) => qc.fetchQuery({
+    queryKey: [QK, id],
+    queryFn: () => apiClient.get<InvoiceView>(`/costs/invoices/${id}`).then(r => r.data),
+    staleTime: 0,
+  });
+}
+
 /** Организации для выбора поставщика и плательщика — узкий список модуля. */
 export function useCostsOrganizations() {
   return useQuery({
     queryKey: ['costs-organizations'],
     queryFn: () => apiClient.get<CostsOrganization[]>('/costs/organizations').then(r => r.data),
   });
+}
+
+/**
+ * Правка называет версию счёта, по которой собрана (issue #1176): заголовок `If-Match`. Без него
+ * сервер отказывает 400, с устаревшей версией — 409 «счёт тем временем изменили».
+ *
+ * ⚠️ `seen` — версия вида, по которому собран ЧЕРНОВИК, а не «какая сейчас в кэше»: вид под формой
+ * обновляется сам, и свежая подпись под прежним черновиком затёрла бы чужую правку. Какую версию
+ * называть, решает форма (`useDraftBase`).
+ */
+export function seenBy(version: string) {
+  return { headers: { 'If-Match': version } };
+}
+
+/**
+ * Отказ 409 — счёт изменили: вид перечитывается сразу, чтобы форма узнала, ЧТО изменилось, и назвала
+ * это человеку. Без перечитывания он увидел бы отказ над экраном, на котором всё по-прежнему.
+ */
+export function rereadOnConflict(qc: QueryClient) {
+  return (error: unknown, input: { id: string }) => {
+    if ((error as { response?: { status?: number } })?.response?.status === 409)
+      void qc.invalidateQueries({ queryKey: [QK, input.id] });
+  };
 }
 
 export function useCreateInvoice() {
@@ -270,12 +311,13 @@ export function useCreateInvoice() {
 export function useUpdateInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, requisites }: { id: string; requisites: InvoiceRequisites }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}`, { requisites }).then(r => r.data),
+    mutationFn: ({ id, seen, requisites }: { id: string; seen: string; requisites: InvoiceRequisites }) =>
+      apiClient.put<InvoiceView>(`/costs/invoices/${id}`, { requisites }, seenBy(seen)).then(r => r.data),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
@@ -288,27 +330,29 @@ export function useUpdateInvoice() {
 export function useConfirmInvoiceFields() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: string[] }) =>
-      apiClient.post<InvoiceView>(`/costs/invoices/${id}/confirmed`, { fields }).then(r => r.data),
+    mutationFn: ({ id, seen, fields }: { id: string; seen: string; fields: string[] }) =>
+      apiClient.post<InvoiceView>(`/costs/invoices/${id}/confirmed`, { fields }, seenBy(seen)).then(r => r.data),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
 export function useAttachInvoiceScan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: string; file: File }) => {
+    mutationFn: ({ id, seen, file }: { id: string; seen: string; file: File }) => {
       const form = new FormData();
       form.append('file', file);
-      return apiClient.post<InvoiceView>(`/costs/invoices/${id}/scan`, form).then(r => r.data);
+      return apiClient.post<InvoiceView>(`/costs/invoices/${id}/scan`, form, seenBy(seen)).then(r => r.data);
     },
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
@@ -322,12 +366,13 @@ export function useAttachInvoiceScan() {
 export function useReplaceInvoiceLines() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, lines }: { id: string; lines: Record<string, unknown>[] }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines }).then(r => r.data),
+    mutationFn: ({ id, seen, lines }: { id: string; seen: string; lines: Record<string, unknown>[] }) =>
+      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines }, seenBy(seen)).then(r => r.data),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
@@ -348,13 +393,16 @@ export function useCostsConstructions() {
 export function useReplaceAllocation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, lineId, parts }: { id: string; lineId: string; parts: Record<string, unknown>[] }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines/${lineId}/allocation`, { parts })
+    mutationFn: ({ id, seen, lineId, parts }: {
+      id: string; seen: string; lineId: string; parts: Record<string, unknown>[];
+    }) =>
+      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines/${lineId}/allocation`, { parts }, seenBy(seen))
         .then(r => r.data),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
@@ -367,12 +415,13 @@ export function useReplaceAllocation() {
 export function useInvoiceState() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, to }: { id: string; to: 'parsed' | 'draft' }) =>
-      apiClient.post<InvoiceView>(`/costs/invoices/${id}/${to}`).then(r => r.data),
+    mutationFn: ({ id, seen, to }: { id: string; seen: string; to: 'parsed' | 'draft' }) =>
+      apiClient.post<InvoiceView>(`/costs/invoices/${id}/${to}`, null, seenBy(seen)).then(r => r.data),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
+    onError: rereadOnConflict(qc),
   });
 }
 
