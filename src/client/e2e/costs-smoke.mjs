@@ -244,7 +244,10 @@ await check('accountant-reads-the-allocation-and-cannot-change-it', async () => 
 await check('accountant-marks-payment', async () => {
   await openInvoice(accountant);
   accountant.screen = 'счёт: оплата';
-  await accountant.page.getByRole('button', { name: 'Отметить оплату' }).click();
+  const mark = accountant.page.getByRole('button', { name: 'Отметить оплату' });
+  if ((await mark.count()) === 0)
+    throw new Error('на экране счёта нет кнопки «Отметить оплату»: бухгалтеру нечем отметить оплату');
+  await mark.click();
   const dialog = accountant.page.getByRole('dialog');
   // Дату сервер предлагает сам (сегодня). Подпись кнопки зависит от закрытых периодов стенда:
   // «Отметить оплату» либо «…с переносом» — годятся обе, отказ вместо формы — нет.
