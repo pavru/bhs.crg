@@ -156,7 +156,7 @@ public static class PeriodEndpoints
             ClosingReport.HidesAmounts(mine, full)))];
 
         static ClosingLineDto Line(ClosingLine line) =>
-            new(line.Key, line.Text, line.Count, line.Unit.Text(line.Count), line.Amount, line.Note);
+            new(line.Key, line.Text, line.Count, line.Unit.Text(line.Count), line.Amount, line.Note, line.Link);
     }
 
     /// <param name="Stamp">Отпечаток увиденного — его называет закрытие (<c>report</c>).</param>
@@ -169,7 +169,9 @@ public static class PeriodEndpoints
 
     /// <param name="Counted">Число документов словами: «3 счёта».</param>
     /// <param name="Amount">Сумма; <c>null</c> — строка денег не несёт либо сумма закрыта правом.</param>
-    private record ClosingLineDto(string Key, string Text, int Count, string Counted, decimal? Amount, string? Note);
+    /// <param name="Link">Адрес экрана с этими документами, от корня приложения; <c>null</c> — ссылки нет.</param>
+    private record ClosingLineDto(
+        string Key, string Text, int Count, string Counted, decimal? Amount, string? Note, string? Link);
 
     private record PeriodsDto(DateOnly Today, ContourDto Company, ContourDto[] Constructions);
 

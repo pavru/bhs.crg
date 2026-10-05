@@ -9,6 +9,9 @@
 //   2а. `registry-names-the-accounting-month` — реестр показывает тот же учётный месяц и деньги в нём.
 //   2б. `registry-row-opens-the-allocation` — строка реестра раскрывается блоком «Разноска»; названное
 //       отбором помечено, и «В отборе» равно клетке «Сумма».
+//   1а. `closing-dialog-lists-what-it-records` — период закрывается ДИАЛОГОМ (E1b, issue #1099): он
+//       называет незавершённое и то, что войдёт в период, повторяет незавершённое у кнопки и в
+//       сообщении об успехе, после успеха не получает отказов, а «История» показывает тот же перечень.
 //   3. `locked-invoice-says-why` — оплаченный счёт, попавший в закрытый период: полоса с причиной,
 //      кнопок сохранения и отмены оплаты нет вовсе (а не «есть и получают 409»), и ни один запрос
 //      экрана отказа не получил.
@@ -142,11 +145,72 @@ await api('POST', `/costs/invoices/${lockedId}/paid`, { paidOn, document: 'п/п
 const movedNumber = `ОПЛ-П-${stamp}`;
 await invoice(movedNumber, 300, 300);
 
-// Закрывают так же, как экран: сначала перечень диалога, затем его отпечаток — без него сервер откажет.
-const closing = { contour: 'construction', constructionId: site.id, from: shift(through, -30), through };
-const shown = await api('POST', '/periods/close/preview', closing);
-await api('POST', '/periods/close', { ...closing, ifMatch: 'none', report: shown.stamp });
-closedThrough = through;
+// ── 1а. Период закрывают ДИАЛОГОМ: он называет, что войдёт и что не завершено, и это же ложится в запись ──
+await check('closing-dialog-lists-what-it-records', async () => {
+  await page.goto(`${BASE}/periods`, { waitUntil: 'networkidle' });
+  await settled(page);
+  // Первая строка со стройкой — в таблице контуров; в «Истории» она ниже.
+  await page.locator('tbody tr').filter({ hasText: SITE }).first().getByRole('button', { name: 'Закрыть период' }).click();
+  const dialog = page.getByRole('dialog');
+
+  // «По» — второе поле дат диалога; первое («С») у первого закрытия стройки правится тоже.
+  const [year, month, day] = through.split('-');
+  await dialog.getByPlaceholder('ДД').nth(1).fill(day);
+  await dialog.getByPlaceholder('ММ').nth(1).fill(month);
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes('/periods/close/preview') && r.ok()),
+    dialog.getByPlaceholder('ГГГГ').nth(1).fill(year).then(() => dialog.getByPlaceholder('ГГГГ').nth(1).blur()),
+  ]);
+  await dialog.getByText('Счета и накладные').waitFor({ timeout: 10_000 });
+  await settled(page);
+
+  const text = (await dialog.innerText()).replace(/[  ]/g, ' ');
+  if (process.env.SHOT_CLOSING) await page.screenshot({ path: process.env.SHOT_CLOSING });
+  // Счёт прогона оплачен в закрываемые дни и не разобран: он и «не завершён», и «войдёт в период».
+  const unsettled = text.match(/Оплачены в периоде, но не разобраны: (\d[^\n]*)/)?.[1]?.trim();
+  if (!unsettled) throw new Error(`диалог не назвал незавершённое: ${text.slice(0, 500)}`);
+  if (!/Оплаченные счета, вошедшие в период: \d/.test(text)) throw new Error(`диалог не назвал, что войдёт в период: ${text.slice(0, 500)}`);
+  if (!/по учётному периоду оплаты/.test(text)) throw new Error('диалог не назвал правило даты');
+  // То же число — рядом с кнопкой: перечень длинный, и кнопка бывает видна без него.
+  const counted = unsettled.split(' на ')[0];
+  if (!text.includes(`Не завершено: ${counted}`)) throw new Error(`в футере нет «Не завершено: ${counted}»: ${text.slice(-200)}`);
+
+  const button = dialog.getByRole('button', { name: 'Закрыть период' });
+  if (await button.isDisabled()) throw new Error('перечень показан, а кнопка закрытия недоступна');
+  const refused = [];
+  const listen = response => { if (response.status() >= 400) refused.push(`${response.status()} ${response.url()}`); };
+  page.on('response', listen);
+  try {
+    await Promise.all([
+      page.waitForResponse(r => r.url().endsWith('/periods/close') && r.request().method() === 'POST' && r.ok()),
+      button.click(),
+    ]);
+    closedThrough = through;
+    await page.getByText(new RegExp(`период закрыт по ${ru(through).replace(/\./g, '\\.')}\\. Не завершено: ${counted}`)).first()
+      .waitFor({ timeout: 10_000 });
+    await dialog.waitFor({ state: 'hidden', timeout: 10_000 });
+    await settled(page);
+  } finally {
+    page.off('response', listen);
+  }
+  // После удавшегося закрытия перечень за закрытые дни не перезапрашивается — иначе сервер ответил бы
+  // «уже закрыт», и поверх успеха мелькнула бы ошибка.
+  if (refused.length) throw new Error(`закрытие удалось, а экран получил отказы: ${refused.join('; ')}`);
+
+  // «История» показывает то, что показал диалог, — из записи о закрытии.
+  const record = page.locator('tbody tr').filter({ hasText: 'Закрыт период' }).filter({ hasText: SITE }).first();
+  await record.getByRole('button', { name: 'Что показал диалог при закрытии' }).click();
+  await record.getByText('Числа на момент закрытия').waitFor({ timeout: 10_000 });
+  const recorded = (await record.innerText()).replace(/[  ]/g, ' ');
+  if (!recorded.includes(`Оплачены в периоде, но не разобраны: ${unsettled}`))
+    throw new Error(`в «Истории» не то, что показал диалог («${unsettled}»): ${recorded.slice(0, 500)}`);
+});
+if (!closedThrough) {
+  console.error('Период закрыть не удалось — остальные проверки прогона стоят на закрытом периоде.');
+  process.exitCode = summarize('Оплата счёта');
+  await browser.close();
+  process.exit();
+}
 
 // ── 2. Перенос назван до сохранения, и записанное равно показанному ────────────────────────────────
 await check('preview-matches-recorded', async () => {

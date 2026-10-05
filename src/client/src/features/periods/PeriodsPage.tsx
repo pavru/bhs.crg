@@ -11,10 +11,11 @@ import { useCan } from '@/shared/api/access';
 import { useListConstructions } from '@/shared/api/constructions';
 import {
   usePeriods, usePeriodHistory, useClosePeriod, useReopenPeriod, useClosingPreview,
-  type PeriodContourState, type PeriodClosureRecord,
+  type PeriodContourState, type PeriodClosureRecord, type ClosingSection,
 } from '@/shared/api/periods';
 import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 import { ClosingSections } from './ClosingSections';
+import { unfinishedSummary } from './closing';
 
 /**
  * Учётный период (ТЗ CORE-35, issue #1081): до какой даты закрыт учёт компании и каждой стройки,
@@ -155,8 +156,13 @@ function CloseDialog({ state, name, today, onDone }: {
   // Начало первого закрытия называет человек; у следующих оно задано границей и не правится.
   const [firstFrom, setFirstFrom] = useState(() => suggestFirstFrom(suggestThrough(today, state.closedThrough)));
   const [error, setError] = useState<string | null>(null);
+  // Перечень, который человек видел, когда сервер ответил «данные изменились», — и о каких датах он
+  // был: новый перечень называет рядом с изменившимися строками прежние числа. Сменили даты —
+  // сравнивать уже не с чем.
+  const [refused, setRefused] = useState<{ dates: string; sections: ClosingSection[] } | null>(null);
 
   const from = state.expectedFrom ?? firstFrom;
+  const dates = `${from}|${through}`;
   const preview = useClosingPreview(state, from, through);
   // Закрыть можно только то, что видел: перечень получен, он — про эти даты, а не про прежние, и он
   // сейчас на экране. Упавший перезапрос оставляет прежние data, а показывает уже отказ — отпечаток
@@ -164,20 +170,34 @@ function CloseDialog({ state, name, today, onDone }: {
   const seen = preview.data && !preview.isError && !preview.isPlaceholderData && !preview.isFetching
     ? preview.data : null;
   const ready = !!from && !!through && !!seen;
+  // То, что останется после закрытия как есть, — рядом с кнопкой: перечень длинный, и кнопка бывает
+  // видна без него.
+  const unfinished = seen ? unfinishedSummary(seen.sections) : null;
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Закрыть период: ${name}`}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+          {unfinished && (
+            <span className="mr-auto text-[13px] text-fg2">
+              Не завершено: <span className="font-medium text-fg1">{unfinished}</span>
+            </span>
+          )}
           <Button variant="text" onClick={onDone}>Отмена</Button>
           <Button variant="filled" disabled={!ready} loading={close.isPending}
             onClick={async () => {
               setError(null);
+              const shown = seen!;
               try {
-                await close.mutateAsync({ state, from, through, report: seen!.stamp });
-                toast.success(`${name}: период закрыт по ${ruDate(through)}.`);
+                await close.mutateAsync({ state, from, through, report: shown.stamp });
+                const left = unfinishedSummary(shown.sections);
+                toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
                 onDone();
               } catch (e) {
+                // 409 — границу или данные тем временем изменили: перечень перечитывается, и новому есть
+                // с чем сравниться.
+                if ((e as { response?: { status?: number } })?.response?.status === 409)
+                  setRefused({ dates, sections: shown.sections });
                 setError(apiError(e, 'Не удалось закрыть период.'));
               }
             }}>
@@ -207,7 +227,8 @@ function CloseDialog({ state, name, today, onDone }: {
             {apiError(preview.error, 'Не удалось узнать, что попадёт в период.')} Без перечня закрыть нельзя.
           </p>
         ) : preview.data ? (
-          <ClosingSections sections={preview.data.sections} stale={!seen} />
+          <ClosingSections sections={preview.data.sections} stale={!seen}
+            before={seen && refused?.dates === dates ? refused.sections : null} />
         ) : (
           from && through && <p className="text-[13px] text-fg3">Считаем, что попадёт в период…</p>
         )}

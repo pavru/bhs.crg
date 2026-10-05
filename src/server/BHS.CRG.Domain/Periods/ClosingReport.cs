@@ -27,8 +27,10 @@ public sealed record ClosingUnit(string One, string Few, string Many)
 /// экран ядра: без этого права человеку показывают только число документов. null — сумма открыта всем,
 /// кому открыт диалог.</param>
 /// <param name="Note">Пояснение под строкой; null — нет.</param>
+/// <param name="Link">Адрес экрана приложения с этими документами, от корня; null — ссылки нет.</param>
 public sealed record ClosingLine(
-    string Key, string Text, int Count, ClosingUnit Unit, decimal? Amount, string? AmountPermission, string? Note);
+    string Key, string Text, int Count, ClosingUnit Unit, decimal? Amount, string? AmountPermission, string? Note,
+    string? Link = null);
 
 /// <summary>Раздел перечня — один модуль.</summary>
 /// <param name="Module">Код модуля.</param>

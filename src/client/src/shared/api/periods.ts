@@ -58,6 +58,8 @@ export interface ClosingLine {
   /** Сумма; null — строка денег не несёт либо сумма закрыта правом (см. `amountsHidden` раздела). */
   amount: number | null;
   note: string | null;
+  /** Адрес экрана приложения, где эти документы перечислены (от корня); null — ссылки нет. */
+  link: string | null;
 }
 
 /** Раздел перечня — один модуль. */

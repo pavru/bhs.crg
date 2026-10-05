@@ -1,4 +1,7 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,8 +25,13 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// <para>⚠️ Замка записи отчёт НЕ берёт и через <c>InvoiceDesk</c> не ходит: при закрытии его зовут под
 /// исключительным замком ядра (см. <see cref="IModuleClosingReport" />).</para>
 /// </summary>
-public sealed class CostsClosingReport(CostsDbContext db) : IModuleClosingReport
+public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource places, IModuleClock clock)
+    : IModuleClosingReport
 {
+    /// <summary>Экран «Реестр счетов». Тот же адрес, что у ссылок отчёта «Затраты по стройке» на клиенте
+    /// (<c>features/costs/siteCosts.ts</c>, <c>REGISTRY</c>).</summary>
+    public const string Registry = "/tables/costs.invoices/registry";
+
     public const string DateRule = "Счёт относится к периоду по учётному периоду оплаты. Накладных в системе пока нет.";
 
     /// <summary>Суммы счетов открывает право на отчёты по затратам — то же, что у «Затрат по стройке».</summary>
@@ -68,7 +76,10 @@ public sealed class CostsClosingReport(CostsDbContext db) : IModuleClosingReport
                 "Сумма — деньги этих счетов в периоде. После закрытия их разноска по стройкам останется как есть."));
         if (entering.Invoices > 0)
             frozen.Add(new("entering", "Оплаченные счета, вошедшие в период", entering.Invoices, Invoices, entering.Amount, Amounts,
-                "Их оплату, учётный период и разноску изменить будет нельзя. Неоплаченные счета к периоду не относятся и остаются открытыми."));
+                "Их оплату, учётный период и разноску изменить будет нельзя. Неоплаченные счета к периоду не относятся и остаются открытыми.",
+                // Реестр под отбором периода покажет и счёт, у которого в эти дни только доля без денег
+                // (в строке не вписана цена): сумма сойдётся, а число счетов — нет. Тогда ссылки нет.
+                read.Count == entering.Invoices ? await RegistryLinkAsync(scope, ct) : null));
         if (locked != entering.Invoices)
             frozen.Add(new("locked", "Запрутся целиком", locked, Invoices,
                 Note: "Вместе с отклонёнными оплаченными счетами и счетами, у которых в периоде есть доля без денег: " +
@@ -76,6 +87,49 @@ public sealed class CostsClosingReport(CostsDbContext db) : IModuleClosingReport
 
         return new(DateRule, unfinished, frozen);
     }
+
+    /// <summary>
+    /// Ссылка строки «вошедшие в период» в реестр — тем же отбором, что у итога отчёта «Затраты по
+    /// стройке»: учётные месяцы, «не отклонён», у стройки — её объект. Под ним число счетов и итог «Суммы»
+    /// реестра равны строке (сторож — тест, сверяющий строку с реестром под этой самой ссылкой).
+    ///
+    /// <para>⚠️ Только когда закрываемые впервые дни — ЦЕЛЫЕ учётные месяцы (решение владельца
+    /// 05.10.2026): реестр отбирает по месяцу, и за неполный показал бы больше, чем строка. Поэтому
+    /// ссылки нет у первого закрытия контура (закрывается всё, что было раньше, — начала нет), у периода
+    /// не с первого по последнее число, при стройке, закрытой дальше компании (её доли реестр покажет, а
+    /// строка не считает), у стройки без названия и когда среди счетов периода есть счёт без денег в нём
+    /// (реестр его покажет, строка — нет). «Не завершено» ссылки не имеет: точного отбора
+    /// «не разобран ИЛИ с остатком этих дней» у реестра нет.</para>
+    /// </summary>
+    private async Task<string?> RegistryLinkAsync(ModuleClosingScope scope, CancellationToken ct)
+    {
+        if (scope.From is not { Day: 1 } from || scope.Through != PaymentPosting.MonthOf(scope.Through).AddMonths(1).AddDays(-1)
+            || scope.ClosedAhead.Count > 0)
+            return null;
+
+        var today = await clock.TodayAsync(ct);
+        var months = new List<DateOnly>();
+        for (var month = from; month <= scope.Through; month = month.AddMonths(1)) months.Add(month);
+        if (!months.All(m => InvoicePeriods.Covers(m, today))) return null;
+
+        var conditions = new List<object>();
+        if (scope.ConstructionId is { } site)
+        {
+            // Отбор реестра идёт по НАЗВАНИЮ объекта: без названия стройки ссылку собрать нечем.
+            if ((await places.LoadAsync(ct)).Sites.FirstOrDefault(s => s.Id == site) is not { } named) return null;
+            conditions.Add(new { type = "condition", column = InvoiceTable.ObjectsKey, op = "eq", value = named.Name });
+        }
+        conditions.Add(new { type = "condition", column = InvoiceTable.PeriodKey, op = "in", values = months.Select(PaymentViews.Month) });
+        conditions.Add(new
+        {
+            type = "condition", column = InvoiceRequisites.StateKey, op = "neq", value = InvoiceRequisites.Label(InvoiceState.Rejected),
+        });
+
+        var filter = JsonSerializer.Serialize(new { type = "group", logic = "and", children = conditions }, LinkJson);
+        return $"{Registry}#filter={Uri.EscapeDataString(filter)}";
+    }
+
+    private static readonly JsonSerializerOptions LinkJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     /// <summary>
     /// Сколько счетов запрётся. Запирается счёт целиком и по ЛЮБОЙ закрытой учётной дате — и отклонённый
