@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -27,11 +27,20 @@ const PARAM = 'waybill';
 export function WaybillsPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get(PARAM) || null;
-  const setSelected = (id: string) => setParams(prev => {
+  const open = (id: string) => setParams(prev => {
     const next = new URLSearchParams(prev);
     next.set(PARAM, id);
     return next;
   }, { replace: true });
+  // Несохранённое в открытой форме: выбор другой накладной пересоздаёт форму, и без вопроса набранное
+  // с бумаги пропало бы молча (ревью PR #1206). Вопрос задаёт сама форма — тем же диалогом, что и при
+  // уходе со страницы.
+  const leaveGuard = useRef<((proceed: () => void) => void) | null>(null);
+  const onLeaveGuard = useCallback((ask: ((proceed: () => void) => void) | null) => { leaveGuard.current = ask; }, []);
+  const setSelected = (id: string) => {
+    if (id === selected) return;
+    if (leaveGuard.current) leaveGuard.current(() => open(id)); else open(id);
+  };
 
   const [query, setQuery] = useState('');
   const [unmatched, setUnmatched] = useState(false);
@@ -45,16 +54,20 @@ export function WaybillsPage() {
   const create = useCreateWaybill();
   const toast = useToast();
 
-  const items = (waybills.data ?? []).filter(i => matches(i, query));
+  const items = (waybills.data?.items ?? []).filter(i => matches(i, query));
 
-  async function addDraft() {
+  async function createDraft() {
     try {
       // Пустой черновик: накладную заводят, чтобы вписать её с бумаги, и требовать реквизиты до
       // первой строки — это требовать заполнить форму, которой ещё нет.
       const created = await create.mutateAsync({});
-      setSelected(created.id);
+      open(created.id);
     } catch (e) { toast.apiError(e, 'Накладная не заведена'); }
   }
+  // Сначала вопрос о правках, потом новая накладная: иначе черновик завёлся бы и при «Отмене».
+  const addDraft = () => {
+    if (leaveGuard.current) leaveGuard.current(() => void createDraft()); else void createDraft();
+  };
 
   return (
     <ListDetailShell
@@ -101,6 +114,13 @@ export function WaybillsPage() {
             {items.map(item => (
               <ListRow key={item.id} item={item} active={item.id === selected} onClick={() => setSelected(item.id)} />
             ))}
+            {/* Обрезанный молча список читался бы как «такой накладной нет». */}
+            {waybills.data?.more && (
+              <p className="px-3 py-2 text-xs text-warning">
+                Показаны самые свежие накладные, это не все. Поиск идёт по показанным: не нашли нужную —
+                включите отбор «Сопоставить» или откройте её по ссылке.
+              </p>
+            )}
           </div>
         </>
       }
@@ -123,7 +143,7 @@ export function WaybillsPage() {
           </div>
         ) : (
           <WaybillForm key={view.data.id} view={view.data} sites={sites.data ?? []}
-            sitesFailed={sites.isError} canEdit={canEdit} />
+            sitesFailed={sites.isError} canEdit={canEdit} onLeaveGuard={onLeaveGuard} />
         )
       }
     />

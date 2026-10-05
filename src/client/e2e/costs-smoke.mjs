@@ -260,8 +260,16 @@ async function waybillPart(seat) {
   // Оговорка и перечень — вместе: перечень без неё читался бы как «выдано только это».
   await materials.getByText(/Не сопоставлено: \d+ строк/).waitFor({ timeout: 10_000 });
   await materials.locator('tbody tr').first().waitFor({ timeout: 10_000 });
-  if ((await materials.innerText()).includes('Хомут прогона'))
-    throw new Error('несопоставленная строка попала в перечень материалов на объекте');
+  // Несопоставленная строка в перечень не попадает. Искать её наименование из бумаги бессмысленно —
+  // перечень показывает название ПОЗИЦИИ, и текста строки в нём нет ни при каком исходе (ревью
+  // PR #1206). Попавшая строка — это запись без позиции: её и ищем, в ответе и на экране.
+  const issued = await api(page, 'GET', `/costs/materials?constructionId=${site.id}`);
+  const stray = issued.items.filter(i => !i.nomenclatureId || /^0{8}-/.test(i.nomenclatureId) || i.name === null);
+  if (stray.length) throw new Error(`в перечне материалов запись без позиции номенклатуры: ${JSON.stringify(stray)}`);
+  if (issued.unmatchedLines < 1) throw new Error('сервер не называет несопоставленную строку числом');
+  const rows = await materials.locator('tbody tr').count();
+  if (rows !== issued.items.length)
+    throw new Error(`на экране строк перечня ${rows}, а позиций в ответе ${issued.items.length}`);
   if (/₽|руб/i.test(await materials.innerText())) throw new Error('в перечне материалов видны деньги');
   await page.keyboard.press('Escape');
   await materials.waitFor({ state: 'hidden', timeout: 10_000 });

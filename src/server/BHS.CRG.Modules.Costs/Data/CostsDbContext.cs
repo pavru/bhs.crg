@@ -85,6 +85,13 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         }
     }
 
+    /// <summary>
+    /// Версия накладной, как её знает контекст: после сохранения — новая. Отдаётся наружу и
+    /// возвращается правкой (ifMatch) — так форма, открытая давно, не записывается поверх чужой правки.
+    /// </summary>
+    public string VersionOf(Waybill waybill) =>
+        Entry(waybill).Property<uint>(RowVersion).CurrentValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     // Документ назван тем, что не записалось: версия строки есть и у счёта, и у накладной (D1), и
     // «счёт изменили» в ответ на правку накладной отправило бы человека перечитывать не то.
     private static ConflictException Concurrent(DbUpdateConcurrencyException e)

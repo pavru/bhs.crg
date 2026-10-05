@@ -4,9 +4,6 @@ using BHS.CRG.Modules.Ports;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
-/// <summary>Набор строк накладной целиком — как у счёта: адрес заменяет состояние, а не дополняет.</summary>
-public sealed record WaybillLinesRequest(IReadOnlyList<JsonElement>? Lines);
-
 public sealed record WaybillLineView(
     Guid Id,
     int Ordinal,
@@ -28,6 +25,9 @@ public sealed record WaybillLineTotals(int Count, int Unmatched);
 
 public sealed record WaybillView(
     Guid Id,
+    // Версия накладной: её называет правка шапки и строк (ifMatch). Строкой — это отпечаток, а не
+    // число, с которым что-то считают.
+    string Version,
     string? Number,
     DateOnly? IssuedOn,
     string? Warehouse,
@@ -51,6 +51,9 @@ public sealed record WaybillListItem(
     string State,
     int Lines,
     int Unmatched);
+
+/// <summary>Список накладных и честное «есть ещё»: поиск на экране идёт по загруженному.</summary>
+public sealed record WaybillListView(IReadOnlyList<WaybillListItem> Items, bool More);
 
 public sealed record IssuedMaterialView(
     Guid NomenclatureId, string? Name, string? Unit, decimal Quantity, DateOnly First, DateOnly Last, int Waybills);
@@ -80,6 +83,29 @@ public static class WaybillRequests
             ConstructionId: Identifier(body, "construction", "Стройка"),
             ReceivedBy: CostsValues.Text(body, "receivedBy", "Получил", Waybill.NameLength),
             Note: CostsValues.Text(body, "note", "Примечание"));
+    }
+
+    /// <summary>Версия, по которой собрана правка; <c>null</c> — не названа.</summary>
+    public static string? IfMatch(JsonElement body)
+    {
+        CostsValues.EnsureObject(body, "Накладная", "правки");
+        return CostsValues.Text(body, "ifMatch", "Версия накладной (ifMatch)");
+    }
+
+    /// <summary>
+    /// Набор строк из тела; <c>null</c> — поля «lines» нет вовсе. Пустой набор — это «строк нет», и
+    /// путать его с отсутствием поля нельзя: первое удаляет строки, второе их не трогает.
+    /// </summary>
+    public static IReadOnlyList<(Guid? Id, WaybillLineValues Values)>? Lines(JsonElement body)
+    {
+        CostsValues.EnsureObject(body, "Накладная", "правки");
+        return CostsValues.Value(body, "lines") switch
+        {
+            null => null,
+            { ValueKind: JsonValueKind.Array } lines =>
+                [.. lines.EnumerateArray().Select((line, index) => (LineId(line, index + 1), Line(line, index + 1)))],
+            var other => throw CostsValues.Wrong("lines", other, "массив строк"),
+        };
     }
 
     public static Guid? LineId(JsonElement line, int number)
@@ -119,9 +145,9 @@ public static class WaybillViews
 
     /// <param name="names">Названия позиций; <c>null</c> — справочника номенклатуры в системе нет, и
     /// «позиция потеряна» сказать не о чём (см. <c>InvoiceEndpoints.NomenclatureNamesAsync</c>).</param>
-    public static WaybillView Full(Waybill waybill, IReadOnlyList<WaybillLine> lines, ModuleConstruction? site,
-        IReadOnlyDictionary<Guid, string?>? names) => new(
-        waybill.Id, waybill.Number, waybill.IssuedOn, waybill.Warehouse,
+    public static WaybillView Full(Waybill waybill, string version, IReadOnlyList<WaybillLine> lines,
+        ModuleConstruction? site, IReadOnlyDictionary<Guid, string?>? names) => new(
+        waybill.Id, version, waybill.Number, waybill.IssuedOn, waybill.Warehouse,
         waybill.ConstructionId, site?.Name, ConstructionLost: waybill.ConstructionId is not null && site is null,
         waybill.ReceivedBy, waybill.Note, waybill.State.ToString(), waybill.PostedAt,
         [.. lines.OrderBy(l => l.Ordinal).Select(l => new WaybillLineView(

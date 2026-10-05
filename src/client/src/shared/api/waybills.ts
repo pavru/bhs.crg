@@ -24,6 +24,11 @@ export interface WaybillLineView {
 
 export interface WaybillView {
   id: string;
+  /**
+   * Версия накладной. Правка шапки и строк называет её (`ifMatch`): форма, открытая давно, иначе
+   * записалась бы поверх чужой правки и молча удалила бы строки, которых на экране не было.
+   */
+  version: string;
   number: string | null;
   issuedOn: string | null;
   warehouse: string | null;
@@ -50,6 +55,12 @@ export interface WaybillListItem {
   state: WaybillState;
   lines: number;
   unmatched: number;
+}
+
+/** Список и честное «есть ещё»: поиск на экране идёт по загруженному. */
+export interface WaybillList {
+  items: WaybillListItem[];
+  more: boolean;
 }
 
 export interface WaybillHeader {
@@ -80,21 +91,23 @@ export interface IssuedMaterials {
 }
 
 const QK = 'costs-waybills';
-const LIST_KEY = [QK] as const;
+// ⚠️ Ключ СПИСКА, а не общий префикс: `[QK]` совпал бы и с карточкой, и только что полученная
+// накладная тут же перезапрашивалась бы после каждой правки (ревью PR #1206).
+const LIST_KEY = [QK, 'list'] as const;
 const MATERIALS_KEY = ['costs-materials'] as const;
 
 export function useWaybills(unmatched = false) {
   return useQuery({
-    queryKey: [QK, 'list', { unmatched }] as const,
+    queryKey: [...LIST_KEY, { unmatched }] as const,
     queryFn: () => apiClient
-      .get<WaybillListItem[]>('/costs/waybills', { params: unmatched ? { unmatched: true } : {} })
+      .get<WaybillList>('/costs/waybills', { params: unmatched ? { unmatched: true } : {} })
       .then(r => r.data),
   });
 }
 
 export function useWaybill(id: string | undefined) {
   return useQuery({
-    queryKey: [QK, id] as const,
+    queryKey: [QK, 'one', id] as const,
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     enabled: !!id,
   });
@@ -104,7 +117,7 @@ export function useWaybill(id: string | undefined) {
 function useSettle() {
   const qc = useQueryClient();
   return (view: WaybillView) => {
-    qc.setQueryData([QK, view.id], view);
+    qc.setQueryData([QK, 'one', view.id], view);
     void qc.invalidateQueries({ queryKey: LIST_KEY });
     void qc.invalidateQueries({ queryKey: MATERIALS_KEY });
   };
@@ -120,18 +133,17 @@ export function useCreateWaybill() {
 }
 
 /**
- * Сохранить черновик: шапку, затем строки. Двумя запросами, потому что у сервера это два адреса; если
- * второй откажет, шапка уже записана — отказ называет строки, и повтор сохранения ничего не удваивает.
+ * Сохранить черновик: шапка и строки ОДНИМ запросом и одним сохранением на сервере. Двумя запросами
+ * шапка записывалась бы и тогда, когда строки отказали, — человек оставался бы с половиной сохранённого.
+ *
+ * `ifMatch` — версия накладной, по которой собрана форма: устаревшей сервер отвечает 409.
  */
 export function useSaveWaybill() {
   const settle = useSettle();
   return useMutation({
-    mutationFn: async ({ id, header, lines }: {
-      id: string; header: WaybillHeader; lines: Record<string, unknown>[];
-    }) => {
-      await apiClient.put<WaybillView>(`/costs/waybills/${id}`, header);
-      return apiClient.put<WaybillView>(`/costs/waybills/${id}/lines`, { lines }).then(r => r.data);
-    },
+    mutationFn: ({ id, ifMatch, header, lines }: {
+      id: string; ifMatch: string; header: WaybillHeader; lines: Record<string, unknown>[];
+    }) => apiClient.put<WaybillView>(`/costs/waybills/${id}`, { ...header, lines, ifMatch }).then(r => r.data),
     onSuccess: settle,
   });
 }

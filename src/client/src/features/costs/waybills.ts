@@ -107,6 +107,16 @@ function normalized(quantity: unknown): unknown {
   return Number.isFinite(number) ? number : quantity;
 }
 
+/**
+ * Форма без пустых заготовок — такой она уезжает и такой остаётся на экране.
+ *
+ * ⚠️ Убирать их только из отправляемого нельзя: сервер нумерует строки в отказах по присланному набору,
+ * и «строка 1» в его ответе оказалась бы второй на экране (ревью PR #1206).
+ */
+export function withoutBlanks(draft: WaybillDraft): WaybillDraft {
+  return draft.lines.some(isBlank) ? { ...draft, lines: draft.lines.filter(line => !isBlank(line)) } : draft;
+}
+
 /** Строки формы без позиции — то, что после сохранения сервер назовёт «не сопоставлено». */
 export function unmatchedCount(draft: WaybillDraft): number {
   return draft.lines.filter(line => !isBlank(line) && line.nomenclatureId === null).length;

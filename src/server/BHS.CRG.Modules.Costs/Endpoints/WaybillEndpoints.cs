@@ -25,11 +25,22 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <para>⚠️ <b>Проведение несопоставленных строк НЕ запрещает</b> — в отличие от «разобран» у счёта.
 /// Накладная — свидетельство того, что материал выдан; отказать в проведении из-за справочника значило
 /// бы держать выданное невыданным. Строка без позиции в перечень не попадает и названа числом.</para>
+///
+/// <para>⚠️ <b>Правка шапки и строк называет версию, которую видел человек</b> (<c>ifMatch</c>, ревью
+/// PR #1206). Версия строки базы сама защищает только два запроса, идущих одновременно: форма,
+/// открытая час назад, читала бы свежую версию и записывалась бы поверх — а замена набора строк при
+/// этом молча удаляла бы строку, добавленную другим человеком.</para>
 /// </summary>
 public static class WaybillEndpoints
 {
     private const string Read = "costs.waybill.read";
     private const string Edit = "costs.waybill.edit";
+
+    /// <summary>
+    /// Сколько накладных отдаёт список. Больше — ответ говорит «есть ещё», а не молчит: поиск на экране
+    /// идёт по загруженному, и обрезанный молча список читался бы как «такой накладной нет».
+    /// </summary>
+    internal const int ListLimit = 300;
 
     internal static string Label(Waybill waybill) =>
         $"Накладная № {waybill.Number ?? "без номера"}" +
@@ -60,49 +71,48 @@ public static class WaybillEndpoints
     /// Список накладных, свежие сверху. <paramref name="unmatched" /> — отбор «свести со справочником»:
     /// накладные, где есть строка без позиции.
     /// </summary>
-    private static async Task<Ok<IReadOnlyList<WaybillListItem>>> ListAsync(
+    private static async Task<Ok<WaybillListView>> ListAsync(
         CostsDbContext db, IModuleConstructions sites, CancellationToken ct,
         Guid? constructionId = null, bool unmatched = false)
     {
         var selected = db.Waybills.AsNoTracking();
         if (constructionId is { } site) selected = selected.Where(w => w.ConstructionId == site);
         if (unmatched)
-            selected = selected.Where(w =>
-                db.WaybillLines.Where(l => l.NomenclatureId == null).Select(l => l.WaybillId).Contains(w.Id));
+            selected = selected.Where(w => db.WaybillLines.Any(l => l.WaybillId == w.Id && l.NomenclatureId == null));
 
-        var waybills = await selected
+        // Счётчики — подзапросами того же SELECT: отдельный запрос с перечнем идентификаторов рос бы
+        // вместе со списком.
+        var page = await selected
             .OrderByDescending(w => w.IssuedOn)
             .ThenByDescending(w => w.CreatedAt)
+            .Take(ListLimit + 1)
+            .Select(w => new
+            {
+                Waybill = w,
+                Lines = db.WaybillLines.Count(l => l.WaybillId == w.Id),
+                Unmatched = db.WaybillLines.Count(l => l.WaybillId == w.Id && l.NomenclatureId == null),
+            })
             .ToListAsync(ct);
-
-        var ids = waybills.Select(w => w.Id).ToList();
-        var counters = (await db.WaybillLines.AsNoTracking()
-                .Where(l => ids.Contains(l.WaybillId))
-                .GroupBy(l => l.WaybillId)
-                .Select(g => new { g.Key, Count = g.Count(), Unmatched = g.Count(l => l.NomenclatureId == null) })
-                .ToListAsync(ct))
-            .ToDictionary(c => c.Key);
 
         var known = await sites.ListAsync(ct);
 
-        return TypedResults.Ok<IReadOnlyList<WaybillListItem>>(
-            [.. waybills.Select(w => WaybillViews.Item(
-                w,
-                known.FirstOrDefault(s => s.Id == w.ConstructionId),
-                counters.GetValueOrDefault(w.Id)?.Count ?? 0,
-                counters.GetValueOrDefault(w.Id)?.Unmatched ?? 0))]);
+        return TypedResults.Ok(new WaybillListView(
+            [.. page.Take(ListLimit).Select(row => WaybillViews.Item(
+                row.Waybill, known.FirstOrDefault(s => s.Id == row.Waybill.ConstructionId), row.Lines, row.Unmatched))],
+            More: page.Count > ListLimit));
     }
 
     private static async Task<Ok<WaybillView>> GetAsync(
         Guid id, CostsDbContext db, IModuleConstructions sites, IModuleCatalog catalog, CancellationToken ct) =>
-        TypedResults.Ok(await ViewAsync(await FindAsync(db, id, ct), db, sites, catalog, ct));
+        TypedResults.Ok(await ViewAsync(await FindAsync(db, id, ct), db, await sites.ListAsync(ct), catalog, ct));
 
     private static async Task<Created<WaybillView>> CreateAsync(
         JsonElement body, CostsDbContext db, IModuleConstructions sites, IModuleCatalog catalog, IModuleUser user,
         IModuleActivityLog log, CancellationToken ct)
     {
         var header = WaybillRequests.Header(body);
-        await EnsureSiteExistsAsync(sites, header.ConstructionId, ct);
+        var known = await sites.ListAsync(ct);
+        EnsureSiteExists(known, header.ConstructionId);
 
         var waybill = Waybill.Create(user.Id);
         waybill.Apply(header);
@@ -112,55 +122,87 @@ public static class WaybillEndpoints
         await log.RecordAsync(WaybillActions.Created, waybill.Id.ToString(), Label(waybill), ct: ct);
 
         return TypedResults.Created($"/api/costs/waybills/{waybill.Id}",
-            await ViewAsync(waybill, db, sites, catalog, ct));
+            await ViewAsync(waybill, db, known, catalog, ct));
     }
 
+    /// <summary>
+    /// Правка черновика: шапка и — если прислан «lines» — набор строк, ОДНИМ сохранением. Форма шлёт
+    /// их вместе: двумя запросами шапка записалась бы и тогда, когда строки отказали, и человек
+    /// остался бы с половиной сохранённого.
+    /// </summary>
     private static async Task<Ok<WaybillView>> UpdateAsync(
         Guid id, JsonElement body, CostsDbContext db, IModuleConstructions sites, IModuleCatalog catalog,
         IModuleActivityLog log, CancellationToken ct)
     {
         var header = WaybillRequests.Header(body);
-        var waybill = await FindAsync(db, id, ct);
-        EnsureDraft(waybill, "шапку");
-        await EnsureSiteExistsAsync(sites, header.ConstructionId, ct);
+        var lines = WaybillRequests.Lines(body);
+        if (lines is not null) await EnsureNomenclatureExistsAsync(catalog, Numbered(lines), ct);
 
-        // Форма шлёт шапку и тогда, когда человек ничего не менял. Запись в журнал без изменения
-        // учила бы не верить журналу.
-        if (waybill.Header() != header)
+        var waybill = await FindAsync(db, id, ct);
+        EnsureSeen(db, waybill, WaybillRequests.IfMatch(body));
+        EnsureDraft(waybill, "шапку");
+
+        var known = await sites.ListAsync(ct);
+        EnsureSiteExists(known, header.ConstructionId);
+
+        var was = Label(waybill);
+        // Форма шлёт шапку и тогда, когда человек её не менял. Запись в журнал без изменения учила бы
+        // не верить журналу.
+        var headerChanged = waybill.Header() != header;
+        if (headerChanged) waybill.Apply(header);
+        var linesChanged = lines is not null && await PlaceLinesAsync(db, waybill, lines, ct);
+
+        if (headerChanged || linesChanged)
         {
-            var was = Label(waybill);
-            waybill.Apply(header);
             await db.SaveChangesAsync(ct);
-            await log.RecordAsync(WaybillActions.Changed, waybill.Id.ToString(), Label(waybill),
-                before: was == Label(waybill) ? null : was, ct: ct);
+            if (headerChanged)
+                await log.RecordAsync(WaybillActions.Changed, waybill.Id.ToString(), Label(waybill),
+                    before: was == Label(waybill) ? null : was, ct: ct);
+            if (linesChanged)
+                await log.RecordAsync(WaybillActions.LinesChanged, waybill.Id.ToString(), Label(waybill),
+                    after: $"строк: {lines!.Count}", ct: ct);
         }
 
-        return TypedResults.Ok(await ViewAsync(waybill, db, sites, catalog, ct));
+        return TypedResults.Ok(await ViewAsync(waybill, db, known, catalog, ct));
     }
 
     private static async Task<Ok<WaybillView>> ReplaceLinesAsync(
-        Guid id, WaybillLinesRequest body, CostsDbContext db, IModuleConstructions sites, IModuleCatalog catalog,
+        Guid id, JsonElement body, CostsDbContext db, IModuleConstructions sites, IModuleCatalog catalog,
         IModuleActivityLog log, CancellationToken ct)
     {
-        if (body.Lines is null)
-            throw new InvalidRequestException(
+        var lines = WaybillRequests.Lines(body)
+            ?? throw new InvalidRequestException(
                 "Набор строк не прислан. Пустой набор — это «lines»: [], и он означает «строк нет». " +
                 "Отсутствие поля прочитать как «строки не менять» нельзя: адрес заменяет набор целиком.");
 
-        var parsed = body.Lines
-            .Select((line, index) => (Id: WaybillRequests.LineId(line, index + 1),
-                Values: WaybillRequests.Line(line, index + 1)))
-            .ToList();
+        await EnsureNomenclatureExistsAsync(catalog, Numbered(lines), ct);
 
+        var waybill = await FindAsync(db, id, ct);
+        EnsureSeen(db, waybill, WaybillRequests.IfMatch(body));
+        EnsureDraft(waybill, "строки");
+
+        if (await PlaceLinesAsync(db, waybill, lines, ct))
+        {
+            await db.SaveChangesAsync(ct);
+            await log.RecordAsync(WaybillActions.LinesChanged, waybill.Id.ToString(), Label(waybill),
+                after: $"строк: {lines.Count}", ct: ct);
+        }
+
+        return TypedResults.Ok(await ViewAsync(waybill, db, await sites.ListAsync(ct), catalog, ct));
+    }
+
+    /// <summary>
+    /// Разложить присланный набор по строкам накладной. Не сохраняет — сохраняет звавший, одним разом
+    /// со своей правкой. Возвращает, изменилось ли что-нибудь.
+    /// </summary>
+    private static async Task<bool> PlaceLinesAsync(
+        CostsDbContext db, Waybill waybill, IReadOnlyList<(Guid? Id, WaybillLineValues Values)> parsed,
+        CancellationToken ct)
+    {
         if (parsed.Where(p => p.Id is not null).GroupBy(p => p.Id).FirstOrDefault(g => g.Count() > 1) is { } twice)
             throw new InvalidRequestException(
                 $"Строка {twice.Key} прислана дважды. Набор заменяет состояние целиком, и одна из двух " +
                 "исчезла бы без следа. Новые строки присылайте без «id».");
-
-        await EnsureNomenclatureExistsAsync(catalog, [.. parsed.Select(p => p.Values.NomenclatureId)], ct);
-
-        var waybill = await FindAsync(db, id, ct);
-        EnsureDraft(waybill, "строки");
 
         var existing = await db.WaybillLines.Where(l => l.WaybillId == waybill.Id).ToListAsync(ct);
         var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, l.Snapshot())).ToList();
@@ -184,17 +226,12 @@ public static class WaybillEndpoints
         var kept = now.Select(l => l.Item1).ToHashSet();
         db.WaybillLines.RemoveRange(existing.Where(l => !kept.Contains(l.Id)));
 
-        if (!was.SequenceEqual(now))
-        {
-            // Версия строки накладной защищает и набор строк: две одновременные замены иначе
-            // сложились бы в набор, которого не присылал никто.
-            waybill.ContentChanged();
-            await db.SaveChangesAsync(ct);
-            await log.RecordAsync(WaybillActions.LinesChanged, waybill.Id.ToString(), Label(waybill),
-                after: $"строк: {parsed.Count}", ct: ct);
-        }
+        if (was.SequenceEqual(now)) return false;
 
-        return TypedResults.Ok(await ViewAsync(waybill, db, sites, catalog, ct));
+        // Версия строки накладной защищает и набор строк: две одновременные замены иначе сложились бы
+        // в набор, которого не присылал никто.
+        waybill.ContentChanged();
+        return true;
     }
 
     /// <summary>Сопоставить строку (или снять сопоставление) — в любом состоянии накладной.</summary>
@@ -204,11 +241,13 @@ public static class WaybillEndpoints
     {
         CostsValues.EnsureObject(body, "Сопоставление", "сопоставления");
         var position = WaybillRequests.Nomenclature(body, "Позиция номенклатуры");
-        await EnsureNomenclatureExistsAsync(catalog, [position], ct);
 
         var waybill = await FindAsync(db, id, ct);
         var line = await db.WaybillLines.FirstOrDefaultAsync(l => l.Id == lineId && l.WaybillId == waybill.Id, ct)
             ?? throw new NotFoundException("Строка накладной не найдена.");
+
+        // Отказ называет ТУ строку, которую сопоставляют, а не первую в присланном.
+        await EnsureNomenclatureExistsAsync(catalog, [(line.Ordinal, position)], ct);
 
         if (line.NomenclatureId != position)
         {
@@ -220,7 +259,7 @@ public static class WaybillEndpoints
                 ct: ct);
         }
 
-        return TypedResults.Ok(await ViewAsync(waybill, db, sites, catalog, ct));
+        return TypedResults.Ok(await ViewAsync(waybill, db, await sites.ListAsync(ct), catalog, ct));
     }
 
     private static async Task<Ok<WaybillView>> PostAsync(
@@ -228,8 +267,9 @@ public static class WaybillEndpoints
         IModuleActivityLog log, CancellationToken ct)
     {
         var waybill = await FindAsync(db, id, ct);
+        var known = await sites.ListAsync(ct);
         if (waybill.State == WaybillState.Posted)
-            return TypedResults.Ok(await ViewAsync(waybill, db, sites, catalog, ct));
+            return TypedResults.Ok(await ViewAsync(waybill, db, known, catalog, ct));
 
         var lines = await db.WaybillLines.AsNoTracking().Where(l => l.WaybillId == waybill.Id)
             .OrderBy(l => l.Ordinal).ToListAsync(ct);
@@ -238,7 +278,7 @@ public static class WaybillEndpoints
         if (waybill.Number is null) problems.Add("не назван номер");
         if (waybill.IssuedOn is null) problems.Add("не названа дата отпуска");
         if (waybill.ConstructionId is null) problems.Add("не названа стройка-получатель");
-        else if ((await sites.ListAsync(ct)).All(s => s.Id != waybill.ConstructionId))
+        else if (known.All(s => s.Id != waybill.ConstructionId))
             problems.Add("стройки-получателя больше нет — выберите её заново");
         if (lines.Count == 0) problems.Add("нет ни одной строки");
 
@@ -262,7 +302,7 @@ public static class WaybillEndpoints
                 : $"строк: {lines.Count}, не сопоставлено: {unmatched}",
             ct: ct);
 
-        return TypedResults.Ok(await ViewAsync(waybill, db, sites, catalog, ct));
+        return TypedResults.Ok(await ViewAsync(waybill, db, known, catalog, ct));
     }
 
     private static async Task<Ok<WaybillView>> DraftAsync(
@@ -277,7 +317,7 @@ public static class WaybillEndpoints
             await log.RecordAsync(WaybillActions.Draft, waybill.Id.ToString(), Label(waybill), ct: ct);
         }
 
-        return TypedResults.Ok(await ViewAsync(waybill, db, sites, catalog, ct));
+        return TypedResults.Ok(await ViewAsync(waybill, db, await sites.ListAsync(ct), catalog, ct));
     }
 
     private static async Task<Ok<IssuedMaterialsView>> MaterialsAsync(
@@ -300,15 +340,16 @@ public static class WaybillEndpoints
             report.UnmatchedWaybills));
     }
 
+    /// <param name="known">Стройки, прочитанные звавшим: список читается один раз на запрос, а не
+    /// заново ради каждого вопроса к нему.</param>
     private static async Task<WaybillView> ViewAsync(
-        Waybill waybill, CostsDbContext db, IModuleConstructions sites, IModuleCatalog catalog, CancellationToken ct)
+        Waybill waybill, CostsDbContext db, IReadOnlyList<ModuleConstruction> known, IModuleCatalog catalog,
+        CancellationToken ct)
     {
         var lines = await db.WaybillLines.AsNoTracking().Where(l => l.WaybillId == waybill.Id).ToListAsync(ct);
-        var site = waybill.ConstructionId is { } id
-            ? (await sites.ListAsync(ct)).FirstOrDefault(s => s.Id == id)
-            : null;
 
-        return WaybillViews.Full(waybill, lines, site,
+        return WaybillViews.Full(waybill, db.VersionOf(waybill), lines,
+            known.FirstOrDefault(s => s.Id == waybill.ConstructionId),
             await NamesAsync(catalog, [.. lines.Select(l => l.NomenclatureId)], ct));
     }
 
@@ -323,6 +364,28 @@ public static class WaybillEndpoints
         return line;
     }
 
+    private static IReadOnlyList<(int Number, Guid? Position)> Numbered(
+        IReadOnlyList<(Guid? Id, WaybillLineValues Values)> lines) =>
+        [.. lines.Select((line, index) => (index + 1, line.Values.NomenclatureId))];
+
+    /// <summary>
+    /// Правка собрана по той версии накладной, что лежит сейчас. Без названной версии — отказ, а не
+    /// «значит, свежая»: умолчание записывало бы устаревшую форму поверх чужой правки.
+    /// </summary>
+    private static void EnsureSeen(CostsDbContext db, Waybill waybill, string? seen)
+    {
+        if (seen is null)
+            throw new InvalidRequestException(
+                "Не названа версия накладной, по которой собрана правка (ifMatch) — она приходит в ответе " +
+                "чтения полем «version». Без неё правка записалась бы поверх чужой.");
+
+        if (seen != db.VersionOf(waybill))
+            throw new ConflictException(
+                $"{Label(waybill)} тем временем изменили, и правка не записана. Перечитайте накладную и " +
+                "повторите: записанная поверх, эта правка затёрла бы чужую — в том числе удалила бы " +
+                "строки, которых не было на вашем экране.");
+    }
+
     private static void EnsureDraft(Waybill waybill, string what)
     {
         if (waybill.State == WaybillState.Posted)
@@ -332,9 +395,9 @@ public static class WaybillEndpoints
                 "снова. Сопоставить строку с номенклатурой можно и у проведённой.");
     }
 
-    private static async Task EnsureSiteExistsAsync(IModuleConstructions sites, Guid? id, CancellationToken ct)
+    private static void EnsureSiteExists(IReadOnlyList<ModuleConstruction> known, Guid? id)
     {
-        if (id is { } site && (await sites.ListAsync(ct)).All(s => s.Id != site))
+        if (id is { } site && known.All(s => s.Id != site))
             throw new InvalidRequestException(
                 "Стройки, названной получателем, нет. Так бывает, когда её удалили, пока форма была " +
                 "открыта: выберите стройку заново.");
@@ -351,18 +414,19 @@ public static class WaybillEndpoints
             ?.ToDictionary(r => r.Id, r => r.DisplayName);
     }
 
+    /// <param name="positions">Позиция и НОМЕР строки, которым её назовёт отказ: номер приходит от
+    /// звавшего, потому что у сопоставления одной строки он не «первая в присланном».</param>
     private static async Task EnsureNomenclatureExistsAsync(
-        IModuleCatalog catalog, IReadOnlyList<Guid?> positions, CancellationToken ct)
+        IModuleCatalog catalog, IReadOnlyList<(int Number, Guid? Position)> positions, CancellationToken ct)
     {
-        if (positions.All(p => p is null)) return;
+        if (positions.All(p => p.Position is null)) return;
 
-        var names = await NamesAsync(catalog, positions, ct)
+        var names = await NamesAsync(catalog, [.. positions.Select(p => p.Position)], ct)
             ?? throw new ConflictException(
                 $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, поэтому ссылаться строкам " +
                 "не на что. Строки без позиции при этом сохраняются — они считаются несопоставленными.");
 
         var lost = positions
-            .Select((p, index) => (Number: index + 1, Position: p))
             .Where(p => p.Position is { } value && !names.ContainsKey(value))
             .Select(p => p.Number)
             .ToList();

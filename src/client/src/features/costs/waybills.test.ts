@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { WaybillView } from '@/shared/api/waybills';
 import {
   emptyLine, headerPayload, isDirty, linesPayload, linesWord, quantityInput, toDraft, unmatchedCount,
-  unmatchedNote,
+  unmatchedNote, withoutBlanks,
 } from './waybills';
 
 const view: WaybillView = {
-  id: 'w1', number: 'РН-7', issuedOn: '2026-09-03', warehouse: 'Основной', constructionId: 'c1',
+  id: 'w1', version: '7', number: 'РН-7', issuedOn: '2026-09-03', warehouse: 'Основной', constructionId: 'c1',
   constructionName: 'ЖК «Север»', constructionLost: false, receivedBy: null, note: null,
   state: 'Draft', postedAt: null,
   lines: [
@@ -33,6 +33,16 @@ describe('форма накладной', () => {
     expect(linesPayload(draft)).toHaveLength(2);
     expect(isDirty(draft, view)).toBe(false);
     expect(unmatchedCount(draft)).toBe(1);
+  });
+
+  it('перед сохранением пустые заготовки уходят и с экрана: номера строк совпадают с отказом сервера', () => {
+    const draft = toDraft(view);
+    draft.lines.unshift(emptyLine());
+
+    const sent = withoutBlanks(draft);
+    expect(sent.lines.map(line => line.id)).toEqual(['l1', 'l2']);
+    // Чистая форма возвращается той же ссылкой: лишнего рендера и сброса курсора нет.
+    expect(withoutBlanks(sent)).toBe(sent);
   });
 
   it('то же количество, набранное иначе, — не правка', () => {

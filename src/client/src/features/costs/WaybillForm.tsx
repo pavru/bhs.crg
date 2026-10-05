@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { CircleCheck, Plus, Save, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CircleCheck, Plus, RefreshCw, Save, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
+import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useToast } from '@/shared/ui/Toast';
 import type { CostsConstruction } from '@/shared/api/invoices';
 import {
@@ -9,7 +11,7 @@ import {
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { formatDate } from './invoiceFields';
 import {
-  emptyLine, headerPayload, isDirty, linesPayload, toDraft, unmatchedCount, unmatchedNote,
+  emptyLine, headerPayload, isDirty, linesPayload, toDraft, unmatchedCount, unmatchedNote, withoutBlanks,
   type WaybillDraft, type WaybillLineDraft,
 } from './waybills';
 
@@ -32,18 +34,36 @@ const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs
  * <p>⚠️ Число несопоставленных строк стоит на виду всегда, пока оно не ноль: эти строки в «материалы
  * на объекте» не попадают, и промолчать об этом значило бы показать перечень, который выглядит
  * полным.</p>
+ *
+ * <p>⚠️ <b>Набранное не пропадает молча</b> (ревью PR #1206). Свежий ответ сервера форма берёт, только
+ * пока в ней нет несохранённого: фоновое перечитывание иначе стирало бы строки, вписанные с бумаги.
+ * Если накладную тем временем изменили, форма говорит об этом и предлагает перечитать; сохранение
+ * устаревшей формы сервер отвергает по версии (<c>ifMatch</c>). Уход со страницы и выбор другой
+ * накладной спрашивают, что делать с правками.</p>
  */
-export function WaybillForm({ view, sites, sitesFailed, canEdit }: {
+export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveGuard }: {
+  /** Накладная, как её сейчас знает кэш. Форма работает по той, по которой собрана, — см. `view` ниже. */
   view: WaybillView;
   sites: CostsConstruction[];
   /** Список строек не пришёл: выбрать получателя не из чего, и это отказ, а не «строек нет». */
   sitesFailed: boolean;
   canEdit: boolean;
+  /**
+   * Форма сообщает странице вопрос «что делать с правками», пока они есть: страница задаёт его перед
+   * выбором другой накладной. `null` — спрашивать не о чем. Ссылка обязана быть устойчивой.
+   */
+  onLeaveGuard: (ask: ((proceed: () => void) => void) | null) => void;
 }) {
-  const [draft, setDraft] = useState<WaybillDraft>(() => toDraft(view));
-  // Сервер ответил — форма берёт его ответ: идентификаторы новых строк и названия позиций приходят оттуда.
-  const [seen, setSeen] = useState(view);
-  if (seen !== view) { setSeen(view); setDraft(toDraft(view)); }
+  // Накладная, по которой собрана форма: с ней сверяется «изменено ли» и её версию называет сохранение.
+  const [view, setView] = useState(fresh);
+  const [draft, setDraft] = useState<WaybillDraft>(() => toDraft(fresh));
+  const adopt = (next: WaybillView) => { setView(next); setDraft(toDraft(next)); };
+
+  const editable = canEdit && view.state !== 'Posted';
+  // Свежий ответ берём, только когда терять нечего. Идентификаторы новых строк и названия позиций
+  // после своего сохранения приходят этим же путём.
+  if (fresh !== view && !(editable && isDirty(draft, view))) adopt(fresh);
+  const outdated = fresh !== view && fresh.version !== view.version;
 
   const save = useSaveWaybill();
   const state = useWaybillState();
@@ -51,8 +71,15 @@ export function WaybillForm({ view, sites, sitesFailed, canEdit }: {
   const toast = useToast();
 
   const posted = view.state === 'Posted';
-  const locked = posted || !canEdit;
-  const dirty = !locked && isDirty(draft, view);
+  const locked = !editable;
+  const dirty = editable && isDirty(draft, view);
+
+  const [leave, setLeave] = useState<(() => void) | null>(null);
+  useLeaveGuard(dirty, proceed => setLeave(() => proceed));
+  useEffect(() => {
+    onLeaveGuard(dirty ? proceed => setLeave(() => proceed) : null);
+    return () => onLeaveGuard(null);
+  }, [onLeaveGuard, dirty]);
   const busy = save.isPending || state.isPending || match.isPending;
   const unmatched = dirty ? unmatchedCount(draft) : view.totals.unmatched;
   const note = unmatchedNote(unmatched, posted);
@@ -62,8 +89,13 @@ export function WaybillForm({ view, sites, sitesFailed, canEdit }: {
     setDraft(d => ({ ...d, lines: d.lines.map(l => l.key === key ? { ...l, ...patch } : l) }));
 
   async function saveDraft(): Promise<boolean> {
+    // Пустые заготовки уходят и с экрана: номер строки в отказе сервера обязан совпасть с номером здесь.
+    const sent = withoutBlanks(draft);
+    if (sent !== draft) setDraft(sent);
     try {
-      await save.mutateAsync({ id: view.id, header: headerPayload(draft), lines: linesPayload(draft) });
+      adopt(await save.mutateAsync({
+        id: view.id, ifMatch: view.version, header: headerPayload(sent), lines: linesPayload(sent),
+      }));
       return true;
     } catch (e) { toast.apiError(e, 'Накладная не сохранена'); return false; }
   }
@@ -92,6 +124,10 @@ export function WaybillForm({ view, sites, sitesFailed, canEdit }: {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      <LeaveGuardDialog open={leave !== null} saving={save.isPending}
+        onCancel={() => setLeave(null)}
+        onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
+        onSave={async () => { const go = leave; setLeave(null); if (await saveDraft()) go?.(); }} />
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-sm font-medium text-fg1">
@@ -123,6 +159,19 @@ export function WaybillForm({ view, sites, sitesFailed, canEdit }: {
             </Button>
           )}
         </div>
+        {outdated && (
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger-border
+            bg-danger-subtle px-3 py-2 text-xs text-danger">
+            <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+            <span className="flex-1">
+              Накладную тем временем изменили. Ваши правки на экране целы, но сохранить их поверх нельзя —
+              сервер откажет. Перечитайте накладную и внесите правки заново.
+            </span>
+            <Button size="sm" variant="outlined" icon={<RefreshCw size={13} />} onClick={() => adopt(fresh)}>
+              Перечитать, отбросив правки
+            </Button>
+          </div>
+        )}
         {note && (
           <p role="status" className="flex items-start gap-2 text-xs text-warning">
             <TriangleAlert size={13} className="shrink-0 mt-0.5" />{note}

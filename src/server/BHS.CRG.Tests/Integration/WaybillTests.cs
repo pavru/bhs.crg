@@ -140,18 +140,130 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var (site, _) = await SiteAsync("Накладная: правка");
         var id = (await PostedAsync(client, site, "2026-09-09", Row(cable, 10m, "м"))).GetProperty("id").GetGuid();
 
-        var lines = await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = new[] { Row(cable, 99m, "м") } });
+        var lines = await LinesAsync(client, id, Row(cable, 99m, "м"));
         Assert.Equal(HttpStatusCode.Conflict, lines.StatusCode);
         Assert.Contains("Верните накладную в черновик", await lines.Content.ReadAsStringAsync());
 
-        var header = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", Header(site, "2026-09-01"));
+        var edited = Header(site, "2026-09-01");
+        edited["ifMatch"] = await VersionAsync(client, id);
+        var header = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", edited);
         Assert.Equal(HttpStatusCode.Conflict, header.StatusCode);
 
         Assert.Equal(10m, Assert.Single((await MaterialsAsync(client, site)).GetProperty("items").EnumerateArray())
             .GetProperty("quantity").GetDecimal());
 
         await OkAsync(await client.PostAsync($"/api/costs/waybills/{id}/draft", null));
-        await OkAsync(await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = new[] { Row(cable, 99m, "м") } }));
+        await OkAsync(await LinesAsync(client, id, Row(cable, 99m, "м")));
+    }
+
+    /// <summary>
+    /// Форма, открытая давно, не записывается поверх чужой правки (ревью PR #1206). Версия строки базы
+    /// защищает только одновременные запросы: без названной версии замена набора молча удалила бы
+    /// строку, которую добавил другой человек.
+    /// </summary>
+    [Fact]
+    public async Task Устаревшая_форма_не_затирает_чужую_правку()
+    {
+        var (first, _) = await SignInAsync("Supplier");
+        var (second, _) = await SignInAsync("Supplier");
+        var (site, _) = await SiteAsync("Накладная: версия");
+        var id = await DraftAsync(first, site, "2026-09-13", Row(cable, 1m, "м"));
+
+        // Первый открыл форму и ушёл; второй добавил строку.
+        var opened = await ReadAsync(first, id);
+        var seen = opened.GetProperty("version").GetString()!;
+        var kept = opened.GetProperty("lines")[0].GetProperty("id").GetGuid();
+        await OkAsync(await LinesAsync(second, id, Row(cable, 1m, "м", id: kept), Row(conduit, 7m, "м")));
+
+        // Первый сохраняет то, что видел: одну строку и прежнюю шапку — и получает отказ.
+        var stale = await first.PutAsJsonAsync($"/api/costs/waybills/{id}/lines",
+            new { ifMatch = seen, lines = new[] { Row(cable, 5m, "м", id: kept) } });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Contains("тем временем изменили", await stale.Content.ReadAsStringAsync());
+        Assert.Equal(2, (await ReadAsync(first, id)).GetProperty("lines").GetArrayLength());
+
+        // Без названной версии — отказ, а не «значит, свежая».
+        var silent = await first.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.BadRequest, silent.StatusCode);
+        Assert.Contains("ifMatch", await silent.Content.ReadAsStringAsync());
+        Assert.Equal(2, (await ReadAsync(first, id)).GetProperty("lines").GetArrayLength());
+    }
+
+    /// <summary>
+    /// Шапка и строки одним запросом — одним сохранением: отказ строкам не оставляет записанной шапку.
+    /// </summary>
+    [Fact]
+    public async Task Шапка_и_строки_одним_запросом_сохраняются_вместе_или_никак()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (site, _) = await SiteAsync("Накладная: целиком");
+        var id = await DraftAsync(client, site, "2026-09-14", Row(cable, 1m, "м"));
+        var before = await ReadAsync(client, id);
+
+        var body = Header(site, "2026-09-20");
+        body["ifMatch"] = before.GetProperty("version").GetString();
+        body["lines"] = new[] { Row(cable, 2m, "м"), Row(Guid.NewGuid(), 1m, "м") };
+        var refused = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", body);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+
+        var after = await ReadAsync(client, id);
+        Assert.Equal("2026-09-14", after.GetProperty("issuedOn").GetString());
+        Assert.Equal(before.GetProperty("version").GetString(), after.GetProperty("version").GetString());
+
+        body["lines"] = new[] { Row(cable, 2m, "м"), Row(null, 3m, "шт", "Скоба") };
+        var saved = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", body);
+        await OkAsync(saved);
+        var view = await saved.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("2026-09-20", view.GetProperty("issuedOn").GetString());
+        Assert.Equal(2, view.GetProperty("lines").GetArrayLength());
+        Assert.NotEqual(before.GetProperty("version").GetString(), view.GetProperty("version").GetString());
+    }
+
+    /// <summary>Отказ сопоставления называет ТУ строку, которую сопоставляли, а не «строка 1».</summary>
+    [Fact]
+    public async Task Отказ_сопоставления_называет_свою_строку()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (site, _) = await SiteAsync("Накладная: номер строки");
+        var waybill = await PostedAsync(client, site, "2026-09-15",
+            Row(cable, 1m, "м"), Row(conduit, 1m, "м"), Row(null, 1m, "шт", "Третья"));
+        var third = waybill.GetProperty("lines")[2].GetProperty("id").GetGuid();
+
+        var refused = await client.PutAsJsonAsync(
+            $"/api/costs/waybills/{waybill.GetProperty("id").GetGuid()}/lines/{third}/nomenclature",
+            new { nomenclature = Reference(Guid.NewGuid()) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("строка 3", await refused.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Поиск номенклатуры и список строек открыты тому, кто читает счета ИЛИ накладные: роль с одними
+    /// накладными обязана заполнить форму, а постороннему списки закрыты.
+    /// </summary>
+    [Fact]
+    public async Task Справочные_списки_открыты_читающему_накладные_и_закрыты_постороннему()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var created = await admin.PostAsJsonAsync("/api/roles", new
+        {
+            title = $"Кладовщик {Guid.NewGuid():N}",
+            summary = "Только накладные",
+            permissions = new[] { "costs.waybill.read" },
+        });
+        await OkAsync(created);
+        var role = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("name").GetString()!;
+        var (storekeeper, _) = await SignInAsync(role);
+        var (engineer, _) = await SignInAsync("User");
+
+        foreach (var list in new[] { "/api/costs/nomenclature", "/api/costs/constructions" })
+        {
+            await OkAsync(await storekeeper.GetAsync(list));
+            Assert.Equal(HttpStatusCode.Forbidden, (await engineer.GetAsync(list)).StatusCode);
+        }
+
+        // Счетов право на накладные при этом не открывает.
+        Assert.Equal(HttpStatusCode.Forbidden, (await storekeeper.GetAsync("/api/costs/invoices")).StatusCode);
     }
 
     /// <summary>Право на накладные — не право на счета, и наоборот (ТЗ COST-29).</summary>
@@ -195,17 +307,18 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 
         var (site, _) = await SiteAsync("Накладная: ссылки");
         var id = await DraftAsync(client, site, "2026-09-12");
-        var lostPosition = await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines",
-            new { lines = new[] { Row(cable, 1m, "м"), Row(Guid.NewGuid(), 1m, "м") } });
+        var lostPosition = await LinesAsync(client, id, Row(cable, 1m, "м"), Row(Guid.NewGuid(), 1m, "м"));
         Assert.Equal(HttpStatusCode.BadRequest, lostPosition.StatusCode);
         Assert.Contains("строка 2", await lostPosition.Content.ReadAsStringAsync());
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────
 
-    private static Dictionary<string, object?> Row(Guid? nomenclature, decimal? quantity, string unit, string? text = null) =>
+    private static Dictionary<string, object?> Row(
+        Guid? nomenclature, decimal? quantity, string unit, string? text = null, Guid? id = null) =>
         new()
         {
+            ["id"] = id?.ToString(),
             ["nomenclature"] = nomenclature is { } value ? Reference(value) : null,
             ["sourceText"] = text,
             ["unit"] = unit,
@@ -228,10 +341,25 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         await OkAsync(created);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        if (rows.Length > 0)
-            await OkAsync(await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = rows }));
+        if (rows.Length > 0) await OkAsync(await LinesAsync(client, id, rows));
         return id;
     }
+
+    private static async Task<JsonElement> ReadAsync(HttpClient client, Guid id)
+    {
+        var response = await client.GetAsync($"/api/costs/waybills/{id}");
+        await OkAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    private static async Task<string> VersionAsync(HttpClient client, Guid id) =>
+        (await ReadAsync(client, id)).GetProperty("version").GetString()!;
+
+    /// <summary>Замена набора строк по СВЕЖЕЙ версии: так шлёт форма, только что прочитавшая накладную.</summary>
+    private static async Task<HttpResponseMessage> LinesAsync(
+        HttpClient client, Guid id, params Dictionary<string, object?>[] rows) =>
+        await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines",
+            new { ifMatch = await VersionAsync(client, id), lines = rows });
 
     private static async Task<JsonElement> PostedAsync(
         HttpClient client, Guid site, string issuedOn, params Dictionary<string, object?>[] rows)
@@ -253,6 +381,8 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
     {
         var response = await client.GetAsync("/api/costs/waybills" + query);
         await OkAsync(response);
-        return [.. (await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray()];
+        var list = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(list.GetProperty("more").GetBoolean());
+        return [.. list.GetProperty("items").EnumerateArray()];
     }
 }
