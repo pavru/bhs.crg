@@ -1,8 +1,6 @@
 using System.Globalization;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
-using BHS.CRG.Modules.Tables;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Tables;
 
@@ -75,14 +73,15 @@ internal static class InvoicePeriods
 
     /// <summary>
     /// Учётные месяцы счёта из его денег. «Названные» складывают РОВНО те деньги, что и клетка «Сумма»
-    /// под отбором по периоду (<see cref="InvoiceMoney.Named" />): число и его расшифровка разойтись не
-    /// могут — строки у них одни.
+    /// под сужающим отбором (<see cref="InvoiceMoney.Named" />): число и его расшифровка разойтись не
+    /// могут — и строки у них одни, и вопрос «названо ли» один.
     /// </summary>
-    /// <param name="named">Какие деньги отбор назвал; null — отбор не сужает.</param>
-    public static InvoiceMonths Of(IReadOnlyList<PostedMoney> money, Func<InvoiceAllocation?, DateOnly, bool>? named)
+    /// <param name="named">Какие деньги отбор назвал (<see cref="InvoiceMoney.IsNamed" />); null — отбор
+    /// не сужает.</param>
+    public static InvoiceMonths Of(IReadOnlyList<PostedMoney> money, Func<PostedMoney, bool>? named)
     {
         var all = PaymentPosting.Months(money);
-        return new(all, named is null ? all : PaymentPosting.Months(money, named));
+        return new(all, named is null ? all : PaymentPosting.Months(money.Where(named)));
     }
 
     /// <summary>Клетка «Учётный период»: месяцы по возрастанию.</summary>

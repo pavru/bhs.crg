@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Modules.Costs.Tables;
 
 /// <summary>Счёт — ровно то, что нужно арифметике денег.</summary>
-internal sealed record InvoiceHead(Guid Id, decimal? Total, DateOnly? RemainderAccountingOn);
+/// <param name="Paid">Оплачен ли: учётный день есть только у денег оплаченного счёта.</param>
+internal sealed record InvoiceHead(Guid Id, decimal? Total, DateOnly? RemainderAccountingOn, bool Paid);
 
 /// <summary>
 /// Деньги счетов по частям — ЕДИНСТВЕННЫЙ читатель зерна «доля с деньгами» в модуле (задача G5, issue
@@ -29,16 +30,20 @@ internal static class InvoiceMoney
         new Dictionary<Guid, IReadOnlyList<PostedMoney>>();
 
     public static IReadOnlyList<InvoiceHead> Heads(IEnumerable<Invoice> invoices) =>
-        [.. invoices.Select(i => new InvoiceHead(i.Id, i.Total, i.RemainderAccountingOn))];
+        [.. invoices.Select(i => new InvoiceHead(i.Id, i.Total, i.RemainderAccountingOn, i.Payment == InvoicePaymentState.Paid))];
 
     public static Task<List<InvoiceHead>> HeadsAsync(IQueryable<Invoice> invoices, CancellationToken ct) =>
-        invoices.Select(i => new InvoiceHead(i.Id, i.Total, i.RemainderAccountingOn)).ToListAsync(ct);
+        invoices.Select(i => new InvoiceHead(i.Id, i.Total, i.RemainderAccountingOn, i.Payment == InvoicePaymentState.Paid)).ToListAsync(ct);
 
     /// <param name="invoices">Счета страницы — либо ВСЕГО отбора, когда по ним считается итог.</param>
     /// <param name="owners">Те же счета запросом — когда это весь отбор: тысячи идентификаторов списком
     /// параметров в запрос не идут. null — счета страницы, их немного.</param>
-    /// <param name="loaded">Части этих счетов, если их уже прочитали ради другой колонки.</param>
-    /// <returns>По счёту — его деньги: части разноски и остаток (см. <see cref="PaymentPosting.Money" />).</returns>
+    /// <param name="loaded">Части этих счетов, если их уже прочитали ради другой колонки (реестр — ради
+    /// «Объекта»); null — читатель прочтёт сам (отчёт «Затраты по стройке»).</param>
+    /// <returns>По счёту — его деньги: части разноски и остаток (см. <see cref="PaymentPosting.Money" />).
+    /// ⚠️ Учётный день — только у денег ОПЛАЧЕННОГО счёта. Отмена оплаты даты стирает, но держаться на
+    /// одном этом нельзя: дата, пережившая отмену (восстановленная копия, правка базы), назвала бы
+    /// неоплаченному счёту учётный период и внесла бы его в затраты месяца (ревью PR #1199).</returns>
     public static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PostedMoney>>> ReadAsync(
         CostsDbContext db, IReadOnlyList<InvoiceHead> invoices, IQueryable<Guid>? owners,
         IReadOnlyList<InvoiceAllocation>? loaded, CancellationToken ct)
@@ -57,30 +62,33 @@ internal static class InvoiceMoney
         return invoices.ToDictionary(i => i.Id, i =>
         {
             IReadOnlyList<InvoiceAllocation> own = [.. parts[i.Id]];
-            return PaymentPosting.Money(PaymentPosting.Balance(lines[i.Id], own, i.Total), i.Total, own, i.RemainderAccountingOn);
+            var money = PaymentPosting.Money(PaymentPosting.Balance(lines[i.Id], own, i.Total), i.Total, own, i.RemainderAccountingOn);
+            return i.Paid ? money : [.. money.Select(m => m with { AccountingOn = null })];
         });
     }
 
     /// <summary>
-    /// Названы ли эти деньги отбором. Под отбором по учётному периоду названы только деньги с учётным
-    /// днём — у неоплаченного счёта его нет, а доля без денег в затраты месяца не входит; под отбором
-    /// только по объекту о периоде не спрашиваем вовсе: доля есть и у неоплаченного счёта.
+    /// Названы ли эти деньги отбором — ОДНО правило на клетку «Сумма», её итог, «Суммы по периодам» и
+    /// пометку «в отборе» расшифровки. Под отбором по учётному периоду названы только деньги с учётным
+    /// днём — у неоплаченного счёта его нет, а доля без денег в затраты месяца не входит. Вне его доля
+    /// есть и у неоплаченного счёта; но день, если он у денег есть, отбору называем всё равно: под
+    /// «(объект А и период 09) или (объект Б)» период колонкой не назван, а октябрьская доля на А в
+    /// первую ветку не входит (ревью PR #1199).
     /// </summary>
-    /// <param name="admitted">Вопрос к отбору: объект части (null — остаток) и её учётный день (null — о
-    /// периоде не спрашиваем).</param>
+    /// <param name="admitted">Вопрос к отбору: объект части (null — остаток) и её учётный день (null —
+    /// дня нет, о периоде не спрашиваем).</param>
     public static bool IsNamed(PostedMoney money, Func<InvoiceAllocation?, DateOnly?, bool> admitted, bool byPeriod) =>
         byPeriod
             ? money is { Amount: not null, AccountingOn: { } day } && admitted(money.Part, day)
-            : admitted(money.Part, null);
+            : admitted(money.Part, money.AccountingOn);
 
     /// <summary>
     /// «Сумма» под сужающим отбором: деньги счёта, названные отбором. null — отбор не назвал из счёта
     /// ничего либо посчитать нечем (у названных частей нет суммы — в строке не вписана цена).
     /// </summary>
-    public static decimal? Named(
-        IReadOnlyList<PostedMoney> money, Func<InvoiceAllocation?, DateOnly?, bool> admitted, bool byPeriod)
+    public static decimal? Named(IReadOnlyList<PostedMoney> money, Func<PostedMoney, bool> isNamed)
     {
-        var named = money.Where(m => m.Amount is not null && IsNamed(m, admitted, byPeriod)).ToList();
+        var named = money.Where(m => m.Amount is not null && isNamed(m)).ToList();
         return named.Count == 0 ? null : named.Sum(m => m.Amount!.Value);
     }
 }
