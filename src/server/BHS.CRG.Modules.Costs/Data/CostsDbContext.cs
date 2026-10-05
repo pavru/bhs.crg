@@ -38,6 +38,10 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public DbSet<InvoiceAllocation> InvoiceAllocations => Set<InvoiceAllocation>();
 
+    public DbSet<Waybill> Waybills => Set<Waybill>();
+
+    public DbSet<WaybillLine> WaybillLines => Set<WaybillLine>();
+
     /// <summary>
     /// Раскладка таблицы счёта. Вручную, а не соглашениями EF: имена таблиц и колонок здесь — это
     /// то, что увидит человек в отчёте резервной копии и в запросе к базе, а соглашение по умолчанию
@@ -81,10 +85,24 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         }
     }
 
-    private static ConflictException Concurrent(DbUpdateConcurrencyException e) =>
-        new("Счёт изменили одновременно с этой правкой, и она не записана — целиком, ни одной частью. " +
-            "Перечитайте счёт и повторите: записанная поверх, она затёрла бы чужую правку или удвоила бы свою.",
+    /// <summary>
+    /// Версия накладной, как её знает контекст: после сохранения — новая. Отдаётся наружу и
+    /// возвращается правкой (ifMatch) — так форма, открытая давно, не записывается поверх чужой правки.
+    /// </summary>
+    public string VersionOf(Waybill waybill) =>
+        Entry(waybill).Property<uint>(RowVersion).CurrentValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Документ назван тем, что не записалось: версия строки есть и у счёта, и у накладной (D1), и
+    // «счёт изменили» в ответ на правку накладной отправило бы человека перечитывать не то.
+    private static ConflictException Concurrent(DbUpdateConcurrencyException e)
+    {
+        var waybill = e.Entries.Any(entry => entry.Entity is Waybill or WaybillLine);
+        var (changed, reread) = waybill ? ("Накладную", "накладную") : ("Счёт", "счёт");
+        return new ConflictException(
+            $"{changed} изменили одновременно с этой правкой, и она не записана — целиком, ни одной частью. " +
+            $"Перечитайте {reread} и повторите: записанная поверх, она затёрла бы чужую правку или удвоила бы свою.",
             e);
+    }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -177,6 +195,68 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
         MapLines(builder);
         MapAllocations(builder);
+        MapWaybills(builder);
+    }
+
+    /// <summary>
+    /// Расходная накладная и её строки (D1, issue #1083). Денежных колонок здесь нет и быть не должно:
+    /// право на накладные не открывает счетов (COST-29).
+    /// </summary>
+    private static void MapWaybills(ModelBuilder builder)
+    {
+        var waybill = builder.Entity<Waybill>();
+        waybill.ToTable("waybills");
+        waybill.HasKey(w => w.Id);
+        waybill.Property(w => w.Id).HasColumnName("id");
+        waybill.Property(w => w.Number).HasColumnName("number").HasMaxLength(Waybill.NumberLength);
+        waybill.Property(w => w.IssuedOn).HasColumnName("issued_on");
+        waybill.Property(w => w.Warehouse).HasColumnName("warehouse").HasMaxLength(Waybill.NameLength);
+        waybill.Property(w => w.ConstructionId).HasColumnName("construction_id");
+        waybill.Property(w => w.ReceivedBy).HasColumnName("received_by").HasMaxLength(Waybill.NameLength);
+        waybill.Property(w => w.Note).HasColumnName("note");
+        waybill.Property(w => w.State).HasColumnName("state").HasConversion<string>().HasMaxLength(32);
+        waybill.Property(w => w.PostedAt).HasColumnName("posted_at");
+        waybill.Property(w => w.PostedBy).HasColumnName("posted_by");
+        waybill.Property(w => w.CreatedBy).HasColumnName("created_by");
+        waybill.Property(w => w.CreatedAt).HasColumnName("created_at");
+        waybill.Property(w => w.UpdatedAt).HasColumnName("updated_at");
+        waybill.Property<uint>(RowVersion).IsRowVersion();
+
+        // Проведённая накладная без даты или стройки — выданное, которое нечем посчитать. Проверяет это
+        // проведение; ограничение — на запись мимо него.
+        waybill.ToTable(t => t.HasCheckConstraint("ck_waybills_posted",
+            "state <> 'Posted' OR (issued_on IS NOT NULL AND construction_id IS NOT NULL)"));
+
+        // Перечень отпущенного на стройку читается по стройке и только из проведённых.
+        waybill.HasIndex(w => new { w.ConstructionId, w.IssuedOn })
+            .HasDatabaseName("ix_waybills_issued").HasFilter("state = 'Posted'");
+
+        var line = builder.Entity<WaybillLine>();
+        line.ToTable("waybill_lines");
+        line.HasKey(l => l.Id);
+        line.Property(l => l.Id).HasColumnName("id");
+        line.Property(l => l.WaybillId).HasColumnName("waybill_id");
+        line.Property(l => l.Ordinal).HasColumnName("ordinal");
+        line.Property(l => l.NomenclatureId).HasColumnName("nomenclature_id");
+        line.Property(l => l.SourceText).HasColumnName("source_text");
+        line.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(WaybillLine.UnitLength);
+        line.Property(l => l.Quantity).HasColumnName("quantity").HasPrecision(18, 3);
+        line.Property(l => l.Note).HasColumnName("note");
+        line.Property(l => l.CreatedAt).HasColumnName("created_at");
+        line.Property(l => l.UpdatedAt).HasColumnName("updated_at");
+
+        line.HasOne<Waybill>()
+            .WithMany()
+            .HasForeignKey(l => l.WaybillId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        line.HasIndex(l => new { l.WaybillId, l.Ordinal }).HasDatabaseName("ix_waybill_lines_order");
+        // Отбор «свести со справочником» и счётчик «не сопоставлено».
+        line.HasIndex(l => l.WaybillId)
+            .HasDatabaseName("ix_waybill_lines_unmatched").HasFilter("nomenclature_id IS NULL");
+        // Поиск держателей позиции при её удалении (G2).
+        line.HasIndex(l => l.NomenclatureId)
+            .HasDatabaseName("ix_waybill_lines_nomenclature").HasFilter("nomenclature_id IS NOT NULL");
     }
 
     /// <summary>

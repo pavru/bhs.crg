@@ -66,7 +66,7 @@ public class CostsJournalVisibilityTests(InvoiceLineHost host) : InvoiceLineTest
     [Fact]
     public void Каждое_действие_модуля_счетов_названо_закрытым_или_открытым_с_причиной()
     {
-        var unnamed = new InvoiceActions().Actions
+        var unnamed = new InvoiceActions().Actions.Concat(new WaybillActions().Actions)
             .Where(a => a.ReadPermission is null && !OpenOnPurpose.ContainsKey(a.Code))
             .Select(a => a.Code);
 

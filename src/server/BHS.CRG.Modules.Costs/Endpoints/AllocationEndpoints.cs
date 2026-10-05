@@ -30,8 +30,11 @@ public static class AllocationEndpoints
             .RequireAuthorization(AppPolicies.Permission(Edit))
             .WithTags("Счета на оплату");
 
+        // Правом на счета ИЛИ на накладные (D1, issue #1083): стройку выбирают и получателем
+        // накладной. См. CostsLookups.
         endpoints.MapGet("/api/costs/constructions", ConstructionsAsync)
-            .RequireAuthorization(AppPolicies.Permission("costs.invoice.read"))
+            .RequireAuthorization(AppPolicies.Module("costs"))
+            .AddEndpointFilter(CostsLookups.RequireDocumentReader)
             .WithTags("Счета на оплату");
     }
 
