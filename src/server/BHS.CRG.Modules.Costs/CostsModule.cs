@@ -31,7 +31,9 @@ namespace BHS.CRG.Modules.Costs;
 /// </summary>
 public sealed class CostsModule : IAppModule
 {
-    public string Code => "costs";
+    public const string ModuleCode = "costs";
+
+    public string Code => ModuleCode;
 
     public string Title => "Счета и накладные";
 
@@ -233,6 +235,7 @@ public sealed class CostsModule : IAppModule
         AllocationMatrixEndpoints.Map(endpoints);
         PaymentEndpoints.Map(endpoints);
         SiteCostsEndpoints.Map(endpoints);
+        LostReferencesEndpoints.Map(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
         ArticleEndpoints.MapArticles(endpoints);

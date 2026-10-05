@@ -63,7 +63,12 @@ public static class InvoiceLineEndpoints
                 InvoiceLineRequests.Values(incoming[index], index + 1)));
 
         EnsureIdsDistinct(parsed);
-        await EnsureNomenclatureExistsAsync(catalog, parsed, ct);
+        // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
+        // потеря в строке 3 не должна мешать поправить цену в строке 7.
+        var kept = await db.InvoiceLines.AsNoTracking()
+            .Where(l => l.InvoiceId == id && l.NomenclatureId != null)
+            .Select(l => l.NomenclatureId!.Value).Distinct().ToListAsync(ct);
+        await EnsureNomenclatureExistsAsync(catalog, parsed, kept, ct);
 
         var (invoice, changed, reason) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
@@ -364,11 +369,13 @@ public static class InvoiceLineEndpoints
     /// человек за формой ничего не исправит правкой строки.</para>
     /// </summary>
     private static async Task EnsureNomenclatureExistsAsync(
-        IModuleCatalog catalog, List<(Guid? Id, InvoiceLineValues Values)> parsed, CancellationToken ct)
+        IModuleCatalog catalog, List<(Guid? Id, InvoiceLineValues Values)> parsed,
+        IReadOnlyCollection<Guid> kept, CancellationToken ct)
     {
         var referenced = parsed.Select(p => p.Values.NomenclatureId)
             .OfType<Guid>()
             .Distinct()
+            .Except(kept)
             .ToList();
 
         if (referenced.Count == 0) return;
@@ -383,7 +390,7 @@ public static class InvoiceLineEndpoints
         var found = known.Select(r => r.Id).ToHashSet();
         var lost = parsed
             .Select((p, index) => (Number: index + 1, p.Values.NomenclatureId))
-            .Where(p => p.NomenclatureId is { } value && !found.Contains(value))
+            .Where(p => p.NomenclatureId is { } value && !found.Contains(value) && !kept.Contains(value))
             .Select(p => p.Number)
             .ToList();
 

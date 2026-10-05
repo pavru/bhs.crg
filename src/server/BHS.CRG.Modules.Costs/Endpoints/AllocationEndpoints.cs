@@ -55,7 +55,9 @@ public static class AllocationEndpoints
                 "Набор частей не прислан. Пустой набор — это «parts»: [], и он означает «строка не разнесена». " +
                 "Отсутствие поля прочитать как «не менять» нельзя: адрес заменяет набор целиком.");
 
-        var known = await places.LoadAsync(ct);
+        // Цели, уже записанные у этой строки, запись принимает и потерянными (ТЗ CORE-34.4).
+        var known = (await places.LoadAsync(ct)).Keeping(
+            await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == id && a.LineId == lineId).ToListAsync(ct));
         var (invoice, line, was, values, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         if (!was.SequenceEqual(values))

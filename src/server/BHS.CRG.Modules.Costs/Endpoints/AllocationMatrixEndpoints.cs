@@ -98,7 +98,10 @@ public static class AllocationMatrixEndpoints
                 "Набор строк не прислан. Адрес заменяет разноску всего счёта, и строки без частей присылаются " +
                 "с «parts»: [] — отсутствие поля прочитать как «не менять» нельзя.");
 
-        var known = await places.LoadAsync(ct);
+        // Цели, уже записанные у счёта, запись принимает и потерянными (ТЗ CORE-34.4). По счёту, а не
+        // по строке: матрица переставляет доли между строками, и «та же цель в другой строке» — не новая.
+        var known = (await places.LoadAsync(ct)).Keeping(
+            await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == id).ToListAsync(ct));
         var (invoice, was, after, moved, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         // Писать ли событие, решают сами части, а не их описание: сумм в описании нет (issue #1190), и
