@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, CalendarCheck } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, CalendarCheck, ChartNoAxesColumn } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -34,6 +34,10 @@ export const workNav: NavItem[] = [
   // без права: ключ таблицы — код модуля, и открывается она всякому, кому открыт «Счета и накладные».
   // Суммы в ней закрывает право на счета — причиной у колонки, а не отказом экрана.
   { to: '/tables/costs.invoices/registry', label: 'Реестр счетов', icon: Table2, module: 'costs' },
+  // «Затраты по стройке» (ТЗ COST-20, задача G5): суммы по всем стройкам экземпляра — своим правом на
+  // отчёты, а не правом на счета. Оно включает чтение счетов, так что ссылки отчёта в реестр открыты.
+  { to: '/site-costs',      label: 'Затраты по стройке',  icon: ChartNoAxesColumn, module: 'costs',
+    permission: 'costs.report.read' },
   // Закрытие периода — служба ядра (ТЗ CORE-35): пункт не зависит от модулей. Право то же, что на
   // адресах закрытия и отмены; сами границы читает любой вошедший, но экран существует ради действия.
   { to: '/periods',         label: 'Учётный период',      icon: CalendarCheck, permission: 'core.period.close' },
