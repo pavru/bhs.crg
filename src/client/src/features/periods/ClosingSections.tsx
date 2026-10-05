@@ -1,7 +1,7 @@
 import { ArrowUpRight, TriangleAlert } from 'lucide-react';
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
 import { formatMoney } from '@/shared/utils/money';
-import { figure, goneLines, localLink, wasText, type ClosingGroup } from './closing';
+import { figure, goneLines, goneSections, localLink, unfinishedSummary, wasText, type ClosingGroup } from './closing';
 
 /**
  * Перечень диалога закрытия периода: по разделу на модуль — что не завершено и что войдёт в закрытый
@@ -25,7 +25,8 @@ import { figure, goneLines, localLink, wasText, type ClosingGroup } from './clos
 export function ClosingSections({ sections, stale, before = null }: {
   sections: ClosingSection[]; stale?: boolean; before?: ClosingSection[] | null;
 }) {
-  if (sections.length === 0)
+  const gone = goneSections(before, sections);
+  if (sections.length === 0 && gone.length === 0)
     return <p className="text-[13px] text-fg3">Включённых модулей учёта нет. Закрытие запишет только границу периода.</p>;
 
   return (
@@ -44,6 +45,16 @@ export function ClosingSections({ sections, stale, before = null }: {
           {section.amountsHidden && (
             <p className="mt-1.5 text-[12px] text-fg3">Суммы не показаны: у вас нет права их видеть.</p>
           )}
+        </section>
+      ))}
+      {/* Раздел, исчезнувший целиком, — тоже изменение: без него его «не завершено» пропало бы молча. */}
+      {gone.map(section => (
+        <section key={`gone:${section.module}`} aria-label={section.title} className="text-[13px] text-fg3">
+          <h3 className="text-sm font-semibold text-fg2">{section.title}</h3>
+          <p>
+            Раздела больше нет: модуль о закрытии уже ничего не сообщает.
+            {unfinishedSummary([section]) && <Was text={`было не завершено: ${unfinishedSummary([section])}`} />}
+          </p>
         </section>
       ))}
     </div>

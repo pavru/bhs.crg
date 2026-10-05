@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
-import { figure, goneLines, localLink, unfinishedSummary, wasText } from './closing';
+import { figure, goneLines, goneSections, localLink, unfinishedSummary, visiblyChanged, wasText } from './closing';
 
 const line = (key: string, count: number, counted: string, amount: number | null = null): ClosingLine =>
   ({ key, text: key, count, counted, amount, note: null, link: null });
@@ -72,5 +72,34 @@ describe('localLink', () => {
     expect(localLink('//example.org/x')).toBeNull();
     expect(localLink('/\\example.org')).toBeNull();
     expect(localLink('javascript:alert(1)')).toBeNull();
+  });
+
+  it('не пропускает управляющие символы и пробелы — браузер их выбросит, и путь станет чужим адресом', () => {
+    for (const gap of ['\t', '\n', '\r', ' ', '\u00a0', '\u0000'])
+      expect(localLink(`/${gap}/example.org/x`)).toBeNull();
+    expect(localLink('/')).toBeNull();
+  });
+});
+
+describe('goneSections и visiblyChanged', () => {
+  const before = [
+    section('costs', [line('unsettled', 2, '2 счёта')], [line('entering', 5, '5 счетов')]),
+    section('works', [line('waiting', 1, '1 отчёт')]),
+  ];
+
+  it('раздел, исчезнувший целиком, назван', () => {
+    expect(goneSections(before, [before[0]]).map(s => s.module)).toEqual(['works']);
+    expect(goneSections(before, before)).toEqual([]);
+    expect(goneSections(null, before)).toEqual([]);
+    expect(visiblyChanged(before, [before[0]])).toBe(true);
+  });
+
+  it('на экране то же — изменилось невидимое', () => {
+    expect(visiblyChanged(before, before)).toBe(false);
+  });
+
+  it('изменившаяся или исчезнувшая строка — видимое изменение', () => {
+    expect(visiblyChanged(before, [section('costs', [line('unsettled', 3, '3 счёта')], [line('entering', 5, '5 счетов')]), before[1]])).toBe(true);
+    expect(visiblyChanged(before, [section('costs', [], [line('entering', 5, '5 счетов')]), before[1]])).toBe(true);
   });
 });

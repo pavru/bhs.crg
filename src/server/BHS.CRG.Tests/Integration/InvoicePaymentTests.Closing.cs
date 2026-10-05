@@ -358,6 +358,84 @@ public partial class InvoicePaymentTests
     }
 
     /// <summary>
+    /// У закрытия СТРОЙКИ реестр под ссылкой отбирает счёт двумя независимыми условиями: «есть доля на
+    /// стройку» и «есть учётная дата в этих месяцах» — хоть бы и у чужой доли (ревью PR #1202). Счёт,
+    /// чья доля на эту стройку легла в другой месяц, реестр перечислит, а строка не считает: число
+    /// разошлось бы — ссылки нет. У соседней стройки, где расхождения нет, ссылка есть и сходится.
+    /// </summary>
+    [Fact]
+    public async Task У_стройки_ссылки_нет_когда_реестр_перечислит_счёт_с_её_долей_в_другом_месяце()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var month = new DateOnly(today.Year, today.Month, 1).AddMonths(-4);
+        var (last, next) = (month.AddMonths(1).AddDays(-1), month.AddMonths(1));
+        var nextLast = next.AddMonths(1).AddDays(-1);
+
+        async Task CloseSiteAsync(Guid site, DateOnly from, DateOnly through, DateOnly? seen)
+        {
+            using var scope = host.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
+                .CloseAsync(new ClosePeriod(PeriodContour.Construction(site), from, through, seen, null));
+        }
+        async Task<JsonElement> NextMonthAsync(Guid site)
+        {
+            var response = await admin.PostAsJsonAsync("/api/periods/close/preview",
+                new { contour = "construction", constructionId = site, from = Iso(next), through = Iso(nextLast) });
+            await OkAsync(response);
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+        static JsonElement Entering(JsonElement preview) =>
+            Assert.Single(preview.GetProperty("sections").EnumerateArray()).GetProperty("frozen").EnumerateArray()
+                .Single(l => l.GetProperty("key").GetString() == "entering");
+
+        // Стройка А закрыта по конец месяца; счёт на А и Б оплачен в этом месяце — доля А (40 000) уходит
+        // в первый открытый день, в следующий месяц, а доля Б (60 000) остаётся в месяце оплаты.
+        var (split, a, b) = await TwoSitesAsync(admin);
+        await OkAsync(await admin.PostAsync($"/api/costs/invoices/{split}/parsed", null));
+        await CloseSiteAsync(a, month, last, null);
+        await PayAsync(admin, split, month.AddDays(2), await PreviewAsync(admin, split, month.AddDays(2)), null);
+        await CloseSiteAsync(b, month, last, null);
+
+        // Второй счёт — целиком на Б и уже в следующем месяце.
+        var whole = await CreateAsync(admin, complete: true);
+        var lines = await LinesAsync(admin, whole, [Line(cable, 100, 400), Line(conduit, 50, 1200)]);
+        await AllocateAsync(admin, whole, LineId(lines, 1), [Part(b, quantity: 100)]);
+        await AllocateAsync(admin, whole, LineId(lines, 2), [Part(b, quantity: 50)]);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{whole}",
+            new { requisites = await RequisitesWithAsync(admin, whole, "Итого", 100_000m) }));
+        await OkAsync(await admin.PostAsync($"/api/costs/invoices/{whole}/parsed", null));
+        await PayAsync(admin, whole, next.AddDays(2), await PreviewAsync(admin, whole, next.AddDays(2)), null);
+
+        // Закрывают следующий месяц у Б: в него вошёл один счёт, а реестр под «объект Б + этот месяц»
+        // перечислил бы два — у первого доля Б есть, и дата в этом месяце есть (у доли А).
+        var ofB = Entering(await NextMonthAsync(b));
+        Assert.Equal((1, 100_000m), (ofB.GetProperty("count").GetInt32(), ofB.GetProperty("amount").GetDecimal()));
+        Assert.Equal(JsonValueKind.Null, ofB.GetProperty("link").ValueKind);
+
+        // У А в том же месяце — её перенесённая доля, и реестр согласен: ссылка есть.
+        var ofA = Entering(await NextMonthAsync(a));
+        Assert.Equal((1, 40_000m), (ofA.GetProperty("count").GetInt32(), ofA.GetProperty("amount").GetDecimal()));
+        var link = ofA.GetProperty("link").GetString()!;
+        var registry = await admin.GetFromJsonAsync<JsonElement>(
+            $"/api/tables/costs.invoices?columns=Номер,СуммаПоОтбору&totals=СуммаПоОтбору&limit=1&filter={link[(link.IndexOf('=') + 1)..]}");
+        Assert.Equal(1, registry.GetProperty("count").GetInt32());
+        Assert.Equal(40_000m, registry.GetProperty("totals").GetProperty("СуммаПоОтбору").GetProperty("sum").GetDecimal());
+
+        // «История» ссылок не несёт: они собраны по названиям и данным на момент закрытия.
+        var shown = await NextMonthAsync(a);
+        await OkAsync(await admin.PostAsJsonAsync("/api/periods/close", new
+        {
+            contour = "construction", constructionId = a, from = Iso(next), through = Iso(nextLast),
+            ifMatch = Iso(last), report = shown.GetProperty("stamp").GetString(),
+        }));
+        var record = (await admin.GetFromJsonAsync<JsonElement>("/api/periods/history?take=1")).EnumerateArray().First();
+        Assert.Equal(JsonValueKind.Null,
+            record.GetProperty("report")[0].GetProperty("frozen").EnumerateArray()
+                .Single(l => l.GetProperty("key").GetString() == "entering").GetProperty("link").ValueKind);
+    }
+
+    /// <summary>
     /// Предпросмотр отказывает теми же словами, что закрытие: стройки нет — «не найдена» сразу, а не
     /// перечень с открытой кнопкой и отказ по её нажатию.
     /// </summary>

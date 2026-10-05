@@ -158,7 +158,9 @@ await check('closing-dialog-lists-what-it-records', async () => {
   await dialog.getByPlaceholder('ДД').nth(1).fill(day);
   await dialog.getByPlaceholder('ММ').nth(1).fill(month);
   await Promise.all([
-    page.waitForResponse(r => r.url().includes('/periods/close/preview') && r.ok()),
+    // Ответ — на запрос именно с этой датой: перечень за промежуточные даты (после дня и месяца) не годится.
+    page.waitForResponse(r => r.url().includes('/periods/close/preview') && r.ok()
+      && (r.request().postData() ?? '').includes(`"through":"${through}"`)),
     dialog.getByPlaceholder('ГГГГ').nth(1).fill(year).then(() => dialog.getByPlaceholder('ГГГГ').nth(1).blur()),
   ]);
   await dialog.getByText('Счета и накладные').waitFor({ timeout: 10_000 });
@@ -178,7 +180,10 @@ await check('closing-dialog-lists-what-it-records', async () => {
   const button = dialog.getByRole('button', { name: 'Закрыть период' });
   if (await button.isDisabled()) throw new Error('перечень показан, а кнопка закрытия недоступна');
   const refused = [];
-  const listen = response => { if (response.status() >= 400) refused.push(`${response.status()} ${response.url()}`); };
+  // Только запросы периода: посторонний отказ (фоновый опрос, 429 стенда) диалога не касается.
+  const listen = response => {
+    if (response.status() >= 400 && response.url().includes('/api/periods')) refused.push(`${response.status()} ${response.url()}`);
+  };
   page.on('response', listen);
   try {
     await Promise.all([
@@ -205,12 +210,9 @@ await check('closing-dialog-lists-what-it-records', async () => {
   if (!recorded.includes(`Оплачены в периоде, но не разобраны: ${unsettled}`))
     throw new Error(`в «Истории» не то, что показал диалог («${unsettled}»): ${recorded.slice(0, 500)}`);
 });
-if (!closedThrough) {
-  console.error('Период закрыть не удалось — остальные проверки прогона стоят на закрытом периоде.');
-  process.exitCode = summarize('Оплата счёта');
-  await browser.close();
-  process.exit();
-}
+// Остальные проверки стоят на закрытом периоде: без него они провалились бы все и заслонили бы причину.
+// Итог подводится в одном месте — в конце файла (сторож `suites.test.mjs`).
+if (closedThrough) {
 
 // ── 2. Перенос назван до сохранения, и записанное равно показанному ────────────────────────────────
 await check('preview-matches-recorded', async () => {
@@ -336,6 +338,7 @@ await check('locked-invoice-says-why', async () => {
   if (!error || !/409/.test(error) || !/заперт/.test(error)) throw new Error(`сервер правку запертого счёта не отверг: ${error}`);
 });
 
+}
 } finally {
   // Закрытие — только своё и только до конца прогона: соседним наборам оно не остаётся.
   // Проверкой, а не строкой в журнале: неотменённое закрытие — провал прогона, его обязан увидеть итог.

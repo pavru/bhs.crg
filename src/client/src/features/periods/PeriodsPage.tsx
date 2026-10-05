@@ -15,7 +15,7 @@ import {
 } from '@/shared/api/periods';
 import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 import { ClosingSections } from './ClosingSections';
-import { unfinishedSummary } from './closing';
+import { unfinishedSummary, visiblyChanged } from './closing';
 
 /**
  * Учётный период (ТЗ CORE-35, issue #1081): до какой даты закрыт учёт компании и каждой стройки,
@@ -173,6 +173,7 @@ function CloseDialog({ state, name, today, onDone }: {
   // То, что останется после закрытия как есть, — рядом с кнопкой: перечень длинный, и кнопка бывает
   // видна без него.
   const unfinished = seen ? unfinishedSummary(seen.sections) : null;
+  const before = seen && refused?.dates === dates ? refused.sections : null;
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Закрыть период: ${name}`}
@@ -227,8 +228,16 @@ function CloseDialog({ state, name, today, onDone }: {
             {apiError(preview.error, 'Не удалось узнать, что попадёт в период.')} Без перечня закрыть нельзя.
           </p>
         ) : preview.data ? (
-          <ClosingSections sections={preview.data.sections} stale={!seen}
-            before={seen && refused?.dates === dates ? refused.sections : null} />
+          <>
+            <ClosingSections sections={preview.data.sections} stale={!seen} before={before} />
+            {/* Сервер сверяет весь перечень, а на экране — не всё: суммы бывают скрыты правом. */}
+            {before && seen && !visiblyChanged(before, seen.sections) && (
+              <p role="note" className="text-[13px] text-fg2">
+                Числа на экране прежние: изменилось то, чего здесь не видно, — например, суммы, скрытые
+                правом. Перечень перечитан — закрыть можно.
+              </p>
+            )}
+          </>
         ) : (
           from && through && <p className="text-[13px] text-fg3">Считаем, что попадёт в период…</p>
         )}

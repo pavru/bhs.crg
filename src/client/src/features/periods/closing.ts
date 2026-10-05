@@ -48,10 +48,31 @@ export function goneLines(
   return was.filter(l => !section[group].some(now => now.key === l.key));
 }
 
+/** Разделы, которые были в прежнем перечне, а в нынешнем их нет вовсе: модуль перестал отвечать. */
+export function goneSections(before: ClosingSection[] | null, sections: ClosingSection[]): ClosingSection[] {
+  return (before ?? []).filter(was => !sections.some(now => now.module === was.module));
+}
+
 /**
- * Ссылка строки — только путь внутри приложения. Перечень приходит с сервера и лежит в записи о
- * закрытии; адрес наружу под видом «посмотреть счета» экран не откроет, откуда бы он ни взялся.
+ * Видно ли на экране, чем нынешний перечень отличается от прежнего. Сервер сверяет ВЕСЬ перечень —
+ * и суммы, скрытые правом, — так что отказ «данные изменились» бывает и при прежних числах на экране:
+ * тогда об этом надо сказать словами, иначе отказ выглядит беспричинным.
+ */
+export function visiblyChanged(before: ClosingSection[], sections: ClosingSection[]): boolean {
+  const groups: ClosingGroup[] = ['unfinished', 'frozen'];
+  return goneSections(before, sections).length > 0 || sections.some(section => groups.some(group =>
+    goneLines(before, section, group).length > 0
+    || section[group].some(line => wasText(before, section.module, group, line) !== null)));
+}
+
+/**
+ * Ссылка строки — только путь внутри приложения: от корня, без второго слэша, обратных слэшей,
+ * пробелов и управляющих символов. Последние браузер из адреса ВЫБРАСЫВАЕТ: «/⇥/example.org» стало бы
+ * «//example.org» — чужим сайтом под видом «посмотреть счета». То же правило держит сервер
+ * (`ClosingReport.IsLocalLink`); здесь — вторая преграда, на случай перечня из чужой копии.
  */
 export function localLink(link: string | null | undefined): string | null {
-  return link && link.startsWith('/') && !link.startsWith('//') && !link.includes('\\') ? link : null;
+  // eslint-disable-next-line no-control-regex -- управляющие символы здесь и есть предмет проверки
+  return link && link.length > 1 && link[0] === '/' && link[1] !== '/' && !/[\u0000-\u0020\u007f-\u00a0\\\s]/.test(link)
+    ? link : null;
 }

@@ -132,6 +132,15 @@ public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
         return new([.. Sections.Select(s => s with { Unfinished = [.. s.Unfinished.Select(Cut)], Frozen = [.. s.Frozen.Select(Cut)] })]);
     }
 
+    /// <summary>
+    /// Ссылка строки — только путь внутри приложения: от корня, без второго слэша, обратных слэшей,
+    /// пробелов и управляющих символов. Последние браузер из адреса ВЫБРАСЫВАЕТ: «/⇥/example.org»
+    /// превращается в «//example.org» — чужой сайт под видом «посмотреть счета» (ревью PR #1202).
+    /// </summary>
+    public static bool IsLocalLink(string? link) =>
+        link is { Length: > 1 } && link[0] == '/' && link[1] != '/'
+        && !link.Any(c => c == '\\' || char.IsControl(c) || char.IsWhiteSpace(c));
+
     /// <summary>Скрыта ли в разделе хоть одна сумма — тогда экран говорит об этом одной строкой.</summary>
     public static bool HidesAmounts(ClosingSection shown, ClosingSection full) =>
         full.Unfinished.Concat(full.Frozen).Count(l => l.Amount is not null)

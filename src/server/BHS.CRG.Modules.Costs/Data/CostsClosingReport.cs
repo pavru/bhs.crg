@@ -77,9 +77,7 @@ public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource
         if (entering.Invoices > 0)
             frozen.Add(new("entering", "Оплаченные счета, вошедшие в период", entering.Invoices, Invoices, entering.Amount, Amounts,
                 "Их оплату, учётный период и разноску изменить будет нельзя. Неоплаченные счета к периоду не относятся и остаются открытыми.",
-                // Реестр под отбором периода покажет и счёт, у которого в эти дни только доля без денег
-                // (в строке не вписана цена): сумма сойдётся, а число счетов — нет. Тогда ссылки нет.
-                read.Count == entering.Invoices ? await RegistryLinkAsync(scope, ct) : null));
+                await RegistryLinkAsync(scope, entering.Invoices, ct)));
         if (locked != entering.Invoices)
             frozen.Add(new("locked", "Запрутся целиком", locked, Invoices,
                 Note: "Вместе с отклонёнными оплаченными счетами и счетами, у которых в периоде есть доля без денег: " +
@@ -97,11 +95,12 @@ public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource
     /// 05.10.2026): реестр отбирает по месяцу, и за неполный показал бы больше, чем строка. Поэтому
     /// ссылки нет у первого закрытия контура (закрывается всё, что было раньше, — начала нет), у периода
     /// не с первого по последнее число, при стройке, закрытой дальше компании (её доли реестр покажет, а
-    /// строка не считает), у стройки без названия и когда среди счетов периода есть счёт без денег в нём
-    /// (реестр его покажет, строка — нет). «Не завершено» ссылки не имеет: точного отбора
+    /// строка не считает), у стройки без названия или с названием, которое носит ещё один объект (отбор
+    /// реестра идёт по названию), и когда реестр под этим отбором перечислит не столько счетов, сколько в
+    /// строке (см. <see cref="ListedAsync" />). «Не завершено» ссылки не имеет: точного отбора
     /// «не разобран ИЛИ с остатком этих дней» у реестра нет.</para>
     /// </summary>
-    private async Task<string?> RegistryLinkAsync(ModuleClosingScope scope, CancellationToken ct)
+    private async Task<string?> RegistryLinkAsync(ModuleClosingScope scope, int counted, CancellationToken ct)
     {
         if (scope.From is not { Day: 1 } from || scope.Through != PaymentPosting.MonthOf(scope.Through).AddMonths(1).AddDays(-1)
             || scope.ClosedAhead.Count > 0)
@@ -111,12 +110,16 @@ public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource
         var months = new List<DateOnly>();
         for (var month = from; month <= scope.Through; month = month.AddMonths(1)) months.Add(month);
         if (!months.All(m => InvoicePeriods.Covers(m, today))) return null;
+        if (await ListedAsync(scope, from, ct) != counted) return null;
 
         var conditions = new List<object>();
         if (scope.ConstructionId is { } site)
         {
-            // Отбор реестра идёт по НАЗВАНИЮ объекта: без названия стройки ссылку собрать нечем.
-            if ((await places.LoadAsync(ct)).Sites.FirstOrDefault(s => s.Id == site) is not { } named) return null;
+            // Отбор реестра идёт по НАЗВАНИЮ объекта: без названия стройки ссылку собрать нечем, а под
+            // названием, которое носит ещё и другая стройка или статья, реестр покажет счета обеих.
+            var known = await places.LoadAsync(ct);
+            if (known.Sites.FirstOrDefault(s => s.Id == site) is not { } named) return null;
+            if (known.Sites.Count(s => s.Name == named.Name) + known.Articles.Count(a => a.Name == named.Name) != 1) return null;
             conditions.Add(new { type = "condition", column = InvoiceTable.ObjectsKey, op = "eq", value = named.Name });
         }
         conditions.Add(new { type = "condition", column = InvoiceTable.PeriodKey, op = "in", values = months.Select(PaymentViews.Month) });
@@ -127,6 +130,21 @@ public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource
 
         var filter = JsonSerializer.Serialize(new { type = "group", logic = "and", children = conditions }, LinkJson);
         return $"{Registry}#filter={Uri.EscapeDataString(filter)}";
+    }
+
+    /// <summary>
+    /// Сколько счетов реестр перечислит под отбором ссылки. Он отбирает счёт двумя НЕЗАВИСИМЫМИ
+    /// условиями — «есть доля на объект» и «есть учётная дата в этих месяцах», — а строка считает только
+    /// деньги этого объекта в эти дни. Расходятся они на счёте, у которого в месяцах есть дата, но не
+    /// деньги строки: доля без цены либо, у стройки, доля ДРУГОЙ стройки (своя легла в другой месяц —
+    /// ревью PR #1202). Сумма под ссылкой сошлась бы, число счетов — нет.
+    /// </summary>
+    private Task<int> ListedAsync(ModuleClosingScope scope, DateOnly from, CancellationToken ct)
+    {
+        var dated = SiteCostsEndpoints.Paid(db, from, scope.Through, site: null);
+        return scope.ConstructionId is { } site
+            ? dated.CountAsync(i => db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site), ct)
+            : dated.CountAsync(ct);
     }
 
     private static readonly JsonSerializerOptions LinkJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
