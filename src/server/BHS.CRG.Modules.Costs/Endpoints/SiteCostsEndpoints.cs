@@ -117,10 +117,10 @@ public static class SiteCostsEndpoints
     private static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
         CostsDbContext db, IQueryable<Invoice> invoices, CancellationToken ct)
     {
-        var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn }).ToListAsync(ct);
+        var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment }).ToListAsync(ct);
         var owners = invoices.Select(i => i.Id);
         var money = await InvoiceMoney.ReadAsync(db,
-            [.. heads.Select(h => new InvoiceHead(h.Id, h.Total, h.RemainderAccountingOn))], owners, null, ct);
+            [.. heads.Select(h => new InvoiceHead(h.Id, h.Total, h.RemainderAccountingOn, h.Payment == InvoicePaymentState.Paid))], owners, null, ct);
         var lines = await db.InvoiceLines.AsNoTracking().Where(l => owners.Contains(l.InvoiceId))
             .Select(l => new { l.Id, l.InvoiceId, l.Amount, l.VatAmount, l.NomenclatureId }).ToListAsync(ct);
         var unmatched = lines.Where(l => l.NomenclatureId is null).Select(l => l.InvoiceId).ToHashSet();
