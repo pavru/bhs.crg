@@ -3,7 +3,7 @@ import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import {
-  useFreshInvoice, useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
+  useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
 } from '@/shared/api/invoices';
 import { K } from './invoiceFields';
 import { useDraftBase } from './draftBase';
@@ -51,8 +51,12 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
 
   // На чём собран черновик строк (issue #1176). Подпись — сами строки, как их принял бы сервер: правка
   // шапки или разноски версию счёта двигает, а строк не касается — и черновик остаётся в силе.
-  const base = useDraftBase(view.version, linesSignature(view), dirty);
-  const readFresh = useFreshInvoice();
+  //
+  // ⚠️ Пока открыт диалог разноски строки, таблица не пересобирается: пересборка убрала бы строку,
+  // которую сосед удалил, — вместе с диалогом и набранными в нём частями, без единого слова (ревью
+  // PR #1208). Диалог закрылся — пересборка происходит тем же рендером.
+  const [allocating, setAllocating] = useState(false);
+  const base = useDraftBase(view, linesSignature, dirty || allocating);
   // Строки изменили, а своих правок нет — показываем свежие. Иначе таблица держала бы прежние до
   // перезагрузки страницы, и «сохранить» первой же правкой затёрло бы чужие.
   if (base.rebuild) setDrafts(toDrafts(view.lines));
@@ -89,10 +93,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
 
   async function save() {
     try {
-      const fresh = await readFresh(view.id);
-      const saved = await replace.mutateAsync({
-        id: view.id, seen: base.seenAgainst(fresh.version, linesSignature(fresh)), lines: toPayload(drafts),
-      });
+      const saved = await base.save(seen => replace.mutateAsync({ id: view.id, seen, lines: toPayload(drafts) }));
       // Строки перечитываем ИЗ ОТВЕТА: сервер вернул досчитанные суммы и идентификаторы новых строк,
       // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
       setDrafts(toDrafts(saved.lines));
@@ -127,7 +128,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
         )}
       </div>
 
-      {base.stale && <StaleInvoiceNotice what="строки" onReread={reread} />}
+      {base.stale && dirty && <StaleInvoiceNotice what="строки" onReread={reread} />}
 
       {drafts.length === 0
         ? (
@@ -158,8 +159,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
               </thead>
               <tbody>
                 {drafts.map((draft, index) => (
-                  <Row key={draft.key} draft={draft} number={index + 1} invoiceId={view.id} version={view.version}
-                    line={view.lines.find(line => line.id === draft.id)}
+                  <Row key={draft.key} draft={draft} number={index + 1} view={view}
+                    line={view.lines.find(line => line.id === draft.id)} onAllocating={setAllocating}
                     blocked={dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null}
                     locked={still} allocationLocked={locked}
                     onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
@@ -248,18 +249,19 @@ function linesSignature(view: InvoiceView): string {
   return JSON.stringify(toPayload(toDrafts(view.lines)));
 }
 
-function Row({ draft, number, invoiceId, version, line, blocked, locked, allocationLocked, onEdit, onRemove }: {
+function Row({ draft, number, view, line, blocked, locked, allocationLocked, onAllocating, onEdit, onRemove }: {
   draft: LineDraft;
   number: number;
-  invoiceId: string;
-  /** Версия счёта: её называет разноска строки (issue #1176). */
-  version: string;
+  /** Счёт целиком: разноска строки называет его версию (issue #1176). */
+  view: InvoiceView;
   /** Строка, как её вернул сервер, — с разноской; у новой строки её нет. */
   line: InvoiceLineView | undefined;
   blocked: string | null;
   locked: boolean;
   /** Разноску запирает только закрытый период: без права на счета её по-прежнему решает своё право. */
   allocationLocked: boolean;
+  /** Диалог разноски строки открыт или закрыт — пока открыт, таблица не пересобирается. */
+  onAllocating: (open: boolean) => void;
   onEdit: (patch: Partial<LineDraft>) => void;
   onRemove: () => void;
 }) {
@@ -267,8 +269,8 @@ function Row({ draft, number, invoiceId, version, line, blocked, locked, allocat
 
   if (locked)
     return (
-      <LockedRow draft={draft} number={number} invoiceId={invoiceId} version={version} line={line}
-        allocationLocked={allocationLocked} />
+      <LockedRow draft={draft} number={number} view={view} line={line}
+        allocationLocked={allocationLocked} onAllocating={onAllocating} />
     );
 
   return (
@@ -307,8 +309,8 @@ function Row({ draft, number, invoiceId, version, line, blocked, locked, allocat
         onChange={value => onEdit({ amount: value })} />
       <Cell value={draft.note} label={`Примечание, строка ${number}`}
         onChange={value => onEdit({ note: value })} />
-      <LineAllocationCell invoiceId={invoiceId} version={version} line={line} number={number} blocked={blocked}
-        locked={false} />
+      <LineAllocationCell view={view} line={line} number={number} blocked={blocked}
+        locked={false} onOpenChange={onAllocating} />
       <td className="py-1">
         <button type="button" onClick={onRemove} title={`Удалить строку ${number}`}
           className="text-fg4 hover:text-danger p-0.5">
@@ -323,9 +325,9 @@ function Row({ draft, number, invoiceId, version, line, blocked, locked, allocat
  * Строка запертого счёта — текстом, без полей: править её нельзя, и поле, в которое можно печатать,
  * обещало бы обратное. Разноска открывается — посмотреть.
  */
-function LockedRow({ draft, number, invoiceId, version, line, allocationLocked }: {
-  draft: LineDraft; number: number; invoiceId: string; version: string;
-  line: InvoiceLineView | undefined; allocationLocked: boolean;
+function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }: {
+  draft: LineDraft; number: number; view: InvoiceView;
+  line: InvoiceLineView | undefined; allocationLocked: boolean; onAllocating: (open: boolean) => void;
 }) {
   const shown = preview(draft);
   const text = (value: string, numeric = false) => (
@@ -347,8 +349,8 @@ function LockedRow({ draft, number, invoiceId, version, line, allocationLocked }
       {text(draft.vatAmount || (shown.vat === null ? '' : formatInputAmount(shown.vat)), true)}
       {text(draft.amount || (shown.amount === null ? '' : formatInputAmount(shown.amount)), true)}
       {text(draft.note)}
-      <LineAllocationCell invoiceId={invoiceId} version={version} line={line} number={number} blocked={null}
-        locked={allocationLocked} />
+      <LineAllocationCell view={view} line={line} number={number} blocked={null}
+        locked={allocationLocked} onOpenChange={onAllocating} />
       <td />
     </tr>
   );

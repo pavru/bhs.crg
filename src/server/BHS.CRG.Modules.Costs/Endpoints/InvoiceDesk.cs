@@ -43,7 +43,7 @@ public sealed class InvoiceDesk(
         db.InOpenPeriodAsync(periods, async boundaries =>
         {
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
-            EnsureSeen(invoice);
+            EnsureSeen(InvoiceEndpoints.Label(invoice), db.VersionOf(invoice));
             var paid = invoice.Payment == InvoicePaymentState.Paid;
             var before = PostedBefore.None;
             string? locked = null;
@@ -98,14 +98,6 @@ public sealed class InvoiceDesk(
         }, ct);
 
     /// <summary>
-    /// Меняют ли записи под сохранением деньги счёта. Денег у расклада три источника, и других нет
-    /// (<see cref="PaymentPosting.Plan" /> берёт только их): сумма к оплате, строки и доли разноски.
-    ///
-    /// <para>⚠️ Видно только то, что идёт через отслеживание контекста. Запись мимо него
-    /// (<c>ExecuteUpdate</c>, <c>ExecuteSql</c>) связка не заметила бы — поэтому в модуле её нет, и
-    /// сторож по исходникам (<c>InvoiceWritePathTests</c>) не даёт ей появиться.</para>
-    /// </summary>
-    /// <summary>
     /// Правка собрана по той версии счёта, что лежит сейчас (issue #1176).
     ///
     /// <para>До этой проверки сервер сверял версию, прочитанную ТЕМ ЖЕ запросом: двое открыли счёт,
@@ -122,7 +114,7 @@ public sealed class InvoiceDesk(
     /// <para>⚠️ Без названной версии — отказ, а не «значит, свежая»: умолчание записывало бы
     /// устаревшую форму поверх чужой правки ровно так же, как раньше.</para>
     /// </summary>
-    private void EnsureSeen(Invoice invoice)
+    private void EnsureSeen(string label, string stored)
     {
         var request = http.HttpContext?.Request
             ?? throw new InvalidOperationException(
@@ -137,13 +129,32 @@ public sealed class InvoiceDesk(
                 $"Не названа версия счёта, по которой собрана правка (заголовок {SeenHeader}) — она приходит " +
                 "в ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");
 
-        if (seen != db.VersionOf(invoice))
+        if (seen != stored)
             throw new ConflictException(
-                $"{InvoiceEndpoints.Label(invoice)} тем временем изменили, и это действие не выполнено. " +
+                $"{label} тем временем изменили, и это действие не выполнено. " +
                 "Перечитайте счёт и повторите: вы видели прежнее состояние, и записанная поверх правка " +
                 "затёрла бы чужую.");
     }
 
+    /// <summary>
+    /// Та же проверка ДО связки — для адреса, которому дорого до неё дойти: скан сначала выгружается в
+    /// хранилище, и устаревшая форма заливала бы файл целиком ради отказа (ревью PR #1208).
+    ///
+    /// <para>⚠️ Это не замена проверке в связке, а её ранний повтор: между ним и замком счёт могут
+    /// изменить, и решает по-прежнему связка. Версия читается БЕЗ отслеживания: отслеженный здесь счёт
+    /// связка получила бы обратно из контекста, а не из базы, — и проверяла бы прочитанное до замка.</para>
+    /// </summary>
+    public async Task EnsureSeenAsync(Guid id, CancellationToken ct) =>
+        EnsureSeen("Счёт", await db.StoredInvoiceVersionAsync(id, ct) ?? throw new NotFoundException("Счёт не найден."));
+
+    /// <summary>
+    /// Меняют ли записи под сохранением деньги счёта. Денег у расклада три источника, и других нет
+    /// (<see cref="PaymentPosting.Plan" /> берёт только их): сумма к оплате, строки и доли разноски.
+    ///
+    /// <para>⚠️ Видно только то, что идёт через отслеживание контекста. Запись мимо него
+    /// (<c>ExecuteUpdate</c>, <c>ExecuteSql</c>) связка не заметила бы — поэтому в модуле её нет, и
+    /// сторож по исходникам (<c>InvoiceWritePathTests</c>) не даёт ей появиться.</para>
+    /// </summary>
     private bool MoneyTouched() => db.ChangeTracker.Entries().Any(entry =>
         entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
         && (entry.Entity is InvoiceLine or InvoiceAllocation

@@ -10,7 +10,7 @@ import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
 import {
-  useAttachInvoiceScan, useConfirmInvoiceFields, useFreshInvoice, useUpdateInvoice,
+  useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
@@ -68,10 +68,13 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   // Правки шапки лежат поверх вида (issue #1176). Вид обновился, а поля, которые человек правит,
   // остались прежними — правки в силе. Изменили именно их — поле на экране показывает набранное, а не
   // чужое значение, и сохранение затёрло бы то, чего человек не видел: это и есть «устарело».
-  const fieldsSignature = (of: InvoiceView) =>
-    JSON.stringify(Object.keys(edits).sort().map(key => [key, of.requisites[key]]));
-  const base = useDraftBase(view.version, fieldsSignature(view), dirty);
-  const readFresh = useFreshInvoice();
+  //
+  // ⚠️ Подпись — реквизиты ЦЕЛИКОМ, а «моя часть» — сравнение: только по полям, которые человек правит.
+  // Подпись из одних правленых полей менялась бы с первой же правкой, без смены версии, — основа её не
+  // запоминала, и следующая чужая правка строк читалась бы как правка шапки (ревью PR #1208).
+  const base = useDraftBase(view, of => of.requisites, dirty, {
+    same: (a, b) => Object.keys(edits).every(key => JSON.stringify(a[key]) === JSON.stringify(b[key])),
+  });
 
   function reread() {
     setEdits({});
@@ -98,13 +101,11 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   /** @returns сохранилось ли: уходить со страницы после отказа нельзя — правки бы пропали. */
   async function save(): Promise<boolean> {
     try {
-      // Правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает таким, каким оно
-      // лежит сейчас, а не каким было на экране минуту назад.
-      const fresh = await readFresh(view.id);
-      await update.mutateAsync({
-        id: view.id, seen: base.seenAgainst(fresh.version, fieldsSignature(fresh)),
-        requisites: toRequisites(fresh.requisites, edits),
-      });
+      // На повторе правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает
+      // таким, каким оно лежит сейчас, а не каким было на экране минуту назад.
+      await base.save((seen, fresh) => update.mutateAsync({
+        id: view.id, seen, requisites: toRequisites((fresh ?? view).requisites, edits),
+      }));
       setEdits({});
       return true;
     } catch (e) {

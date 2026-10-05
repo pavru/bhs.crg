@@ -98,6 +98,14 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// </summary>
     public string VersionOf(Invoice invoice) => Version(invoice);
 
+    /// <summary>
+    /// Версия счёта, как она лежит в базе, — без чтения самого счёта и без отслеживания; <c>null</c> —
+    /// счёта нет. Для проверки ДО связки записи (<c>InvoiceDesk.EnsureSeenAsync</c>).
+    /// </summary>
+    public async Task<string?> StoredInvoiceVersionAsync(Guid id, CancellationToken ct) =>
+        (await Invoices.Where(i => i.Id == id).Select(i => (uint?)EF.Property<uint>(i, RowVersion)).FirstOrDefaultAsync(ct))
+        ?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     private string Version(object entity) =>
         ((uint)Entry(entity).Property(RowVersion).CurrentValue!).ToString(System.Globalization.CultureInfo.InvariantCulture);
 

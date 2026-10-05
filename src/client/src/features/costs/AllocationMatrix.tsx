@@ -3,16 +3,16 @@ import { Calculator, Check, Divide, Percent, Plus, Save, Trash2, X } from 'lucid
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
-import { useFreshInvoice, type InvoiceView } from '@/shared/api/invoices';
+import type { InvoiceView } from '@/shared/api/invoices';
 import {
   usePreviewAllocation, useReplaceMatrix, type AllocationPreview, type SplitMethod,
 } from '@/shared/api/allocationMatrix';
 import { formatMoney, formatQuantity } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
-import { useDraftBase } from './draftBase';
+import { useDraftBase, type DraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import {
-  allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, newTarget, partAt, restText, rowsOf,
+  allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, matrixSignature, newTarget, partAt, restText, rowsOf,
   targetName, targetsOf, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
 import { PlaceSelect } from './PlaceSelect';
@@ -36,8 +36,12 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   /** Сумма к оплате — ею разносится счёт без строк. */
   total: number | null;
   canEdit: boolean;
-  /** Предпросмотр, с которым матрица открывается (выбор объекта в шапке поверх прежней разноски). */
-  initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string };
+  /**
+   * Предпросмотр, с которым матрица открывается (выбор объекта в шапке поверх прежней разноски).
+   * `base` — вид, по которому он СПРОШЕН: пока шёл запрос, вид мог смениться, и основой матрицы
+   * обязан быть тот, а не пришедший к монтированию.
+   */
+  initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string; base: DraftBase };
   onClose: () => void;
 }) {
   const places = usePlaces();
@@ -62,8 +66,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   // Матрица собрана по строкам счёта и его разноске (issue #1176). Отметка разноски (`stamp`) стережёт
   // только части: строку, которой сосед сменил количество, она не видит — её видит версия счёта.
   const touched = dirty || preview !== null;
-  const base = useDraftBase(view.version, matrixSignature(view), touched);
-  const readFresh = useFreshInvoice();
+  const base = useDraftBase(view, matrixSignature, touched, { initial: initialPreview?.base });
   if (base.rebuild) reset(view);
 
   const allocations = allocationsOf(view, preview);
@@ -102,9 +105,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   async function save() {
     try {
       const state = { ...(preview ? preview.apply : toState(rows, targets, cells)), stamp };
-      const fresh = await readFresh(view.id);
-      const seen = base.seenAgainst(fresh.version, matrixSignature(fresh));
-      reset(await replace.mutateAsync({ id: view.id, seen, state }));
+      reset(await base.save(seen => replace.mutateAsync({ id: view.id, seen, state })));
     } catch (e) {
       toast.apiError(e, 'Разноска не записана');
     }
@@ -313,11 +314,6 @@ function PendingNote({ view, places }: { view: InvoiceView; places: Places }) {
 }
 
 const STICKY_LEFT = 'sticky left-0 z-10 bg-surface border-b border-r border-stroke px-2 py-1.5';
-/** Из чего собрана матрица: строки счёта и отметка его разноски. */
-function matrixSignature(view: InvoiceView): string {
-  return JSON.stringify([view.allocation.stamp, view.lines]);
-}
-
 const STICKY_RIGHT = 'sticky right-0 z-10 bg-surface border-b border-l border-stroke px-2 py-1.5';
 
 const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none

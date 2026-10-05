@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { INVOICES_KEY, QK, rereadOnConflict, seenBy, type InvoiceView } from './invoices';
+import { QK, seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
 
 /**
  * Оплата счёта (задача C5, issue #1082, ТЗ COST-4, COST-9, COST-16).
@@ -79,18 +79,6 @@ export function usePostedPayment(id: string, enabled: boolean) {
     queryKey: [QK, id, 'paid'] as const,
     queryFn: () => apiClient.get<PaymentPosting>(`/costs/invoices/${id}/paid`).then(r => r.data),
     enabled,
-  });
-}
-
-function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Promise<InvoiceView>) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: send,
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
   });
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import {
-  DOCUMENT_ROW, cellText, cellsFromState, cellsOf, headerObject, restText, rowsOf, targetsOf, toState,
+  DOCUMENT_ROW, cellText, cellsFromState, cellsOf, headerObject, matrixSignature, restText, rowsOf, targetsOf, toState,
   type MatrixRow,
 } from './matrix';
 
@@ -137,5 +137,23 @@ describe('статья вне строек (F3)', () => {
       .toEqual({ kind: 'one', place: article('склад'), complete: false });
     expect(headerObject(invoice([line('l1', { parts: [part('A'), articlePart('склад')] })])))
       .toEqual({ kind: 'many', count: 2 });
+  });
+});
+
+// Подпись — то, по чему матрица узнаёт «строки или разноску изменили» (issue #1176).
+describe('подпись матрицы', () => {
+  // Название позиции приезжает в виде счёта, а меняется в справочнике — без счёта и без его версии.
+  // Попади оно в подпись, переименованная позиция читалась бы как чужая правка строк (ревью PR #1208).
+  it('не зависит от названия позиции номенклатуры', () => {
+    const before = invoice([line('l1', {})]);
+    const after = invoice([{ ...line('l1', {}), nomenclatureName: 'переименовали', nomenclatureLost: true }]);
+    expect(matrixSignature(after)).toBe(matrixSignature(before));
+  });
+
+  it('меняется с количеством строки и с отметкой разноски', () => {
+    const before = invoice([line('l1', {})]);
+    expect(matrixSignature(invoice([line('l1', {}, { quantity: 99 })]))).not.toBe(matrixSignature(before));
+    expect(matrixSignature({ ...before, allocation: { ...before.allocation, stamp: 'другая' } }))
+      .not.toBe(matrixSignature(before));
   });
 });

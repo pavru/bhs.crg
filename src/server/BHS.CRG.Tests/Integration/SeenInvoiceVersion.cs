@@ -23,6 +23,16 @@ public sealed partial class SeenInvoiceVersion : DelegatingHandler
     /// <summary>Значение заголовка, означающее «версию не называть»: обработчик заголовок снимает.</summary>
     public const string Omit = "-";
 
+    /// <summary>
+    /// Клиент фабрики с этим обработчиком — тем же набором, что даёт её <c>CreateClient()</c> (переходы и
+    /// куки). Для фабрики, полученной через <c>WithWebHostBuilder</c>: сокрытый метод фикстуры ей не достаётся.
+    /// </summary>
+    public static HttpClient ClientOf(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory) =>
+        factory.CreateDefaultClient(
+            new Microsoft.AspNetCore.Mvc.Testing.Handlers.RedirectHandler(),
+            new Microsoft.AspNetCore.Mvc.Testing.Handlers.CookieContainerHandler(),
+            new SeenInvoiceVersion());
+
     [GeneratedRegex(@"^/api/costs/invoices/(?<id>[0-9a-fA-F-]{36})(/|$)")]
     private static partial Regex InvoicePath();
 

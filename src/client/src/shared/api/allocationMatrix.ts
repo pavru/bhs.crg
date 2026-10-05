@@ -1,8 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { apiClient } from './client';
 import {
-  INVOICES_KEY, QK, rereadOnConflict, seenBy,
-  type AllocationSummaryView, type InvoiceView, type LineAllocationView,
+  seenBy, useInvoiceWrite, type AllocationSummaryView, type InvoiceView, type LineAllocationView,
 } from './invoices';
 
 /**
@@ -77,14 +76,6 @@ export function usePreviewAllocation() {
 
 /** Записать разноску счёта целиком. Каждая строка счёта обязана быть в наборе — иначе отказ. */
 export function useReplaceMatrix() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, state }: { id: string; seen: string; state: MatrixState }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}/allocation`, state, seenBy(seen)).then(r => r.data),
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
-  });
+  return useInvoiceWrite(({ id, seen, state }: { id: string; seen: string; state: MatrixState }) =>
+    apiClient.put<InvoiceView>(`/costs/invoices/${id}/allocation`, state, seenBy(seen)).then(r => r.data));
 }

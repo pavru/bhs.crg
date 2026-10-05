@@ -1,6 +1,7 @@
 import type { AllocationPartView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
 import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
+import { K } from './invoiceFields';
 import { toNumber } from './invoiceLines';
 import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
 
@@ -64,6 +65,20 @@ export function rowsOf(view: InvoiceView, total: number | null): MatrixRow[] {
     whole: line.allocation.mode === 'quantity' ? line.quantity : line.amount,
     amount: line.amount,
   }));
+}
+
+/**
+ * Из чего собрана матрица (issue #1176): отметка разноски, сумма к оплате (ею разносится счёт без
+ * строк) и то из строк, что делится, — количество, сумма, единица.
+ *
+ * ⚠️ Не строки целиком: название позиции приезжает в том же виде, а меняется в справочнике, без счёта.
+ * Попади оно в подпись, переименованная позиция читалась бы как «счёт изменили» (ревью PR #1208).
+ */
+export function matrixSignature(view: InvoiceView): string {
+  return JSON.stringify([
+    view.allocation.stamp, view.requisites[K.total] ?? null,
+    view.lines.map(line => [line.id, line.ordinal, line.unit, line.quantity, line.amount]),
+  ]);
 }
 
 /** Разноска каждой строки матрицы — из счёта или из предпросмотра, в одном и том же виде. */

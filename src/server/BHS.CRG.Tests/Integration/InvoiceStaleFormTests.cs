@@ -129,7 +129,8 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         // Версия одна на счёт (решение владельца, issue #1176): правка шапки отказывает сохранению
         // строк, собранному до неё, — хотя сами правки друг другу не мешают.
         var requisites = await RequisitesWithAsync(admin, invoice, "Номер", "СЧ-ПОСЛЕ");
-        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new { requisites }));
+        var saved = await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new { requisites });
+        await OkAsync(saved);
 
         var lines = await SendLinesAsync(admin, invoice, opened, [Line(null, 2, 10, text: "Кабель")]);
         Assert.Equal(HttpStatusCode.Conflict, lines.StatusCode);
@@ -137,7 +138,36 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         // Ответ правки несёт новую версию: форма, сохранившая шапку, сохраняет строки без перечитывания.
         var fresh = (await ReadAsync(admin, invoice)).GetProperty("version").GetString()!;
         Assert.NotEqual(opened, fresh);
+        Assert.Equal(fresh, (await saved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetString());
         await OkAsync(await SendLinesAsync(admin, invoice, fresh, [Line(null, 2, 10, text: "Кабель")]));
+    }
+
+    /// <summary>
+    /// Скан уходит в хранилище ДО связки записи (выгрузка под замком держала бы закрытие периода), и
+    /// версию связка проверила бы уже после. Устаревшая форма заливала бы файл целиком ради отказа —
+    /// поэтому у скана проверка повторена до выгрузки (ревью PR #1208).
+    /// </summary>
+    [Fact]
+    public async Task Скан_по_устаревшей_и_неназванной_версии_в_хранилище_не_уходит()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(admin);
+        var opened = (await ReadAsync(admin, invoice)).GetProperty("version").GetString()!;
+        await LinesAsync(admin, invoice, [Line(null, 2, 10, text: "Кабель")]);
+
+        var blobs = host.Services.GetRequiredService<FakeBlobStorage>();
+        var before = blobs.Uploads;
+
+        var stale = await SendAsync(admin, "POST", $"/api/costs/invoices/{invoice}/scan", opened, new { });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        var unnamed = await SendAsync(admin, "POST", $"/api/costs/invoices/{invoice}/scan", SeenInvoiceVersion.Omit, new { });
+        Assert.Equal(HttpStatusCode.BadRequest, unnamed.StatusCode);
+        Assert.Equal(before, blobs.Uploads);
+
+        // Со свежей версией скан прикладывается — ранняя проверка закрывает устаревшее, а не скан вообще.
+        var fresh = (await ReadAsync(admin, invoice)).GetProperty("version").GetString()!;
+        await OkAsync(await SendAsync(admin, "POST", $"/api/costs/invoices/{invoice}/scan", fresh, new { }));
+        Assert.Equal(before + 1, blobs.Uploads);
     }
 
     private List<(string Method, string Pattern)> WritingRoutes()

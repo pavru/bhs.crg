@@ -34,11 +34,12 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     /// <para>Здесь, а не в базовом классе тестов счёта: счёт правят проверки десятка классов (реестр,
     /// таблицы модуля, занятые записи, журнал), и клиент каждый из них создаёт по-своему. Подставлять
     /// версию в каждом значило бы однажды её забыть — и получить отказ, который читается как дефект.</para>
+    ///
+    /// <para>⚠️ Метод базового класса не виртуален, и это СОКРЫТИЕ: клиент, взятый у производной фабрики
+    /// (<c>WithWebHostBuilder(...)</c>) или через базовый тип, обработчика не получит. Такому клиенту,
+    /// если он правит счёт, обработчик дают явно — <see cref="SeenInvoiceVersion.ClientOf" />.</para>
     /// </summary>
-    public new HttpClient CreateClient() => CreateDefaultClient(
-        new Microsoft.AspNetCore.Mvc.Testing.Handlers.RedirectHandler(),
-        new Microsoft.AspNetCore.Mvc.Testing.Handlers.CookieContainerHandler(),
-        new SeenInvoiceVersion());
+    public new HttpClient CreateClient() => SeenInvoiceVersion.ClientOf(this);
 
     /// <summary>
     /// Имя тестовой БД — из переменной окружения <c>BHS_TEST_DB</c>, по умолчанию прежнее (issue #618).

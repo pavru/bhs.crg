@@ -244,28 +244,28 @@ export function useInvoices(needsParsing = false) {
   });
 }
 
-export function useInvoice(id: string | undefined) {
-  return useQuery({
-    queryKey: [QK, id],
+/** Чтение счёта — одно на обычный запрос и на перечитывание после отказа: ключ и адрес не разойдутся. */
+function invoiceQuery(id: string | undefined) {
+  return {
+    queryKey: [QK, id] as const,
     queryFn: () => apiClient.get<InvoiceView>(`/costs/invoices/${id}`).then(r => r.data),
-    enabled: !!id,
-  });
+  };
+}
+
+export function useInvoice(id: string | undefined) {
+  return useQuery({ ...invoiceQuery(id), enabled: !!id });
 }
 
 /**
- * Счёт, прочитанный СЕЙЧАС, — перед сохранением черновика (issue #1176).
+ * Счёт, прочитанный СЕЙЧАС, — после отказа «счёт изменили» (issue #1176).
  *
  * Версия у счёта одна на все его части, и вид на экране мог отстать: сосед сохранил шапку минуту назад,
- * а кэш ещё прежний. Сохрани форма строки по версии из кэша — получила бы отказ, хотя её строки никто
- * не трогал. Свежий вид отвечает на вопрос, который отказ задал бы всё равно: изменилась ли МОЯ часть.
+ * а кэш ещё прежний. Свежий вид отвечает на вопрос, который отказ оставил открытым: изменилась ли МОЯ
+ * часть. Нет — запись повторяется со свежей версией (`useDraftBase`).
  */
 export function useFreshInvoice() {
   const qc = useQueryClient();
-  return (id: string) => qc.fetchQuery({
-    queryKey: [QK, id],
-    queryFn: () => apiClient.get<InvoiceView>(`/costs/invoices/${id}`).then(r => r.data),
-    staleTime: 0,
-  });
+  return (id: string) => qc.fetchQuery({ ...invoiceQuery(id), staleTime: 0 });
 }
 
 /** Организации для выбора поставщика и плательщика — узкий список модуля. */
@@ -292,11 +292,28 @@ export function seenBy(version: string) {
  * Отказ 409 — счёт изменили: вид перечитывается сразу, чтобы форма узнала, ЧТО изменилось, и назвала
  * это человеку. Без перечитывания он увидел бы отказ над экраном, на котором всё по-прежнему.
  */
-export function rereadOnConflict(qc: QueryClient) {
+function rereadOnConflict(qc: QueryClient) {
   return (error: unknown, input: { id: string }) => {
     if ((error as { response?: { status?: number } })?.response?.status === 409)
       void qc.invalidateQueries({ queryKey: [QK, input.id] });
   };
+}
+
+/**
+ * Правка счёта, возвращающая его вид: ответ кладётся в кэш, реестр перечитывается, отказ 409 перечитывает
+ * счёт. Каждый пишущий хук счёта строится на этом — иначе следующий, написанный по образцу, забыл бы
+ * перечитать после отказа, и отказ повис бы над экраном, на котором всё по-прежнему.
+ */
+export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Promise<InvoiceView>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: send,
+    onSuccess: view => {
+      qc.setQueryData([QK, view.id], view);
+      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+    },
+    onError: rereadOnConflict(qc),
+  });
 }
 
 export function useCreateInvoice() {
@@ -309,16 +326,8 @@ export function useCreateInvoice() {
 }
 
 export function useUpdateInvoice() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, requisites }: { id: string; seen: string; requisites: InvoiceRequisites }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}`, { requisites }, seenBy(seen)).then(r => r.data),
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
-  });
+  return useInvoiceWrite(({ id, seen, requisites }: { id: string; seen: string; requisites: InvoiceRequisites }) =>
+    apiClient.put<InvoiceView>(`/costs/invoices/${id}`, { requisites }, seenBy(seen)).then(r => r.data));
 }
 
 /**
@@ -328,31 +337,15 @@ export function useUpdateInvoice() {
  * самое дорогое прочтение промаха, метки исчезли бы разом и вернуть их было бы нечем.
  */
 export function useConfirmInvoiceFields() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, fields }: { id: string; seen: string; fields: string[] }) =>
-      apiClient.post<InvoiceView>(`/costs/invoices/${id}/confirmed`, { fields }, seenBy(seen)).then(r => r.data),
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
-  });
+  return useInvoiceWrite(({ id, seen, fields }: { id: string; seen: string; fields: string[] }) =>
+    apiClient.post<InvoiceView>(`/costs/invoices/${id}/confirmed`, { fields }, seenBy(seen)).then(r => r.data));
 }
 
 export function useAttachInvoiceScan() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, file }: { id: string; seen: string; file: File }) => {
-      const form = new FormData();
-      form.append('file', file);
-      return apiClient.post<InvoiceView>(`/costs/invoices/${id}/scan`, form, seenBy(seen)).then(r => r.data);
-    },
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
+  return useInvoiceWrite(({ id, seen, file }: { id: string; seen: string; file: File }) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<InvoiceView>(`/costs/invoices/${id}/scan`, form, seenBy(seen)).then(r => r.data);
   });
 }
 
@@ -364,16 +357,8 @@ export function useAttachInvoiceScan() {
  * рвал бы ссылку молча. Собирает набор `toPayload` — там же это правило и записано.
  */
 export function useReplaceInvoiceLines() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, lines }: { id: string; seen: string; lines: Record<string, unknown>[] }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines }, seenBy(seen)).then(r => r.data),
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
-  });
+  return useInvoiceWrite(({ id, seen, lines }: { id: string; seen: string; lines: Record<string, unknown>[] }) =>
+    apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines }, seenBy(seen)).then(r => r.data));
 }
 
 /** Стройки с разделами — цели разноски. Узким списком модуля, как организации. */
@@ -391,19 +376,11 @@ export function useCostsConstructions() {
  * строки с количеством считает сервер, и присланная сумма была бы отвергнута.
  */
 export function useReplaceAllocation() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, lineId, parts }: {
-      id: string; seen: string; lineId: string; parts: Record<string, unknown>[];
-    }) =>
-      apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines/${lineId}/allocation`, { parts }, seenBy(seen))
-        .then(r => r.data),
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
-  });
+  return useInvoiceWrite(({ id, seen, lineId, parts }: {
+    id: string; seen: string; lineId: string; parts: Record<string, unknown>[];
+  }) =>
+    apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines/${lineId}/allocation`, { parts }, seenBy(seen))
+      .then(r => r.data));
 }
 
 /**
@@ -413,16 +390,8 @@ export function useReplaceAllocation() {
  * различаются они словом в адресе. Два почти одинаковых хука расходились бы обработкой отказа.
  */
 export function useInvoiceState() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen, to }: { id: string; seen: string; to: 'parsed' | 'draft' }) =>
-      apiClient.post<InvoiceView>(`/costs/invoices/${id}/${to}`, null, seenBy(seen)).then(r => r.data),
-    onSuccess: view => {
-      qc.setQueryData([QK, view.id], view);
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
-    onError: rereadOnConflict(qc),
-  });
+  return useInvoiceWrite(({ id, seen, to }: { id: string; seen: string; to: 'parsed' | 'draft' }) =>
+    apiClient.post<InvoiceView>(`/costs/invoices/${id}/${to}`, null, seenBy(seen)).then(r => r.data));
 }
 
 /**
