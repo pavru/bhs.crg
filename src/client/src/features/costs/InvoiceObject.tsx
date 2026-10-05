@@ -4,11 +4,11 @@ import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import type { InvoiceView } from '@/shared/api/invoices';
-import { usePreviewAllocation, useReplaceMatrix, type AllocationPreview } from '@/shared/api/allocationMatrix';
+import { usePreviewAllocation, useReplaceMatrix } from '@/shared/api/allocationMatrix';
 import { AllocationMatrix } from './AllocationMatrix';
 import { K } from './invoiceFields';
 import { toNumber } from './invoiceLines';
-import { headerObject, newTarget, targetName, targetsOf, type MatrixTarget } from './matrix';
+import { headerObject, matrixSignature, newTarget, targetName, targetsOf } from './matrix';
 import { PlaceSelect } from './PlaceSelect';
 import { NO_PLACE, chosen, samePlace, usePlaces, type Place } from './places';
 
@@ -32,7 +32,7 @@ export function InvoiceObject({ view, locked }: {
   const previewing = usePreviewAllocation();
   const replace = useReplaceMatrix();
   const toast = useToast();
-  const [matrix, setMatrix] = useState<null | { initial?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string } }>(null);
+  const [matrix, setMatrix] = useState<null | { initial?: InitialPreview }>(null);
 
   const current = headerObject(view);
   const raw = view.requisites[K.total];
@@ -45,11 +45,15 @@ export function InvoiceObject({ view, locked }: {
       // Отметка версии — ТОГО вида, по которому решено «счёт не разнесён»: сосед успел разнести — запись
       // откажет, а не заменит его разноску молча.
       const stamp = view.allocation.stamp;
-      if (current.kind === 'none') await replace.mutateAsync({ id: view.id, state: { ...preview.apply, stamp } });
+      if (current.kind === 'none') await replace.mutateAsync({ id: view.id, seen: view.version, state: { ...preview.apply, stamp } });
       else {
         // Прежние объекты — колонками рядом с новым: предпросмотр показывает, что именно заменит «Применить».
         const columns = targetsOf(view).filter(t => !samePlace(t, place));
-        setMatrix({ initial: { preview, targets: [...columns, newTarget(place)], stamp } });
+        // Основа — вид ЭТОГО замыкания, по которому предпросмотр спрошен: к открытию матрицы вид мог
+        // смениться (сосед поправил количество), и матрица приняла бы за основу то, чего предпросмотр
+        // не видел.
+        const base = { version: view.version, signature: matrixSignature(view) };
+        setMatrix({ initial: { preview, targets: [...columns, newTarget(place)], stamp, base } });
       }
     } catch (e) {
       toast.apiError(e, 'Счёт не разнесён на объект');
@@ -87,6 +91,8 @@ export function InvoiceObject({ view, locked }: {
     </div>
   );
 }
+
+type InitialPreview = NonNullable<Parameters<typeof AllocationMatrix>[0]['initialPreview']>;
 
 function plural(count: number): string {
   const tail = count % 100;

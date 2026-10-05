@@ -120,7 +120,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
         <Button size="sm" variant="filled" loading={describe.isPending}
           onClick={async () => {
             try {
-              await describe.mutateAsync({ id: view.id, document: draft.trim() || null });
+              await describe.mutateAsync({ id: view.id, version: view.version, document: draft.trim() || null });
               setDraft(null);
             } catch (e) {
               toast.apiError(e, 'Платёжный документ не сохранён');
@@ -197,7 +197,9 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
     if (!posting || !payable) return;
     setError(null);
     try {
-      await pay.mutateAsync({ id: view.id, paidOn, document: document.trim() || null, seen: posting.stamp });
+      await pay.mutateAsync({
+        id: view.id, version: view.version, paidOn, document: document.trim() || null, seen: posting.stamp,
+      });
       toast.success(paidToast(paidOn, posting.rows));
       onDone();
     } catch (e) {
@@ -292,7 +294,7 @@ function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
             onClick={async () => {
               setError(null);
               try {
-                await cancel.mutateAsync({ id: view.id, reason });
+                await cancel.mutateAsync({ id: view.id, version: view.version, reason });
                 toast.success('Оплата отменена: счёт снова не оплачен.');
                 onDone();
               } catch (e) {

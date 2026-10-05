@@ -28,8 +28,13 @@ public class FakeBlobStorage : IBlobStorage
     /// </summary>
     public bool FailDeletes { get; set; }
 
+    /// <summary>Сколько файлов выгружено за жизнь подделки — чтобы проверить, что отказ пришёл ДО выгрузки.</summary>
+    public int Uploads => _uploads;
+    private int _uploads;
+
     public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
+        Interlocked.Increment(ref _uploads);
         // Раскладка — та же, что у настоящего хранилища (issue #672). Прежняя выдумка
         // «fake/{guid}/{имя}» была не безобидной: сбор реестра опознаёт пути ПО ФОРМЕ, и подделка,
         // порождающая другую форму, оставляла бы тесты зелёными при выражении, которое на живых

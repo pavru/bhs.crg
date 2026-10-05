@@ -69,11 +69,41 @@ export async function launchBrowser() {
   // ⚠️ Языком контекста, а не ключом запуска `--lang`: на Linux безголовый Chromium ключ не слушает
   // (проверено раннером — прогон остался английским), а язык контекста действует везде. Подставляется
   // здесь, чтобы ни одному прогону не пришлось о нём помнить; названный прогоном язык сильнее.
+  //
+  // Туда же — сценарий, называющий версию счёта в запросах самих прогонов (см. `nameSeenVersion`).
   for (const open of ['newContext', 'newPage']) {
     const original = browser[open].bind(browser);
-    browser[open] = (options = {}) => original({ locale: LOCALE, ...options });
+    browser[open] = async (options = {}) => {
+      const opened = await original({ locale: LOCALE, ...options });
+      await opened.addInitScript(nameSeenVersion);
+      return opened;
+    };
   }
   return browser;
+}
+
+/**
+ * Правка счёта обязана назвать его версию заголовком `If-Match` (issue #1176). Прогоны готовят данные
+ * своими запросами (`fetch` из страницы) — и это «форма, которая видит свежее»: перед правкой счёт
+ * читается, и его версия подставляется.
+ *
+ * ⚠️ Подменяется только `fetch`. Приложение ходит через axios (XMLHttpRequest), и его запросы сценарий
+ * не трогает: версию, которую называет ФОРМА, прогон проверяет как есть.
+ *
+ * Выполняется в странице: снаружи сюда ничего не замкнуть.
+ */
+function nameSeenVersion() {
+  const plain = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    const invoice = /\/api\/costs\/invoices\/([0-9a-f-]{36})(\/|$)/i.exec(url);
+    const headers = new Headers(init.headers ?? {});
+    if (!invoice || (init.method ?? 'GET').toUpperCase() === 'GET' || headers.has('If-Match')) return plain(input, init);
+
+    const seen = await plain(`/api/costs/invoices/${invoice[1]}`, { headers: { Authorization: headers.get('Authorization') } });
+    if (seen.ok) headers.set('If-Match', (await seen.json()).version);
+    return plain(input, { ...init, headers });
+  };
 }
 
 /**

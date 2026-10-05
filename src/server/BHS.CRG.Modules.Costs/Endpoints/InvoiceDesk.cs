@@ -1,6 +1,7 @@
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -26,8 +27,12 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 /// после возврата: журнал пишется соединением ядра и зафиксировался бы раньше модуля.</para>
 /// </summary>
 public sealed class InvoiceDesk(
-    CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModulePeriods periods)
+    CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModulePeriods periods,
+    IHttpContextAccessor http)
 {
+    /// <summary>Заголовок, которым правка называет версию счёта, по которой она собрана.</summary>
+    public const string SeenHeader = "If-Match";
+
     /// <summary>
     /// Выполнить правку счёта.
     /// </summary>
@@ -38,6 +43,7 @@ public sealed class InvoiceDesk(
         db.InOpenPeriodAsync(periods, async boundaries =>
         {
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
+            EnsureSeen(InvoiceEndpoints.Label(invoice), db.VersionOf(invoice));
             var paid = invoice.Payment == InvoicePaymentState.Paid;
             var before = PostedBefore.None;
             string? locked = null;
@@ -90,6 +96,56 @@ public sealed class InvoiceDesk(
 
             return result;
         }, ct);
+
+    /// <summary>
+    /// Правка собрана по той версии счёта, что лежит сейчас (issue #1176).
+    ///
+    /// <para>До этой проверки сервер сверял версию, прочитанную ТЕМ ЖЕ запросом: двое открыли счёт,
+    /// первый сохранил строки, второй через час сохранил свои — и набор первого был заменён целиком,
+    /// без отказа. То же с шапкой, разноской строки и переходами: «разобран» нажимали по тому, что
+    /// видели на экране, а записывали по тому, что лежит в базе.</para>
+    ///
+    /// <para>⚠️ <b>Проверка стоит в связке, а не в адресах</b>, и версию связка берёт из запроса сама:
+    /// пишущий адрес счёта не может её забыть, потому что его об этом не спрашивают. Отсюда и
+    /// заголовок, а не поле тела, как у наборов данных и накладной: тела у этих адресов разные, у двух
+    /// переходов тела нет вовсе, а скан приходит формой с файлом — поле пришлось бы разбирать в
+    /// девяти местах девятью способами.</para>
+    ///
+    /// <para>⚠️ Без названной версии — отказ, а не «значит, свежая»: умолчание записывало бы
+    /// устаревшую форму поверх чужой правки ровно так же, как раньше.</para>
+    /// </summary>
+    private void EnsureSeen(string label, string stored)
+    {
+        var request = http.HttpContext?.Request
+            ?? throw new InvalidOperationException(
+                "Счёт правят вне запроса: версию, по которой собрана правка, назвать некому. Связка записи " +
+                "счёта рассчитана на адрес; фоновой правке нужен свой путь с явной версией.");
+
+        // Кавычки — запись HTTP для таких отметок (ETag); принимается и без них: отметку называет наша
+        // же форма, а не кэш.
+        var seen = request.Headers[SeenHeader].ToString().Trim().Trim('"');
+        if (seen.Length == 0)
+            throw new InvalidRequestException(
+                $"Не названа версия счёта, по которой собрана правка (заголовок {SeenHeader}) — она приходит " +
+                "в ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");
+
+        if (seen != stored)
+            throw new ConflictException(
+                $"{label} тем временем изменили, и это действие не выполнено. " +
+                "Перечитайте счёт и повторите: вы видели прежнее состояние, и записанная поверх правка " +
+                "затёрла бы чужую.");
+    }
+
+    /// <summary>
+    /// Та же проверка ДО связки — для адреса, которому дорого до неё дойти: скан сначала выгружается в
+    /// хранилище, и устаревшая форма заливала бы файл целиком ради отказа (ревью PR #1208).
+    ///
+    /// <para>⚠️ Это не замена проверке в связке, а её ранний повтор: между ним и замком счёт могут
+    /// изменить, и решает по-прежнему связка. Версия читается БЕЗ отслеживания: отслеженный здесь счёт
+    /// связка получила бы обратно из контекста, а не из базы, — и проверяла бы прочитанное до замка.</para>
+    /// </summary>
+    public async Task EnsureSeenAsync(Guid id, CancellationToken ct) =>
+        EnsureSeen("Счёт", await db.StoredInvoiceVersionAsync(id, ct) ?? throw new NotFoundException("Счёт не найден."));
 
     /// <summary>
     /// Меняют ли записи под сохранением деньги счёта. Денег у расклада три источника, и других нет
@@ -156,7 +212,8 @@ public sealed class InvoiceDesk(
             .ToListAsync(ct);
         var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
 
-        return InvoiceViews.Of(invoice, await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines,
+        return InvoiceViews.Of(invoice, db.VersionOf(invoice),
+            await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines,
             await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct),
             InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known),
             await PaymentAsync(invoice, lines, parts, known, ct));

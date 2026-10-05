@@ -9,8 +9,10 @@ import {
 } from '@/shared/api/allocationMatrix';
 import { formatMoney, formatQuantity } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
+import { useDraftBase, type DraftBase } from './draftBase';
+import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import {
-  allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, newTarget, partAt, restText, rowsOf,
+  allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, matrixSignature, newTarget, partAt, restText, rowsOf,
   targetName, targetsOf, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
 import { PlaceSelect } from './PlaceSelect';
@@ -34,8 +36,12 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   /** Сумма к оплате — ею разносится счёт без строк. */
   total: number | null;
   canEdit: boolean;
-  /** Предпросмотр, с которым матрица открывается (выбор объекта в шапке поверх прежней разноски). */
-  initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string };
+  /**
+   * Предпросмотр, с которым матрица открывается (выбор объекта в шапке поверх прежней разноски).
+   * `base` — вид, по которому он СПРОШЕН: пока шёл запрос, вид мог смениться, и основой матрицы
+   * обязан быть тот, а не пришедший к монтированию.
+   */
+  initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string; base: DraftBase };
   onClose: () => void;
 }) {
   const places = usePlaces();
@@ -56,6 +62,12 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   const [dirty, setDirty] = useState(false);
   // Версия разноски, с которой матрица открыта: запись пошлёт её, и набор по устаревшему виду откажет.
   const [stamp, setStamp] = useState(() => initialPreview?.stamp ?? view.allocation.stamp);
+
+  // Матрица собрана по строкам счёта и его разноске (issue #1176). Отметка разноски (`stamp`) стережёт
+  // только части: строку, которой сосед сменил количество, она не видит — её видит версия счёта.
+  const touched = dirty || preview !== null;
+  const base = useDraftBase(view, matrixSignature, touched, { initial: initialPreview?.base });
+  if (base.rebuild) reset(view);
 
   const allocations = allocationsOf(view, preview);
   const editable = canEdit && preview === null;
@@ -93,7 +105,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   async function save() {
     try {
       const state = { ...(preview ? preview.apply : toState(rows, targets, cells)), stamp };
-      reset(await replace.mutateAsync({ id: view.id, state }));
+      reset(await base.save(seen => replace.mutateAsync({ id: view.id, seen, state })));
     } catch (e) {
       toast.apiError(e, 'Разноска не записана');
     }
@@ -154,6 +166,9 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
         </>
       )}>
       <div className="space-y-3">
+        {base.stale && (
+          <StaleInvoiceNotice what="клетки матрицы" onReread={() => { reset(view); base.rebase(); }} />
+        )}
         {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outlined" icon={<Plus size={13} />} disabled={!editable}

@@ -89,8 +89,25 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// Версия накладной, как её знает контекст: после сохранения — новая. Отдаётся наружу и
     /// возвращается правкой (ifMatch) — так форма, открытая давно, не записывается поверх чужой правки.
     /// </summary>
-    public string VersionOf(Waybill waybill) =>
-        Entry(waybill).Property<uint>(RowVersion).CurrentValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public string VersionOf(Waybill waybill) => Version(waybill);
+
+    /// <summary>
+    /// Версия счёта — та же системная колонка, что стережёт одновременную запись (см. ниже у модели).
+    /// Форма получает её в ответе чтения и называет при каждой правке (issue #1176): так окно
+    /// конфликта становится временем, пока счёт открыт на экране, а не временем одного запроса.
+    /// </summary>
+    public string VersionOf(Invoice invoice) => Version(invoice);
+
+    /// <summary>
+    /// Версия счёта, как она лежит в базе, — без чтения самого счёта и без отслеживания; <c>null</c> —
+    /// счёта нет. Для проверки ДО связки записи (<c>InvoiceDesk.EnsureSeenAsync</c>).
+    /// </summary>
+    public async Task<string?> StoredInvoiceVersionAsync(Guid id, CancellationToken ct) =>
+        (await Invoices.Where(i => i.Id == id).Select(i => (uint?)EF.Property<uint>(i, RowVersion)).FirstOrDefaultAsync(ct))
+        ?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private string Version(object entity) =>
+        ((uint)Entry(entity).Property(RowVersion).CurrentValue!).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     // Документ назван тем, что не записалось: версия строки есть и у счёта, и у накладной (D1), и
     // «счёт изменили» в ответ на правку накладной отправило бы человека перечитывать не то.
@@ -173,9 +190,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // забыть её поднять нельзя. Колонки в таблице не прибавляется — миграция только сообщает
         // модели, что свойство есть.
         //
-        // ⚠️ Форма версию НЕ присылает, и окно конфликта — время одного запроса, а не время, пока
-        // счёт открыт. Защита от устаревшей формы — другое решение (как ifMatch у наборов данных): у
-        // формы появился бы отказ, которого сейчас нет.
+        // Она же — версия, которую форма называет при правке (issue #1176, `InvoiceDesk.WriteAsync`):
+        // без этого окно конфликта было бы временем одного запроса, а не временем, пока счёт открыт.
         invoice.Property<uint>(RowVersion).IsRowVersion();
 
         // Дубликат «поставщик + номер + дата» (ТЗ COST-6.2) — ОГОВОРКА, а не запрет, поэтому индекс

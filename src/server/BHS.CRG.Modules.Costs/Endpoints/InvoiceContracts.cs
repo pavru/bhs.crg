@@ -50,6 +50,9 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// словами сервера, чтобы форма не выводила «заперт» из границ периодов своей формулой.</param>
 public sealed record InvoiceView(
     Guid Id,
+    // Версия счёта (issue #1176): её называет каждая правка заголовком If-Match. Строкой — это отметка,
+    // а не число: сравнивать её на «больше» нельзя, только на «та же».
+    string Version,
     Guid DocumentTypeId,
     JsonObject Requisites,
     IReadOnlyList<string> Unconfirmed,
@@ -94,10 +97,11 @@ public static class InvoiceViews
     /// нет вовсе, прочитать нечем». Разница важна: отсутствие в СЛОВАРЕ — потеря записи, отсутствие
     /// СЛОВАРЯ — незнание, и выдавать второе за первое нельзя (см. <c>InvoiceLineView</c>).</param>
     public static InvoiceView Of(
-        Invoice invoice, IReadOnlyList<InvoiceDuplicate> duplicates,
+        Invoice invoice, string version, IReadOnlyList<InvoiceDuplicate> duplicates,
         IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment) => new(
         invoice.Id,
+        version,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,

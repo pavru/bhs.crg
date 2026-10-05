@@ -230,7 +230,13 @@ async function attachScan({ apiBase, token, png, id }) {
   const form = new FormData();
   form.append('file', new Blob([Buffer.from(png, 'base64')], { type: 'image/png' }), 'скан-счёта.png');
 
-  const res = await fetch(`${apiBase}/api/costs/invoices/${id}/scan`,
-    { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+  // Правка счёта называет его версию (issue #1176) — и скан тоже правка.
+  const seen = await fetch(`${apiBase}/api/costs/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!seen.ok) throw new Error(`счёт для скана не прочитан: ${seen.status}`);
+
+  const res = await fetch(`${apiBase}/api/costs/invoices/${id}/scan`, {
+    method: 'POST', body: form,
+    headers: { Authorization: `Bearer ${token}`, 'If-Match': (await seen.json()).version },
+  });
   if (!res.ok) throw new Error(`скан счёта не приложился: ${res.status} ${await res.text()}`);
 }
