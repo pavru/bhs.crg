@@ -14,10 +14,11 @@ import {
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, duplicateLabel, formatDate, fromInput,
+  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, duplicateLabel, fromInput,
   isMarked, moneyInput, refEntryId, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
   type InvoiceBlock,
 } from './invoiceFields';
+import { formatDate } from '@/shared/format/format';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';

@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
+import { useLocale } from '@/shared/hooks/useLocale';
 import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
@@ -59,54 +60,7 @@ export default function App() {
           <ErrorBoundary variant="page" allowReload>
           <NavigationGuardProvider>
           <DocumentTitleManager>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/confirm-email" element={<ConfirmEmailPage />} />
-            <Route path="/confirm-email-change" element={<ConfirmEmailChangePage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route element={<AppShell />}>
-                <Route index element={<Navigate to="/document-sets" replace />} />
-                <Route path="document-sets/*" element={<DocumentSetsPage />} />
-                {/* Свой профиль — без права: он и есть «своё» (см. корзину личных адресов). */}
-                <Route path="profile" element={<ProfilePage />} />
-                <Route element={<RequireAccess />}>
-                  <Route path="common-data" element={<SystemCommonDataPage />} />
-                  <Route path="datasets" element={<DataSetsPage />} />
-                  <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
-                  <Route path="quality-docs" element={<QualityDocsPage />} />
-                  <Route path="invoices" element={<InvoicesPage />} />
-                  <Route path="waybills" element={<WaybillsPage />} />
-                  <Route path="site-costs" element={<SiteCostsPage />} />
-                  {/* Таблица модуля (ТЗ CORE-33). Раздела в навигации у адреса нет, и права на
-                      маршруте тоже: таблицы разных модулей открываются разными ключами, и ключ
-                      проверяет сервер по объявлению таблицы — экран показывает его отказ. */}
-                  <Route path="tables/:address" element={<TablePage />} />
-                  {/* Та же таблица под готовым представлением модуля: «Реестр счетов» (G4). */}
-                  <Route path="tables/:address/:view" element={<TablePage />} />
-                  <Route path="periods" element={<PeriodsPage />} />
-                  <Route path="reconciliations" element={<ReconciliationsPage />} />
-                </Route>
-                <Route element={<RequireAccess />}>
-                  {/* key — чтобы React перемонтировал страницу между двумя маршрутами: без него это
-                      один экземпляр компонента (тот же тип в той же позиции дерева), и поиск,
-                      раскрытые группы и восстановленный выбор переезжали с одной страницы на
-                      другую (issue #782). */}
-                  <Route path="document-types/*" element={<DocumentTypesPage key="document" kind="Document" />} />
-                  <Route path="composite-types/*" element={<DocumentTypesPage key="composite" kind="Composite" />} />
-                  <Route path="templates/*" element={<TemplatesPage />} />
-                  <Route path="field-types" element={<PrimitiveTypesPage />} />
-                  <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
-                  <Route path="users" element={<UsersPage />} />
-                  <Route path="roles" element={<RolesPage />} />
-                  <Route path="activity" element={<ActivityPage />} />
-                  <Route path="bug-reports" element={<BugReportsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                </Route>
-              </Route>
-            </Route>
-          </Routes>
+          <AppRoutes />
           </DocumentTitleManager>
           </NavigationGuardProvider>
           </ErrorBoundary>
@@ -117,5 +71,66 @@ export default function App() {
         </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+/**
+ * Маршруты — отдельным компонентом, который ЧИТАЕТ язык форматирования (задача N2, issue #1103).
+ *
+ * Форматтер (`shared/format`) — чистые функции: о смене языка React от них не узнаёт, и экран,
+ * открытый в эту минуту, остался бы в прежнем формате до первой своей перерисовки. Подписка здесь
+ * перерисовывает всё дерево страниц разом — без перемонтирования, то есть набранное в формах цело.
+ */
+function AppRoutes() {
+  useLocale();
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+      <Route path="/confirm-email-change" element={<ConfirmEmailChangePage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppShell />}>
+          <Route index element={<Navigate to="/document-sets" replace />} />
+          <Route path="document-sets/*" element={<DocumentSetsPage />} />
+          {/* Свой профиль — без права: он и есть «своё» (см. корзину личных адресов). */}
+          <Route path="profile" element={<ProfilePage />} />
+          <Route element={<RequireAccess />}>
+            <Route path="common-data" element={<SystemCommonDataPage />} />
+            <Route path="datasets" element={<DataSetsPage />} />
+            <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
+            <Route path="quality-docs" element={<QualityDocsPage />} />
+            <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="waybills" element={<WaybillsPage />} />
+            <Route path="site-costs" element={<SiteCostsPage />} />
+            {/* Таблица модуля (ТЗ CORE-33). Раздела в навигации у адреса нет, и права на
+                маршруте тоже: таблицы разных модулей открываются разными ключами, и ключ
+                проверяет сервер по объявлению таблицы — экран показывает его отказ. */}
+            <Route path="tables/:address" element={<TablePage />} />
+            {/* Та же таблица под готовым представлением модуля: «Реестр счетов» (G4). */}
+            <Route path="tables/:address/:view" element={<TablePage />} />
+            <Route path="periods" element={<PeriodsPage />} />
+            <Route path="reconciliations" element={<ReconciliationsPage />} />
+          </Route>
+          <Route element={<RequireAccess />}>
+            {/* key — чтобы React перемонтировал страницу между двумя маршрутами: без него это
+                один экземпляр компонента (тот же тип в той же позиции дерева), и поиск,
+                раскрытые группы и восстановленный выбор переезжали с одной страницы на
+                другую (issue #782). */}
+            <Route path="document-types/*" element={<DocumentTypesPage key="document" kind="Document" />} />
+            <Route path="composite-types/*" element={<DocumentTypesPage key="composite" kind="Composite" />} />
+            <Route path="templates/*" element={<TemplatesPage />} />
+            <Route path="field-types" element={<PrimitiveTypesPage />} />
+            <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="roles" element={<RolesPage />} />
+            <Route path="activity" element={<ActivityPage />} />
+            <Route path="bug-reports" element={<BugReportsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Route>
+      </Route>
+    </Routes>
   );
 }

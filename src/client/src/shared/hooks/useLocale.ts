@@ -52,23 +52,3 @@ export function useLocale(): [string, (locale: string) => void, PreferenceSaveSt
 export function resolveLocale(stored: string): string {
   return stored === SYSTEM_LOCALE ? navigator.language : stored;
 }
-
-export function formatDate(
-  value: Date | string | number,
-  storedLocale: string,
-  options?: Intl.DateTimeFormatOptions,
-): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (isNaN(d.getTime())) return String(value);
-  const locale = resolveLocale(storedLocale);
-  return new Intl.DateTimeFormat(locale, options ?? { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
-}
-
-export function formatNumber(
-  value: number,
-  storedLocale: string,
-  options?: Intl.NumberFormatOptions,
-): string {
-  const locale = resolveLocale(storedLocale);
-  return new Intl.NumberFormat(locale, options).format(value);
-}

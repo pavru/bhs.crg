@@ -1,5 +1,5 @@
 import type { FilterCondition, FilterGroup, FilterNode } from '@/shared/api/types';
-import { formatDateRu } from '@/shared/utils/date';
+import { formatDatePrecise } from '@/shared/format/format';
 import {
   columnLabel, conditionProblem, opArity, operatorsFor, opLabel, valueFits, withColumn, withOperator,
   type FilterColumn,
@@ -195,7 +195,7 @@ function shownValue(value: string, column: FilterColumn | undefined): string {
   if (value === '') return kind === undefined || kind === 'text' || kind === 'list' ? '«»' : '…';
   if (!valueFits(kind, value, column?.options)) return `«${value}»`;
   switch (kind) {
-    case 'date': return formatDateRu(value);
+    case 'date': return formatDatePrecise(value);
     case 'boolean': return value === 'true' ? 'да' : 'нет';
     case 'number':
     case 'choice': return value;

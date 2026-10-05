@@ -1,5 +1,5 @@
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
-import { formatMoney } from '@/shared/utils/money';
+import { formatMoney } from '@/shared/format/format';
 
 /**
  * Правила перечня диалога закрытия, отделённые от разметки (E1b, issue #1099): что сказать в футере и

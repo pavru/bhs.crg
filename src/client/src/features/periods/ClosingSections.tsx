@@ -1,6 +1,6 @@
 import { ArrowUpRight, TriangleAlert } from 'lucide-react';
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
-import { formatMoney } from '@/shared/utils/money';
+import { formatMoney } from '@/shared/format/format';
 import { figure, goneLines, goneSections, localLink, unfinishedSummary, wasText, type ClosingGroup } from './closing';
 
 /**

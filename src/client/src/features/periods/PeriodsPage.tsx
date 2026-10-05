@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { CalendarCheck, ChevronDown, ChevronRight, Lock, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -35,12 +36,6 @@ import { unfinishedSummary, visiblyChanged } from './closing';
  * бы ту же устаревшую границу и получал бы тот же отказ — выйти можно было только закрыв диалог.
  */
 type Dialog = { kind: 'close' | 'reopen'; constructionId: string | null } | null;
-
-function when(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
-}
 
 export function PeriodsPage() {
   const can = useCan();
@@ -320,7 +315,7 @@ function History({ records, nameOf }: {
           <tbody className="divide-y divide-muted">
             {records.map(r => (
               <tr key={r.id} className="hover:bg-base align-top">
-                <td className="px-4 py-2 text-fg3 whitespace-nowrap tabular-nums">{when(r.at)}</td>
+                <td className="px-4 py-2 text-fg3 whitespace-nowrap tabular-nums">{formatDateTime(r.at)}</td>
                 <td className="px-4 py-2 text-fg2 break-all">{r.byName}</td>
                 <td className="px-4 py-2">
                   <div className="text-fg1">

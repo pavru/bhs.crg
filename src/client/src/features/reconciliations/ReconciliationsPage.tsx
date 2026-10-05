@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
@@ -108,7 +109,7 @@ function RunPicker({ runs, value, onChange }: {
       className="w-56">
       {runs.map((r, i) => (
         <SelectItem key={r.id} value={r.id}>
-          {new Date(r.startedAt).toLocaleString('ru-RU')}{i === 0 ? ' — последний' : ''}
+          {formatDateTime(r.startedAt)}{i === 0 ? ' — последний' : ''}
         </SelectItem>
       ))}
     </Select>

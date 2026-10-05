@@ -1,3 +1,4 @@
+import { formatCount } from '@/shared/format/format';
 import type { TableTotal } from '@/shared/api/tables';
 import { cellText, plural } from './tableCells';
 import type { Aggregate, ColumnTotal } from './tableViewState';
@@ -58,7 +59,7 @@ export function totalText(total: TableTotal | undefined, aggregate: Aggregate, k
         : aggregate === 'min' ? total.min : total.max;
 
   const note = total.skipped > 0
-    ? `не учтено ${total.skipped.toLocaleString('ru-RU')} ${plural(total.skipped, 'значение', 'значения', 'значений')}`
+    ? `не учтено ${formatCount(total.skipped)} ${plural(total.skipped, 'значение', 'значения', 'значений')}`
       + `: ${total.skippedReason ?? 'не то, что обещает вид колонки'}`
     : null;
 

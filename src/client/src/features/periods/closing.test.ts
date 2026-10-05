@@ -10,7 +10,7 @@ const section = (module: string, unfinished: ClosingLine[], frozen: ClosingLine[
 
 describe('figure', () => {
   it('называет сумму, только когда она есть', () => {
-    expect(figure(line('a', 3, '3 счёта', 412500))).toMatch(/^3 счёта на 412\s500,00 ₽$/);
+    expect(figure(line('a', 3, '3 счёта', 412500))).toMatch(/^3 счёта на 412\s500,00\s₽$/);
     expect(figure(line('a', 3, '3 счёта'))).toBe('3 счёта');
   });
 });
@@ -41,9 +41,9 @@ describe('wasText', () => {
   });
 
   it('изменилось число или сумма — названо прежнее', () => {
-    expect(wasText(before, 'costs', 'unfinished', line('unsettled', 3, '3 счёта', 500))).toMatch(/^было: 2 счёта на 300,00 ₽$/);
+    expect(wasText(before, 'costs', 'unfinished', line('unsettled', 3, '3 счёта', 500))).toMatch(/^было: 2 счёта на 300,00\s₽$/);
     // Число то же, сумма другая — тоже изменение: закрывают деньги, а не количество бумаг.
-    expect(wasText(before, 'costs', 'frozen', line('entering', 5, '5 счетов', 901))).toMatch(/^было: 5 счетов на 900,00 ₽$/);
+    expect(wasText(before, 'costs', 'frozen', line('entering', 5, '5 счетов', 901))).toMatch(/^было: 5 счетов на 900,00\s₽$/);
   });
 
   it('строки раньше не было', () => {

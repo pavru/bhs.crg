@@ -7,7 +7,7 @@ import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import { useSiteCosts, type CostFigure, type SiteCosts } from '@/shared/api/siteCosts';
-import { formatMoney } from './invoiceFields';
+import { formatCount, formatMoney } from '@/shared/format/format';
 import { invoicesText, siteCostsLinks } from './siteCosts';
 
 const ALL = 'all';
@@ -223,7 +223,7 @@ function Row({ name, label, figure, link, linkNote, indent, strong, muted }: {
   return (
     <tr className={`${strong ? 'border-t border-stroke font-medium' : 'border-t border-stroke/40'} ${muted ? 'text-fg3' : 'text-fg1'}`}>
       <th scope="row" className={`py-1 text-left ${strong ? 'font-medium' : 'font-normal'} ${indent ? 'pl-4' : ''}`}>{name}</th>
-      <td className="py-1 text-right tabular-nums text-fg2">{figure.invoices.toLocaleString('ru-RU')}</td>
+      <td className="py-1 text-right tabular-nums text-fg2">{formatCount(figure.invoices)}</td>
       <td className="py-1 text-right tabular-nums whitespace-nowrap">
         {formatMoney(figure.amount)}
         {link

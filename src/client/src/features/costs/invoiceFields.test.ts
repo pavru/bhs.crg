@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BLOCKS, K, READ_ONLY_KEYS, SCAN_BESIDE_MIN_WIDTH,
-  asInput, catalogRef, duplicateLabel, formatMoney, fromInput, refEntryId,
+  asInput, catalogRef, duplicateLabel, fromInput, refEntryId,
   isMarked, moneyInput, scanFitsBeside, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
 } from './invoiceFields';
 
@@ -111,15 +111,11 @@ describe('показ значений', () => {
     // \u00A0 — неразрывный пробел: именно им `ru-RU` разделяет разряды. Написав здесь обычный, мы
     // получили бы падение с ОДИНАКОВЫМИ на вид строками, и разницу пришлось бы искать глазами.
     expect(duplicateLabel({ id: 'x', number: 'СЧ-7', issuedOn: '2026-09-03', total: 1200 }))
-      .toBe('СЧ-7 от 03.09.2026 на 1\u00A0200,00 ₽');
+      .toBe('СЧ-7 от 03.09.2026 на 1\u00A0200,00\u00A0₽');
   });
 
   it('дубликат без номера назван, а не пропущен', () => {
     expect(duplicateLabel({ id: 'x', number: null, issuedOn: null, total: null }))
       .toBe('без номера');
-  });
-
-  it('сумма — с двумя знаками и рублём', () => {
-    expect(formatMoney(1234.5)).toBe('1\u00A0234,50 ₽');
   });
 });

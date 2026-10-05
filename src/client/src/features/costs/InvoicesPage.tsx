@@ -15,7 +15,8 @@ import {
 import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
-import { K, formatDate, formatMoney, scanFitsBeside } from './invoiceFields';
+import { K, scanFitsBeside } from './invoiceFields';
+import { formatDate, formatMoney } from '@/shared/format/format';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).

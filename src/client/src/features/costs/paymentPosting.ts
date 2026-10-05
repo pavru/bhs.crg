@@ -1,6 +1,6 @@
 import type { PostingRow } from '@/shared/api/invoicePayment';
 import { ruCount } from '@/shared/utils/pluralize';
-import { formatDate, formatMoney } from './invoiceFields';
+import { formatDate, formatMoney } from '@/shared/format/format';
 
 /**
  * Расклад оплаты для показа (задача C5, issue #1082). Здесь только раскладка по экрану: суммы, даты и

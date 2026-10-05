@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -17,12 +18,6 @@ import { useActivity, useActivityActions, type ActivityRecord } from '@/shared/a
 
 const PAGE = 50;
 const ALL = 'all';
-
-function when(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
-}
 
 function Change({ record }: { record: ActivityRecord }) {
   // Стрелка рисуется только когда есть и то и другое: «— → Администратор» читалось бы как потеря
@@ -91,7 +86,7 @@ export function ActivityPage() {
               <tbody className="divide-y divide-muted">
                 {records.map(r => (
                   <tr key={r.id} className="hover:bg-base align-top">
-                    <td className="px-4 py-2.5 text-fg3 whitespace-nowrap tabular-nums">{when(r.occurredAt)}</td>
+                    <td className="px-4 py-2.5 text-fg3 whitespace-nowrap tabular-nums">{formatDateTime(r.occurredAt)}</td>
                     <td className="px-4 py-2.5 text-fg2 break-all">{r.actorName}</td>
                     <td className="px-4 py-2.5">
                       <div className="text-fg1">{r.actionTitle}</div>

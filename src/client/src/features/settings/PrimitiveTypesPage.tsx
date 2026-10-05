@@ -33,7 +33,7 @@ import {
   buildEnumTypeDto,
 } from '@/shared/api/enumTypes';
 import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision, DocumentType } from '@/shared/api/types';
-import { formatDateRu } from '@/shared/utils/date';
+import { formatDatePrecise } from '@/shared/format/format';
 import { useTagRegistry, fieldTags, unknownTagCodes } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
 import { ValuesEditor, EnumForm } from './EnumTypesSection';
@@ -106,8 +106,8 @@ function humanConstraintPreview(baseType: string, c: FieldConstraints): string {
   }
   const prec = c.datePrecision ?? 'day';
   if (prec !== 'day') parts.push(DATE_PRECISION_LABEL[prec]);
-  if (c.minDate) parts.push(`от ${formatDateRu(c.minDate, prec)}`);
-  if (c.maxDate) parts.push(`до ${formatDateRu(c.maxDate, prec)}`);
+  if (c.minDate) parts.push(`от ${formatDatePrecise(c.minDate, prec)}`);
+  if (c.maxDate) parts.push(`до ${formatDatePrecise(c.maxDate, prec)}`);
   return parts.length ? parts.join(' · ') : 'любая дата';
 }
 

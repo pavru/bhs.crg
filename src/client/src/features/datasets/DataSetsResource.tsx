@@ -1,3 +1,4 @@
+import { formatDate } from '@/shared/format/format';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -92,7 +93,7 @@ function FileDetail({ file, inherited, job }: {
           <div className="text-xs text-fg4 mt-0.5">
             {sourcesLabel(file.sources.length)} · {isSystem
               ? 'данные собираются системой при каждом обращении'
-              : `загружен ${new Date(file.createdAt).toLocaleDateString('ru-RU')}`}
+              : `загружен ${formatDate(file.createdAt)}`}
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">

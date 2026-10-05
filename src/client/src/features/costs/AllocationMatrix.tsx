@@ -7,8 +7,8 @@ import type { InvoiceView } from '@/shared/api/invoices';
 import {
   usePreviewAllocation, useReplaceMatrix, type AllocationPreview, type SplitMethod,
 } from '@/shared/api/allocationMatrix';
-import { formatMoney } from './invoiceFields';
-import { formatPlain } from './allocation';
+import { formatMoney, formatQuantity } from '@/shared/format/format';
+import { NumberInput } from '@/shared/ui/NumberInput';
 import {
   allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, newTarget, partAt, restText, rowsOf,
   targetName, targetsOf, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
@@ -205,7 +205,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                       <div className="text-fg max-w-64 truncate" title={row.title}>{row.title}</div>
                       <div className="text-fg4">
                         {row.mode === 'quantity'
-                          ? `${formatPlain(row.whole)} ${row.unit ?? ''}`.trim()
+                          ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
                             + (row.amount === null ? '' : ` · ${formatMoney(row.amount)}`)
                           : row.whole === null ? 'суммы нет' : formatMoney(row.whole)}
                       </div>
@@ -213,10 +213,9 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                     {targets.map(target => (
                       <td key={target.key} className="border-b border-stroke px-2 py-1 tabular-nums">
                         {editable && row.mode !== 'none' && (
-                          <input value={cells[row.key]?.[target.key] ?? ''} inputMode="decimal" placeholder="0"
-                            aria-label={`${row.title}, ${targetName(target, places)}`}
-                            onChange={e => edit(row.key, target.key, e.target.value)}
-                            className={`${FIELD} text-right`} />
+                          <NumberInput value={cells[row.key]?.[target.key] ?? ''} placeholder="0"
+                            label={`${row.title}, ${targetName(target, places)}`}
+                            onChange={value => edit(row.key, target.key, value)} />
                         )}
                         {partAt(allocation, target)?.mismatched && (
                           <div className="text-right text-warning"
@@ -237,7 +236,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                     ))}
                     <td className={`${STICKY_RIGHT} tabular-nums text-right`}>
                       {rest !== null
-                        ? <span className="text-fg4">≈ {row.mode === 'quantity' ? `${formatPlain(rest)} ${row.unit ?? ''}`.trim() : formatMoney(rest)}</span>
+                        ? <span className="text-fg4">≈ {row.mode === 'quantity' ? `${formatQuantity(rest)} ${row.unit ?? ''}`.trim() : formatMoney(rest)}</span>
                         : restText(row, allocation)}
                     </td>
                   </tr>
@@ -280,8 +279,8 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
           )}
           {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        <input value={target.percent} inputMode="decimal" placeholder="%" aria-label={`Процент, объект ${number}`}
-          onChange={e => onChange({ percent: e.target.value })} className={`${FIELD} w-14 text-right`} />
+        <NumberInput value={target.percent} unit="%" label={`Процент, объект ${number}`}
+          onChange={percent => onChange({ percent })} className="w-16 shrink-0" />
       </div>
     </div>
   );
@@ -303,4 +302,4 @@ const STICKY_LEFT = 'sticky left-0 z-10 bg-surface border-b border-r border-stro
 const STICKY_RIGHT = 'sticky right-0 z-10 bg-surface border-b border-l border-stroke px-2 py-1.5';
 
 const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none
-  focus:border-primary disabled:text-fg4`;
+  focus:border-primary disabled:bg-surface2 disabled:text-fg3`;

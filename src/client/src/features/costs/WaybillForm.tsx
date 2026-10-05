@@ -9,7 +9,8 @@ import {
   useMatchWaybillLine, useSaveWaybill, useWaybillState, type WaybillView,
 } from '@/shared/api/waybills';
 import { NomenclaturePicker } from './NomenclaturePicker';
-import { formatDate } from './invoiceFields';
+import { formatDate } from '@/shared/format/format';
+import { NumberInput } from '@/shared/ui/NumberInput';
 import {
   emptyLine, headerPayload, isDirty, linesPayload, toDraft, unmatchedCount, unmatchedNote, withoutBlanks,
   type WaybillDraft, type WaybillLineDraft,
@@ -278,9 +279,9 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
                           onChange={e => editLine(line.key, { unit: e.target.value })} />
                       </td>
                       <td className="py-1 pr-2">
-                        <input className={`${cell} text-right tabular-nums`} value={line.quantity} disabled={locked}
-                          inputMode="decimal" aria-label={`Количество, строка ${index + 1}`}
-                          onChange={e => editLine(line.key, { quantity: e.target.value })} />
+                        <NumberInput value={line.quantity} disabled={locked}
+                          label={`Количество, строка ${index + 1}`}
+                          onChange={quantity => editLine(line.key, { quantity })} />
                       </td>
                       <td className="py-1">
                         {!locked && (
