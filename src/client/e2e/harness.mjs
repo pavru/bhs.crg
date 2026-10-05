@@ -10,6 +10,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const BASE = process.env.SMOKE_BASE || 'http://localhost:5173';
+export const LOCALE = process.env.SMOKE_LOCALE || 'ru-RU';
 export const EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 export const PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
 
@@ -59,7 +60,12 @@ export async function launchBrowser() {
   const pw = await import(pkg ? pathToFileURL(pkg).href : 'playwright');
   const { chromium } = pw.default ?? pw;   // пакет CJS — интероп кладёт экспорт в default
   const executablePath = findChromium();
-  return chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+  // Язык браузера назван явно (задача N2, issue #1103): формат чисел и дат у «системного» языка
+  // следует браузеру, а проверки сверяют текст экрана. Без этого прогон зелёный на машине
+  // разработчика и красный на раннере, у которого язык английский.
+  return chromium.launch({
+    headless: true, args: [`--lang=${LOCALE}`], ...(executablePath ? { executablePath } : {}),
+  });
 }
 
 /**

@@ -17,7 +17,7 @@ import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { docHaystackStems, relevance, weighted } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
 import { docNumberOf } from '@/features/quality-docs/docIdentity';
-import { formatDateRu } from '@/shared/utils/date';
+import { formatDatePrecise } from '@/shared/format/format';
 import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { getValidUntil, isExpired } from './qualityValidity';
@@ -200,7 +200,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(score * 100)}%</span>
                       )}
                       {validUntil && <span className={`text-[10px] shrink-0 ${expired ? 'text-danger' : 'text-fg4'}`}>
-                        {expired ? 'просрочен ' : 'до '}{formatDateRu(validUntil)}</span>}
+                        {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
                     </button>
                     {d.scanBlobPath && (
                       <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)} title="Просмотр скана (в новой вкладке)"

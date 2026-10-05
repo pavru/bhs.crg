@@ -255,4 +255,4 @@ function remains(rest: { quantity: number | null; amount: number | null }, byQua
 }
 
 const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none
-  focus:border-primary disabled:text-fg4`;
+  focus:border-primary disabled:bg-surface2 disabled:text-fg3`;

@@ -1,6 +1,6 @@
 import { columnUnavailable, type GridState } from '@/shared/ui/dataGridStates';
 import type { DataGridColumn } from '@/shared/ui/DataGrid';
-import { formatCount, formatDate, formatNumber } from '@/shared/format/format';
+import { formatCount, formatDay, formatNumber } from '@/shared/format/format';
 import type { TableBreakdown, TableColumn, TableData, TableDeclaration } from '@/shared/api/tables';
 
 /**
@@ -65,7 +65,7 @@ export function hiddenCountText(count: number): string {
 export function cellText(value: unknown, kind: string | undefined): string {
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'boolean') return value ? 'да' : 'нет';
-  if (kind === 'date' && typeof value === 'string') return formatDate(value);
+  if (kind === 'date' && typeof value === 'string') return formatDay(value);
   if (kind === 'number' && typeof value === 'number') return formatNumber(value);
   return String(value);
 }

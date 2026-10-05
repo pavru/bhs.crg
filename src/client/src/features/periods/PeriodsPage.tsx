@@ -37,10 +37,6 @@ import { unfinishedSummary, visiblyChanged } from './closing';
  */
 type Dialog = { kind: 'close' | 'reopen'; constructionId: string | null } | null;
 
-function when(iso: string): string {
-  return formatDateTime(iso);
-}
-
 export function PeriodsPage() {
   const can = useCan();
   const { data, isLoading } = usePeriods();
@@ -319,7 +315,7 @@ function History({ records, nameOf }: {
           <tbody className="divide-y divide-muted">
             {records.map(r => (
               <tr key={r.id} className="hover:bg-base align-top">
-                <td className="px-4 py-2 text-fg3 whitespace-nowrap tabular-nums">{when(r.at)}</td>
+                <td className="px-4 py-2 text-fg3 whitespace-nowrap tabular-nums">{formatDateTime(r.at)}</td>
                 <td className="px-4 py-2 text-fg2 break-all">{r.byName}</td>
                 <td className="px-4 py-2">
                   <div className="text-fg1">

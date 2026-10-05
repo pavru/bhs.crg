@@ -27,22 +27,27 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
   const field = (
     <input value={value} aria-label={label} placeholder={placeholder} disabled={disabled}
       inputMode="decimal" onChange={e => onChange(e.target.value)}
-      className={unit ? INNER : `${FRAME} ${TEXT} px-1.5 py-1 ${className}`} />
+      className={unit ? INNER : `${BARE} ${className}`} />
   );
   if (!unit) return field;
 
+  // Обёртка — `label`, а не `span`: щелчок по единице ставит курсор в поле, как и щелчок по рамке.
   return (
-    <span className={`${FRAME} flex items-baseline gap-1 px-1.5 py-1 focus-within:border-primary ${className}`}>
+    <label className={`${WRAP} ${className}`}>
       {field}
       <span className="shrink-0 text-xs text-fg4" aria-hidden="true">{unit}</span>
-    </span>
+    </label>
   );
 }
 
-const FRAME = 'rounded border border-stroke bg-surface focus:border-primary '
-  + 'has-[:disabled]:bg-surface2 disabled:bg-surface2';
-
+const BOX = 'rounded border border-stroke bg-surface px-1.5 py-1';
 const TEXT = 'text-right text-xs tabular-nums text-fg outline-none placeholder:text-fg4 disabled:text-fg3';
+
+/** Поле без единицы: рамка на самом поле. */
+const BARE = `${BOX} ${TEXT} focus:border-primary disabled:bg-surface2`;
+
+/** Рамка вокруг поля с единицей: состояние поля она узнаёт через `focus-within` и `has-[:disabled]`. */
+const WRAP = `${BOX} flex items-baseline gap-1 focus-within:border-primary has-[:disabled]:bg-surface2`;
 
 /** Поле внутри рамки с единицей: рамку и отступы держит обёртка. */
 const INNER = `min-w-0 flex-1 bg-transparent ${TEXT}`;

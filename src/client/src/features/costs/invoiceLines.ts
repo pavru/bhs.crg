@@ -83,11 +83,11 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
     supplierText: line.supplierText ?? '',
     supplierCode: line.supplierCode ?? '',
     unit: line.unit ?? '',
-    quantity: numberInput(line.quantity),
-    price: numberInput(line.price),
-    vatRate: numberInput(line.vatRate),
-    vatAmount: numberInput(line.vatAmount),
-    amount: numberInput(line.amount),
+    quantity: formatInput(line.quantity),
+    price: formatInput(line.price),
+    vatRate: formatInput(line.vatRate),
+    vatAmount: formatInput(line.vatAmount),
+    amount: formatInput(line.amount),
     note: line.note ?? '',
   }));
 }
@@ -330,9 +330,7 @@ function money(value: number): number {
   return Math.sign(value) * Math.round(Math.abs(value) * 100) / 100;
 }
 
-function numberInput(value: number | null): string {
-  return formatInput(value);
-}
+
 
 function text(value: string): string | null {
   const trimmed = value.trim();

@@ -43,10 +43,6 @@ function StatusBadge({ status }: { status: BugReportStatus }) {
   );
 }
 
-function when(iso: string): string {
-  return formatDayTime(iso);
-}
-
 export function BugReportsPage() {
   const { data, isLoading } = useBugReports();
   const reports = data?.items;
@@ -80,7 +76,7 @@ export function BugReportsPage() {
       <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-fg4">
         <span className="truncate">{r.author}</span>
         <span>·</span>
-        <span className="shrink-0">{when(r.createdAt)}</span>
+        <span className="shrink-0">{formatDayTime(r.createdAt)}</span>
         {r.hasScreenshot && <ImageIcon size={11} className="shrink-0" aria-label="со снимком экрана" />}
         {r.githubIssueNumber && <span className="shrink-0">· #{r.githubIssueNumber}</span>}
       </div>
@@ -171,7 +167,7 @@ function ReportBody({ report, githubConfigured }: {
             <StatusBadge status={report.status} />
           </div>
           <p className="text-xs text-fg3 mt-0.5">
-            {report.authorEmail && <>{report.authorEmail} · </>}{when(report.createdAt)}
+            {report.authorEmail && <>{report.authorEmail} · </>}{formatDayTime(report.createdAt)}
             {report.fixedInVersion && <> · исправлено в {report.fixedInVersion}</>}
           </p>
         </div>

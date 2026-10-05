@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  formatAmount, formatCount, formatDate, formatDateTime, formatDayTime, formatInput, formatInputAmount,
-  formatLocale, formatMoney, formatNumber, formatQuantity, formatTime, setFormatLocale,
+  formatAmount, formatBytes, formatCount, formatDate, formatDatePrecise, formatDateTime, formatDay, formatDayTime,
+  formatInput, formatInputAmount, formatLocale, formatMoney, formatNumber, formatQuantity, formatTime,
+  setFormatLocale,
 } from './format';
 
 // Пробел между разрядами и перед знаком валюты у русского языка — неразрывный.
@@ -55,6 +56,22 @@ describe('число в поле ввода', () => {
 
   it('расчётное число округляется до названного предела', () => {
     expect(formatInput(7.2549, 3)).toBe('7,255');
+    expect(formatInput(100, 3)).toBe('100');
+  });
+
+  // Поле читают разбор формы и сервер, а они знают одну запись. Число на языке экрана форма,
+  // сохранённая без правок, записала бы другим: «1,250.5» → 1,25 (ревью PR #1207).
+  it.each(['en-US', 'de-DE', 'sv-SE', 'ar-EG'])('от языка не зависит: %s', locale => {
+    setFormatLocale(locale);
+
+    expect(formatInput(1250.5)).toBe('1250,5');
+    expect(formatInput(-5.5)).toBe('-5,5');
+    expect(formatInputAmount(-1250.5)).toBe('-1250,50');
+  });
+
+  it('минус у нуля не пишется', () => {
+    expect(formatInput(-0.0001, 3)).toBe('0');
+    expect(formatInputAmount(-0.001)).toBe('0,00');
   });
 });
 
@@ -77,6 +94,46 @@ describe('даты', () => {
     expect(formatDate('вчера')).toBe('вчера');
     expect(formatDateTime('')).toBe('');
   });
+
+  // Нераспознанный реквизит счёта приходит текстом. `new Date('05.10.2026')` — десятое мая:
+  // день и месяц переставлены, и показано это было бы уверенно (ревью PR #1207).
+  it('дата не в записи ISO не угадывается', () => {
+    expect(formatDate('05.10.2026')).toBe('05.10.2026');
+    expect(formatDate('10/05/2026')).toBe('10/05/2026');
+    expect(formatDate('2026')).toBe('2026');
+  });
+
+  it('дня, которого нет, не бывает и на экране', () => {
+    expect(formatDate('2026-13-45')).toBe('2026-13-45');
+    expect(formatDate('2026-02-30')).toBe('2026-02-30');
+  });
+
+  it('день колонки берётся из записи, а не из пояса браузера', () => {
+    expect(formatDay('2026-10-05')).toBe('05.10.2026');
+    expect(formatDay('2026-10-05T00:00:00Z')).toBe('05.10.2026');
+    expect(formatDay('2026-10-05T23:30:00+00:00')).toBe('05.10.2026');
+    expect(formatDay('2026-07')).toBe('2026-07');
+    expect(formatDay('2026')).toBe('2026');
+  });
+
+  it('точность типа скрывает дополненные части', () => {
+    expect(formatDatePrecise('2026-07-11')).toBe('11.07.2026');
+    expect(formatDatePrecise('2026-07-01', 'month')).toBe('07.2026');
+    expect(formatDatePrecise('2026-01-01', 'year')).toBe('2026');
+    expect(formatDatePrecise(null)).toBe('');
+    expect(formatDatePrecise('мусор', 'month')).toBe('мусор');
+  });
+});
+
+describe('размер файла', () => {
+  it('десятичный знак — языка, а не точка', () => {
+    expect(formatBytes(512)).toBe('512 Б');
+    expect(formatBytes(1536)).toBe('1,5 КБ');
+    expect(formatBytes(1.4 * 1024 ** 3)).toBe('1,4 ГБ');
+
+    setFormatLocale('en-US');
+    expect(formatBytes(1536)).toBe('1.5 КБ');
+  });
 });
 
 describe('язык форматирования', () => {
@@ -87,7 +144,7 @@ describe('язык форматирования', () => {
     expect(formatQuantity(1250.5)).toBe('1,250.5');
     expect(formatMoney(1234.5)).toBe('₽1,234.50');
     expect(formatDate('2026-10-05')).toBe('10/05/2026');
-    expect(formatInput(1250.5)).toBe('1250.5');
+    expect(formatDatePrecise('2026-10-05')).toBe('10/05/2026');
   });
 
   it('вернувшись, язык не оставляет за собой прежних форматтеров', () => {

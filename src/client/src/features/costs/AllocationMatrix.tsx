@@ -302,4 +302,4 @@ const STICKY_LEFT = 'sticky left-0 z-10 bg-surface border-b border-r border-stro
 const STICKY_RIGHT = 'sticky right-0 z-10 bg-surface border-b border-l border-stroke px-2 py-1.5';
 
 const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none
-  focus:border-primary disabled:text-fg4`;
+  focus:border-primary disabled:bg-surface2 disabled:text-fg3`;
