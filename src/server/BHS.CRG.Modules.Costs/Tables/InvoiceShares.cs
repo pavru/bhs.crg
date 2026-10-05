@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq.Expressions;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Tables;
@@ -25,18 +26,30 @@ namespace BHS.CRG.Modules.Costs.Tables;
 /// показывала бы больше, чем его строка. Доля на стройку целиком — тоже значение, «Комарова 36 / без
 /// раздела»: пустую клетку нечем отобрать, и строке «без раздела» в отчёте некуда было бы вести.</para>
 /// </summary>
-internal sealed class InvoiceShares(
-    IReadOnlyDictionary<Guid, string> labels, IReadOnlyDictionary<Guid, string> sections)
+internal sealed class InvoiceShares
 {
+    private readonly IReadOnlyDictionary<Guid, string> labels;
+    private readonly Lazy<IReadOnlyDictionary<Guid, (Guid Site, SectionName Name)>> named;
+    private readonly Lazy<IReadOnlyDictionary<Guid, string>> sections;
+
+    private InvoiceShares(AllocationPlaces known)
+    {
+        labels = known.Sites.Select(s => (s.Id, s.Name)).Concat(known.Articles.Select(a => (a.Id, a.Name)))
+            .ToDictionary(o => o.Id, o => o.Name);
+        // Разделы всех строек — только когда о разделе спросили: готовое представление «Реестр счетов»
+        // колонки «Раздел» не показывает, и платить за её подписи каждым чтением незачем (ревью PR #1209).
+        named = new(() => known.Sites
+            .SelectMany(s => s.Sections
+                .Select(x => (Key: x.Id, Site: s.Id, Name: new SectionName(SectionLabel(s.Name, x.Name), x.Name, x.Id)))
+                .Append((Key: s.Id, Site: s.Id, Name: new SectionName(SectionLabel(s.Name, NoSection), NoSection, null))))
+            // Ключи из двух справочников ядра; совпасть им нечем, но словарь не должен ронять реестр.
+            .GroupBy(x => x.Key).ToDictionary(g => g.Key, g => (g.First().Site, g.First().Name)));
+        sections = new(() => named.Value.ToDictionary(x => x.Key, x => x.Value.Name.Registry));
+    }
+
     /// <summary>Доли и разделы по местам разноски — одним способом на реестр и на «Затраты по стройке»:
     /// ссылка отчёта несёт название, и назови он раздел по-своему, реестр под ней не нашёл бы ничего.</summary>
-    public static InvoiceShares Of(AllocationPlaces known) => new(
-        known.Sites.Select(s => (s.Id, s.Name)).Concat(known.Articles.Select(a => (a.Id, a.Name)))
-            .ToDictionary(o => o.Id, o => o.Name),
-        known.Sites.SelectMany(s => s.Sections.Select(x => (x.Id, Name: SectionLabel(s.Name, x.Name)))
-                .Append((s.Id, Name: SectionLabel(s.Name, NoSection))))
-            // Ключи из двух справочников ядра; совпасть им нечем, но словарь не должен ронять реестр.
-            .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name));
+    public static InvoiceShares Of(AllocationPlaces known) => new(known);
 
     /// <summary>Названия объектов по ссылкам — стройки и статьи вне строек одним списком.</summary>
     public IReadOnlyDictionary<Guid, string> Labels => labels;
@@ -45,7 +58,7 @@ internal sealed class InvoiceShares(
     /// Названия разделов по ключу раздела доли (<see cref="SectionKey" />): раздел — своим
     /// идентификатором, «без раздела» — идентификатором стройки.
     /// </summary>
-    public IReadOnlyDictionary<Guid, string> Sections => sections;
+    public IReadOnlyDictionary<Guid, string> Sections => sections.Value;
 
     /// <summary>Доля на стройку целиком — раздел не назван.</summary>
     public const string NoSection = "без раздела";
@@ -59,16 +72,42 @@ internal sealed class InvoiceShares(
     /// <summary>«Комарова 36 / 4 эт.» — так раздел зовут колонка реестра, её отбор и ссылка отчёта.</summary>
     public static string SectionLabel(string site, string section) => $"{site} / {section}";
 
+    /// <summary>У доли есть раздел: она на стройку. У доли на статью вне строек раздела нет.</summary>
+    public static readonly Expression<Func<InvoiceAllocation, bool>> HasSection = a => a.ConstructionId != null;
+
     /// <summary>
-    /// Ключ раздела доли — он же выражение колонки в запросе (<c>InvoiceTableRows.Sql</c>): раздел либо,
-    /// если доля на стройку целиком, сама стройка. У доли на статью вне строек раздела нет.
+    /// Ключ раздела доли со стройкой: раздел либо, если доля на стройку целиком, сама стройка.
+    ///
+    /// <para>⚠️ <b>Одно выражение на запрос и на память.</b> Отбор строк идёт по нему в базе, а клетка,
+    /// подпись и названные деньги — по нему же в памяти (<see cref="SectionKey" />). Записанное дважды,
+    /// оно разошлось бы при первой правке одного места: счёт попадал бы в отбор с пустой «Суммой»
+    /// (ревью PR #1209).</para>
     /// </summary>
-    public static Guid? SectionKey(InvoiceAllocation part) =>
-        part.ConstructionId is null ? null : part.SectionId ?? part.ConstructionId;
+    public static readonly Expression<Func<InvoiceAllocation, Guid?>> SectionKeyOf = a => a.SectionId ?? a.ConstructionId;
+
+    private static readonly Func<InvoiceAllocation, bool> hasSection = HasSection.Compile();
+    private static readonly Func<InvoiceAllocation, Guid?> sectionKeyOf = SectionKeyOf.Compile();
+
+    /// <summary>Ключ раздела доли; null — доля на статью вне строек.</summary>
+    public static Guid? SectionKey(InvoiceAllocation part) => hasSection(part) ? sectionKeyOf(part) : null;
+
+    private static readonly SectionName Gone = new(LostSection, LostSection, null);
+
+    /// <summary>
+    /// Раздел доли: как его зовёт колонка «Раздел» и как — коротко — отчёт и панель строки; null — доля
+    /// на статью вне строек.
+    ///
+    /// <para>Раздел ЧУЖОЙ стройки (доля на стройку А с разделом стройки Б — так бывает в старых данных)
+    /// коротко не называется: «4 эт.» рядом со стройкой А читалось бы как её раздел.</para>
+    /// </summary>
+    public SectionName? SectionOf(InvoiceAllocation part) =>
+        SectionKey(part) is not { } key ? null
+        : !named.Value.TryGetValue(key, out var found) ? Gone
+        : found.Site == part.ConstructionId ? found.Name
+        : found.Name with { Short = found.Name.Registry };
 
     /// <summary>Раздел доли так, как его зовёт колонка «Раздел»; null — доля на статью вне строек.</summary>
-    public string? Section(InvoiceAllocation part) =>
-        SectionKey(part) is { } key ? sections.GetValueOrDefault(key, LostSection) : null;
+    public string? Section(InvoiceAllocation part) => SectionOf(part)?.Registry;
 
     /// <summary>Как названа цель, которой больше нет, — стройку удалили в ядре, статью — в справочнике.</summary>
     public const string Lost = "объект удалён";
@@ -103,7 +142,7 @@ internal sealed class InvoiceShares(
 
     /// <summary>То же под отбором по разделу: «раздел: Комарова 36 / 4 эт.».</summary>
     public string SectionNote(IReadOnlyList<TableFilterCondition> naming) =>
-        Note(naming, sections.Values.Append(LostSection), "раздел", "разделов");
+        Note(naming, Sections.Values.Append(LostSection), "раздел", "разделов");
 
     private static string Note(
         IReadOnlyList<TableFilterCondition> naming, IEnumerable<string> known, string what, string many)

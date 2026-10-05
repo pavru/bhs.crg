@@ -46,7 +46,7 @@ export interface SiteCosts {
   /** Контрагенты — на экране стройки. */
   suppliers: CostLine[];
   /** Разделы стройки — второй срез ТОЙ ЖЕ суммы, что `suppliers` (G5b, issue #1198); только на экране стройки. */
-  sections: CostLine[];
+  sections?: CostLine[];
   total: CostFigure;
   /** Из затрат — счета со строками без позиции номенклатуры. */
   unmatched: CostFigure | null;

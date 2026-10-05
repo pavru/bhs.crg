@@ -429,12 +429,13 @@ public sealed class InvoiceTableRows(
             .List(InvoiceTable.ObjectsKey,
                 i => db.InvoiceAllocations.Where(a => a.InvoiceId == i.Id).Select(a => a.ConstructionId ?? a.ArticleId),
                 shares.Labels, InvoiceShares.Lost)
-            // Раздел доли — то же выражение, что InvoiceShares.SectionKey: раздел либо, у доли на стройку
-            // целиком, сама стройка («без раздела»). Доли на статьи вне строек в перечень не идут —
-            // отсеяны ЗДЕСЬ, а не пустым ключом: пустой ключ построитель счёл бы «разделом, которого нет».
+            // Раздел доли — ТЕМ ЖЕ выражением, каким его считает память (InvoiceShares.SectionKey):
+            // раздел либо, у доли на стройку целиком, сама стройка («без раздела»). Доли на статьи вне
+            // строек в перечень не идут — отсеяны ЗДЕСЬ, а не пустым ключом: пустой ключ построитель
+            // счёл бы «разделом, которого нет».
             .List(InvoiceTable.SectionsKey,
-                i => db.InvoiceAllocations.Where(a => a.InvoiceId == i.Id && a.ConstructionId != null)
-                    .Select(a => a.SectionId ?? a.ConstructionId),
+                i => db.InvoiceAllocations.Where(a => a.InvoiceId == i.Id)
+                    .Where(InvoiceShares.HasSection).Select(InvoiceShares.SectionKeyOf),
                 shares.Sections, InvoiceShares.LostSection)
             // Без отбора по объекту «Сумма» — сумма счёта, и итог по ней считает запрос. Отбирать и
             // сортировать по ней ядро не даёт: колонка объявлена зависящей от отбора.

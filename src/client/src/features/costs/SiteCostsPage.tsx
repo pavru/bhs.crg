@@ -150,10 +150,13 @@ function Report({ data, bySections, onSite, stale }: {
             </thead>
             <tbody>
               {data.site && bySections ? (
-                data.sections.map(line => (
+                // Среза может не быть в ответе: клиент и сервер обновляются порознь.
+                (data.sections ?? []).map(line => (
                   // «Без раздела» и «раздел удалён» — приглушённо: это не название, а его отсутствие.
+                  // Стрелка — только под названием, каким раздел зовёт реестр: коротким именем он его не
+                  // зовёт никогда, и ссылка с ним открыла бы пустой реестр — «счетов нет» вместо отказа.
                   <Row key={line.id ?? line.name} name={line.name} muted={line.id === null} figure={line} linkNote={linkNote}
-                    link={siteCostsLinks.section(data, line.registry ?? line.name)} />
+                    link={line.registry ? siteCostsLinks.section(data, line.registry) : undefined} />
                 ))
               ) : data.site ? (
                 data.suppliers.map(line => (

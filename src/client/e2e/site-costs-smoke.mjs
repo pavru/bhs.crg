@@ -142,11 +142,14 @@ await check('site-report-shows-costs-and-payable', async () => {
   if (!(total >= 700)) throw new Error(`в затратах стройки нет оплаченного счёта прогона: итог ${total}`);
   if (!(payable >= 150)) throw new Error(`в «к оплате» нет неоплаченного счёта прогона: ${payable}`);
 
-  const text = (await report.innerText()).replace(/\s/g, ' ');
-  if (!text.includes('Расходные накладные в него пока не входят')) throw new Error('про накладные не сказано');
-  // Суммы «затраты + к оплате» на экране нет нигде: её приняли бы за затраты.
-  const merged = (total + payable).toLocaleString('ru-RU', { minimumFractionDigits: 2 }).replace(/\s/g, ' ');
-  if (text.includes(merged)) throw new Error(`на экране есть сумма затрат и «к оплате» вместе: ${merged}`);
+  const text = await report.innerText();
+  if (!text.replace(/\s/g, ' ').includes('Расходные накладные в него пока не входят')) throw new Error('про накладные не сказано');
+  // Суммы «затраты + к оплате» на экране нет нигде: её приняли бы за затраты. Сверяем ПО КЛЕТКАМ, а не
+  // по тексту экрана: «1 150,00» в сплошном тексте — это и число счетов «1» рядом с суммой «150,00»
+  // (на чистой базе CI так и вышло: 1 000 затрат и 150 к оплате).
+  const cells = await report.locator('td').allInnerTexts();
+  if (cells.some(cell => Math.abs(number(cell) - (total + payable)) < 0.005))
+    throw new Error(`на экране есть сумма затрат и «к оплате» вместе: ${total + payable}`);
 });
 
 // ── 2. Каждая стрелка: число отчёта равно итогу «Суммы» в реестре ─────────────────────────────────

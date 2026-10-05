@@ -94,17 +94,22 @@ public class SiteCostsTests
             Money(Cable, AllocationTarget.Site(SiteB, floor), 20_000m, D(9, 15)),
         ]);
 
-        var site = SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), SiteA, withVat: true, sections: new HashSet<Guid> { floor });
+        // Называет раздел вызывающий — тем же вызовом, что реестр: у двух удалённых название одно.
+        SectionName Named(InvoiceAllocation part) =>
+            part.SectionId == floor ? new("А / 4 эт.", "4 эт.", floor)
+            : part.SectionId is null ? new("А / без раздела", "без раздела", null)
+            : new("раздел удалён", "раздел удалён", null);
+        var site = SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), SiteA, withVat: true, section: Named);
 
         Assert.Equal(new CostFigure(1, 80_000m), site.Total);
         Assert.Equal(
-            [((Guid?)floor, false, new CostFigure(1, 40_000m)), (null, false, new CostFigure(1, 25_000m)), (null, true, new CostFigure(1, 15_000m))],
-            site.Sections);
+            [("4 эт.", (Guid?)floor, new CostFigure(1, 40_000m)), ("без раздела", null, new CostFigure(1, 25_000m)), ("раздел удалён", null, new CostFigure(1, 15_000m))],
+            site.Sections.Select(s => (s.Section.Short, s.Section.Id, s.Figure)));
         Assert.Equal(site.Total.Amount, site.Sections.Sum(s => s.Figure.Amount));
         Assert.Equal(site.Total.Amount, site.Suppliers.Sum(s => s.Figure.Amount));
 
         // По всем стройкам среза по разделам нет: раздел без стройки ничего не значит.
-        Assert.Empty(SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), site: null, withVat: true).Sections);
+        Assert.Empty(SiteCosts.Of([invoice], Lines, D(9, 1), D(9, 30), site: null, withVat: true, section: Named).Sections);
     }
 
     /// <summary>

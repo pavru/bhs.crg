@@ -58,10 +58,12 @@ internal static class InvoiceBreakdown
         bool Named(PostedMoney part) => narrowed && named(part);
 
         var rows = money.Where(m => m.Part is not null)
-            .GroupBy(m => (Label: shares.Label(m.Part!), Section: shares.Section(m.Part!), Month: Month(m.AccountingOn)))
+            .Select(m => (Money: m, Section: shares.SectionOf(m.Part!)))
+            .GroupBy(m => (Label: shares.Label(m.Money.Part!), Section: m.Section?.Registry, Month: Month(m.Money.AccountingOn)),
+                (key, group) => (Key: key, Short: group.First().Section?.Short, Money: group.Select(m => m.Money).ToList()))
             .OrderBy(g => g.Key.Label, InvoiceShares.ByName).ThenBy(g => g.Key.Section, InvoiceShares.ByName).ThenBy(g => g.Key.Month)
-            .Select(g => Row(g.Key.Label, Short(g.Key.Label, g.Key.Section),
-                g.Any(m => m.Amount is not null) ? g.Sum(m => m.Amount ?? 0) : null, g.Key.Month, g.Any(Named)))
+            .Select(g => Row(g.Key.Label, g.Short,
+                g.Money.Any(m => m.Amount is not null) ? g.Money.Sum(m => m.Amount ?? 0) : null, g.Key.Month, g.Money.Any(Named)))
             .ToList();
 
         // Остаток существует только из-за денег, и само его название — факт о суммах («строки больше
@@ -80,12 +82,6 @@ internal static class InvoiceBreakdown
     }
 
     private static DateOnly? Month(DateOnly? day) => day is { } on ? PaymentPosting.MonthOf(on) : null;
-
-    /// <summary>Раздел без названия стройки: в панели она стоит в соседней колонке той же строки.</summary>
-    private static string? Short(string site, string? section) =>
-        section?.StartsWith(InvoiceShares.SectionLabel(site, ""), StringComparison.Ordinal) == true
-            ? section[InvoiceShares.SectionLabel(site, "").Length..]
-            : section;
 
     private static TableBreakdownRow Row(string label, string? section, decimal? amount, DateOnly? month, bool named) => new(
         new Dictionary<string, object?>(StringComparer.Ordinal)

@@ -25,7 +25,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Suppliers">Контрагенты — на экране стройки; строки без идентификатора — «поставщик не
 /// указан» и, без ссылки в реестр, «поставщик удалён».</param>
 /// <param name="Sections">Разделы стройки — на её экране, второй срез той же суммы; «без раздела» и
-/// «раздел удалён» — строками без идентификатора.</param>
+/// «раздел удалён» — строками без идентификатора. Разделы, названные одинаково, — одной строкой.</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры: в затраты вошли.</param>
 /// <param name="Payable">Не оплачено и не отклонено — НЕ затраты и от периода не зависит.</param>
 /// <param name="VatUnknown">Под «без НДС» — деньги, из которых НДС вычесть нечем: учтены полной суммой.</param>
@@ -109,8 +109,8 @@ public static class SiteCostsEndpoints
                 new Dictionary<Guid, LineVat>())
             : await InvoicesAsync(db, unpaid, ct);
 
-        var ownSections = known.Site(site)?.Sections.ToDictionary(s => s.Id, s => s.Name) ?? [];
-        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet(), ownSections.Keys.ToHashSet());
+        // Доля в срезе стройки — всегда на стройку, раздел у неё есть (хотя бы «без раздела»).
+        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet(), part => shares.SectionOf(part)!);
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
         // Контрагенты — только на экране стройки: без неё справочник не читаем.
@@ -122,11 +122,6 @@ public static class SiteCostsEndpoints
             new(id, name, figure.Invoices, figure.Amount, linked);
         CostFigure Sum(IEnumerable<CostFigure> figures) => figures.Aggregate(new CostFigure(0, 0), (a, b) => new(a.Invoices + b.Invoices, a.Amount + b.Amount));
         var lostSuppliers = result.Suppliers.Where(s => s.Supplier is { } id && !suppliers.ContainsKey(id)).ToList();
-
-        // Разделы — на экране стройки. В отчёте раздел назван коротко («4 эт.»): стройка стоит в
-        // заголовке; реестр зовёт его вместе со стройкой, и это название строка несёт для ссылки.
-        CostLine Section(Guid? id, string name, CostFigure figure, string registry) =>
-            new(id, name, figure.Invoices, figure.Amount, Registry: registry);
 
         return TypedResults.Ok(new SiteCostsView(
             site is { } chosen ? new(chosen, labels[chosen], result.Total.Invoices, result.Total.Amount) : null,
@@ -143,15 +138,10 @@ public static class SiteCostsEndpoints
                 .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), linked: false)])
                 // Строки без названия — последними: это не название, а его отсутствие.
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
-            // Удалённые разделы — одной строкой: реестр зовёт их все одинаково, и отбор по этому названию
-            // вместе с объектом находит их разом.
+            // Разделы — на экране стройки. В отчёте раздел назван коротко («4 эт.»): стройка стоит в
+            // заголовке; реестр зовёт его вместе со стройкой, и это название строка несёт для ссылки.
             [.. result.Sections
-                .Select(s => s switch
-                {
-                    { Lost: true } => Section(null, InvoiceShares.LostSection, s.Figure, InvoiceShares.LostSection),
-                    { Section: { } id } => Section(id, ownSections[id], s.Figure, shares.Sections[id]),
-                    _ => Section(null, InvoiceShares.NoSection, s.Figure, shares.Sections[site!.Value]),
-                })
+                .Select(s => new CostLine(s.Section.Id, s.Section.Short, s.Figure.Invoices, s.Figure.Amount, Registry: s.Section.Registry))
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
             result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown));
     }

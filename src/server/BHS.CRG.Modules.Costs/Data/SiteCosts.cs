@@ -12,6 +12,13 @@ public sealed record CostFigure(int Invoices, decimal Amount);
 /// «4 эт.», а колонка «Раздел» реестра — «Комарова 36 / 4 эт.». Отбор ссылки берёт это название.</param>
 public sealed record CostLine(Guid? Id, string Name, int Invoices, decimal Amount, bool Linked = true, string? Registry = null);
 
+/// <summary>Раздел доли — одно название на реестр, второе на отчёт стройки и панель строки.</summary>
+/// <param name="Registry">Как раздел зовёт колонка «Раздел» реестра: «Комарова 36 / 4 эт.». По нему же
+/// идёт её отбор — и по нему, а не по идентификатору, отчёт складывает доли в строки.</param>
+/// <param name="Short">Коротко, без стройки: она стоит рядом.</param>
+/// <param name="Id">Сам раздел; null — «без раздела» или «раздел удалён»: не название, а его отсутствие.</param>
+public sealed record SectionName(string Registry, string Short, Guid? Id);
+
 /// <summary>Счёт так, как его видит отчёт о затратах.</summary>
 /// <param name="VatTotal">«В том числе НДС» из шапки — запасной источник НДС там, где его нет у строки.</param>
 /// <param name="Unmatched">Есть строки без позиции номенклатуры.</param>
@@ -34,8 +41,10 @@ public sealed record LineVat(decimal? Amount, decimal? VatAmount);
 /// <param name="Unallocated">Деньги оплаченных счетов, не лёгшие ни на один объект; null — таких нет.</param>
 /// <param name="Suppliers">По контрагентам — на экране стройки; ключ null — «поставщик не указан».</param>
 /// <param name="Sections">По разделам — на экране стройки, второй срез ТОЙ ЖЕ суммы (задача G5b, issue
-/// #1198): ключ — раздел доли, null — доля на стройку целиком, «без раздела». Разделы, которых больше
-/// нет, — ОДНОЙ строкой (<c>Lost</c>): реестр зовёт их одинаково.</param>
+/// #1198). Строка — НАЗВАНИЕ раздела в реестре, а не раздел: отбор реестра идёт по названию, и два
+/// раздела, названные одинаково, под ссылкой сложились бы — значит, и в отчёте они одна строка, иначе
+/// число строки и итог реестра разошлись бы молча (ревью PR #1209). По той же причине одной строкой
+/// идут разделы, которых больше нет.</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры; null — таких нет.</param>
 /// <param name="VatUnknown">Под «без НДС»: деньги, из которых НДС вычесть нечем, — учтены полной
 /// суммой; null — таких нет либо суммы показаны с НДС.</param>
@@ -45,7 +54,7 @@ public sealed record SiteCostsResult(
     CostFigure? Lost,
     CostFigure? Unallocated,
     IReadOnlyList<(Guid? Supplier, CostFigure Figure)> Suppliers,
-    IReadOnlyList<(Guid? Section, bool Lost, CostFigure Figure)> Sections,
+    IReadOnlyList<(SectionName Section, CostFigure Figure)> Sections,
     CostFigure Total,
     CostFigure? Unmatched,
     CostFigure? VatUnknown);
@@ -74,11 +83,13 @@ public static class SiteCosts
     /// <param name="site">Стройка — тогда строки по контрагентам; null — все стройки.</param>
     /// <param name="withVat">Суммы как в бумаге; иначе — без НДС, где его есть чем вычесть.</param>
     /// <param name="known">Объекты, у которых есть название; null — известны все.</param>
-    /// <param name="sections">Разделы, у которых есть название; null — известны все.</param>
+    /// <param name="section">Как назвать раздел доли на стройку — ТОТ ЖЕ вызов, каким реестр называет
+    /// клетку «Раздел»: два определения «какой это раздел» разошлись бы на первой же нестандартной доле.
+    /// null — срез по разделам не нужен.</param>
     public static SiteCostsResult Of(
         IReadOnlyList<CostInvoice> invoices, IReadOnlyDictionary<Guid, LineVat> lines,
         DateOnly from, DateOnly through, Guid? site, bool withVat, IReadOnlySet<Guid>? known = null,
-        IReadOnlySet<Guid>? sections = null)
+        Func<InvoiceAllocation, SectionName>? section = null)
     {
         bool Known(Guid? id) => id is { } key && known?.Contains(key) != false;
 
@@ -115,12 +126,12 @@ public static class SiteCosts
             site is null ? [] : [.. entries.GroupBy(e => e.Invoice.SupplierId).Select(g => (g.Key, Figure(g)))],
             // Тот же набор долей, сгруппированный иначе: сумма строк обоих срезов — один итог. А число
             // счетов по разделам в итог НЕ складывается: счёт на два раздела стоит в двух строках.
-            // Разделы, которых больше нет, — одной группой: счёт на два таких раздела — один счёт.
-            site is null ? [] : [.. entries
-                .GroupBy(e => e.Money.Part!.SectionId is { } id
-                    ? sections?.Contains(id) == false ? (Section: (Guid?)null, Lost: true) : (Section: id, Lost: false)
-                    : (Section: null, Lost: false))
-                .Select(g => (g.Key.Section, g.Key.Lost, Figure(g)))],
+            // Группа — название в реестре: одноимённые разделы и разделы, которых больше нет, — одной
+            // строкой, и счёт на два таких раздела в ней — один счёт.
+            site is null || section is null ? [] : [.. entries
+                .Select(e => (Entry: e, Section: section(e.Money.Part!)))
+                .GroupBy(e => e.Section.Registry, StringComparer.Ordinal)
+                .Select(g => (g.First().Section, Figure(g.Select(e => e.Entry))))],
             Figure(entries),
             Some(Figure(entries.Where(e => e.Invoice.Unmatched))),
             withVat ? null : Some(Figure(entries.Where(e => e.VatUnknown))));

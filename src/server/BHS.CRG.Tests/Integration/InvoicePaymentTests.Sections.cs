@@ -38,23 +38,8 @@ public partial class InvoicePaymentTests
             new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 100_000m) }));
         await PayAsync(admin, invoice, today, await PreviewAsync(admin, invoice, today), null);
 
-        async Task<JsonElement> TableAsync(string columns, params object[] conditions)
-        {
-            var filter = JsonSerializer.Serialize(new { type = "group", logic = "and", children = conditions });
-            return await admin.GetFromJsonAsync<JsonElement>(
-                $"/api/tables/costs.invoices?columns={columns}&totals=СуммаПоОтбору&filter={Uri.EscapeDataString(filter)}");
-        }
-        async Task<decimal?> RegistryAsync(params object[] conditions)
-        {
-            var total = (await TableAsync("Номер,СуммаПоОтбору", [.. conditions,
-                    new { type = "condition", column = "Состояние", op = "neq", value = "Отклонён" }]))
-                .GetProperty("totals").GetProperty("СуммаПоОтбору").GetProperty("sum");
-            return total.ValueKind == JsonValueKind.Null ? null : total.GetDecimal();
-        }
-        static object Period(string month) => new { type = "condition", column = "УчётныйПериод", op = "in", values = new[] { month } };
-        static object On(string site) => new { type = "condition", column = "ОбъектыРазноски", op = "eq", value = site };
-        static object Section(string op, string name) => new { type = "condition", column = "РазделыРазноски", op, value = name };
-        static decimal Amount(JsonElement figure) => figure.GetProperty("amount").GetDecimal();
+        Task<JsonElement> TableAsync(string columns, params object[] conditions) => SectionTableAsync(admin, columns, conditions);
+        Task<decimal?> RegistryAsync(params object[] conditions) => SectionRegistryAsync(admin, conditions);
 
         var report = await admin.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?site={a}&from={nowKey}&to={nowKey}");
         var nameA = report.GetProperty("site").GetProperty("name").GetString()!;
@@ -108,4 +93,65 @@ public partial class InvoicePaymentTests
             [(nameA, "4 эт.", 20_000m, false), (nameA, "без раздела", 12_000m, false), (nameA, "ливнёвка", 60_000m, true), (nameB, "4 эт.", 8_000m, false)],
             parts.Select(p => (p.Object!, p.Section!, p.Share, p.Named)));
     }
+
+    /// <summary>
+    /// <b>Строка среза — название, а не раздел</b> (ревью PR #1209). Ядро не запрещает двум разделам
+    /// стройки зваться одинаково, и разделу — зваться «без раздела»; отбор реестра идёт по названию и
+    /// складывает их. Сложи отчёт по идентификатору — две одноимённые строки вели бы в реестр с ОДНИМ итогом
+    /// на обе, и ни одна с ним не сошлась бы. Молча: обе цифры правдоподобны.
+    /// </summary>
+    [Fact]
+    public async Task Одноимённые_разделы_в_срезе_одной_строкой_и_она_сходится_с_реестром()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        string now = $"{today:MM.yyyy}", nowKey = $"{today:yyyy-MM}";
+        var (site, of) = await SiteAsync("Разделы тёзки", "тёзка", "тёзка", "без раздела");
+
+        // 40 000 одной строкой: 20 000 и 10 000 — на два раздела «тёзка», 6 000 — на стройку целиком,
+        // 4 000 — на раздел, названный «без раздела».
+        var invoice = await CreateAsync(admin, complete: true);
+        var view = await LinesAsync(admin, invoice, [Line(cable, 100, 400)]);
+        await AllocateAsync(admin, invoice, LineId(view, 1),
+        [
+            Part(site, quantity: 50, section: of[0]), Part(site, quantity: 25, section: of[1]),
+            Part(site, quantity: 15), Part(site, quantity: 10, section: of[2]),
+        ]);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 40_000m) }));
+        await PayAsync(admin, invoice, today, await PreviewAsync(admin, invoice, today), null);
+
+        var report = await admin.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?site={site}&from={nowKey}&to={nowKey}");
+        var name = report.GetProperty("site").GetProperty("name").GetString()!;
+        var sections = report.GetProperty("sections").EnumerateArray().ToList();
+
+        Assert.Equal(
+            [("тёзка", 30_000m), ("без раздела", 10_000m)],
+            sections.Select(s => (s.GetProperty("name").GetString()!, Amount(s))));
+        Assert.Equal(Amount(report.GetProperty("total")), sections.Sum(Amount));
+        foreach (var section in sections)
+            Assert.Equal(Amount(section), await SectionRegistryAsync(admin,
+                On(name), Section("eq", section.GetProperty("registry").GetString()!), Period(now)));
+    }
+
+    private static async Task<JsonElement> SectionTableAsync(HttpClient client, string columns, params object[] conditions)
+    {
+        var filter = JsonSerializer.Serialize(new { type = "group", logic = "and", children = conditions });
+        return await client.GetFromJsonAsync<JsonElement>(
+            $"/api/tables/costs.invoices?columns={columns}&totals=СуммаПоОтбору&filter={Uri.EscapeDataString(filter)}");
+    }
+
+    /// <summary>Итог «Суммы» реестра под отбором ссылки отчёта: её условия и «не отклонён».</summary>
+    private static async Task<decimal?> SectionRegistryAsync(HttpClient client, params object[] conditions)
+    {
+        var total = (await SectionTableAsync(client, "Номер,СуммаПоОтбору", [.. conditions,
+                new { type = "condition", column = "Состояние", op = "neq", value = "Отклонён" }]))
+            .GetProperty("totals").GetProperty("СуммаПоОтбору").GetProperty("sum");
+        return total.ValueKind == JsonValueKind.Null ? null : total.GetDecimal();
+    }
+
+    private static object Period(string month) => new { type = "condition", column = "УчётныйПериод", op = "in", values = new[] { month } };
+    private static object On(string site) => new { type = "condition", column = "ОбъектыРазноски", op = "eq", value = site };
+    private static object Section(string op, string name) => new { type = "condition", column = "РазделыРазноски", op, value = name };
+    private static decimal Amount(JsonElement figure) => figure.GetProperty("amount").GetDecimal();
 }
