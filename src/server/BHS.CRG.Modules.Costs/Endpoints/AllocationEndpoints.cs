@@ -30,8 +30,10 @@ public static class AllocationEndpoints
             .RequireAuthorization(AppPolicies.Permission(Edit))
             .WithTags("Счета на оплату");
 
+        // Воротами модуля (D1, issue #1083): стройку выбирают и получателем накладной, а право на
+        // накладные счетов не открывает. Отдаются названия строек и разделов — данные ядра.
         endpoints.MapGet("/api/costs/constructions", ConstructionsAsync)
-            .RequireAuthorization(AppPolicies.Permission("costs.invoice.read"))
+            .RequireAuthorization(AppPolicies.Module("costs"))
             .WithTags("Счета на оплату");
     }
 

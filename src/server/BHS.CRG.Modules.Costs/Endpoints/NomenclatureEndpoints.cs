@@ -29,8 +29,11 @@ public static class NomenclatureEndpoints
 
     public static void MapNomenclature(IEndpointRouteBuilder endpoints)
     {
+        // Воротами модуля, а не правом на счета (D1, issue #1083): позицию выбирают и в строке
+        // накладной, а право на накладные счетов не открывает (COST-29). Отдаётся здесь справочник
+        // ядра — названия позиций, — а не данные модуля.
         endpoints.MapGet("/api/costs/nomenclature", SearchAsync)
-            .RequireAuthorization(AppPolicies.Permission("costs.invoice.read"))
+            .RequireAuthorization(AppPolicies.Module("costs"))
             .WithTags("Счета на оплату");
     }
 

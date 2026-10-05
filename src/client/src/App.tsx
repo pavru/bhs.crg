@@ -29,6 +29,7 @@ import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
 import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
 import { InvoicesPage } from '@/features/costs/InvoicesPage';
 import { SiteCostsPage } from '@/features/costs/SiteCostsPage';
+import { WaybillsPage } from '@/features/costs/WaybillsPage';
 import { TablePage } from '@/features/tables/TablePage';
 import { ProfilePage } from '@/features/account/ProfilePage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
@@ -76,6 +77,7 @@ export default function App() {
                   <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
                   <Route path="quality-docs" element={<QualityDocsPage />} />
                   <Route path="invoices" element={<InvoicesPage />} />
+                  <Route path="waybills" element={<WaybillsPage />} />
                   <Route path="site-costs" element={<SiteCostsPage />} />
                   {/* Таблица модуля (ТЗ CORE-33). Раздела в навигации у адреса нет, и права на
                       маршруте тоже: таблицы разных модулей открываются разными ключами, и ключ

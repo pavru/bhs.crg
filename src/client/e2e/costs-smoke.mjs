@@ -206,7 +206,72 @@ async function supplierPart() {
       throw new Error(`сервер ответил снабженцу на расклад оплаты ${answer.status}, а обязан отказать (403)`);
   });
 
+  await check('supplier-enters-and-posts-a-waybill', () => waybillPart(supplier));
+
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
+}
+
+/** Позиция номенклатуры в строке накладной — первой из найденных: какая именно, проверке не важно. */
+async function pickPosition(seat, row) {
+  await row.getByRole('button', { name: 'выбрать позицию' }).click();
+  const picker = seat.page.getByRole('dialog', { name: 'Позиция номенклатуры' });
+  const first = picker.locator('div.overflow-y-auto button').first();
+  await first.waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('в выборе позиции пусто — посев номенклатуры не отработал'); });
+  await first.click();
+  await picker.waitFor({ state: 'hidden', timeout: 10_000 });
+}
+
+/**
+ * Накладная (D1, issue #1083): вводится, проводится, и несопоставленная строка названа числом — на
+ * форме и рядом с перечнем «материалы на объекте». Экраном, а не запросами: адреса стережёт backend.
+ */
+async function waybillPart(seat) {
+  const { page } = seat;
+  const waybill = `РН-${Date.now()}`;
+  await visit(seat, 'накладные', '/waybills');
+  if (!(await menu(page)).includes('Накладные')) throw new Error('в меню снабженца нет пункта «Накладные»');
+
+  seat.screen = 'ввод накладной';
+  await page.getByRole('button', { name: 'Новая накладная' }).click();
+  await page.getByText('Строки накладной').waitFor({ timeout: 10_000 });
+  await page.getByLabel('Номер', { exact: true }).fill(waybill);
+  await page.getByLabel('Дата отпуска').fill('2026-09-01');
+  await page.getByLabel('Получатель — стройка').first().selectOption({ label: SITE });
+
+  for (const [name, quantity] of [['Кабель прогона', '12,5'], ['Хомут прогона', '4']]) {
+    await page.getByRole('button', { name: 'Строка', exact: true }).click();
+    const row = page.locator('tbody tr').last();
+    await row.getByLabel(/Наименование в накладной/).fill(name);
+    await row.getByLabel(/Количество/).fill(quantity);
+  }
+  await pickPosition(seat, page.locator('tbody tr').first());
+
+  // «Провести» сохраняет набранное само: несохранённая правка иначе пропала бы молча.
+  await page.getByRole('button', { name: 'Провести' }).click();
+  await page.getByText('Проведена', { exact: true }).waitFor({ timeout: 10_000 });
+  await page.getByText(/Не сопоставлено: 1 строка\./).waitFor({ timeout: 10_000 });
+  await absent(seat, ['Сохранить', 'Провести']);
+
+  seat.screen = 'материалы на объекте';
+  await page.getByRole('button', { name: 'Материалы на объекте' }).click();
+  const materials = page.getByRole('dialog', { name: 'Материалы на объекте' });
+  await materials.getByLabel('Стройка').selectOption({ label: SITE });
+  // Оговорка и перечень — вместе: перечень без неё читался бы как «выдано только это».
+  await materials.getByText(/Не сопоставлено: \d+ строк/).waitFor({ timeout: 10_000 });
+  await materials.locator('tbody tr').first().waitFor({ timeout: 10_000 });
+  if ((await materials.innerText()).includes('Хомут прогона'))
+    throw new Error('несопоставленная строка попала в перечень материалов на объекте');
+  if (/₽|руб/i.test(await materials.innerText())) throw new Error('в перечне материалов видны деньги');
+  await page.keyboard.press('Escape');
+  await materials.waitFor({ state: 'hidden', timeout: 10_000 });
+
+  // Сопоставление — у проведённой, без возврата в черновик.
+  seat.screen = 'сопоставление строки накладной';
+  await pickPosition(seat, page.locator('tbody tr').last());
+  await page.getByText(/Не сопоставлено:/).waitFor({ state: 'hidden', timeout: 10_000 });
+  await page.getByText('Проведена', { exact: true }).waitFor({ timeout: 10_000 });
+  await settled(page);
 }
 
 // ══ Бухгалтер: читает и отмечает оплату ═══════════════════════════════════════════════════════════
@@ -218,6 +283,8 @@ async function accountantPart() {
     const items = await menu(accountant.page);
     for (const label of ['Счета', 'Реестр счетов', 'Затраты по стройке', 'Учётный период'])
       if (!items.includes(label)) throw new Error(`в меню бухгалтера нет пункта «${label}»`);
+    // Накладные — своим правом (COST-29): право на счета их не открывает.
+    if (items.includes('Накладные')) throw new Error('в меню бухгалтера есть «Накладные» — права на них у роли нет');
 
     // Пункт в меню — обещание экрана: открываем каждый, отказы за дверью считает общий счёт.
     await visit(accountant, 'затраты по стройке', '/site-costs');
