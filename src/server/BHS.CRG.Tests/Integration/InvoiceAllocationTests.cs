@@ -186,7 +186,7 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
 
         using var scope = host.Services.CreateScope();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = (await journal.ReadAsync(0, 200, "costs.invoice.allocation"))
+        var records = (await journal.ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.allocation"))
             .Where(r => r.TargetId == invoice.ToString())
             .ToList();
 

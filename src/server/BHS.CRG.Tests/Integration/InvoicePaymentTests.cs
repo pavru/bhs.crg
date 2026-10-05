@@ -99,7 +99,7 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
         await PayAsync(admin, invoice, today.AddDays(-15), await PreviewAsync(admin, invoice, today.AddDays(-15)), "п/п № 7");
 
         using var scope = host.Services.CreateScope();
-        var record = (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 50, "costs.invoice.paid"))
+        var record = (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 50, ActivityVisibility.Whole, "costs.invoice.paid"))
             .Single(r => r.TargetId == invoice.ToString());
         Assert.Contains($"оплачен {today.AddDays(-15):dd.MM.yyyy}", record.After);
         Assert.Contains("п/п № 7", record.After);
@@ -309,7 +309,7 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.Empty(await DatesAsync(invoice));
 
         using var scope = host.Services.CreateScope();
-        var record = (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 50, "costs.invoice.unpaid"))
+        var record = (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 50, ActivityVisibility.Whole, "costs.invoice.unpaid"))
             .Single(r => r.TargetId == invoice.ToString());
         Assert.Contains("не тот счёт", record.After);
     }

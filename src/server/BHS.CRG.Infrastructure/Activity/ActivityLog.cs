@@ -34,9 +34,9 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor) : IActivi
     /// вторая повторяет строки первой и прячет пограничные — то есть журнал молча не показывает
     /// запись, которая в нём есть.
     /// </summary>
-    public async Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, string? action = null,
-        CancellationToken ct = default) =>
-        await Filtered(action)
+    public async Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, ActivityVisibility visible,
+        string? action = null, CancellationToken ct = default) =>
+        await Filtered(visible, action)
             .OrderByDescending(r => r.OccurredAt)
             .ThenByDescending(r => r.Id)
             .Skip(Math.Max(0, skip))
@@ -44,8 +44,9 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor) : IActivi
             .AsNoTracking()
             .ToListAsync(ct);
 
-    public Task<int> CountAsync(string? action = null, CancellationToken ct = default) =>
-        Filtered(action).CountAsync(ct);
+    public Task<int> CountAsync(ActivityVisibility visible, string? action = null,
+        CancellationToken ct = default) =>
+        Filtered(visible, action).CountAsync(ct);
 
     // Та же добивка и здесь: «последняя запись» при совпавшем времени иначе выбирается наугад, а по
     // ней сверяют состояние — и тогда наугад решается, записывать ли смену.
@@ -78,8 +79,11 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor) : IActivi
         return fresh.Count;
     }
 
-    private IQueryable<ActivityRecord> Filtered(string? action) =>
-        string.IsNullOrWhiteSpace(action)
-            ? db.ActivityRecords
-            : db.ActivityRecords.Where(r => r.Action == action);
+    // Видимость — в самом запросе, а не поверх страницы: отбор после Skip/Take дал бы страницы
+    // разной длины и общее число, выдающее, сколько записей от читающего скрыто.
+    private IQueryable<ActivityRecord> Filtered(ActivityVisibility visible, string? action)
+    {
+        var records = visible.Filter() is { } filter ? db.ActivityRecords.Where(filter) : db.ActivityRecords;
+        return string.IsNullOrWhiteSpace(action) ? records : records.Where(r => r.Action == action);
+    }
 }

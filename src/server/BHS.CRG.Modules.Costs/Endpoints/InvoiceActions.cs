@@ -20,19 +20,30 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public sealed class InvoiceActions : IModuleActivityActions
 {
-    public static readonly ModuleActivityAction Created = new("costs.invoice.created", "Счёт заведён");
+    /// <summary>
+    /// Право, без которого запись о счёте в журнале не видна (H1, issue #1104). Журнал читают по праву
+    /// ядра, а запись называет счёт и поставщика: «кому и когда платим» — те же данные счёта, только
+    /// без суммы. Одного открытого модуля здесь мало: его права делят данные, и человек с одним правом
+    /// на справочник статей видел бы в журнале оплаты.
+    ///
+    /// <para>⚠️ Статьи вне строек права НЕ называют нарочно: справочник открыт и лежит в общей таблице,
+    /// название статьи видно и без модуля. Им хватает открытого модуля.</para>
+    /// </summary>
+    private const string InvoiceRead = "costs.invoice.read";
 
-    public static readonly ModuleActivityAction Changed = new("costs.invoice.changed", "Счёт изменён");
+    public static readonly ModuleActivityAction Created = new("costs.invoice.created", "Счёт заведён", InvoiceRead);
+
+    public static readonly ModuleActivityAction Changed = new("costs.invoice.changed", "Счёт изменён", InvoiceRead);
 
     /// <summary>
     /// «Всё верно» — отдельное действие, а не часть правки: человек ничего не менял, он подтвердил
     /// распознанное. Слить их значило бы потерять единственный след того, что проверку кто-то делал.
     /// </summary>
     public static readonly ModuleActivityAction Confirmed =
-        new("costs.invoice.confirmed", "Распознанные поля счёта подтверждены");
+        new("costs.invoice.confirmed", "Распознанные поля счёта подтверждены", InvoiceRead);
 
     public static readonly ModuleActivityAction ScanAttached =
-        new("costs.invoice.scanned", "К счёту приложен скан");
+        new("costs.invoice.scanned", "К счёту приложен скан", InvoiceRead);
 
     /// <summary>
     /// Правка строк — отдельно от правки счёта (C2, issue #1078): строки меняют вставкой из буфера
@@ -40,17 +51,17 @@ public sealed class InvoiceActions : IModuleActivityActions
     /// растворяться в «счёт изменён».
     /// </summary>
     public static readonly ModuleActivityAction LinesChanged =
-        new("costs.invoice.lines", "Строки счёта изменены");
+        new("costs.invoice.lines", "Строки счёта изменены", InvoiceRead);
 
     /// <summary>«Разобран»: человек сверил счёт с бумагой (ТЗ COST-9).</summary>
-    public static readonly ModuleActivityAction Parsed = new("costs.invoice.parsed", "Счёт разобран");
+    public static readonly ModuleActivityAction Parsed = new("costs.invoice.parsed", "Счёт разобран", InvoiceRead);
 
     /// <summary>
     /// Возврат в черновик. Пишется и когда человек решил сам, и когда правка строк сняла последнюю
     /// позицию: во втором случае это единственный след того, почему счёт перестал быть разобранным.
     /// </summary>
     public static readonly ModuleActivityAction Draft =
-        new("costs.invoice.draft", "Счёт возвращён в черновик");
+        new("costs.invoice.draft", "Счёт возвращён в черновик", InvoiceRead);
 
     /// <summary>
     /// Правка разноски строки (ТЗ COST-15): пишется с ПРЕЖНИМ и НОВЫМ распределением — разноску правят
@@ -63,19 +74,19 @@ public sealed class InvoiceActions : IModuleActivityActions
     /// («изменены суммы долей»), а не числом.</para>
     /// </summary>
     public static readonly ModuleActivityAction AllocationChanged =
-        new("costs.invoice.allocation", "Разноска счёта изменена");
+        new("costs.invoice.allocation", "Разноска счёта изменена", InvoiceRead);
 
     /// <summary>
     /// Отметка оплаты (C5, issue #1082). ⚠️ Сумм событие не несёт: журнал ядра читают по
     /// <c>core.audit.read</c>, без права на счета, — названы дата, платёжный документ и перенос учётной даты.
     /// </summary>
-    public static readonly ModuleActivityAction Paid = new("costs.invoice.paid", "Счёт оплачен");
+    public static readonly ModuleActivityAction Paid = new("costs.invoice.paid", "Счёт оплачен", InvoiceRead);
 
     /// <summary>Отмена ошибочной отметки — с причиной: версий оплата не создаёт, и другого следа нет.</summary>
-    public static readonly ModuleActivityAction Unpaid = new("costs.invoice.unpaid", "Оплата счёта отменена");
+    public static readonly ModuleActivityAction Unpaid = new("costs.invoice.unpaid", "Оплата счёта отменена", InvoiceRead);
 
     public static readonly ModuleActivityAction PaymentDescribed =
-        new("costs.invoice.paydoc", "Платёжный документ счёта изменён");
+        new("costs.invoice.paydoc", "Платёжный документ счёта изменён", InvoiceRead);
 
     // Справочник статей вне строек (F3, issue #1087): статья меняет то, куда попадут новые затраты, и
     // «кто убрал «Склад»» — вопрос, на который журнал обязан отвечать.

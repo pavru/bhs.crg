@@ -303,7 +303,7 @@ public class InvoiceLineNumberTests(InvoiceLineHost host) : InvoiceLineTestBase(
     {
         using var scope = host.Services.CreateScope();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = await journal.ReadAsync(0, 200, "costs.invoice.parsed");
+        var records = await journal.ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.parsed");
         return records.Count(r => r.TargetId == invoice.ToString());
     }
 }
