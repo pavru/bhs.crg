@@ -113,13 +113,13 @@ function contourOf(state: PeriodContourState) {
  * Что покажет диалог закрытия (задача E1b, issue #1099): перечень по модулям и отпечаток увиденного.
  * Всегда с сервера и без кеша между открытиями диалога: закрывают по тому, что есть сейчас.
  */
-export function useClosingPreview(state: PeriodContourState, from: string, through: string) {
+export function useClosingPreview(state: PeriodContourState, from: string, through: string, enabled = true) {
   return useQuery({
     queryKey: [...KEY, CLOSING, state.constructionId, from, through],
     queryFn: () => apiClient
       .post<ClosingPreview>('/periods/close/preview', { ...contourOf(state), from, through })
       .then(r => r.data),
-    enabled: !!from && !!through,
+    enabled: enabled && !!from && !!through,
     // Смена даты не гасит перечень: прежние числа стоят приглушёнными, пока не пришли новые.
     placeholderData: keepPreviousData,
     staleTime: 0,
