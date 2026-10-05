@@ -170,7 +170,7 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var id = await DraftAsync(first, site, "2026-09-13", Row(cable, 1m, "м"));
 
         // Первый открыл форму и ушёл; второй добавил строку.
-        var opened = await ReadAsync(first, id);
+        var opened = await WaybillAsync(first, id);
         var seen = opened.GetProperty("version").GetString()!;
         var kept = opened.GetProperty("lines")[0].GetProperty("id").GetGuid();
         await OkAsync(await LinesAsync(second, id, Row(cable, 1m, "м", id: kept), Row(conduit, 7m, "м")));
@@ -180,13 +180,13 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
             new { ifMatch = seen, lines = new[] { Row(cable, 5m, "м", id: kept) } });
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         Assert.Contains("тем временем изменили", await stale.Content.ReadAsStringAsync());
-        Assert.Equal(2, (await ReadAsync(first, id)).GetProperty("lines").GetArrayLength());
+        Assert.Equal(2, (await WaybillAsync(first, id)).GetProperty("lines").GetArrayLength());
 
         // Без названной версии — отказ, а не «значит, свежая».
         var silent = await first.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = Array.Empty<object>() });
         Assert.Equal(HttpStatusCode.BadRequest, silent.StatusCode);
         Assert.Contains("ifMatch", await silent.Content.ReadAsStringAsync());
-        Assert.Equal(2, (await ReadAsync(first, id)).GetProperty("lines").GetArrayLength());
+        Assert.Equal(2, (await WaybillAsync(first, id)).GetProperty("lines").GetArrayLength());
     }
 
     /// <summary>
@@ -198,7 +198,7 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var (client, _) = await SignInAsync("Supplier");
         var (site, _) = await SiteAsync("Накладная: целиком");
         var id = await DraftAsync(client, site, "2026-09-14", Row(cable, 1m, "м"));
-        var before = await ReadAsync(client, id);
+        var before = await WaybillAsync(client, id);
 
         var body = Header(site, "2026-09-20");
         body["ifMatch"] = before.GetProperty("version").GetString();
@@ -206,7 +206,7 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var refused = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", body);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
 
-        var after = await ReadAsync(client, id);
+        var after = await WaybillAsync(client, id);
         Assert.Equal("2026-09-14", after.GetProperty("issuedOn").GetString());
         Assert.Equal(before.GetProperty("version").GetString(), after.GetProperty("version").GetString());
 
@@ -244,21 +244,17 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
     [Fact]
     public async Task Справочные_списки_открыты_читающему_накладные_и_закрыты_постороннему()
     {
-        var (admin, _) = await SignInAsync("Admin");
-        var created = await admin.PostAsJsonAsync("/api/roles", new
-        {
-            title = $"Кладовщик {Guid.NewGuid():N}",
-            summary = "Только накладные",
-            permissions = new[] { "costs.waybill.read" },
-        });
-        await OkAsync(created);
-        var role = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("name").GetString()!;
-        var (storekeeper, _) = await SignInAsync(role);
+        var storekeeper = await WithOnlyAsync("costs.waybill.read");
+        // Модуль открыт, но документов не читает: ворота модуля такого пропустили бы — и отдали бы
+        // названия строек в обход прав ядра. Без этой роли отказ фильтра проверить нечем: постороннего
+        // без модуля останавливают ворота, до фильтра он не доходит.
+        var keeper = await WithOnlyAsync("costs.articles.edit");
         var (engineer, _) = await SignInAsync("User");
 
         foreach (var list in new[] { "/api/costs/nomenclature", "/api/costs/constructions" })
         {
             await OkAsync(await storekeeper.GetAsync(list));
+            Assert.Equal(HttpStatusCode.Forbidden, (await keeper.GetAsync(list)).StatusCode);
             Assert.Equal(HttpStatusCode.Forbidden, (await engineer.GetAsync(list)).StatusCode);
         }
 
@@ -314,6 +310,21 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 
     // ── Помощники ─────────────────────────────────────────────────────────────
 
+    /// <summary>Вошедший с ролью ровно из названных прав: у системных ролей такого состава нет.</summary>
+    private async Task<HttpClient> WithOnlyAsync(params string[] permissions)
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var created = await admin.PostAsJsonAsync("/api/roles", new
+        {
+            title = $"Проба прав {Guid.NewGuid():N}",
+            summary = "Проверка доступа к справочным спискам модуля",
+            permissions,
+        });
+        await OkAsync(created);
+        var role = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("name").GetString()!;
+        return (await SignInAsync(role)).Client;
+    }
+
     private static Dictionary<string, object?> Row(
         Guid? nomenclature, decimal? quantity, string unit, string? text = null, Guid? id = null) =>
         new()
@@ -345,7 +356,7 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         return id;
     }
 
-    private static async Task<JsonElement> ReadAsync(HttpClient client, Guid id)
+    private static async Task<JsonElement> WaybillAsync(HttpClient client, Guid id)
     {
         var response = await client.GetAsync($"/api/costs/waybills/{id}");
         await OkAsync(response);
@@ -353,7 +364,7 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
     }
 
     private static async Task<string> VersionAsync(HttpClient client, Guid id) =>
-        (await ReadAsync(client, id)).GetProperty("version").GetString()!;
+        (await WaybillAsync(client, id)).GetProperty("version").GetString()!;
 
     /// <summary>Замена набора строк по СВЕЖЕЙ версии: так шлёт форма, только что прочитавшая накладную.</summary>
     private static async Task<HttpResponseMessage> LinesAsync(
