@@ -2,7 +2,6 @@ using System.Globalization;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Tables;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Tables;
 
@@ -11,7 +10,7 @@ namespace BHS.CRG.Modules.Costs.Tables;
 /// issue #1090).
 ///
 /// <para><b>Долю считает та же арифметика, что и счёт</b> (<see cref="AllocationMath" />), в памяти, а
-/// не пропорцией в запросе. Пропорция в базе разошлась бы с ней на копейки округления и на расхождение
+/// не пропорцией в запросе; читает её общий читатель денег счетов (<see cref="InvoiceMoney" />). Пропорция в базе разошлась бы с ней на копейки округления и на расхождение
 /// с суммой к оплате, которые уходят в последнюю часть (ТЗ COST-13), — и итог реестра по стройке не
 /// сошёлся бы со счётом, открытым рядом. Цена — строки и части счетов отбора читаются целиком; у
 /// итога это ВЕСЬ отбор, а не страница. Отбор по объекту при этом уже сузил счета до одной стройки.
@@ -57,33 +56,6 @@ internal sealed class InvoiceShares(IReadOnlyDictionary<Guid, string> labels)
             <= 3 => $"доля: {string.Join("; ", named)}",
             _ => $"доля: объектов — {named.Count}",
         };
-    }
-
-    /// <summary>
-    /// Доля каждого счёта отбора на названные объекты. <c>null</c> — посчитать нечем: у названных
-    /// частей нет суммы (в строке не вписана цена) или часть не того вида, что строка.
-    /// </summary>
-    public static async Task<IReadOnlyDictionary<Guid, decimal?>> ReadAsync(
-        CostsDbContext db, IQueryable<Invoice> invoices, IReadOnlyList<InvoiceAllocation> parts,
-        Func<InvoiceAllocation, bool> named, CancellationToken ct)
-    {
-        var ids = invoices.Select(i => i.Id);
-        var totals = await invoices.Select(i => new { i.Id, i.Total }).ToListAsync(ct);
-        // Только то, что нужно арифметике: тексты строк счёта доле ни к чему, а читается весь отбор.
-        var lines = (await db.InvoiceLines.AsNoTracking().Where(l => ids.Contains(l.InvoiceId))
-                .Select(l => new { l.InvoiceId, l.Id, l.Ordinal, l.Quantity, l.Amount }).ToListAsync(ct))
-            .ToLookup(l => l.InvoiceId, l => new AllocationLine(l.Id, l.Ordinal, l.Quantity, l.Amount));
-        var byInvoice = parts.ToLookup(p => p.InvoiceId);
-
-        return totals.ToDictionary(i => i.Id, i =>
-        {
-            var own = byInvoice[i.Id].ToDictionary(p => p.Id);
-            var money = AllocationMath.Of(lines[i.Id], own.Values.Select(InvoiceAllocations.Part), i.Total).Money
-                .Where(share => share.Amount is not null && named(own[share.Id]))
-                .Select(share => share.Amount!.Value)
-                .ToList();
-            return money.Count == 0 ? (decimal?)null : money.Sum();
-        });
     }
 
     /// <summary>Итог по долям — тот же, что считал бы запрос по числовой колонке.</summary>

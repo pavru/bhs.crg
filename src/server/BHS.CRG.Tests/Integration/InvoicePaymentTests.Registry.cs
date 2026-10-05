@@ -153,6 +153,18 @@ public partial class InvoicePaymentTests
         var straight = await MoneyAsync(new { type = "group", logic = "or", children = new[] { Pair("Оплата А ", now), Pair("Оплата Б ", was) } });
         Assert.Equal(100_000m, Total(straight, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
 
+        // Период назван НЕ каждой веткой — колонкой он не назван, но пара остаётся парой: под «(стройка А
+        // и прошлый месяц) или (вторая стройка)» доля А — этого месяца, и в первую ветку она не входит.
+        // «Сумма» и «Суммы по периодам» отвечают одно и то же: правило «названо» у них одно (ревью PR #1199).
+        object half = new
+        {
+            type = "group", logic = "or",
+            children = new[] { Pair("Оплата А ", was), new { type = "condition", column = "ОбъектыРазноски", op = "contains", value = "Оплата Б " } },
+        };
+        Assert.Equal(60_000m, Total(await MoneyAsync(half), "СуммаПоОтбору").GetProperty("sum").GetDecimal());
+        Assert.Equal($"{Money(60_000m)} ({was})",
+            Assert.Single((await TableAsync(admin, half)).GetProperty("rows").EnumerateArray()).GetProperty("СуммыПоПериодам").GetString());
+
         // «Пусто» и отрицание идут тем же объединением долей и остатка, что и «равно».
         Assert.Empty((await TableAsync(admin, new { type = "condition", column = "УчётныйПериод", op = "is_empty" }))
             .GetProperty("rows").EnumerateArray());
@@ -240,6 +252,13 @@ public partial class InvoicePaymentTests
         Assert.Equal(3, parts.Length);
         Assert.Equal(("Не разнесено", 500m), parts[^1]);
 
+        // Под отбором по объекту остаток в «Сумму» не идёт: он не лежит ни на одном объекте (ревью PR #1199).
+        var onA = Uri.EscapeDataString(JsonSerializer.Serialize(
+            new { type = "condition", column = "ОбъектыРазноски", op = "contains", value = "Оплата А " }));
+        var share = await admin.GetFromJsonAsync<JsonElement>(
+            $"/api/tables/costs.invoices?row={partly}&columns=СуммаПоОтбору&totals=СуммаПоОтбору&filter={onA}");
+        Assert.Equal(40_000m, Assert.Single(share.GetProperty("rows").EnumerateArray()).GetProperty("СуммаПоОтбору").GetDecimal());
+
         var bare = await CreateAsync(admin, complete: true);
         await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{bare}",
             new { requisites = await RequisitesWithAsync(admin, bare, "Итого", 7_000m) }));
@@ -305,5 +324,36 @@ public partial class InvoicePaymentTests
                 $"UPDATE costs.invoices SET remainder_accounting_on = NULL WHERE id = {late}");
         Assert.Equal([first, second], await NumbersAsync("УчётныйПериод"));
         Assert.Equal([second, first], await NumbersAsync("УчётныйПериод:desc"));
+
+        // Даты долей пережили отмену оплаты (правка базы; дату остатка стережёт ограничение таблицы, даты
+        // долей — нет): неоплаченный счёт учётного
+        // периода не называет и в деньги месяца не входит — этого держит не только стирание дат при
+        // отмене, но и сам читатель денег (ревью PR #1199).
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoices SET payment = 'Unpaid', paid_on = NULL WHERE id = {early}");
+        var open = await admin.GetFromJsonAsync<JsonElement>(
+            $"/api/tables/costs.invoices?row={early}&columns=УчётныйПериод,СуммыПоПериодам");
+        var unpaid = Assert.Single(open.GetProperty("rows").EnumerateArray());
+        Assert.Empty(unpaid.GetProperty("УчётныйПериод").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, unpaid.GetProperty("СуммыПоПериодам").ValueKind);
+        Assert.All(open.GetProperty("breakdown").GetProperty("rows").EnumerateArray(),
+            r => Assert.Equal(JsonValueKind.Null, r.GetProperty("values").GetProperty("УчётныйМесяц").ValueKind));
+
+        // Отбор идёт по ЗАПИСАННЫМ датам и счёт найдёт — но денег месяца у него нет: клетка пуста.
+        var stale = await admin.GetFromJsonAsync<JsonElement>(
+            $"/api/tables/costs.invoices?columns=Номер,СуммаПоОтбору&totals=СуммаПоОтбору&filter=" +
+            Uri.EscapeDataString(JsonSerializer.Serialize(new
+            {
+                type = "group", logic = "and",
+                children = new object[]
+                {
+                    new { type = "condition", column = "Номер", op = "eq", value = first },
+                    new { type = "condition", column = "УчётныйПериод", op = "eq", value = $"{september:MM.yyyy}" },
+                },
+            })));
+        Assert.All(stale.GetProperty("rows").EnumerateArray(),
+            row => Assert.Equal(JsonValueKind.Null, row.GetProperty("СуммаПоОтбору").ValueKind));
+        Assert.Equal(0, stale.GetProperty("totals").GetProperty("СуммаПоОтбору").GetProperty("count").GetInt32());
     }
 }
