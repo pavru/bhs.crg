@@ -128,10 +128,15 @@ public static class SiteCosts
             // счетов по разделам в итог НЕ складывается: счёт на два раздела стоит в двух строках.
             // Группа — название в реестре: одноимённые разделы и разделы, которых больше нет, — одной
             // строкой, и счёт на два таких раздела в ней — один счёт.
+            // ⚠️ Чьим именем названа строка, решает ПРАВИЛО, а не порядок чтения из базы: «без раздела»
+            // побеждает раздел, названный так же (строка тогда — не название, а его отсутствие), а из
+            // тёзок берётся один и тот же. Возьми мы первую попавшуюся долю, вид и место строки на
+            // экране менялись бы от запроса к запросу (так и упал тест на master после PR #1209).
             site is null || section is null ? [] : [.. entries
                 .Select(e => (Entry: e, Section: section(e.Money.Part!)))
                 .GroupBy(e => e.Section.Registry, StringComparer.Ordinal)
-                .Select(g => (g.First().Section, Figure(g.Select(e => e.Entry))))],
+                .Select(g => (g.Select(e => e.Section).OrderBy(s => s.Id is not null).ThenBy(s => s.Id).First(),
+                    Figure(g.Select(e => e.Entry))))],
             Figure(entries),
             Some(Figure(entries.Where(e => e.Invoice.Unmatched))),
             withVat ? null : Some(Figure(entries.Where(e => e.VatUnknown))));
