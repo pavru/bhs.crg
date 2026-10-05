@@ -27,8 +27,10 @@ public sealed record ClosingUnit(string One, string Few, string Many)
 /// экран ядра: без этого права человеку показывают только число документов. null — сумма открыта всем,
 /// кому открыт диалог.</param>
 /// <param name="Note">Пояснение под строкой; null — нет.</param>
+/// <param name="Link">Адрес экрана приложения с этими документами, от корня; null — ссылки нет.</param>
 public sealed record ClosingLine(
-    string Key, string Text, int Count, ClosingUnit Unit, decimal? Amount, string? AmountPermission, string? Note);
+    string Key, string Text, int Count, ClosingUnit Unit, decimal? Amount, string? AmountPermission, string? Note,
+    string? Link = null);
 
 /// <summary>Раздел перечня — один модуль.</summary>
 /// <param name="Module">Код модуля.</param>
@@ -129,6 +131,15 @@ public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
 
         return new([.. Sections.Select(s => s with { Unfinished = [.. s.Unfinished.Select(Cut)], Frozen = [.. s.Frozen.Select(Cut)] })]);
     }
+
+    /// <summary>
+    /// Ссылка строки — только путь внутри приложения: от корня, без второго слэша, обратных слэшей,
+    /// пробелов и управляющих символов. Последние браузер из адреса ВЫБРАСЫВАЕТ: «/⇥/example.org»
+    /// превращается в «//example.org» — чужой сайт под видом «посмотреть счета» (ревью PR #1202).
+    /// </summary>
+    public static bool IsLocalLink(string? link) =>
+        link is { Length: > 1 } && link[0] == '/' && link[1] != '/'
+        && !link.Any(c => c == '\\' || char.IsControl(c) || char.IsWhiteSpace(c));
 
     /// <summary>Скрыта ли в разделе хоть одна сумма — тогда экран говорит об этом одной строкой.</summary>
     public static bool HidesAmounts(ClosingSection shown, ClosingSection full) =>

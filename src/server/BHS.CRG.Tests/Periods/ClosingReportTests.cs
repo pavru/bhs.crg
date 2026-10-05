@@ -78,6 +78,26 @@ public class ClosingReportTests
         Assert.Equal(new Dictionary<Guid, DateOnly> { [SiteB] = D(6, 30) }, first.ClosedAheadOfCompany(null));
     }
 
+    /// <summary>
+    /// Ссылка строки — только путь внутри приложения. Табуляцию и перевод строки браузер из адреса
+    /// выбрасывает, и «/⇥/example.org» открыл бы чужой сайт.
+    /// </summary>
+    [Theory]
+    [InlineData("/tables/costs.invoices/registry#filter=%7B%7D", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("/", false)]
+    [InlineData("https://example.org/x", false)]
+    [InlineData("//example.org/x", false)]
+    [InlineData("/\\example.org", false)]
+    [InlineData("/\t/example.org/x", false)]
+    [InlineData("/\n/example.org/x", false)]
+    [InlineData("/\r/example.org/x", false)]
+    [InlineData("/ /example.org/x", false)]
+    [InlineData("javascript:alert(1)", false)]
+    public void Ссылка_строки_только_путь_внутри_приложения(string? link, bool local) =>
+        Assert.Equal(local, ClosingReport.IsLocalLink(link));
+
     /// <summary>«Закрывается впервые» — на границах: день включительно с обеих сторон.</summary>
     [Fact]
     public void День_закрывается_впервые_только_в_отрезке_и_не_у_стройки_закрытой_дальше()

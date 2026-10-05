@@ -31,9 +31,12 @@ public sealed record ModuleClosingUnit(string One, string Few, string Many);
 /// право: диалог — экран ядра, и прячет сумму оно, по праву смотрящего. Спрячь её модуль сам — запись о
 /// закрытии зависела бы от того, кто закрывает.</param>
 /// <param name="Note">Пояснение под строкой; <c>null</c> — нет.</param>
+/// <param name="Link">Адрес экрана приложения, где эти документы перечислены, — от корня: «/tables/…».
+/// ⚠️ Только если число и сумма там РАВНЫ названным в строке: ссылка, по которой цифры не сходятся, хуже
+/// её отсутствия. Не уверены — <c>null</c>.</param>
 public sealed record ModuleClosingLine(
     string Key, string Text, int Count, ModuleClosingUnit Unit, decimal? Amount = null,
-    string? AmountPermission = null, string? Note = null);
+    string? AmountPermission = null, string? Note = null, string? Link = null);
 
 /// <summary>Раздел модуля в диалоге закрытия периода.</summary>
 /// <param name="DateRule">По какой дате модуль относит документ к периоду: «Счёт относится к периоду по

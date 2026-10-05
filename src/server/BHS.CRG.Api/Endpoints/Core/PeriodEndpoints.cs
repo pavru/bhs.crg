@@ -56,7 +56,9 @@ public static class PeriodEndpoints
             return Results.Ok((await closures.HistoryAsync(take ?? 50, ct)).Select(r => new ClosureDto(
                 r.Id, r.Kind.ToString(), r.Contour.ToString(), r.ConstructionId, r.From, r.Through,
                 r.At, r.ByName, r.Reason,
-                ClosingReport.FromJson(r.Report) is { } report ? Sections(report, granted) : null)));
+                // Без ссылок: они собраны по названиям и данным на момент закрытия, а числа записи —
+                // «на момент закрытия». Живая ссылка рядом с ними обещала бы, что под ней те же числа.
+                ClosingReport.FromJson(r.Report) is { } report ? Sections(report, granted, links: false) : null)));
         });
 
         close.MapPost("/close/preview", async (PreviewClosingRequest req, IPeriodClosures closures,
@@ -148,15 +150,17 @@ public static class PeriodEndpoints
     }
 
     /// <summary>Перечень так, как его можно показать этому человеку: суммы — по его правам.</summary>
-    private static ClosingSectionDto[] Sections(ClosingReport report, IReadOnlyCollection<string> granted)
+    private static ClosingSectionDto[] Sections(
+        ClosingReport report, IReadOnlyCollection<string> granted, bool links = true)
     {
         var shown = report.VisibleTo(granted);
         return [.. shown.Sections.Zip(report.Sections, (mine, full) => new ClosingSectionDto(
             mine.Module, mine.Title, mine.DateRule, [.. mine.Unfinished.Select(Line)], [.. mine.Frozen.Select(Line)],
             ClosingReport.HidesAmounts(mine, full)))];
 
-        static ClosingLineDto Line(ClosingLine line) =>
-            new(line.Key, line.Text, line.Count, line.Unit.Text(line.Count), line.Amount, line.Note);
+        ClosingLineDto Line(ClosingLine line) => new(
+            line.Key, line.Text, line.Count, line.Unit.Text(line.Count), line.Amount, line.Note,
+            links && ClosingReport.IsLocalLink(line.Link) ? line.Link : null);
     }
 
     /// <param name="Stamp">Отпечаток увиденного — его называет закрытие (<c>report</c>).</param>
@@ -169,7 +173,9 @@ public static class PeriodEndpoints
 
     /// <param name="Counted">Число документов словами: «3 счёта».</param>
     /// <param name="Amount">Сумма; <c>null</c> — строка денег не несёт либо сумма закрыта правом.</param>
-    private record ClosingLineDto(string Key, string Text, int Count, string Counted, decimal? Amount, string? Note);
+    /// <param name="Link">Адрес экрана с этими документами, от корня приложения; <c>null</c> — ссылки нет.</param>
+    private record ClosingLineDto(
+        string Key, string Text, int Count, string Counted, decimal? Amount, string? Note, string? Link);
 
     private record PeriodsDto(DateOnly Today, ContourDto Company, ContourDto[] Constructions);
 
