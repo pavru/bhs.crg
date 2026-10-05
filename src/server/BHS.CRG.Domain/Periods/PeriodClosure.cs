@@ -97,6 +97,13 @@ public class PeriodClosure : IAppendOnlyRecord
     /// <summary>Какое закрытие отменено. Только у отмены.</summary>
     public Guid? CancelsId { get; private set; }
 
+    /// <summary>
+    /// Что показал диалог закрытия — перечень по модулям, JSON (<see cref="ClosingReport" />; задача
+    /// E1b, issue #1099). Только у закрытия; <c>null</c> — закрытие сделано до E1b. Суммы модулей здесь
+    /// ЕСТЬ: отдавая запись наружу, их режут по праву смотрящего (<see cref="ClosingReport.VisibleTo" />).
+    /// </summary>
+    public string? Report { get; private set; }
+
     public PeriodContour ContourRef => Contour == PeriodContourKind.Company
         ? PeriodContour.Company
         : PeriodContour.Construction(ConstructionId!.Value);
@@ -106,7 +113,7 @@ public class PeriodClosure : IAppendOnlyRecord
 
     public static PeriodClosure Close(
         PeriodContour contour, DateOnly from, DateOnly through, Guid? byId, string byName, string? reason,
-        DateTimeOffset at) => new()
+        DateTimeOffset at, ClosingReport report) => new()
         {
             Id = Guid.NewGuid(),
             Kind = PeriodClosureKind.Close,
@@ -118,6 +125,7 @@ public class PeriodClosure : IAppendOnlyRecord
             ById = byId,
             ByName = Fit(byName, ByNameMax),
             Reason = Clean(reason),
+            Report = report.ToJson(),
         };
 
     public static PeriodClosure Reopen(
@@ -149,7 +157,7 @@ public class PeriodClosure : IAppendOnlyRecord
     public static PeriodClosure Restore(
         Guid id, PeriodClosureKind kind, PeriodContourKind contour, Guid? constructionId,
         DateOnly from, DateOnly through, DateTimeOffset at, Guid? byId, string byName, string? reason,
-        Guid? cancelsId) => new()
+        Guid? cancelsId, string? report = null) => new()
         {
             Id = id,
             Kind = kind,
@@ -162,6 +170,8 @@ public class PeriodClosure : IAppendOnlyRecord
             ByName = Fit(byName, ByNameMax),
             Reason = Clean(reason),
             CancelsId = cancelsId,
+            // Неразобранный перечень копии не берём: запись неизменяема, и мусор остался бы в ней навсегда.
+            Report = ClosingReport.FromJson(report)?.ToJson(),
         };
 
     private static string? Clean(string? reason)

@@ -27,6 +27,13 @@ public interface IPeriodClosures
     /// <summary>«Сегодня» по часам компании — то, с чем сверяется запрет закрывать будущее.</summary>
     Task<DateOnly> TodayAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Что покажет диалог закрытия: перечень по модулям и отпечаток увиденного (задача E1b, issue
+    /// #1099). Ничего не пишет и замка не берёт; отказывает теми же словами, что и закрытие, — диалог
+    /// узнаёт о негодном периоде до кнопки.
+    /// </summary>
+    Task<ClosingPreview> PreviewAsync(PreviewClosing request, CancellationToken ct = default);
+
     /// <summary>Закрыть период. Отказы — см. <see cref="PeriodLedger.EnsureCanClose" />.</summary>
     Task<PeriodClosure> CloseAsync(ClosePeriod request, CancellationToken ct = default);
 
@@ -51,7 +58,36 @@ public interface IPeriodClosures
 /// Граница контура, которую видел решающий (<c>null</c> — «не закрыто ничего»). Сдвинулась —
 /// отказ: человек подтверждал закрытие, глядя на другое состояние (приём <c>ifMatch</c>, issue #1141).
 /// </param>
-public sealed record ClosePeriod(PeriodContour Contour, DateOnly From, DateOnly Through, DateOnly? Seen, string? Reason);
+/// <param name="ReportSeen">
+/// Отпечаток перечня, который видел решающий (<see cref="ClosingPreview.Stamp" />). Перечень под замком
+/// закрытия оказался другим — отказ. <c>null</c> — закрывает не человек через диалог, сверять не с чем:
+/// перечень всё равно считается и ложится в запись. Адрес закрытия <c>null</c> не принимает.
+/// </param>
+public sealed record ClosePeriod(
+    PeriodContour Contour, DateOnly From, DateOnly Through, DateOnly? Seen, string? Reason, string? ReportSeen = null);
+
+/// <summary>О каком закрытии спрашивают предпросмотр.</summary>
+public sealed record PreviewClosing(PeriodContour Contour, DateOnly From, DateOnly Through);
+
+/// <summary>Перечень диалога и отпечаток, который закрытие обязано назвать.</summary>
+public sealed record ClosingPreview(ClosingReport Report, string Stamp);
+
+/// <summary>
+/// Перечни модулей к закрытию периода — их собирает корень композиции: служба закрытия живёт в
+/// инфраструктуре, а о контрактах модулей ей знать нельзя (см. <c>IModuleWorkRunner</c> — тот же приём).
+/// </summary>
+public interface IClosingReports
+{
+    /// <param name="from">Первый день, который закрытие закроет ВПЕРВЫЕ; <c>null</c> — у контура ещё
+    /// ничего не закрыто, и закрывается всё по <paramref name="through" />.</param>
+    /// <param name="closedAhead">Стройки, чьи дни по названную дату уже закрыты их собственным закрытием
+    /// (<see cref="PeriodLedger.ClosedAheadOfCompany" />); у закрытия стройки — пусто.</param>
+    /// <returns>Раздел на каждый включённый модуль, которому есть что сказать. Отказ модуля — отказ, а
+    /// не пропущенный раздел: пропуск выглядел бы как «незавершённого нет».</returns>
+    Task<ClosingReport> CollectAsync(
+        PeriodContour contour, DateOnly? from, DateOnly through, IReadOnlyDictionary<Guid, DateOnly> closedAhead,
+        CancellationToken ct = default);
+}
 
 /// <inheritdoc cref="ClosePeriod" />
 public sealed record ReopenPeriod(PeriodContour Contour, DateOnly? Seen, string Reason);

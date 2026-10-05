@@ -62,6 +62,10 @@ public static class ModulePorts
         // интерфейсу из слоя приложения, потому что о контрактах модулей ему знать нельзя.
         services.AddScoped<IModuleWorkRunner, ModuleWorkRunner>();
 
+        // Разделы модулей для диалога закрытия периода (E1b). Нужен службе закрытия ядра при ЛЮБОМ
+        // составе модулей, включая пустой: без модулей перечень пуст, а закрытие работает.
+        services.AddScoped<BHS.CRG.Application.Periods.IClosingReports, ModuleClosingReports>();
+
         // ⚠️ IEnabledModules здесь НЕТ намеренно: его реализует сам реестр модулей, и регистрирует его
         // AddAppModules — вторая реализация означала бы второй источник истины о составе поставки.
 

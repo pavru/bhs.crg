@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { CalendarCheck, Lock, Undo2 } from 'lucide-react';
+import { CalendarCheck, ChevronDown, ChevronRight, Lock, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useCan } from '@/shared/api/access';
 import { useListConstructions } from '@/shared/api/constructions';
 import {
-  usePeriods, usePeriodHistory, useClosePeriod, useReopenPeriod,
+  usePeriods, usePeriodHistory, useClosePeriod, useReopenPeriod, useClosingPreview,
   type PeriodContourState, type PeriodClosureRecord,
 } from '@/shared/api/periods';
 import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
+import { ClosingSections } from './ClosingSections';
 
 /**
  * Учётный период (ТЗ CORE-35, issue #1081): до какой даты закрыт учёт компании и каждой стройки,
@@ -21,8 +23,9 @@ import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
  * Закрытие — префикс: «закрыто по дату» значит закрыто всё до неё. Поэтому у контура одна дата, а
  * не список месяцев, и закрыть можно только следующий отрезок — без пропусков.
  *
- * Перечня «что при этом замёрзнет» здесь нет: его соберёт диалог закрытия отдельной задачей
- * (E1b), по данным каждого модуля и под его правом.
+ * Диалог закрытия перечисляет по каждому модулю, что войдёт в закрытый период и что не завершено
+ * (E1b, issue #1099). Перечень считает сервер; закрытие называет его отпечаток, и сервер откажет,
+ * если данные с тех пор изменились, — в запись ложится то, что человек видел.
  */
 
 /**
@@ -154,7 +157,13 @@ function CloseDialog({ state, name, today, onDone }: {
   const [error, setError] = useState<string | null>(null);
 
   const from = state.expectedFrom ?? firstFrom;
-  const ready = !!from && !!through;
+  const preview = useClosingPreview(state, from, through);
+  // Закрыть можно только то, что видел: перечень получен, он — про эти даты, а не про прежние, и он
+  // сейчас на экране. Упавший перезапрос оставляет прежние data, а показывает уже отказ — отпечаток
+  // того, чего на экране нет, подтверждать нечем.
+  const seen = preview.data && !preview.isError && !preview.isPlaceholderData && !preview.isFetching
+    ? preview.data : null;
+  const ready = !!from && !!through && !!seen;
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Закрыть период: ${name}`}
@@ -165,7 +174,7 @@ function CloseDialog({ state, name, today, onDone }: {
             onClick={async () => {
               setError(null);
               try {
-                await close.mutateAsync({ state, from, through });
+                await close.mutateAsync({ state, from, through, report: seen!.stamp });
                 toast.success(`${name}: период закрыт по ${ruDate(through)}.`);
                 onDone();
               } catch (e) {
@@ -193,6 +202,15 @@ function CloseDialog({ state, name, today, onDone }: {
             : <>Назовите последний день периода.</>}
           {!state.constructionId && ' Закрытие компании закрывает и все стройки.'}
         </p>
+        {preview.isError ? (
+          <p role="alert" className="text-[13px] text-danger">
+            {apiError(preview.error, 'Не удалось узнать, что попадёт в период.')} Без перечня закрыть нельзя.
+          </p>
+        ) : preview.data ? (
+          <ClosingSections sections={preview.data.sections} stale={!seen} />
+        ) : (
+          from && through && <p className="text-[13px] text-fg3">Считаем, что попадёт в период…</p>
+        )}
         {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
       </div>
     </Modal>
@@ -251,7 +269,11 @@ function ReopenDialog({ state, name, nameOf, onDone }: {
 function History({ records, nameOf }: {
   records: PeriodClosureRecord[]; nameOf: (id: string | null) => string;
 }) {
+  // Раскрытые записи — по идентификатору: список перечитывается после каждого закрытия.
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   if (records.length === 0) return null;
+
+  const toggle = (id: string) => setOpen(was => toggleInSet(was, id));
 
   return (
     <>
@@ -276,6 +298,26 @@ function History({ records, nameOf }: {
                     {' '}с {ruDate(r.from)} по {ruDate(r.through)} — {nameOf(r.constructionId)}
                   </div>
                   {r.reason && <div className="text-fg3 text-[12px] break-words">{r.reason}</div>}
+                  {r.kind === 'Close' && (r.report ? (
+                    <>
+                      <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
+                        className="mt-0.5 inline-flex items-center gap-0.5 text-[12px] text-brand hover:underline">
+                        {open.has(r.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        Что показал диалог при закрытии
+                      </button>
+                      {open.has(r.id) && (
+                        <div className="mt-1.5 mb-1 border-l-2 border-stroke pl-3">
+                          <p className="text-[12px] text-fg3 mb-2">
+                            Числа на момент закрытия; сейчас могут быть другими.
+                          </p>
+                          <ClosingSections sections={r.report} />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    // Закрытие сделано до появления перечня: молчание выглядело бы как «незавершённого не было».
+                    <div className="text-fg4 text-[12px]">Перечень не записывался.</div>
+                  ))}
                 </td>
               </tr>
             ))}

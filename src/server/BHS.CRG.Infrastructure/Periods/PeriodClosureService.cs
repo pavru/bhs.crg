@@ -22,18 +22,34 @@ namespace BHS.CRG.Infrastructure.Periods;
 /// выписки) иначе подвесила бы запрос закрытия на всё своё время, и человек нажал бы кнопку второй
 /// раз.</para>
 ///
-/// <para>⚠️ Событие в журнале ядра чисел модулей НЕ несёт — только контур и даты (см.
-/// <see cref="ActivityActions.PeriodClosed" />).</para>
+/// <para><b>Перечень диалога</b> (задача E1b, issue #1099) пересчитывается ПОД ЗАМКОМ закрытия и
+/// ложится в саму запись. Модуль читает своим соединением, но под исключительным замком ни одной
+/// записи модуля в полёте нет, а новые ждут фиксации закрытия — так что прочитанное и есть состояние на
+/// момент закрытия. ⚠️ Поэтому отчёт модуля не вправе сам брать замок записи: он ждал бы собственный
+/// исключительный, и повисло бы закрытие вместе со всей записью в учёт (сторож —
+/// <c>ClosingReportLockTests</c>).</para>
+///
+/// <para>⚠️ Событие в журнале ядра СУММ модулей не несёт — контур, даты и числа незавершённых
+/// документов (см. <see cref="ActivityActions.PeriodClosed" />).</para>
 /// </summary>
 public sealed class PeriodClosureService(
-    AppDbContext db, IActivityLog journal, IActivityActor actor, IAppSettingsStore settings, TimeProvider time)
+    AppDbContext db, IActivityLog journal, IActivityActor actor, IAppSettingsStore settings, TimeProvider time,
+    IClosingReports reports)
     : IPeriodClosures
 {
     /// <summary>Сколько закрытие ждёт начатые записи модулей, прежде чем отказать.</summary>
     private const string LockTimeout = "5s";
 
-    public async Task<PeriodLedger> LedgerAsync(CancellationToken ct = default) =>
-        PeriodLedger.From(await db.PeriodClosures.AsNoTracking().ToListAsync(ct));
+    public async Task<PeriodLedger> LedgerAsync(CancellationToken ct = default)
+    {
+        // Без перечня диалога (Report): границы спрашивает каждая запись модуля в учёт, а перечень —
+        // jsonb с текстами и суммами на каждое закрытие. Читает его только «История».
+        var rows = await db.PeriodClosures.AsNoTracking()
+            .Select(r => new { r.Id, r.Kind, r.Contour, r.ConstructionId, r.From, r.Through, r.At, r.ById, r.ByName, r.Reason, r.CancelsId })
+            .ToListAsync(ct);
+        return PeriodLedger.From(rows.Select(r => PeriodClosure.Restore(
+            r.Id, r.Kind, r.Contour, r.ConstructionId, r.From, r.Through, r.At, r.ById, r.ByName, r.Reason, r.CancelsId)));
+    }
 
     public async Task<IReadOnlyList<Guid>> ConstructionsAsync(CancellationToken ct = default) =>
         await db.Constructions.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Id).ToListAsync(ct);
@@ -44,6 +60,30 @@ public sealed class PeriodClosureService(
         // решение владельца от 04.10.2026. Пояс влияет только на «сегодня», даты периодов — дни.
         var zone = await settings.GetCompanyTimeZoneAsync(ct);
         return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), zone).DateTime);
+    }
+
+    public async Task<ClosingPreview> PreviewAsync(PreviewClosing request, CancellationToken ct = default)
+    {
+        // Стройки нет — отказ теми же словами, что у закрытия, и сразу: иначе диалог показал бы перечень,
+        // открыл кнопку, и «стройка не найдена» пришло бы только по её нажатию.
+        await ContourLabelAsync(request.Contour, ct);
+        var ledger = await LedgerAsync(ct);
+        ledger.EnsureCanClose(request.Contour, request.From, request.Through, await TodayAsync(ct));
+
+        var report = await CollectAsync(ledger, request.Contour, request.Through, ct);
+        return new(report, report.Stamp(request.Contour, request.From, request.Through));
+    }
+
+    /// <summary>
+    /// Перечень по дням, которые закрытие закрывает ВПЕРВЫЕ: со следующего после действующей границы
+    /// контура — не с «С» из запроса (у первого закрытия оно справочное: всё до него закрывается тоже) — и
+    /// без дней строек, закрытых своим закрытием дальше компании.
+    /// </summary>
+    private Task<ClosingReport> CollectAsync(PeriodLedger ledger, PeriodContour contour, DateOnly through, CancellationToken ct)
+    {
+        var from = ledger.ClosedThrough(contour)?.AddDays(1);
+        return reports.CollectAsync(contour, from, through,
+            contour.Kind == PeriodContourKind.Company ? ledger.ClosedAheadOfCompany(from) : new Dictionary<Guid, DateOnly>(), ct);
     }
 
     public async Task<PeriodClosure> CloseAsync(ClosePeriod request, CancellationToken ct = default)
@@ -59,9 +99,18 @@ public sealed class PeriodClosureService(
         EnsureSeen(ledger, request.Contour, request.Seen);
         ledger.EnsureCanClose(request.Contour, request.From, request.Through, today);
 
+        // Перечень — заново и под замком: в запись ложится состояние на момент закрытия, а не то, что
+        // прислал клиент. Отпечаток сверяет его с увиденным; расхождение — это деньги, которые «останутся
+        // неверными», и человек подтверждал не их.
+        var report = await CollectAsync(ledger, request.Contour, request.Through, ct);
+        if (request.ReportSeen is { } seen && seen != report.Stamp(request.Contour, request.From, request.Through))
+            throw new ConflictException(
+                "Пока диалог был открыт, данные изменились: в период попадает уже не то, что вы видели. " +
+                "Посмотрите перечень заново и закройте ещё раз.");
+
         var before = ledger.ClosedThrough(request.Contour);
         var row = PeriodClosure.Close(
-            request.Contour, request.From, request.Through, who.Id, who.Name, request.Reason, time.GetUtcNow());
+            request.Contour, request.From, request.Through, who.Id, who.Name, request.Reason, time.GetUtcNow(), report);
         db.PeriodClosures.Add(row);
         await db.SaveChangesAsync(ct);
 
@@ -70,7 +119,11 @@ public sealed class PeriodClosureService(
         // повтор ответил бы «уже закрыт», и журнал молчал бы о закрытии навсегда.
         await journal.RecordAsync(ActivityActions.PeriodClosed,
             targetId: TargetId(request.Contour), targetLabel: label,
-            before: Boundary(before), after: Boundary(request.Through), ct: ct);
+            before: Boundary(before),
+            // Незавершённое — из ТОГО ЖЕ перечня, что лёг в запись, и без рублей: журнал читают по
+            // одному общему праву.
+            after: report.JournalText() is { } unfinished ? $"{Boundary(request.Through)}. {unfinished}" : Boundary(request.Through),
+            ct: ct);
         await tx.CommitAsync(ct);
         return row;
     }

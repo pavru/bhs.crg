@@ -15,9 +15,10 @@ public sealed record CostLine(Guid? Id, string Name, int Invoices, decimal Amoun
 /// <param name="Unmatched">Есть строки без позиции номенклатуры.</param>
 /// <param name="VatByLines">НДС назван хоть у одной строки счёта — тогда «в том числе НДС» шапки уже
 /// разложен по строкам, и на строку без своего НДС его долю брать нельзя.</param>
+/// <param name="Parsed">Счёт разобран. Затратам всё равно — спрашивает диалог закрытия периода.</param>
 public sealed record CostInvoice(
     Guid Id, Guid? SupplierId, decimal? Total, decimal? VatTotal, bool Unmatched, bool VatByLines,
-    IReadOnlyList<PostedMoney> Money);
+    IReadOnlyList<PostedMoney> Money, bool Parsed = true);
 
 /// <summary>НДС строки счёта: сумма строки и сколько в ней НДС.</summary>
 public sealed record LineVat(decimal? Amount, decimal? VatAmount);

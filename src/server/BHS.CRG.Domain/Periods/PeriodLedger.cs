@@ -137,6 +137,18 @@ public sealed class PeriodLedger
         [.. _last.Where(p => p.Key.Kind == PeriodContourKind.Construction && p.Value.Through >= companyClosure.From)
             .Select(p => p.Key.ConstructionId!.Value)];
 
+    /// <summary>
+    /// Стройки, у которых закрытие КОМПАНИИ с этого дня часть дней закроет не впервые: они закрыты своим
+    /// закрытием — по названную дату включительно. Перечень диалога закрытия эти дни не считает: их
+    /// документы уже заперты, и названные второй раз, они легли бы в неизменяемую запись лишними (ревью
+    /// PR #1201).
+    /// </summary>
+    /// <param name="from">Первый день, который закрытие компании закроет; <c>null</c> — у компании не
+    /// закрыто ничего, и закрывается всё.</param>
+    public IReadOnlyDictionary<Guid, DateOnly> ClosedAheadOfCompany(DateOnly? from) =>
+        _last.Where(p => p.Key.Kind == PeriodContourKind.Construction && (from is null || p.Value.Through >= from))
+            .ToDictionary(p => p.Key.ConstructionId!.Value, p => p.Value.Through);
+
     /// <summary>Закрытие стройки, которое не дальше границы компании: его отмена не открыла бы ни дня.</summary>
     private bool CoveredByCompany(PeriodClosure last) =>
         last.Contour == PeriodContourKind.Construction && Company is { } company && company >= last.Through;
