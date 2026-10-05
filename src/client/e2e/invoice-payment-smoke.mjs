@@ -187,8 +187,14 @@ await check('closing-dialog-lists-what-it-records', async () => {
   // После отправки закрытия перечень не запрашивается ВОВСЕ — ни с отказом, ни без: граница сдвинулась,
   // и запрос за прежние дни получил бы «уже закрыт», а за новые — период «наоборот». Ловим сам запрос,
   // а не только отказ: уходил ли он, зависело от скорости машины, и на стенде отказа не было.
+  // Счёт идёт с самой отправки, а не с подписки: до неё перечень вправе перечитаться — по фокусу окна,
+  // например, — и это законный запрос с верными датами.
   const asked = [];
-  const ask = request => { if (request.url().includes('/periods/close/preview')) asked.push(request.postData() ?? ''); };
+  let sent = false;
+  const ask = request => {
+    if (request.url().endsWith('/periods/close')) sent = true;
+    else if (sent && request.url().includes('/periods/close/preview')) asked.push(request.postData() ?? '');
+  };
   page.on('response', listen);
   page.on('request', ask);
   try {

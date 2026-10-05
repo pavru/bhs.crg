@@ -32,16 +32,6 @@ export function suggestThrough(today: string, closedThrough: string | null): str
   return yesterday > closedThrough ? yesterday : '';
 }
 
-/**
- * Даты периода названы «наоборот»: конец раньше начала. ISO-дни сравниваются строками.
- *
- * <p>Бывает не только от опечатки: начало следующего периода задаёт граница контура, и она сдвигается
- * под открытым диалогом — своим удавшимся закрытием или чужим. Конец, выбранный раньше, остаётся позади.</p>
- */
-export function inverted(from: string, through: string): boolean {
-  return !!from && !!through && from > through;
-}
-
 /** Начало первого закрытия контура — первый день месяца, которым период заканчивается. */
 export function suggestFirstFrom(through: string): string {
   if (!through) return '';
