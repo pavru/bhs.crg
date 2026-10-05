@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRef, useState } from 'react';
 import { Search, TriangleAlert, X } from 'lucide-react';
@@ -46,7 +47,7 @@ export function NomenclaturePicker({ chosen, name, lost, onPick, onClear }: {
               : chosen ? 'border-stroke text-fg' : 'border-warning-border text-warning'}`}>
           {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
               но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
-          {lost ? 'позиция не найдена' : chosen ? name ?? 'позиция без названия' : 'выбрать позицию'}
+          {lost ? LOST.position : chosen ? name ?? 'позиция без названия' : 'выбрать позицию'}
         </button>
         {/* ⚠️ Снять ссылку можно ВСЕГДА, пока она есть, — и особенно когда позиция потеряна: сервер
             отказывает сохранять строку с битой ссылкой, а спрятанная кнопка не оставляла человеку

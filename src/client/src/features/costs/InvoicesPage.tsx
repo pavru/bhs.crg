@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
@@ -227,7 +228,7 @@ function SupplierName({ item }: { item: InvoiceListItem }) {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-danger truncate"
         title="Ссылка на организацию есть, а записи нет — её удалили">
-        <TriangleAlert size={11} /> организация не найдена
+        <TriangleAlert size={11} /> {LOST.organization}
       </span>
     );
   }

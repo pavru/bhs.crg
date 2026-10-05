@@ -59,6 +59,12 @@ export interface InvoiceLineView {
  * и расхождение с суммой к оплате, — её форма помечает, иначе «33,34» среди «33,33» выглядело бы
  * опечаткой.
  */
+/**
+ * Что не так с целью части разноски: записи больше нет (`…-lost`) либо раздел на месте, но принадлежит
+ * другой стройке (`section-foreign`) — это не потеря, и в число потерянных ссылок она не входит.
+ */
+export type TargetIssue = 'construction-lost' | 'section-lost' | 'article-lost' | 'section-foreign';
+
 export interface AllocationPartView {
   id: string;
   ordinal: number;
@@ -70,8 +76,10 @@ export interface AllocationPartView {
   /** Статья вне строек — «Склад», «Общие расходы»; `null` — часть легла на стройку. Ровно одно из двух. */
   articleId: string | null;
   articleName: string | null;
-  /** Стройку, раздел или статью удалили — потеря, а не «не выбрано». */
+  /** С целью что-то не так — «разобран» с такой частью не проходит. Что именно, говорит `targetIssue`. */
   targetLost: boolean;
+  /** Что не так с целью (issue #1184); `null` — цель на месте. Старый сервер поля не присылает. */
+  targetIssue?: TargetIssue | null;
   quantity: number | null;
   amount: number | null;
   rounding: number;
@@ -173,8 +181,22 @@ export interface InvoiceView {
   totals: InvoiceLineTotals;
   allocation: AllocationSummaryView;
   payment: PaymentView;
+  /**
+   * Что стало с записями ядра, на которые ссылается шапка (issue #1184); `null` у поля — ссылки нет.
+   * Считает сервер: выводи это форма сравнением со списком организаций, «список ещё грузится» выглядел
+   * бы потерей. Старый сервер поля не присылает.
+   */
+  references?: InvoiceReferences;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ReferenceState = 'present' | 'archived' | 'lost';
+
+export interface InvoiceReferences {
+  supplier: ReferenceState | null;
+  payer: ReferenceState | null;
+  documentType: ReferenceState;
 }
 
 export interface InvoiceListItem {

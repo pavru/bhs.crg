@@ -24,6 +24,8 @@ import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
+import { LostReferencesNote } from './LostReferencesNote';
+import { LOST } from './lostReferences';
 import { ScanUploadButton } from './InvoiceScanPanel';
 
 /**
@@ -179,6 +181,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </div>
         )}
 
+        <LostReferencesNote view={view} locked={closed} />
         {view.duplicates.length > 0 && <DuplicateNote view={view} onOpenInvoice={onOpenInvoice} />}
         {scanSlot}
 
@@ -283,8 +286,16 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       // Ссылка есть, а записи нет — организацию удалили. Radix показал бы такое значение
       // ПЛЕЙСХОЛДЕРОМ «Выберите организацию», то есть соврал бы: поле выглядело бы незаполненным, и
       // человек, ничего не трогая, сохранил бы счёт со ссылкой в пустоту. Реестр в том же случае
-      // честно пишет «организация не найдена» — форма обязана говорить то же самое.
-      const lost = entryId !== null && !organizations.some(o => o.id === entryId);
+      // честно пишет «организация удалена» — форма обязана говорить то же самое.
+      //
+      // Потерю называет СЕРВЕР (issue #1184), и только у значения, которое лежит в счёте: сравнение со
+      // списком организаций показывало «удалена» у живого поставщика, пока список грузится. Старый
+      // сервер состояния не присылает — тогда судим по списку, как раньше.
+      const state = view.references?.[fieldKey === K.supplier ? 'supplier' : 'payer'];
+      const stored = entryId !== null && entryId === refEntryId(view.requisites[fieldKey]);
+      const lost = entryId !== null && (view.references
+        ? stored && state === 'lost'
+        : !organizationsUnread && !organizations.some(o => o.id === entryId));
       const title = fieldKey === K.supplier ? 'Поставщик' : 'Плательщик';
 
       // Запертый счёт: выбор заменён полем для чтения, как у остальных, — отключённый выбор приглушён
@@ -293,21 +304,21 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
         return (
           <TextField label={title} readOnly onChange={() => {}}
             value={organizationsUnread ? 'справочник не прочитан'
-              : entryId === null ? '' : organizations.find(o => o.id === entryId)?.name ?? 'организация не найдена'} />
+              : entryId === null ? '' : organizations.find(o => o.id === entryId)?.name ?? (lost ? LOST.organization : '')} />
         );
 
       return (
-        <div className={lost ? 'rounded-md ring-1 ring-danger-border' : frame}>
+        <div className={frame}>
           <Select label={title}
             disabled={organizationsUnread}
             hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
-              : lost ? 'Ссылка есть, а записи нет: организацию удалили' : hint}
+              : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию' : hint}
             value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
             onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
             {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
                 отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
             <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
-            {lost && <SelectItem value={entryId}>организация не найдена ({entryId.slice(0, 8)}…)</SelectItem>}
+            {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
             {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </Select>
         </div>

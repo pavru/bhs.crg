@@ -56,13 +56,19 @@ export function fromChoice(choice: string): Place {
   return NO_PLACE;
 }
 
+/** Название цели, пока справочник мест не прочитан. */
+export const LOADING_PLACE = '…';
+
 /** Название цели — для заголовка колонки, шапки счёта и подписей. */
 export function placeName(place: Place, places: Places): string {
+  // Список ещё не прочитан — это не «удалена»: на медленной сети у живой стройки мелькала бы потеря.
   if (place.article) {
-    const article = places.articles?.find(a => a.id === place.article);
+    if (!places.articles) return LOADING_PLACE;
+    const article = places.articles.find(a => a.id === place.article);
     return article ? article.name : 'статья удалена';
   }
 
+  if (place.construction && !places.sites) return LOADING_PLACE;
   const site = places.sites?.find(s => s.id === place.construction);
   if (!site) return place.construction ? 'стройка удалена' : 'объект не выбран';
   if (!place.section) return site.name;

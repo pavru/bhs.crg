@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import { useState } from 'react';
 import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -338,7 +339,7 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
     <tr className="border-t border-stroke align-top">
       <td className="py-1 text-fg4">{number}</td>
       <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
-        {draft.nomenclatureLost ? 'позиция не найдена' : draft.nomenclatureName ?? '—'}
+        {draft.nomenclatureLost ? LOST.position : draft.nomenclatureName ?? '—'}
       </td>
       {text(draft.supplierText)}
       {text(draft.supplierCode)}
