@@ -1,3 +1,4 @@
+import { formatDateTime, formatTime } from '@/shared/format/format';
 import { RefreshCw } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
@@ -10,8 +11,7 @@ function whenText(iso: string | null): string {
   const d = new Date(iso);
   const today = new Date();
   const sameDay = d.toDateString() === today.toDateString();
-  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  return sameDay ? `сегодня в ${time}` : d.toLocaleString('ru-RU');
+  return sameDay ? `сегодня в ${formatTime(d)}` : formatDateTime(d);
 }
 
 /**

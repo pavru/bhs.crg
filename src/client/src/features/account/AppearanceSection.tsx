@@ -1,6 +1,7 @@
 import {
-  useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale, formatDate, formatNumber,
+  useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale,
 } from '@/shared/hooks/useLocale';
+import { formatDate, formatDateTime, formatMoney, formatNumber } from '@/shared/format/format';
 import { ThemeToggle } from '@/shared/ui/ThemeToggle';
 import { useTheme } from '@/shared/ui/themeContext';
 
@@ -87,28 +88,25 @@ export function AppearanceSection() {
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Дата:</span>
           <span className="text-fg1 font-mono">
-            {formatDate(PREVIEW_DATE, locale)}
+            {formatDate(PREVIEW_DATE)}
           </span>
         </div>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Дата и время:</span>
           <span className="text-fg1 font-mono">
-            {formatDate(PREVIEW_DATE, locale, {
-              day: '2-digit', month: '2-digit', year: 'numeric',
-              hour: '2-digit', minute: '2-digit',
-            })}
+            {formatDateTime(PREVIEW_DATE)}
           </span>
         </div>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Число:</span>
           <span className="text-fg1 font-mono">
-            {formatNumber(PREVIEW_NUMBER, locale)}
+            {formatNumber(PREVIEW_NUMBER)}
           </span>
         </div>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Валюта:</span>
           <span className="text-fg1 font-mono">
-            {formatNumber(PREVIEW_NUMBER, locale, { style: 'currency', currency: 'RUB' })}
+            {formatMoney(PREVIEW_NUMBER)}
           </span>
         </div>
       </div>

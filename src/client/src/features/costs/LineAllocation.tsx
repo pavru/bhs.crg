@@ -5,9 +5,10 @@ import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { useReplaceAllocation, type AllocationSummaryView, type InvoiceLineView } from '@/shared/api/invoices';
-import { formatMoney } from './invoiceFields';
+import { formatMoney, formatQuantity } from '@/shared/format/format';
+import { NumberInput } from '@/shared/ui/NumberInput';
 import {
-  allocationStatus, emptyPart, estimateRemainder, formatPlain, toPartDrafts, toPartsPayload, type PartDraft,
+  allocationStatus, emptyPart, estimateRemainder, toPartDrafts, toPartsPayload, type PartDraft,
 } from './allocation';
 import { PlaceSelect } from './PlaceSelect';
 import { usePlaces } from './places';
@@ -113,7 +114,7 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
         <>
           <span className="text-xs text-fg4 mr-auto">
             {byQuantity
-              ? `В строке ${formatPlain(line.quantity)} ${unit}`.trim()
+              ? `В строке ${line.quantity === null ? '' : formatQuantity(line.quantity)} ${unit}`.trim()
                 + (line.amount === null ? '' : ` на ${formatMoney(line.amount)}`)
                 + '. Делится количество, сумма части считается.'
               : `Количества у строки нет — делится сумма ${formatMoney(line.amount ?? 0)}.`}
@@ -164,10 +165,9 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
                   </select>
                 </td>
                 <td className="py-1 pr-2">
-                  <input value={draft.value} inputMode="decimal" disabled={!canEdit}
-                    aria-label={`${byQuantity ? 'Количество' : 'Сумма'}, часть ${index + 1}`}
-                    onChange={e => edit(draft.key, { value: e.target.value })}
-                    className={`${FIELD} text-right tabular-nums`} />
+                  <NumberInput value={draft.value} disabled={!canEdit}
+                    label={`${byQuantity ? 'Количество' : 'Сумма'}, часть ${index + 1}`}
+                    onChange={value => edit(draft.key, { value })} />
                 </td>
                 {byQuantity && (
                   <td className="py-1 pr-2 text-right tabular-nums text-fg2">
@@ -201,7 +201,7 @@ function LineAllocationDialog({ invoiceId, line, number, canEdit, onClose }: {
               Не разнесено{dirty && <span className="text-fg4"> (оценка до сохранения)</span>}
             </td>
             <td className={`py-1.5 pr-2 text-right tabular-nums ${remains(rest, byQuantity) ? 'text-warning' : 'text-fg2'}`}>
-              {byQuantity ? formatPlain(rest.quantity) : rest.amount === null ? '—' : formatMoney(rest.amount)}
+              {byQuantity ? (rest.quantity === null ? '' : formatQuantity(rest.quantity)) : rest.amount === null ? '—' : formatMoney(rest.amount)}
             </td>
             {byQuantity && (
               <td className="py-1.5 pr-2 text-right tabular-nums text-fg2">

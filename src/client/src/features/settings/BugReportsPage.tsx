@@ -1,3 +1,4 @@
+import { formatDayTime } from '@/shared/format/format';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
@@ -43,9 +44,7 @@ function StatusBadge({ status }: { status: BugReportStatus }) {
 }
 
 function when(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
+  return formatDayTime(iso);
 }
 
 export function BugReportsPage() {

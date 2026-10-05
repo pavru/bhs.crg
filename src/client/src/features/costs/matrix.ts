@@ -1,7 +1,6 @@
 import type { AllocationPartView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
-import { formatMoney } from './invoiceFields';
-import { formatPlain } from './allocation';
+import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
 import { toNumber } from './invoiceLines';
 import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
 
@@ -109,8 +108,8 @@ export function cellsOf(
   return Object.fromEntries(rows.map(row => [row.key, Object.fromEntries(targets.flatMap(target => {
     const part = partAt(allocations[row.key], target);
     if (!part) return [];
-    return [[target.key, formatPlain(row.mode === 'quantity' ? part.quantity
-      : part.amount === null ? null : Math.round((part.amount - part.discrepancy) * 100) / 100)]];
+    return [[target.key, formatInput(row.mode === 'quantity' ? part.quantity
+      : part.amount === null ? null : Math.round((part.amount - part.discrepancy) * 100) / 100, 3)]];
   }))]));
 }
 
@@ -122,7 +121,7 @@ export function cellsFromState(rows: MatrixRow[], targets: MatrixTarget[], state
 
   return Object.fromEntries(rows.map(row => [row.key, Object.fromEntries(targets.flatMap(target => {
     const part = partsOf(row).find(p => samePlace(p, target));
-    return part ? [[target.key, formatPlain(part.quantity ?? part.amount)]] : [];
+    return part ? [[target.key, formatInput(part.quantity ?? part.amount, 3)]] : [];
   }))]));
 }
 
@@ -177,7 +176,7 @@ export function estimateRest(row: MatrixRow, targets: MatrixTarget[], cells: Mat
 export function cellText(row: MatrixRow, part: AllocationPartView | undefined): string {
   if (!part) return '0';
   if (row.mode === 'quantity')
-    return `${formatPlain(part.quantity)}${row.unit ? ` ${row.unit}` : ''}`
+    return `${part.quantity === null ? '' : formatQuantity(part.quantity)}${row.unit ? ` ${row.unit}` : ''}`
       + (part.amount === null ? '' : ` · ${formatMoney(part.amount)}`);
   return part.amount === null ? '0' : formatMoney(part.amount);
 }
@@ -186,7 +185,7 @@ export function cellText(row: MatrixRow, part: AllocationPartView | undefined): 
 export function restText(row: MatrixRow, allocation: LineAllocationView | undefined): string {
   if (!allocation) return '0';
   if (row.mode === 'quantity')
-    return `${formatPlain(allocation.unallocatedQuantity ?? 0)}${row.unit ? ` ${row.unit}` : ''}`;
+    return `${formatQuantity(allocation.unallocatedQuantity ?? 0)}${row.unit ? ` ${row.unit}` : ''}`;
   return allocation.unallocatedAmount === null ? '—' : formatMoney(allocation.unallocatedAmount);
 }
 

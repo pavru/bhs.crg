@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -19,9 +20,7 @@ const PAGE = 50;
 const ALL = 'all';
 
 function when(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 function Change({ record }: { record: ActivityRecord }) {

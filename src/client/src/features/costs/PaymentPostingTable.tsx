@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowRightLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import type { PaymentPosting, PostingRow } from '@/shared/api/invoicePayment';
-import { formatDate, formatMoney } from './invoiceFields';
+import { formatDate, formatMoney } from '@/shared/format/format';
 import { CALM_ROWS_SHOWN, foldedLabel, movedWarning, rowKey, summarize } from './paymentPosting';
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WaybillView } from '@/shared/api/waybills';
 import {
-  emptyLine, headerPayload, isDirty, linesPayload, linesWord, quantityInput, toDraft, unmatchedCount,
+  emptyLine, headerPayload, isDirty, linesPayload, linesWord, toDraft, unmatchedCount,
   unmatchedNote, withoutBlanks,
 } from './waybills';
 
@@ -60,12 +60,6 @@ describe('форма накладной', () => {
     const [first, second] = linesPayload(toDraft(view));
     expect(first).toMatchObject({ id: 'l1', nomenclature: { $ref: 'catalog', entryId: 'n1' }, quantity: '12,5' });
     expect(second.nomenclature).toBeNull();
-  });
-
-  it('количество в поле — с запятой и без дописанных нулей', () => {
-    expect(quantityInput(null)).toBe('');
-    expect(quantityInput(100)).toBe('100');
-    expect(quantityInput(0.125)).toBe('0,125');
   });
 });
 

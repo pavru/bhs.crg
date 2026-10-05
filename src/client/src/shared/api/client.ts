@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getToken, getRefreshToken, replaceTokens, clearToken } from './token';
 import { recordApiError } from './apiErrorLog';
+import { formatTimeSeconds } from '@/shared/format/format';
 
 /**
  * Ошибка API с идентификатором запроса (issue #834).
@@ -83,7 +84,7 @@ apiClient.interceptors.response.use(
     // которого токен обновился успешно, сюда не доходит (ветка выше повторяет запрос и выходит) —
     // и правильно: для пользователя ничего не случилось.
     recordApiError({
-      at: new Date().toLocaleTimeString('ru-RU'),
+      at: formatTimeSeconds(new Date()),
       method: (original?.method ?? 'GET').toUpperCase(),
       url,
       status: err.response?.status ?? 0,

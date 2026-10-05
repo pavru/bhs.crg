@@ -15,7 +15,8 @@ import {
   usePostedPayment,
   type PaymentPosting,
 } from '@/shared/api/invoicePayment';
-import { K, asInput, formatDate, formatMoney } from './invoiceFields';
+import { K, asInput } from './invoiceFields';
+import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { changedRows, paidToast, payLabel } from './paymentPosting';
 

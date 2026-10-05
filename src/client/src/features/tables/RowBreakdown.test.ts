@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { breakdownTotals, wholeLabel } from './tableCells';
+import { formatNumber } from '@/shared/format/format';
 
 describe('суммы расшифровки строки', () => {
   it('без сужающего отбора — только строка целиком', () => {
     expect(breakdownTotals({ narrowed: false, totals: [{ column: 'Доля', whole: 100000, named: null }] }, 'счёт'))
-      .toEqual([{ key: 'Доля:whole', label: 'Счёт целиком', value: (100000).toLocaleString('ru-RU') }]);
+      .toEqual([{ key: 'Доля:whole', label: 'Счёт целиком', value: formatNumber(100000) }]);
   });
 
   it('под сужающим отбором «В отборе» есть всегда — и пустое названо, а не опущено', () => {

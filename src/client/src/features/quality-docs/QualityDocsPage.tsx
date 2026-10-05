@@ -1,3 +1,4 @@
+import { formatDate } from '@/shared/format/format';
 import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -345,11 +346,6 @@ export function QualityDocsPage() {
 
 function typeNameOf(doc: QualityDocument, docTypes: DocumentType[]): string {
   return docTypes.find(t => t.id === doc.documentTypeId)?.name ?? '';
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('ru-RU');
 }
 
 /**

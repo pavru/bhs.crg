@@ -1,6 +1,6 @@
 import { columnUnavailable, type GridState } from '@/shared/ui/dataGridStates';
 import type { DataGridColumn } from '@/shared/ui/DataGrid';
-import { formatDateRu } from '@/shared/utils/date';
+import { formatCount, formatDate, formatNumber } from '@/shared/format/format';
 import type { TableBreakdown, TableColumn, TableData, TableDeclaration } from '@/shared/api/tables';
 
 /**
@@ -65,9 +65,8 @@ export function hiddenCountText(count: number): string {
 export function cellText(value: unknown, kind: string | undefined): string {
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'boolean') return value ? 'да' : 'нет';
-  if (kind === 'date' && typeof value === 'string') return formatDateRu(value);
-  if (kind === 'number' && typeof value === 'number')
-    return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  if (kind === 'date' && typeof value === 'string') return formatDate(value);
+  if (kind === 'number' && typeof value === 'number') return formatNumber(value);
   return String(value);
 }
 
@@ -87,13 +86,13 @@ export function gridState(table: Pick<TableDeclaration, 'state'> | undefined, fi
  */
 export function shownOf(table: Pick<TableData, 'rows' | 'count' | 'offset'>): string {
   const shown = table.rows.length;
-  const total = table.count.toLocaleString('ru-RU');
+  const total = formatCount(table.count);
   if (shown >= table.count) return `Строк: ${total}`;
   // Страница за концом отбора (строки удалили, адрес остался) — строк на ней нет, и «1 341–1 340»
   // было бы бессмыслицей.
   if (shown === 0) return `Строк в отборе: ${total}, на этой странице их нет`;
-  const from = (table.offset + 1).toLocaleString('ru-RU');
-  const to = (table.offset + shown).toLocaleString('ru-RU');
+  const from = formatCount(table.offset + 1);
+  const to = formatCount(table.offset + shown);
   return `Строки ${from}–${to} из ${total}`;
 }
 

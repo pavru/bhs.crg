@@ -1,3 +1,4 @@
+import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
 import type { AllocationPartView, LineAllocationView } from '@/shared/api/invoices';
 import { toNumber } from './invoiceLines';
 
@@ -42,8 +43,8 @@ export function toPartDrafts(allocation: LineAllocationView): PartDraft[] {
     constructionId: part.constructionId ?? '',
     sectionId: part.sectionId ?? '',
     articleId: part.articleId ?? '',
-    value: formatPlain(allocation.mode !== 'amount' ? part.quantity
-      : part.amount === null ? null : round(part.amount - part.discrepancy, 2)),
+    value: formatInput(allocation.mode !== 'amount' ? part.quantity
+      : part.amount === null ? null : round(part.amount - part.discrepancy, 2), 3),
   }));
 }
 
@@ -112,19 +113,16 @@ export function allocationStatus(
   if (allocation.balanced) return { text: 'разнесено', tone: 'ok' };
   if (allocation.parts.length === 0) return { text: 'не разнесено', tone: 'warning' };
 
+  // Знак убирается из числа, а не из текста: слово «лишнее» уже сказало, в какую сторону расхождение,
+  // а минус у разных языков — разный знак, и вырезать его из готовой строки значило бы гадать.
+  const left = (allocation.mode === 'quantity' ? allocation.unallocatedQuantity : allocation.unallocatedAmount) ?? 0;
   const rest = allocation.mode === 'quantity'
-    ? `${formatPlain(allocation.unallocatedQuantity)}${unit ? ` ${unit}` : ''}`
-    : `${formatPlain(allocation.unallocatedAmount)} ₽`;
+    ? `${formatQuantity(Math.abs(left))}${unit ? ` ${unit}` : ''}`
+    : formatMoney(Math.abs(left));
 
-  return (allocation.mode === 'quantity' ? allocation.unallocatedQuantity ?? 0 : allocation.unallocatedAmount ?? 0) < 0
-    ? { text: `разнесено лишнее: ${rest.replace('-', '')}`, tone: 'warning' }
+  return left < 0
+    ? { text: `разнесено лишнее: ${rest}`, tone: 'warning' }
     : { text: `не разнесено: ${rest}`, tone: 'warning' };
-}
-
-/** Число без группировки разрядов и лишних нулей: «100», «7,25». Для полей ввода и коротких фраз. */
-export function formatPlain(value: number | null): string {
-  if (value === null) return '';
-  return String(round(value, 3)).replace('.', ',');
 }
 
 function round(value: number, digits: number): number {

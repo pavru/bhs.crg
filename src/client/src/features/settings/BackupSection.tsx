@@ -21,7 +21,7 @@ import {
 import type {
   BackupFileInfo, BackupScheduleSettings, BackupScheduleStatus, BackupScope, RestoreReport,
 } from '@/shared/api/types';
-import { formatDate, useLocale } from '@/shared/hooks/useLocale';
+import { formatDateTime, formatDayTime } from '@/shared/format/format';
 import { CollapsibleSection } from './CollapsibleSection';
 
 /**
@@ -129,7 +129,6 @@ function BackupSizeLine({ scope }: { scope: BackupScope }) {
  */
 
 function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
-  const [locale] = useLocale();
   const save = useSaveBackupSchedule();
   /**
    * Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
@@ -214,16 +213,12 @@ function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
           <AlertTriangle size={13} className="shrink-0 mt-px" />
           <span>
             Последняя плановая копия не удалась
-            {status.lastErrorAt && <> ({formatDate(status.lastErrorAt, locale, {
-              day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-            })})</>}: {status.lastError}
+            {status.lastErrorAt && <> ({formatDayTime(status.lastErrorAt)})</>}: {status.lastError}
           </span>
         </p>
       ) : status.lastSuccessAt ? (
         <p className="text-xs text-fg4">
-          Последняя плановая копия: {formatDate(status.lastSuccessAt, locale, {
-            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-          })}
+          Последняя плановая копия: {formatDateTime(status.lastSuccessAt)}
           {status.lastFileName && <> · {status.lastFileName}</>}
         </p>
       ) : (
@@ -234,7 +229,6 @@ function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
 }
 
 function BackupFilesPanel() {
-  const [locale] = useLocale();
   const qc = useQueryClient();
   const { data, isPending, isError } = useBackupFiles();
   const job = useBackupJob();
@@ -418,10 +412,7 @@ function BackupFilesPanel() {
                     )}
                   </p>
                   <p className="text-xs text-fg3">
-                    {formatDate(f.createdAt, locale, {
-                      day: '2-digit', month: '2-digit', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })}
+                    {formatDateTime(f.createdAt)}
                     {' · '}{formatBytes(f.sizeBytes)}
                     {f.appVersion && <> · v{f.appVersion}</>}
                     {f.blobCount !== null && <> · файлов: {f.blobCount}</>}

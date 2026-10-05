@@ -4,8 +4,8 @@ import { Modal } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import type { CostsConstruction } from '@/shared/api/invoices';
 import { useIssuedMaterials } from '@/shared/api/waybills';
-import { formatDate } from './invoiceFields';
-import { linesWord, quantityInput } from './waybills';
+import { formatCount, formatDate, formatQuantity } from '@/shared/format/format';
+import { linesWord } from './waybills';
 
 /**
  * «Материалы на объекте»: что выдано на стройку проведёнными накладными (ТЗ COST-17; задача D1,
@@ -78,14 +78,14 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
                     {data.items.map(item => (
                       <tr key={`${item.nomenclatureId}|${item.unit ?? ''}`} className="border-t border-stroke">
                         <td className="py-1 text-fg">{item.name ?? 'позиция без названия'}</td>
-                        <td className="py-1 text-right tabular-nums text-fg">{quantityInput(item.quantity)}</td>
+                        <td className="py-1 text-right tabular-nums text-fg">{formatQuantity(item.quantity)}</td>
                         <td className="py-1 pl-2 text-fg3">{item.unit ?? ''}</td>
                         <td className="py-1 text-fg3">
                           {item.first === item.last
                             ? formatDate(item.first)
                             : `${formatDate(item.first)} — ${formatDate(item.last)}`}
                         </td>
-                        <td className="py-1 text-right tabular-nums text-fg3">{item.waybills}</td>
+                        <td className="py-1 text-right tabular-nums text-fg3">{formatCount(item.waybills)}</td>
                       </tr>
                     ))}
                   </tbody>

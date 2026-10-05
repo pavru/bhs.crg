@@ -11,7 +11,7 @@ import { useCostsConstructions } from '@/shared/api/invoices';
 import { useCreateWaybill, useWaybill, useWaybills, type WaybillListItem } from '@/shared/api/waybills';
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
-import { formatDate } from './invoiceFields';
+import { formatDate } from '@/shared/format/format';
 
 const PARAM = 'waybill';
 

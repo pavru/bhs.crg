@@ -1,3 +1,4 @@
+import { formatCount } from '@/shared/format/format';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import type { SiteCosts } from '@/shared/api/siteCosts';
 
@@ -62,5 +63,5 @@ export const siteCostsLinks = {
 export function invoicesText(count: number): string {
   const tens = count % 100, ones = count % 10;
   const word = tens >= 11 && tens <= 14 ? 'счетов' : ones === 1 ? 'счёт' : ones >= 2 && ones <= 4 ? 'счёта' : 'счетов';
-  return `${count.toLocaleString('ru-RU')} ${word}`;
+  return `${formatCount(count)} ${word}`;
 }

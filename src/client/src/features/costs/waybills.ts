@@ -1,3 +1,4 @@
+import { formatInput } from '@/shared/format/format';
 import type { WaybillHeader, WaybillLineView, WaybillView } from '@/shared/api/waybills';
 import { catalogRef, fromInput } from './invoiceFields';
 
@@ -38,18 +39,13 @@ export function emptyLine(): WaybillLineDraft {
   };
 }
 
-/** Количество в поле ввода — с запятой, как его набирают; хвостовые нули не дописываются. */
-export function quantityInput(value: number | null): string {
-  return value == null ? '' : String(value).replace('.', ',');
-}
-
 function lineDraft(line: WaybillLineView): WaybillLineDraft {
   return {
     id: line.id, key: line.id,
     nomenclatureId: line.nomenclatureId, nomenclatureName: line.nomenclatureName,
     nomenclatureLost: line.nomenclatureLost,
     sourceText: line.sourceText ?? '', unit: line.unit ?? '',
-    quantity: quantityInput(line.quantity), note: line.note ?? '',
+    quantity: formatInput(line.quantity), note: line.note ?? '',
   };
 }
 

@@ -1,3 +1,4 @@
+import { formatInput } from '@/shared/format/format';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { catalogRef } from './invoiceFields';
 
@@ -330,7 +331,7 @@ function money(value: number): number {
 }
 
 function numberInput(value: number | null): string {
-  return value == null ? '' : String(value).replace('.', ',');
+  return formatInput(value);
 }
 
 function text(value: string): string | null {

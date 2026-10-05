@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { formatDateTime } from '@/shared/format/format';
+import { useState, useEffect } from 'react';
 import { NavLink, Link, Outlet } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
@@ -237,7 +238,7 @@ function VersionLabel() {
   const title = [
     `Версия ${data.version}`,
     data.commit && `сборка ${data.commit}`,
-    data.buildDate && new Date(data.buildDate).toLocaleString('ru-RU'),
+    data.buildDate && formatDateTime(data.buildDate),
     // «он уже уведомлён» — не вежливость, а факт: администраторам уходит адресное уведомление
     // (issue #813). Без этого «обновление выполняет администратор» читается как поручение сходить
     // и сказать ему, то есть открывает читателю задачу вместо того, чтобы закрыть вопрос.

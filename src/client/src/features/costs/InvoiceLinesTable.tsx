@@ -5,7 +5,9 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
 } from '@/shared/api/invoices';
-import { K, formatMoney } from './invoiceFields';
+import { K } from './invoiceFields';
+import { formatInputAmount, formatMoney } from '@/shared/format/format';
+import { NumberInput } from '@/shared/ui/NumberInput';
 import {
   emptyDraft, mismatch, preview, toDrafts, toPayload, totals, type LineDraft,
 } from './invoiceLines';
@@ -265,10 +267,10 @@ function Row({ draft, number, invoiceId, line, blocked, locked, allocationLocked
       <Cell value={draft.vatRate} label={`Ставка НДС, строка ${number}`} numeric
         onChange={value => onEdit({ vatRate: value })} />
       <Cell value={draft.vatAmount} label={`Сумма НДС, строка ${number}`} numeric
-        placeholder={shown.vat === null ? '' : formatNumber(shown.vat)}
+        placeholder={shown.vat === null ? '' : formatInputAmount(shown.vat)}
         onChange={value => onEdit({ vatAmount: value })} />
       <Cell value={draft.amount} label={`Сумма, строка ${number}`} numeric
-        placeholder={shown.amount === null ? '' : formatNumber(shown.amount)}
+        placeholder={shown.amount === null ? '' : formatInputAmount(shown.amount)}
         onChange={value => onEdit({ amount: value })} />
       <Cell value={draft.note} label={`Примечание, строка ${number}`}
         onChange={value => onEdit({ note: value })} />
@@ -307,8 +309,8 @@ function LockedRow({ draft, number, invoiceId, line, allocationLocked }: {
       {text(draft.quantity, true)}
       {text(draft.price, true)}
       {text(draft.vatRate, true)}
-      {text(draft.vatAmount || (shown.vat === null ? '' : formatNumber(shown.vat)), true)}
-      {text(draft.amount || (shown.amount === null ? '' : formatNumber(shown.amount)), true)}
+      {text(draft.vatAmount || (shown.vat === null ? '' : formatInputAmount(shown.vat)), true)}
+      {text(draft.amount || (shown.amount === null ? '' : formatInputAmount(shown.amount)), true)}
       {text(draft.note)}
       <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={null} locked={allocationLocked} />
       <td />
@@ -334,18 +336,19 @@ function Cell({ value, label, numeric, placeholder, onChange }: {
   placeholder?: string;
   onChange: (value: string) => void;
 }) {
+  if (numeric) {
+    return (
+      <td className="py-1 pr-2">
+        <NumberInput value={value} label={label} placeholder={placeholder} onChange={onChange} />
+      </td>
+    );
+  }
   return (
     <td className="py-1 pr-2">
       <input value={value} aria-label={label} placeholder={placeholder}
-        inputMode={numeric ? 'decimal' : undefined}
         onChange={e => onChange(e.target.value)}
-        className={`w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg
-          outline-none focus:border-primary placeholder:text-fg4
-          ${numeric ? 'text-right tabular-nums' : ''}`} />
+        className="w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg
+          outline-none focus:border-primary placeholder:text-fg4" />
     </td>
   );
-}
-
-function formatNumber(value: number): string {
-  return value.toFixed(2).replace('.', ',');
 }

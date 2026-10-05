@@ -4,6 +4,7 @@ import {
   ArrowRight, ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { formatDayTime } from '@/shared/format/format';
 import { IconButton } from '@/shared/ui/Button';
 import {
   useNotifications, useHealth,
@@ -64,7 +65,7 @@ function relTime(iso: string): string {
   if (s < 60) return 'только что';
   if (s < 3600) return `${Math.floor(s / 60)} мин назад`;
   if (s < 86400) return `${Math.floor(s / 3600)} ч назад`;
-  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return formatDayTime(d);
 }
 
 function NotificationRow({ n }: { n: NotificationDto }) {

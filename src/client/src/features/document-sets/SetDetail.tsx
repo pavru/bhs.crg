@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router';
 import { Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput, Layers, FileText, Mail, Database, Table2, Users, AlertTriangle, Target } from 'lucide-react';
@@ -251,7 +252,7 @@ export function SetDetail() {
         <>
           {output && (
             <Button variant="outlined" size="sm" icon={<Download size={15} />} onClick={() => downloadSetOutput(set.id, set.name)}
-              title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>Скачать</Button>
+              title={`Собран ${formatDateTime(output.generatedAt)}`}>Скачать</Button>
           )}
           {canSend && output && (
             <Button variant="outlined" size="sm" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}

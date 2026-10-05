@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Play, FileSpreadsheet, AlertTriangle, Bot, Scale, ExternalLink } from 'lucide-react';
@@ -104,7 +105,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
               считали, и когда последний прогон упал. Это самое опасное недоразумение подсистемы. */}
           <div className="text-[11px] text-fg4">
             {lastRun
-              ? `${runSummary(lastRun)} · ${new Date(lastRun.startedAt).toLocaleString('ru-RU')}`
+              ? `${runSummary(lastRun)} · ${formatDateTime(lastRun.startedAt)}`
               : 'Прогонов ещё не было'}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { resolveLocale } from '@/shared/hooks/useLocale';
+import { numberParts } from '@/shared/format/format';
 
 /**
  * Разбор числа из текста, набранного или вставленного человеком (Excel, PDF, буфер) — с оглядкой
@@ -29,7 +30,7 @@ const SEPARATORS = new Map<string, { decimal: string; group: string }>();
 function separatorsOf(resolved: string): { decimal: string; group: string } {
   const cached = SEPARATORS.get(resolved);
   if (cached) return cached;
-  const parts = new Intl.NumberFormat(resolved).formatToParts(12345.6);
+  const parts = numberParts(resolved, 12345.6);
   const decimal = parts.find(p => p.type === 'decimal')?.value ?? '.';
   const rawGroup = parts.find(p => p.type === 'group')?.value ?? '';
   // Групповой знак локали может быть пробелом (`ru-RU` — неразрывный): приводим к обычному, как и текст.

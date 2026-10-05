@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { CalendarCheck, ChevronDown, ChevronRight, Lock, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -37,9 +38,7 @@ import { unfinishedSummary, visiblyChanged } from './closing';
 type Dialog = { kind: 'close' | 'reopen'; constructionId: string | null } | null;
 
 function when(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 export function PeriodsPage() {

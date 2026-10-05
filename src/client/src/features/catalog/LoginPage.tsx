@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/shared/format/format';
 import { useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router';
@@ -72,7 +73,7 @@ export function LoginPage() {
             </p>
           </div>
           <div className="text-xs tracking-wide text-on-brand/55"
-            title={version?.buildDate ? new Date(version.buildDate).toLocaleString('ru-RU') : undefined}>
+            title={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
             {versionLabel || ' '}
           </div>
         </div>
@@ -94,7 +95,7 @@ export function LoginPage() {
 
           {version && (
             <p className="md:hidden mt-6 text-center text-[11px] text-fg4"
-              title={version.buildDate ? new Date(version.buildDate).toLocaleString('ru-RU') : undefined}>
+              title={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
               {versionLabel}
             </p>
           )}

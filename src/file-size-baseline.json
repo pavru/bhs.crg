@@ -7,7 +7,7 @@
   "src/client/src/features/document-sets/editor/DataSetsTab.tsx": 706,
   "src/client/src/features/document-sets/editor/RequisitesTab.tsx": 651,
   "src/client/src/features/document-sets/fields/ComplexFields.tsx": 780,
-  "src/client/src/features/settings/BackupSection.tsx": 591,
+  "src/client/src/features/settings/BackupSection.tsx": 582,
   "src/client/src/features/settings/FieldBuilder.tsx": 647,
   "src/client/src/features/settings/PrimitiveTypesPage.tsx": 628,
   "src/server/BHS.CRG.Infrastructure/Backup/BackupService.Restore.cs": 709,
