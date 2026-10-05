@@ -24,6 +24,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Unallocated">Деньги оплаченных счетов, не лёгшие ни на один объект.</param>
 /// <param name="Suppliers">Контрагенты — на экране стройки; строки без идентификатора — «поставщик не
 /// указан» и, без ссылки в реестр, «поставщик удалён».</param>
+/// <param name="Sections">Разделы стройки — на её экране, второй срез той же суммы; «без раздела» и
+/// «раздел удалён» — строками без идентификатора. Разделы, названные одинаково, — одной строкой.</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры: в затраты вошли.</param>
 /// <param name="Payable">Не оплачено и не отклонено — НЕ затраты и от периода не зависит.</param>
 /// <param name="VatUnknown">Под «без НДС» — деньги, из которых НДС вычесть нечем: учтены полной суммой.</param>
@@ -31,7 +33,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
     IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
-    IReadOnlyList<CostLine> Suppliers,
+    IReadOnlyList<CostLine> Suppliers, IReadOnlyList<CostLine> Sections,
     CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown);
 
 /// <summary>
@@ -93,10 +95,10 @@ public static class SiteCostsEndpoints
             i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
             && (site == null || db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site)));
 
-        // Названия объектов — те же, какими реестр сверяет отбор (InvoiceShares): ссылка строки несёт
-        // название, и назови отчёт объект по-своему, реестр под ней не нашёл бы ничего.
-        var labels = known.Sites.Select(s => (s.Id, s.Name)).Concat(known.Articles.Select(a => (a.Id, a.Name)))
-            .ToDictionary(o => o.Id, o => o.Name);
+        // Названия объектов и разделов — те же, какими реестр сверяет отбор (InvoiceShares): ссылка
+        // строки несёт название, и назови отчёт объект по-своему, реестр под ней не нашёл бы ничего.
+        var shares = InvoiceShares.Of(known);
+        var labels = shares.Labels;
 
         var (costs, lines) = await InvoicesAsync(db, paid, ct);
         // «К оплате» с НДС по всем стройкам — суммы к оплате из самих записей: строки и части ВСЕХ
@@ -107,7 +109,8 @@ public static class SiteCostsEndpoints
                 new Dictionary<Guid, LineVat>())
             : await InvoicesAsync(db, unpaid, ct);
 
-        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet());
+        // Доля в срезе стройки — всегда на стройку, раздел у неё есть (хотя бы «без раздела»).
+        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet(), part => shares.SectionOf(part)!);
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
         // Контрагенты — только на экране стройки: без неё справочник не читаем.
@@ -134,6 +137,11 @@ public static class SiteCostsEndpoints
                 // счетов складывается: поставщик у счёта один.
                 .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), linked: false)])
                 // Строки без названия — последними: это не название, а его отсутствие.
+                .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
+            // Разделы — на экране стройки. В отчёте раздел назван коротко («4 эт.»): стройка стоит в
+            // заголовке; реестр зовёт его вместе со стройкой, и это название строка несёт для ссылки.
+            [.. result.Sections
+                .Select(s => new CostLine(s.Section.Id, s.Section.Short, s.Figure.Invoices, s.Figure.Amount, Registry: s.Section.Registry))
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
             result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown));
     }

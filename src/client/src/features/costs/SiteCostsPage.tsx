@@ -32,6 +32,8 @@ export function SiteCostsPage() {
   const [params, setParams] = useSearchParams();
   const site = params.get('site');
   const withVat = params.get('vat') !== 'without';
+  // Срез затрат стройки: по контрагентам либо по разделам (G5b, issue #1198). В адресе — как всё остальное.
+  const bySections = site !== null && params.get('by') === 'sections';
   const query = { site, from: params.get('from'), to: params.get('to'), withVat };
 
   const sites = useCostsConstructions();
@@ -84,15 +86,14 @@ export function SiteCostsPage() {
               onChange={value => set({ to: value, from: value < from ? value : from })} />
           </fieldset>
 
-          <div role="group" aria-label="Суммы" className="inline-flex rounded-md border border-stroke overflow-hidden">
-            {[['с НДС', true], ['без НДС', false]].map(([label, value]) => (
-              <button key={String(label)} type="button" aria-pressed={withVat === value}
-                onClick={() => set({ vat: value ? null : 'without' })}
-                className={`h-8 px-3 text-sm ${withVat === value ? 'bg-brand-subtle text-fg1 font-medium' : 'text-fg2 hover:bg-surface2'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <Segmented label="Суммы" value={withVat} options={[['с НДС', true], ['без НДС', false]]}
+            onChange={value => set({ vat: value ? null : 'without' })} />
+
+          {/* Только у стройки: раздел без стройки ничего не значит, и по всем стройкам среза нет. */}
+          {site !== null && (
+            <Segmented label="Срез" value={bySections} options={[['по контрагентам', false], ['по разделам', true]]}
+              onChange={value => set({ by: value ? 'sections' : null })} />
+          )}
         </div>
 
         {report.isError ? (
@@ -100,14 +101,20 @@ export function SiteCostsPage() {
         ) : !data ? (
           <p className="text-sm text-fg4">Отчёт строится…</p>
         ) : (
-          <Report data={data} onSite={id => set({ site: id })} stale={report.isPlaceholderData} />
+          <Report data={data} bySections={bySections} onSite={id => set({ site: id })} stale={report.isPlaceholderData} />
         )}
       </div>
     </div>
   );
 }
 
-function Report({ data, onSite, stale }: { data: SiteCosts; onSite: (id: string) => void; stale: boolean }) {
+function Report({ data, bySections, onSite, stale }: {
+  data: SiteCosts;
+  /** Затраты стройки — по разделам, а не по контрагентам: та же сумма, сложенная иначе. */
+  bySections: boolean;
+  onSite: (id: string) => void;
+  stale: boolean;
+}) {
   const period = data.from === data.to ? data.months[0] : `${data.months[0]} — ${data.months[data.months.length - 1]}`;
   const empty = data.total.invoices === 0;
   // Под «без НДС» реестр по ссылке покажет суммы С НДС — без оговорки сверка глазами дала бы расхождение.
@@ -130,13 +137,28 @@ function Report({ data, onSite, stale }: { data: SiteCosts; onSite: (id: string)
           <table className="mt-1.5 w-full text-sm">
             <thead>
               <tr className="text-xs text-fg4">
-                <th scope="col" className="py-1 text-left font-normal">{data.site ? 'Контрагент' : 'Объект'}</th>
-                <th scope="col" className="py-1 text-right font-normal w-24">Счетов</th>
+                <th scope="col" className="py-1 text-left font-normal">
+                  {!data.site ? 'Объект' : bySections ? 'Раздел' : 'Контрагент'}
+                </th>
+                {/* По разделам счёт на два раздела стоит в двух строках: числа счетов в итог не складываются. */}
+                <th scope="col" className="py-1 text-right font-normal w-24"
+                  title={data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined}>
+                  Счетов
+                </th>
                 <th scope="col" className="py-1 text-right font-normal w-40">Сумма</th>
               </tr>
             </thead>
             <tbody>
-              {data.site ? (
+              {data.site && bySections ? (
+                // Среза может не быть в ответе: клиент и сервер обновляются порознь.
+                (data.sections ?? []).map(line => (
+                  // «Без раздела» и «раздел удалён» — приглушённо: это не название, а его отсутствие.
+                  // Стрелка — только под названием, каким раздел зовёт реестр: коротким именем он его не
+                  // зовёт никогда, и ссылка с ним открыла бы пустой реестр — «счетов нет» вместо отказа.
+                  <Row key={line.id ?? line.name} name={line.name} muted={line.id === null} figure={line} linkNote={linkNote}
+                    link={line.registry ? siteCostsLinks.section(data, line.registry) : undefined} />
+                ))
+              ) : data.site ? (
                 data.suppliers.map(line => (
                   // Удалённый поставщик — без стрелки: реестр его не называет, отбора под него нет.
                   <Row key={line.id ?? line.name} name={line.name} muted={line.id === null} figure={line} linkNote={linkNote}
@@ -200,6 +222,22 @@ function Report({ data, onSite, stale }: { data: SiteCosts; onSite: (id: string)
           </p>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Переключатель из двух-трёх взаимоисключающих значений — кнопками, выбранная нажата. */
+function Segmented<T>({ label, value, options, onChange }: {
+  label: string; value: T; options: [string, T][]; onChange: (value: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="inline-flex rounded-md border border-stroke overflow-hidden">
+      {options.map(([text, option]) => (
+        <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
+          className={`h-8 px-3 text-sm ${value === option ? 'bg-brand-subtle text-fg1 font-medium' : 'text-fg2 hover:bg-surface2'}`}>
+          {text}
+        </button>
+      ))}
     </div>
   );
 }

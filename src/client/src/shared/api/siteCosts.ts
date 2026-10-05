@@ -16,6 +16,11 @@ export interface CostLine extends CostFigure {
   name: string;
   /** Есть ли у реестра отбор, под которым его итог равен этому числу; нет — стрелки у строки нет. */
   linked: boolean;
+  /**
+   * Как строку зовёт реестр, если иначе, чем отчёт: раздел здесь — «4 эт.», а в колонке «Раздел»
+   * реестра — «Комарова 36 / 4 эт.». Отбор ссылки берёт это название.
+   */
+  registry?: string | null;
 }
 
 /**
@@ -40,6 +45,8 @@ export interface SiteCosts {
   unallocated: CostFigure | null;
   /** Контрагенты — на экране стройки. */
   suppliers: CostLine[];
+  /** Разделы стройки — второй срез ТОЙ ЖЕ суммы, что `suppliers` (G5b, issue #1198); только на экране стройки. */
+  sections?: CostLine[];
   total: CostFigure;
   /** Из затрат — счета со строками без позиции номенклатуры. */
   unmatched: CostFigure | null;

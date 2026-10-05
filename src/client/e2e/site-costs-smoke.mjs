@@ -9,6 +9,8 @@
 //      отдельным блоком «к оплате»; общей суммы «затраты + к оплате» на экране нет.
 //   2. `every-arrow-equals-the-registry-total` — по КАЖДОЙ стрелке экрана стройки: число отчёта равно
 //      итогу колонки «Сумма» в реестре, открытом этой стрелкой.
+//   2а. `every-section-arrow-equals-the-registry-total` — срез «по разделам» (G5b, issue #1198): та же
+//      сумма, что по контрагентам; строки раздела и «без раздела» есть, и каждая стрелка сходится с реестром.
 //   3. `all-sites-total-equals-the-registry-and-back-returns` — «Все стройки»: строка стройки прогона
 //      есть, итог равен реестру, а «назад» возвращает отчёт с тем же периодом.
 //
@@ -68,8 +70,14 @@ if (organizations.length === 0) {
   process.exit(1);
 }
 
-/** Счёт из одной строки-услуги, разнесённой на стройку прогона целиком. */
-async function invoice(number, amount) {
+// Раздел стройки прогона — один раз, по имени: счёт на него даёт срезу «по разделам» строку раздела,
+// а счета на стройку целиком — строку «без раздела».
+const SECTION = 'Раздел прогона';
+const section = (await api('GET', '/costs/constructions')).find(c => c.id === site.id)?.sections.find(s => s.name === SECTION)
+  ?? await api('POST', `/constructions/${site.id}/sections`, { name: SECTION });
+
+/** Счёт из одной строки-услуги, разнесённой на стройку прогона целиком — либо на её раздел. */
+async function invoice(number, amount, onSection = null) {
   const created = await api('POST', '/costs/invoices', {
     requisites: {
       'Номер': number, 'Дата': '2026-09-01', 'Итого': amount,
@@ -80,16 +88,20 @@ async function invoice(number, amount) {
     lines: [{ supplierText: 'Услуга прогона', amount }],
   });
   await api('PUT', `/costs/invoices/${created.id}/lines/${view.lines[0].id}/allocation`, {
-    parts: [{ construction: site.id, amount }],
+    parts: [{ construction: site.id, section: onSection, amount }],
   });
   return created.id;
 }
 
+async function pay(id) {
+  const seen = await api('POST', `/costs/invoices/${id}/paid/preview`, { paidOn: today });
+  await api('POST', `/costs/invoices/${id}/paid`, { paidOn: today, document: 'п/п прогона', seen: seen.stamp });
+}
+
 // Оплаченный сегодня — в затратах текущего месяца; второй ждёт оплаты и в затраты не входит.
 const today = (await api('GET', '/periods')).today;
-const paid = await invoice(`ЗТР-О-${stamp}`, 700);
-const seen = await api('POST', `/costs/invoices/${paid}/paid/preview`, { paidOn: today });
-await api('POST', `/costs/invoices/${paid}/paid`, { paidOn: today, document: 'п/п прогона', seen: seen.stamp });
+await pay(await invoice(`ЗТР-О-${stamp}`, 700));
+await pay(await invoice(`ЗТР-Р-${stamp}`, 300, section.id));
 await invoice(`ЗТР-Н-${stamp}`, 150);
 
 const month = today.slice(0, 7);
@@ -130,20 +142,23 @@ await check('site-report-shows-costs-and-payable', async () => {
   if (!(total >= 700)) throw new Error(`в затратах стройки нет оплаченного счёта прогона: итог ${total}`);
   if (!(payable >= 150)) throw new Error(`в «к оплате» нет неоплаченного счёта прогона: ${payable}`);
 
-  const text = (await report.innerText()).replace(/\s/g, ' ');
-  if (!text.includes('Расходные накладные в него пока не входят')) throw new Error('про накладные не сказано');
-  // Суммы «затраты + к оплате» на экране нет нигде: её приняли бы за затраты.
-  const merged = (total + payable).toLocaleString('ru-RU', { minimumFractionDigits: 2 }).replace(/\s/g, ' ');
-  if (text.includes(merged)) throw new Error(`на экране есть сумма затрат и «к оплате» вместе: ${merged}`);
+  const text = await report.innerText();
+  if (!text.replace(/\s/g, ' ').includes('Расходные накладные в него пока не входят')) throw new Error('про накладные не сказано');
+  // Суммы «затраты + к оплате» на экране нет нигде: её приняли бы за затраты. Сверяем ПО КЛЕТКАМ, а не
+  // по тексту экрана: «1 150,00» в сплошном тексте — это и число счетов «1» рядом с суммой «150,00»
+  // (на чистой базе CI так и вышло: 1 000 затрат и 150 к оплате).
+  const cells = await report.locator('td').allInnerTexts();
+  if (cells.some(cell => Math.abs(number(cell) - (total + payable)) < 0.005))
+    throw new Error(`на экране есть сумма затрат и «к оплате» вместе: ${total + payable}`);
 });
 
 // ── 2. Каждая стрелка: число отчёта равно итогу «Суммы» в реестре ─────────────────────────────────
-await check('every-arrow-equals-the-registry-total', async () => {
-  const query = `site=${site.id}&from=${month}&to=${month}`;
+/** По каждой стрелке экрана: число отчёта равно итогу «Суммы» в реестре. @returns названия строк экрана. */
+async function everyArrow(query, atLeast) {
   await open(query);
   const names = await report.locator('th[scope="row"]').allInnerTexts();
   const lines = names.map(n => n.split('·')[0].trim()).filter(Boolean);
-  if (lines.length < 3) throw new Error(`строк отчёта меньше трёх (контрагент, итог, к оплате): ${lines.join(' | ')}`);
+  if (lines.length < atLeast) throw new Error(`строк отчёта меньше ${atLeast}: ${lines.join(' | ')}`);
 
   let followed = 0;
   for (const name of lines) {
@@ -158,7 +173,32 @@ await check('every-arrow-equals-the-registry-total', async () => {
     followed++;
   }
   // Ни одной стрелки — не «все сошлись», а «сверять было нечего».
-  if (followed < 3) throw new Error(`стрелок в реестр на экране стройки — ${followed}, а ждали не меньше трёх`);
+  if (followed < atLeast) throw new Error(`стрелок в реестр на экране стройки — ${followed}, а ждали не меньше ${atLeast}`);
+  return lines;
+}
+
+// Контрагент, итог, к оплате — не меньше трёх.
+await check('every-arrow-equals-the-registry-total', async () => {
+  await everyArrow(`site=${site.id}&from=${month}&to=${month}`, 3);
+});
+
+// ── 2а. Срез по разделам: та же сумма, и каждая стрелка сходится с реестром ───────────────────────
+await check('every-section-arrow-equals-the-registry-total', async () => {
+  const query = `site=${site.id}&from=${month}&to=${month}`;
+  await open(query);
+  const bySuppliers = await row('Итого затраты').amount();
+
+  // Переключатель — на экране, а не только параметром адреса: им человек и пользуется.
+  await report.getByRole('button', { name: 'по разделам' }).click();
+  await page.waitForURL(/by=sections/);
+  if (Math.abs(await row('Итого затраты').amount() - bySuppliers) > 0.005)
+    throw new Error('итог стройки по разделам не равен итогу по контрагентам');
+  if (!(await row(SECTION).amount() >= 300)) throw new Error(`в срезе нет раздела «${SECTION}» со счётом прогона`);
+  if (!(await row('без раздела').amount() >= 700)) throw new Error('в срезе нет строки «без раздела» со счётом прогона');
+
+  // Раздел, «без раздела», итог, к оплате — не меньше четырёх.
+  const lines = await everyArrow(`${query}&by=sections`, 4);
+  if (!lines.includes(SECTION)) throw new Error(`после перезагрузки срез не по разделам: ${lines.join(' | ')}`);
 });
 
 // ── 3. Все стройки: строка стройки, итог равен реестру, «назад» возвращает отчёт ──────────────────

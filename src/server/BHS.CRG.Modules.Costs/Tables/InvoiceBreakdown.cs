@@ -14,11 +14,13 @@ namespace BHS.CRG.Modules.Costs.Tables;
 /// ядро, <see cref="TableBreakdownSum" />). Поэтому «названо» спрашивается тем же вопросом к отбору,
 /// что и у клетки.</para>
 ///
-/// <para>Разделов стройки здесь нет — как и в колонке «Объект»: за ними идут в форму счёта.</para>
+/// <para>Раздел доли назван своей колонкой (задача G5b, issue #1198) — коротко, без стройки: она стоит
+/// в соседней колонке. Под отбором по разделу помечены доли именно на него.</para>
 /// </summary>
 internal static class InvoiceBreakdown
 {
     public const string ObjectKey = "Объект";
+    public const string SectionKey = "Раздел";
     public const string ShareKey = "Доля";
     public const string MonthKey = "УчётныйМесяц";
 
@@ -37,6 +39,7 @@ internal static class InvoiceBreakdown
         "Разноска",
         [
             new(ObjectKey, "Объект", ModuleTableColumnKind.Text),
+            new(SectionKey, "Раздел", ModuleTableColumnKind.Text),
             new(ShareKey, "Доля", ModuleTableColumnKind.Number, Follows: InvoiceTable.AmountKey),
             new(MonthKey, "Учётный месяц", ModuleTableColumnKind.Text),
         ],
@@ -55,10 +58,12 @@ internal static class InvoiceBreakdown
         bool Named(PostedMoney part) => narrowed && named(part);
 
         var rows = money.Where(m => m.Part is not null)
-            .GroupBy(m => (Label: shares.Label(m.Part!), Month: Month(m.AccountingOn)))
-            .OrderBy(g => g.Key.Label, InvoiceShares.ByName).ThenBy(g => g.Key.Month)
-            .Select(g => Row(g.Key.Label, g.Any(m => m.Amount is not null) ? g.Sum(m => m.Amount ?? 0) : null, g.Key.Month,
-                g.Any(Named)))
+            .Select(m => (Money: m, Section: shares.SectionOf(m.Part!)))
+            .GroupBy(m => (Label: shares.Label(m.Money.Part!), Section: m.Section?.Registry, Month: Month(m.Money.AccountingOn)),
+                (key, group) => (Key: key, Short: group.First().Section?.Short, Money: group.Select(m => m.Money).ToList()))
+            .OrderBy(g => g.Key.Label, InvoiceShares.ByName).ThenBy(g => g.Key.Section, InvoiceShares.ByName).ThenBy(g => g.Key.Month)
+            .Select(g => Row(g.Key.Label, g.Short,
+                g.Money.Any(m => m.Amount is not null) ? g.Money.Sum(m => m.Amount ?? 0) : null, g.Key.Month, g.Money.Any(Named)))
             .ToList();
 
         // Остаток существует только из-за денег, и само его название — факт о суммах («строки больше
@@ -68,7 +73,7 @@ internal static class InvoiceBreakdown
         var rest = money.Where(m => m.Part is null).ToList();
         if (rest.Count == 0 && !allocated) rest.Add(new(null, 0m, invoice.RemainderAccountingOn));
         rows.AddRange(rest.Select(m => Row(
-            !allocated ? NotAllocated : m.Amount < 0 ? Correction : Unallocated, m.Amount, Month(m.AccountingOn), Named(m)) with
+            !allocated ? NotAllocated : m.Amount < 0 ? Correction : Unallocated, null, m.Amount, Month(m.AccountingOn), Named(m)) with
         {
             Follows = InvoiceTable.AmountKey,
         }));
@@ -78,10 +83,11 @@ internal static class InvoiceBreakdown
 
     private static DateOnly? Month(DateOnly? day) => day is { } on ? PaymentPosting.MonthOf(on) : null;
 
-    private static TableBreakdownRow Row(string label, decimal? amount, DateOnly? month, bool named) => new(
+    private static TableBreakdownRow Row(string label, string? section, decimal? amount, DateOnly? month, bool named) => new(
         new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             [ObjectKey] = label,
+            [SectionKey] = section,
             [ShareKey] = amount,
             [MonthKey] = month is { } on ? PaymentViews.Month(on) : null,
         }, named);
