@@ -1,3 +1,4 @@
+import { MISSING } from './lostReferences';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
@@ -226,8 +227,8 @@ function SupplierName({ item }: { item: InvoiceListItem }) {
   if (item.supplierId) {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-danger truncate"
-        title="Ссылка на организацию есть, а записи нет — её удалили">
-        <TriangleAlert size={11} /> организация не найдена
+        title="Ссылка на организацию есть, а в справочнике организаций её нет: запись удалили либо перевели в другой вид. Что именно — скажет открытый счёт">
+        <TriangleAlert size={11} /> {MISSING.organization}
       </span>
     );
   }

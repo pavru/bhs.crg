@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRef, useState } from 'react';
 import { Search, TriangleAlert, X } from 'lucide-react';
@@ -22,7 +23,7 @@ import { useNomenclature } from '@/shared/api/invoices';
  * <c>core.nomenclature.edit</c>, которого у снабженца может не быть. Кнопка «завести», отказывающая
  * правами, обещала бы то, чего нет.</p>
  */
-export function NomenclaturePicker({ chosen, name, lost, onPick, onClear }: {
+export function NomenclaturePicker({ chosen, name, lost, lostText, onPick, onClear }: {
   /**
    * Ссылка на позицию ЕСТЬ. Отдельно от названия: пустое название бывает и у выбранной позиции —
    * записи справочника без имени законны, и пикер их показывает.
@@ -32,6 +33,8 @@ export function NomenclaturePicker({ chosen, name, lost, onPick, onClear }: {
   name: string | null;
   /** Ссылка есть, а записи справочника НЕТ — позицию удалили. Считает сервер, см. `InvoiceLineView`. */
   lost?: boolean;
+  /** Чем назвать потерю, если это не удалённая запись: «позиция другого вида». */
+  lostText?: string;
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
 }) {
@@ -46,7 +49,7 @@ export function NomenclaturePicker({ chosen, name, lost, onPick, onClear }: {
               : chosen ? 'border-stroke text-fg' : 'border-warning-border text-warning'}`}>
           {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
               но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
-          {lost ? 'позиция не найдена' : chosen ? name ?? 'позиция без названия' : 'выбрать позицию'}
+          {lost ? lostText ?? LOST.position : chosen ? name ?? 'позиция без названия' : 'выбрать позицию'}
         </button>
         {/* ⚠️ Снять ссылку можно ВСЕГДА, пока она есть, — и особенно когда позиция потеряна: сервер
             отказывает сохранять строку с битой ссылкой, а спрятанная кнопка не оставляла человеку

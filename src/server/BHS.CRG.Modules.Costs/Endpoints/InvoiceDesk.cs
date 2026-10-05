@@ -28,7 +28,7 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 /// </summary>
 public sealed class InvoiceDesk(
     CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModulePeriods periods,
-    IHttpContextAccessor http)
+    IHttpContextAccessor http, IModuleReferenceTargets targets)
 {
     /// <summary>Заголовок, которым правка называет версию счёта, по которой она собрана.</summary>
     public const string SeenHeader = "If-Match";
@@ -212,11 +212,24 @@ public sealed class InvoiceDesk(
             .ToListAsync(ct);
         var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
 
+        // Записи справочников, на которые ссылаются шапка и строки, — одним вопросом ядру. Спрашивается
+        // «есть ли запись», а не «есть ли она в списке организаций»: список не различает удалённую
+        // запись, запись другого вида и вид, которого нет в установке (issue #1184).
+        var records = await targets.StatesAsync(ReferenceTarget.Record,
+            [.. new[] { invoice.SupplierId, invoice.PayerId }.Concat(lines.Select(l => l.NomenclatureId))
+                .Concat(parts.Select(p => p.ArticleId)).OfType<Guid>().Distinct()], ct);
+        known = known with { Existing = records.Where(r => r.Value != ReferenceState.Lost).Select(r => r.Key).ToHashSet() };
+        var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
+        string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
+
         return InvoiceViews.Of(invoice, db.VersionOf(invoice),
             await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines,
             await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct),
             InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known),
-            await PaymentAsync(invoice, lines, parts, known, ct));
+            await PaymentAsync(invoice, lines, parts, known, ct),
+            new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
+                InvoiceReferencesView.Of(type[invoice.DocumentTypeId])),
+            records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet());
     }
 
     /// <summary>

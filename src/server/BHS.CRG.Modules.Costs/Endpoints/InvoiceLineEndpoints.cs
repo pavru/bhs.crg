@@ -63,8 +63,6 @@ public static class InvoiceLineEndpoints
                 InvoiceLineRequests.Values(incoming[index], index + 1)));
 
         EnsureIdsDistinct(parsed);
-        await EnsureNomenclatureExistsAsync(catalog, parsed, ct);
-
         var (invoice, changed, reason) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         if (changed)
@@ -81,6 +79,13 @@ public static class InvoiceLineEndpoints
         async Task<(Invoice Invoice, bool Changed, string? Reason)> PlaceAsync(Invoice invoice)
         {
             var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+
+            // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
+            // потеря в строке 3 не должна мешать поправить цену в строке 7. По строкам, прочитанным под
+            // замком записи: набор, собранный до него, назвал бы «стоящей» позицию, которую уже убрали.
+            await EnsureNomenclatureExistsAsync(catalog, parsed,
+                [.. existing.Select(l => l.NomenclatureId).OfType<Guid>().Distinct()], ct);
+
             var kept = new HashSet<Guid>();
 
             // Снимок ДО правки — им отличается настоящая правка от повторной отправки того же набора.
@@ -364,11 +369,13 @@ public static class InvoiceLineEndpoints
     /// человек за формой ничего не исправит правкой строки.</para>
     /// </summary>
     private static async Task EnsureNomenclatureExistsAsync(
-        IModuleCatalog catalog, List<(Guid? Id, InvoiceLineValues Values)> parsed, CancellationToken ct)
+        IModuleCatalog catalog, List<(Guid? Id, InvoiceLineValues Values)> parsed,
+        IReadOnlyCollection<Guid> kept, CancellationToken ct)
     {
         var referenced = parsed.Select(p => p.Values.NomenclatureId)
             .OfType<Guid>()
             .Distinct()
+            .Except(kept)
             .ToList();
 
         if (referenced.Count == 0) return;
@@ -383,7 +390,7 @@ public static class InvoiceLineEndpoints
         var found = known.Select(r => r.Id).ToHashSet();
         var lost = parsed
             .Select((p, index) => (Number: index + 1, p.Values.NomenclatureId))
-            .Where(p => p.NomenclatureId is { } value && !found.Contains(value))
+            .Where(p => p.NomenclatureId is { } value && !found.Contains(value) && !kept.Contains(value))
             .Select(p => p.Number)
             .ToList();
 

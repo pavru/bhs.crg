@@ -1,3 +1,4 @@
+import { LOST, MISSING } from './lostReferences';
 import { useEffect, useState } from 'react';
 import { CircleCheck, Plus, RefreshCw, Save, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -206,7 +207,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
             <select className={input} value={draft.construction} disabled={locked}
               aria-label="Получатель — стройка" onChange={e => edit({ construction: e.target.value })}>
               <option value="">не выбрана</option>
-              {orphan && <option value={draft.construction}>{view.constructionName ?? 'стройка не найдена'}</option>}
+              {orphan && <option value={draft.construction}>{view.constructionName ?? MISSING.construction}</option>}
               {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </Field>
@@ -263,7 +264,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
                               : editLine(line.key, { nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false })} />
                         ) : (
                           <span className={line.nomenclatureId ? 'text-fg' : 'text-warning'}>
-                            {line.nomenclatureLost ? 'позиция не найдена'
+                            {line.nomenclatureLost ? LOST.position
                               : line.nomenclatureId ? line.nomenclatureName ?? 'позиция без названия' : 'не сопоставлена'}
                           </span>
                         )}

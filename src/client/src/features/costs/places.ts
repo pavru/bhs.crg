@@ -1,3 +1,4 @@
+import { LOST, MISSING } from './lostReferences';
 import { useCostsArticles, type CostsArticle } from '@/shared/api/articles';
 import { useCostsConstructions, type AllocationPartView, type CostsConstruction } from '@/shared/api/invoices';
 import type { Place } from '@/shared/api/allocationMatrix';
@@ -16,6 +17,8 @@ export type { Place };
 export interface Places {
   sites: CostsConstruction[] | undefined;
   articles: CostsArticle[] | undefined;
+  /** Справочник мест не прочитан — сервер отказал. Это не «ещё грузится»: само не пройдёт. */
+  unread?: boolean;
 }
 
 export const NO_PLACE: Place = { construction: null, section: null, article: null };
@@ -23,7 +26,7 @@ export const NO_PLACE: Place = { construction: null, section: null, article: nul
 export function usePlaces(): Places {
   const sites = useCostsConstructions();
   const articles = useCostsArticles();
-  return { sites: sites.data, articles: articles.data };
+  return { sites: sites.data, articles: articles.data, unread: sites.isError || articles.isError };
 }
 
 export function placeOfPart(part: AllocationPartView): Place {
@@ -56,15 +59,35 @@ export function fromChoice(choice: string): Place {
   return NO_PLACE;
 }
 
+/** Название цели, пока справочник мест грузится. */
+export const LOADING_PLACE = '…';
+
+/** Название цели, когда справочник мест не пришёл: отказ обязан выглядеть отказом, а не вечной загрузкой. */
+export const UNREAD_PLACE = 'справочник не прочитан';
+
 /** Название цели — для заголовка колонки, шапки счёта и подписей. */
 export function placeName(place: Place, places: Places): string {
+  // Список ещё не прочитан — это не «удалена»: на медленной сети у живой стройки мелькала бы потеря.
+  const pending = places.unread ? UNREAD_PLACE : LOADING_PLACE;
   if (place.article) {
-    const article = places.articles?.find(a => a.id === place.article);
-    return article ? article.name : 'статья удалена';
+    if (!places.articles) return pending;
+    const article = places.articles.find(a => a.id === place.article);
+    // По справочнику не различить, удалена статья или переведена в другой вид, — так и говорим.
+    return article ? article.name : MISSING.article;
   }
 
+  if (place.construction && !places.sites) return pending;
   const site = places.sites?.find(s => s.id === place.construction);
-  if (!site) return place.construction ? 'стройка удалена' : 'объект не выбран';
+  if (!site) return place.construction ? LOST.construction : 'объект не выбран';
   if (!place.section) return site.name;
-  return `${site.name} / ${site.sections.find(s => s.id === place.section)?.name ?? 'раздел удалён'}`;
+  return `${site.name} / ${site.sections.find(s => s.id === place.section)?.name ?? missingSection(place.section, places)}`;
+}
+
+/**
+ * Чем назвать раздел, которого нет у его стройки: он удалён — или на месте, но у другой стройки. Второе
+ * видно по справочнику, и назвать его «удалён» значило бы сказать на одном экране два разных об одной
+ * ссылке: статус строки говорит «раздел другой стройки» (ревью PR #1211).
+ */
+export function missingSection(section: string, places: Places): string {
+  return places.sites?.some(site => site.sections.some(s => s.id === section)) ? LOST.foreignSection : LOST.section;
 }

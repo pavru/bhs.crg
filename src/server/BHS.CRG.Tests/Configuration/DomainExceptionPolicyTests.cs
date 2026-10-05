@@ -45,6 +45,7 @@ public class DomainExceptionPolicyTests
         // это наш TypstUnavailableException: путь остаётся в журнале, человек получает «проверьте
         // установку Typst», а тот же текст спокойно проходит через Refusals.TextOr в тех местах.
         ["BHS.CRG.Infrastructure/Generation/DocumentGeneratorFactory.cs"] = "формат вне перечисления — недостижимо снаружи",
+        ["BHS.CRG.Infrastructure/Persistence/ModuleLostReferenceScan.cs"] = "сущности цели нет в модели ядра — дефект таблицы соответствия, ловит ModuleReferenceInventoryTests",
         ["BHS.CRG.Infrastructure/Jobs/JobBackgroundService.cs"] = "неизвестный вид фоновой задачи — дефект реестра задач",
         ["BHS.CRG.Infrastructure/Recognition/BuiltInRecognitionProfiles.cs"] = "встроенный профиль отсутствует в коде — дефект",
         ["BHS.CRG.Infrastructure/Recognition/RecognitionKinds.cs"] = "вид профиля не описан в реестре — дефект",

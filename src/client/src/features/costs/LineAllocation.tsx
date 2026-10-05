@@ -15,7 +15,7 @@ import {
   allocationStatus, emptyPart, estimateRemainder, toPartDrafts, toPartsPayload, type PartDraft,
 } from './allocation';
 import { PlaceSelect } from './PlaceSelect';
-import { usePlaces } from './places';
+import { missingSection, usePlaces } from './places';
 
 /**
  * Разноска строки счёта по стройкам (задача F1, issue #1085, ТЗ COST-10, COST-11, COST-13).
@@ -211,7 +211,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                     onChange={e => edit(draft.key, { sectionId: e.target.value })} className={FIELD}>
                     <option value="">— вся стройка —</option>
                     {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
-                      <option value={draft.sectionId}>раздел удалён</option>
+                      <option value={draft.sectionId}>{missingSection(draft.sectionId, places)}</option>
                     )}
                     {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>

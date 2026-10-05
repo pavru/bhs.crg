@@ -438,7 +438,22 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await open(number);
 
-    await page.getByRole('button', { name: 'позиция не найдена' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'позиция удалена' }).waitFor({ timeout: 10_000 });
+
+    // Потеря бывает за краем экрана — строка под прокруткой. Шапка говорит о ней сама (issue #1184).
+    const note = page.getByRole('note').filter({ hasText: 'Удалённые записи справочников' });
+    await note.waitFor({ timeout: 10_000 });
+    if (!(await note.innerText()).includes('позиция в строке 1'))
+      throw new Error(`сводка не называет строку с потерянной позицией: ${await note.innerText()}`);
+
+    // Счётчик модуля отвечает той формой, какую обещает: числа по «можно исправить» и «заперто» и
+    // непустое «не проверено» — дополнительные поля типа счёта не проверяются никогда.
+    const tally = await api('GET', '/costs/lost-references');
+    for (const part of ['editable', 'locked'])
+      for (const key of ['references', 'invoices', 'waybills', 'other'])
+        if (!Number.isInteger(tally[part]?.[key])) throw new Error(`счётчик потерянных ссылок: ${part}.${key} не число — ${JSON.stringify(tally)}`);
+    if (!tally.unchecked?.some(u => u.what.includes('дополнительном поле')))
+      throw new Error(`счётчик молчит о непроверенных дополнительных полях: ${JSON.stringify(tally.unchecked)}`);
 
     // Главное: выход есть. Снимаем ссылку и сохраняем — до правки сервер отказывал, а снять было нечем.
     await page.getByRole('button', { name: 'Снять позицию' }).first().click();
@@ -448,7 +463,7 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await open(number);
     await page.getByRole('button', { name: 'выбрать позицию' }).first().waitFor({ timeout: 10_000 });
-    if ((await page.getByRole('button', { name: 'позиция не найдена' }).count()) !== 0)
+    if ((await page.getByRole('button', { name: 'позиция удалена' }).count()) !== 0)
       throw new Error('после снятия ссылки строка всё ещё считает позицию потерянной');
   });
 

@@ -1,3 +1,4 @@
+import { MISSING } from './lostReferences';
 import { useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
@@ -165,7 +166,7 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         <span className={`text-xs truncate ${item.constructionName ? 'text-fg3' : item.constructionId ? 'text-danger' : 'text-fg4'}`}>
-          {item.constructionName ?? (item.constructionId ? 'стройка не найдена' : 'стройка не выбрана')}
+          {item.constructionName ?? (item.constructionId ? MISSING.construction : 'стройка не выбрана')}
         </span>
         <div className="flex-1" />
         {/* Ноль не показываем: число «0» у каждой строки читается как шум. */}

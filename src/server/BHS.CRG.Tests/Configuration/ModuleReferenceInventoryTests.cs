@@ -115,4 +115,45 @@ public class ModuleReferenceInventoryTests
             Assert.False(string.IsNullOrWhiteSpace(r.What),
                 $"{module.Code}: {r.Table}.{r.Column} — не сказано, что колонка держит или почему не держит.");
     }
+
+    /// <summary>
+    /// У держащей колонки-идентификатора назван вид цели (issue #1184). Без него обратный опрос не знает,
+    /// в какой таблице ядра искать, и колонка уходит в «не проверено» — навсегда и молча для того, кто её
+    /// объявил. Без вида живёт только JSON: цели в нём разные.
+    /// </summary>
+    [Fact]
+    public void У_держащей_колонки_идентификатора_назван_вид_цели()
+    {
+        var blind = new List<string>();
+        foreach (var (module, model) in Modules())
+        foreach (var column in Candidates(model).Where(c => c.Type is "uuid" or "uuid[]"))
+            if (module.References.FirstOrDefault(r => r.Table == column.Table && r.Column == column.Name) is { Holds: true, Target: null })
+                blind.Add($"{module.Code}: {column.Table}.{column.Name}");
+
+        Assert.True(blind.Count == 0,
+            "У держащих колонок не назван вид цели (ReferenceTarget):\n" + string.Join("\n", blind) + "\n\n" +
+            "Поиск потерянных ссылок такую колонку не проверит: ему негде искать запись.");
+    }
+
+    /// <summary>
+    /// У каждого вида цели есть таблица ядра — и она есть в модели. Новое значение
+    /// <see cref="ReferenceTarget" /> без строки соответствия роняло бы опрос на первой же колонке.
+    /// </summary>
+    [Fact]
+    public void У_каждого_вида_цели_есть_таблица_ядра()
+    {
+        var options = new DbContextOptionsBuilder<BHS.CRG.Infrastructure.Persistence.AppDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Database=never").Options;
+        using var core = new BHS.CRG.Infrastructure.Persistence.AppDbContext(options);
+        var scan = new BHS.CRG.Infrastructure.Persistence.ModuleLostReferenceScan(core);
+        var entities = BHS.CRG.Api.Modules.Ports.ModuleReferenceTargetsPort.Entities;
+
+        foreach (var target in Enum.GetValues<ReferenceTarget>())
+        {
+            Assert.True(entities.ContainsKey(target), $"У вида цели {target} нет строки в ModuleReferenceTargetsPort.Entities.");
+            var table = scan.TableOf(entities[target]);
+            Assert.False(string.IsNullOrEmpty(table.Table));
+            Assert.Equal("public", table.Schema);
+        }
+    }
 }

@@ -48,6 +48,7 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// которое проверяет переход «разобран»: считай форма его сама, кнопка и отказ расходились бы.</param>
 /// <param name="Payment">Оплата (C5, issue #1082): оплачен ли, почему оплатить нельзя и чем счёт заперт —
 /// словами сервера, чтобы форма не выводила «заперт» из границ периодов своей формулой.</param>
+/// <param name="References">Что стало с записями ядра, на которые ссылается шапка (issue #1184).</param>
 public sealed record InvoiceView(
     Guid Id,
     // Версия счёта (issue #1176): её называет каждая правка заголовком If-Match. Строкой — это отметка,
@@ -61,8 +62,25 @@ public sealed record InvoiceView(
     InvoiceLineTotals Totals,
     AllocationSummaryView Allocation,
     PaymentView Payment,
+    InvoiceReferencesView References,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184): <c>present</c>, <c>lost</c>;
+/// <c>null</c> — ссылки нет. С архивом записей (issue #1185) добавится <c>archived</c>.
+///
+/// <para>Считает сервер, обратным опросом ядра, — тем же, что и счётчик потерянных ссылок. Выводи это
+/// форма сравнением со списком организаций, «список ещё грузится» выглядел бы потерей.</para>
+/// </summary>
+public sealed record InvoiceReferencesView(string? Supplier, string? Payer, string DocumentType)
+{
+    public const string Present = "present";
+    public const string Lost = "lost";
+
+    public static string Of(BHS.CRG.Modules.Ports.ReferenceState state) =>
+        state == BHS.CRG.Modules.Ports.ReferenceState.Lost ? Lost : Present;
+}
 
 /// <summary>Счёт в списке. Полей ровно столько, сколько нужно реестру, — реквизиты не едут.</summary>
 /// <param name="SupplierName">Название поставщика из справочника ядра; <c>null</c> — поставщик не
@@ -99,29 +117,39 @@ public static class InvoiceViews
     public static InvoiceView Of(
         Invoice invoice, string version, IReadOnlyList<InvoiceDuplicate> duplicates,
         IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
-        InvoiceAllocationRead allocation, PaymentView payment) => new(
+        InvoiceAllocationRead allocation, PaymentView payment,
+        InvoiceReferencesView references, IReadOnlySet<Guid> lost) => new(
         invoice.Id,
         version,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,
         duplicates,
-        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id]))],
+        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost))],
         InvoiceLineTotals.Of(lines),
         allocation.Summary,
         payment,
+        references,
         invoice.CreatedAt,
         invoice.UpdatedAt);
 
+    /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
+    /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть
+    /// потерей. Запись, переехавшая в другой вид, потеряна для строки тоже — её называет словарь.</param>
     public static InvoiceLineView Line(
-        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation) => new(
+        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation,
+        IReadOnlySet<Guid>? lost = null) => Line(line, names, allocation, Issue(line.NomenclatureId, names, lost));
+
+    private static InvoiceLineView Line(
+        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation, string? issue) => new(
         line.Id,
         line.Ordinal,
         line.NomenclatureId,
         line.NomenclatureId is { } id && names is not null && names.TryGetValue(id, out var name)
             ? name
             : null,
-        line.NomenclatureId is { } missing && names is not null && !names.ContainsKey(missing),
+        issue is not null,
+        issue,
         line.SupplierText,
         line.SupplierCode,
         line.Unit,
@@ -132,6 +160,16 @@ public static class InvoiceViews
         line.Amount,
         line.Note,
         allocation);
+
+    public const string NomenclatureGone = "lost";
+    public const string NomenclatureMoved = "moved";
+
+    private static string? Issue(Guid? position, IReadOnlyDictionary<Guid, string?>? names, IReadOnlySet<Guid>? lost) =>
+        position is not { } id ? null
+        : lost?.Contains(id) == true ? NomenclatureGone
+        // Без обратного опроса (lost не дан) отличить нечем — зовём потерей, как звали всегда.
+        : names is not null && !names.ContainsKey(id) ? lost is null ? NomenclatureGone : NomenclatureMoved
+        : null;
 
     public static InvoiceListItem Item(
         Invoice invoice, string? supplierName, int lines, int withoutNomenclature) => new(
