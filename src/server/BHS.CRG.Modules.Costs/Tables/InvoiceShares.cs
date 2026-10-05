@@ -2,7 +2,6 @@ using System.Globalization;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Tables;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Tables;
 
