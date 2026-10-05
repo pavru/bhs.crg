@@ -16,7 +16,7 @@ import {
   targetName, targetsOf, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
 import { PlaceSelect } from './PlaceSelect';
-import { chosen, placeOfPart, samePlace, usePlaces, type Places } from './places';
+import { chosen, missingSection, placeOfPart, samePlace, usePlaces, type Places } from './places';
 
 /**
  * Матрица разноски «строки × объекты» (задача F2, issue #1086, ТЗ COST-6.2, COST-11, COST-12).
@@ -290,7 +290,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
           onChange={e => onChange({ section: e.target.value || null })}>
           <option value="">— вся стройка —</option>
           {site && target.section && !site.sections.some(s => s.id === target.section) && (
-            <option value={target.section}>раздел удалён</option>
+            <option value={target.section}>{missingSection(target.section, places)}</option>
           )}
           {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>

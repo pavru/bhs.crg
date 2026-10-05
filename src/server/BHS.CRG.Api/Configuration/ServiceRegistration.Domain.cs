@@ -194,6 +194,7 @@ internal static class DomainRegistration
     // Держатели записей ядра в данных модулей (issue #1094). Регистрируются всегда, а не модулем:
     // спрашивать надо и о выключенном модуле, и о схеме, чьего модуля в сборке нет.
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Persistence.ModuleReferenceScan>();
+    builder.Services.AddScoped<BHS.CRG.Infrastructure.Persistence.ModuleLostReferenceScan>();
     builder.Services.AddScoped<BHS.CRG.Application.Objects.IRecordHolders,
         BHS.CRG.Api.Modules.ModuleRecordHolders>();
     builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();

@@ -41,6 +41,9 @@ public sealed record InvoiceLineView(
     /// «Номенклатура» выглядела бы битой.</para>
     /// </summary>
     bool NomenclatureLost,
+    // Что именно не так со ссылкой (issue #1184): «lost» — записи в ядре нет; «moved» — запись есть, но
+    // она больше не позиция номенклатуры. Второе — не потерянная ссылка: счётчик её не считает.
+    string? NomenclatureIssue,
     string? SupplierText,
     string? SupplierCode,
     string? Unit,

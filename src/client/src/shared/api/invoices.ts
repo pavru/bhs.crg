@@ -38,6 +38,11 @@ export interface InvoiceLineView {
   nomenclatureId: string | null;
   nomenclatureName: string | null;
   nomenclatureLost: boolean;
+  /**
+   * Что именно не так со ссылкой (issue #1184): `lost` — записи нет; `moved` — запись есть, но она больше
+   * не позиция номенклатуры (это не потерянная ссылка). Старый сервер поля не присылает.
+   */
+  nomenclatureIssue?: 'lost' | 'moved' | null;
   supplierText: string | null;
   supplierCode: string | null;
   unit: string | null;
@@ -59,6 +64,16 @@ export interface InvoiceLineView {
  * и расхождение с суммой к оплате, — её форма помечает, иначе «33,34» среди «33,33» выглядело бы
  * опечаткой.
  */
+/**
+ * Что не так с целью части разноски. `…-lost` — записи больше нет: это потерянная ссылка. Остальное —
+ * не потеря, и в число потерянных ссылок не входит: `section-foreign` — раздел на месте, но принадлежит
+ * другой стройке; `article-moved` — запись есть, но она больше не статья; `article-unread` — справочник
+ * статей не прочитан, сказать о цели нечего.
+ */
+export type TargetIssue =
+  | 'construction-lost' | 'section-lost' | 'article-lost'
+  | 'section-foreign' | 'article-moved' | 'article-unread';
+
 export interface AllocationPartView {
   id: string;
   ordinal: number;
@@ -70,8 +85,10 @@ export interface AllocationPartView {
   /** Статья вне строек — «Склад», «Общие расходы»; `null` — часть легла на стройку. Ровно одно из двух. */
   articleId: string | null;
   articleName: string | null;
-  /** Стройку, раздел или статью удалили — потеря, а не «не выбрано». */
+  /** С целью что-то не так — «разобран» с такой частью не проходит. Что именно, говорит `targetIssue`. */
   targetLost: boolean;
+  /** Что не так с целью (issue #1184); `null` — цель на месте. Старый сервер поля не присылает. */
+  targetIssue?: TargetIssue | null;
   quantity: number | null;
   amount: number | null;
   rounding: number;
@@ -173,8 +190,22 @@ export interface InvoiceView {
   totals: InvoiceLineTotals;
   allocation: AllocationSummaryView;
   payment: PaymentView;
+  /**
+   * Что стало с записями ядра, на которые ссылается шапка (issue #1184); `null` у поля — ссылки нет.
+   * Считает сервер: выводи это форма сравнением со списком организаций, «список ещё грузится» выглядел
+   * бы потерей. Старый сервер поля не присылает.
+   */
+  references?: InvoiceReferences;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ReferenceState = 'present' | 'archived' | 'lost';
+
+export interface InvoiceReferences {
+  supplier: ReferenceState | null;
+  payer: ReferenceState | null;
+  documentType: ReferenceState;
 }
 
 export interface InvoiceListItem {

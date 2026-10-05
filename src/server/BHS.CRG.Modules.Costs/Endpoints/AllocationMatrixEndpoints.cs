@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -41,11 +42,16 @@ public static class AllocationMatrixEndpoints
     /// у того, кто записать не может, быть не должно вовсе, а не «нажиматься и получать отказ».</para>
     /// </summary>
     private static async Task<Ok<AllocationPreview>> PreviewAsync(
-        Guid id, AllocationPreviewRequest body, CostsDbContext db, AllocationPlacesSource places, CancellationToken ct)
+        Guid id, AllocationPreviewRequest body, CostsDbContext db, AllocationPlacesSource places,
+        IModuleReferenceTargets references, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
-        var known = await places.LoadAsync(ct);
+        // Предпросмотр существует ради записи и обязан принимать то же, что она: цели, уже записанные
+        // у счёта, — и потерянными (ТЗ CORE-34.4). Иначе «пересчитать по строкам» отказывало бы на
+        // разноске, которую запись приняла бы (ревью PR #1211).
+        var known = (await places.LoadAsync(ct)).Keeping(
+            await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == id).ToListAsync(ct));
 
         var targets = body.Method switch
         {
@@ -67,6 +73,15 @@ public static class AllocationMatrixEndpoints
             .GroupBy(p => p.LineId)
             .SelectMany(g => g.Select((p, index) => Transient(invoice.Id, p, index + 1)))
             .ToList();
+        // Те же слова, что у открытого счёта: без обратного опроса статья, переведённая в другой вид,
+        // в предпросмотре называлась бы удалённой, а после записи — снова «другого вида».
+        var articles = parts.Select(p => p.ArticleId).OfType<Guid>().Distinct().ToList();
+        if (articles.Count > 0)
+            known = known with
+            {
+                Existing = (await references.StatesAsync(ReferenceTarget.Record, articles, ct))
+                    .Where(r => r.Value != ReferenceState.Lost).Select(r => r.Key).ToHashSet(),
+            };
         var read = InvoiceAllocations.Read(invoice, lines, parts, known);
 
         var state = new MatrixState(
@@ -98,7 +113,8 @@ public static class AllocationMatrixEndpoints
                 "Набор строк не прислан. Адрес заменяет разноску всего счёта, и строки без частей присылаются " +
                 "с «parts»: [] — отсутствие поля прочитать как «не менять» нельзя.");
 
-        var known = await places.LoadAsync(ct);
+        var loaded = await places.LoadAsync(ct);
+        var known = loaded;
         var (invoice, was, after, moved, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         // Писать ли событие, решают сами части, а не их описание: сумм в описании нет (issue #1190), и
@@ -121,6 +137,11 @@ public static class AllocationMatrixEndpoints
                 .OrderBy(l => l.Ordinal)
                 .ToListAsync(ct);
 
+            // Цели, уже записанные у счёта, запись принимает и потерянными (ТЗ CORE-34.4): матрица
+            // переставляет доли между строками, и «та же цель в другой строке» — не новая. Набор читается
+            // ЗДЕСЬ, под замком записи, а не до него (ревью PR #1211).
+            known = loaded.Keeping(
+                await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct));
             var byLine = ParseLines(body.Lines, lines, known);
             var document = ParseDocument(body.Document ?? [], invoice, lines.Count, known);
 

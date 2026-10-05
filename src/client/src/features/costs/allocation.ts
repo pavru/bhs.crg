@@ -1,3 +1,4 @@
+import { issueOf, issueText } from './lostReferences';
 import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
 import type { AllocationPartView, LineAllocationView } from '@/shared/api/invoices';
 import { toNumber } from './invoiceLines';
@@ -107,8 +108,9 @@ export function allocationStatus(
       ? { text: 'нечего разносить', tone: 'muted' }
       : { text: 'части не того вида', tone: 'warning' };
 
-  const lost = allocation.parts.find(p => p.targetLost);
-  if (lost) return { text: lost.articleId ? 'статья удалена' : 'стройка удалена', tone: 'warning' };
+  // Слово — по тому, ЧТО потеряно: «стройка удалена» у части, где удалён раздел, отправляло искать не то.
+  const issue = allocation.parts.map(issueOf).find(found => found !== null);
+  if (issue) return { text: issueText(issue), tone: 'warning' };
   if (allocation.parts.some(p => p.mismatched)) return { text: 'части не того вида', tone: 'warning' };
   if (allocation.balanced) return { text: 'разнесено', tone: 'ok' };
   if (allocation.parts.length === 0) return { text: 'не разнесено', tone: 'warning' };

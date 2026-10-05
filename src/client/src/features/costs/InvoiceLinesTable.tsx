@@ -1,3 +1,4 @@
+import { LOST } from './lostReferences';
 import { useState } from 'react';
 import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -281,12 +282,12 @@ function Row({ draft, number, view, line, blocked, locked, allocationLocked, onA
             только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
             ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится. */}
         <NomenclaturePicker chosen={draft.nomenclatureId !== null} name={draft.nomenclatureName}
-          lost={draft.nomenclatureLost}
+          lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
           onPick={(id, name) => onEdit({
-            nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false,
+            nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureMoved: false,
           })}
           onClear={() => onEdit({
-            nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false,
+            nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false, nomenclatureMoved: false,
           })} />
       </td>
       <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${number}`}
@@ -338,7 +339,7 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
     <tr className="border-t border-stroke align-top">
       <td className="py-1 text-fg4">{number}</td>
       <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
-        {draft.nomenclatureLost ? 'позиция не найдена' : draft.nomenclatureName ?? '—'}
+        {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position) : draft.nomenclatureName ?? '—'}
       </td>
       {text(draft.supplierText)}
       {text(draft.supplierCode)}

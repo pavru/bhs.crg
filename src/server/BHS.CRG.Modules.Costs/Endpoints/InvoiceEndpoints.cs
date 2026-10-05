@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -145,7 +146,8 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Created<InvoiceView>> CreateAsync(
         InvoiceSaveRequest body, CostsDbContext db, IModuleTypes types, IModuleUser user,
-        IModuleActivityLog log, IModuleWriteGuard guard, InvoiceDesk desk, CancellationToken ct)
+        IModuleActivityLog log, IModuleWriteGuard guard, InvoiceDesk desk, IModuleReferenceTargets targets,
+        IModuleCatalog catalog, CancellationToken ct)
     {
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
             ?? throw new ConflictException(
@@ -156,6 +158,7 @@ public static class InvoiceEndpoints
 
         var (columns, rest) = InvoiceRequisites.Split(body.Requisites, stored: null);
         await EnsureAllowedAsync(guard, typeId, stored: null, body.Requisites.GetRawText(), ct);
+        await EnsurePartiesExistAsync(targets, catalog, columns, supplierWas: null, payerWas: null, ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         var marks = body.Unconfirmed ?? [];
@@ -190,7 +193,7 @@ public static class InvoiceEndpoints
     private static async Task<Ok<InvoiceView>> UpdateAsync(
         Guid id, InvoiceSaveRequest body, CostsDbContext db, IModuleActivityLog log,
         IModuleWriteGuard guard, InvoiceDesk desk, AllocationPlacesSource places,
-        CancellationToken ct)
+        IModuleReferenceTargets targets, IModuleCatalog catalog, CancellationToken ct)
     {
         if (body.Unconfirmed is not null)
             throw new InvalidRequestException(
@@ -206,6 +209,8 @@ public static class InvoiceEndpoints
             var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
             await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
                 InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
+
+            await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
 
             var changed = InvoiceRequisites.Changed(before, body.Requisites);
 
@@ -407,6 +412,46 @@ public static class InvoiceEndpoints
 
         var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);
         return refs?.ToDictionary(r => r.Id, r => r.DisplayName);
+    }
+
+    /// <summary>
+    /// Поставщик и плательщик, названные ЭТОЙ правкой, обязаны существовать (ТЗ CORE-34.4, issue #1184).
+    ///
+    /// <para>Только новые: ссылка, которая у счёта уже стояла, принимается и потерянной — иначе счёт с
+    /// удалённым поставщиком нельзя было бы сохранить, поправив в нём что угодно другое. А новая ссылка
+    /// в пустоту — это потеря, заведённая своими руками.</para>
+    /// </summary>
+    private static async Task EnsurePartiesExistAsync(
+        IModuleReferenceTargets targets, IModuleCatalog catalog, InvoiceColumns columns,
+        Guid? supplierWas, Guid? payerWas, CancellationToken ct)
+    {
+        var named = new[]
+            {
+                (Key: InvoiceRequisites.SupplierKey, Id: columns.SupplierId, Was: supplierWas),
+                (Key: InvoiceRequisites.PayerKey, Id: columns.PayerId, Was: payerWas),
+            }
+            // «Уже стояла» — у СЧЁТА, в любом из двух полей: поменять потерянных поставщика и плательщика
+            // местами — не новая ссылка (ревью PR #1211).
+            .Where(p => p.Id is not null && p.Id != supplierWas && p.Id != payerWas)
+            .ToList();
+        if (named.Count == 0) return;
+
+        var states = await targets.StatesAsync(ReferenceTarget.Record, [.. named.Select(p => p.Id!.Value)], ct);
+        foreach (var party in named.Where(p => states[p.Id!.Value] == ReferenceState.Lost))
+            throw new InvalidRequestException(
+                $"«{party.Key}»: такой записи в справочнике нет. Так бывает, когда организацию удалили, пока " +
+                "форма была открыта. Выберите организацию заново — записать ссылку в пустоту значило бы " +
+                "получить счёт, у которого поставщика не узнать.");
+
+        // Запись есть — но организация ли она? Позицию номенклатуры в поле поставщика форма показала бы
+        // пустым полем, реестр — счётом без поставщика (ревью PR #1211). Типа «Организация» в установке
+        // нет — сверять не с чем, и это не повод отказывать в записи.
+        if (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [.. named.Select(p => p.Id!.Value)], ct) is not { } organizations)
+            return;
+        var known = organizations.Select(o => o.Id).ToHashSet();
+        foreach (var party in named.Where(p => !known.Contains(p.Id!.Value)))
+            throw new InvalidRequestException(
+                $"«{party.Key}»: выбранная запись — не организация. Выберите организацию из справочника.");
     }
 
     internal static async Task<Invoice> FindAsync(CostsDbContext db, Guid id, CancellationToken ct) =>

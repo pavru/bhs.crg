@@ -17,7 +17,12 @@ public sealed record AllocationRequest(IReadOnlyList<JsonElement>? Parts);
 /// <param name="ArticleId">Статья вне строек (F3, issue #1087); <c>null</c> — часть легла на стройку.</param>
 /// <param name="TargetLost">Стройки (раздела в ней, статьи) больше нет — удалили. Потеря, и
 /// выглядеть она обязана иначе, чем «цель не выбрана»: деньги этой части сейчас не относятся ни к
-/// чему, и «разобран» с ней не проходит.</param>
+/// чему, и «разобран» с ней не проходит. Сюда же входит раздел другой стройки.</param>
+/// <param name="TargetIssue">Что именно не так с целью (issue #1184): <c>construction-lost</c>,
+/// <c>section-lost</c>, <c>article-lost</c> — записи больше нет; <c>section-foreign</c> — раздел на месте,
+/// но принадлежит другой стройке; <c>article-moved</c> — запись есть, но она больше не статья;
+/// <c>article-unread</c> — справочник статей не прочитан, сказать о цели нечего. Три последних — не
+/// потеря: в счётчик потерянных ссылок не идут, но «разобран» с ними не проходит так же.</param>
 /// <param name="Quantity">Количество части — у строки, разносимой количеством.</param>
 /// <param name="Amount">Сумма части: у строки с количеством — ПОСЧИТАННАЯ (доля суммы строки), у
 /// строки без количества — введённая. <c>null</c> — посчитать нечем.</param>
@@ -37,6 +42,7 @@ public sealed record AllocationPartView(
     Guid? ArticleId,
     string? ArticleName,
     bool TargetLost,
+    string? TargetIssue,
     decimal? Quantity,
     decimal? Amount,
     decimal Rounding,
@@ -277,6 +283,9 @@ public static class InvoiceAllocations
         for (var index = 0; index < parts.Count; index++)
         {
             var target = parts[index].Target;
+            // Цель, уже записанную у счёта, не перепроверяем: потерянная ссылка сохраняется как есть.
+            if (places.Kept.Contains(target)) continue;
+
             if (target.ArticleId is { } article)
             {
                 if (places.Article(article) is null)
@@ -356,6 +365,7 @@ public static class InvoiceAllocations
     {
         var site = places.Site(part.ConstructionId);
         var section = part.SectionId is { } id ? site?.Sections.FirstOrDefault(s => s.Id == id) : null;
+        var issue = Issue(part, places);
 
         return new AllocationPartView(
             part.Id,
@@ -366,7 +376,8 @@ public static class InvoiceAllocations
             section?.Name,
             part.ArticleId,
             places.Article(part.ArticleId)?.Name,
-            Lost(part, places),
+            issue is not null,
+            issue,
             part.Quantity,
             share.Amount,
             share.Rounding,
@@ -374,11 +385,34 @@ public static class InvoiceAllocations
             share.Mismatched);
     }
 
-    private static bool Lost(InvoiceAllocation part, AllocationPlaces places)
+    private static bool Lost(InvoiceAllocation part, AllocationPlaces places) => Issue(part, places) is not null;
+
+    public const string ConstructionLost = "construction-lost";
+    public const string SectionLost = "section-lost";
+    public const string ArticleLost = "article-lost";
+    public const string SectionForeign = "section-foreign";
+    public const string ArticleMoved = "article-moved";
+    public const string ArticleUnread = "article-unread";
+
+    /// <summary>
+    /// Что не так с целью части; <c>null</c> — цель на месте.
+    ///
+    /// <para>Раздел другой стройки назван ОТДЕЛЬНО от удалённого (решение владельца 06.10.2026): запись
+    /// раздела на месте, обратный опрос ядра ответит «существует», и назови мы это потерей — пометка в
+    /// форме и счётчик потерянных ссылок разошлись бы.</para>
+    /// </summary>
+    private static string? Issue(InvoiceAllocation part, AllocationPlaces places)
     {
-        if (part.ArticleId is { } article) return places.Article(article) is null;
-        var site = places.Site(part.ConstructionId);
-        return site is null || (part.SectionId is { } id && site.Sections.All(s => s.Id != id));
+        // Справочник статей не прочитан — не «потеряна», но и не «на месте»: существование цели не
+        // проверено, и «разобран» с такой частью не проходит, как не проходил (ревью PR #1211).
+        if (part.ArticleId is { } article)
+            return !places.ArticlesKnown ? ArticleUnread
+                : places.Article(article) is not null ? null
+                : places.Existing?.Contains(article) == true ? ArticleMoved : ArticleLost;
+
+        if (places.Site(part.ConstructionId) is not { } site) return ConstructionLost;
+        if (part.SectionId is not { } id || site.Sections.Any(s => s.Id == id)) return null;
+        return places.Sites.Any(s => s.Sections.Any(x => x.Id == id)) ? SectionForeign : SectionLost;
     }
 
     public static string Mode(AllocationMode mode) => mode switch

@@ -90,7 +90,12 @@ public static class AllocationEndpoints
 
             EnsureIdsDistinct(parsed.Select(p => p.Id));
             var values = parsed.Select(p => p.Values).ToList();
-            InvoiceAllocations.EnsureTargets(values, known);
+            // Цели, уже записанные у СЧЁТА, запись принимает и потерянными (ТЗ CORE-34.4). По счёту, а
+            // не по строке, — той же мерой, что матрица: иначе перенос потерянной доли на соседнюю
+            // строку проходил бы там и отвергался здесь. И под замком записи: набор, прочитанный до
+            // него, мог бы назвать «уже записанной» цель, которую сосед только что убрал (ревью PR #1211).
+            InvoiceAllocations.EnsureTargets(values, known.Keeping(
+                await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct)));
             EnsureNotOver(line, values);
 
             var existing = await db.InvoiceAllocations
