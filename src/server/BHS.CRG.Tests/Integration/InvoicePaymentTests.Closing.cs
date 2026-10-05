@@ -335,18 +335,25 @@ public partial class InvoicePaymentTests
         Assert.Equal(1, Math.Sign(Line(ahead, "frozen", "entering").Count));
         Assert.Null(Link(ahead));
 
+        // Закрытие стройки отменили — ссылка вернулась.
+        await ReopenAsync(b, paidOn);
+        await SameInRegistryAsync(await NextAsync(last));
+
         // У строк второго счёта стёрли цену: его доли в периоде есть, а денег в них нет. Реестр под
-        // отбором периода счёт покажет, строка его не считает — число разошлось бы, и ссылки нет.
-        var (blank, c, _) = await TwoSitesAsync(admin);
+        // отбором периода счёт покажет, строка его не считает — число разошлось бы, и ссылки нет, хотя
+        // первый счёт в период по-прежнему входит.
+        var (blank, _, _) = await TwoSitesAsync(admin);
         await OkAsync(await admin.PostAsync($"/api/costs/invoices/{blank}/parsed", null));
         await PayAsync(admin, blank, paidOn, await PreviewAsync(admin, blank, paidOn), null);
-        await SameInRegistryAsync(await NextAsync(last, c));
+        var both = await NextAsync(last);
+        await SameInRegistryAsync(both);
         using (var scope = host.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE costs.invoice_lines SET amount = NULL WHERE invoice_id = {blank}");
-        var moneyless = await NextAsync(last, c);
-        Assert.Equal(0, Line(moneyless, "frozen", "entering").Count);
-        Assert.Equal(1, Line(moneyless, "frozen", "locked").Count);
+        var moneyless = await NextAsync(last);
+        Assert.Equal(Line(both, "frozen", "entering").Count - 1, Line(moneyless, "frozen", "entering").Count);
+        Assert.Equal(1, Math.Sign(Line(moneyless, "frozen", "entering").Count));
+        Assert.Equal(Line(both, "frozen", "entering").Count, Line(moneyless, "frozen", "locked").Count);
         Assert.Null(Link(moneyless));
     }
 
