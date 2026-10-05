@@ -183,6 +183,7 @@ public sealed class CostsModule : IAppModule
         // контейнера («Cannot consume scoped service … from singleton»), то есть приложение не
         // поднимается вовсе — и это лучше, чем объявление, прочитанное однажды и устаревшее.
         services.AddSingleton<IModuleActivityActions, InvoiceActions>();
+        services.AddSingleton<IModuleActivityActions, WaybillActions>();
 
         // Стройки и статьи — цели разноски (F3, issue #1087). Областью запроса: читает порты ядра, а те
         // живут областью запроса.
@@ -235,6 +236,7 @@ public sealed class CostsModule : IAppModule
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
         ArticleEndpoints.MapArticles(endpoints);
+        WaybillEndpoints.MapWaybills(endpoints);
     }
 
     /// <summary>

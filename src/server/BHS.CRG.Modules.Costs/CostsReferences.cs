@@ -16,8 +16,22 @@ public static class CostsReferences
     private static ReferenceDocument Invoice(string via) =>
         new("invoices", "number", via, "счета", "costs.invoice.read");
 
+    /// <summary>Чем назвать накладную — под её правом чтения, а не правом на счета (COST-29).</summary>
+    private static ReferenceDocument Waybill(string via) =>
+        new("waybills", "number", via, "накладные", "costs.waybill.read");
+
     public static IReadOnlyList<ModuleReference> All =>
     [
+        // Накладные (D1, issue #1083).
+        ModuleReference.Holding("waybills", "construction_id", ReferenceTarget.Construction,
+            "накладные на эту стройку", Waybill("id")),
+        ModuleReference.Holding("waybill_lines", "nomenclature_id", ReferenceTarget.Record,
+            "строки накладных с этой позицией номенклатуры", Waybill("waybill_id")),
+        ModuleReference.Remembering("waybills", "created_by", ReferenceTarget.User,
+            "кто завёл накладную — справочное поле; удаление учётной записи накладных не касается"),
+        ModuleReference.Remembering("waybills", "posted_by", ReferenceTarget.User,
+            "кто провёл накладную — справочное поле; удаление учётной записи накладных не касается"),
+
         ModuleReference.Holding("invoices", "supplier_id", ReferenceTarget.Record,
             "счета этого поставщика", Invoice("id")),
         ModuleReference.Holding("invoices", "payer_id", ReferenceTarget.Record,
