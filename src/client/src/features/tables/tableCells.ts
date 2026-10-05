@@ -1,7 +1,7 @@
 import { columnUnavailable, type GridState } from '@/shared/ui/dataGridStates';
 import type { DataGridColumn } from '@/shared/ui/DataGrid';
 import { formatDateRu } from '@/shared/utils/date';
-import type { TableColumn, TableData, TableDeclaration } from '@/shared/api/tables';
+import type { TableBreakdown, TableColumn, TableData, TableDeclaration } from '@/shared/api/tables';
 
 /**
  * Таблица модуля → общая сетка (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092): колонки, клетки,
@@ -109,4 +109,28 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (tens > 10 && tens < 20) return many;
   if (units === 1) return one;
   return units >= 2 && units <= 4 ? few : many;
+}
+
+/** «Счёт целиком» — зерно таблицы с заглавной: что именно сложено, называет сама таблица. */
+export function wholeLabel(grain: string): string {
+  return grain ? `${grain[0].toUpperCase()}${grain.slice(1)} целиком` : 'Строка целиком';
+}
+
+/**
+ * Суммы расшифровки так, как их читает человек. «В отборе» есть только под сужающим отбором — без
+ * него строка и так целая, и вторая цифра читалась бы как «чего-то не хватает». Под сужающим она
+ * есть ВСЕГДА, даже пустая: «отбор не назвал из этой строки ничего» — ответ, а не отсутствие ответа.
+ */
+export function breakdownTotals(
+  breakdown: Pick<TableBreakdown, 'totals' | 'narrowed'> & Partial<Pick<TableBreakdown, 'columns'>>, grain: string,
+): { key: string; label: string; value: string }[] {
+  const money = (value: number | null) => (value === null ? '—' : cellText(value, 'number'));
+  // Сумм несколько — каждая называет свою колонку: две пары «целиком / в отборе» иначе неразличимы.
+  const of = (column: string) => (breakdown.totals.length > 1
+    ? ` · ${breakdown.columns?.find(c => c.key === column)?.label ?? column}` : '');
+  return breakdown.totals.flatMap(total => [
+    { key: `${total.column}:whole`, label: wholeLabel(grain) + of(total.column), value: money(total.whole) },
+    ...(breakdown.narrowed
+      ? [{ key: `${total.column}:named`, label: `В отборе${of(total.column)}`, value: money(total.named) }] : []),
+  ]);
 }

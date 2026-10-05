@@ -155,12 +155,16 @@ public sealed record ModuleTableQuery(
 /// строке: строка — это значения колонок, и набор данных, читающий ту же таблицу, получил бы
 /// служебный ключ лишней колонкой. null — служба ключей не называет, и строка на экране не
 /// открывается: это сказано, а не угадано по номеру строки на странице.</param>
+/// <param name="Breakdown">Расшифровка строки — только в ответе на запрос ОДНОЙ строки
+/// (<see cref="ModuleTableQuery.Row" />) и только у таблицы, которая её объявила
+/// (<see cref="ModuleTable.Breakdown" />). Со страницей — ошибка модуля, а не лишнее поле.</param>
 public sealed record ModuleTablePage(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     int Count,
     IReadOnlyDictionary<string, TableTotal> Totals,
     IReadOnlyDictionary<string, string>? Notes = null,
-    IReadOnlyList<string>? Keys = null);
+    IReadOnlyList<string>? Keys = null,
+    TableRowBreakdown? Breakdown = null);
 
 /// <summary>
 /// Итог по колонке — по всему отбору (ТЗ CORE-33).

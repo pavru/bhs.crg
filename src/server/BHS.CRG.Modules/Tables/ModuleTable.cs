@@ -127,6 +127,8 @@ public sealed record ModuleTableColumn(
 /// <param name="Views">Готовые представления таблицы — её настройки, которые поставляет модуль
 /// (<see cref="ModuleTableView" />): «Реестр счетов» у таблицы счетов. null — готовых нет, и таблица
 /// открывается всеми колонками в порядке объявления.</param>
+/// <param name="Breakdown">Расшифровка строки — её нижнее зерно в боковой панели
+/// (<see cref="ModuleTableBreakdown" />): «Разноска» у счёта. null — строка не расшифровывается.</param>
 public sealed record ModuleTable(
     string Code,
     string Title,
@@ -137,7 +139,8 @@ public sealed record ModuleTable(
     IReadOnlyList<ModuleTableColumn> Columns,
     Type Reader,
     string? RecordType = null,
-    IReadOnlyList<ModuleTableView>? Views = null)
+    IReadOnlyList<ModuleTableView>? Views = null,
+    ModuleTableBreakdown? Breakdown = null)
 {
     /// <summary>Полный адрес таблицы: <c>модуль.таблица</c>.</summary>
     public static string Address(string module, string code) => $"{module}.{code}";
@@ -203,6 +206,8 @@ public sealed record ModuleTable(
         foreach (var twice in (Views ?? []).Where(v => v is not null)
                      .GroupBy(v => v.Code, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
             problems.Add($"представление «{twice.Key}» объявлено дважды");
+
+        if (Breakdown is not null) problems.AddRange(Breakdown.Problems(Columns));
 
         return problems;
     }
