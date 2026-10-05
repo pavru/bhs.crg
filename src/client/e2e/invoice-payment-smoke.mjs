@@ -231,8 +231,14 @@ await check('registry-row-opens-the-allocation', async () => {
   // «В отборе» равно клетке «Сумма» этой строки: одно число, а не два похожих.
   const named = text.split(/\s*\n\s*|\t/).map(l => l.trim()).filter(Boolean);
   const total = named[named.indexOf('В отборе') + 1];
-  const cell = (await row.innerText()).replace(/[  ]/g, ' ');
-  if (!total || !cell.includes(total)) throw new Error(`«В отборе» — ${total}, а в строке реестра такого числа нет: ${cell.slice(0, 200)}`);
+  // Сравниваем с клеткой ИМЕННО колонки «Сумма», а не ищем число в строке: «300» нашлось бы и в
+  // «Сумме к оплате», и в «Суммах по периодам» — и проверка была бы зелёной при любом расхождении.
+  const headers = await page.locator('thead th').allInnerTexts();
+  const at = headers.findIndex(h => /^Сумма(\s*\(|$)/.test(h.trim()));
+  if (at < 0) throw new Error(`в реестре нет колонки «Сумма»: ${headers.join(' | ')}`);
+  const flat = value => value.replace(/\s/g, ' ').trim();
+  const cell = flat(await row.locator('td').nth(at).innerText());
+  if (!total || cell !== flat(total)) throw new Error(`«В отборе» — ${total}, а в клетке «Сумма» — ${cell}`);
 });
 
 // ── 3. Запертый счёт говорит почему, и действий над ним нет ────────────────────────────────────────

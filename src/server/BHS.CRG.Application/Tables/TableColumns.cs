@@ -216,9 +216,11 @@ public record TableDto(
 /// <param name="Narrowed">Отбор сужает строку до части — у строк расшифровки есть смысл «в отборе».</param>
 /// <param name="Totals">Суммы числовых колонок; закрытой колонки среди них нет.</param>
 /// <param name="Note">Оговорка под заголовком; null — её нет либо часть расшифровки человеку закрыта.</param>
+/// <param name="Refusal">Почему блок не показан: сумма расшифровки не сошлась с клеткой строки. Тогда
+/// колонок и строк нет — отказ выглядит отказом, а не пустой разноской. null — блок годен.</param>
 public record TableBreakdownDto(
     string Title, IReadOnlyList<TableBreakdownColumnDto> Columns, IReadOnlyList<TableBreakdownRowDto> Rows,
-    bool Narrowed, IReadOnlyList<TableBreakdownTotalDto> Totals, string? Note = null);
+    bool Narrowed, IReadOnlyList<TableBreakdownTotalDto> Totals, string? Note = null, string? Refusal = null);
 
 /// <summary>Колонка расшифровки; закрытая приходит с причиной и без значений — как колонка таблицы.</summary>
 public record TableBreakdownColumnDto(string Key, string Label, string Kind, string? Unavailable = null, string? Reason = null);

@@ -12,6 +12,16 @@ import { breakdownTotals, cellText } from './tableCells';
 export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; grain: string }) {
   const totals = breakdownTotals(breakdown, grain);
 
+  // Блок не сошёлся со строкой — на его месте отказ, а не пустая разноска: «строк нет» читалось бы
+  // как «счёт не разнесён».
+  if (breakdown.refusal)
+    return (
+      <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-stroke">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
+        <p role="alert" className="mt-0.5 text-sm text-danger">{breakdown.refusal}</p>
+      </section>
+    );
+
   return (
     <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-stroke">
       <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
@@ -30,6 +40,9 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
           </tr>
         </thead>
         <tbody>
+          {breakdown.rows.length === 0 && (
+            <tr><td colSpan={breakdown.columns.length} className="py-0.5 text-fg3">Строк нет.</td></tr>
+          )}
           {breakdown.rows.map((row, i) => (
             <tr key={i} className={row.named ? 'font-medium text-fg1' : 'text-fg2'}>
               {breakdown.columns.map(c => (
@@ -52,7 +65,7 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
       {totals.length > 0 && (
         <dl className="mt-1.5 pt-1.5 border-t border-stroke/60 text-sm">
           {totals.map(total => (
-            <div key={total.label} className="flex justify-between gap-3">
+            <div key={total.key} className="flex justify-between gap-3">
               <dt className="text-fg3">{total.label}</dt>
               <dd className="tabular-nums text-fg1">{total.value}</dd>
             </div>

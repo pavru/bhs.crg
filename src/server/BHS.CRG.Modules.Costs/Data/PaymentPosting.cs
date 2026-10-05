@@ -155,10 +155,13 @@ public static class PaymentPosting
             dated = dated.Append((on, rest));
 
         return [.. dated
-            .GroupBy(d => new DateOnly(d.On.Year, d.On.Month, 1))
+            .GroupBy(d => MonthOf(d.On))
             .OrderBy(g => g.Key)
             .Select(g => new PostedMonth(g.Key, g.Sum(d => d.Amount)))];
     }
+
+    /// <summary>Учётный месяц дня — первым своим числом: так месяц назван везде, где он группирует деньги.</summary>
+    public static DateOnly MonthOf(DateOnly day) => new(day.Year, day.Month, 1);
 
     /// <summary>Что записано сейчас — снимок до правки.</summary>
     public static PostedBefore Before(Invoice invoice, IEnumerable<InvoiceAllocation> parts) => new(

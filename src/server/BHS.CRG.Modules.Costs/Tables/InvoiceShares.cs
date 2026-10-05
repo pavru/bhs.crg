@@ -28,7 +28,8 @@ internal sealed class InvoiceShares(IReadOnlyDictionary<Guid, string> labels)
     /// <summary>Как названа цель, которой больше нет, — стройку удалили в ядре, статью — в справочнике.</summary>
     public const string Lost = "объект удалён";
 
-    private static readonly StringComparer ByName = StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true);
+    /// <summary>Порядок объектов по названию — один на колонку «Объект» и на расшифровку строки.</summary>
+    internal static readonly StringComparer ByName = StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true);
 
     /// <summary>Объект части: стройка или статья вне строек — ровно одно из двух (держит база).</summary>
     public string Label(InvoiceAllocation part) =>

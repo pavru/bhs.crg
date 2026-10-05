@@ -114,6 +114,8 @@ export interface TableBreakdown {
   totals: { column: string; whole: number | null; named: number | null }[];
   /** Оговорка под заголовком: «счёт не оплачен — в затраты не вошёл». */
   note: string | null;
+  /** Почему блок не показан (сумма расшифровки не сошлась со строкой); тогда колонок и строк нет. */
+  refusal?: string | null;
 }
 
 export interface TableSort {

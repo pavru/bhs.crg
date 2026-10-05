@@ -1,4 +1,3 @@
-using System.Globalization;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Tables;
@@ -34,8 +33,6 @@ internal static class InvoiceBreakdown
     public const string Correction = "Поправка: строки больше суммы к оплате";
 
     public const string UnpaidNote = "счёт не оплачен — в затраты не вошёл";
-
-    private static readonly StringComparer ByName = StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true);
 
     public static ModuleTableBreakdown Declaration { get; } = new(
         "Разноска",
@@ -74,20 +71,26 @@ internal static class InvoiceBreakdown
         var rows = parts
             .Select(p => (Part: p, Amount: money.GetValueOrDefault(p.Id), Month: Month(p.AccountingOn)))
             .GroupBy(p => (Label: shares.Label(p.Part), p.Month))
-            .OrderBy(g => g.Key.Label, ByName).ThenBy(g => g.Key.Month)
+            .OrderBy(g => g.Key.Label, InvoiceShares.ByName).ThenBy(g => g.Key.Month)
             .Select(g => Row(g.Key.Label, g.Any(p => p.Amount is not null) ? g.Sum(p => p.Amount ?? 0) : null, g.Key.Month,
                 g.Any(p => Named(p.Part, p.Part.AccountingOn, p.Amount is not null))))
             .ToList();
 
+        // Остаток существует только из-за денег, и само его название — факт о суммах («строки больше
+        // суммы к оплате»): тому, кому суммы закрыты, строка не приходит (ревью PR #1197). У счёта без
+        // разноски она есть и при нулевой сумме: иначе в блоке не было бы ни одной строки.
         var rest = total - money.Values.Sum(amount => amount ?? 0);
-        if (rest != 0)
+        if (rest != 0 || parts.Count == 0)
             rows.Add(Row(parts.Count == 0 ? NotAllocated : rest < 0 ? Correction : Unallocated, rest,
-                Month(invoice.RemainderAccountingOn), Named(null, invoice.RemainderAccountingOn, true)));
+                Month(invoice.RemainderAccountingOn), Named(null, invoice.RemainderAccountingOn, true)) with
+            {
+                Follows = InvoiceTable.AmountKey,
+            });
 
         return new(rows, narrowed, invoice.Payment == InvoicePaymentState.Paid ? null : UnpaidNote);
     }
 
-    private static DateOnly? Month(DateOnly? day) => day is { } on ? new DateOnly(on.Year, on.Month, 1) : null;
+    private static DateOnly? Month(DateOnly? day) => day is { } on ? PaymentPosting.MonthOf(on) : null;
 
     private static TableBreakdownRow Row(string label, decimal? amount, DateOnly? month, bool named) => new(
         new Dictionary<string, object?>(StringComparer.Ordinal)

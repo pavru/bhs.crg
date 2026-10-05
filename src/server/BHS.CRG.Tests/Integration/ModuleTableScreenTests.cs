@@ -144,9 +144,10 @@ public sealed class ModuleTableScreenTests(InvoiceLineHost host) : InvoiceLineTe
         var share = closed.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("key").GetString() == "Доля");
         Assert.Equal("no-right", share.GetProperty("unavailable").GetString());
         Assert.Equal("нет права на суммы", share.GetProperty("reason").GetString());
-        var row = Assert.Single(closed.GetProperty("rows").EnumerateArray()).GetProperty("values");
-        Assert.True(row.TryGetProperty("Объект", out _));
-        Assert.False(row.TryGetProperty("Доля", out _));
+        // У счёта без разноски строка одна — остаток, и существует она только из-за денег: само её
+        // название было бы фактом о суммах, поэтому тому, кому они закрыты, она не приходит.
+        Assert.Single(seen.GetProperty("rows").EnumerateArray());
+        Assert.Empty(closed.GetProperty("rows").EnumerateArray());
         Assert.Empty(closed.GetProperty("totals").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, closed.GetProperty("note").ValueKind);
     }

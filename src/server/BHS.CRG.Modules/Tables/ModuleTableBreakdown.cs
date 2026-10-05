@@ -109,11 +109,22 @@ public sealed record TableBreakdownSum(string Column, string Named, string? Whol
 /// Отдельным признаком, а не «названы все»: «называть нечем» и «названо всё» — разные ответы.</param>
 /// <param name="Note">Оговорка под заголовком: «счёт не оплачен — в затраты не вошёл». Свободный
 /// текст модуля ядро вычистить не может — поэтому не отдаёт его вовсе, если хоть одна колонка
-/// расшифровки человеку закрыта.</param>
+/// расшифровки человеку закрыта.
+///
+/// <para>⚠️ Суммы строк ядро сверяет с клеткой строки (<see cref="TableBreakdownSum" />). Не сошлось —
+/// блок НЕ показывается, а на его месте стоит отказ, и расхождение пишется в журнал: две разные цифры
+/// рядом хуже отсутствия блока, а пятисотый ответ унёс бы и поля строки, которые ни в чём не виноваты.</para></param>
 public sealed record TableRowBreakdown(
     IReadOnlyList<TableBreakdownRow> Rows, bool Narrowed, string? Note = null);
 
 /// <summary>Строка расшифровки.</summary>
 /// <param name="Values">Значения по ключам объявленных колонок; незнакомый ключ — ошибка модуля.</param>
 /// <param name="Named">Эта часть названа отбором («в отборе»); вне сужающего отбора не читается.</param>
-public sealed record TableBreakdownRow(IReadOnlyDictionary<string, object?> Values, bool Named = false);
+/// <param name="Follows">
+/// Ключ колонки ТАБЛИЦЫ, чьим доступом закрыта строка ЦЕЛИКОМ: остаток «Не разнесено» существует только
+/// потому, что есть деньги, и само его название — факт о суммах. Вычистить из текста сумму ядро не
+/// может (ревью PR #1197), поэтому тому, кому колонка закрыта, такая строка не приходит вовсе.
+/// null — строка видна всем, кому открыта таблица.
+/// </param>
+public sealed record TableBreakdownRow(
+    IReadOnlyDictionary<string, object?> Values, bool Named = false, string? Follows = null);
