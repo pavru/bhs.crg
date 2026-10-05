@@ -227,6 +227,7 @@ public sealed class CostsModule : IAppModule
         AllocationEndpoints.MapAllocation(endpoints);
         AllocationMatrixEndpoints.Map(endpoints);
         PaymentEndpoints.Map(endpoints);
+        SiteCostsEndpoints.Map(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
         ArticleEndpoints.MapArticles(endpoints);

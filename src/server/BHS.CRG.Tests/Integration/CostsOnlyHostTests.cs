@@ -143,7 +143,6 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
             // costs.invoice.pay ушло в C5 (issue #1082) — отметка оплаты.
             ["costs.waybill.read"] = "адреса накладной — D1 (#1083)",
             ["costs.waybill.edit"] = "адреса накладной и загрузка 1С — D1 (#1083), D3 (#1084)",
-            ["costs.report.read"] = "реестр и затраты — G4 (#1097), G5 (#1098)",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
