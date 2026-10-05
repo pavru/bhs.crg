@@ -164,7 +164,7 @@ public static class TagCardinalityValidator
     }
 
     /// <summary>Потомок ли тип — по цепочке родителей, со страховкой от цикла.</summary>
-    private static bool IsDescendantOf(DocumentType type, Guid ancestorId, IReadOnlyList<DocumentType> all)
+    internal static bool IsDescendantOf(DocumentType type, Guid ancestorId, IReadOnlyList<DocumentType> all)
     {
         var visited = new HashSet<Guid>();
         var current = type.ParentId;
