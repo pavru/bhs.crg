@@ -248,6 +248,28 @@ export async function until(probe, { timeout = 10_000, every = 40 } = {}) {
   }
 }
 
+/**
+ * Запрос к приложению ТЕМ ЖЕ токеном, что у открытой страницы. Отказ не бросается — возвращается
+ * кодом: прогону под ролью бывает нужен именно он. Общий помощник заведён с `costs-smoke` (issue
+ * #1102); в старших наборах ещё живут свои копии — переносить их сюда по мере правок.
+ */
+export function callApi(page, method, path, body) {
+  return page.evaluate(async ([method, path, body]) => {
+    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+    const res = await fetch(`/api${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: body === null ? undefined : JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, body: text && res.ok ? JSON.parse(text) : text };
+  }, [method, path, body ?? null]);
+}
+
+/** Адрес «Реестра счетов» с готовым отбором — тем же видом, каким его собирает клиент. */
+export const registryAddress = filter =>
+  `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

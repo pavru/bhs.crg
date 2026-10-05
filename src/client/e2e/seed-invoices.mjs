@@ -30,6 +30,10 @@ export async function seedInvoices({ api, findType, ensureEntry, ensureUser, fie
   if (existing === null) return null;
 
   await seedNarrowUser({ api, ensureUser });
+  // Снабженец — вторая системная роль модуля (N1, issue #1102): вводит и разносит счета, оплату не
+  // отмечает. Под ним и под бухгалтером ходит `costs-smoke`. Здесь, а не в `seed.mjs`: без модуля
+  // учётная запись не нужна, а тот файл стоит на храповике размера.
+  await ensureUser(process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local', 'Семён Снабженцев', 'Supplier');
 
   // ⚠️ Тип счёта может быть ещё НЕ ЗАВЕДЁН, и это нормальный ход событий, а не сбой. Тип объявляет
   // модуль, но ссылается он на тип «Организация», который заводит человек — здесь его только что

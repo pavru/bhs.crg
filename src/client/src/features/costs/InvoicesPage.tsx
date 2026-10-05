@@ -77,9 +77,12 @@ export function InvoicesPage() {
               Статьи вне строек
             </Button>
           )}
-          <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
-            Новый счёт
-          </Button>
+          {/* Заводит счета тот, кто их вводит: бухгалтеру кнопка была бы дверью в отказ (N1, #1102). */}
+          {hasPermission(access, 'costs.invoice.edit') && (
+            <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
+              Новый счёт
+            </Button>
+          )}
           {articlesOpen && <ArticlesDialog onClose={() => setArticlesOpen(false)} />}
         </div>
       }

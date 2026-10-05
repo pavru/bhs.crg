@@ -33,12 +33,15 @@ import { AllocationSummary, LineAllocationCell } from './LineAllocation';
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view, locked }: {
+export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   view: InvoiceView;
   /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не
    *  приглушены; причину называет полоса вверху формы. */
   locked: boolean;
+  /** Права вводить счета нет: строки читаются так же, но разноска остаётся за своим правом. */
+  readOnly?: boolean;
 }) {
+  const still = locked || readOnly;
   const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
   const [dirty, setDirty] = useState(false);
   const replace = useReplaceInvoiceLines();
@@ -87,7 +90,7 @@ export function InvoiceLinesTable({ view, locked }: {
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
         <div className="flex-1" />
-        {!locked && (
+        {!still && (
           <>
             <InvoiceLinesPaste onAdd={add} />
             <Button size="sm" variant="outlined" icon={<Plus size={13} />} onClick={() => add([emptyDraft()])}>
@@ -133,7 +136,7 @@ export function InvoiceLinesTable({ view, locked }: {
                   <Row key={draft.key} draft={draft} number={index + 1} invoiceId={view.id}
                     line={view.lines.find(line => line.id === draft.id)}
                     blocked={dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null}
-                    locked={locked}
+                    locked={still} allocationLocked={locked}
                     onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
                 ))}
               </tbody>
@@ -144,7 +147,7 @@ export function InvoiceLinesTable({ view, locked }: {
       <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty} />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {locked ? null : parsed
+        {still ? null : parsed
           ? (
             <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
               onClick={() => move('draft')}>
@@ -215,7 +218,7 @@ function Reconciliation({ sums, paper, difference, unsaved }: {
   );
 }
 
-function Row({ draft, number, invoiceId, line, blocked, locked, onEdit, onRemove }: {
+function Row({ draft, number, invoiceId, line, blocked, locked, allocationLocked, onEdit, onRemove }: {
   draft: LineDraft;
   number: number;
   invoiceId: string;
@@ -223,12 +226,15 @@ function Row({ draft, number, invoiceId, line, blocked, locked, onEdit, onRemove
   line: InvoiceLineView | undefined;
   blocked: string | null;
   locked: boolean;
+  /** Разноску запирает только закрытый период: без права на счета её по-прежнему решает своё право. */
+  allocationLocked: boolean;
   onEdit: (patch: Partial<LineDraft>) => void;
   onRemove: () => void;
 }) {
   const shown = preview(draft);
 
-  if (locked) return <LockedRow draft={draft} number={number} invoiceId={invoiceId} line={line} />;
+  if (locked)
+    return <LockedRow draft={draft} number={number} invoiceId={invoiceId} line={line} allocationLocked={allocationLocked} />;
 
   return (
     <tr className="border-t border-stroke align-top">
@@ -281,8 +287,8 @@ function Row({ draft, number, invoiceId, line, blocked, locked, onEdit, onRemove
  * Строка запертого счёта — текстом, без полей: править её нельзя, и поле, в которое можно печатать,
  * обещало бы обратное. Разноска открывается — посмотреть.
  */
-function LockedRow({ draft, number, invoiceId, line }: {
-  draft: LineDraft; number: number; invoiceId: string; line: InvoiceLineView | undefined;
+function LockedRow({ draft, number, invoiceId, line, allocationLocked }: {
+  draft: LineDraft; number: number; invoiceId: string; line: InvoiceLineView | undefined; allocationLocked: boolean;
 }) {
   const shown = preview(draft);
   const text = (value: string, numeric = false) => (
@@ -304,7 +310,7 @@ function LockedRow({ draft, number, invoiceId, line }: {
       {text(draft.vatAmount || (shown.vat === null ? '' : formatNumber(shown.vat)), true)}
       {text(draft.amount || (shown.amount === null ? '' : formatNumber(shown.amount)), true)}
       {text(draft.note)}
-      <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={null} locked />
+      <LineAllocationCell invoiceId={invoiceId} line={line} number={number} blocked={null} locked={allocationLocked} />
       <td />
     </tr>
   );

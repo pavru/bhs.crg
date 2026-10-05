@@ -8,6 +8,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { apiError } from '@/shared/utils/apiError';
+import { useCan } from '@/shared/api/access';
 import {
   useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
@@ -62,7 +63,12 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const dirty = Object.keys(edits).length > 0;
 
   // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
-  const locked = view.payment.lockedBy !== null;
+  const closed = view.payment.lockedBy !== null;
+  // Без права вводить счета (бухгалтер) форма читается так же, как запертая: действий записи нет вовсе,
+  // а не «есть и откажут» — каждое из них ответило бы 403 (N1, issue #1102). Разноска и оплата — свои
+  // права, их это не касается.
+  const canEdit = useCan().permission('costs.invoice.edit');
+  const locked = closed || !canEdit;
 
   const scan = useMemo(() => scanOf(view), [view]);
   const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
@@ -107,7 +113,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           <StateChip text={asInput(view.requisites[K.state])} />
           <StateChip text={view.payment.paid && view.payment.paidOn
             ? `Оплачен ${formatDate(view.payment.paidOn)}` : asInput(view.requisites[K.payment])} />
-          {locked && <StateChip text="Заперт" />}
+          {closed && <StateChip text="Заперт" />}
           {view.unconfirmed.length > 0 && (
             <span className="inline-flex items-center gap-1 text-xs text-warning">
               <Sparkles size={12} /> распознано, не подтверждено: {view.unconfirmed.length}
@@ -116,14 +122,16 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           <div className="flex-1" />
           {/* К запертому счёту скан приложить можно, заменить — нельзя: замена удалила бы документ
               закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
-          {locked && scan !== null
-            ? <span className="text-xs text-fg3">Скан заменить нельзя: документ закрытого периода</span>
-            : (
-              <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
-                onPick={file => {
-                  attach.mutateAsync({ id: view.id, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
-                }} />
-            )}
+          {!canEdit && <span className="text-xs text-fg3">Только чтение: права вводить счета нет</span>}
+          {canEdit && closed && scan !== null && (
+            <span className="text-xs text-fg3">Скан заменить нельзя: документ закрытого периода</span>
+          )}
+          {canEdit && !(closed && scan !== null) && (
+            <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
+              onPick={file => {
+                attach.mutateAsync({ id: view.id, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
+              }} />
+          )}
           {!locked && (
             <Button variant="filled" size="sm" icon={<Save size={14} />} disabled={!dirty}
               loading={update.isPending} onClick={save}>
@@ -157,7 +165,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
         {/* Объект — в шапке, без прокрутки (ТЗ COST-6.2): для большинства счетов разноска на нём и
             заканчивается. */}
-        <InvoiceObject view={view} locked={locked} />
+        <InvoiceObject view={view} locked={closed} />
       </div>
 
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
@@ -178,7 +186,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
-        <InvoiceLinesTable view={view} locked={locked} />
+        <InvoiceLinesTable view={view} locked={closed} readOnly={!canEdit} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
