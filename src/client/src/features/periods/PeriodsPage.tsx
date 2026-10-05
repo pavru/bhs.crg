@@ -156,9 +156,16 @@ function CloseDialog({ state, name, today, onDone }: {
   // сравнивать уже не с чем.
   const [refused, setRefused] = useState<{ dates: string; sections: ClosingSection[] } | null>(null);
 
+  // Закрытие отправлено: перечень больше не спрашиваем. После успеха граница контура сдвигается, начало
+  // следующего периода оказывается ПОЗЖЕ выбранного конца, и диалог, не успевший закрыться, спросил бы
+  // перечень «наоборот» — сервер ответил бы отказом поверх удавшегося закрытия. Запрет перечитывать
+  // кеш (см. useClosePeriod) от этого не спасает: у запроса с новым началом другой ключ. Успевал ли
+  // запрос уйти, решала скорость машины — так живой прогон и краснел на раннере, а не на стенде.
+  const [sent, setSent] = useState(false);
+
   const from = state.expectedFrom ?? firstFrom;
   const dates = `${from}|${through}`;
-  const preview = useClosingPreview(state, from, through);
+  const preview = useClosingPreview(state, from, through, !sent);
   // Закрыть можно только то, что видел: перечень получен, он — про эти даты, а не про прежние, и он
   // сейчас на экране. Упавший перезапрос оставляет прежние data, а показывает уже отказ — отпечаток
   // того, чего на экране нет, подтверждать нечем.
@@ -184,12 +191,15 @@ function CloseDialog({ state, name, today, onDone }: {
             onClick={async () => {
               setError(null);
               const shown = seen!;
+              setSent(true);
               try {
                 await close.mutateAsync({ state, from, through, report: shown.stamp });
                 const left = unfinishedSummary(shown.sections);
                 toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
                 onDone();
               } catch (e) {
+                // Отказ — перечень снова нужен: он перечитается, как только запрос включится.
+                setSent(false);
                 // 409 — границу или данные тем временем изменили: перечень перечитывается, и новому есть
                 // с чем сравниться.
                 if ((e as { response?: { status?: number } })?.response?.status === 409)
