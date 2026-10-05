@@ -499,7 +499,8 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         NullLogger<BackupService>.Instance,
         scope.ServiceProvider.GetRequiredService<IActivityLog>(),
         modules,
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Periods.IPeriodClosures>());
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Periods.IPeriodClosures>(),
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Objects.IRecordArchive>());
 
     /// <summary>Копия целиком в памяти: её читают дважды — как манифест и как вход восстановления.</summary>
     private static async Task<MemoryStream> ArchiveAsync(BackupService service, BackupScope scope)
@@ -555,7 +556,7 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
             JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"), false, now, now, null, false));
         db.DomainObjects.Add(DomainObject.Restore(
             objectId, typeId, "ООО Ромашка", JsonDocument.Parse("{}"),
-            CatalogScope.System, null, now, now));
+            CatalogScope.System, null, now, now, null, null));
         await db.SaveChangesAsync();
 
         return objectId;

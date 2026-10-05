@@ -129,11 +129,11 @@ public partial class BackupService
             CommonDataEntries: commonDataEntries.Select(e => new BackupCommonDataEntry(
                 e.Id, e.DisplayName ?? "", e.CompositeTypeId, e.Data.RootElement.Clone(),
                 e.ScopeLevel.ToString(), e.ScopeId,
-                e.CreatedAt, e.UpdatedAt, e.Aliases.ToArray())).ToArray(),
+                e.CreatedAt, e.UpdatedAt, e.Aliases.ToArray(), e.ArchivedAt)).ToArray(),
             PrimitiveTypes: primitiveTypes.Select(p => new BackupPrimitiveType(
                 p.Id, p.Name, p.Code, p.BaseType, p.Description,
                 p.Constraints.RootElement.Clone(),
-                p.CreatedAt, p.UpdatedAt, p.Group)).ToArray(),
+                p.CreatedAt, p.UpdatedAt, p.Group, p.AllowedTags.ToArray())).ToArray(),
             EnumTypes: enumTypes.Select(e => new BackupEnumType(
                 e.Id, e.Name, e.Code, e.Description, e.Values.RootElement.Clone(),
                 e.CreatedAt, e.UpdatedAt, e.Group)).ToArray(),
@@ -168,6 +168,7 @@ public partial class BackupService
                 q.ScanBlobPath, q.ScanFileName, q.ScanMimeType,
                 q.CreatedAt, q.UpdatedAt)).ToArray(),
             IncludesProjectData: full,
+            KnowsRecordArchive: true,
             Constructions: full ? constructions.Select(c => new BackupConstruction(
                 c.Id, c.Name, c.CreatedByUserId, c.ProfileObjectId, c.CreatedAt, c.UpdatedAt,
                 c.TimeZoneId, c.ExternalSystem, c.ExternalCode)).ToArray() : null,

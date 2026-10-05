@@ -134,7 +134,7 @@ public partial class BackupServiceTests
             // Адресат ссылки уже в системе.
             db.DomainObjects.Add(DomainObject.Restore(
                 documentId, compositeTypeId, "Существующий", JsonDocument.Parse("{}"),
-                CatalogScope.System, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+                CatalogScope.System, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, null));
             await db.SaveChangesAsync();
         }
 

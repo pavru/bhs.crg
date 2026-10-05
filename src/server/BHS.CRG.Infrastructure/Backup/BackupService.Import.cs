@@ -92,7 +92,8 @@ public partial class BackupService
             await RestoreDocumentSetsAsync(manifest.DocumentSets ?? [], stats, warnings, ct);
             // План — после комплектов (носитель) и после типов документов (на них ссылается).
             await RestoreDocumentSetPlansAsync(manifest.DocumentSetPlans ?? [], stats, warnings, ct);
-            await RestoreCommonDataEntriesAsync(manifest.CommonDataEntries, stats, warnings, ct);
+            await RestoreCommonDataEntriesAsync(
+                manifest.CommonDataEntries, manifest.KnowsRecordArchive == true, stats, warnings, ct);
             // Перечень работ — ПОСЛЕ общих данных: позиция ссылается на запись классификатора
             // и на единицу измерения, а это объекты общего типа. До них перечень уехал бы
             // в сироты целиком, с предупреждением «нет вида работы или единицы».

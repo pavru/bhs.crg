@@ -191,6 +191,9 @@ internal static class DomainRegistration
     builder.Services.AddScoped<BHS.CRG.Application.Objects.IScopeCascade, BHS.CRG.Application.Objects.ScopeCascade>();
     builder.Services.AddScoped<BHS.CRG.Application.Objects.IReferenceIndex,
         BHS.CRG.Infrastructure.Persistence.ReferenceIndex>();
+    // Признак архива записи справочника (issue #1185): единственный писатель колонки.
+    builder.Services.AddScoped<BHS.CRG.Application.Objects.IRecordArchive,
+        BHS.CRG.Infrastructure.Persistence.RecordArchive>();
     // Держатели записей ядра в данных модулей (issue #1094). Регистрируются всегда, а не модулем:
     // спрашивать надо и о выключенном модуле, и о схеме, чьего модуля в сборке нет.
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Persistence.ModuleReferenceScan>();

@@ -132,7 +132,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         t.Name.IndexOf('`') is var i && i > 0 ? t.Name[..i] : t.Name;
 
     /// <summary>Сущность → свойство манифеста, которым она представлена.</summary>
-    private static readonly Dictionary<string, string> CoveredByManifest = new()
+    internal static readonly Dictionary<string, string> CoveredByManifest = new()
     {
         ["AppSetting"] = nameof(BackupManifest.AppSettings),
         ["DocumentType"] = nameof(BackupManifest.DocumentTypes),
@@ -304,7 +304,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             Guid.NewGuid(), "Organization", "ООО Ромашка", JsonDocument.Parse("{}"), null, now, now));
         db.DomainObjects.Add(DomainObject.Restore(
             Guid.NewGuid(), compositeTypeId, "Общая запись", JsonDocument.Parse("{}"),
-            CatalogScope.System, null, now, now));
+            CatalogScope.System, null, now, now, null, null));
 
         db.TypstUserLibs.Add(TypstUserLib.Create("#let x() = []"));
         db.TypstUserLibFiles.Add(TypstUserLibFile.Restore(Guid.NewGuid(), "lib/a.typ", "#let a() = []", now, now));
@@ -356,10 +356,10 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         var unitObjectId = Guid.NewGuid();
         db.DomainObjects.Add(DomainObject.Restore(
             workTypeObjectId, compositeTypeId, "Прокладка кабеля", JsonDocument.Parse("{}"),
-            CatalogScope.System, null, now, now));
+            CatalogScope.System, null, now, now, null, null));
         db.DomainObjects.Add(DomainObject.Restore(
             unitObjectId, compositeTypeId, "м", JsonDocument.Parse("{}"),
-            CatalogScope.System, null, now, now));
+            CatalogScope.System, null, now, now, null, null));
         db.WorkPlanItems.Add(WorkPlanItem.Restore(
             Guid.NewGuid(), workTypeObjectId, constructionId, sectionId, unitObjectId, now, now));
 

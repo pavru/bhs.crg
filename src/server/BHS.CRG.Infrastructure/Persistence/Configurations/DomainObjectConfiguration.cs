@@ -1,5 +1,6 @@
 using BHS.CRG.Domain.Objects;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BHS.CRG.Infrastructure.Persistence.Configurations;
@@ -19,6 +20,13 @@ public class DomainObjectConfiguration : IEntityTypeConfiguration<DomainObject>
         b.Property(e => e.ScopeId);
         b.HasIndex(e => new { e.ScopeLevel, e.ScopeId });
         b.HasIndex(e => e.CompositeTypeId);
+
+        // Признак архива (issue #1185) обычное сохранение НЕ пишет: после вставки колонка для него
+        // не существует. Запись сохраняется целиком (Repository.Update — это DbSet.Update, а
+        // восстановление копии ставит EntityState.Modified на свежую сущность), и без этого любая
+        // правка, прочитанная до архива, а сохранённая после, сняла бы архив молча. Меняет колонку
+        // одна служба — RecordArchive, условным ExecuteUpdate.
+        b.Property(e => e.ArchivedAt).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
 
         // Passthrough-коллекция документной фасеты — НЕ навигация объекта (иначе EF заведёт лишний
         // теневой FK generated_files.DomainObjectId). Файлы висят на фасете (см. DocumentFacetConfiguration).
