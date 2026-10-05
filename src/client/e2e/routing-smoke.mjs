@@ -21,7 +21,9 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/routing-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, clearSession, createChecks, watchRequests, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, clearSession, createChecks, watchRequests, settled, callApi, registryAddress }
+  from './harness.mjs';
+import { TABLE_SEED } from './seed-invoices.mjs';
 
 const USER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
@@ -368,6 +370,58 @@ try {
     await userPage.goto(`${BASE}/activity`);
     await userPage.waitForSelector('text=недоступен', { timeout: 5000 });
     await userPage.waitForSelector('text=core.audit.read', { timeout: 5000 });
+  });
+
+  // ── Человек без модуля счетов не находит счёт ни одним путём этапа 2 (H1, issue #1104) ──
+  //
+  // Суммы закрыты МЕСТОМ ХРАНЕНИЯ (счёт лежит в таблице модуля, общими путями его не прочитать), и
+  // держат это сторожа сборки. Здесь — живое подтверждение по путям, которые этап добавил: экран
+  // счетов, таблица модуля и её реестр, диалог закрытия периода с историей, журнал действий. XLSX и
+  // загрузки 1С в модуле ещё нет — приедут со своими задачами и встанут сюда же.
+  //
+  // ⚠️ Под тем же пользователем, что и проверки выше, и без второго входа: входы прогонов считаны.
+  await check('outsider-finds-no-invoice-by-any-stage-path', async () => {
+    const access = await callApi(userPage, 'GET', '/account/access');
+    const own = (access.body?.permissions ?? []).filter(code => code.startsWith('costs.'));
+    if (access.status !== 200 || own.length)
+      throw new Error(`у пользователя есть права модуля счетов (${own.join(', ') || access.status}) — `
+        + 'проверять «без модуля» не на ком');
+
+    // Каждый путь отвечает отказом, а не пустым списком: пустой список не отличить от «счетов нет».
+    const doors = [
+      ['GET', '/costs/invoices'],
+      ['GET', '/tables/costs.invoices/columns'],
+      ['GET', '/periods/history'],
+      ['POST', '/periods/close/preview', { contour: 'Company', from: '2026-09-01', through: '2026-09-30' }],
+      ['GET', '/activity'],
+    ];
+    for (const [method, path, body] of doors) {
+      const answer = await callApi(userPage, method, path, body);
+      if (answer.status !== 403)
+        throw new Error(`${method} ${path} ответил ${answer.status}, а не отказом: `
+          + String(JSON.stringify(answer.body)).slice(0, 200));
+    }
+
+    // Открытый ему путь — системные наборы данных — таблицу счетов не предлагает и посеянных счетов
+    // не называет: таблица модуля как набор отдаётся правами читающего.
+    const sets = await callApi(userPage, 'GET', '/datasets/system-candidates?scope=System');
+    if (sets.status !== 200) throw new Error(`системные наборы не прочитаны: ${sets.status}`);
+    const offered = JSON.stringify(sets.body);
+    for (const sign of ['costs.invoices', TABLE_SEED.purpose])
+      if (offered.includes(sign))
+        throw new Error(`среди системных наборов человеку без модуля виден «${sign}»`);
+
+    // И экраны: отказ страницей, без строк.
+    for (const address of [`${BASE}/invoices`, registryAddress({ type: 'condition', column: 'Номер', op: 'eq', value: 'x' })]) {
+      await userPage.goto('about:blank');
+      await userPage.goto(address);
+      await settled(userPage);
+      const text = await userPage.locator('body').innerText();
+      if (!/недоступ|нет доступа|нет права/i.test(text))
+        throw new Error(`экран ${new URL(address).pathname} не отвечает отказом: ${text.slice(0, 200)}`);
+      if (text.includes(TABLE_SEED.purpose))
+        throw new Error(`на экране ${new URL(address).pathname} видны посеянные счета`);
+    }
   });
   await userContext.close();
 } finally {

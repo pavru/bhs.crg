@@ -97,7 +97,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             .RecordAsync(action, targetId: "42", targetLabel: "Счёт № 42", before: "не оплачен", after: "оплачен");
 
         var written = await scope.ServiceProvider.GetRequiredService<IActivityLog>()
-            .ReadAsync(0, 50, action.Code);
+            .ReadAsync(0, 50, ActivityVisibility.Whole, action.Code);
 
         var record = Assert.Single(written);
         Assert.Equal("Счёт № 42", record.TargetLabel);
@@ -186,7 +186,8 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         IModuleActivityActions[] declarations = [new ProbeModuleActivity(), new BrokenActions(code, title)];
 
         var refusal = Assert.Throws<InvalidOperationException>(
-            () => new ActivityActionCatalog(declarations, modules));
+            () => new ActivityActionCatalog(declarations, modules,
+                host.Services.GetRequiredService<PermissionCatalog>()));
 
         Assert.Contains(expected, refusal.Message);
     }

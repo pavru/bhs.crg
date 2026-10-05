@@ -25,10 +25,18 @@ namespace BHS.CRG.Api.Activity;
 /// </summary>
 public sealed class ActivityActionCatalog
 {
-    private readonly Dictionary<string, ActivityAction> _byCode;
+    /// <summary>Владелец действий ядра — первая часть их кода.</summary>
+    public const string CoreOwner = "core";
 
-    public ActivityActionCatalog(IEnumerable<IModuleActivityActions> declarations, ModuleRegistry modules)
+    private readonly Dictionary<string, ActivityAction> _byCode;
+    // Право чтения записи — только у действий, которые его назвали.
+    private readonly Dictionary<string, string> _readPermission = new(StringComparer.Ordinal);
+    private readonly ModuleRegistry _modules;
+
+    public ActivityActionCatalog(IEnumerable<IModuleActivityActions> declarations, ModuleRegistry modules,
+        PermissionCatalog permissions)
     {
+        _modules = modules;
         _byCode = ActivityActions.All.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
 
         foreach (var declared in declarations.SelectMany(d => d.Actions))
@@ -51,8 +59,38 @@ public sealed class ActivityActionCatalog
                     $"«{declared.Title}». Название берётся из каталога при чтении, поэтому второе " +
                     "объявление молча решало бы, как читается уже записанное.");
 
+            if (declared.ReadPermission is { } permission)
+            {
+                // Чужое или необъявленное право — отказ старта: такую запись не увидел бы никто, и
+                // выглядело бы это как «действий не было».
+                if (!permission.StartsWith(module + ".", StringComparison.Ordinal) || !permissions.Declares(permission))
+                    throw new InvalidOperationException(
+                        $"Действие журнала «{declared.Code}» закрыто правом «{permission}», а модуль " +
+                        $"«{module}» такого права не объявляет. Запись с таким действием не увидел бы " +
+                        "никто: право нельзя выдать ни одной роли.");
+
+                _readPermission[declared.Code] = permission;
+            }
+
             _byCode[declared.Code] = new ActivityAction(declared.Code, declared.Title);
         }
+    }
+
+    /// <summary>
+    /// Что из журнала видно обладателю этих прав (issue #1104): ядро, модули, которые ему открыты, — и
+    /// без действий, чьего права чтения у него нет. Сюда приходит уже вошедший в журнал: само право на
+    /// журнал проверяют ворота адреса.
+    /// </summary>
+    public ActivityVisibility VisibleTo(IReadOnlyCollection<string> granted)
+    {
+        var owners = _modules.Enabled.Select(m => m.Code)
+            .Where(code => ModuleAccess.IsOpen(code, granted))
+            .Prepend(CoreOwner);
+        var closed = _readPermission
+            .Where(p => !granted.Contains(p.Value, StringComparer.OrdinalIgnoreCase))
+            .Select(p => p.Key);
+
+        return ActivityVisibility.Of(owners, closed);
     }
 
     /// <summary>Объявлено ли действие — по нему порт журнала и отказывает незнакомому коду.</summary>
@@ -65,7 +103,15 @@ public sealed class ActivityActionCatalog
     /// </summary>
     public string Title(string code) => _byCode.GetValueOrDefault(code)?.Title ?? code;
 
-    /// <summary>Каталог для отбора на экране: ядро и включённые модули, по названию.</summary>
+    /// <summary>Каталог целиком: ядро и включённые модули, по названию.</summary>
     public IReadOnlyList<ActivityAction> All =>
         [.. _byCode.Values.OrderBy(a => a.Title, StringComparer.CurrentCulture)];
+
+    /// <summary>
+    /// Каталог для отбора на экране — только то, что читающему видно. Иначе отбор сам сообщал бы,
+    /// какие действия ведёт закрытый от него модуль, и предлагал бы строку, по которой ничего не
+    /// находится.
+    /// </summary>
+    public IReadOnlyList<ActivityAction> Shown(ActivityVisibility visible) =>
+        [.. All.Where(a => visible.Shows(a.Code))];
 }

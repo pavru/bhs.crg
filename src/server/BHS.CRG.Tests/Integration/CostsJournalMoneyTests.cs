@@ -204,7 +204,7 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
         var records = new List<ActivityRecord>();
         for (var skip = 0; ; skip += Page)
         {
-            var page = await journal.ReadAsync(skip, Page, action.Code);
+            var page = await journal.ReadAsync(skip, Page, ActivityVisibility.Whole, action.Code);
             records.AddRange(page.Where(r => r.TargetId is { } id && ids.Contains(id)));
             if (page.Count < Page) return records;
         }

@@ -488,7 +488,7 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> RecordsAsync(ActivityAction action)
     {
         using var scope = fixture.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 100, action.Code);
+        return await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 100, ActivityVisibility.Whole, action.Code);
     }
 
     /// <summary>Вход уже заведённой учётной записью — по почте.</summary>

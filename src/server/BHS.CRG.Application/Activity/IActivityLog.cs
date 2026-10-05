@@ -39,11 +39,12 @@ public interface IActivityLog
         string? before = null, string? after = null, CancellationToken ct = default);
 
     /// <summary>Страница журнала, новые записи первыми. <paramref name="action" /> — фильтр по коду действия.</summary>
-    Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, string? action = null,
+    Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, ActivityVisibility visible,
+        string? action = null,
         CancellationToken ct = default);
 
     /// <summary>Сколько записей отвечает фильтру: экран показывает «ещё N» и не врёт о конце списка.</summary>
-    Task<int> CountAsync(string? action = null, CancellationToken ct = default);
+    Task<int> CountAsync(ActivityVisibility visible, string? action = null, CancellationToken ct = default);
 
     /// <summary>Последняя запись такого действия — по ней сверяют состояние (состав модулей при старте).</summary>
     Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default);

@@ -162,7 +162,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
 
-        var before = await journal.CountAsync(ActivityActions.PeriodClosed.Code);
+        var before = await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code);
         await closures.CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
         await closures.ReopenAsync(new ReopenPeriod(Contour.Company, through, "закрыли не тот месяц"));
 
@@ -173,7 +173,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.Equal($"закрыто по {through:dd.MM.yyyy}", closed.After);
 
         // Сколько закрытий — столько и событий: журнал пишется в той же транзакции.
-        Assert.Equal(before + 1, await journal.CountAsync(ActivityActions.PeriodClosed.Code));
+        Assert.Equal(before + 1, await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code));
 
         var reopened = await journal.LastAsync(ActivityActions.PeriodReopened);
         Assert.NotNull(reopened);

@@ -240,8 +240,8 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
                 after: $"набор {i}", id: id, occurredAt: sameMoment))
             .ToList());
 
-        var first = await Journal(scope).ReadAsync(0, 5, ActivityActions.ModulesChanged.Code);
-        var second = await Journal(scope).ReadAsync(5, 5, ActivityActions.ModulesChanged.Code);
+        var first = await Journal(scope).ReadAsync(0, 5, ActivityVisibility.Whole, ActivityActions.ModulesChanged.Code);
+        var second = await Journal(scope).ReadAsync(5, 5, ActivityVisibility.Whole, ActivityActions.ModulesChanged.Code);
 
         // Без добивки по Id порядок при совпавшем времени задаёт база — и это порядок хранения,
         // то есть тот, в котором записи вставляли. Ожидаем обратный ему.
@@ -316,11 +316,12 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
                 ? throw new InvalidOperationException("журнал недоступен")
                 : inner.RecordAsync(action, targetId, targetLabel, before, after, ct);
 
-        public Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, string? action = null,
-            CancellationToken ct = default) => inner.ReadAsync(skip, take, action, ct);
+        public Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, ActivityVisibility visible,
+            string? action = null, CancellationToken ct = default) =>
+            inner.ReadAsync(skip, take, visible, action, ct);
 
-        public Task<int> CountAsync(string? action = null, CancellationToken ct = default) =>
-            inner.CountAsync(action, ct);
+        public Task<int> CountAsync(ActivityVisibility visible, string? action = null,
+            CancellationToken ct = default) => inner.CountAsync(visible, action, ct);
 
         public Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default) =>
             inner.LastAsync(action, ct);
@@ -385,7 +386,7 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private async Task<IReadOnlyList<ActivityRecord>> RecordsAsync(ActivityAction action)
     {
         using var scope = fixture.Services.CreateScope();
-        return await Journal(scope).ReadAsync(0, 100, action.Code);
+        return await Journal(scope).ReadAsync(0, 100, ActivityVisibility.Whole, action.Code);
     }
 
     /// <summary>Заводит пользователя с ролью и возвращает клиент с его токеном.</summary>

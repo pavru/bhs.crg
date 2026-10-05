@@ -131,7 +131,7 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     {
         using var scope = host.Services.CreateScope();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = await journal.ReadAsync(0, 200, "costs.invoice.lines");
+        var records = await journal.ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.lines");
         return records.Count(r => r.TargetId == invoice.ToString());
     }
 
