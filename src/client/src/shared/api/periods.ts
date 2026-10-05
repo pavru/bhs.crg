@@ -109,6 +109,11 @@ function contourOf(state: PeriodContourState) {
     : { contour: 'company' };
 }
 
+/** Можно ли спрашивать перечень закрытия: обе даты названы, и начало не позже конца (ISO-дни — строками). */
+export function canPreviewClosing(from: string, through: string): boolean {
+  return !!from && !!through && from <= through;
+}
+
 /**
  * Что покажет диалог закрытия (задача E1b, issue #1099): перечень по модулям и отпечаток увиденного.
  * Всегда с сервера и без кеша между открытиями диалога: закрывают по тому, что есть сейчас.
@@ -123,7 +128,7 @@ export function useClosingPreview(state: PeriodContourState, from: string, throu
     // а не в обработчике кнопки: начало периода сдвигается под открытым диалогом любым путём — своим
     // закрытием, чужим, перечитыванием состояния по фокусу окна, — и отказ появлялся бы красной строкой
     // поверх того, что на самом деле удалось (ревью PR #1212). Что даты перепутаны, говорит диалог.
-    enabled: !!from && !!through && from <= through,
+    enabled: canPreviewClosing(from, through),
     // Смена даты не гасит перечень: прежние числа стоят приглушёнными, пока не пришли новые.
     placeholderData: keepPreviousData,
     staleTime: 0,
