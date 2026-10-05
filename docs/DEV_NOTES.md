@@ -1688,6 +1688,7 @@ POST   /api/costs/invoices/{id}/paid          { paidOn, document?, seen }     co
                                       seen — stamp предпросмотра; без него 400, с устаревшим 409
 PUT    /api/costs/invoices/{id}/paid          { document }  — платёжный документ; дата так не меняется
 POST   /api/costs/invoices/{id}/unpaid        { reason }    — отмена отметки; причина обязательна
+GET    /api/costs/site-costs?site=&from=&to=&vat= → затраты за учётные месяцы  costs.report.read
                                       ⚠️ Оплаченный счёт с учётной датой в ЗАКРЫТОМ периоде заперт целиком:
                                       все PUT/POST счёта отвечают 409 «заперт: период закрыт по …»;
                                       исключение — POST …/scan, когда скана ещё нет
