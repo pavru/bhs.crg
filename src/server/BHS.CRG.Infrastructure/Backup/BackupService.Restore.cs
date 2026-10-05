@@ -25,11 +25,13 @@ public partial class BackupService
     private async Task RestorePrimitiveTypesAsync(
         BackupPrimitiveType[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
-        var existingIds = await db.PrimitiveTypes.Select(e => e.Id).ToHashSetAsync(ct);
         // Тэги существующих типов — на случай копии, которая о них не знает (снята до issue #1185):
-        // сущность пишется целиком, и без этого такая копия очищала бы тэги молча.
-        var existingTags = await db.PrimitiveTypes.AsNoTracking()
-            .ToDictionaryAsync(e => e.Id, e => e.AllowedTags, ct);
+        // сущность пишется целиком, и без этого такая копия очищала бы тэги молча. Читаются только
+        // идентификатор и тэги, одним запросом — из него же и «какие типы уже есть».
+        var existingTags = (await db.PrimitiveTypes.AsNoTracking()
+            .Select(e => new { e.Id, e.AllowedTags }).ToListAsync(ct))
+            .ToDictionary(e => e.Id, e => e.AllowedTags);
+        var existingIds = existingTags.Keys.ToHashSet();
         foreach (var item in items)
         {
             var entity = PrimitiveType.Restore(

@@ -7,9 +7,8 @@ using BHS.CRG.Domain.Objects;
 namespace BHS.CRG.Tests.Documents;
 
 /// <summary>
-/// Архив и документ несовместимы — в обе стороны (issue #1185, ТЗ CORE-34.4): документ в архив не
-/// уходит, архивная запись документом не становится. Вторая дверь нужна, чтобы первая не обходилась
-/// в два шага.
+/// Архивная запись документом не становится (issue #1185, ТЗ CORE-34.4). Обратную сторону —
+/// документ в архив не уходит — держит служба архива; её тесты в <c>BackupServiceTests.Archive</c>.
 /// </summary>
 public class DomainObjectArchiveTests
 {
@@ -18,23 +17,13 @@ public class DomainObjectArchiveTests
         CatalogScope.System, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, archivedAt);
 
     [Fact]
-    public void Record_IsArchivable()
+    public void LiveRecord_CanBecomeDocument()
     {
-        Record(null).EnsureArchivable();
-        // Повторный архив — не ошибка сущности: «менять нечего» отвечает служба.
-        Record(DateTimeOffset.UtcNow).EnsureArchivable();
-    }
+        var live = Record(null);
 
-    [Fact]
-    public void Document_IsNotArchivable()
-    {
-        var document = DomainObject.RestoreDocument(
-            Guid.NewGuid(), Guid.NewGuid(), "Акт", JsonDocument.Parse("{}"), Guid.NewGuid(),
-            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null,
-            DocumentStatus.Draft, 0, null, null, null, JsonDocument.Parse("{}"));
+        live.EnsureFacet();
 
-        Assert.Throws<InvalidRequestException>(document.EnsureArchivable);
-        Assert.False(document.IsArchived);
+        Assert.True(live.IsDocument);
     }
 
     [Fact]

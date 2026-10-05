@@ -73,10 +73,14 @@ public partial class BackupService
                 scope, item.ScopeId, item.CreatedAt, item.UpdatedAt, item.Aliases,
                 // Новой записи признак уходит вставкой. Копия о нём не знает — запись действующая:
                 // до появления архива других и не было.
-                knowsArchive ? item.ArchivedAt : null);
-            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
-            if (existingIds.Contains(item.Id)) archiveStates[item.Id] = item.ArchivedAt;
-            if (existingIds.Contains(item.Id)) stats.CommonDataEntriesUpdated++; else stats.CommonDataEntriesCreated++;
+                // Дата — в UTC: база принимает метку только со смещением 0.
+                knowsArchive ? item.ArchivedAt?.ToUniversalTime() : null);
+            var exists = existingIds.Contains(item.Id);
+            db.Entry(entity).State = exists ? EntityState.Modified : EntityState.Added;
+            // Состояния собираются ТОЛЬКО у знающей копии: у незнающей null значит «не знаю», и
+            // в словаре ему не место — вызов службы без оглядки на признак снял бы архив со всех.
+            if (exists && knowsArchive) archiveStates[item.Id] = item.ArchivedAt;
+            if (exists) stats.CommonDataEntriesUpdated++; else stats.CommonDataEntriesCreated++;
         }
 
         if (orphanedByScope > 0)
@@ -95,7 +99,15 @@ public partial class BackupService
         // остаётся как есть: «поля не было» не значит «записи не в архиве», и применить такой null
         // значило бы вернуть в выбор всё, что из него убрали после снятия копии.
         if (knowsArchive)
-            await archive.RestoreAsync(archiveStates, ct);
+        {
+            var profiles = await archive.RestoreAsync(archiveStates, ct);
+            if (profiles.Count > 0)
+                warnings.Add(
+                    $"Общие данные: {Records(profiles.Count)} в копии " +
+                    $"{Agree(profiles.Count, "числится", "числятся")} в архиве, а в этой системе " +
+                    $"{Agree(profiles.Count, "служит", "служат")} профилем стройки, раздела или комплекта. " +
+                    "В архив они не возвращены: профиль в архиве не бывает.");
+        }
 
         // Наличие адресатов проверяем ПОСЛЕ записи: документы могли приехать не из копии, а уже быть
         // в системе — при восстановлении в живую установку это обычное дело, и молчать тут правильно.

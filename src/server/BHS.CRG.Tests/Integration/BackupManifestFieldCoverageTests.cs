@@ -14,25 +14,35 @@ namespace BHS.CRG.Tests.Integration;
 /// теряется. Так потерялся бы признак архива записи: восстановили копию — и всё, что убрали из
 /// выбора, вернулось.</para>
 ///
-/// <para>Сверка — по именам: колонка модели EF против свойств записи манифеста и вложенных в неё
-/// записей. Имя в копии бывает другим — тогда пара названа в <see cref="Renamed" />. Проверяется
-/// присутствие поля, а не то, что экспорт его заполняет: это делают тесты самой копии.</para>
+/// <para>Сверка — по именам: колонка модели EF против свойств записи манифеста ИМЕННО этой
+/// сущности. Вложенные записи в общий котёл не сливаются: у документа и его выпущенного файла есть
+/// одноимённые поля, и поле файла, закрытое одноимённым полем документа, терялось бы при зелёном
+/// стороже (ревью PR #1216). Сущность, которая едет вложенной, называет свою запись в
+/// <see cref="NestedRecords" />. Имя в копии бывает другим — тогда пара названа в
+/// <see cref="Renamed" />. Проверяется присутствие поля, а не то, что экспорт его заполняет: это
+/// делают тесты самой копии.</para>
 /// </summary>
 [Collection("Integration")]
 public class BackupManifestFieldCoverageTests(IntegrationTestFixture fixture)
 {
+    /// <summary>Сущности, которые едут ВНУТРИ записи другой сущности, и их собственная запись.</summary>
+    private static readonly Dictionary<string, Type> NestedRecords = new()
+    {
+        ["GeneratedFile"] = typeof(BackupGeneratedFile),
+    };
+
     /// <summary>Поле сущности → свойство записи манифеста, когда имена разные.</summary>
     private static readonly Dictionary<string, string> Renamed = new()
     {
         ["DomainObject.ScopeLevel"] = nameof(BackupCommonDataEntry.Scope),
-        // Фасета и выпущенные файлы едут ВНУТРИ записи документа: владельца называет она.
+        // Фасета едет одной записью с документом: её ключ — идентификатор документа.
         ["DocumentFacet.ObjectId"] = nameof(BackupDocument.Id),
-        ["GeneratedFile.ObjectId"] = nameof(BackupDocument.Id),
     };
 
     /// <summary>Поля, которых в копии нет СОЗНАТЕЛЬНО, и почему.</summary>
     private static readonly Dictionary<string, string> DeliberatelyOmitted = new()
     {
+        ["GeneratedFile.ObjectId"] = "владельца называет вложенность: файл лежит внутри записи своего документа",
         ["TypstUserLib.Id"] = "запись одна на систему, идентификатор постоянный (TypstUserLib.SingletonId)",
         // Признак «заводской профиль с тех пор обновился» сидер выставляет сам, сравнивая BuiltInHash
         // (он в копии есть) с хэшем этой сборки. В копии он был бы слепком чужой сборки.
@@ -48,21 +58,9 @@ public class BackupManifestFieldCoverageTests(IntegrationTestFixture fixture)
         : t.IsGenericType && t.GetGenericArguments() is [var arg] && arg.Namespace == typeof(BackupManifest).Namespace ? arg
         : Nullable.GetUnderlyingType(t) ?? t;
 
-    /// <summary>Имена свойств записи манифеста вместе с вложенными записями копии.</summary>
-    private static HashSet<string> FieldsOf(Type record, HashSet<Type>? seen = null)
-    {
-        seen ??= [];
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!seen.Add(record)) return names;
-        foreach (var p in record.GetProperties())
-        {
-            names.Add(p.Name);
-            var inner = RecordOf(p.PropertyType);
-            if (inner != record && inner.Namespace == typeof(BackupManifest).Namespace && inner.IsClass)
-                names.UnionWith(FieldsOf(inner, seen));
-        }
-        return names;
-    }
+    /// <summary>Имена свойств записи манифеста — её собственных, без вложенных записей.</summary>
+    private static HashSet<string> FieldsOf(Type record) =>
+        record.GetProperties().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
     private List<(string Key, bool Present)> Fields()
     {
@@ -73,7 +71,9 @@ public class BackupManifestFieldCoverageTests(IntegrationTestFixture fixture)
         {
             var name = NameOf(entity.ClrType);
             if (!BackupManifestCoverageTests.CoveredByManifest.TryGetValue(name, out var section)) continue;
-            var fields = FieldsOf(RecordOf(typeof(BackupManifest).GetProperty(section)!.PropertyType));
+            var fields = FieldsOf(NestedRecords.TryGetValue(name, out var nested)
+                ? nested
+                : RecordOf(typeof(BackupManifest).GetProperty(section)!.PropertyType));
             foreach (var property in entity.GetProperties())
             {
                 var key = $"{name}.{property.Name}";

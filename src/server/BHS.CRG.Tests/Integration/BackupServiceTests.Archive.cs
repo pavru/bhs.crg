@@ -56,7 +56,7 @@ public partial class BackupServiceTests
         return await db.DomainObjects.AsNoTracking().Where(o => o.Id == id).Select(o => o.ArchivedAt).SingleAsync();
     }
 
-    private async Task<bool> SetArchivedAsync(Guid id, bool archived)
+    private async Task<ArchiveOutcome> SetArchivedAsync(Guid id, bool archived)
     {
         using var scope = fixture.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IRecordArchive>().SetAsync(id, archived);
@@ -79,17 +79,103 @@ public partial class BackupServiceTests
     {
         var id = await SeedRecordAsync(await SeedCompositeTypeAsync());
 
-        Assert.True(await SetArchivedAsync(id, true));
+        Assert.Equal(ArchiveOutcome.Changed, await SetArchivedAsync(id, true));
         var first = await ArchivedAtAsync(id);
         Assert.NotNull(first);
 
         // Повтор — не новое архивирование: дата первого остаётся, служба отвечает «менять нечего».
-        Assert.False(await SetArchivedAsync(id, true));
+        Assert.Equal(ArchiveOutcome.Unchanged, await SetArchivedAsync(id, true));
         Assert.Equal(first, await ArchivedAtAsync(id));
 
-        Assert.True(await SetArchivedAsync(id, false));
+        Assert.Equal(ArchiveOutcome.Changed, await SetArchivedAsync(id, false));
         Assert.Null(await ArchivedAtAsync(id));
-        Assert.False(await SetArchivedAsync(id, false));
+        Assert.Equal(ArchiveOutcome.Unchanged, await SetArchivedAsync(id, false));
+    }
+
+    /// <summary>Исход назван: адресу действия нельзя путать «нет записи» с безобидным повтором.</summary>
+    [Fact]
+    public async Task Archive_UnknownRecord_IsNotFound() =>
+        Assert.Equal(ArchiveOutcome.NotFound, await SetArchivedAsync(Guid.NewGuid(), true));
+
+    private async Task<Guid> SeedProfileAsync(Guid typeId, DateTimeOffset? archivedAt = null)
+    {
+        var id = await SeedRecordAsync(typeId, archivedAt);
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var construction = Construction.Create("Стройка", Guid.NewGuid());
+        construction.SetProfileObject(id);
+        db.Constructions.Add(construction);
+        await db.SaveChangesAsync();
+        return id;
+    }
+
+    [Fact]
+    public async Task Archive_LevelProfile_IsRefused_ButCanBeReturned()
+    {
+        var typeId = await SeedCompositeTypeAsync();
+        var profile = await SeedProfileAsync(typeId);
+
+        Assert.Equal(ArchiveOutcome.LevelProfile, await SetArchivedAsync(profile, true));
+        Assert.Null(await ArchivedAtAsync(profile));
+
+        // Если признак на профиле всё же оказался (прежние данные), снять его можно.
+        var stuck = await SeedProfileAsync(typeId, ArchivedOn);
+        Assert.Equal(ArchiveOutcome.Changed, await SetArchivedAsync(stuck, false));
+    }
+
+    /// <summary>
+    /// Запись ушла в архив, копию сняли, запись вернули и сделали профилем. Копия поверх обязана
+    /// оставить профиль действующим — и сказать об этом.
+    /// </summary>
+    [Fact]
+    public async Task Restore_DoesNotArchiveLevelProfile_AndSaysSo()
+    {
+        var typeId = await SeedCompositeTypeAsync();
+        var profile = await SeedProfileAsync(typeId);
+
+        var report = await ImportManifestZipAsync(ArchiveManifest(knows: true, Entry(profile, typeId, ArchivedOn)));
+
+        Assert.True(report.Success);
+        Assert.Null(await ArchivedAtAsync(profile));
+        Assert.Contains(report.Warnings, w => w.Contains("профилем"));
+    }
+
+    /// <summary>Дата со смещением (манифест собран снаружи) не роняет восстановление.</summary>
+    [Fact]
+    public async Task Restore_ArchiveDateWithOffset_IsStoredAsTheSameInstant()
+    {
+        var typeId = await SeedCompositeTypeAsync();
+        var existing = await SeedRecordAsync(typeId);
+        var brandNew = Guid.NewGuid();
+        var local = ArchivedOn.ToOffset(TimeSpan.FromHours(3));
+
+        var report = await ImportManifestZipAsync(ArchiveManifest(knows: true,
+            Entry(existing, typeId, local), Entry(brandNew, typeId, local)));
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal(ArchivedOn, await ArchivedAtAsync(existing));
+        Assert.Equal(ArchivedOn, await ArchivedAtAsync(brandNew));
+    }
+
+    /// <summary>
+    /// Копия приносит ДОКУМЕНТ под идентификатором, под которым здесь лежит архивная запись.
+    /// Документ в архиве не бывает: побеждает то, чем объект стал.
+    /// </summary>
+    [Fact]
+    public async Task ClearOnDocuments_DropsArchiveFromObjectThatBecameDocument()
+    {
+        var id = await SeedRecordAsync(await SeedCompositeTypeAsync(), ArchivedOn);
+        using (var scope = fixture.Services.CreateScope())
+        {
+            // Фасета добавлена мимо сущности — так, как это делает восстановление документа.
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO document_facets (\"ObjectId\", \"Status\", \"SortOrder\", \"PluginData\") " +
+                "VALUES ({0}, 'Draft', 0, '{{}}'::jsonb)", id);
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<IRecordArchive>().ClearOnDocumentsAsync());
+        }
+
+        Assert.Null(await ArchivedAtAsync(id));
     }
 
     [Fact]
@@ -107,7 +193,7 @@ public partial class BackupServiceTests
             await db.SaveChangesAsync();
         }
 
-        Assert.False(await SetArchivedAsync(id, true));
+        Assert.Equal(ArchiveOutcome.Document, await SetArchivedAsync(id, true));
         Assert.Null(await ArchivedAtAsync(id));
     }
 
@@ -126,7 +212,7 @@ public partial class BackupServiceTests
         Assert.NotNull(read);
         Assert.False(read!.IsArchived);
 
-        Assert.True(await SetArchivedAsync(id, true));
+        Assert.Equal(ArchiveOutcome.Changed, await SetArchivedAsync(id, true));
 
         read.Update("ООО Ромашка (переименована)", JsonDocument.Parse("""{"ИНН":"1"}"""));
         repo.Update(read);

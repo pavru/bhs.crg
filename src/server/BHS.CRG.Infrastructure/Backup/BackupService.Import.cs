@@ -107,6 +107,9 @@ public partial class BackupService
                 manifest.WorkPlanItems ?? [], moduleRowsInCopy, stats, warnings, ct);
             // Документы комплектов — после типов (тип документа) и после комплектов (носитель).
             await RestoreDocumentsAsync(manifest.Documents ?? [], stats, warnings, ct);
+            // Документ мог приехать под идентификатором архивной записи: фасета добавилась, а
+            // колонку архива сохранение не пишет. Документ в архиве не бывает (issue #1185).
+            await archive.ClearOnDocumentsAsync(ct);
             // После типов документов: шаблон маппинга висит на типе и без него бессмыслен.
             await RestoreDataSetBindingTemplatesAsync(manifest.DataSetBindingTemplates ?? [], stats, warnings, ct);
             // Зависимостей нет вовсе — место в порядке произвольно.
