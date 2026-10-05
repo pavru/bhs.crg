@@ -32,9 +32,6 @@ const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 // Бухгалтер — чтение счетов БЕЗ права разноски (F2, issue #1086): под ним прогон матрицы проверяет, что
 // матрица открывается только для чтения и кнопок «поровну» и «по %» нет вовсе.
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
-// Снабженец — вторая роль модуля счетов (N1, issue #1102): вводит и разносит счета, оплату не отмечает.
-// Под ним и под бухгалтером ходит `costs-smoke`.
-const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
 
 let token = null;
 
@@ -89,7 +86,7 @@ async function ensureAdmin() {
 
 /**
  * Не-администраторы: «Инженер ИД» (раздел настроек обязан его не пускать), «Бухгалтер» (матрица разноски
- * обязана открываться ему только для чтения) и «Снабженец» (разносит, но оплату не отмечает).
+ * обязана открываться ему только для чтения). «Снабженца» заводит посев счетов (`seed-invoices.mjs`).
  */
 async function ensureUser(email = USER_EMAIL, displayName = 'Пётр Петров', role = 'User') {
   const users = await api('GET', '/users');
@@ -493,7 +490,6 @@ async function main() {
   await ensureAdmin();
   await ensureUser();
   await ensureUser(ACCOUNTANT_EMAIL, 'Анна Бухгалтерова', 'Accountant');
-  await ensureUser(SUPPLIER_EMAIL, 'Семён Снабженцев', 'Supplier');
   const constructionId = await ensureConstruction();
   const primitiveTypeId = await ensurePrimitiveType();
   await ensureEnumType();
