@@ -16,8 +16,9 @@ namespace BHS.CRG.Application.Documents;
 /// matched (снимок = свежий и запись жива), not-found (значение источника не сматчилось),
 /// dangling (запись каталога удалена), drift (источник теперь указывает на ДРУГУЮ запись — снимок id устарел),
 /// stale (снимок не {$ref} — легаси «🔗…» — но источник матчится: пересохранить),
-/// archived (цель в архиве, issue #1185: стоящая связка цела, а новая на архивную запись не
-/// появится — не потеря и не «не найдено», чинится возвратом из архива),
+/// archived (цель в архиве, issue #1185: связка стоит и работает — чинить нечего),
+/// archived-skipped (источник называет архивную запись, которой в поле не было: ссылка НЕ
+/// подставлена и поле не заполняется — не «не найдено», чинится возвратом из архива),
 /// error (резолв привязки не состоялся вовсе — источник недоступен либо материализация без маппинга).
 ///
 /// <para>Ошибки резолва берём наравне с предупреждениями (issue #715). Раньше отбирались только
@@ -80,7 +81,7 @@ public class CheckCommonDataBindingsHandler(
         foreach (var d in diag)
         {
             if (d.Code == ArchivedRefCodes.Kept || !handled.Add(d.Path)) continue;
-            var status = d.Code == ArchivedRefCodes.Skipped ? "archived"
+            var status = d.Code == ArchivedRefCodes.Skipped ? "archived-skipped"
                 : d.Severity == DiagnosticSeverity.Error ? "error" : "not-found";
             items.Add(new BindingCheckItem(d.Path, Title(d.Path), status, null, d.Message));
         }

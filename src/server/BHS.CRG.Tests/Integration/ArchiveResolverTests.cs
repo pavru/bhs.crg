@@ -240,7 +240,8 @@ public class ArchiveResolverTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.Null(RefOf(await SaveAsync(b.Owner)));
 
         var item = await CheckAsync(b.Owner);
-        Assert.Equal("archived", item.Status);
+        // Свой статус, а не общий «в архиве»: поле не заполняется, и это есть что чинить.
+        Assert.Equal("archived-skipped", item.Status);
         Assert.Contains("в архиве", item.Detail);
         Assert.Contains("не подставлена", item.Detail);
 
@@ -313,7 +314,50 @@ public class ArchiveResolverTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.Equal(org.ToString(), RefOf(data));
         var warning = Assert.Single(diagnostics);
         Assert.Equal((DiagnosticSeverity.Warning, ArchivedRefCodes.Kept), (warning.Severity, warning.Code));
-        Assert.Contains("оставлена", warning.Message);
+        Assert.Contains("печатается как прежде", warning.Message);
+    }
+
+    /// <summary>
+    /// Таблица, где архивный поставщик стоит в каждой строке, даёт ОДНО предупреждение: триста
+    /// одинаковых закрыли бы собой настоящие.
+    /// </summary>
+    [Fact]
+    public async Task Генерация_предупреждает_об_архивной_записи_один_раз_на_значение()
+    {
+        var orgType = await TypeAsync("ORG_I", OrgSchema);
+        var org = await EntryAsync(orgType, "Ромашка", "{'ИНН':'7701'}");
+        var rowType = await TypeAsync("ROW_I", $"{{'fields':[{{'key':'Поставщик','type':'object','typeId':'{orgType}'}}]}}");
+        var docType = await TypeAsync("REG_I", "{'fields':[{'key':'Строки','type':'array'}]}", DocumentTypeKind.Document);
+        var set = await SetAsync();
+        var doc = await InScopeAsync(async s => (await M(s).Send(new AddDocumentToSetCommand(set, docType))).Id);
+        await InScopeAsync(async s =>
+        {
+            var svc = Svc(s);
+            var file = await svc.UploadFileAsync(new UploadFileInput(
+                Encoding.UTF8.GetBytes("Орг\nРомашка\nРомашка\nРомашка\n"), "rows.csv", "text/csv", "Тест", "System", null), default);
+            var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, TestAccess.All, default)).Single();
+            var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Строки", candidate.SheetOrPath, null), TestAccess.All, default);
+            await svc.SetMaterializationAsync(source.Id, rowType, new Dictionary<string, string>
+            {
+                ["Поставщик"] = $$"""@@ref:{"strategy":"Name","column":"Орг","typeId":"{{orgType}}"}""",
+            }, discriminator: null, byIdColumn: null, default);
+            await svc.CreateBindingAsync(new CreateBindingInput(doc, source.Id, "Строки", null), default);
+            return 0;
+        });
+        await ArchiveAsync(org);
+
+        var (rows, diagnostics) = await InScopeAsync(async s =>
+        {
+            var view = DocumentView.From((await M(s).Send(new GetDocumentInstanceQuery(doc)))!);
+            var ctx = await s.ServiceProvider.GetRequiredService<IEntityResolver>().ResolveAsync(view);
+            var found = new List<ResolutionDiagnostic>();
+            await s.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, found, default);
+            return (JsonSerializer.SerializeToElement(ctx.Data).GetProperty("Строки"), found);
+        });
+
+        Assert.Equal(3, rows.GetArrayLength());
+        Assert.All(rows.EnumerateArray(), r => Assert.Equal(org.ToString(), r.GetProperty("Поставщик").GetProperty("entryId").GetString()));
+        Assert.Single(diagnostics, d => d.Code == ArchivedRefCodes.Kept);
     }
 
     // ── Чтения, отдающие записи машине ────────────────────────────────────────

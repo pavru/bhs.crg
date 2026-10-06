@@ -11,7 +11,7 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { coerceScalar, rejectReason, type CoerceContext } from './pasteCoerce';
 import { PasteArchivedNote, type ArchivedCell } from './PasteArchivedNote';
-import { useSetCommonDataArchive } from '@/shared/api/commonData';
+import { useReturnManyFromArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
@@ -114,7 +114,11 @@ function PasteMappingModalBody({
     archived: ArchivedCell[];
   } | null>(null);
   const [returnArchived, setReturnArchived] = useState(false);
-  const unarchive = useSetCommonDataArchive();
+  const unarchive = useReturnManyFromArchive();
+  // Свой признак, а не isPending мутации: вставка — это возврат из архива ПЛЮС сама вставка, и
+  // пока она идёт, заперты все три кнопки сводки. Иначе повторный клик вставил бы строки дважды, а
+  // «Отмена» закрыла бы окно, в которое вставка всё равно придёт (ревью PR #1228).
+  const [applying, setApplying] = useState(false);
   const canReturn = useCan().permission('core.catalog.edit');
   const toast = useToast();
 
@@ -210,9 +214,11 @@ function PasteMappingModalBody({
           return;
         }
         // Архивную запись молча не подставляем (issue #1185): ячейка ложится встроенно, а связать
-        // её можно осознанно — переключателем в сводке.
-        inlineFallback(c); inline++;
+        // её можно осознанно — переключателем в сводке. Считается она ОТДЕЛЬНО от встроенных:
+        // у тех пояснение «совпадение не найдено», а здесь оно найдено.
+        inlineFallback(c);
         if (hit) archived.push({ row: rows[c.row], fieldKey: c.fieldKey, hit });
+        else inline++;
       });
     } catch {
       // Ошибка резолва не должна терять ввод — вставляем всё как inline-данные.
@@ -232,28 +238,32 @@ function PasteMappingModalBody({
 
     // Сводка перед вставкой нужна, если есть что назвать: несопоставленные ссылки ИЛИ ячейки,
     // не разобранные по типу. Молча уехать может только полностью разобранная вставка.
-    if (inline === 0 && rejects.length === 0) { onApply(filled); onOpenChange(false); }
+    if (inline === 0 && rejects.length === 0 && archived.length === 0) { onApply(filled); onOpenChange(false); }
     else { setReturnArchived(false); setPending({ rows: filled, linked, inline, rejects, dropped, kept: keptRows, archived }); }
   }
 
   /**
    * Вставка из сводки. Переключатель включён — сначала возвращаем записи из архива, и связываем
-   * только те ячейки, чью запись вернуть УДАЛОСЬ: ссылку на запись, оставшуюся в архиве, сервер
-   * всё равно не примет, а ячейка без неё не теряется — она уже лежит встроенно.
+   * только те ячейки, чью запись вернуть УДАЛОСЬ: ссылка на запись, оставшуюся в архиве, была бы
+   * новой ссылкой на то, что из выбора убрали, а ячейка без неё не теряется — она лежит встроенно.
    */
   async function applyPending() {
-    if (!pending) return;
-    if (returnArchived && pending.archived.length > 0) {
-      const ids = [...new Set(pending.archived.map(c => c.hit.entryId))];
-      const done = await Promise.allSettled(ids.map(id => unarchive.mutateAsync({ id, archived: false })));
-      const returned = new Set(ids.filter((_, i) => done[i].status === 'fulfilled'));
-      pending.archived.forEach(c => { if (returned.has(c.hit.entryId)) c.row[c.fieldKey] = refTo(c.hit); });
-      const failed = ids.length - returned.size;
-      if (returned.size > 0) toast.success(`Возвращено из архива: ${returned.size}.`);
-      if (failed > 0) toast.error(`Не удалось вернуть из архива: ${failed}. Эти значения вставлены встроенно.`);
+    if (!pending || applying) return;
+    setApplying(true);
+    try {
+      if (returnArchived && pending.archived.length > 0) {
+        const ids = [...new Set(pending.archived.map(c => c.hit.entryId))];
+        const returned = new Set(await unarchive.mutateAsync(ids).catch(() => [] as string[]));
+        pending.archived.forEach(c => { if (returned.has(c.hit.entryId)) c.row[c.fieldKey] = refTo(c.hit); });
+        const failed = ids.length - returned.size;
+        if (returned.size > 0) toast.success(`Возвращено из архива: ${returned.size}.`);
+        if (failed > 0) toast.error(`Не удалось вернуть из архива: ${failed}. Эти значения вставлены встроенно.`);
+      }
+      onApply(pending.rows);
+      onOpenChange(false);
+    } finally {
+      setApplying(false);
     }
-    onApply(pending.rows);
-    onOpenChange(false);
   }
 
   // Отказы делятся надвое: в строках, которые вставятся (ячейка останется пустой), и в строках,
@@ -300,10 +310,10 @@ function PasteMappingModalBody({
       <Modal open onOpenChange={onOpenChange} title="Готово к вставке" wide
         footer={
           <div className="flex justify-between">
-            <Button variant="text" onClick={() => setPending(null)}>← Изменить сопоставление</Button>
+            <Button variant="text" disabled={applying} onClick={() => setPending(null)}>← Изменить сопоставление</Button>
             <div className="flex gap-3">
-              <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
-              <Button variant="filled" disabled={pending.rows.length === 0 || unarchive.isPending}
+              <Button variant="text" disabled={applying} onClick={() => onOpenChange(false)}>Отмена</Button>
+              <Button variant="filled" disabled={pending.rows.length === 0 || applying} loading={applying}
                 onClick={() => void applyPending()}>
                 Вставить {pending.rows.length} стр.
               </Button>

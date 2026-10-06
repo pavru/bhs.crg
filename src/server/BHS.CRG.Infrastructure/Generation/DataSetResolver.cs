@@ -564,7 +564,7 @@ public class DataSetResolver(
     /// с предупреждением «есть в архиве», а не «не найдено», иначе человек завёл бы дубль. При
     /// генерации документа снимка нет, значение собирается заново каждый раз, и это чтение: ссылка
     /// подставляется, иначе документ закрытого периода потерял бы поставщика при перегенерации, —
-    /// но с предупреждением, потому что источник называет запись, которую из выбора убрали.</para>
+    /// с одним предупреждением на значение: источник называет запись, которую из выбора убрали.</para>
     /// </summary>
     private async Task<object?> ResolveRefAsync(
         DataSetRefMapping refMap,
@@ -605,14 +605,21 @@ public class DataSetResolver(
         if (match is { Archived: true } archived)
         {
             var kept = standing is null || standing.Contains(archived.Id);
-            diagnostics?.Add(new ResolutionDiagnostic(
-                DiagnosticSeverity.Warning, path,
-                kept
+            var message = standing is null
+                ? $"Значение «{lookupDisplay}» совпало с записью в архиве — в документе она остаётся, " +
+                  "он печатается как прежде. В выборе этой записи нет."
+                : kept
                     ? $"Значение «{lookupDisplay}» совпало с записью в архиве — ссылка на неё оставлена. " +
                       "В выборе этой записи нет: верните её из архива либо поправьте значение в источнике."
                     : $"Значение «{lookupDisplay}» совпало с записью в архиве — ссылка не подставлена. " +
-                      "Верните запись из архива либо поправьте значение в источнике.",
-                kept ? ArchivedRefCodes.Kept : ArchivedRefCodes.Skipped));
+                      "Верните запись из архива либо поправьте значение в источнике.";
+            // При генерации — одно предупреждение на значение, а не на строку (ревью PR #1228):
+            // таблица на триста строк с архивным поставщиком дала бы триста одинаковых, и за ними
+            // не видно настоящих. У сохранения путь — адрес поля в отчёте сверки, там строки нужны.
+            if (standing is not null || diagnostics?.Any(d => d.Message == message) != true)
+                diagnostics?.Add(new ResolutionDiagnostic(
+                    DiagnosticSeverity.Warning, path, message,
+                    kept ? ArchivedRefCodes.Kept : ArchivedRefCodes.Skipped));
             if (!kept) return null;
         }
 

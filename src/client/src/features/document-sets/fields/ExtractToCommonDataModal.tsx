@@ -153,7 +153,14 @@ export function ExtractToCommonDataModal({
           { typeId: compositeType.id, strategy: 'Name', value: trimmed },
         ]);
         if (cancelled) return;
-        setDuplicate(byKey ? { match: byKey, strong: true }
+        // Действующее совпадение важнее архивного, даже если оно слабее (по имени, а не по ключу):
+        // иначе архивная запись заслонила бы действующую, и окно предложило бы возвращать из архива
+        // то, что уже есть рядом (ревью PR #1228; то же правило — во вставке таблицы).
+        const live = (m: ObjectResolveResult | null) => (m && !m.archived ? m : null);
+        const key = live(byKey), named = live(byName);
+        setDuplicate(key ? { match: key, strong: true }
+          : named ? { match: named, strong: false }
+          : byKey ? { match: byKey, strong: true }
           : byName ? { match: byName, strong: false } : null);
       } catch {
         // Отказ поиска не запрещает создание (как в PasteMappingModal): дубликат — предупреждение,

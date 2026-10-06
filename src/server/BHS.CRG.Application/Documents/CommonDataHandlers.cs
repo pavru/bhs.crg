@@ -55,7 +55,9 @@ public class CommonDataHandlers(
         // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
         // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
         // Стоявшие ссылки — из сохранённых данных, а не из тела запроса: «уже стояла» решает то,
-        // что лежит в записи, иначе архивную цель достаточно было бы прислать с формой (issue #1185).
+        // что лежит в записи (issue #1185). ⚠️ Это правило ПРИВЯЗКИ: ссылку на архивную запись,
+        // присланную прямо в теле, здесь пока не проверяет ничто — её закроет правило записи ядра
+        // (шаг 5 той же задачи, в охране записи ниже).
         var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
             cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId,
             CatalogRefs.IdsIn(entry.Data.RootElement), cmd.Access, null, ct);

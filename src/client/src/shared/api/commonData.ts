@@ -101,10 +101,11 @@ export interface BindingCheckItem {
   fieldTitle: string;
   /** error (issue #715) — резолв привязки не состоялся: источник недоступен либо материализация без маппинга. */
   /**
-   * `archived` — цель в архиве (issue #1185): стоящая связка цела, новая на архивную запись не
-   * появится. Не «не найдено»: запись есть, и чинится это возвратом из архива.
+   * `archived` — цель в архиве (issue #1185), связка стоит и работает: чинить нечего.
+   * `archived-skipped` — источник называет архивную запись, которой в поле не было: ссылка НЕ
+   * подставлена, поле не заполняется. Не «не найдено»: запись есть, и чинится это возвратом из архива.
    */
-  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale' | 'archived' | 'error';
+  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale' | 'archived' | 'archived-skipped' | 'error';
   linkedName: string | null;
   detail: string | null;
 }
@@ -169,6 +170,23 @@ export function useSetCommonDataArchive() {
     // списком форма счёта предложила бы архивного поставщика, а со старым счётом — назвала бы его
     // «записью другого вида». Действие редкое, перечитать лишнее дешевле, чем вести здесь перечень
     // ключей чужих экранов, который отстанет на первом же новом.
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+/**
+ * Вернуть из архива несколько записей разом (вставка таблицы, ревью PR #1228). Отдельно от
+ * одиночного действия: то сбрасывает всё прочитанное на КАЖДУЮ запись, и восемь возвратов подряд
+ * восемь раз перечитали бы открытый редактор посреди несохранённой правки. Здесь сброс один, после
+ * всех ответов. Отдаёт идентификаторы тех, кого вернуть удалось: остальные остались в архиве.
+ */
+export function useReturnManyFromArchive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const done = await Promise.allSettled(ids.map(id => apiClient.post(`/common-data/${id}/unarchive`)));
+      return ids.filter((_, i) => done[i].status === 'fulfilled');
+    },
     onSuccess: () => qc.invalidateQueries(),
   });
 }

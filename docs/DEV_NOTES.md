@@ -1994,8 +1994,9 @@ POST   /api/objects/resolve-batch           → [{ entryId, displayName, scope, 
                                     архивную, решает экран — молча нельзя.
 GET    /api/common-data/{id}/binding-check  → { items: [{ fieldKey, fieldTitle, status, linkedName,
                                     detail }] }; status: matched | not-found | dangling | drift |
-                                    stale | archived | error. archived — цель в архиве: стоявшая
-                                    связка цела, новая не подставлена (#1185).
+                                    stale | archived | archived-skipped | error. archived — цель в
+                                    архиве, связка стоит; archived-skipped — источник называет
+                                    архивную запись, которой в поле не было: не подставлена (#1185).
 DELETE /api/common-data/{id}                409 несёт { error, canArchive }: выход «в архив» экран
                                     предлагает по ПОЛЮ, а не по словам причины.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
