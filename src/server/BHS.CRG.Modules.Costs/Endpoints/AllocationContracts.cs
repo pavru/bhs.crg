@@ -15,6 +15,9 @@ public sealed record AllocationRequest(IReadOnlyList<JsonElement>? Parts);
 /// <summary>Часть разноски в ответе.</summary>
 /// <param name="ConstructionId">Стройка; <c>null</c> — часть легла на статью вне строек.</param>
 /// <param name="ArticleId">Статья вне строек (F3, issue #1087); <c>null</c> — часть легла на стройку.</param>
+/// <param name="ArticleArchived">Статья этой части в архиве (issue #1185). Не неисправность и не
+/// потеря: часть остаётся как была, «разобран» с ней проходит — пометка только объясняет, почему
+/// статьи нет в выборе.</param>
 /// <param name="TargetLost">Стройки (раздела в ней, статьи) больше нет — удалили. Потеря, и
 /// выглядеть она обязана иначе, чем «цель не выбрана»: деньги этой части сейчас не относятся ни к
 /// чему, и «разобран» с ней не проходит. Сюда же входит раздел другой стройки.</param>
@@ -41,6 +44,7 @@ public sealed record AllocationPartView(
     string? SectionName,
     Guid? ArticleId,
     string? ArticleName,
+    bool ArticleArchived,
     bool TargetLost,
     string? TargetIssue,
     decimal? Quantity,
@@ -288,10 +292,13 @@ public static class InvoiceAllocations
 
             if (target.ArticleId is { } article)
             {
-                if (places.Article(article) is null)
-                    throw new InvalidRequestException(
+                // Правило новой ссылки — то же, что у шапки и строк (см. NewReferences), только
+                // справочник статей уже прочитан целиком, и спрашивать его второй раз незачем.
+                var found = places.Article(article)
+                    ?? throw new InvalidRequestException(
                         $"Часть {index + 1}: такой статьи вне строек нет. Так бывает, когда статью убрали из " +
                         "справочника, пока форма была открыта. Выберите цель заново.");
+                if (found.Archived) throw NewReferences.InArchive($"Часть {index + 1}", $"статья «{found.Name}»");
                 continue;
             }
 
@@ -376,6 +383,7 @@ public static class InvoiceAllocations
             section?.Name,
             part.ArticleId,
             places.Article(part.ArticleId)?.Name,
+            places.Article(part.ArticleId)?.Archived == true,
             issue is not null,
             issue,
             part.Quantity,

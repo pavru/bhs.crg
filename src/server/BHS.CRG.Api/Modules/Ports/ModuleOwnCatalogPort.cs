@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -18,7 +19,8 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// справочника модуля меняется одно название, и наборов она не читает.</para>
 /// </summary>
 public sealed class ModuleOwnCatalogPort(
-    IMediator mediator, IRepository<DocumentType> types, IRepository<DomainObject> objects) : IModuleOwnCatalog
+    IMediator mediator, IRepository<DocumentType> types, IRepository<DomainObject> objects,
+    IRecordArchive archive) : IModuleOwnCatalog
 {
     public async Task<ModuleCatalogRef?> CreateAsync(string typeCode, string displayName, CancellationToken ct = default)
     {
@@ -47,6 +49,30 @@ public sealed class ModuleOwnCatalogPort(
 
         await mediator.Send(new DeleteCommonDataEntryCommand(id), ct);
         return true;
+    }
+
+    /// <summary>
+    /// Признак меняет та же служба, что и у адреса ядра: писатель колонки архива один. Журнал —
+    /// за модулем, как у создания и переименования: событие называется его словами («статья»).
+    /// </summary>
+    public async Task<ModuleArchiveResult?> SetArchivedAsync(
+        string typeCode, Guid id, bool archived, CancellationToken ct = default)
+    {
+        if (await EntryAsync(typeCode, id, ct) is not { } found) return null;
+
+        var (type, entry) = found;
+        var record = new ModuleCatalogRef(entry.Id, type.Code, entry.DisplayName, archived);
+        return await archive.SetAsync(id, archived, ct) switch
+        {
+            ArchiveOutcome.Changed => new ModuleArchiveResult(record, Changed: true),
+            ArchiveOutcome.Unchanged => new ModuleArchiveResult(record, Changed: false),
+            // Запись удалили между чтением и обновлением.
+            ArchiveOutcome.NotFound => null,
+            // Документом запись справочника не бывает (EntryAsync таких не отдаёт), профилем уровня
+            // — тоже: профиль заводит ядро и своего типа. Дошли сюда — данные не те, что обещаны.
+            var outcome => throw new InvalidOperationException(
+                $"Запись «{entry.DisplayName}» справочника «{typeCode}» в архив не уходит: {outcome}."),
+        };
     }
 
     /// <summary>

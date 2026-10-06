@@ -22,6 +22,13 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// из такой записи напрямую нельзя. Отдай мы «ИНН: пусто», форма показала бы «без ИНН» там, где
 /// верное утверждение — «здесь его не видно». Сопоставление поставщика по ИНН приезжает вместе с
 /// распознаванием (B1b), и разрешение наследования — его забота.</para>
+///
+/// <para><b>Назначение называет звавший</b> (issue #1185): <c>purpose=choice</c> — список, из которого
+/// выбирают, архивных организаций в нём нет; <c>purpose=display</c> — все, с признаком. Умолчания
+/// нет, как и у общих данных ядра: один адрес кормит и выбор, и показ, и забытое «скрыть» вернуло
+/// бы архивного поставщика в новые счета. Название организации, которая в счёте УЖЕ стоит, форма
+/// берёт не отсюда, а из ответа счёта (<see cref="InvoiceReferencesView" />) — иначе счёт с архивным
+/// поставщиком открылся бы с пустым полем, и сохранение стёрло бы ссылку.</para>
 /// </summary>
 public static class OrganizationEndpoints
 {
@@ -33,14 +40,19 @@ public static class OrganizationEndpoints
     }
 
     private static async Task<Ok<IReadOnlyList<CostsOrganization>>> ListAsync(
-        IModuleCatalog catalog, CancellationToken ct)
+        IModuleCatalog catalog, CancellationToken ct, string? purpose = null)
     {
-        // ⚠️ Назначение — «показ», хотя из этого списка поставщика и ВЫБИРАЮТ (issue #1185). Форма
-        // счёта берёт из него и варианты, и название уже стоящей организации: скрой он архивные
-        // записи — счёт с архивным поставщиком открылся бы с пустым полем, и сохранение стёрло бы
-        // ссылку. Разнять выбор и название — дело шага со счетами; до него архивная организация в
-        // выборе остаётся.
-        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct)
+        RecordsFor records = purpose switch
+        {
+            "choice" => RecordsFor.Choice,
+            "display" => RecordsFor.Display,
+            _ => throw new InvalidRequestException(
+                "Не названо назначение чтения: параметр purpose обязателен и принимает choice (список " +
+                "на выбор, без архивных организаций) либо display (показ уже выбранного, архивные на " +
+                "месте с признаком)."),
+        };
+
+        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)
             ?? throw new ConflictException(
                 $"Тип «{CostsRecordTypes.OrganizationCode}» в системе не заведён, поэтому выбрать " +
                 "поставщика не из чего. Этот тип ведёт человек — заведите его в разделе типов, и " +
@@ -48,11 +60,12 @@ public static class OrganizationEndpoints
                 "«организаций ещё не завели», а это другое.");
 
         return TypedResults.Ok<IReadOnlyList<CostsOrganization>>(
-            [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType))]);
+            [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType, e.Archived))]);
     }
 }
 
 /// <summary>Организация в выборе поставщика и плательщика.</summary>
 /// <param name="Type">Код типа записи — у подтипа свой («ОрганизацияСРО»). Форме он нужен затем,
 /// чтобы человек различил однофамильцев, а не для отбора: отбор уже сделан.</param>
-public sealed record CostsOrganization(Guid Id, string Name, string Type);
+/// <param name="Archived">Организация в архиве — бывает только в списке на показ.</param>
+public sealed record CostsOrganization(Guid Id, string Name, string Type, bool Archived);

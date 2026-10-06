@@ -12,6 +12,8 @@ public sealed record WaybillLineView(
     // Ссылка есть, а позиции в справочнике нет. Отдельным признаком, а не пустым названием: «позицию
     // удалили» и «позицию не выбрали» чинятся по-разному.
     bool NomenclatureLost,
+    // Позиция в архиве (issue #1185): строка сопоставлена, а в поиске этой позиции больше нет.
+    bool NomenclatureArchived,
     string? SourceText,
     string? Unit,
     decimal? Quantity,
@@ -146,14 +148,15 @@ public static class WaybillViews
     /// <param name="names">Названия позиций; <c>null</c> — справочника номенклатуры в системе нет, и
     /// «позиция потеряна» сказать не о чём (см. <c>InvoiceEndpoints.NomenclatureNamesAsync</c>).</param>
     public static WaybillView Full(Waybill waybill, string version, IReadOnlyList<WaybillLine> lines,
-        ModuleConstruction? site, IReadOnlyDictionary<Guid, string?>? names) => new(
+        ModuleConstruction? site, IReadOnlyDictionary<Guid, ModuleCatalogRef>? names) => new(
         waybill.Id, version, waybill.Number, waybill.IssuedOn, waybill.Warehouse,
         waybill.ConstructionId, site?.Name, ConstructionLost: waybill.ConstructionId is not null && site is null,
         waybill.ReceivedBy, waybill.Note, waybill.State.ToString(), waybill.PostedAt,
         [.. lines.OrderBy(l => l.Ordinal).Select(l => new WaybillLineView(
             l.Id, l.Ordinal, l.NomenclatureId,
-            l.NomenclatureId is { } id && names is not null ? names.GetValueOrDefault(id) : null,
+            l.NomenclatureId is { } id && names is not null ? names.GetValueOrDefault(id)?.DisplayName : null,
             NomenclatureLost: l.NomenclatureId is { } position && names is not null && !names.ContainsKey(position),
+            NomenclatureArchived: l.NomenclatureId is { } key && names?.GetValueOrDefault(key)?.Archived == true,
             l.SourceText, l.Unit, l.Quantity, l.Note))],
         new WaybillLineTotals(lines.Count, lines.Count(l => l.NomenclatureId is null)));
 }

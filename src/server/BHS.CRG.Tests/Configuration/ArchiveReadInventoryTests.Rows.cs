@@ -252,31 +252,35 @@ public partial class ArchiveReadInventoryTests
             Seen("владельцы привязок по идентификаторам: к какому уровню отнести находку"),
 
         ["BHS.CRG.Modules.Costs/Endpoints/AllocationMatrixEndpoints.cs|Existing = (await references.StatesAsync(ReferenceTarget.Record, articles, ct))"] =
-            Pending(3, "состояние ссылки: архив пока приравнен к «на месте», признак у ссылок счёта — со счетами"),
+            Seen("предпросмотр разноски: есть ли запись вовсе; архивная статья — на месте, признак несёт справочник статей"),
         ["BHS.CRG.Modules.Costs/Endpoints/AllocationPlaces.cs|await catalog.ListAsync(CostsRecordTypes.ArticleCode, RecordsFor.Display, ct) is { } entries"] =
-            Pending(3, "один список статей на выбор, проверку и названия: разъём — со счетами"),
+            Shown("справочник статей: названия стоящих частей, проверка новой части и экран справочника — признак в ответе"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|var records = await targets.StatesAsync(ReferenceTarget.Record,"] =
-            Pending(3, "состояние ссылки: архив пока приравнен к «на месте», признак у ссылок счёта — со счетами"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|if (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [.. named.Select(p => p.Id!.Value)], ct) is not { } organizations)"] =
-            Pending(3, "проверка и названия ссылок счёта: архив порт отдаёт, счёт его ещё не различает"),
+            Shown("состояние ссылок счёта: «в архиве» у сторон, строк и частей разноски"),
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);"] =
+            Seen("названия сторон счёта — уже стоящих; признак рядом, из состояния ссылок"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);"] =
-            Seen("названия поставщиков уже заведённых счетов"),
+            Shown("реестр счетов: названия поставщиков уже заведённых счетов, признак значком"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);"] =
-            Pending(3, "проверка и названия ссылок счёта: архив порт отдаёт, счёт его ещё не различает"),
+            Seen("названия позиций в стоящих строках счёта; признак строке даёт состояние ссылок"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var states = await targets.StatesAsync(ReferenceTarget.Record, [.. named.Select(p => p.Id!.Value)], ct);"] =
-            Pending(3, "состояние ссылки: архив пока приравнен к «на месте», признак у ссылок счёта — со счетами"),
+            Seen("новая сторона счёта: есть ли запись вовсе; архивную отвергает правило новых ссылок следом"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceLineEndpoints.cs|if (id is { } organization && await catalog.GetAsync(organization, ct) is null)"] =
-            Pending(3, "проверка и названия ссылок счёта: архив порт отдаёт, счёт его ещё не различает"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceLineEndpoints.cs|var known = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, referenced, ct)"] =
-            Pending(3, "проверка и названия ссылок счёта: архив порт отдаёт, счёт его ещё не различает"),
+            Seen("переход «разобран»: стороны на месте; архивная — на месте, счёт с ней разбирается"),
+        ["BHS.CRG.Modules.Costs/Endpoints/NewReferences.cs|if (await catalog.RefsAsync(typeCode, fresh, ct) is not { } found) return null;"] =
+            Choice("правило новых ссылок модуля: сторона счёта, позиция строки счёта и накладной — архивная отвергается",
+                nameof(InvoiceArchiveTests.Счёт_с_архивным_поставщиком_читается_и_правится_а_новым_поставщиком_архивный_не_ставится),
+                nameof(InvoiceArchiveTests.Строка_счёта_с_архивной_позицией_остаётся_а_новая_строка_её_не_принимает),
+                nameof(InvoiceArchiveTests.Накладная_стоявшую_архивную_позицию_держит_новую_не_принимает)),
         ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureEndpoints.cs|var found = await catalog.SearchAsync(CostsRecordTypes.NomenclatureCode, query, Limit + 1, ct)"] =
             Choice("выбор позиции в строке счёта и накладной", nameof(ArchiveReadPurposeTests.Выбор_позиции_номенклатуры_в_счёте_архивную_не_предлагает)),
-        ["BHS.CRG.Modules.Costs/Endpoints/OrganizationEndpoints.cs|var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct)"] =
-            Pending(3, "один список организаций и на выбор, и на название уже стоящей: разъём — со счетами"),
+        ["BHS.CRG.Modules.Costs/Endpoints/OrganizationEndpoints.cs|var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)"] =
+            ByPurpose("организации для формы счёта: выбор скрывает архивные, показ отдаёт с признаком",
+                nameof(InvoiceArchiveTests.Список_организаций_на_выбор_архивную_скрывает_а_на_показ_отдаёт_с_признаком)),
         ["BHS.CRG.Modules.Costs/Endpoints/SiteCostsEndpoints.cs|: (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];"] =
             Seen("названия поставщиков уже заведённых счетов"),
         ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct))"] =
-            Pending(3, "проверка и названия ссылок счёта: архив порт отдаёт, счёт его ещё не различает"),
+            Shown("позиции стоящих строк накладной и перечня отпущенного: название и признак"),
         ["BHS.CRG.Modules.Costs/Tables/InvoiceTable.cs|var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))"] =
             Seen("названия поставщиков уже заведённых счетов"),
     };

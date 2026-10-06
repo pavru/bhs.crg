@@ -67,19 +67,29 @@ public sealed record InvoiceView(
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184): <c>present</c>, <c>lost</c>;
-/// <c>null</c> — ссылки нет. С архивом записей (issue #1185) добавится <c>archived</c>.
+/// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184, #1185): <c>present</c>,
+/// <c>archived</c>, <c>lost</c>; <c>null</c> — ссылки нет.
 ///
 /// <para>Считает сервер, обратным опросом ядра, — тем же, что и счётчик потерянных ссылок. Выводи это
 /// форма сравнением со списком организаций, «список ещё грузится» выглядел бы потерей.</para>
 /// </summary>
-public sealed record InvoiceReferencesView(string? Supplier, string? Payer, string DocumentType)
+/// <param name="SupplierName">Название стоящего поставщика; <c>null</c> — ссылки нет, записи нет либо
+/// она не организация. Едет с ответом счёта, а не берётся формой из списка на выбор: архивной
+/// организации в том списке нет, и поле открылось бы пустым (issue #1185).</param>
+/// <param name="PayerName">То же для плательщика.</param>
+public sealed record InvoiceReferencesView(
+    string? Supplier, string? Payer, string DocumentType, string? SupplierName, string? PayerName)
 {
     public const string Present = "present";
+    public const string Archived = "archived";
     public const string Lost = "lost";
 
-    public static string Of(BHS.CRG.Modules.Ports.ReferenceState state) =>
-        state == BHS.CRG.Modules.Ports.ReferenceState.Lost ? Lost : Present;
+    public static string Of(BHS.CRG.Modules.Ports.ReferenceState state) => state switch
+    {
+        BHS.CRG.Modules.Ports.ReferenceState.Lost => Lost,
+        BHS.CRG.Modules.Ports.ReferenceState.Archived => Archived,
+        _ => Present,
+    };
 }
 
 /// <summary>Счёт в списке. Полей ровно столько, сколько нужно реестру, — реквизиты не едут.</summary>
@@ -89,12 +99,14 @@ public sealed record InvoiceReferencesView(string? Supplier, string? Payer, stri
 /// <param name="LinesWithoutNomenclature">Сколько строк ждёт позиции номенклатуры — счётчик
 /// «Разобрать» (ТЗ COST-6.2). В реестре он нужен затем, чтобы не открывать счёт ради ответа на вопрос
 /// «а с этим что делать».</param>
+/// <param name="SupplierArchived">Поставщик в архиве (issue #1185) — реестр ставит значок у названия.</param>
 public sealed record InvoiceListItem(
     Guid Id,
     string? Number,
     DateOnly? IssuedOn,
     Guid? SupplierId,
     string? SupplierName,
+    bool SupplierArchived,
     decimal? Total,
     string State,
     string Payment,
@@ -118,14 +130,14 @@ public static class InvoiceViews
         Invoice invoice, string version, IReadOnlyList<InvoiceDuplicate> duplicates,
         IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment,
-        InvoiceReferencesView references, IReadOnlySet<Guid> lost) => new(
+        InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived) => new(
         invoice.Id,
         version,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,
         duplicates,
-        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost))],
+        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost, archived))],
         InvoiceLineTotals.Of(lines),
         allocation.Summary,
         payment,
@@ -136,12 +148,17 @@ public static class InvoiceViews
     /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
     /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть
     /// потерей. Запись, переехавшая в другой вид, потеряна для строки тоже — её называет словарь.</param>
+    /// <param name="archived">Записи в архиве — по тому же опросу. Не потеря: позиция названа и
+    /// сведена, пометка только объясняет, почему её нет в поиске (issue #1185).</param>
     public static InvoiceLineView Line(
         InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation,
-        IReadOnlySet<Guid>? lost = null) => Line(line, names, allocation, Issue(line.NomenclatureId, names, lost));
+        IReadOnlySet<Guid>? lost = null, IReadOnlySet<Guid>? archived = null) =>
+        Line(line, names, allocation, Issue(line.NomenclatureId, names, lost),
+            line.NomenclatureId is { } id && archived?.Contains(id) == true);
 
     private static InvoiceLineView Line(
-        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation, string? issue) => new(
+        InvoiceLine line, IReadOnlyDictionary<Guid, string?>? names, LineAllocationView allocation, string? issue,
+        bool positionArchived) => new(
         line.Id,
         line.Ordinal,
         line.NomenclatureId,
@@ -150,6 +167,7 @@ public static class InvoiceViews
             : null,
         issue is not null,
         issue,
+        positionArchived,
         line.SupplierText,
         line.SupplierCode,
         line.Unit,
@@ -172,12 +190,13 @@ public static class InvoiceViews
         : null;
 
     public static InvoiceListItem Item(
-        Invoice invoice, string? supplierName, int lines, int withoutNomenclature) => new(
+        Invoice invoice, string? supplierName, bool supplierArchived, int lines, int withoutNomenclature) => new(
         invoice.Id,
         invoice.Number,
         invoice.IssuedOn,
         invoice.SupplierId,
         supplierName,
+        supplierArchived,
         invoice.Total,
         InvoiceRequisites.Label(invoice.State),
         InvoiceRequisites.Label(invoice.Payment),

@@ -4,7 +4,10 @@ using BHS.CRG.Modules.Ports;
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
 /// <summary>Статья вне строек в выборе цели разноски и в справочнике (задача F3, issue #1087).</summary>
-public sealed record CostsArticle(Guid Id, string Name);
+/// <param name="Archived">Статья в архиве (issue #1185): на выбор не предлагается, а там, где на неё
+/// уже разнесено, остаётся с названием. Признак обязателен — список один на справочник, названия и
+/// проверку, и каждый читатель решает, что делать с архивной.</param>
+public sealed record CostsArticle(Guid Id, string Name, bool Archived);
 
 /// <summary>
 /// Куда разносятся затраты: стройки с разделами и статьи вне строек (ТЗ COST-10, COST-10.1). Одним значением,
@@ -59,14 +62,14 @@ public sealed class AllocationPlacesSource(IModuleConstructions sites, IModuleCa
     /// тогда отвергается, а записанная — не потеряна: см. <see cref="AllocationPlaces.ArticlesKnown" />.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Назначение — «показ», хотя из этого же списка статью и ВЫБИРАЮТ (issue #1185). Список один
-    /// на три дела: выбор, проверку части разноски и название уже стоящей статьи. Скрой он архивные
-    /// статьи — разноска закрытого периода потеряла бы название статьи и перестала бы сохраняться.
-    /// Разъём на три чтения (выбор — <see cref="RecordsFor.Choice" />, названия — показ, проверка — по
-    /// состоянию ссылки) приезжает вместе с архивом статей; до него архивная статья в выборе остаётся.
+    /// Назначение — «показ»: архивные статьи в списке есть, с признаком (issue #1185). Список один
+    /// на три дела, и каждое решает об архиве само: название уже стоящей статьи берётся любое —
+    /// иначе разноска закрытого периода потеряла бы название; проверка новой части архивную
+    /// отвергает (<see cref="InvoiceAllocations.EnsureTargets" />); выбор её не предлагает — статей
+    /// горстка, и отбирает их экран по тому же признаку.
     /// </remarks>
     public static async Task<IReadOnlyList<CostsArticle>?> ArticlesAsync(IModuleCatalog catalog, CancellationToken ct) =>
         await catalog.ListAsync(CostsRecordTypes.ArticleCode, RecordsFor.Display, ct) is { } entries
-            ? [.. entries.Select(e => new CostsArticle(e.Id, e.DisplayName))]
+            ? [.. entries.Select(e => new CostsArticle(e.Id, e.DisplayName, e.Archived))]
             : null;
 }
