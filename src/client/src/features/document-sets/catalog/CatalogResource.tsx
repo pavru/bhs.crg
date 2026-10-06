@@ -60,9 +60,11 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     setExpandedTypes(prev => toggleInSet(prev, id));
   }
 
-  const { data: entries = [], isLoading } = useListCommonData({ scope, scopeId: scopeId ?? undefined });
+  // Страница справочника — показ: архивные записи на месте (issue #1185).
+  const { data: entries = [], isLoading } = useListCommonData({ purpose: 'display', scope, scopeId: scopeId ?? undefined });
   // Пул для резолва прокси-цели: вся scope-цепочка (текущий уровень + предки) — кросс-scope прокси (#89).
-  const { data: scopeChain = [] } = useCommonDataForScope({ scope, scopeId });
+  // Показ: цель уже стоящей ссылки обязана найтись и тогда, когда она в архиве.
+  const { data: scopeChain = [] } = useCommonDataForScope({ scope, scopeId, purpose: 'display' });
   const deleteMutation = useDeleteCommonDataEntry();
 
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');

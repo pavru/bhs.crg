@@ -211,7 +211,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   const ancestorIds = useMemo(() => ancestorTypeIds(docType, allDocTypes), [docType, allDocTypes]);
   const hasBase = ancestorIds.length > 0;
   // Общие данные всех уровней скопа комплекта (Set/Section/Construction/System) — кандидаты-записи.
-  const { data: commonData = EMPTY } = useCommonDataForSet({ setId, enabled: hasBase });
+  // Показ, а не выбор (issue #1185, ревью PR #1224): из этого же списка читается УЖЕ стоящая база —
+  // её название и покрытые ею поля. Список «на выбор» архивную базу не содержит, и целая ссылка
+  // выглядела бы потерянной. Кандидатов на выбор отбираем ниже сами.
+  const { data: commonData = EMPTY } = useCommonDataForSet({ setId, purpose: 'display', enabled: hasBase });
   const baseRef = useMemo(() => parseBaseRef(values._baseRef), [values._baseRef]);
 
   const baseCandidates = useMemo<BaseCandidate[]>(() => {
@@ -222,12 +225,13 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       .filter(i => ancestorSet.has(i.documentTypeId))
       .map(i => ({ kind: 'instance', id: i.id, name: i.name ?? '(без имени)', typeId: i.documentTypeId,
         tier: 0, scopeLabel: 'Комплект', dist: distOf(i.documentTypeId) }));
+    // Архивная запись в кандидатах остаётся только если она уже выбрана: иначе её не выбрать.
     const entries: BaseCandidate[] = (commonData as CommonDataEntry[])
-      .filter(e => ancestorSet.has(e.compositeTypeId))
+      .filter(e => ancestorSet.has(e.compositeTypeId) && (!e.archived || e.id === baseRef?.id))
       .map(e => ({ kind: 'catalog', id: e.id, name: e.displayName, typeId: e.compositeTypeId,
         tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: distOf(e.compositeTypeId) }));
     return [...docs, ...entries].sort((a, b) => a.tier - b.tier || a.dist - b.dist || a.name.localeCompare(b.name, 'ru'));
-  }, [hasBase, ancestorIds, otherInstances, commonData]);
+  }, [hasBase, ancestorIds, otherInstances, commonData, baseRef?.id]);
 
   const selectedBase = baseRef ? baseCandidates.find(c => c.id === baseRef.id) : undefined;
   // Поля, покрытые базовым экземпляром (его собственные ключи), не требуются к заполнению здесь —

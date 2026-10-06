@@ -37,6 +37,7 @@ public class DomainExceptionPolicyTests
     private static readonly Dictionary<string, string> DeliberatelyFramework = new()
     {
         ["BHS.CRG.Infrastructure/Generation/TypstGenerator.cs"] = "сбой компилятора Typst: stderr с путями временной папки — диагностика для лога",
+        ["BHS.CRG.Application/Documents/CommonDataRefs.cs"] = "назначение чтения не названо (issue #1185): промах кода, собравшего запрос, а не действие человека — адреса на неназванное отвечают своим 400 раньше",
         // TypstProcess.cs отсюда УБРАН (issue #1059): «Typst не запустился» перестало быть
         // framework-отказом. Прежнее решение — «нерабочая конфигурация, текст только в лог» —
         // держалось, пока этот отказ никуда, кроме ответа, не попадал. А попадал он дальше: места,

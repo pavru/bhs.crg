@@ -17,8 +17,11 @@ public static class CommonDataEndpoints
         var edit = app.MapGroup("/api/common-data").RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogEdit));
 
         // List — optional filters: scope, scopeId, typeId
-        g.MapGet("/", async (string? scope, Guid? scopeId, Guid? typeId, IMediator m) =>
+        g.MapGet("/", async (string? scope, Guid? scopeId, Guid? typeId, string? purpose, IMediator m) =>
         {
+            // Назначение обязательно и здесь: список уровня — это и страница справочника (показ), и
+            // кандидаты базового экземпляра вне комплекта (выбор). Адрес один, ответы разные.
+            if (Purpose(purpose) is not { } records) return PurposeRequired();
             CatalogScope? parsedScope = scope switch
             {
                 "Set"          => CatalogScope.Set,
@@ -27,24 +30,26 @@ public static class CommonDataEndpoints
                 "System"       => CatalogScope.System,
                 _              => null,
             };
-            return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(parsedScope, scopeId, typeId)))
+            return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))
                 .Select(CommonDataEntryDto.From)
                 .Select(Elide));
         });
 
         // Resolve all relevant entries for a document set (full hierarchy)
-        g.MapGet("/for-set/{setId:guid}", async (Guid setId, Guid? typeId, IMediator m) =>
+        g.MapGet("/for-set/{setId:guid}", async (Guid setId, Guid? typeId, string? purpose, IMediator m) =>
         {
+            if (Purpose(purpose) is not { } records) return PurposeRequired();
             try
             {
-                return Results.Ok((await m.Send(new ResolveCommonDataForSetQuery(setId, typeId))).Select(Elide));
+                return Results.Ok((await m.Send(new ResolveCommonDataForSetQuery(setId, records, typeId))).Select(Elide));
             }
             catch (NotFoundException ex) { return Results.NotFound(ex.Message); }
         });
 
         // Resolve entries visible from ANY scope level, walking the parent chain (issue #82).
-        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, IMediator m) =>
+        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, string? purpose, IMediator m) =>
         {
+            if (Purpose(purpose) is not { } records) return PurposeRequired();
             CatalogScope? parsed = scope switch
             {
                 "Set"          => CatalogScope.Set,
@@ -54,7 +59,7 @@ public static class CommonDataEndpoints
                 _              => null,
             };
             if (parsed is null) return Results.BadRequest($"Unknown scope '{scope}'.");
-            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, typeId)))
+            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId)))
                 .Select(Elide));
         });
 
@@ -116,6 +121,28 @@ public static class CommonDataEndpoints
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
+
+    /// <summary>
+    /// Назначение чтения из параметра адреса (issue #1185): <c>choice</c> — список на выбор, архивных
+    /// записей в нём нет; <c>display</c> — показ, архивные на месте с признаком.
+    ///
+    /// <para>Умолчания нет НАРОЧНО: один и тот же адрес кормит и выбор значения, и показ уже
+    /// стоящего, и ответы у них разные. Сервер, молча выбирающий за клиента, либо вернул бы архивную
+    /// запись в выбор, либо оставил бы сохранённую ссылку без названия — и оба исхода выглядели бы
+    /// исправной работой.</para>
+    /// </summary>
+    private static RecordsFor? Purpose(string? purpose) => purpose switch
+    {
+        "choice" => RecordsFor.Choice,
+        "display" => RecordsFor.Display,
+        _ => null,
+    };
+
+    private static IResult PurposeRequired() => Results.BadRequest(new
+    {
+        error = "Не названо назначение чтения: параметр purpose обязателен и принимает choice " +
+                "(список на выбор — архивные записи скрыты) либо display (показ — архивные на месте).",
+    });
 
     /// <summary>
     /// Списочный ответ без тяжёлой полезной нагрузки (issue #520). Вызывается ЯВНО в трёх списочных

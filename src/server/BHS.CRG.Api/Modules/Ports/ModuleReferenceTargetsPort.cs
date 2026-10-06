@@ -37,6 +37,17 @@ public sealed class ModuleReferenceTargetsPort(ModuleRegistry registry, ModuleLo
     public async Task<IReadOnlyDictionary<Guid, ReferenceState>> StatesAsync(
         ReferenceTarget target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
+        // Архив бывает только у записи справочника (issue #1185), и читается он ТЕМ ЖЕ запросом, что
+        // и существование: состояние спрашивают на каждое открытие и каждую правку счёта.
+        if (target == ReferenceTarget.Record)
+        {
+            var records = await scan.RecordStatesAsync(ids, ct);
+            return ids.Distinct().ToDictionary(id => id, id =>
+                !records.TryGetValue(id, out var archived) ? ReferenceState.Lost
+                : archived ? ReferenceState.Archived
+                : ReferenceState.Present);
+        }
+
         var present = await scan.ExistingAsync(scan.TableOf(Entities[target]), ids, ct);
         return ids.Distinct().ToDictionary(id => id, id => present.Contains(id) ? ReferenceState.Present : ReferenceState.Lost);
     }

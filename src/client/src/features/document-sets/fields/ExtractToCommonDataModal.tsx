@@ -410,6 +410,8 @@ function useNestedScopeLookup(
   const { data: entries } = useCommonDataForScope({
     scope: setId ? 'Set' : scope ?? 'System',
     scopeId: setId ?? scopeId ?? null,
+    // Показ: спрашиваем уровень записи, на которую значение УЖЕ ссылается, — архивная обязана найтись.
+    purpose: 'display',
     enabled,
   });
   return useMemo(() => {

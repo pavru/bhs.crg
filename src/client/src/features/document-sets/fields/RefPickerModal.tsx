@@ -100,7 +100,7 @@ function RefPickerModalBody({
   const effScope: CatalogScope | undefined = setId ? 'Set' : scope;
   const effScopeId = setId ?? scopeId;
   const { data: catalogEntries = [] } = useCommonDataForScope({
-    scope: effScope, scopeId: effScopeId, enabled: !!effScope,
+    scope: effScope, scopeId: effScopeId, purpose: 'choice', enabled: !!effScope,
   });
 
   // Union-режим (issue #747): кандидат подходит, если его тип годится САМОМУ union'у или любому его

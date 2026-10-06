@@ -180,7 +180,11 @@ public record DeleteCommonDataEntryCommand(Guid Id) : IRequest;
 /// </summary>
 public record GetCommonDataEntryQuery(Guid Id) : IRequest<DomainObject?>;
 
+/// <param name="For">Зачем список: выбор архивные записи скрывает, показ — отдаёт с признаком
+/// (issue #1185). Обязателен и стоит первым: умолчания у этого решения нет, см.
+/// <see cref="RecordsFor" />.</param>
 public record ListCommonDataEntriesQuery(
+    RecordsFor For,
     CatalogScope? Scope = null,
     Guid? ScopeId = null,
     Guid? CompositeTypeId = null) : IRequest<IReadOnlyList<DomainObject>>;
@@ -189,7 +193,7 @@ public record ListCommonDataEntriesQuery(
 /// Возвращает все записи каталога, доступные для данного комплекта,
 /// с учётом иерархии скоупов: Set → Section → Construction → System.
 /// </summary>
-public record ResolveCommonDataForSetQuery(Guid SetId, Guid? CompositeTypeId = null)
+public record ResolveCommonDataForSetQuery(Guid SetId, RecordsFor For, Guid? CompositeTypeId = null)
     : IRequest<IReadOnlyList<CommonDataEntryWithScope>>;
 
 /// <summary>
@@ -198,7 +202,8 @@ public record ResolveCommonDataForSetQuery(Guid SetId, Guid? CompositeTypeId = n
 /// который стартует только с комплекта. Нужен, чтобы из раздел/строечного объекта ссылаться на
 /// объекты более широких уровней.
 /// </summary>
-public record ResolveCommonDataForScopeQuery(CatalogScope Scope, Guid? ScopeId, Guid? CompositeTypeId = null)
+public record ResolveCommonDataForScopeQuery(
+    CatalogScope Scope, Guid? ScopeId, RecordsFor For, Guid? CompositeTypeId = null)
     : IRequest<IReadOnlyList<CommonDataEntryWithScope>>;
 
 public record CommonDataEntryWithScope(
@@ -210,4 +215,5 @@ public record CommonDataEntryWithScope(
     Guid? ScopeId,
     int Priority,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool Archived);

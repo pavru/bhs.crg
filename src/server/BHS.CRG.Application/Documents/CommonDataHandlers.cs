@@ -27,7 +27,8 @@ public class CommonDataHandlers(
     IRequestHandler<DeleteCommonDataEntryCommand>,
     IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<DomainObject>>,
     IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
-    IRequestHandler<ListCommonDataRefsQuery, IReadOnlyList<CommonDataRef>>,
+    IRequestHandler<SearchCommonDataForChoiceQuery, ChoiceCandidates>,
+    IRequestHandler<CommonDataRefsByIdsQuery, IReadOnlyList<CommonDataRef>>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
@@ -112,8 +113,10 @@ public class CommonDataHandlers(
         // гарантируем объект-профиль (если профиль-тип сконфигурирован) — он попадёт в список ниже.
         if (scope is { } s && s != CatalogScope.System && scopeId is { } sid)
             await levelProfiles.EnsureProfileAsync(s, sid, ct);
-        // Только общие данные (без документной фасеты).
+        // Только общие данные (без документной фасеты). Выбор архивные записи скрывает.
+        var live = q.For.HidesArchive();
         return await repo.FindAsync(e => e.Facet == null &&
+            (!live || e.ArchivedAt == null) &&
             (!scope.HasValue || e.ScopeLevel == scope.Value) &&
             (!scopeId.HasValue || e.ScopeId == scopeId.Value) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
@@ -124,8 +127,11 @@ public class CommonDataHandlers(
     /// много. Ленивое создание профиля уровня здесь НЕ трогается — оно про открытие общих данных
     /// уровня, а этот запрос отбирает по виду и названию и об уровнях не спрашивает.
     /// </summary>
-    public async Task<IReadOnlyList<CommonDataRef>> Handle(ListCommonDataRefsQuery q, CancellationToken ct)
-        => await objects.FindCommonDataRefsAsync(q.TypeIds, q.Search, q.Ids, q.Limit, ct);
+    public async Task<ChoiceCandidates> Handle(SearchCommonDataForChoiceQuery q, CancellationToken ct)
+        => await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);
+
+    public async Task<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
+        => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
 
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)
@@ -136,8 +142,10 @@ public class CommonDataHandlers(
         var setId = q.SetId;
         var sectionId = set.SectionId;
         var typeId = q.CompositeTypeId;
+        var live = q.For.HidesArchive();
 
         var relevant = await repo.FindAsync(e => e.Facet == null &&
+            (!live || e.ArchivedAt == null) &&
             ((e.ScopeLevel == CatalogScope.Set          && e.ScopeId == setId) ||
              (e.ScopeLevel == CatalogScope.Section       && e.ScopeId == sectionId) ||
              (e.ScopeLevel == CatalogScope.Construction  && e.ScopeId == constructionId) ||
@@ -176,8 +184,10 @@ public class CommonDataHandlers(
             // System — родителей нет.
         }
         var typeId = q.CompositeTypeId;
+        var live = q.For.HidesArchive();
 
         var relevant = await repo.FindAsync(e => e.Facet == null &&
+            (!live || e.ArchivedAt == null) &&
             ((e.ScopeLevel == CatalogScope.Set          && e.ScopeId == setId) ||
              (e.ScopeLevel == CatalogScope.Section       && e.ScopeId == sectionId) ||
              (e.ScopeLevel == CatalogScope.Construction  && e.ScopeId == constructionId) ||
@@ -192,7 +202,7 @@ public class CommonDataHandlers(
             .Select(e => new CommonDataEntryWithScope(
                 e.Id, e.DisplayName ?? "", e.CompositeTypeId, e.Data,
                 e.ScopeLevel, e.ScopeId, (int)e.ScopeLevel,
-                e.CreatedAt, e.UpdatedAt))
+                e.CreatedAt, e.UpdatedAt, e.IsArchived))
             .OrderBy(e => e.Priority)
             .ThenBy(e => e.DisplayName)
             .ToList();

@@ -58,8 +58,15 @@ public sealed class AllocationPlacesSource(IModuleConstructions sites, IModuleCa
     /// Статьи по названию; <c>null</c> — типа статей нет (проекция его пропустила). Новая часть на статью
     /// тогда отвергается, а записанная — не потеряна: см. <see cref="AllocationPlaces.ArticlesKnown" />.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Назначение — «показ», хотя из этого же списка статью и ВЫБИРАЮТ (issue #1185). Список один
+    /// на три дела: выбор, проверку части разноски и название уже стоящей статьи. Скрой он архивные
+    /// статьи — разноска закрытого периода потеряла бы название статьи и перестала бы сохраняться.
+    /// Разъём на три чтения (выбор — <see cref="RecordsFor.Choice" />, названия — показ, проверка — по
+    /// состоянию ссылки) приезжает вместе с архивом статей; до него архивная статья в выборе остаётся.
+    /// </remarks>
     public static async Task<IReadOnlyList<CostsArticle>?> ArticlesAsync(IModuleCatalog catalog, CancellationToken ct) =>
-        await catalog.ListAsync(CostsRecordTypes.ArticleCode, ct) is { } entries
+        await catalog.ListAsync(CostsRecordTypes.ArticleCode, RecordsFor.Display, ct) is { } entries
             ? [.. entries.Select(e => new CostsArticle(e.Id, e.DisplayName))]
             : null;
 }

@@ -116,7 +116,7 @@ public static class SiteCostsEndpoints
         // Контрагенты — только на экране стройки: без неё справочник не читаем.
         var suppliers = site is null
             ? []
-            : (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
+            : (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
         var byName = InvoiceShares.ByName;
         CostLine Line(Guid? id, string name, CostFigure figure, bool linked = true) =>
             new(id, name, figure.Invoices, figure.Amount, linked);

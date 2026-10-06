@@ -83,7 +83,7 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         using var scope = fixture.Services.CreateScope();
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var list = await m.Send(new ListCommonDataEntriesQuery(CatalogScope.Construction, cId, null));
+        var list = await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CatalogScope.Construction, cId, null));
 
         Assert.Contains(list, o => o.CompositeTypeId == profType);
         var construction = await m.Send(new GetConstructionQuery(cId));
@@ -108,7 +108,7 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var profType = await CompositeTypeAsync("Профиль стройки", "{'tags':['profile.construction'],'fields':[]}");
         using var scope = fixture.Services.CreateScope();
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var list = await m.Send(new ListCommonDataEntriesQuery(CatalogScope.Construction, cId, null)); // ensure
+        var list = await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CatalogScope.Construction, cId, null)); // ensure
         var profileId = list.First(o => o.CompositeTypeId == profType).Id;
 
         var ex = await Assert.ThrowsAsync<ConflictException>(

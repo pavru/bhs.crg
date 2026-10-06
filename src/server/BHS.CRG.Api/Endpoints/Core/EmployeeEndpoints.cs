@@ -46,7 +46,8 @@ public static class EmployeeEndpoints
             var typeId = await EmployeeTypeIdAsync(types);
             if (typeId is null) return Results.Ok(Array.Empty<CommonDataEntryDto>());
 
-            return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(CompositeTypeId: typeId)))
+            // Страница сотрудников — показ: архивная карточка на месте, с признаком (issue #1185).
+            return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId)))
                 .Select(CommonDataEntryDto.From)
                 .Select(Elide));
         });

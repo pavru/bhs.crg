@@ -168,15 +168,19 @@ export function CatalogEntryForm({
     .find(v => isFileAttachment(v));
   const attachment = isFileAttachment(fileFieldValue) ? fileFieldValue : null;
 
+  // Показ, а не выбор (issue #1185, ревью PR #1224): из этих же списков читается УЖЕ выбранная
+  // база и цепочка прокси-цели. Список «на выбор» архивную запись не содержит — выбранная база
+  // выглядела бы невыбранной, а «наследует: …» показывало бы обрезанные данные. Кандидатов на
+  // выбор отбираем ниже сами: архивная запись среди них остаётся, только если уже выбрана.
   const { data: allParentEntries = [] } = useCommonDataForSet({
-    setId: setId ?? '', typeId: parentType?.id, enabled: !!parentType && !!setId,
+    setId: setId ?? '', purpose: 'display', typeId: parentType?.id, enabled: !!parentType && !!setId,
   });
   const { data: scopeParentEntries = [] } = useListCommonData({
-    scope, scopeId: scopeId ?? undefined, typeId: parentType?.id,
+    purpose: 'display', scope, scopeId: scopeId ?? undefined, typeId: parentType?.id,
     enabled: !!parentType && !setId && scope !== 'System',
   });
   const { data: systemParentEntries = [] } = useListCommonData({
-    scope: 'System', typeId: parentType?.id, enabled: !!parentType,
+    purpose: 'display', scope: 'System', typeId: parentType?.id, enabled: !!parentType,
   });
   // ВАЖНО: клиентский фильтр по типу обязателен — useQuery с typeId:undefined (когда parentType нет)
   // возвращает закешированные данные по совпадающему ключу (нефильтрованный список каталога),
@@ -185,7 +189,7 @@ export function CatalogEntryForm({
     (setId
       ? allParentEntries
       : [...scopeParentEntries, ...systemParentEntries.filter(e => !scopeParentEntries.some(s => s.id === e.id))]
-    ).filter(e => e.compositeTypeId === parentType.id);
+    ).filter(e => e.compositeTypeId === parentType.id && (!e.archived || e.id === baseRefId));
   // Кандидаты базы для общего пикера (issue #73, шаг 2): записи родительского типа по скопам.
   const baseCandidates: BaseCandidate[] = parentEntries
     .map(e => ({
@@ -197,14 +201,14 @@ export function CatalogEntryForm({
   // Кандидаты роли/прокси (issue #89): объекты ТОГО ЖЕ типа, видимые в скоупе (кроме самого себя).
   const proxyTypeId = selectedType?.allowsProxy ? selectedType.id : undefined;
   const { data: allProxyEntries = [] } = useCommonDataForSet({
-    setId: setId ?? '', typeId: proxyTypeId, enabled: !!proxyTypeId && !!setId,
+    setId: setId ?? '', purpose: 'display', typeId: proxyTypeId, enabled: !!proxyTypeId && !!setId,
   });
   const { data: scopeProxyEntries = [] } = useListCommonData({
-    scope, scopeId: scopeId ?? undefined, typeId: proxyTypeId,
+    purpose: 'display', scope, scopeId: scopeId ?? undefined, typeId: proxyTypeId,
     enabled: !!proxyTypeId && !setId && scope !== 'System',
   });
   const { data: systemProxyEntries = [] } = useListCommonData({
-    scope: 'System', typeId: proxyTypeId, enabled: !!proxyTypeId,
+    purpose: 'display', scope: 'System', typeId: proxyTypeId, enabled: !!proxyTypeId,
   });
   // Тот же клиентский фильтр по типу (иммунно к cache-collision по ключу typeId:undefined).
   const proxyEntries: CommonDataEntry[] = !proxyTypeId ? [] :
@@ -213,7 +217,7 @@ export function CatalogEntryForm({
       : [...scopeProxyEntries, ...systemProxyEntries.filter(e => !scopeProxyEntries.some(s => s.id === e.id))]
     ).filter(e => e.compositeTypeId === proxyTypeId);
   const proxyCandidates: BaseCandidate[] = proxyEntries
-    .filter(e => e.id !== entry?.id) // не сам на себя
+    .filter(e => e.id !== entry?.id && (!e.archived || e.id === baseRefId)) // не сам на себя; архивная — только уже выбранная
     .map(e => ({
       kind: 'catalog' as const, id: e.id, name: e.displayName, typeId: e.compositeTypeId,
       tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: 0, proxy: true,

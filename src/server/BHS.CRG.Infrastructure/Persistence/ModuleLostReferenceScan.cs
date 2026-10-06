@@ -60,6 +60,23 @@ public class ModuleLostReferenceScan(AppDbContext db)
         return new CoreTable(type.GetSchema() ?? "public", table, key);
     }
 
+    /// <summary>
+    /// Какие из объектов общей таблицы есть — и лежит ли каждый в архиве (issue #1185). Ключа нет —
+    /// объекта нет. Отдельным методом, а не колонкой в <see cref="ExistingAsync" />: тот спрашивает
+    /// любую таблицу ядра по её ключу, а архив есть только здесь. Одним запросом, а не двумя: ответ
+    /// нужен на каждое открытие счёта.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, bool>> RecordStatesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new Dictionary<Guid, bool>();
+        var asked = ids.Distinct().ToArray();
+        return await db.DomainObjects.AsNoTracking()
+            .Where(o => asked.Contains(o.Id))
+            .Select(o => new { o.Id, Archived = o.ArchivedAt != null })
+            .ToDictionaryAsync(o => o.Id, o => o.Archived, ct);
+    }
+
     /// <summary>Какие из идентификаторов есть в таблице ядра.</summary>
     public async Task<IReadOnlySet<Guid>> ExistingAsync(
         CoreTable target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
