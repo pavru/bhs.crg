@@ -16,7 +16,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import type { CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
-import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
+import { isFieldRef } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, isUnionType, type SchemaField } from '@/shared/api/schema';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -26,12 +26,14 @@ import { objectSummary } from './objectSummary';
 import { mergeTableSources, mergeTableOrigins, moveOrder, dropOrder, applyOrder, remapSelection, identityOrigins, appendOrigins, type PathOrigins } from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
-import { ROW_DRAG_MIME, SCOPE_COLORS, showsArrayTable } from './constants';
+import { ROW_DRAG_MIME, showsArrayTable } from './constants';
 import { PrimitiveInput } from './PrimitiveInput';
 import { isMissing } from './fieldValidation';
 import { ImageField } from './ImageField';
 import { FileField } from './FileField';
 import { RefPickerModal } from './RefPickerModal';
+import { ArchivedRefMark } from './ArchivedRefs';
+import { RefTile } from './RefTile';
 import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
@@ -405,6 +407,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   {rowChrome(i)}
                   <Link2 size={12} className="text-warning shrink-0" />
                   <span className="flex-1 text-sm text-warning truncate">{item.displayName}</span>
+                  <ArchivedRefMark value={item} />
                   <button type="button" onClick={() => removeItem(i)}
                     className="p-1 text-fg4 hover:text-danger shrink-0">
                     <Trash2 size={13} />
@@ -435,6 +438,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   {rowChrome(i, wrappedBroken)}
                   <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
                   <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
+                  <ArchivedRefMark value={wrapped.ref} />
                   <span className="text-[11px] text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
                   <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
@@ -675,7 +679,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       compositeType={compositeType}
       setId={setId} scope={scope} scopeId={scopeId}
       otherInstances={otherInstances}
-      allDocTypes={allDocTypes}
+      allDocTypes={allDocTypes} current={value}
       onSelect={ref => onChange(ref)}
     />
   );
@@ -702,28 +706,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         </div>
       );
     }
-    // Link-строка (issue #189): нейтральный контейнер, имя — ссылка primary, тональный chip источника,
-    // два действия — «заменить» (открыть пикер) и «снять».
-    return (
-      <div className="flex items-center gap-1.5 border border-stroke rounded-lg pl-3 pr-1.5 py-1.5 bg-base">
-        <Link2 size={16} className="text-fg4 shrink-0" />
-        <span className="flex-1 text-sm text-brand font-medium truncate">{value.displayName}</span>
-        {value.scope && (
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${SCOPE_COLORS[value.scope]}`}>
-            {SCOPE_LABELS[value.scope]}
-          </span>
-        )}
-        <button type="button" onClick={() => setPickerOpen(true)}
-          className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Заменить ссылку">
-          <RefreshCw size={14} />
-        </button>
-        <button type="button" onClick={() => onChange({})}
-          className="p-1.5 rounded-full text-fg4 hover:text-danger hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Снять ссылку">
-          <Unlink size={14} />
-        </button>
-        {picker}
-      </div>
-    );
+    // Обычная ссылка — и ссылка на запись в архиве тоже: она не потеряна (см. RefTile).
+    return <RefTile value={value} onReplace={() => setPickerOpen(true)} onClear={() => onChange({})}>{picker}</RefTile>;
   }
 
   const subValues = (value != null && typeof value === 'object' && !isFieldRef(value)

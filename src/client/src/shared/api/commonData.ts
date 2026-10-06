@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, RecordsPurpose } from './types';
 
@@ -64,6 +65,7 @@ export function useCommonDataForScope({
   scopeId,
   purpose,
   typeId,
+  archivedOnly = false,
   enabled = true,
 }: {
   scope: CatalogScope | undefined;
@@ -71,14 +73,16 @@ export function useCommonDataForScope({
   /** Зачем список — см. {@link RecordsPurpose}. Обязателен: умолчания у этого решения нет. */
   purpose: RecordsPurpose;
   typeId?: string;
+  /** Только архивные записи (раздел «В архиве» окна выбора). Сервер принимает лишь с `display`. */
+  archivedOnly?: boolean;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null, purpose],
+    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null, purpose, archivedOnly],
     queryFn: () =>
       apiClient
         .get<CommonDataEntryWithScope[]>('/common-data/for-scope', {
-          params: { scope, scopeId: scopeId ?? undefined, typeId, purpose },
+          params: { scope, scopeId: scopeId ?? undefined, typeId, purpose, only: archivedOnly ? 'archived' : undefined },
         })
         .then(r => r.data),
     enabled: enabled && !!scope,
@@ -129,6 +133,8 @@ export function useCreateCommonDataEntry() {
       scope: CatalogScope;
       scopeId?: string | null;
       aliases?: string[];
+      /** «Такая запись есть в архиве — создать всё равно» (issue #1185); без него сервер отвечает 409. */
+      createAnyway?: boolean;
     }) => apiClient.post<CommonDataEntry>('/common-data', payload).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
@@ -146,6 +152,43 @@ export function useUpdateCommonDataEntry() {
       qc.invalidateQueries({ queryKey: ['common-data-audit', id] });
     },
   });
+}
+
+/** Запись в архиве, с чьим ключом идентичности совпала создаваемая (issue #1185). */
+export interface ArchivedTwin {
+  archivedId: string;
+  archivedName: string;
+  archivedScope: CatalogScope;
+}
+
+/**
+ * Отказ создания «такая запись есть в архиве». Читаем ПОЛЯ ответа, а не слова причины — как и
+ * `archiveOffered`: по ним экран предлагает вернуть запись кнопкой.
+ */
+export function archivedTwinOf(e: unknown): ArchivedTwin | null {
+  const data = (e as { response?: { data?: Partial<ArchivedTwin> & { code?: unknown } } })?.response?.data;
+  return data?.code === 'archived-twin' && typeof data.archivedId === 'string'
+    ? { archivedId: data.archivedId, archivedName: data.archivedName ?? '', archivedScope: data.archivedScope ?? 'System' }
+    : null;
+}
+
+const NO_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Какие из названных записей — в архиве (issue #1185). Вопрос формы про свои уже стоящие ссылки:
+ * в списке выбора архивной записи нет, и узнать о ней там нечем.
+ *
+ * Ключ лежит под общим `common-data`, поэтому отправка в архив и возврат сбрасывают и этот ответ.
+ * Прежний ответ держится, пока едет новый: иначе пометки мигали бы на каждую смену набора ссылок.
+ */
+export function useArchivedAmong(ids: string[]): ReadonlySet<string> {
+  const { data } = useQuery({
+    queryKey: [QK, 'archived-among', ids],
+    queryFn: () => apiClient.post<{ archived: string[] }>('/common-data/archived-among', { ids }).then(r => r.data.archived),
+    enabled: ids.length > 0,
+    placeholderData: keepPreviousData,
+  });
+  return useMemo(() => (data && data.length > 0 ? new Set(data) : NO_IDS), [data]);
 }
 
 export interface RecordArchiveResult {

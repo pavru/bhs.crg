@@ -71,6 +71,25 @@ public class NotFoundException(string message = "Запрошенный объе
 /// </summary>
 public class ConflictException(string message, Exception? inner = null) : DomainException(message, inner);
 
+/// <summary>
+/// Создают запись, а такая — с тем же ключом идентичности — лежит в архиве, и действующей с этим
+/// ключом нет (ТЗ CORE-34.4, issue #1185). Отказ, а не предупреждение: создание в ответ на «не нашёл
+/// в списке» и есть тот дубль, от которого архив должен был избавить.
+///
+/// <para>Несёт саму запись, а не только слова: экран предлагает «вернуть из архива» кнопкой, и
+/// разбирать для этого фразу он не должен. Выход «создать всё равно» остаётся — его называет
+/// запрос.</para>
+/// </summary>
+public sealed class ArchivedTwinException(Guid archivedId, string archivedName, string archivedScope) : ConflictException(
+    $"Такая запись есть в архиве: «{archivedName}». Верните её из архива — или создайте новую, подтвердив это.")
+{
+    public Guid ArchivedId { get; } = archivedId;
+    public string ArchivedName { get; } = archivedName;
+
+    /// <summary>Уровень архивной записи — экран называет его рядом с названием.</summary>
+    public string ArchivedScope { get; } = archivedScope;
+}
+
 /// <summary>Действие запрещено этому пользователю.</summary>
 public class ForbiddenException(string message) : DomainException(message);
 

@@ -57,4 +57,10 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// </summary>
     Task<IReadOnlyList<CommonDataRef>> RefsByIdsAsync(
         IReadOnlyCollection<Guid> typeIds, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>
+    /// Какие из названных записей общих данных лежат в архиве (issue #1185). Вид записи не спрашивает:
+    /// спрашивает форма, а в ней стоят ссылки на записи разных видов.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ArchivedAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 }

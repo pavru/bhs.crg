@@ -47,9 +47,15 @@ public static class CommonDataEndpoints
         });
 
         // Resolve entries visible from ANY scope level, walking the parent chain (issue #82).
-        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, string? purpose, IMediator m) =>
+        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, string? purpose, string? only, IMediator m) =>
         {
             if (Purpose(purpose) is not { } records) return PurposeRequired();
+            // only=archived — раздел «В архиве» окна выбора: ему нужны одни архивные, а не весь
+            // список уровня ради трёх записей (ревью PR #1229). Только с показом: у выбора архивных
+            // нет, и пустой ответ выглядел бы как «в архиве ничего нет».
+            var archivedOnly = only == "archived";
+            if (only is not null && !(archivedOnly && records == RecordsFor.Display))
+                return Results.BadRequest(new { error = "Параметр only принимает одно значение — archived — и только вместе с purpose=display." });
             CatalogScope? parsed = scope switch
             {
                 "Set"          => CatalogScope.Set,
@@ -59,9 +65,14 @@ public static class CommonDataEndpoints
                 _              => null,
             };
             if (parsed is null) return Results.BadRequest($"Unknown scope '{scope}'.");
-            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId)))
+            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId, archivedOnly)))
                 .Select(Elide));
         });
+
+        // Какие из стоящих в форме ссылок указывают на архивные записи (issue #1185). POST — потому
+        // что идентификаторов бывает сотня (таблица документа), а не потому, что адрес что-то меняет.
+        g.MapPost("/archived-among", async (ArchivedAmongRequest req, IMediator m) =>
+            Results.Ok(new { archived = await m.Send(new ArchivedAmongQuery(req.Ids ?? [])) }));
 
         // По идентификатору — ПОЛНАЯ запись, без отсечения: этот путь кормит редактор (issue #520).
         g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
@@ -103,9 +114,22 @@ public static class CommonDataEndpoints
                 "System"       => CatalogScope.System,
                 _              => CatalogScope.Set,
             };
-            return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
-                req.DisplayName, req.CompositeTypeId,
-                JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases))));
+            try
+            {
+                return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
+                    req.DisplayName, req.CompositeTypeId,
+                    JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases, req.CreateAnyway ?? false))));
+            }
+            // «Есть в архиве» — полями, а не словами (issue #1185): экран предлагает вернуть запись
+            // кнопкой и повторить создание с createAnyway, и разбирать для этого фразу не должен.
+            catch (ArchivedTwinException ex)
+            {
+                return Results.Conflict(new
+                {
+                    error = ex.Message, code = "archived-twin",
+                    archivedId = ex.ArchivedId, archivedName = ex.ArchivedName, archivedScope = ex.ArchivedScope,
+                });
+            }
         });
 
         edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m,
@@ -173,6 +197,8 @@ public static class CommonDataEndpoints
     private static CommonDataEntryWithScope Elide(CommonDataEntryWithScope entry) =>
         entry with { Data = HeavyLeafElision.WithoutHeavyLeaves(entry.Data) };
 
-    record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases);
+    record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases,
+        bool? CreateAnyway = null);
+    record ArchivedAmongRequest(Guid[]? Ids);
     record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
 }

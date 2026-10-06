@@ -1997,6 +1997,17 @@ GET    /api/common-data/{id}/binding-check  → { items: [{ fieldKey, fieldTitle
                                     stale | archived | archived-skipped | error. archived — цель в
                                     архиве, связка стоит; archived-skipped — источник называет
                                     архивную запись, которой в поле не было: не подставлена (#1185).
+POST   /api/common-data                     { …, createAnyway? } — создание. 409 { error, code:
+                                    "archived-twin", archivedId, archivedName, archivedScope }: ключ
+                                    идентичности совпал с архивной записью, а действующей с ним нет.
+                                    createAnyway: true — создать всё равно. По одному названию отказа
+                                    нет: действующих тёзок ядро не запрещает (#1185).
+                                    Тем же ответом и тем же createAnyway отвечает POST /api/employees.
+GET    /api/common-data/for-scope?…&purpose=display&only=archived — одни архивные записи цепочки
+                                    уровней (раздел «В архиве» окна выбора). С purpose=choice — 400.
+POST   /api/common-data/archived-among      { ids } → { archived: [id] } — какие из стоящих в форме
+                                    ссылок указывают на архивные записи. Кормит пометку на плитках:
+                                    в списке выбора архивной записи нет, узнать о ней там нечем.
 DELETE /api/common-data/{id}                409 несёт { error, canArchive }: выход «в архив» экран
                                     предлагает по ПОЛЮ, а не по словам причины.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)

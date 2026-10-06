@@ -9,6 +9,7 @@ export * from './LockedFieldMarks';
 export * from './fieldValidation';
 export * from './collectConstraintViolations';
 export * from './RefPickerModal';
+export * from './ArchivedRefs';
 export * from './InstancePickerModal';
 export * from './DocRefCatalogPickerField';
 export * from './DocRefField';

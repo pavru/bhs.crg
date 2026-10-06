@@ -42,6 +42,34 @@ public sealed record ObjectMatchRequest
 
     public static ObjectMatchRequest ByIdentity(Guid typeId, IReadOnlyDictionary<string, string?> fields) =>
         new() { TypeId = typeId, Strategy = ObjectMatchStrategy.IdentityKey, Fields = fields };
+
+    /// <summary>
+    /// Тот же вопрос, но от ДАННЫХ записи: «есть ли уже запись с таким ключом идентичности?»
+    /// (issue #1185). Скаляры верхнего уровня читаются так же, как резолвер читает их у кандидатов, —
+    /// иначе число <c>7</c> в новой записи не совпало бы с числом <c>7</c> в лежащей.
+    /// </summary>
+    public static ObjectMatchRequest ByIdentityOf(Guid typeId, System.Text.Json.JsonElement data)
+    {
+        var fields = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (data.ValueKind == System.Text.Json.JsonValueKind.Object)
+            foreach (var p in data.EnumerateObject())
+                fields[p.Name] = MatchText(p.Value);
+        return ByIdentity(typeId, fields);
+    }
+
+    /// <summary>
+    /// Значение поля тем текстом, по которому резолвер сравнивает: строка, число, да/нет; остальное —
+    /// «значения нет». Один читатель на обе стороны — и для лежащих записей, и для вопроса: разойдись
+    /// они, ключ новой записи молча перестал бы совпадать с ключом лежащей (ревью PR #1229).
+    /// </summary>
+    public static string? MatchText(System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.String => value.GetString(),
+        System.Text.Json.JsonValueKind.Number => value.GetRawText(),
+        System.Text.Json.JsonValueKind.True => "true",
+        System.Text.Json.JsonValueKind.False => "false",
+        _ => null,
+    };
 }
 
 /// <summary>
@@ -68,6 +96,13 @@ public interface IObjectResolver
 {
     /// <summary>Резолвит один запрос. null — совпадения нет (создание объектов не выполняется).</summary>
     Task<ObjectMatch?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Тот же вопрос, но по базе КАК ОНА ЕСТЬ СЕЙЧАС и без следа в памяти резолвера (issue #1185).
+    /// Для вопроса ПЕРЕД записью («нет ли уже такой?»): кандидаты, запомненные до записи, после неё
+    /// устарели бы, и всё, что в той же области служб резолвит дальше, новой записи не увидело бы.
+    /// </summary>
+    Task<ObjectMatch?> ResolveFreshAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 
     /// <summary>Батч в одном scope (кандидаты и скоп-цепочка строятся один раз). Порядок результата = порядок запросов.</summary>
     Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(

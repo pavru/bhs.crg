@@ -56,6 +56,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "GET /api/common-data/",
         "GET /api/common-data/for-set/{setId:guid}",
         "GET /api/common-data/for-scope",
+        "POST /api/common-data/archived-among",
         "GET /api/common-data/{id:guid}",
         "GET /api/common-data/{id:guid}/audit",
         "GET /api/common-data/{id:guid}/binding-check",

@@ -33,6 +33,26 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         return index.Match(req);
     }
 
+    public async Task<ObjectMatch?> ResolveFreshAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
+    {
+        // Мимо обоих кэшей: и цепочка уровней, и типы читаются заново — вопрос задают перед записью.
+        var chain = await ScopeChains.LoadForScopeAsync(db, scopeLevel, scopeId, ct);
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+
+        // Ключа нет — и совпасть нечему: записи типа не читаем вовсе (ревью PR #1229). Вопрос задаёт
+        // каждое создание записи, а у большинства типов полей идентичности нет; читать ради него все
+        // записи типа вместе с их данными (у организаций там картинки) было бы платой ни за что.
+        if (req.Strategy == ObjectMatchStrategy.IdentityKey)
+        {
+            var type = allTypes.FirstOrDefault(t => t.Id == req.TypeId);
+            var keys = type is null ? [] : IdentityFieldKeys(type, allTypes);
+            if (req.Fields is null
+                || BuildCompositeKey(keys, f => req.Fields.TryGetValue(f, out var v) ? v : null) is null)
+                return null;
+        }
+        return (await BuildIndexAsync(req.TypeId, chain, allTypes, ct)).Match(req);
+    }
+
     public async Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(
         IReadOnlyList<ObjectMatchRequest> reqs, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
     {
@@ -59,8 +79,14 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         var cacheKey = (typeId, scopeLevel, scopeId);
         if (_indexes.TryGetValue(cacheKey, out var cached)) return cached;
 
-        var chain = await GetChainAsync(scopeLevel, scopeId, ct);
-        var allTypes = await AllTypesAsync(ct);
+        var index = await BuildIndexAsync(
+            typeId, await GetChainAsync(scopeLevel, scopeId, ct), await AllTypesAsync(ct), ct);
+        _indexes[cacheKey] = index;
+        return index;
+    }
+
+    private async Task<TypeIndex> BuildIndexAsync(Guid typeId, ScopeChain chain, List<DocumentType> allTypes, CancellationToken ct)
+    {
         var typeIds = DescendantTypeIds(typeId, allTypes); // сам тип + подтипы (paste-совместимо)
 
         // Кандидаты — только объекты общих данных (Facet==null) нужных типов в скоп-поддереве;
@@ -77,9 +103,7 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         // (issue #1185). Архивные в запросе остаются — совпадение с ними звавший обязан увидеть.
         candidates = candidates.OrderBy(o => o.IsArchived).ThenBy(o => (int)o.ScopeLevel).ToList();
 
-        var index = TypeIndex.Build(candidates, allTypes);
-        _indexes[cacheKey] = index;
-        return index;
+        return TypeIndex.Build(candidates, allTypes);
     }
 
     /// <summary>Тип + все его потомки по цепочке ParentId.</summary>
@@ -122,15 +146,7 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
 
     private static string? ReadField(JsonDocument data, string field)
     {
-        if (!data.RootElement.TryGetProperty(field, out var el)) return null;
-        return el.ValueKind switch
-        {
-            JsonValueKind.String => el.GetString(),
-            JsonValueKind.Number => el.GetRawText(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            _ => null,
-        };
+        return data.RootElement.TryGetProperty(field, out var el) ? ObjectMatchRequest.MatchText(el) : null;
     }
 
     /// <summary>Индекс кандидатов одного (тип, scope): упорядоченный список + lookup по имени/составному ключу.</summary>

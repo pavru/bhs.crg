@@ -21,7 +21,8 @@ public class CommonDataHandlers(
     IReferenceIndex refIndex,
     IRecordHolders holders,
     IDataSetResolver dataSetResolver,
-    ILevelProfileService levelProfiles) :
+    ILevelProfileService levelProfiles,
+    BHS.CRG.Application.Resolution.IObjectResolver objectResolver) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
@@ -29,6 +30,7 @@ public class CommonDataHandlers(
     IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
     IRequestHandler<SearchCommonDataForChoiceQuery, ChoiceCandidates>,
     IRequestHandler<CommonDataRefsByIdsQuery, IReadOnlyList<CommonDataRef>>,
+    IRequestHandler<ArchivedAmongQuery, IReadOnlyList<Guid>>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
@@ -42,11 +44,37 @@ public class CommonDataHandlers(
         // вносится этой записью, и запертое поле нельзя заполнить даже впервые.
         await Schema.WriteGuard.EnsureAllowedAsync(
             null, cmd.Data, cmd.CompositeTypeId, typeRepo, primitiveRepo, ct);
+        // После охраны: «есть в архиве» говорят про запись, которую иначе создали бы (ревью PR #1229).
+        if (!cmd.CreateAnyway) await EnsureNoArchivedTwinAsync(cmd, ct);
 
         var entry = DomainObject.Create(cmd.CompositeTypeId, cmd.DisplayName, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);
         await repo.AddAsync(entry, ct);
         await repo.SaveChangesAsync(ct);
         return entry;
+    }
+
+    /// <summary>
+    /// «Есть в архиве» (issue #1185). Только по КЛЮЧУ ИДЕНТИЧНОСТИ и только когда действующей с этим
+    /// ключом нет: резолвер ставит действующие первыми, поэтому архивное совпадение и значит
+    /// «действующей нет». По одному названию не отказываем — действующих тёзок ядро не запрещает, и
+    /// запрет одних архивных был бы непоследователен.
+    ///
+    /// <para>⚠️ Именно «свежий» вопрос: обычный резолвер помнит кандидатов всё время жизни области, и
+    /// спроси мы его здесь — запись, созданную следом, он в этой области уже не нашёл бы.</para>
+    ///
+    /// <para>Это подсказка человеку, а не ограничение целостности: между вопросом и записью замка
+    /// нет, и два одновременных создания пройдут оба. Действующих дублей ядро не запрещает и без
+    /// гонки, так что стеречь здесь нечего. Ключ читается из собственных данных записи — как и у
+    /// лежащих: поля, унаследованные от основы, в ключ не входят ни с той, ни с другой стороны.</para>
+    /// </summary>
+    private async Task EnsureNoArchivedTwinAsync(CreateCommonDataEntryCommand cmd, CancellationToken ct)
+    {
+        if (await objectResolver.ResolveFreshAsync(
+                BHS.CRG.Application.Resolution.ObjectMatchRequest.ByIdentityOf(cmd.CompositeTypeId, cmd.Data.RootElement),
+                cmd.Scope, cmd.ScopeId, ct) is not { Archived: true } twin) return;
+        var archived = await repo.GetByIdAsync(twin.Id, ct);
+        throw new ArchivedTwinException(twin.Id, archived?.DisplayName ?? "",
+            (archived?.ScopeLevel ?? cmd.Scope).ToString());
     }
 
     public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
@@ -138,6 +166,9 @@ public class CommonDataHandlers(
     public async Task<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
 
+    public async Task<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
+        => await objects.ArchivedAmongAsync(q.Ids, ct);
+
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)
     {
@@ -190,9 +221,11 @@ public class CommonDataHandlers(
         }
         var typeId = q.CompositeTypeId;
         var live = q.For.HidesArchive();
+        var archivedOnly = q.ArchivedOnly;
 
         var relevant = await repo.FindAsync(e => e.Facet == null &&
             (!live || e.ArchivedAt == null) &&
+            (!archivedOnly || e.ArchivedAt != null) &&
             ((e.ScopeLevel == CatalogScope.Set          && e.ScopeId == setId) ||
              (e.ScopeLevel == CatalogScope.Section       && e.ScopeId == sectionId) ||
              (e.ScopeLevel == CatalogScope.Construction  && e.ScopeId == constructionId) ||

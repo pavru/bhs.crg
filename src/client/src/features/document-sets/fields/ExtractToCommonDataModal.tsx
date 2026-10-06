@@ -8,7 +8,7 @@ import { useToast } from '@/shared/ui/Toast';
 import type { CatalogScope, DocumentType, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { identityFieldKeys, resolveEffectiveFields } from '@/shared/api/schema';
-import { useCreateCommonDataEntry, useCommonDataForScope, useSetCommonDataArchive } from '@/shared/api/commonData';
+import { archivedTwinOf, useCreateCommonDataEntry, useCommonDataForScope, useSetCommonDataArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { useGetDocumentSet } from '@/shared/api/documentSets';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -115,7 +115,11 @@ export function ExtractToCommonDataModal({
   // обратима — записи не окажется там, где её ищут, и это видно сразу; широкая тиха — чужой объект
   // подставится в чужой документ, и не заметит никто.
   const [target, setTarget] = useState<CatalogScope>(() => offered[0] ?? allowedMax);
-  const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
+  const [searched, setDuplicate] = useState<Duplicate | null>(null);
+  // Архивный двойник, названный СЕРВЕРОМ в отказе создания. Отдельно от найденного поиском: поиск
+  // идёт с задержкой и переписал бы его — блок мигнул бы, а согласие «создать всё равно» пропало
+  // (ревью PR #1229). Привязан к уровню: на другом уровне ответ сервера уже ни о чём не говорит.
+  const [serverTwin, setServerTwin] = useState<{ target: CatalogScope; found: Duplicate } | null>(null);
   const unarchive = useSetCommonDataArchive();
   const canReturn = useCan().permission('core.catalog.edit');
   const [checking, setChecking] = useState(false);
@@ -129,6 +133,7 @@ export function ExtractToCommonDataModal({
    * значило бы положить объект шире, чем позволяют вложенные ссылки. Именно тихая широкая ошибка.
    */
   const effectiveTarget = offered.includes(target) ? target : offered[0];
+  const duplicate = serverTwin && serverTwin.target === effectiveTarget ? serverTwin.found : searched;
   const targetScopeId = effectiveTarget ? idFor(effectiveTarget) : null;
   // Класть некуда: ни один уровень до разрешённого включительно не имеет известного идентификатора.
   const noPlace = offered.length === 0;
@@ -224,6 +229,11 @@ export function ExtractToCommonDataModal({
         scope: effectiveTarget,
         scopeId: effectiveTarget === 'System' ? null : targetScopeId,
         aliases: aliases.length > 0 ? aliases : undefined,
+        // Архивный двойник ПО КЛЮЧУ уже показан в окне, и кнопка сказала «всё равно создать
+        // новую»: это и есть согласие, которого сервер ждёт (issue #1185). Совпадение по одному
+        // имени согласием не считается — сервер проверит ключ сам и назовёт другую запись, если
+        // она есть.
+        createAnyway: !!duplicate?.match.archived && duplicate.strong,
       });
       onExtracted({
         $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: effectiveTarget,
@@ -231,7 +241,14 @@ export function ExtractToCommonDataModal({
       onOpenChange(false);
       toast.success('Запись создана и подставлена ссылкой. Не забудьте сохранить документ.');
     } catch (e) {
-      setError(errorText(e));
+      // Сервер нашёл в архиве запись с тем же ключом, а окно её не показывало (поиск дубля ещё
+      // шёл или назвал другую запись). Показываем её тем же блоком: в нём и «вернуть из архива»,
+      // и согласие на вторую попытку.
+      const twin = archivedTwinOf(e);
+      if (twin) {
+        setServerTwin({ target: effectiveTarget, found: { strong: true, match: {
+          entryId: twin.archivedId, displayName: twin.archivedName, scope: twin.archivedScope, archived: true } } });
+      } else setError(errorText(e));
     } finally {
       setBusy(false);
     }
