@@ -19,6 +19,24 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
             .ThenInclude(f => f!.GeneratedFiles)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
+    public async Task SaveSeenAsync(DomainObject entry, string seen, CancellationToken ct = default)
+    {
+        // Своя транзакция — если вызывающий не открыл её сам: блокировка строки живёт до фиксации.
+        await using var own = Db.Database.CurrentTransaction is null
+            ? await Db.Database.BeginTransactionAsync(ct)
+            : null;
+        // Версию читаем ТЕМ ЖЕ запросом, что берёт блокировку: прочитанная до неё была бы прошлым.
+        // «xid» приводится через текст — прямого приведения к числу у него нет.
+        var stored = await Db.Database
+            .SqlQuery<long>($"""SELECT xmin::text::bigint AS "Value" FROM domain_objects WHERE "Id" = {entry.Id} FOR UPDATE""")
+            .ToListAsync(ct);
+        if (stored.Count == 0) throw new BHS.CRG.Domain.Common.NotFoundException();
+        RecordSeen.Ensure(stored[0].ToString(System.Globalization.CultureInfo.InvariantCulture), seen);
+
+        await Db.SaveChangesAsync(ct);
+        if (own is not null) await own.CommitAsync(ct);
+    }
+
     public async Task<IReadOnlyList<DomainObject>> GetSetDocumentsAsync(Guid setId, bool tracked, CancellationToken ct = default)
     {
         var q = Db.Set<DomainObject>()

@@ -244,6 +244,7 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
 
         var client = fixture.CreateClient();
         await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", employee.Version);
 
         var ok = await client.PutAsJsonAsync($"/api/employees/{employee.Id}", new
         {
@@ -255,6 +256,33 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
         var stored = await SendAsync(new GetCommonDataEntryQuery(employee.Id));
         Assert.Equal("2026-01-09", stored!.Data.RootElement.GetProperty("ПринятС").GetString());
         Assert.Equal("0421", stored.Data.RootElement.GetProperty("ТабельныйНомер").GetString());
+    }
+
+    /// <summary>
+    /// Дверь сотрудников правит ту же запись той же командой — и версию обязана назвать так же
+    /// (issue #1214): иначе она осталась бы адресом, которым карточку сохраняют поверх чужой правки.
+    /// </summary>
+    [Fact]
+    public async Task Правка_карточки_без_версии_и_с_устаревшей_отвергается()
+    {
+        var type = await EmployeeTypeAsync();
+        var employee = await SendAsync(new CreateCommonDataEntryCommand(
+            "Иванов И. И.", type.Id, JsonDocument.Parse("""{"ТабельныйНомер":"0421"}"""),
+            CatalogScope.System, null));
+        var client = fixture.CreateClient();
+        await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+        var body = new { displayName = "Подмена", data = """{"ТабельныйНомер":"0000"}""" };
+
+        var unnamed = await client.PutAsJsonAsync($"/api/employees/{employee.Id}", body);
+        Assert.Equal(HttpStatusCode.BadRequest, unnamed.StatusCode);
+        Assert.Contains("If-Match", await unnamed.Content.ReadAsStringAsync());
+
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", "1");
+        var stale = await client.PutAsJsonAsync($"/api/employees/{employee.Id}", body);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+        var stored = await SendAsync(new GetCommonDataEntryQuery(employee.Id));
+        Assert.Equal("Иванов И. И.", stored!.DisplayName);
     }
 
     /// <summary>
@@ -275,6 +303,8 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
 
         var client = fixture.CreateClient();
         await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+        // С версией: отказ обязан быть про реквизиты, а не про неназванную версию.
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", employee.Version);
 
         var wiped = await client.PutAsJsonAsync($"/api/employees/{employee.Id}",
             new { displayName = "Иванов И. И." });

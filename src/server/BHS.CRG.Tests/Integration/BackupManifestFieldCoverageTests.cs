@@ -47,6 +47,9 @@ public class BackupManifestFieldCoverageTests(IntegrationTestFixture fixture)
         // Признак «заводской профиль с тех пор обновился» сидер выставляет сам, сравнивая BuiltInHash
         // (он в копии есть) с хэшем этой сборки. В копии он был бы слепком чужой сборки.
         ["RecognitionProfile.BuiltInOutdated"] = "производное: сидер пересчитывает по BuiltInHash при старте",
+        // Версия строки (issue #1214) — системная колонка базы: у восстановленной записи она своя,
+        // и форма называет ту, что прочла после восстановления.
+        ["DomainObject.RowVersion"] = "системная колонка xmin: её ведёт база, перенести нельзя и незачем",
     };
 
     private static string NameOf(Type t) =>

@@ -218,8 +218,10 @@ public class ArchiveResolverTests(IntegrationTestFixture fixture) : IAsyncLifeti
         return 0;
     });
 
+    // Версию называет «форма, которая видит свежее»: запись читается перед правкой (issue #1214).
     private Task<JsonElement> SaveAsync(Guid owner, string data = "{}") => InScopeAsync(async s =>
-        (await M(s).Send(new UpdateCommonDataEntryCommand(owner, "Договор 1", J(data), TestAccess.All))).Data.RootElement.Clone());
+        (await M(s).Send(new UpdateCommonDataEntryCommand(owner, "Договор 1", J(data), TestAccess.All,
+            (await M(s).Send(new GetCommonDataEntryQuery(owner)))!.Version))).Data.RootElement.Clone());
 
     private Task<BindingCheckItem> CheckAsync(Guid owner) => InScopeAsync(async s =>
         Assert.Single((await M(s).Send(new CheckCommonDataBindingsQuery(owner, TestAccess.All))).Items));

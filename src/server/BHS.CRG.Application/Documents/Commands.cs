@@ -183,8 +183,13 @@ public sealed record ArchivedAmongQuery(IReadOnlyCollection<Guid> Ids) : IReques
 /// обязателен и здесь — иначе путь записи стал бы самым удобным способом прочитать набор чужими
 /// правами.
 /// </param>
+/// <param name="Seen">
+/// Версия записи, по которой правку собрали (issue #1214), — <c>DomainObject.Version</c> из ответа
+/// чтения. Обязательна: правка заменяет запись ЦЕЛИКОМ, и без версии из двух открытых форм молча
+/// побеждала сохранённая последней. С устаревшей — <c>ConflictException</c>.
+/// </param>
 public record UpdateCommonDataEntryCommand(Guid Id, string DisplayName, JsonDocument Data,
-    DataAccess Access, IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
+    DataAccess Access, string Seen, IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
 
 public record DeleteCommonDataEntryCommand(Guid Id) : IRequest;
 
@@ -236,4 +241,5 @@ public record CommonDataEntryWithScope(
     int Priority,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    bool Archived);
+    bool Archived,
+    string Version);

@@ -64,6 +64,17 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// записи обязан назвать запись так, как она названа в справочнике.
     /// </summary>
     Task<IReadOnlyList<ArchivedRecord>> ArchivedAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>
+    /// Сохранить правку объекта, собранную по версии <paramref name="seen" /> (issue #1214): строка
+    /// блокируется, её версия сверяется с названной, и только потом идёт запись — сверка и запись
+    /// неразрывны. Не совпала — <see cref="BHS.CRG.Domain.Common.ConflictException" />, и не записано
+    /// ничего.
+    ///
+    /// <para>Сверки при чтении мало: два сохранения, пришедшие почти разом, оба прочли бы запись, оба
+    /// прошли бы сверку и оба записали — побеждало бы последнее, и оба получали бы «сохранено».</para>
+    /// </summary>
+    Task SaveSeenAsync(DomainObject entry, string seen, CancellationToken ct = default);
 }
 
 /// <summary>Запись общих данных, лежащая в архиве: идентификатор и название.</summary>

@@ -399,7 +399,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
 
         // И сохранение записи её значения не подмешивает: правка проходит, поле остаётся как было.
         var saved = await m.Send(new UpdateCommonDataEntryCommand(
-            entry.Id, "Кабель", J("{'Наименование':'ВВГ 3х2.5'}"), TestAccess.All));
+            entry.Id, "Кабель", J("{'Наименование':'ВВГ 3х2.5'}"), TestAccess.All, entry.Version));
         Assert.Equal("ВВГ 3х2.5", saved.Data.RootElement.GetProperty("Наименование").GetString());
     }
 

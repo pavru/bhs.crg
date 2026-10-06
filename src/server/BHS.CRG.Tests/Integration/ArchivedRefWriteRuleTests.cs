@@ -247,11 +247,11 @@ public class ArchivedRefWriteRuleTests(IntegrationTestFixture fixture) : IAsyncL
             "Договор", holder, Ref("Подрядчик", active, "Лютик"), CatalogScope.System, null));
 
         await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(
-            new UpdateCommonDataEntryCommand(entry.Id, "Договор", Ref("Подрядчик", archived, "Ромашка"), TestAccess.All)));
+            new UpdateCommonDataEntryCommand(entry.Id, "Договор", Ref("Подрядчик", archived, "Ромашка"), TestAccess.All, entry.Version)));
 
         await ArchiveAsync(active);
         var saved = await SendAsync(new UpdateCommonDataEntryCommand(
-            entry.Id, "Договор (правка)", Ref("Подрядчик", active, "Лютик"), TestAccess.All));
+            entry.Id, "Договор (правка)", Ref("Подрядчик", active, "Лютик"), TestAccess.All, entry.Version));
         Assert.Equal("Договор (правка)", saved.DisplayName);
     }
 

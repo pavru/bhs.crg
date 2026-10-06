@@ -2023,12 +2023,19 @@ GET    /api/common-data/for-scope?…&purpose=display&only=archived — одни
 POST   /api/common-data/archived-among      { ids } → { archived: [id] } — какие из стоящих в форме
                                     ссылок указывают на архивные записи. Кормит пометку на плитках:
                                     в списке выбора архивной записи нет, узнать о ней там нечем.
+PUT    /api/common-data/{id}                { displayName, data, aliases } + заголовок If-Match: <version>
+                                    (#1214). Правка заменяет запись ЦЕЛИКОМ, поэтому называет версию,
+                                    по которой собрана: поле version из ответа чтения, создания или
+                                    прошлой правки. Без заголовка — 400, с устаревшим — 409 «запись
+                                    тем временем изменили». Версия — xmin строки: её двигает любая
+                                    запись строки, в том числе архив и возврат из него.
 DELETE /api/common-data/{id}                409 несёт { error, canArchive }: выход «в архив» экран
                                     предлагает по ПОЛЮ, а не по словам причины.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
 GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
 POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь
-PUT    /api/employees/{id}                  { displayName, data, aliases }
+PUT    /api/employees/{id}                  { displayName, data, aliases } + If-Match: <version> —
+                                    как у PUT /api/common-data/{id} (#1214)
 DELETE /api/employees/{id}
                                     Право core.employees.* — отдельное от core.catalog.*, но
                                     разграничением НЕ является: те же карточки отдаёт
