@@ -117,6 +117,40 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
         Assert.Equal(dtId, inst.CompositeTypeId);
     }
 
+    /// <summary>
+    /// Копия документа — НОВЫЙ объект, и запрет заведения общим путём стоит у неё так же, как у
+    /// создания (issue #1215, ревью PR #1233). Документ закрытого типа через приложение не завести,
+    /// поэтому тип «закрывается» уже после: так в общей таблице и оказалась бы строка, пришедшая
+    /// копией или правкой базы.
+    /// </summary>
+    [Fact]
+    public async Task Копия_документа_закрытого_типа_общим_путём_не_заводится()
+    {
+        var (_, section) = await CreateConstructionWithSectionAsync();
+        var dtId = await CreateDocTypeAsync("MOD_DOC_1215");
+
+        Guid srcId, otherSetId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var set = await Mediator(scope).Send(new CreateDocumentSetCommand(section.Id, "Комплект"));
+            otherSetId = (await Mediator(scope).Send(new CreateDocumentSetCommand(section.Id, "Второй"))).Id;
+            srcId = (await Mediator(scope).Send(new AddDocumentToSetCommand(set.Id, dtId))).Id;
+
+            var db = scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Persistence.AppDbContext>();
+            (await db.DocumentTypes.FindAsync(dtId))!.SetStorage(TypeStorage.ModuleTable);
+            await db.SaveChangesAsync();
+        }
+
+        using var act = fixture.Services.CreateScope();
+        var same = await Assert.ThrowsAsync<BHS.CRG.Domain.Common.ConflictException>(
+            () => Mediator(act).Send(new DuplicateDocumentInstanceCommand(srcId)));
+        var other = await Assert.ThrowsAsync<BHS.CRG.Domain.Common.ConflictException>(
+            () => Mediator(act).Send(new CopyDocumentToSetCommand(srcId, otherSetId, CopyStrategy.SmartCleanup)));
+
+        Assert.Contains("не заводится", same.Message);
+        Assert.Contains("не заводится", other.Message);
+    }
+
     // issue #283 (фаза B): дубль в тот же комплект — «Копия …», реквизиты клонированы, в конце,
     // свежий черновик; исходный на месте.
     [Fact]

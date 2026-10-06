@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Objects;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,33 @@ namespace BHS.CRG.Infrastructure.Backup;
 /// </summary>
 public partial class BackupService
 {
+    /// <summary>
+    /// Объекты копии без тех, чей тип держит записи в таблице модуля (issue #1215). Восстановление —
+    /// тоже вход в общую таблицу, и единственный, которым такая строка могла появиться средствами
+    /// приложения: копия этой системы их не содержит, а собранная не ею — может.
+    ///
+    /// <para>Пропуск, а не отказ всему восстановлению: из-за одной чужой строки копия не должна
+    /// становиться невосстановимой. Но и молча пропускать нельзя — отчёт называет, сколько и какого
+    /// типа.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<T>> CommonTableOnlyAsync<T>(
+        IReadOnlyList<T> items, Func<T, Guid> typeOf, string what, List<string> warnings, CancellationToken ct)
+    {
+        if (items.Count == 0) return items;
+        var closed = (await db.DocumentTypes.AsNoTracking().ToListAsync(ct))
+            .Where(type => !TypeStorageRules.KeptInCommonTable(type))
+            .ToDictionary(type => type.Id, type => type.Name);
+        var (ok, skipped) = Split(items, item => !closed.ContainsKey(typeOf(item)));
+        if (skipped.Count == 0) return items;
+
+        var names = skipped.Select(item => closed[typeOf(item)]).Distinct().Order(StringComparer.Ordinal);
+        warnings.Add(
+            $"{what}: пропущено объектов — {skipped.Count}. Их тип ({string.Join(", ", names.Select(n => $"«{n}»"))}) " +
+            "хранит записи в таблице модуля, и в общую таблицу такие объекты не кладутся: настоящие " +
+            "записи восстанавливаются вместе с данными модуля.");
+        return ok;
+    }
+
     private async Task RestoreCommonDataEntriesAsync(
         BackupCommonDataEntry[] items, bool knowsArchive, RestoreStats stats, List<string> warnings,
         CancellationToken ct)
@@ -37,7 +65,7 @@ public partial class BackupService
         var referencedDocumentIds = new HashSet<Guid>();
         var entryIdsByDocument = new Dictionary<Guid, List<Guid>>();
 
-        foreach (var item in items)
+        foreach (var item in await CommonTableOnlyAsync(items, i => i.CompositeTypeId, "Общие данные", warnings, ct))
         {
             if (!validDocTypeIds.Contains(item.CompositeTypeId))
             {

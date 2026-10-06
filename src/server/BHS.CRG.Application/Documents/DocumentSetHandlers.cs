@@ -172,9 +172,10 @@ public class DocumentSetHandlers(
 
         // Deep-clone Data (независимый JsonDocument): _baseRef и $ref сохраняются — тот же комплект.
         var data = JsonDocument.Parse(source.Data.RootElement.GetRawText());
-        var baseName = source.DisplayName
-            ?? (await docTypeRepo.GetByIdAsync(source.CompositeTypeId, ct))?.Name
-            ?? "документа";
+        // Копия — НОВЫЙ объект того же типа: запрет заведения общим путём стоит и здесь (issue #1215).
+        var type = await docTypeRepo.GetByIdAsync(source.CompositeTypeId, ct);
+        if (type is not null) TypeStorageRules.EnsureCommonPathAllowed(type);
+        var baseName = source.DisplayName ?? type?.Name ?? "документа";
         var clone = DomainObject.CloneAsDocument(source, setId, data, $"Копия {baseName}");
         clone.SetSortOrder(maxOrder + 1);
 
@@ -192,7 +193,10 @@ public class DocumentSetHandlers(
 
         var docs = await objRepo.GetSetDocumentsAsync(targetSet.Id, tracked: false, ct);
         var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
-        var baseName = source.DisplayName ?? (await docTypeRepo.GetByIdAsync(source.CompositeTypeId, ct))?.Name ?? "документа";
+        // Копия — НОВЫЙ объект того же типа: запрет заведения общим путём стоит и здесь (issue #1215).
+        var type = await docTypeRepo.GetByIdAsync(source.CompositeTypeId, ct);
+        if (type is not null) TypeStorageRules.EnsureCommonPathAllowed(type);
+        var baseName = source.DisplayName ?? type?.Name ?? "документа";
         var clone = DomainObject.CloneAsDocument(source, targetSet.Id, data, baseName);
         clone.SetSortOrder(maxOrder + 1);
 

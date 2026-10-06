@@ -91,6 +91,7 @@ public class CommonDataHandlers(
     public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        await EnsureCommonPathAsync(entry, ct);
         // Версия сверяется ДВАЖДЫ (issue #1214): здесь — чтобы устаревшая правка получила отказ, не
         // дожидаясь чтения наборов и охраны, — и ещё раз при записи, под блокировкой строки.
         RecordSeen.Ensure(entry.Version, cmd.Seen);
@@ -113,9 +114,29 @@ public class CommonDataHandlers(
         return entry;
     }
 
+    /// <summary>
+    /// Тот же запрет, что у создания (issue #1215), — и раньше СВЕРКИ версии: причина «этим адресом запись не ведётся» главнее любой следующей, и человек, получивший
+    /// вместо неё «запись тем временем изменили», пошёл бы перечитывать то, что править всё равно
+    /// нельзя. Типа нет — запрещать нечем: его способ хранения спросить не у кого.
+    ///
+    /// <para>Запрос БЕЗ версии адрес отвергает ещё раньше, до обработчика (ревью PR #1233): это
+    /// отказ о форме запроса, а не о записи, и клиент, который версию называет, его не увидит.</para>
+    ///
+    /// <para>Тип читается отдельным запросом, а охрана записи ниже прочтёт его ещё раз. Оставлено:
+    /// чтение по ключу, а общий «тип, прочитанный однажды» потребовал бы менять подпись охраны у
+    /// всех её мест ради одной строки.</para>
+    /// </summary>
+    private async Task EnsureCommonPathAsync(DomainObject entry, CancellationToken ct)
+    {
+        if (await typeRepo.GetByIdAsync(entry.CompositeTypeId, ct) is { } type)
+            TypeStorageRules.EnsureCommonPathAllowed(type, CommonPathAction.Update);
+    }
+
     public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        // Запрета «тип закрыт для общего адреса» здесь НЕТ нарочно (issue #1215): строка такого
+        // типа в общей таблице — мусор, и удаление — способ его убрать. См. TypeStorageRules.
         // issue #258: объект-профиль (на который ссылается FK контейнера) — синглтон, удалять нельзя.
         if ((await constructionRepo.FindAsync(c => c.ProfileObjectId == cmd.Id, ct)).Count > 0
             || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0

@@ -688,7 +688,7 @@ public partial class BackupService
         var sets = await db.DocumentSets.Select(x => x.Id).ToHashSetAsync(ct);
         var types = await db.DocumentTypes.Select(x => x.Id).ToHashSetAsync(ct);
 
-        var (ok, skipped) = Split(items, i => sets.Contains(i.SetId) && types.Contains(i.CompositeTypeId));
+        var (ok, skipped) = Split(await CommonTableOnlyAsync(items, i => i.CompositeTypeId, "Документы комплектов", warnings, ct), i => sets.Contains(i.SetId) && types.Contains(i.CompositeTypeId));
         Warn(warnings, skipped.Count, "документов", "их комплекта или типа нет ни в копии, ни в системе");
 
         int created = 0, updated = 0;
