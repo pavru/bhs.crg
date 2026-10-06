@@ -1,3 +1,5 @@
+using BHS.CRG.Modules;
+
 namespace BHS.CRG.Api.Endpoints.Documents;
 
 /// <summary>
@@ -13,17 +15,20 @@ namespace BHS.CRG.Api.Endpoints.Documents;
 /// </summary>
 public static class RecordIfMatch
 {
-    public const string Header = "If-Match";
-
     public const string Required =
         "Запись не сохранена: правка обязана назвать версию записи, по которой собрана, — заголовком " +
         "If-Match (значение — поле version из ответа чтения). Правка заменяет запись целиком, и без " +
         "версии она затёрла бы изменения, сделанные после того, как запись прочли.";
 
-    /// <summary>Отказ 400, если версию не назвали; иначе <c>null</c> и версия в <paramref name="seen" />.</summary>
+    /// <summary>
+    /// Отказ 400, если версию не назвали или записали не так; иначе <c>null</c> и версия в
+    /// <paramref name="seen" />. Сам заголовок читает общее место — <see cref="SeenVersion" />.
+    /// </summary>
     public static IResult? Refuse(HttpRequest request, out string seen)
     {
-        seen = request.Headers[Header].ToString().Trim();
-        return seen.Length == 0 ? Results.BadRequest(new { error = Required }) : null;
+        var wellFormed = SeenVersion.TryRead(request, out var named);
+        seen = named ?? "";
+        if (!wellFormed) return Results.BadRequest(new { error = SeenVersion.Malformed });
+        return named is null ? Results.BadRequest(new { error = Required }) : null;
     }
 }

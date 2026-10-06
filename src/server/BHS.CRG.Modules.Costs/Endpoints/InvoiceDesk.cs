@@ -31,7 +31,7 @@ public sealed class InvoiceDesk(
     IHttpContextAccessor http, IModuleReferenceTargets targets)
 {
     /// <summary>Заголовок, которым правка называет версию счёта, по которой она собрана.</summary>
-    public const string SeenHeader = "If-Match";
+    public const string SeenHeader = SeenVersion.Header;
 
     /// <summary>
     /// Выполнить правку счёта.
@@ -121,10 +121,10 @@ public sealed class InvoiceDesk(
                 "Счёт правят вне запроса: версию, по которой собрана правка, назвать некому. Связка записи " +
                 "счёта рассчитана на адрес; фоновой правке нужен свой путь с явной версией.");
 
-        // Кавычки — запись HTTP для таких отметок (ETag); принимается и без них: отметку называет наша
-        // же форма, а не кэш.
-        var seen = request.Headers[SeenHeader].ToString().Trim().Trim('"');
-        if (seen.Length == 0)
+        // Заголовок читает общее место (кавычки и W/ снимаются, «*» — отказ о записи, а не «счёт
+        // изменили»): то же правило — у записи общих данных.
+        if (!SeenVersion.TryRead(request, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
+        if (seen is null)
             throw new InvalidRequestException(
                 $"Не названа версия счёта, по которой собрана правка (заголовок {SeenHeader}) — она приходит " +
                 "в ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");

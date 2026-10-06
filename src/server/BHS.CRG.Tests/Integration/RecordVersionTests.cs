@@ -80,6 +80,29 @@ public class RecordVersionTests(IntegrationTestFixture fixture) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Версия в кавычках — запись HTTP для таких значений, и клиент на типизированных заголовках
+    /// иначе её не пошлёт (ревью PR #1231). Сравнённая как есть, она не совпала бы ни с одной
+    /// лежащей: на каждую попытку — «запись изменили», и перечитывание не помогло бы никогда.
+    /// А «*» — отказ о ЗАПИСИ версии, а не о состоянии записи.
+    /// </summary>
+    [Fact]
+    public async Task Версия_в_кавычках_принимается_а_звёздочка_это_отказ_о_записи_версии()
+    {
+        var entry = await EntryAsync("VER_Q");
+        var client = await SignInAsync();
+
+        var quoted = await PutAsync(client, entry.Id, "В кавычках", $"\"{entry.Version}\"");
+        Assert.Equal(HttpStatusCode.OK, quoted.StatusCode);
+        var moved = (await quoted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetString()!;
+        Assert.Equal(HttpStatusCode.OK, (await PutAsync(client, entry.Id, "Слабая", $"W/\"{moved}\"")).StatusCode);
+
+        var any = await PutAsync(client, entry.Id, "Любая", "*");
+        Assert.Equal(HttpStatusCode.BadRequest, any.StatusCode);
+        Assert.Contains("записана не так", await any.Content.ReadAsStringAsync());
+        Assert.Equal("Слабая", (await StoredAsync(entry.Id)).DisplayName);
+    }
+
+    /// <summary>
     /// Две формы открыты по одной версии. Первая сохраняется, вторая получает 409 — и её правка не
     /// записана. Ответ первой несёт новую версию: по ней та же форма сохраняется ещё раз.
     /// </summary>

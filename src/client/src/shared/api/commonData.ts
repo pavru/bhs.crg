@@ -90,12 +90,17 @@ export function useCommonDataForScope({
 }
 
 /** Одна запись каталога по id — для показа резолвнутой $ref-ссылки в связанном поле (issue #99). */
-export function useCommonDataEntry(id: string | undefined) {
+/**
+ * @param forEdit запись читают, чтобы открыть на ней форму правки (issue #1214): копия из кэша не
+ *   годится, и чтение идёт заново при каждом открытии — см. `EditEntryForm`.
+ */
+export function useCommonDataEntry(id: string | undefined, forEdit = false) {
   return useQuery({
     queryKey: [QK, 'by-id', id],
     queryFn: () => apiClient.get<CommonDataEntry>(`/common-data/${id}`).then(r => r.data),
     enabled: !!id,
     staleTime: 60_000,
+    refetchOnMount: forEdit ? 'always' : true,
   });
 }
 
@@ -143,8 +148,14 @@ export function useCreateCommonDataEntry() {
 }
 
 /** То из записи, что правка заменяет целиком, — одной строкой: по ней видно, изменилось ли содержимое. */
-export const recordContent = (entry: CommonDataEntry) =>
+const recordContent = (entry: CommonDataEntry) =>
   JSON.stringify([entry.displayName, entry.aliases, entry.data]);
+
+/** Основа черновика формы: версия, которую он вправе назвать, и запись, по которой он собран. */
+export interface SeenBase {
+  version: string;
+  entry: CommonDataEntry;
+}
 
 /**
  * Версия, которую форма вправе назвать при сохранении (issue #1214), — та, по которой собран её
@@ -155,30 +166,42 @@ export const recordContent = (entry: CommonDataEntry) =>
  * над этой же формой. Поэтому основа помнит и содержимое: версия новая, а оно то же — черновик
  * по-прежнему собран по лежащему в базе, и основа молча переезжает. Содержимое другое — основа
  * остаётся прежней, и сервер откажет.
+ *
+ * Содержимое сравнивается ТОЛЬКО когда версия сдвинулась: в данных лежат картинки на мегабайты, и
+ * сериализовать их при каждом открытии формы ради редкого случая незачем (ревью PR #1231).
  */
-export function seenStep(
-  base: { version: string; content: string }, entry: CommonDataEntry | null | undefined, content: string,
-) {
-  return entry && base.version !== entry.version && base.content === content
-    ? { version: entry.version, content }
-    : base;
+export function seenStep(base: SeenBase, entry: CommonDataEntry | null | undefined): SeenBase {
+  if (!entry || base.version === entry.version) return base;
+  return recordContent(base.entry) === recordContent(entry) ? { version: entry.version, entry } : base;
 }
 
 /**
- * @param entry запись, по которой собрана форма (новая запись — `null`): её версию правка и называет.
+ * Правка записи. Запись — и её идентификатор, и версия — берётся из ОДНОГО места, из аргумента
+ * хука: с идентификатором в переменных мутации версия одной записи могла бы уйти под адресом другой.
+ *
+ * @param entry запись, по которой собрана форма; у формы новой записи её нет, и правку такой хук
+ *   не выполняет.
  */
-export function useUpdateCommonDataEntry(entry?: CommonDataEntry | null) {
+export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefined) {
   const qc = useQueryClient();
-  // Подпись содержимого считается при смене записи, а не на каждый кадр: в данных лежат картинки.
-  const content = useMemo(() => (entry ? recordContent(entry) : ''), [entry]);
-  const [base, setBase] = useState(() => ({ version: entry?.version ?? '', content }));
-  const next = seenStep(base, entry, content);
+  const [base, setBase] = useState<SeenBase | null>(() => (entry ? { version: entry.version, entry } : null));
+  // Шаг считается при смене записи, а не на каждый кадр: под устаревшей основой он сравнивает содержимое.
+  const next = useMemo(() => (base ? seenStep(base, entry) : null), [base, entry]);
   // Состояние правится в рендере — приём React для состояния, выведенного из пропсов.
   if (next !== base) setBase(next);
   return useMutation({
-    mutationFn: ({ id, displayName, data, aliases }: { id: string; displayName: string; data: string; aliases?: string[] }) =>
-      apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
-        { headers: { 'If-Match': next.version } }).then(r => r.data),
+    mutationFn: async ({ displayName, data, aliases }: { displayName: string; data: string; aliases?: string[] }) => {
+      if (!next) throw new Error('Правка без записи: форма новой записи создаёт, а не правит.');
+      const { id } = next.entry;
+      const key = [QK, 'by-id', id];
+      // Запись как раз перечитывается (её только что вернули из архива над этой формой) — ждём:
+      // иначе ушла бы прежняя версия, и сервер отказал бы человеку на его собственное действие.
+      // Какую версию назвать, решает тот же шаг: содержимое то же — новая, другое — прежняя.
+      if (qc.isFetching({ queryKey: key }) > 0) await qc.refetchQueries({ queryKey: key }, { cancelRefetch: false });
+      const seen = seenStep(next, qc.getQueryData<CommonDataEntry>(key)).version;
+      return apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
+        { headers: { 'If-Match': seen } }).then(r => r.data);
+    },
     // Отказ 409 — запись изменили: копия в кэше перечитывается, чтобы форма, открытая заново,
     // собралась по свежей записи, а не по той же устаревшей (чтение записи кэшируется на минуту).
     //
@@ -189,10 +212,10 @@ export function useUpdateCommonDataEntry(entry?: CommonDataEntry | null) {
       if ((error as { response?: { status?: number } })?.response?.status === 409)
         qc.invalidateQueries({ queryKey: [QK] });
     },
-    onSuccess: (saved, { id }) => {
-      // Ответ правки — запись целиком и с новой версией: кладём её в кэш сразу, иначе форма,
-      // открытая заново раньше, чем дочитается список, собралась бы по прежней версии и получила
-      // отказ на собственную правку.
+    onSuccess: saved => {
+      const { id } = saved;
+      // Ответ правки — запись целиком и с новой версией: кладём её в кэш сразу, чтобы всё, что
+      // показывает запись по идентификатору, не держало прежнюю до перечитывания.
       qc.setQueryData([QK, 'by-id', id], saved);
       qc.invalidateQueries({ queryKey: [QK] });
       // Расхождения значений с типом считает сервер по СОХРАНЁННЫМ данным (issue #644) — без сброса

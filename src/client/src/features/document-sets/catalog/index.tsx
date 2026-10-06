@@ -356,7 +356,7 @@ export function CatalogEntryForm({
 
     try {
       if (entry) {
-        await updateMutation.mutateAsync({ id: entry.id, displayName, data: JSON.stringify(values), aliases });
+        await updateMutation.mutateAsync({ displayName, data: JSON.stringify(values), aliases });
       } else {
         await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway });
       }

@@ -335,8 +335,12 @@ function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...res
   scopeId: string | null;
   onClose: () => void;
 }) {
-  const { data: entry, isLoading } = useCommonDataEntry(id);
-  if (isLoading || !entry) {
+  // Форма собирается только по ответу, пришедшему ПОСЛЕ открытия (ревью PR #1231): копия из кэша
+  // живёт минуту и отдаётся сразу, а форма засевает из неё и значения, и версию. Собранная по
+  // устаревшей копии, она показывала бы прежнее содержимое и на первое же сохранение получала
+  // отказ «запись изменили» — хотя одновременной правки не было.
+  const { data: entry, isLoading, isFetchedAfterMount } = useCommonDataEntry(id, true);
+  if (isLoading || !entry || !isFetchedAfterMount) {
     return <div className="p-8 text-center text-sm text-fg4">Загрузка записи…</div>;
   }
   // Архивную запись править можно; плашка объясняет состояние и даёт вернуть (issue #1185).
