@@ -53,7 +53,13 @@ public record BackupManifest(
     // массив — «умела, а модулей со схемой на том экземпляре не было». Восстановление обязано
     // различать: в первом случае молчать, во втором сказать, что данных модуля в копии нет, — если
     // на этом экземпляре они есть (IModuleSchemaBackup.RestoreAsync, issue #1158).
-    BackupModuleSchema[]? ModuleData = null);
+    BackupModuleSchema[]? ModuleData = null,
+    // Копия несёт признак архива записей справочника (issue #1185). Нужен потому, что у самой записи
+    // «не в архиве» и «версия о признаке не знала» — один и тот же null. true — значение из копии
+    // ставится записи, в том числе «не в архиве»; null — копия снята прежней версией, и текущий
+    // признак записи восстановление не трогает. Иначе старая копия поверх живой системы сняла бы
+    // архив со всех записей разом, не сказав ни слова.
+    bool? KnowsRecordArchive = null);
 
 /// <summary>
 /// Данные одной схемы модуля (задача A2b этапа 2, issue #1073).
@@ -291,10 +297,16 @@ public record BackupReconciliationAlias(
     string Status, string? Note, string? ProposedBy, string? ConfirmedBy,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+/// <param name="AllowedTags">
+/// Функциональные тэги, применимые к полям типа. До issue #1185 в копию не попадали — восстановление
+/// молча очищало их и у нового типа, и у существующего; нашёл это сторож полей копии в день своего
+/// появления. Null — копия снята версией без поля: тэги существующего типа остаются как есть.
+/// </param>
 public record BackupPrimitiveType(
     Guid Id, string Name, string Code, string BaseType, string? Description,
     JsonElement Constraints,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Group = null);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Group = null,
+    string[]? AllowedTags = null);
 
 /// <param name="Module">Владелец типа (ТЗ CORE-18). Пусто — копия снята ДО появления владельца:
 /// восстановление применяет то же правило, что и миграция, а не подставляет умолчание.</param>
@@ -314,11 +326,18 @@ public record BackupCatalogEntity(
     Guid Id, string EntityType, string DisplayName, JsonElement Data, Guid? OwnerId,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+/// <param name="ArchivedAt">
+/// Когда запись отправили в архив (issue #1185). Аддитивно и в конце, без поднятия SchemaVersion.
+/// ⚠️ Null здесь двусмыслен: «запись действующая» и «копия снята версией, которая о признаке не
+/// знала». Различает их <see cref="BackupManifest.KnowsRecordArchive" /> — без него старая копия,
+/// восстановленная поверх, сняла бы архив со всех записей разом.
+/// </param>
 public record BackupCommonDataEntry(
     Guid Id, string DisplayName, Guid CompositeTypeId, JsonElement Data,
     string Scope, Guid? ScopeId,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-    string[]? Aliases = null);
+    string[]? Aliases = null,
+    DateTimeOffset? ArchivedAt = null);
 
 // Переиспользуемое перечисление (issue #59) — схемы типов ссылаются на него через typeId; без него
 // генерация не резолвит код→имя enum-полей.

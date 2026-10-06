@@ -14,7 +14,8 @@ namespace BHS.CRG.Infrastructure.Backup;
 
 public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger,
     BHS.CRG.Application.Activity.IActivityLog journal, IModuleSchemaBackup modules,
-    BHS.CRG.Application.Periods.IPeriodClosures periods)
+    BHS.CRG.Application.Periods.IPeriodClosures periods,
+    BHS.CRG.Application.Objects.IRecordArchive archive)
 {
     // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
     // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.

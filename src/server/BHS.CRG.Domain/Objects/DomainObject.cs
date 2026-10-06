@@ -37,6 +37,24 @@ public class DomainObject : Entity
 
     public bool IsDocument => Facet is not null;
 
+    /// <summary>
+    /// Когда запись отправили в архив (issue #1185, ТЗ CORE-34.4). Null — запись действующая.
+    ///
+    /// <para>Архив — решение «больше не предлагать»: запись пропадает из мест ВЫБОРА нового значения,
+    /// а всё, что на неё уже ссылается, видит её как прежде. Не равен увольнению сотрудника — у того
+    /// своя дата в данных типа.</para>
+    ///
+    /// <para>⚠️ Сеттера и метода «в архив» у сущности нет нарочно. Запись сохраняется ЦЕЛИКОМ и без
+    /// версии: форма, открытая до архива и сохранённая после, вернула бы сюда null — и запись молча
+    /// вернулась бы в выбор. Поэтому колонку обычное сохранение не пишет вовсе (см.
+    /// <c>DomainObjectConfiguration</c>), а меняет её одна служба отдельным обновлением —
+    /// <c>IRecordArchive</c>. Значение здесь — то, что прочитано из базы или пришло из копии при
+    /// создании записи.</para>
+    /// </summary>
+    public DateTimeOffset? ArchivedAt { get; private set; }
+
+    public bool IsArchived => ArchivedAt is not null;
+
     private DomainObject() { }
 
     public static DomainObject Create(
@@ -55,12 +73,16 @@ public class DomainObject : Entity
     public static DomainObject Restore(
         Guid id, Guid compositeTypeId, string? displayName, JsonDocument data,
         CatalogScope scopeLevel, Guid? scopeId, DateTimeOffset createdAt, DateTimeOffset updatedAt,
-        IReadOnlyList<string>? aliases = null)
+        IReadOnlyList<string>? aliases, DateTimeOffset? archivedAt)
         => new()
         {
             Id = id, CompositeTypeId = compositeTypeId, DisplayName = Norm(displayName),
             Data = data, ScopeLevel = scopeLevel, ScopeId = scopeId,
             Aliases = NormalizeAliases(aliases), CreatedAt = createdAt, UpdatedAt = updatedAt,
+            // Параметр обязательный, без значения по умолчанию: восстановление, забывшее о признаке,
+            // не должно компилироваться. В базу он уйдёт только у НОВОЙ записи — существующей его
+            // ставит IRecordArchive (обычное сохранение колонку не пишет).
+            ArchivedAt = archivedAt,
         };
 
     /// <summary>
@@ -77,8 +99,9 @@ public class DomainObject : Entity
         DocumentStatus status, int sortOrder, Guid? templateId, string? templateIds,
         string? templateParams, JsonDocument pluginData)
     {
+        // Документ в архиве не бывает (см. EnsureFacet) — признака у него в копии нет.
         var o = Restore(id, compositeTypeId, displayName, data,
-            CatalogScope.Set, setId, createdAt, updatedAt, aliases);
+            CatalogScope.Set, setId, createdAt, updatedAt, aliases, archivedAt: null);
         var facet = o.EnsureFacet();
         facet.Status = status;
         facet.SortOrder = sortOrder;
@@ -108,9 +131,23 @@ public class DomainObject : Entity
         return clone;
     }
 
-    /// <summary>Делает объект документом (создаёт фасету, если ещё нет). Возвращает фасету.</summary>
+    /// <summary>
+    /// Делает объект документом (создаёт фасету, если ещё нет). Возвращает фасету.
+    ///
+    /// <para>Архивная запись документом не становится: архив документу запрещён (CORE-34.4). Главный
+    /// запрет держит служба архива своим условным обновлением; эта дверь — обратная сторона, чтобы
+    /// он не обходился в два шага: отправить запись в архив, потом сделать её документом.</para>
+    ///
+    /// <para>⚠️ Проверка — по значению в памяти. Объект, прочитанный до архива, её пройдёт; и
+    /// восстановление копии строит документ заново, не зная, что под этим идентификатором в базе.
+    /// Поэтому после документов восстановление зовёт <c>IRecordArchive.ClearOnDocumentsAsync</c>.</para>
+    /// </summary>
     public DocumentFacet EnsureFacet()
     {
+        // Framework-тип: до этого места доходит только ошибка вызывающего кода, человеку здесь
+        // исправлять нечего (как и у Doc ниже).
+        if (Facet is null && IsArchived)
+            throw new InvalidOperationException("Запись в архиве не может стать документом.");
         Facet ??= DocumentFacet.Create(Id);
         return Facet;
     }
