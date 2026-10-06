@@ -28,6 +28,7 @@ public static class PrintFormEndpoints
                 IRepository<DomainObject> instanceRepo,
                 IRepository<DocumentType> docTypeRepo,
                 IRepository<BHS.CRG.Domain.Catalog.PrimitiveType> primitiveRepo,
+                IDomainObjectRepository objects,
                 IBlobStorage blob,
                 IMetadataExtractor metadataExtractor,
                 ClaimsPrincipal user,
@@ -100,7 +101,7 @@ public static class PrintFormEndpoints
                 // Охрана записи (issue #957). Этот адрес пишет данные ПРЯМО здесь, мимо MediatR, и
                 // кладёт значения «как прочитал» — то есть ровно то, ради чего охрана и заведена.
                 await WriteGuard.EnsureAllowedAsync(
-                    instance.Data, patched, instance.CompositeTypeId, docTypeRepo, primitiveRepo, ct);
+                    instance.Data, patched, instance.CompositeTypeId, docTypeRepo, primitiveRepo, objects, ct);
                 instance.SetData(patched);
                 instanceRepo.Update(instance);
                 await instanceRepo.SaveChangesAsync(ct);

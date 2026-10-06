@@ -347,7 +347,7 @@ public class DocumentSetHandlers(
         // Охрана записи (issue #957) — ДО сброса в черновик: отказ, который «почти сохранил»
         // (снёс выпущенный PDF и не записал данные), хуже отсутствия отказа.
         await Schema.WriteGuard.EnsureAllowedAsync(
-            obj.Data, cmd.Requisites, obj.CompositeTypeId, docTypeRepo, primitiveRepo, ct);
+            obj.Data, cmd.Requisites, obj.CompositeTypeId, docTypeRepo, primitiveRepo, objRepo, ct);
         var blobs = obj.ResetToDraft();
         obj.SetData(cmd.Requisites);
         objRepo.Update(obj);

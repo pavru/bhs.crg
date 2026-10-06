@@ -43,7 +43,7 @@ public class CommonDataHandlers(
         // Охрана записи (issue #957): у создания «как лежит» — ничего, поэтому всё содержимое
         // вносится этой записью, и запертое поле нельзя заполнить даже впервые.
         await Schema.WriteGuard.EnsureAllowedAsync(
-            null, cmd.Data, cmd.CompositeTypeId, typeRepo, primitiveRepo, ct);
+            null, cmd.Data, cmd.CompositeTypeId, typeRepo, primitiveRepo, objects, ct);
         // После охраны: «есть в архиве» говорят про запись, которую иначе создали бы (ревью PR #1229).
         if (!cmd.CreateAnyway) await EnsureNoArchivedTwinAsync(cmd, ct);
 
@@ -83,9 +83,8 @@ public class CommonDataHandlers(
         // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
         // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
         // Стоявшие ссылки — из сохранённых данных, а не из тела запроса: «уже стояла» решает то,
-        // что лежит в записи (issue #1185). ⚠️ Это правило ПРИВЯЗКИ: ссылку на архивную запись,
-        // присланную прямо в теле, здесь пока не проверяет ничто — её закроет правило записи ядра
-        // (шаг 5 той же задачи, в охране записи ниже).
+        // что лежит в записи (issue #1185). Это правило ПРИВЯЗКИ; ссылку, присланную прямо в теле,
+        // проверяет охрана записи ниже — тем же сравнением с лежащим.
         var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
             cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId,
             CatalogRefs.IdsIn(entry.Data.RootElement), cmd.Access, null, ct);
@@ -93,7 +92,7 @@ public class CommonDataHandlers(
         // ⚠️ Охрана — ПОСЛЕ слияния с привязками, а не над телом запроса: иначе привязка набора
         // пронесла бы мимо охраны что угодно (issue #957).
         await Schema.WriteGuard.EnsureAllowedAsync(
-            entry.Data, data, entry.CompositeTypeId, typeRepo, primitiveRepo, ct);
+            entry.Data, data, entry.CompositeTypeId, typeRepo, primitiveRepo, objects, ct);
         entry.Update(cmd.DisplayName, data, cmd.Aliases);
         repo.Update(entry);
         await repo.SaveChangesAsync(ct);

@@ -38,23 +38,43 @@ public static class WriteGuard
     /// <summary>Пустой документ для создания: там «как лежит» — ничего.</summary>
     private static readonly JsonDocument Nothing = JsonDocument.Parse("{}");
 
+    /// <summary>
+    /// Два вопроса в одной точке: охрана схемы (issue #957) и правило архива (issue #1185). Второй
+    /// стоит здесь, а не отдельным вызовом у адресов, потому что перечень путей записи уже один и
+    /// уже стережётся — вторая перепись разошлась бы с первой при первом же новом адресе.
+    /// Находки обоих собираются вместе: человеку незачем чинить запись в два захода.
+    /// </summary>
     /// <param name="stored">Данные, как они лежат. Для создания — <c>null</c>.</param>
     public static async Task EnsureAllowedAsync(
         JsonDocument? stored, JsonDocument incoming, Guid typeId,
+        IRepository<DocumentType> types, IRepository<PrimitiveType> primitives,
+        IDomainObjectRepository objects, CancellationToken ct)
+    {
+        var was = (stored ?? Nothing).RootElement;
+        List<AuditIssue> refusals =
+        [
+            .. await SchemaRefusalsAsync(was, incoming.RootElement, typeId, types, primitives, ct),
+            // ⚠️ Вне дешёвого выхода охраны схемы: открытых типов — все, а правило архива от уровня
+            // правки типа не зависит.
+            .. await ArchivedRefRule.RefusalsAsync(was, incoming.RootElement, typeId, types, objects, ct),
+        ];
+        if (refusals.Count > 0) throw new RecordWriteRefusedException(refusals);
+    }
+
+    private static async Task<IReadOnlyList<AuditIssue>> SchemaRefusalsAsync(
+        JsonElement was, JsonElement incoming, Guid typeId,
         IRepository<DocumentType> types, IRepository<PrimitiveType> primitives, CancellationToken ct)
     {
         // Дешёвый выход прежде тяжёлого чтения: у типа без родителя собственный уровень и есть
         // эффективный, а таких типов сегодня все 70 из 70. Полный справочник читается только там,
         // где охрана действительно работает.
         var type = await types.GetByIdAsync(typeId, ct);
-        if (type is null || (type.EditLevel == SchemaEditLevel.Open && type.ParentId is null)) return;
+        if (type is null || (type.EditLevel == SchemaEditLevel.Open && type.ParentId is null)) return [];
 
         var byId = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        if (RecordWriteGuard.EffectiveLevel(typeId, byId) == SchemaEditLevel.Open) return;
+        if (RecordWriteGuard.EffectiveLevel(typeId, byId) == SchemaEditLevel.Open) return [];
 
         var primitivesById = (await primitives.GetAllAsync(ct)).ToDictionary(p => p.Id);
-        var was = (stored ?? Nothing).RootElement;
-        var refusals = RecordWriteGuard.Refusals(was, incoming.RootElement, typeId, byId, primitivesById);
-        if (refusals.Count > 0) throw new RecordWriteRefusedException(refusals);
+        return RecordWriteGuard.Refusals(was, incoming, typeId, byId, primitivesById);
     }
 }

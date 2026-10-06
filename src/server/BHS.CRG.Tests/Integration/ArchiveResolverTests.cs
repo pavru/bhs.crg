@@ -274,6 +274,9 @@ public class ArchiveResolverTests(IntegrationTestFixture fixture) : IAsyncLifeti
     /// <summary>
     /// «Стояла» решают сохранённые данные, а не тело запроса: иначе архивную цель достаточно было
     /// бы прислать с формой — и правило обходилось бы любым клиентом.
+    ///
+    /// <para>С правилом записи ядра (шаг 5) такое сохранение не «проходит без подстановки», а
+    /// отвергается целиком: присланная ссылка — новая, и её останавливает охрана записи.</para>
     /// </summary>
     [Fact]
     public async Task Стоявшей_ссылку_делают_сохранённые_данные_а_не_присланные()
@@ -282,7 +285,9 @@ public class ArchiveResolverTests(IntegrationTestFixture fixture) : IAsyncLifeti
         await ArchiveAsync(b.Org);
 
         var sent = $"{{'Примечание':{{'$ref':'catalog','entryId':'{b.Org}'}}}}";
-        Assert.Null(RefOf(await SaveAsync(b.Owner, sent)));
+        var refusal = await Assert.ThrowsAsync<BHS.CRG.Application.Schema.RecordWriteRefusedException>(
+            () => SaveAsync(b.Owner, sent));
+        Assert.Equal(BHS.CRG.Application.Schema.ArchivedRefRule.ArchivedRef, Assert.Single(refusal.Details).Code);
     }
 
     /// <summary>
