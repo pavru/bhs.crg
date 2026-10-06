@@ -302,7 +302,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       const kept = state === 'archived' && storedId !== null
         ? { id: storedId, name: withArchiveWord(view.references?.[`${side}Name`] ?? 'организация', true) }
         : null;
-      const archived = kept !== null && entryId === kept.id;
+      const archived = kept !== null && entryId === kept.id && !organizations.some(o => o.id === kept.id);
       const lost = entryId !== null && (view.references
         ? stored && state === 'lost'
         : !organizationsUnread && !organizations.some(o => o.id === entryId));
@@ -339,7 +339,9 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
             <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
             {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
             {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
-            {kept && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
+            {/* Список и счёт читаются порознь и могут разойтись на миг (организацию только что
+                вернули): два пункта с одним значением Radix отметил бы выбранными оба. */}
+            {kept && !organizations.some(o => o.id === kept.id) && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
             {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </Select>
         </div>

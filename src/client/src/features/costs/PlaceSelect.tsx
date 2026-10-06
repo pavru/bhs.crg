@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { choiceOf, fromChoice, placeName, type Place, type Places } from './places';
 
@@ -10,9 +9,10 @@ import { choiceOf, fromChoice, placeName, type Place, type Places } from './plac
  * подписью. Без него значение не совпало бы ни с одним пунктом, поле показало бы «— выберите —», а уехала бы
  * удалённая цель — и выглядело бы это как «часть без цели».</p>
  *
- * <p>Архивную статью выбор не предлагает (issue #1185) — кроме той, что уже стоит: она остаётся
- * пунктом «Склад — в архиве», и держится он за значением, с которым поле открыли, а не за текущим:
- * заменил, передумал — вернул. Сервер это примет: стоявшую цель он не перепроверяет.</p>
+ * <p>Архивную статью выбор не предлагает (issue #1185) — кроме той, что стоит сейчас: она остаётся
+ * пунктом «Склад — в архиве». Сменили цель — пункт исчезает. Помнить прежнее значение поле не
+ * берётся: часть полей сохраняет выбор сразу, и после сохранения архивная статья у счёта уже не
+ * стоит — вернуть её значило бы предложить то, что сервер отвергнет (ревью PR #1227).</p>
  */
 export function PlaceSelect({ value, places, label, placeholder = '— выберите —', disabled, className, onChange }: {
   value: Place;
@@ -24,8 +24,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
   onChange: (place: Place) => void;
 }) {
   const current = choiceOf(value);
-  const [opened] = useState(value.article);
-  const articles = places.articles?.filter(a => !a.archived || a.id === opened || a.id === value.article);
+  const articles = places.articles?.filter(a => !a.archived || a.id === value.article);
   const list = value.article ? places.articles : places.sites;
   const id = value.article ?? value.construction;
   // Список ещё не пришёл — «удалена» было бы неправдой: «ещё не знаем» не то же, что «нет».

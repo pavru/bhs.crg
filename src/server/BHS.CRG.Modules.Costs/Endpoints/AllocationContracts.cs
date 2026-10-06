@@ -15,9 +15,6 @@ public sealed record AllocationRequest(IReadOnlyList<JsonElement>? Parts);
 /// <summary>Часть разноски в ответе.</summary>
 /// <param name="ConstructionId">Стройка; <c>null</c> — часть легла на статью вне строек.</param>
 /// <param name="ArticleId">Статья вне строек (F3, issue #1087); <c>null</c> — часть легла на стройку.</param>
-/// <param name="ArticleArchived">Статья этой части в архиве (issue #1185). Не неисправность и не
-/// потеря: часть остаётся как была, «разобран» с ней проходит — пометка только объясняет, почему
-/// статьи нет в выборе.</param>
 /// <param name="TargetLost">Стройки (раздела в ней, статьи) больше нет — удалили. Потеря, и
 /// выглядеть она обязана иначе, чем «цель не выбрана»: деньги этой части сейчас не относятся ни к
 /// чему, и «разобран» с ней не проходит. Сюда же входит раздел другой стройки.</param>
@@ -44,7 +41,6 @@ public sealed record AllocationPartView(
     string? SectionName,
     Guid? ArticleId,
     string? ArticleName,
-    bool ArticleArchived,
     bool TargetLost,
     string? TargetIssue,
     decimal? Quantity,
@@ -383,7 +379,6 @@ public static class InvoiceAllocations
             section?.Name,
             part.ArticleId,
             places.Article(part.ArticleId)?.Name,
-            places.Article(part.ArticleId)?.Archived == true,
             issue is not null,
             issue,
             part.Quantity,

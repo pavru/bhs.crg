@@ -47,11 +47,7 @@ export function useSetArticleArchive() {
   return useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       apiClient.post<CostsArticle>(`/costs/articles/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
-      // Пометка «в архиве» у части разноски приезжает со счётом.
-      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
   });
 }
 

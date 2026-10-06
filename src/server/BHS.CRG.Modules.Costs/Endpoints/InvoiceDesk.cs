@@ -222,10 +222,11 @@ public sealed class InvoiceDesk(
         var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
         string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
 
-        // Названия сторон — с ответом счёта: архивной организации в списке на выбор нет, и форме
-        // взять название стоящей было бы неоткуда. Типа «Организация» нет — названий нет, а о потере
-        // говорит состояние выше.
-        var parties = new[] { invoice.SupplierId, invoice.PayerId }.OfType<Guid>().Distinct().ToList();
+        // Названия АРХИВНЫХ сторон — с ответом счёта: в списке на выбор их нет, и форме взять
+        // название было бы неоткуда. Действующую сторону форма называет по списку, и спрашивать о
+        // ней на каждом чтении счёта незачем (ревью PR #1227). Типа «Организация» нет — названий нет.
+        var parties = new[] { invoice.SupplierId, invoice.PayerId }.OfType<Guid>().Distinct()
+            .Where(id => records[id] == ReferenceState.Archived).ToList();
         var organizations = parties.Count == 0
             ? null
             : await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);

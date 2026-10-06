@@ -70,10 +70,11 @@ public class InvoiceArchiveTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         await AllocateAsync(client, kept, LineId(view, 1), [ArticlePart(article.Id, quantity: 4)]);
         await SetAsync(client, article.Id, "archive");
 
-        // Стоявшая часть: название и пометка на месте, потерей не названа, и правка её суммы проходит.
+        // Стоявшая часть: название на месте, потерей не названа, и правка её суммы проходит. Признак
+        // архива несёт справочник статей — один источник на выбор, названия и пометку.
         var part = (await ReadAsync(client, kept)).GetProperty("lines")[0].GetProperty("allocation").GetProperty("parts")[0];
         Assert.Equal(article.Name, part.GetProperty("articleName").GetString());
-        Assert.True(part.GetProperty("articleArchived").GetBoolean());
+        Assert.True(await ListedAsync(client, article.Id));
         Assert.False(part.GetProperty("targetLost").GetBoolean());
         await AllocateAsync(client, kept, LineId(view, 1), [ArticlePart(article.Id, quantity: 6)]);
 

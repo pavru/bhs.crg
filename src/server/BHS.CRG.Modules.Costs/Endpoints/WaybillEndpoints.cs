@@ -444,20 +444,13 @@ public static class WaybillEndpoints
                 $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, поэтому ссылаться строкам " +
                 "не на что. Строки без позиции при этом сохраняются — они считаются несопоставленными.");
 
-        List<int> Rows(NewReference verdict) =>
-            [.. positions
-                .Where(p => p.Position is { } value && verdicts.GetValueOrDefault(value, NewReference.Fine) == verdict)
-                .Select(p => p.Number)];
-
-        var lost = Rows(NewReference.Missing);
+        var lost = NewReferences.Rows(positions, verdicts, NewReference.Missing);
         if (lost.Count > 0)
             throw new InvalidRequestException(
                 $"Позиции номенклатуры нет в справочнике: {(lost.Count == 1 ? "строка" : "строки")} " +
                 $"{string.Join(", ", lost)}. Так бывает, когда позицию удалили или перенесли в другой вид. " +
                 "Выберите позицию заново — ссылка в пустоту в перечень отпущенного не попала бы.");
 
-        if (Rows(NewReference.Archived) is { Count: > 0 } archived)
-            throw NewReferences.InArchive(
-                (archived.Count == 1 ? "Строка " : "Строки ") + string.Join(", ", archived), "позиция номенклатуры");
+        NewReferences.EnsureNoneArchived(positions, verdicts, "позиция номенклатуры");
     }
 }

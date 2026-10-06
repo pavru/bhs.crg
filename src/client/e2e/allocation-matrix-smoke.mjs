@@ -264,11 +264,6 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
   // В другом счёте её не предлагают — ни с пометкой, ни без.
   const offered = await outside(await open(other));
   if (offered.some(o => o.startsWith(name))) throw new Error(`архивная статья предлагается на выбор: ${JSON.stringify(offered)}`);
-
-  // Пометку части даёт сервер, а не экран по списку статей: её читает и матрица, и строка разноски.
-  const view = await api('GET', `/costs/invoices/${id}`);
-  if (view.lines[0].allocation.parts[0]?.articleArchived !== true)
-    throw new Error(`ответ счёта не помечает часть на архивную статью: ${JSON.stringify(view.lines[0].allocation.parts[0])}`);
 });
 
 // ── 4. Бухгалтер: матрица только для чтения, и ни одного отказа ───────────────────────────────────

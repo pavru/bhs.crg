@@ -160,7 +160,12 @@ export function useSetCommonDataArchive() {
   return useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       apiClient.post<RecordArchiveResult>(`/common-data/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    // Сбрасывается ВСЁ прочитанное, а не один список общих данных (ревью PR #1227): от признака
+    // зависят и списки на выбор у модулей, и состояние ссылок в уже открытом счёте. Со старым
+    // списком форма счёта предложила бы архивного поставщика, а со старым счётом — назвала бы его
+    // «записью другого вида». Действие редкое, перечитать лишнее дешевле, чем вести здесь перечень
+    // ключей чужих экранов, который отстанет на первом же новом.
+    onSuccess: () => qc.invalidateQueries(),
   });
 }
 

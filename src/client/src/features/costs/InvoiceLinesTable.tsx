@@ -16,6 +16,7 @@ import {
 } from './invoiceLines';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { withArchiveWord } from '@/shared/ui/archive';
 import { AllocationSummary, LineAllocationCell } from './LineAllocation';
 
 /** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
@@ -343,7 +344,9 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
     <tr className="border-t border-stroke align-top">
       <td className="py-1 text-fg4">{number}</td>
       <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
-        {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position) : draft.nomenclatureName ?? '—'}
+        {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)
+          : draft.nomenclatureName === null ? '—'
+          : withArchiveWord(draft.nomenclatureName, !!draft.nomenclatureArchived)}
       </td>
       {text(draft.supplierText)}
       {text(draft.supplierCode)}

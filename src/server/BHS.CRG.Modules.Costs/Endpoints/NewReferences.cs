@@ -48,6 +48,23 @@ public static class NewReferences
     }
 
     /// <summary>
+    /// Номера строк, чья НОВАЯ ссылка получила этот вердикт. Стоявшие ссылки сюда не попадают: их
+    /// среди спрошенных нет, и вердикта у них нет.
+    /// </summary>
+    public static IReadOnlyList<int> Rows(
+        IEnumerable<(int Number, Guid? Id)> rows, IReadOnlyDictionary<Guid, NewReference> verdicts, NewReference verdict) =>
+        [.. rows.Where(r => r.Id is { } id && verdicts.TryGetValue(id, out var found) && found == verdict)
+            .Select(r => r.Number)];
+
+    /// <summary>Строки с новой ссылкой на архивную запись — отказ, названы все разом.</summary>
+    public static void EnsureNoneArchived(
+        IEnumerable<(int Number, Guid? Id)> rows, IReadOnlyDictionary<Guid, NewReference> verdicts, string what)
+    {
+        if (Rows(rows, verdicts, NewReference.Archived) is { Count: > 0 } archived)
+            throw InArchive((archived.Count == 1 ? "Строка " : "Строки ") + string.Join(", ", archived), what);
+    }
+
+    /// <summary>
     /// Отказ на новую ссылку в архив — одними словами у всех четырёх адресов.
     /// </summary>
     /// <param name="where">Где стоит ссылка: «Поставщик», «Строка 3», «Часть 2».</param>

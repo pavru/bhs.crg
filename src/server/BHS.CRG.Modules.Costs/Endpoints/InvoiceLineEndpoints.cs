@@ -387,16 +387,8 @@ public static class InvoiceLineEndpoints
                 "приехал миграцией ядра, либо его заводит человек в разделе типов. Строки без позиции " +
                 "при этом сохраняются — счёт остаётся черновиком и ждёт в отборе «Разобрать».");
 
-        // Номера строк с НОВОЙ ссылкой, получившей этот вердикт. Стоявшие позиции сюда не попадают:
-        // их среди спрошенных нет.
-        List<int> Rows(NewReference verdict) =>
-            [.. parsed
-                .Select((p, index) => (Number: index + 1, p.Values.NomenclatureId))
-                .Where(p => p.NomenclatureId is { } value && verdicts.GetValueOrDefault(value, NewReference.Fine) == verdict
-                    && !kept.Contains(value))
-                .Select(p => p.Number)];
-
-        var lost = Rows(NewReference.Missing);
+        var rows = parsed.Select((p, index) => (Number: index + 1, Id: p.Values.NomenclatureId)).ToList();
+        var lost = NewReferences.Rows(rows, verdicts, NewReference.Missing);
 
         if (lost.Count > 0)
             throw new InvalidRequestException(
@@ -405,9 +397,7 @@ public static class InvoiceLineEndpoints
                 "записи нет. Выберите позицию заново — записать ссылку в пустоту значило бы получить " +
                 "строку, которую потом никто не сведёт.");
 
-        if (Rows(NewReference.Archived) is { Count: > 0 } archived)
-            throw NewReferences.InArchive(
-                (archived.Count == 1 ? "Строка " : "Строки ") + string.Join(", ", archived), "позиция номенклатуры");
+        NewReferences.EnsureNoneArchived(rows, verdicts, "позиция номенклатуры");
     }
 
     /// <summary>

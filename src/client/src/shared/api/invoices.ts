@@ -87,8 +87,6 @@ export interface AllocationPartView {
   /** Статья вне строек — «Склад», «Общие расходы»; `null` — часть легла на стройку. Ровно одно из двух. */
   articleId: string | null;
   articleName: string | null;
-  /** Статья в архиве (issue #1185) — не неисправность: часть остаётся как была. */
-  articleArchived?: boolean;
   /** С целью что-то не так — «разобран» с такой частью не проходит. Что именно, говорит `targetIssue`. */
   targetLost: boolean;
   /** Что не так с целью (issue #1184); `null` — цель на месте. Старый сервер поля не присылает. */
@@ -211,8 +209,8 @@ export interface InvoiceReferences {
   payer: ReferenceState | null;
   documentType: ReferenceState;
   /**
-   * Названия стоящих сторон (issue #1185). Нужны ровно архивной: в списке на выбор её нет, и взять
-   * название форме больше неоткуда. `null` — ссылки нет, записи нет либо она не организация.
+   * Название стороны, если она в архиве (issue #1185): в списке на выбор её нет, и взять название
+   * форме больше неоткуда. У действующей стороны — `null`: её называет список.
    */
   supplierName?: string | null;
   payerName?: string | null;
