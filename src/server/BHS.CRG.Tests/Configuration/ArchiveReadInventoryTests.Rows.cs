@@ -41,8 +41,8 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entry = await objects.GetByIdAsync(id, ct);"] =
             Shown("своя запись модуля по идентификатору — переименование и удаление"),
 
-        ["BHS.CRG.Application/Documents/CommonDataBindingCheck.cs|var e = Guid.TryParse(entryId, out var g) ? await repo.GetByIdAsync(g, ct) : null;"] =
-            Pending(4, "сверка связки: архивная цель получит свой статус вместе с резолвером"),
+        ["BHS.CRG.Application/Documents/CommonDataBindingCheck.cs|return targets[entryId] = Guid.TryParse(entryId, out var g) ? await repo.GetByIdAsync(g, ct) : null;"] =
+            Shown("сверка связки: цель по идентификатору, архивная получает статус archived"),
         ["BHS.CRG.Application/Documents/CommonDataBindingCheck.cs|var entry = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();"] =
             Seen("запись, чьи связки проверяют, — по идентификатору"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);"] =
@@ -114,7 +114,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Application/QualityDocs/QualitySetAudit.cs|var documents = await objects.GetSetDocumentsAsync(setId, tracked: false, ct);"] =
             Documents("документы комплекта"),
         ["BHS.CRG.Application/Resolution/ResolveObjectsBatch.cs|: (await repo.FindAsync(o => matched.Contains(o.Id), ct))"] =
-            Pending(4, "имена совпавших объектов после резолвера: состояние получат вместе с ним"),
+            Shown("имена совпавших объектов после резолвера: признак архива едет в ответе, подставлять ли — решает экран"),
         ["BHS.CRG.Application/Templates/DocumentTemplateInvalidator.cs|var docs = await objRepo.GetDocumentsOfTypeAsync(documentTypeId, ct);"] =
             Documents("документы типа — сброс вывода при правке шаблона"),
         ["BHS.CRG.Application/Templates/DocumentTemplateInvalidator.cs|var docs = await objRepo.GetDocumentsOfTypeAsync(tpl.DocumentTypeId, ct);"] =
@@ -151,11 +151,11 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/DataSets/DataSetSourceService.cs|var owners = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)"] =
             Seen("кто пользуется источником: владельцы привязок по идентификаторам"),
         ["BHS.CRG.Infrastructure/DataSets/DomainObjectsProvider.cs|db.DomainObjects.AsNoTracking().Where(o => o.Facet == null &&"] =
-            Pending(4, "системный набор объектов отдаёт архивные без колонки «в архиве»"),
+            Shown("системный набор объектов: архивные на месте, колонка «ВАрхиве» — реестр выпущенного документа не меняется"),
         ["BHS.CRG.Infrastructure/DataSets/DomainObjectsProvider.cs|var batch = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)"] =
             Seen("цепочка базовых экземпляров строк набора: сохранённые ссылки"),
         ["BHS.CRG.Infrastructure/DataSets/MaterializeByIdMode.cs|var docs = await db.DomainObjects.AsNoTracking()"] =
-            Pending(4, "материализация по идентификатору подставляет ссылку на объект: решается вместе с резолвером"),
+            Seen("подписи ссылок на ДОКУМЕНТЫ по идентификатору; запись общих данных здесь названа «не документ» при любом состоянии"),
         ["BHS.CRG.Infrastructure/DataSets/SetDocumentsProvider.cs|var documents = (await objects.GetSetDocumentsAsync(setId, tracked: false, ct))"] =
             Documents("документы — строки системного набора"),
         ["BHS.CRG.Infrastructure/DataSets/SubtreeDocumentsProvider.cs|var documents = await objects.GetDocumentsInSetsAsync([.. setById.Keys], ct);"] =
@@ -175,9 +175,9 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var docs = await objects.GetSetDocumentsAsync(setId, tracked: false, ct);"] =
             Documents("MCP: документы комплектов и их счётчики"),
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var entries = await domainObjects.FindAsync(e => e.Facet == null"] =
-            Pending(4, "MCP: список записей каталога отдаёт агенту архивные без признака"),
+            Shown("MCP: список записей каталога — архивные на месте, признак в ответе"),
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var entry = await domainObjects.GetByIdAsync(entryId, ct);"] =
-            Pending(4, "MCP: запись каталога по идентификатору — без признака"),
+            Shown("MCP: запись каталога по идентификатору — признак в ответе"),
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var found = await domainObjects.FindAsync(o => ids.Contains(o.Id), ct);"] =
             Documents("MCP: документы комплектов и их счётчики"),
         ["BHS.CRG.Infrastructure/Generation/EntityResolver.cs|var baseObj = await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == baseId, ct);"] =
@@ -199,7 +199,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Generation/LevelProfileService.cs|var existing = await db.DomainObjects.FirstOrDefaultAsync("] =
             Choice("назначение профилем — выбор: архивная запись под профиль не берётся", "Под_профиль_уровня_архивная_запись_не_берётся"),
         ["BHS.CRG.Infrastructure/Generation/ObjectResolver.cs|var candidates = await db.DomainObjects.AsNoTracking()"] =
-            Pending(4, "резолвер «строка → объект»: обязан вернуть состояние, живая запись побеждает архивную"),
+            Shown("резолвер «строка → объект»: находит и архивные, состояние в ответе, действующая побеждает архивную"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var blobSql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%\\\"$type\\\": \\\"image\\\"%' OR \\\"Data\\\"::text LIKE '%\\\"$type\\\":\\\"image\\\"%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);"] =

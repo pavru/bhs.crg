@@ -35,17 +35,17 @@ public class DataSetResolver(
     /// Ключевое отличие от превью: здесь резолвится ЗНАЧЕНИЕ (ссылка), а не display-строка «🔗 …».
     /// </summary>
     public async Task<IReadOnlyDictionary<string, object?>> ResolveOwnerBindingsAsync(
-        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId, DataAccess access,
+        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId, IReadOnlySet<Guid> standing, DataAccess access,
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
     {
         var ctx = new GenerationContext();
-        await ResolveBindingsCoreAsync(ctx, ownerId, typeId, scopeLevel, scopeId, access, diagnostics, ct,
-            forPersist: true);
+        await ResolveBindingsCoreAsync(ctx, ownerId, typeId, scopeLevel, scopeId, access, diagnostics, ct, standing);
         return ctx.Data;
     }
 
-    /// <param name="forPersist">
-    /// Резолв для ПЕРСИСТА (sync-on-save записи общих данных), а не для генерации. Строки
+    /// <param name="standing">
+    /// Задан — резолв для ПЕРСИСТА (sync-on-save записи общих данных), а не для генерации; сам набор
+    /// — записи, на которые объект уже ссылается (правило архива, см. <see cref="ResolveRefAsync"/>). Строки
     /// опубликованного набора в этот путь не попадают (ТЗ CORE-24.2, issue #965): они легли бы прямо
     /// в данные записи и пережили бы отзыв права.
     ///
@@ -57,8 +57,9 @@ public class DataSetResolver(
     /// </param>
     private async Task ResolveBindingsCoreAsync(GenerationContext ctx, Guid ownerId, Guid typeId,
         CatalogScope scopeLevel, Guid? scopeId, DataAccess access,
-        List<ResolutionDiagnostic>? diagnostics, CancellationToken ct, bool forPersist = false)
+        List<ResolutionDiagnostic>? diagnostics, CancellationToken ct, IReadOnlySet<Guid>? standing = null)
     {
+        var forPersist = standing is not null;
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == ownerId)
@@ -279,7 +280,7 @@ public class DataSetResolver(
                                     $"несуществующее поле «{fieldKey}» — значение не записано."));
                                 continue;
                             }
-                            var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
+                            var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, standing, diagnostics, fieldKey, ct);
                             value = DataSetValueCoercion.Coerce(value, field, primitives, await TypesAsync());
                             WarnUnbuiltDocRef(field, value, mapVal, fieldKey);
                             if (value is not null)
@@ -335,7 +336,7 @@ public class DataSetResolver(
                         {
                             var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
                             var rowField = rowFields.GetValueOrDefault(fieldKey);
-                            var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, path, ct);
+                            var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, standing, diagnostics, path, ct);
                             // Число в числовом поле, а не текст ячейки (#466).
                             value = DataSetValueCoercion.Coerce(value, rowField, rowPrimitives, rowTypes);
                             WarnUnbuiltDocRef(rowField, value, mapVal, path);
@@ -545,16 +546,25 @@ public class DataSetResolver(
         Guid ownerId,
         CatalogScope scopeLevel,
         Guid? scopeId,
+        IReadOnlySet<Guid>? standing,
         List<ResolutionDiagnostic>? diagnostics,
         string path,
         CancellationToken ct)
         => DataSetMappingApplier.ApplyAsync(mapVal, row,
-            (rm, r, p, c) => ResolveRefAsync(rm, r, ownerId, scopeLevel, scopeId, diagnostics, p, c), path, ct);
+            (rm, r, p, c) => ResolveRefAsync(rm, r, ownerId, scopeLevel, scopeId, standing, diagnostics, p, c), path, ct);
 
     /// <summary>
     /// @@ref: резолвит строку в существующий объект каталога через единый <see cref="IObjectResolver"/>
     /// (issue #183) — по имени/алиасам или составному identity-ключу. Нет матча → WARNING + null (создание
     /// объектов не выполняется, резолвер read-only). Возвращает {$ref:catalog, entryId} по найденной записи.
+    ///
+    /// <para><b>Совпадение с архивной записью</b> (ТЗ CORE-34.4, issue #1185) решается тем, есть ли
+    /// у звавшего снимок. При сохранении записи общих данных (<paramref name="standing"/> задан)
+    /// ссылка ложится в данные, то есть это выбор: уже стоявшая остаётся, новая не подставляется —
+    /// с предупреждением «есть в архиве», а не «не найдено», иначе человек завёл бы дубль. При
+    /// генерации документа снимка нет, значение собирается заново каждый раз, и это чтение: ссылка
+    /// подставляется, иначе документ закрытого периода потерял бы поставщика при перегенерации, —
+    /// с одним предупреждением на значение: источник называет запись, которую из выбора убрали.</para>
     /// </summary>
     private async Task<object?> ResolveRefAsync(
         DataSetRefMapping refMap,
@@ -562,6 +572,7 @@ public class DataSetResolver(
         Guid ownerId,
         CatalogScope scopeLevel,
         Guid? scopeId,
+        IReadOnlySet<Guid>? standing,
         List<ResolutionDiagnostic>? diagnostics,
         string path,
         CancellationToken ct)
@@ -590,7 +601,29 @@ public class DataSetResolver(
             lookupDisplay = lookup;
         }
 
-        var entryId = await objectResolver.ResolveAsync(req, scopeLevel, scopeId, ct);
+        var match = await objectResolver.ResolveAsync(req, scopeLevel, scopeId, ct);
+        if (match is { Archived: true } archived)
+        {
+            var kept = standing is null || standing.Contains(archived.Id);
+            var message = standing is null
+                ? $"Значение «{lookupDisplay}» совпало с записью в архиве — в документе она остаётся, " +
+                  "он печатается как прежде. В выборе этой записи нет."
+                : kept
+                    ? $"Значение «{lookupDisplay}» совпало с записью в архиве — ссылка на неё оставлена. " +
+                      "В выборе этой записи нет: верните её из архива либо поправьте значение в источнике."
+                    : $"Значение «{lookupDisplay}» совпало с записью в архиве — ссылка не подставлена. " +
+                      "Верните запись из архива либо поправьте значение в источнике.";
+            // При генерации — одно предупреждение на значение, а не на строку (ревью PR #1228):
+            // таблица на триста строк с архивным поставщиком дала бы триста одинаковых, и за ними
+            // не видно настоящих. У сохранения путь — адрес поля в отчёте сверки, там строки нужны.
+            if (standing is not null || diagnostics?.Any(d => d.Message == message) != true)
+                diagnostics?.Add(new ResolutionDiagnostic(
+                    DiagnosticSeverity.Warning, path, message,
+                    kept ? ArchivedRefCodes.Kept : ArchivedRefCodes.Skipped));
+            if (!kept) return null;
+        }
+
+        var entryId = match?.Id;
         if (entryId is null)
         {
             logger.LogWarning(

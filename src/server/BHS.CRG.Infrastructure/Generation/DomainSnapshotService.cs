@@ -337,7 +337,7 @@ public class DomainSnapshotService(
                 return new CatalogEntrySummary(
                     e.Id, NameOf(e, t), e.CompositeTypeId,
                     t?.Code ?? "", t?.Name ?? "",
-                    e.ScopeLevel.ToString(), e.ScopeId);
+                    e.ScopeLevel.ToString(), e.ScopeId, e.IsArchived);
             })
             .ToArray();
 
@@ -357,7 +357,7 @@ public class DomainSnapshotService(
         return new CatalogEntryDetail(
             entry.Id, NameOf(entry, type), entry.CompositeTypeId,
             type?.Code ?? "", type?.Name ?? "",
-            entry.ScopeLevel.ToString(), entry.ScopeId,
+            entry.ScopeLevel.ToString(), entry.ScopeId, entry.IsArchived,
             entry.Data.RootElement.Clone());
     }
 

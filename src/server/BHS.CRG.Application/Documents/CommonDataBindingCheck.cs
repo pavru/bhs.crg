@@ -2,6 +2,7 @@ using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -15,6 +16,9 @@ namespace BHS.CRG.Application.Documents;
 /// matched (снимок = свежий и запись жива), not-found (значение источника не сматчилось),
 /// dangling (запись каталога удалена), drift (источник теперь указывает на ДРУГУЮ запись — снимок id устарел),
 /// stale (снимок не {$ref} — легаси «🔗…» — но источник матчится: пересохранить),
+/// archived (цель в архиве, issue #1185: связка стоит и работает — чинить нечего),
+/// archived-skipped (источник называет архивную запись, которой в поле не было: ссылка НЕ
+/// подставлена и поле не заполняется — не «не найдено», чинится возвратом из архива),
 /// error (резолв привязки не состоялся вовсе — источник недоступен либо материализация без маппинга).
 ///
 /// <para>Ошибки резолва берём наравне с предупреждениями (issue #715). Раньше отбирались только
@@ -37,21 +41,34 @@ public class CheckCommonDataBindingsHandler(
         var entry = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();
 
         var diag = new List<ResolutionDiagnostic>();
+        // Тот же набор стоявших ссылок, что у сохранения: проверка обязана показать то, что
+        // сохранение сделает, а не более щедрый ответ.
         var fresh = await dataSetResolver.ResolveOwnerBindingsAsync(
-            q.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, q.Access, diag, ct);
+            q.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId,
+            CatalogRefs.IdsIn(entry.Data.RootElement), q.Access, diag, ct);
 
         var allTypes = (await docTypeRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         var titles = DocumentTypeSchemaReader.EffectiveFields(entry.CompositeTypeId, allTypes)
             .ToDictionary(f => f.Key, f => f.Title ?? f.Key);
         string Title(string key) => titles.TryGetValue(key, out var t) ? t : key;
 
-        var nameCache = new Dictionary<string, string?>();
-        async Task<string?> NameAsync(string entryId)
+        // Цель связки: её название и состояние. null — записи нет.
+        var targets = new Dictionary<string, DomainObject?>();
+        async Task<DomainObject?> TargetAsync(string entryId)
         {
-            if (nameCache.TryGetValue(entryId, out var cached)) return cached;
-            var e = Guid.TryParse(entryId, out var g) ? await repo.GetByIdAsync(g, ct) : null;
-            return nameCache[entryId] = e?.DisplayName;
+            if (targets.TryGetValue(entryId, out var cached)) return cached;
+            return targets[entryId] = Guid.TryParse(entryId, out var g) ? await repo.GetByIdAsync(g, ct) : null;
         }
+        async Task<string?> NameAsync(string entryId) => (await TargetAsync(entryId))?.DisplayName;
+
+        // Стоящая связка: цель удалена, в архиве либо на месте.
+        BindingCheckItem Standing(string field, DomainObject? target) => target switch
+        {
+            null => new BindingCheckItem(field, Title(field), "dangling", null, "Целевая запись каталога удалена."),
+            { IsArchived: true } => new BindingCheckItem(field, Title(field), "archived", target.DisplayName,
+                "Запись в архиве: связка сохранена и в документах работает. В выборе этой записи нет."),
+            _ => new BindingCheckItem(field, Title(field), "matched", target.DisplayName, null),
+        };
 
         var items = new List<BindingCheckItem>();
         var handled = new HashSet<string>();
@@ -59,10 +76,15 @@ public class CheckCommonDataBindingsHandler(
 
         // 1) Проблемы резолва: not-found — значение источника не нашлось в каталоге; error — резолв
         // привязки не состоялся вовсе (источник недоступен, материализация без маппинга).
+        // Архив — отдельно от «не найдено»: запись ЕСТЬ, и искать пропавшую незачем. Стоявшая
+        // ссылка на архивную запись сюда не попадает вовсе — её покажет сравнение со снимком ниже.
         foreach (var d in diag)
-            if (handled.Add(d.Path))
-                items.Add(new BindingCheckItem(d.Path, Title(d.Path),
-                    d.Severity == DiagnosticSeverity.Error ? "error" : "not-found", null, d.Message));
+        {
+            if (d.Code == ArchivedRefCodes.Kept || !handled.Add(d.Path)) continue;
+            var status = d.Code == ArchivedRefCodes.Skipped ? "archived-skipped"
+                : d.Severity == DiagnosticSeverity.Error ? "error" : "not-found";
+            items.Add(new BindingCheckItem(d.Path, Title(d.Path), status, null, d.Message));
+        }
 
         // 2) свежие ссылки → сравнить со снимком.
         foreach (var (field, value) in fresh)
@@ -74,9 +96,7 @@ public class CheckCommonDataBindingsHandler(
             var storedId = stored.TryGetProperty(field, out var sv) ? RefIdJson(sv) : null;
 
             if (storedId == freshId)
-                items.Add(freshName is null
-                    ? new BindingCheckItem(field, Title(field), "dangling", null, "Целевая запись каталога удалена.")
-                    : new BindingCheckItem(field, Title(field), "matched", freshName, null));
+                items.Add(Standing(field, await TargetAsync(freshId)));
             else if (storedId is not null)
                 items.Add(new BindingCheckItem(field, Title(field), "drift", await NameAsync(storedId),
                     $"Источник теперь указывает на «{freshName ?? "(удалена)"}» — пересохраните для обновления."));
@@ -90,10 +110,7 @@ public class CheckCommonDataBindingsHandler(
         {
             var storedId = RefIdJson(prop.Value);
             if (storedId is null || !handled.Add(prop.Name)) continue;
-            var name = await NameAsync(storedId);
-            items.Add(name is null
-                ? new BindingCheckItem(prop.Name, Title(prop.Name), "dangling", null, "Целевая запись каталога удалена.")
-                : new BindingCheckItem(prop.Name, Title(prop.Name), "matched", name, null));
+            items.Add(Standing(prop.Name, await TargetAsync(storedId)));
         }
 
         return new BindingCheckResult(items.OrderBy(i => i.FieldTitle).ToList());

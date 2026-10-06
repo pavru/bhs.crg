@@ -34,8 +34,12 @@ public partial class ArchiveReadInventoryTests
     private static readonly string[] Projects =
         ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Modules.Costs"];
 
-    /// <summary>Шаги задачи #1185, которые ещё не сделаны. Отложить решение можно только на них.</summary>
-    private static readonly int[] OpenSteps = [4];
+    /// <summary>
+    /// Шаги задачи #1185, которые ещё не сделаны. Отложить решение можно только на них. Сейчас
+    /// пусто: шаг 4 закрыл последние отложенные чтения, а шаг 5 — правило ЗАПИСИ, мест чтения у
+    /// него нет. Новое место чтения отложить больше не на что — его решают сразу.
+    /// </summary>
+    private static readonly int[] OpenSteps = [];
 
     private enum Kind
     {

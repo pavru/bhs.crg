@@ -22,6 +22,10 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
 
     private IMediator M(IServiceScope s) => s.ServiceProvider.GetRequiredService<IMediator>();
     private IObjectResolver R(IServiceScope s) => s.ServiceProvider.GetRequiredService<IObjectResolver>();
+    /// <summary>Идентификатор найденной записи; состояние (архив) проверяет <see cref="ArchiveResolverTests" />.</summary>
+    private async Task<Guid?> IdAsync(IServiceScope s, ObjectMatchRequest req, CatalogScope scope, Guid? scopeId) =>
+        (await R(s).ResolveAsync(req, scope, scopeId))?.Id;
+
     private static JsonDocument J(string singleQuoted) => JsonDocument.Parse(singleQuoted.Replace('\'', '"'));
 
     // Тип «материал» с двумя identity-полями (порядок схемы: Артикул, Наименование).
@@ -44,11 +48,11 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var id = await ObjAsync(m, "Кабель ВВГ", typeId, "{'Артикул':'ВВГ-3х2.5','Наименование':'Кабель'}");
 
         // «шт.»-подобная нормализация: хвостовой пробел + регистр игнорируются.
-        var found = await R(s).ResolveAsync(
+        var found = await IdAsync(s, 
             ObjectMatchRequest.ByField(typeId, "Артикул", " ввг-3х2.5 "), CatalogScope.System, null);
         Assert.Equal(id, found);
 
-        Assert.Null(await R(s).ResolveAsync(
+        Assert.Null(await IdAsync(s, 
             ObjectMatchRequest.ByField(typeId, "Артикул", "нет такого"), CatalogScope.System, null));
     }
 
@@ -60,10 +64,10 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var typeId = await TypeAsync(m, "MAT_N", IdentitySchema);
         var id = await ObjAsync(m, "Кабель ВВГ", typeId, "{'Артикул':'A1'}", aliases: new[] { "ВВГ", "провод силовой" });
 
-        Assert.Equal(id, await R(s).ResolveAsync(ObjectMatchRequest.ByName(typeId, "кабель ввг"), CatalogScope.System, null));
-        Assert.Equal(id, await R(s).ResolveAsync(ObjectMatchRequest.ByName(typeId, "  ВВГ "), CatalogScope.System, null));
-        Assert.Equal(id, await R(s).ResolveAsync(ObjectMatchRequest.ByName(typeId, "Провод Силовой"), CatalogScope.System, null));
-        Assert.Null(await R(s).ResolveAsync(ObjectMatchRequest.ByName(typeId, "неизвестно"), CatalogScope.System, null));
+        Assert.Equal(id, await IdAsync(s, ObjectMatchRequest.ByName(typeId, "кабель ввг"), CatalogScope.System, null));
+        Assert.Equal(id, await IdAsync(s, ObjectMatchRequest.ByName(typeId, "  ВВГ "), CatalogScope.System, null));
+        Assert.Equal(id, await IdAsync(s, ObjectMatchRequest.ByName(typeId, "Провод Силовой"), CatalogScope.System, null));
+        Assert.Null(await IdAsync(s, ObjectMatchRequest.ByName(typeId, "неизвестно"), CatalogScope.System, null));
     }
 
     [Fact]
@@ -75,11 +79,11 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var id = await ObjAsync(m, "Кабель", typeId, "{'Артикул':'ВВГ-3х2.5','Наименование':'Кабель ВВГ'}");
 
         var fields = new Dictionary<string, string?> { ["Артикул"] = "ВВГ-3х2.5", ["Наименование"] = "кабель ввг" };
-        Assert.Equal(id, await R(s).ResolveAsync(ObjectMatchRequest.ByIdentity(typeId, fields), CatalogScope.System, null));
+        Assert.Equal(id, await IdAsync(s, ObjectMatchRequest.ByIdentity(typeId, fields), CatalogScope.System, null));
 
         // Не тот второй компонент → нет совпадения (AND-композит).
         var wrong = new Dictionary<string, string?> { ["Артикул"] = "ВВГ-3х2.5", ["Наименование"] = "другое" };
-        Assert.Null(await R(s).ResolveAsync(ObjectMatchRequest.ByIdentity(typeId, wrong), CatalogScope.System, null));
+        Assert.Null(await IdAsync(s, ObjectMatchRequest.ByIdentity(typeId, wrong), CatalogScope.System, null));
     }
 
     [Fact]
@@ -92,7 +96,7 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         await ObjAsync(m, "Частичный", typeId, "{'Артикул':'ВВГ','Наименование':''}");
 
         var fields = new Dictionary<string, string?> { ["Артикул"] = "ВВГ", ["Наименование"] = "" };
-        Assert.Null(await R(s).ResolveAsync(ObjectMatchRequest.ByIdentity(typeId, fields), CatalogScope.System, null));
+        Assert.Null(await IdAsync(s, ObjectMatchRequest.ByIdentity(typeId, fields), CatalogScope.System, null));
     }
 
     [Fact]
@@ -109,10 +113,10 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var setId = await ObjAsync(m, "Кабель", typeId, "{'Артикул':'A1'}", CatalogScope.Set, set.Id);
 
         // Резолв из scope комплекта: узкий (Set) побеждает System.
-        Assert.Equal(setId, await R(s).ResolveAsync(
+        Assert.Equal(setId, await IdAsync(s, 
             ObjectMatchRequest.ByField(typeId, "Артикул", "A1"), CatalogScope.Set, set.Id));
         // Резолв из System-scope: виден только System-объект.
-        Assert.Equal(systemId, await R(s).ResolveAsync(
+        Assert.Equal(systemId, await IdAsync(s, 
             ObjectMatchRequest.ByField(typeId, "Артикул", "A1"), CatalogScope.System, null));
     }
 
@@ -151,10 +155,10 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var obj = await ObjAsync(m, "Дочерний Кабель", childId, "{'Артикул':'A1','Наименование':'Кабель'}");
 
         // Поиск по РОДИТЕЛЬСКОМУ типу находит объект подтипа (кандидаты = тип + подтипы).
-        Assert.Equal(obj, await R(s).ResolveAsync(
+        Assert.Equal(obj, await IdAsync(s, 
             ObjectMatchRequest.ByName(parentId, "дочерний кабель"), CatalogScope.System, null));
         var fields = new Dictionary<string, string?> { ["Артикул"] = "A1", ["Наименование"] = "Кабель" };
-        Assert.Equal(obj, await R(s).ResolveAsync(
+        Assert.Equal(obj, await IdAsync(s, 
             ObjectMatchRequest.ByIdentity(parentId, fields), CatalogScope.System, null));
     }
 }
