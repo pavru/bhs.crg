@@ -118,8 +118,26 @@ public static class CommonDataEndpoints
         {
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (NotFoundException) { return Results.NotFound(); }
-            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+            // «Можно в архив» — полем, а не словами причины: экран предлагает выход кнопкой и не
+            // должен ни разбирать фразу, ни звать туда, куда пути нет (issue #1185).
+            catch (ConflictException ex)
+            {
+                return Results.Conflict(new { error = ex.Message, canArchive = await m.Send(new CanArchiveRecordQuery(id)) });
+            }
         });
+
+        // Архив — отдельными адресами, а не полем правки (issue #1185): форма, не знающая признака,
+        // сняла бы его обычным сохранением. Право то же, что у правки: архив слабее удаления, и
+        // своё право породило бы роль, которой удалять можно, а убрать из выбора нельзя.
+        edit.MapPost("/{id:guid}/archive", (Guid id, IMediator m) => SetArchiveAsync(id, true, m));
+        edit.MapPost("/{id:guid}/unarchive", (Guid id, IMediator m) => SetArchiveAsync(id, false, m));
+    }
+
+    private static async Task<IResult> SetArchiveAsync(Guid id, bool archived, IMediator m)
+    {
+        try { return Results.Ok(await m.Send(new SetRecordArchiveCommand(id, archived))); }
+        catch (NotFoundException) { return Results.NotFound(); }
+        catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
     }
 
     /// <summary>

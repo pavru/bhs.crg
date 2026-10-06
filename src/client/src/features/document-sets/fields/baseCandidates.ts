@@ -1,4 +1,5 @@
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
+import { withArchiveWord } from '@/shared/ui/archive';
 
 // Отдельным файлом от компонента (issue #858): модуль, экспортирующий и компонент, и
 // функцию, не может быть границей горячей подмены — правка поднимается вверх по импортам.
@@ -16,6 +17,14 @@ export interface BaseCandidate {
   proxy?: boolean;     // issue #89: кандидат того же типа — «роль на реальный объект», а не наследование от родителя
   targetIsProxy?: boolean; // выбранный «реальный» сам является прокси (цепочка ссылок — data-smell)
 }
+
+/**
+ * Название кандидата-записи. Архивная запись попадает в кандидаты, только когда она уже выбрана
+ * (issue #1185), — и тогда обязана быть названа архивной: иначе после замены её «пропажа» из списка
+ * выглядела бы поломкой.
+ */
+export const candidateName = (e: { displayName: string; archived: boolean }) =>
+  withArchiveWord(e.displayName, e.archived);
 
 export const SCOPE_TIER: Record<CatalogScope, number> = { Set: 0, Section: 1, Construction: 2, System: 3 };
 

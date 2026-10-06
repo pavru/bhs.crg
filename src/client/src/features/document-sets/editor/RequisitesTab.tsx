@@ -15,7 +15,7 @@ import { useCommonDataForSet } from '@/shared/api/commonData';
 import { groupEffectiveFields, parseSchemaFields, getDefaultValues, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { FieldSourceBinding } from './FieldSourceBinding';
 import { ContainerFieldBinding } from './ContainerFieldBinding';
-import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, type BaseCandidate } from '../fields';
+import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, candidateName, type BaseCandidate } from '../fields';
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -228,7 +228,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     // Архивная запись в кандидатах остаётся только если она уже выбрана: иначе её не выбрать.
     const entries: BaseCandidate[] = (commonData as CommonDataEntry[])
       .filter(e => ancestorSet.has(e.compositeTypeId) && (!e.archived || e.id === baseRef?.id))
-      .map(e => ({ kind: 'catalog', id: e.id, name: e.displayName, typeId: e.compositeTypeId,
+      .map(e => ({ kind: 'catalog', id: e.id, name: candidateName(e), typeId: e.compositeTypeId,
         tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: distOf(e.compositeTypeId) }));
     return [...docs, ...entries].sort((a, b) => a.tier - b.tier || a.dist - b.dist || a.name.localeCompare(b.name, 'ru'));
   }, [hasBase, ancestorIds, otherInstances, commonData, baseRef?.id]);

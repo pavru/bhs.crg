@@ -36,7 +36,7 @@ import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection,
   isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT,
-  BaseInstanceChip, SCOPE_TIER, type BaseCandidate,
+  BaseInstanceChip, SCOPE_TIER, candidateName, type BaseCandidate,
   SectionRail, collectConstraintViolations, describeViolationPath, violationRootKey,
 } from '../fields';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -193,7 +193,7 @@ export function CatalogEntryForm({
   // Кандидаты базы для общего пикера (issue #73, шаг 2): записи родительского типа по скопам.
   const baseCandidates: BaseCandidate[] = parentEntries
     .map(e => ({
-      kind: 'catalog' as const, id: e.id, name: e.displayName, typeId: e.compositeTypeId,
+      kind: 'catalog' as const, id: e.id, name: candidateName(e), typeId: e.compositeTypeId,
       tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: 0,
     }))
     .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name, 'ru'));
@@ -219,7 +219,7 @@ export function CatalogEntryForm({
   const proxyCandidates: BaseCandidate[] = proxyEntries
     .filter(e => e.id !== entry?.id && (!e.archived || e.id === baseRefId)) // не сам на себя; архивная — только уже выбранная
     .map(e => ({
-      kind: 'catalog' as const, id: e.id, name: e.displayName, typeId: e.compositeTypeId,
+      kind: 'catalog' as const, id: e.id, name: candidateName(e), typeId: e.compositeTypeId,
       tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: 0, proxy: true,
       targetIsProxy: !!(e.data as Record<string, unknown>)?._baseRef,
     }))

@@ -93,6 +93,10 @@ public partial class ArchiveReadInventoryTests
             Documents("готовые документы для плана"),
         ["BHS.CRG.Application/Documents/PlanHandlers.cs|var actual = await objects.CountReadyDocumentsByTypeAsync(setsWithPlan, ct);"] =
             Documents("готовые документы для плана"),
+        ["BHS.CRG.Application/Documents/RecordArchiveCommands.cs|var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();"] =
+            Service("само действие «в архив / вернуть»: читает название и тип, признак меняет служба"),
+        ["BHS.CRG.Application/Documents/RecordArchiveCommands.cs|var entry = await repo.GetByIdAsync(q.Id, ct);"] =
+            Service("подсказка «можно ли предложить архив» к отказу в удалении"),
         ["BHS.CRG.Application/Generation/GenerateDocumentHandler.cs|var instance = await instanceRepo.GetByIdAsync(cmd.InstanceId, ct)"] =
             Documents("документ для генерации, предпросмотра и проверки — по идентификатору или типу"),
         ["BHS.CRG.Application/Generation/GetGenerationDebugBundle.cs|var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct);"] =
@@ -193,7 +197,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Generation/LevelProfileService.cs|if (currentFk is { } fk && await db.DomainObjects.AsNoTracking().AnyAsync(o => o.Id == fk, ct))"] =
             Seen("профиль уровня: жив ли уже назначенный"),
         ["BHS.CRG.Infrastructure/Generation/LevelProfileService.cs|var existing = await db.DomainObjects.FirstOrDefaultAsync("] =
-            Pending(2, "поиск записи под профиль уровня находит и архивную — и назначит её профилем"),
+            Choice("назначение профилем — выбор: архивная запись под профиль не берётся", "Под_профиль_уровня_архивная_запись_не_берётся"),
         ["BHS.CRG.Infrastructure/Generation/ObjectResolver.cs|var candidates = await db.DomainObjects.AsNoTracking()"] =
             Pending(4, "резолвер «строка → объект»: обязан вернуть состояние, живая запись побеждает архивную"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var blobSql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%\\\"$type\\\": \\\"image\\\"%' OR \\\"Data\\\"::text LIKE '%\\\"$type\\\":\\\"image\\\"%'\";"] =
@@ -231,6 +235,8 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Persistence/ModuleLostReferenceScan.cs|return await db.DomainObjects.AsNoTracking()"] =
             Shown("состояние ссылки модуля: это и есть вопрос об архиве"),
         ["BHS.CRG.Infrastructure/Persistence/RecordArchive.cs|UPDATE domain_objects o"] =
+            Service("сама служба архива"),
+        ["BHS.CRG.Infrastructure/Persistence/RecordArchive.cs|db.DomainObjects.AsNoTracking().AnyAsync("] =
             Service("сама служба архива"),
         ["BHS.CRG.Infrastructure/Persistence/RecordArchive.cs|await db.DomainObjects"] =
             Service("сама служба архива"),

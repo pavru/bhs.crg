@@ -8,13 +8,17 @@ import { SearchInput } from '@/shared/ui/SearchInput';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
-  useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope, useCommonDataEntry,
+  useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope, useCommonDataEntry, archiveOffered,
 } from '@/shared/api/commonData';
+import { useCan } from '@/shared/api/access';
+import { isConflict } from '@/shared/utils/apiError';
 import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { CatalogEntryForm } from './index';
 import { ObjectRow } from './ObjectsByTypeList';
+import { ArchivedRows, ArchivedBanner } from './ArchiveParts';
+import { useRecordArchive } from './useRecordArchive';
 import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 
 const NO_TYPE = '__no_type__';
@@ -30,6 +34,7 @@ const PROFILE_KEY: Partial<Record<CatalogScope, string>> = {
 };
 /** Порог, с которого над списком типов появляется мини-поиск (NN/g: фасеты с поиском при большом числе). */
 const TYPE_SEARCH_THRESHOLD = 12;
+const isLive = (e: CommonDataEntry) => !e.archived;
 
 /**
  * Богатый браузер каталога общих данных для ЛЮБОГО scope (issue #210, ось видимости): слева — вертикальный
@@ -71,6 +76,11 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const documentTypes = allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const isDocType = (id: string) => documentTypes.some(dt => dt.id === id);
+  // Архив (issue #1185): действие — тем, кто ведёт общие данные, и только записям ядра.
+  const canEdit = useCan().permission('core.catalog.edit');
+  const archive = useRecordArchive(allSelectableTypes);
+  const archiveAction = (e: CommonDataEntry) =>
+    canEdit && archive.allowed(e) ? (target: CommonDataEntry) => void archive.act(target, !target.archived) : undefined;
 
   // Профиль уровня (issue #258): составной тип, помеченный тэгом profile-* для этого scope, — его
   // единственный объект здесь несёт «данные уровня», амбиентно попадающие в шаблон (data.уровень.<key>).
@@ -111,8 +121,39 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const row = (entry: CommonDataEntry, siblings: CommonDataEntry[], border: boolean) => (
     <ObjectRow key={entry.id} entry={entry} siblings={siblings} resolvePool={scopeChain}
       onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
+      onArchive={archiveAction(entry)} archiveDisabled={archive.pending}
       showPreview className={border ? 'border-t border-muted' : ''} />
   );
+  // Список одной группы: действующие, под ними — свёрнутое «В архиве: N». При поиске архив раскрыт:
+  // совпавшая архивная запись обязана быть на виду, иначе её заведут второй раз.
+  const rows = (items: CommonDataEntry[]) => {
+    const live = items.filter(isLive);
+    const gone = items.filter(e => e.archived);
+    return (
+      <>
+        {live.length === 0 && <p className="px-4 py-3 text-sm text-fg4">Действующих записей нет.</p>}
+        {live.map((e, idx) => row(e, items, idx > 0))}
+        <ArchivedRows count={gone.length} forceOpen={!!search.trim()}>
+          {gone.map(e => row(e, items, true))}
+        </ArchivedRows>
+      </>
+    );
+  };
+  // Отказ в удалении: есть ли у человека другой путь. Занятую запись предлагаем отправить в архив —
+  // по полю ответа; у записи, которая уже там, выхода нет и не нужно — так и говорим.
+  const refusalExit = (e: unknown, target: CommonDataEntry) => {
+    if (!isConflict(e)) return null;
+    if (target.archived)
+      return { note: 'Запись уже в архиве: в списках выбора её нет. Больше ничего делать не нужно.' };
+    if (!canEdit || !archiveOffered(e)) return null;
+    return {
+      note: 'Запись можно отправить в архив: из списков выбора она пропадёт, а в уже сохранённых документах и счетах останется.',
+      action: {
+        label: 'Отправить в архив', errorTitle: 'Не удалось отправить в архив',
+        onConfirm: () => archive.set(target, true),
+      },
+    };
+  };
 
   return (
     <div className="flex gap-5 items-start">
@@ -135,16 +176,16 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             count={undefined} active={filterTypeId === PROFILE} profile
             onClick={() => setFilterTypeId(PROFILE)} />
         )}
-        <TypeNavItem icon={<Layers size={15} />} label="Все записи" count={normalEntries.length}
+        <TypeNavItem icon={<Layers size={15} />} label="Все записи" count={normalEntries.filter(isLive).length}
           active={!filterTypeId} onClick={() => setFilterTypeId('')} />
         {railGroups.map(({ type: t, items }) => (
           <TypeNavItem key={t.id}
             icon={isDocType(t.id) ? <FileText size={15} /> : <Database size={15} />}
-            label={t.name} count={items.length} doc={isDocType(t.id)}
+            label={t.name} count={items.filter(isLive).length} doc={isDocType(t.id)}
             active={filterTypeId === t.id} onClick={() => setFilterTypeId(t.id)} />
         ))}
         {rail.noType.length > 0 && !tq && (
-          <TypeNavItem label="Без типа" count={rail.noType.length} muted
+          <TypeNavItem label="Без типа" count={rail.noType.filter(isLive).length} muted
             active={filterTypeId === NO_TYPE} onClick={() => setFilterTypeId(NO_TYPE)} />
         )}
       </aside>
@@ -181,9 +222,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
               {selectedType && isDocType(selectedType.id) && (
                 <span className="text-xs bg-warning-subtle text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
               )}
-              <span className="text-xs text-fg4">{filtered.length}</span>
+              <span className="text-xs text-fg4">{filtered.filter(isLive).length}</span>
             </div>
-            <div>{filtered.map((e, idx) => row(e, filtered, idx > 0))}</div>
+            <div>{rows(filtered)}</div>
           </div>
         ) : (
           // «Все записи» — группы-аккордеоны по типу.
@@ -200,9 +241,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                       <span className="text-xs bg-warning-subtle text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
                     )}
                     <span className="text-xs text-fg4 font-mono">{t.code}</span>
-                    <span className="text-xs text-fg4 ml-1">{items.length}</span>
+                    <span className="text-xs text-fg4 ml-1">{items.filter(isLive).length}</span>
                   </button>
-                  {isOpen && <div className="border-t border-stroke">{items.map((e, idx) => row(e, items, idx > 0))}</div>}
+                  {isOpen && <div className="border-t border-stroke">{rows(items)}</div>}
                 </div>
               );
             })}
@@ -214,9 +255,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
                     {isOpen ? <ChevronUp size={14} className="text-fg4 shrink-0" /> : <ChevronDown size={14} className="text-fg4 shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-fg3 italic">Без типа</span>
-                    <span className="text-xs text-fg4">{noType.length}</span>
+                    <span className="text-xs text-fg4">{noType.filter(isLive).length}</span>
                   </button>
-                  {isOpen && <div className="border-t border-stroke">{noType.map((e, idx) => row(e, noType, idx > 0))}</div>}
+                  {isOpen && <div className="border-t border-stroke">{rows(noType)}</div>}
                 </div>
               );
             })()}
@@ -235,12 +276,15 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
         {editEntry && (
           <EditEntryForm id={editEntry.id} compositeTypes={compositeTypes} documentTypes={documentTypes}
-            allDocTypes={allDocTypes} scope={scope} scopeId={scopeId} onClose={() => setEditEntry(null)} />
+            allDocTypes={allDocTypes} scope={scope} scopeId={scopeId} onClose={() => setEditEntry(null)}
+            employee={archive.isEmployee(editEntry)} archiveBusy={archive.pending}
+            onUnarchive={archiveAction(editEntry)} />
         )}
       </Modal>
       <ConfirmDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}
         title={`Удалить «${deleteTarget?.displayName ?? ''}»?`} confirmLabel="Удалить"
-        onConfirm={() => { if (deleteTarget) return deleteMutation.mutateAsync(deleteTarget.id); }} />
+        onConfirm={() => { if (deleteTarget) return deleteMutation.mutateAsync(deleteTarget.id); }}
+        onRefused={e => (deleteTarget ? refusalExit(e, deleteTarget) : null)} />
     </div>
   );
 }
@@ -271,8 +315,11 @@ function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick 
  * свои значения из `entry.data` и отправляет их обратно при сохранении: открой мы её на списочной
  * копии — сохранение стёрло бы печати и факсимиле.
  */
-function EditEntryForm({ id, onClose, ...rest }: {
+function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...rest }: {
   id: string;
+  employee: boolean;
+  archiveBusy: boolean;
+  onUnarchive?: (e: CommonDataEntry) => void;
   compositeTypes: DocumentType[];
   documentTypes: DocumentType[];
   allDocTypes: DocumentType[];
@@ -284,7 +331,16 @@ function EditEntryForm({ id, onClose, ...rest }: {
   if (isLoading || !entry) {
     return <div className="p-8 text-center text-sm text-fg4">Загрузка записи…</div>;
   }
-  return <CatalogEntryForm entry={entry} onClose={onClose} {...rest} />;
+  // Архивную запись править можно; плашка объясняет состояние и даёт вернуть (issue #1185).
+  return (
+    <>
+      {entry.archived && (
+        <ArchivedBanner employee={employee} busy={archiveBusy}
+          onReturn={onUnarchive && (() => onUnarchive(entry))} />
+      )}
+      <CatalogEntryForm entry={entry} onClose={onClose} {...rest} />
+    </>
+  );
 }
 
 function ProfileDetail({ scope, type, object, templateKey, onEdit }: {

@@ -35,6 +35,24 @@ interface ConfirmDialogProps {
    * Возвращаемое значение промиса игнорируется (mutateAsync-ответ и т.п.) — важен лишь resolve/reject.
    */
   onConfirm: () => void | Promise<unknown>;
+  /**
+   * Выход из отказа (issue #1185): по ошибке сервера вызывающий решает, есть ли у человека другой
+   * путь, — и диалог дописывает пояснение, а при `action` ставит вторую кнопку рядом с «Понятно».
+   * Решает вызывающий, а не диалог: что считать выходом, знает экран, и знает он это по ПОЛЮ ответа.
+   */
+  onRefused?: (e: unknown) => RefusalExit | null;
+}
+
+export interface RefusalExit {
+  /** Абзац под причиной отказа — обычным цветом: это не ещё одна ошибка, а что делать дальше. */
+  note: ReactNode;
+  action?: {
+    label: string;
+    /** Отклонённый промис — выход не удался: диалог остаётся и показывает причину уже его отказа. */
+    onConfirm: () => Promise<unknown>;
+    /** Заголовок, если не удался сам выход. */
+    errorTitle: string;
+  };
 }
 
 /**
@@ -55,11 +73,13 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
 
 function ConfirmDialogBody({
   onOpenChange, title, description, confirmLabel, confirmDanger = true, cancelLabel = 'Отмена',
-  requireCheckbox, errorTitle = 'Удаление невозможно', blocked, onConfirm,
+  requireCheckbox, errorTitle = 'Удаление невозможно', blocked, onConfirm, onRefused,
 }: ConfirmDialogProps) {
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exit, setExit] = useState<RefusalExit | null>(null);
+  const [exitFailed, setExitFailed] = useState<string | null>(null);
 
   const canConfirm = !requireCheckbox || checked;
   // Состояние «нельзя»: проактивная блокировка (blocked) ИЛИ реактивная ошибка после попытки (error).
@@ -74,6 +94,22 @@ function ConfirmDialogBody({
     } catch (e) {
       // Отказ (обычно 409-guard): не закрываемся, показываем причину.
       setError(apiError(e, 'Не удалось выполнить действие.'));
+      setExit(onRefused?.(e) ?? null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleExit(action: NonNullable<RefusalExit['action']>) {
+    setBusy(true);
+    try {
+      await action.onConfirm();
+      onOpenChange(false);
+    } catch (e) {
+      // Выход тоже отказал: показываем ЕГО причину под его заголовком, второй попытки не предлагаем.
+      setError(apiError(e, 'Не удалось выполнить действие.'));
+      setExitFailed(action.errorTitle);
+      setExit(null);
     } finally {
       setBusy(false);
     }
@@ -91,14 +127,17 @@ function ConfirmDialogBody({
           style={{ boxShadow: 'var(--f-shadow28)' }}
         >
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">
-            {blockedView ? errorTitle : title}
+            {blockedView ? (exitFailed ?? errorTitle) : title}
           </Dialog.Title>
 
           {blockedView ? (
-            <div className="mt-2 flex items-start gap-2.5 rounded-md bg-danger-subtle px-3 py-2.5 text-xs text-fg1">
-              <AlertTriangle size={16} className="shrink-0 mt-0.5 text-danger" />
-              <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
-            </div>
+            <>
+              <div className="mt-2 flex items-start gap-2.5 rounded-md bg-danger-subtle px-3 py-2.5 text-xs text-fg1">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-danger" />
+                <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
+              </div>
+              {exit && <p className="mt-3 text-xs text-fg2">{exit.note}</p>}
+            </>
           ) : (
             <>
               {description && (
@@ -123,7 +162,17 @@ function ConfirmDialogBody({
 
           <div className={`flex gap-2 justify-end items-start ${blockedView || !requireCheckbox ? 'mt-4' : ''}`}>
             {blockedView ? (
-              <Button variant="tonal" size="sm" onClick={() => onOpenChange(false)}>Понятно</Button>
+              exit?.action ? (
+                <>
+                  <Button variant="text" size="sm" className="shrink-0" disabled={busy} onClick={() => onOpenChange(false)}>Понятно</Button>
+                  <Button variant="filled" size="sm" multiline className="min-w-0" loading={busy}
+                    onClick={() => handleExit(exit.action!)}>
+                    {exit.action.label}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="tonal" size="sm" onClick={() => onOpenChange(false)}>Понятно</Button>
+              )
             ) : (
               <>
                 <Dialog.Close asChild>

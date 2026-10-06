@@ -29,8 +29,11 @@ public class LevelProfileService(AppDbContext db) : ILevelProfileService
             return fk; // валидный профиль уже есть
 
         // Мог быть объект профиль-типа на этом scope без FK (напр. создан вручную) — переиспользуем.
+        // Архивную запись под профиль не берём (issue #1185): назначение профилем — тот же выбор, а
+        // архивного профиля действие не допускает; иначе он появился бы здесь, обходным путём.
         var existing = await db.DomainObjects.FirstOrDefaultAsync(
-            o => o.ScopeLevel == level && o.ScopeId == containerId && o.CompositeTypeId == typeId.Value, ct);
+            o => o.ScopeLevel == level && o.ScopeId == containerId && o.CompositeTypeId == typeId.Value
+                 && o.ArchivedAt == null, ct);
 
         var profile = existing;
         if (profile is null)

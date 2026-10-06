@@ -143,6 +143,36 @@ export function useUpdateCommonDataEntry() {
   });
 }
 
+export interface RecordArchiveResult {
+  id: string;
+  displayName: string;
+  archived: boolean;
+  /** false — запись уже была в этом состоянии: повтор, а не событие. */
+  changed: boolean;
+}
+
+/**
+ * Отправить запись в архив или вернуть из него (issue #1185). Отдельные адреса, а не поле правки:
+ * форма, не знающая признака, сняла бы архив обычным сохранением.
+ */
+export function useSetCommonDataArchive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      apiClient.post<RecordArchiveResult>(`/common-data/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+/**
+ * Отказ в удалении говорит, что выход — архив. Читаем ПОЛЕ ответа, а не слова причины: текст
+ * сервер волен переписать, а предлагать действие по совпадению фразы — значит однажды позвать туда,
+ * куда пути нет.
+ */
+export function archiveOffered(e: unknown): boolean {
+  return (e as { response?: { data?: { canArchive?: unknown } } })?.response?.data?.canArchive === true;
+}
+
 export function useDeleteCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({

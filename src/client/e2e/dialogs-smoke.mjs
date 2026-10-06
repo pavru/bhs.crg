@@ -652,6 +652,61 @@ await check('quality-picker-keeps-chosen-search-type-across-close', async () => 
   await settled(page);
 });
 
+// ── Архив записи справочника (issue #1185) ───────────────────────────────────────────────────
+// Занятую запись удалить нельзя, и раньше отказ на этом кончался: «освободите запись» — совет
+// невыполнимый, когда на неё стоят закрытые документы. Теперь диалог отказа обязан дать выход
+// КНОПКОЙ, а запись после неё — остаться на странице, в свёрнутом «В архиве: N», откуда её можно
+// вернуть. Серверные тесты знают про поле ответа; что кнопка действительно нарисована и ведёт куда
+// надо, видно только здесь.
+{
+  const stamp = Date.now().toString(36);
+  const busy = `Архив-проба ${stamp}`;
+  const made = [];
+  try {
+    const types = await apiAs('GET', '/document-types');
+    const type = types.find(t => t.kind === 'Composite' && t.module === 'core' && !t.isAbstract
+      && !(t.schema?.tags ?? []).some(tag => tag.startsWith('profile.') || tag === 'type.union'));
+    const entry = (name, data) => apiAs('POST', '/common-data', {
+      displayName: name, compositeTypeId: type.id, data: JSON.stringify(data), scope: 'System', scopeId: null,
+    }).then(e => { made.unshift(e.id); return e; });
+    const target = await entry(busy, {});
+    await entry(`Архив-держатель ${stamp}`, { _baseRef: target.id });
+
+    const row = page.locator(`[aria-label="Редактировать «${busy}»"]`);
+    const dialog = () => page.locator('[role=dialog]').last();
+
+    await check('catalog-delete-refusal-offers-archive', async () => {
+      await page.goto(`${BASE}/common-data?type=${type.id}`);
+      await settled(page);
+      await row.hover();
+      await row.getByRole('button', { name: 'Удалить' }).click();
+      await dialog().getByRole('button', { name: 'Удалить' }).click();
+      await settled(page);
+      const exit = dialog().getByRole('button', { name: 'Отправить в архив' });
+      if (!(await exit.count()))
+        throw new Error(`в отказе нет выхода «Отправить в архив»: ${(await dialog().innerText()).slice(0, 200)}`);
+      await exit.click();
+      await settled(page);
+      if (await page.locator('[role=dialog]').count()) throw new Error('диалог не закрылся после архива');
+    });
+
+    await check('catalog-archived-row-sits-under-disclosure-and-returns', async () => {
+      // Среди действующих её больше нет; свёрнутая строка называет число и раскрывается.
+      if (await row.count()) throw new Error('архивная запись осталась среди действующих');
+      await page.getByRole('button', { name: /^В архиве: \d+$/ }).click();
+      await until(async () => (await row.count()) === 1);
+      if (!(await row.innerText()).includes('в архиве')) throw new Error('у архивной строки нет пометки');
+      await row.hover();
+      await row.getByRole('button', { name: 'Вернуть из архива' }).click();
+      await settled(page);
+      await until(async () => (await row.count()) === 1 && !(await row.innerText()).includes('в архиве'));
+    });
+  } finally {
+    // Держатель первым: занятую запись сервер не отдаст. Сбой уборки прогон не роняет — она не проверка.
+    for (const id of made) await apiAs('DELETE', `/common-data/${id}`).catch(() => {});
+  }
+}
+
 } finally {
   await browser.close();
 }
