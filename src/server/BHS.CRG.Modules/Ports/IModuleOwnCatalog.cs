@@ -21,6 +21,12 @@ namespace BHS.CRG.Modules.Ports;
 /// справочником класса A. Это не обход права модуля: <c>core.catalog.edit</c> и так означает «править
 /// любую запись справочников», а узкое право открывает ровно один справочник.</para>
 /// </summary>
+/// <param name="Record">Запись в новом состоянии.</param>
+/// <param name="Changed">Состояние действительно сменилось. <c>false</c> — запись уже была в нужном
+/// состоянии: повтор (двойное нажатие, вторая вкладка) — не ошибка, но и не событие, и в журнал
+/// модуль его не пишет.</param>
+public sealed record ModuleArchiveResult(ModuleCatalogRef Record, bool Changed);
+
 public interface IModuleOwnCatalog
 {
     /// <summary>
@@ -37,4 +43,15 @@ public interface IModuleOwnCatalog
     /// удаление останавливают тем же отказом, что и в разделе каталога; свои ссылки модуль проверяет сам.
     /// </summary>
     Task<bool> DeleteAsync(string typeCode, Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Отправить запись в архив или вернуть из него (ТЗ CORE-34.4, issue #1185); <c>null</c> — такой
+    /// записи этого типа нет.
+    ///
+    /// <para>Свой путь модуля, а не общий адрес ядра: общим адресом запись справочника модуля в
+    /// архив не уходит. Кто отправляет запись в архив, тот и отвечает за то, что она перестала
+    /// предлагаться на выбор, — а где его записи выбирают, знает только модуль.</para>
+    /// </summary>
+    Task<ModuleArchiveResult?> SetArchivedAsync(
+        string typeCode, Guid id, bool archived, CancellationToken ct = default);
 }

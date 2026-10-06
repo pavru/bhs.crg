@@ -151,7 +151,7 @@ async function supplierPart() {
     supplier.screen = 'ввод счёта';
     site = (await api(supplier.page, 'GET', '/constructions')).find(c => c.name === SITE);
     if (!site) throw new Error(`стройки «${SITE}» нет — посев не отработал`);
-    const organizations = await api(supplier.page, 'GET', '/costs/organizations');
+    const organizations = await api(supplier.page, 'GET', '/costs/organizations?purpose=choice');
     if (organizations.length === 0) throw new Error('в справочнике нет ни одной организации — посев не отработал');
 
     const created = await api(supplier.page, 'POST', '/costs/invoices', {

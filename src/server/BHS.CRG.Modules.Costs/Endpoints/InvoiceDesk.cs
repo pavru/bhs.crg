@@ -222,14 +222,26 @@ public sealed class InvoiceDesk(
         var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
         string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
 
+        // Названия АРХИВНЫХ сторон — с ответом счёта: в списке на выбор их нет, и форме взять
+        // название было бы неоткуда. Действующую сторону форма называет по списку, и спрашивать о
+        // ней на каждом чтении счёта незачем (ревью PR #1227). Типа «Организация» нет — названий нет.
+        var parties = new[] { invoice.SupplierId, invoice.PayerId }.OfType<Guid>().Distinct()
+            .Where(id => records[id] == ReferenceState.Archived).ToList();
+        var organizations = parties.Count == 0
+            ? null
+            : await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);
+        string? Name(Guid? id) => organizations?.FirstOrDefault(o => o.Id == id)?.DisplayName;
+
         return InvoiceViews.Of(invoice, db.VersionOf(invoice),
             await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines,
             await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct),
             InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known),
             await PaymentAsync(invoice, lines, parts, known, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
-                InvoiceReferencesView.Of(type[invoice.DocumentTypeId])),
-            records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet());
+                InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
+                Name(invoice.SupplierId), Name(invoice.PayerId)),
+            records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet(),
+            records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet());
     }
 
     /// <summary>

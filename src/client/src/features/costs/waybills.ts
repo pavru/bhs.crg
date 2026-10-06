@@ -13,6 +13,8 @@ export interface WaybillLineDraft {
   nomenclatureId: string | null;
   nomenclatureName: string | null;
   nomenclatureLost: boolean;
+  /** Позиция в архиве — пометка у названия; выбор другой позиции её снимает. */
+  nomenclatureArchived?: boolean;
   sourceText: string;
   unit: string;
   quantity: string;
@@ -43,7 +45,7 @@ function lineDraft(line: WaybillLineView): WaybillLineDraft {
   return {
     id: line.id, key: line.id,
     nomenclatureId: line.nomenclatureId, nomenclatureName: line.nomenclatureName,
-    nomenclatureLost: line.nomenclatureLost,
+    nomenclatureLost: line.nomenclatureLost, nomenclatureArchived: line.nomenclatureArchived === true,
     sourceText: line.sourceText ?? '', unit: line.unit ?? '',
     quantity: formatInput(line.quantity), note: line.note ?? '',
   };

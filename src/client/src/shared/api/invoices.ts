@@ -43,6 +43,8 @@ export interface InvoiceLineView {
    * не позиция номенклатуры (это не потерянная ссылка). Старый сервер поля не присылает.
    */
   nomenclatureIssue?: 'lost' | 'moved' | null;
+  /** Позиция в архиве (issue #1185): строка сведена и названа, в поиске этой позиции больше нет. */
+  nomenclatureArchived?: boolean;
   supplierText: string | null;
   supplierCode: string | null;
   unit: string | null;
@@ -206,6 +208,12 @@ export interface InvoiceReferences {
   supplier: ReferenceState | null;
   payer: ReferenceState | null;
   documentType: ReferenceState;
+  /**
+   * Название стороны, если она в архиве (issue #1185): в списке на выбор её нет, и взять название
+   * форме больше неоткуда. У действующей стороны — `null`: её называет список.
+   */
+  supplierName?: string | null;
+  payerName?: string | null;
 }
 
 export interface InvoiceListItem {
@@ -215,6 +223,8 @@ export interface InvoiceListItem {
   supplierId: string | null;
   /** ⚠️ `null` при заполненном `supplierId` означает ПОТЕРЮ: ссылка есть, записи нет. */
   supplierName: string | null;
+  /** Поставщик в архиве (issue #1185) — значок у названия, не неисправность. */
+  supplierArchived?: boolean;
   total: number | null;
   state: string;
   payment: string;
@@ -231,6 +241,8 @@ export interface CostsOrganization {
   id: string;
   name: string;
   type: string;
+  /** В архиве — бывает только в списке на показ. */
+  archived: boolean;
 }
 
 /** Позиция номенклатуры в выборе строки. */
@@ -304,11 +316,16 @@ export function useFreshInvoice() {
   return (id: string) => qc.fetchQuery({ ...invoiceQuery(id), staleTime: 0 });
 }
 
-/** Организации для выбора поставщика и плательщика — узкий список модуля. */
-export function useCostsOrganizations() {
+/**
+ * Организации — узкий список модуля. Назначение обязательно (issue #1185), как у общих данных ядра:
+ * `choice` — выбор поставщика и плательщика, архивных организаций в нём нет; `display` — все, с
+ * признаком. Название архивной организации, которая в счёте уже стоит, приходит с самим счётом
+ * (`InvoiceReferences`), а не отсюда.
+ */
+export function useCostsOrganizations(purpose: 'choice' | 'display') {
   return useQuery({
-    queryKey: ['costs-organizations'],
-    queryFn: () => apiClient.get<CostsOrganization[]>('/costs/organizations').then(r => r.data),
+    queryKey: ['costs-organizations', purpose],
+    queryFn: () => apiClient.get<CostsOrganization[]>('/costs/organizations', { params: { purpose } }).then(r => r.data),
   });
 }
 

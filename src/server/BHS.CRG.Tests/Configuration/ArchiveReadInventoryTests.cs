@@ -35,7 +35,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Modules.Costs"];
 
     /// <summary>Шаги задачи #1185, которые ещё не сделаны. Отложить решение можно только на них.</summary>
-    private static readonly int[] OpenSteps = [3, 4];
+    private static readonly int[] OpenSteps = [4];
 
     private enum Kind
     {
@@ -162,7 +162,7 @@ public partial class ArchiveReadInventoryTests
     {
         // Живой тест стоит там, где для него готова обстановка: профиль уровня проверяется на чистой
         // базе своего класса — на общей базе хоста счетов профиль-тип достался бы всем его стройкам.
-        var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests) }
+        var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests), typeof(InvoiceArchiveTests) }
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())
             .Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
@@ -174,7 +174,8 @@ public partial class ArchiveReadInventoryTests
             if (row.Kind is Kind.Choice or Kind.ByPurpose && row.Probes.Length == 0)
                 wrong.Add($"{key}\n    выбор без живого теста: решение принято, но ничем не проверено");
             foreach (var probe in row.Probes.Where(p => !probes.Contains(p)))
-                wrong.Add($"{key}\n    живого теста «{probe}» нет ни в ArchiveReadPurposeTests, ни в LevelProfileTests");
+                wrong.Add($"{key}\n    живого теста «{probe}» нет ни в ArchiveReadPurposeTests, ни в LevelProfileTests, " +
+                    "ни в InvoiceArchiveTests");
         }
 
         Assert.True(wrong.Count == 0, "Перепись мест чтения неполна:\n" + string.Join("\n", wrong));

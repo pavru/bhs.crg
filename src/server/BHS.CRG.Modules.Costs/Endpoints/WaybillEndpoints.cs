@@ -136,11 +136,12 @@ public static class WaybillEndpoints
     {
         var header = WaybillRequests.Header(body);
         var lines = WaybillRequests.Lines(body);
-        if (lines is not null) await EnsureNomenclatureExistsAsync(catalog, Numbered(lines), ct);
 
         var waybill = await FindAsync(db, id, ct);
         EnsureSeen(db, waybill, WaybillRequests.IfMatch(body));
         EnsureDraft(waybill, "шапку");
+        if (lines is not null)
+            await EnsureNomenclatureAsync(catalog, Numbered(lines), await StoredPositionsAsync(db, waybill, ct), ct);
 
         var known = await sites.ListAsync(ct);
         EnsureSiteExists(known, header.ConstructionId);
@@ -175,11 +176,10 @@ public static class WaybillEndpoints
                 "Набор строк не прислан. Пустой набор — это «lines»: [], и он означает «строк нет». " +
                 "Отсутствие поля прочитать как «строки не менять» нельзя: адрес заменяет набор целиком.");
 
-        await EnsureNomenclatureExistsAsync(catalog, Numbered(lines), ct);
-
         var waybill = await FindAsync(db, id, ct);
         EnsureSeen(db, waybill, WaybillRequests.IfMatch(body));
         EnsureDraft(waybill, "строки");
+        await EnsureNomenclatureAsync(catalog, Numbered(lines), await StoredPositionsAsync(db, waybill, ct), ct);
 
         if (await PlaceLinesAsync(db, waybill, lines, ct))
         {
@@ -247,7 +247,8 @@ public static class WaybillEndpoints
             ?? throw new NotFoundException("Строка накладной не найдена.");
 
         // Отказ называет ТУ строку, которую сопоставляют, а не первую в присланном.
-        await EnsureNomenclatureExistsAsync(catalog, [(line.Ordinal, position)], ct);
+        await EnsureNomenclatureAsync(
+            catalog, [(line.Ordinal, position)], line.NomenclatureId is { } stood ? [stood] : [], ct);
 
         if (line.NomenclatureId != position)
         {
@@ -333,7 +334,7 @@ public static class WaybillEndpoints
         return TypedResults.Ok(new IssuedMaterialsView(
             site,
             [.. report.Items
-                .Select(i => new IssuedMaterialView(i.NomenclatureId, names?.GetValueOrDefault(i.NomenclatureId),
+                .Select(i => new IssuedMaterialView(i.NomenclatureId, names?.GetValueOrDefault(i.NomenclatureId)?.DisplayName,
                     i.Unit, i.Quantity, i.First, i.Last, i.Waybills))
                 .OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(i => i.Unit)],
             report.UnmatchedLines,
@@ -403,37 +404,53 @@ public static class WaybillEndpoints
                 "открыта: выберите стройку заново.");
     }
 
-    /// <summary>Названия позиций; <c>null</c> — типа «Номенклатура» в системе нет.</summary>
-    private static async Task<IReadOnlyDictionary<Guid, string?>?> NamesAsync(
+    /// <summary>Позиции с названием и признаком архива; <c>null</c> — типа «Номенклатура» в системе нет.</summary>
+    private static async Task<IReadOnlyDictionary<Guid, ModuleCatalogRef>?> NamesAsync(
         IModuleCatalog catalog, IReadOnlyList<Guid?> positions, CancellationToken ct)
     {
         var ids = positions.OfType<Guid>().Distinct().ToList();
-        if (ids.Count == 0) return new Dictionary<Guid, string?>();
+        if (ids.Count == 0) return new Dictionary<Guid, ModuleCatalogRef>();
 
         return (await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct))
-            ?.ToDictionary(r => r.Id, r => r.DisplayName);
+            ?.ToDictionary(r => r.Id);
     }
 
+    /// <summary>Позиции, которые в строках накладной уже стоят: их правило записи не перепроверяет.</summary>
+    private static async Task<IReadOnlyCollection<Guid>> StoredPositionsAsync(
+        CostsDbContext db, Waybill waybill, CancellationToken ct) =>
+        await db.WaybillLines.AsNoTracking()
+            .Where(l => l.WaybillId == waybill.Id && l.NomenclatureId != null)
+            .Select(l => l.NomenclatureId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// НОВЫЕ позиции строк обязаны быть в справочнике и не в архиве — правило модуля
+    /// (<see cref="NewReferences" />). Позиция, которая в накладной уже стоит, принимается любой:
+    /// раньше черновик с потерянной позицией не сохранялся вовсе, пока её не заменят.
+    /// </summary>
     /// <param name="positions">Позиция и НОМЕР строки, которым её назовёт отказ: номер приходит от
     /// звавшего, потому что у сопоставления одной строки он не «первая в присланном».</param>
-    private static async Task EnsureNomenclatureExistsAsync(
-        IModuleCatalog catalog, IReadOnlyList<(int Number, Guid? Position)> positions, CancellationToken ct)
+    /// <param name="stored">Позиции, уже стоящие в накладной.</param>
+    private static async Task EnsureNomenclatureAsync(
+        IModuleCatalog catalog, IReadOnlyList<(int Number, Guid? Position)> positions,
+        IReadOnlyCollection<Guid> stored, CancellationToken ct)
     {
-        if (positions.All(p => p.Position is null)) return;
+        var fresh = positions.Select(p => p.Position).OfType<Guid>().Distinct().Except(stored).ToList();
+        if (fresh.Count == 0) return;
 
-        var names = await NamesAsync(catalog, [.. positions.Select(p => p.Position)], ct)
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode, fresh, ct)
             ?? throw new ConflictException(
                 $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, поэтому ссылаться строкам " +
                 "не на что. Строки без позиции при этом сохраняются — они считаются несопоставленными.");
 
-        var lost = positions
-            .Where(p => p.Position is { } value && !names.ContainsKey(value))
-            .Select(p => p.Number)
-            .ToList();
+        var lost = NewReferences.Rows(positions, verdicts, NewReference.Missing);
         if (lost.Count > 0)
             throw new InvalidRequestException(
                 $"Позиции номенклатуры нет в справочнике: {(lost.Count == 1 ? "строка" : "строки")} " +
                 $"{string.Join(", ", lost)}. Так бывает, когда позицию удалили или перенесли в другой вид. " +
                 "Выберите позицию заново — ссылка в пустоту в перечень отпущенного не попала бы.");
+
+        NewReferences.EnsureNoneArchived(positions, verdicts, "позиция номенклатуры");
     }
 }

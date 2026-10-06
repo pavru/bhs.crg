@@ -1,4 +1,5 @@
 import { LOST, MISSING } from './lostReferences';
+import { withArchiveWord } from '@/shared/ui/archive';
 import { useCostsArticles, type CostsArticle } from '@/shared/api/articles';
 import { useCostsConstructions, type AllocationPartView, type CostsConstruction } from '@/shared/api/invoices';
 import type { Place } from '@/shared/api/allocationMatrix';
@@ -13,7 +14,12 @@ import type { Place } from '@/shared/api/allocationMatrix';
 
 export type { Place };
 
-/** Куда можно разнести: стройки с разделами и статьи. `undefined` — ещё не загружено. */
+/**
+ * Куда можно разнести: стройки с разделами и статьи. `undefined` — ещё не загружено.
+ *
+ * ⚠️ Статьи здесь ВСЕ, архивные тоже (issue #1185): по этому же списку называют цель, на которую уже
+ * разнесено. На выбор архивную статью не предлагает `PlaceSelect` — он единственный, кто рисует выбор.
+ */
 export interface Places {
   sites: CostsConstruction[] | undefined;
   articles: CostsArticle[] | undefined;
@@ -73,7 +79,7 @@ export function placeName(place: Place, places: Places): string {
     if (!places.articles) return pending;
     const article = places.articles.find(a => a.id === place.article);
     // По справочнику не различить, удалена статья или переведена в другой вид, — так и говорим.
-    return article ? article.name : MISSING.article;
+    return article ? withArchiveWord(article.name, article.archived) : MISSING.article;
   }
 
   if (place.construction && !places.sites) return pending;

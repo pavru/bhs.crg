@@ -121,7 +121,8 @@ public static class InvoiceEndpoints
         return TypedResults.Ok<IReadOnlyList<InvoiceListItem>>(
             [.. invoices.Select(i => InvoiceViews.Item(
                 i,
-                i.SupplierId is { } id && names.TryGetValue(id, out var name) ? name : null,
+                i.SupplierId is { } id && names.TryGetValue(id, out var supplier) ? supplier.DisplayName : null,
+                i.SupplierId is { } key && names.TryGetValue(key, out var found) && found.Archived,
                 lines.TryGetValue(i.Id, out var total) ? total.Count : 0,
                 lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0))]);
     }
@@ -415,11 +416,12 @@ public static class InvoiceEndpoints
     }
 
     /// <summary>
-    /// Поставщик и плательщик, названные ЭТОЙ правкой, обязаны существовать (ТЗ CORE-34.4, issue #1184).
+    /// Поставщик и плательщик, названные ЭТОЙ правкой, обязаны существовать, быть организациями и не
+    /// лежать в архиве (ТЗ CORE-34.4, issue #1184, #1185).
     ///
-    /// <para>Только новые: ссылка, которая у счёта уже стояла, принимается и потерянной — иначе счёт с
-    /// удалённым поставщиком нельзя было бы сохранить, поправив в нём что угодно другое. А новая ссылка
-    /// в пустоту — это потеря, заведённая своими руками.</para>
+    /// <para>Только новые: ссылка, которая у счёта уже стояла, принимается и потерянной, и архивной —
+    /// иначе счёт с удалённым поставщиком нельзя было бы сохранить, поправив в нём что угодно другое. А
+    /// новая ссылка в пустоту — это потеря, заведённая своими руками.</para>
     /// </summary>
     private static async Task EnsurePartiesExistAsync(
         IModuleReferenceTargets targets, IModuleCatalog catalog, InvoiceColumns columns,
@@ -446,12 +448,18 @@ public static class InvoiceEndpoints
         // Запись есть — но организация ли она? Позицию номенклатуры в поле поставщика форма показала бы
         // пустым полем, реестр — счётом без поставщика (ревью PR #1211). Типа «Организация» в установке
         // нет — сверять не с чем, и это не повод отказывать в записи.
-        if (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [.. named.Select(p => p.Id!.Value)], ct) is not { } organizations)
+        if (await NewReferences.JudgeAsync(
+                catalog, CostsRecordTypes.OrganizationCode, [.. named.Select(p => p.Id!.Value)], ct) is not { } verdicts)
             return;
-        var known = organizations.Select(o => o.Id).ToHashSet();
-        foreach (var party in named.Where(p => !known.Contains(p.Id!.Value)))
-            throw new InvalidRequestException(
-                $"«{party.Key}»: выбранная запись — не организация. Выберите организацию из справочника.");
+        foreach (var party in named)
+            switch (verdicts[party.Id!.Value])
+            {
+                case NewReference.Missing:
+                    throw new InvalidRequestException(
+                        $"«{party.Key}»: выбранная запись — не организация. Выберите организацию из справочника.");
+                case NewReference.Archived:
+                    throw NewReferences.InArchive($"«{party.Key}»", "организация");
+            }
     }
 
     internal static async Task<Invoice> FindAsync(CostsDbContext db, Guid id, CancellationToken ct) =>
@@ -481,7 +489,7 @@ public static class InvoiceEndpoints
         return [.. found.Select(InvoiceViews.Duplicate)];
     }
 
-    private static async Task<Dictionary<Guid, string>> SupplierNamesAsync(
+    private static async Task<Dictionary<Guid, ModuleCatalogEntry>> SupplierNamesAsync(
         IModuleCatalog catalog, List<Invoice> invoices, CancellationToken ct)
     {
         if (!invoices.Any(i => i.SupplierId is not null)) return [];
@@ -498,8 +506,8 @@ public static class InvoiceEndpoints
         // отказ. Счёт со ссылкой на организацию при этом покажет «организация не найдена» — что
         // правда: тип, на который он ссылается, из системы исчез.
         // Показ: это названия поставщиков УЖЕ заведённых счетов. Архивный поставщик у счёта
-        // закрытого периода обязан читаться по имени (issue #1185).
+        // закрытого периода обязан читаться по имени, а признак реестр ставит значком (issue #1185).
         var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);
-        return organizations?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
+        return organizations?.ToDictionary(o => o.Id) ?? [];
     }
 }

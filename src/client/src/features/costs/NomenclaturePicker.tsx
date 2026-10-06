@@ -1,4 +1,5 @@
 import { LOST } from './lostReferences';
+import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRef, useState } from 'react';
 import { Search, TriangleAlert, X } from 'lucide-react';
@@ -23,7 +24,7 @@ import { useNomenclature } from '@/shared/api/invoices';
  * <c>core.nomenclature.edit</c>, которого у снабженца может не быть. Кнопка «завести», отказывающая
  * правами, обещала бы то, чего нет.</p>
  */
-export function NomenclaturePicker({ chosen, name, lost, lostText, onPick, onClear }: {
+export function NomenclaturePicker({ chosen, name, lost, lostText, archived, onPick, onClear }: {
   /**
    * Ссылка на позицию ЕСТЬ. Отдельно от названия: пустое название бывает и у выбранной позиции —
    * записи справочника без имени законны, и пикер их показывает.
@@ -35,6 +36,8 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, onPick, onCle
   lost?: boolean;
   /** Чем назвать потерю, если это не удалённая запись: «позиция другого вида». */
   lostText?: string;
+  /** Выбранная позиция в архиве: названа как была, а в поиске её уже нет (issue #1185). */
+  archived?: boolean;
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
 }) {
@@ -43,13 +46,14 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, onPick, onCle
   return (
     <>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => setOpen(true)}
+        <button type="button" onClick={() => setOpen(true)} title={archived && !lost ? ARCHIVED_HINT : undefined}
           className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
             ${lost ? 'border-danger-border text-danger'
               : chosen ? 'border-stroke text-fg' : 'border-warning-border text-warning'}`}>
           {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
               но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
-          {lost ? lostText ?? LOST.position : chosen ? name ?? 'позиция без названия' : 'выбрать позицию'}
+          {lost ? lostText ?? LOST.position
+            : chosen ? withArchiveWord(name ?? 'позиция без названия', !!archived) : 'выбрать позицию'}
         </button>
         {/* ⚠️ Снять ссылку можно ВСЕГДА, пока она есть, — и особенно когда позиция потеряна: сервер
             отказывает сохранять строку с битой ссылкой, а спрятанная кнопка не оставляла человеку

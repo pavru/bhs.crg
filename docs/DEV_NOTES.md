@@ -2111,10 +2111,17 @@ GET    /api/costs/articles          → статьи вне строек («Ск
 POST   /api/costs/articles          { name }                                     costs.articles.edit
 PUT    /api/costs/articles/{id}     { name }  — переименовать
 DELETE /api/costs/articles/{id}     → занятую (на неё разнесено) — 409 с числом частей и счетов (F3).
+POST   /api/costs/articles/{id}/archive | /unarchive   → в архив и обратно (issue #1185);
+                                      свой путь модуля под costs.articles.edit: общим адресом ядра
+                                      запись справочника модуля в архив не уходит. Список статей
+                                      отдаёт все, архивные — с признаком «archived»
                                       Статьи — тип модуля «СтатьяВнеСтроек» в ОБЩЕЙ таблице (класс A):
                                       пишутся портом IModuleOwnCatalog, который сверяет тип записи;
                                       «Общие данные» правят их тоже — под core.catalog.edit
-GET    /api/costs/organizations     → выбор поставщика и плательщика для формы  costs.invoice.read
+GET    /api/costs/organizations?purpose=choice|display   → организации для счёта  costs.invoice.read
+                                      choice — выбор поставщика и плательщика, архивных нет; display —
+                                      все, с признаком. Без параметра — 400. Название уже стоящей
+                                      организации едет с самим счётом («references.supplierName»)
 GET    /api/costs/nomenclature?query=  → ПОИСК позиции для строки (25 позиций + признак «more»);
                                       ищет по названию И альтернативным именам, найденное по имени
                                       называет в «matchedAlias»

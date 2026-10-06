@@ -30,6 +30,8 @@ public class CostsJournalVisibilityTests(InvoiceLineHost host) : InvoiceLineTest
         ["costs.article.created"] = "справочник статей открыт: название статьи видно и без права на счета",
         ["costs.article.renamed"] = "то же",
         ["costs.article.deleted"] = "то же",
+        ["costs.article.archived"] = "то же",
+        ["costs.article.unarchived"] = "то же",
     };
 
     [Fact]

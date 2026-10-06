@@ -99,7 +99,16 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction ArticleDeleted =
         new("costs.article.deleted", "Статья вне строек убрана");
 
+    // Архив статьи (issue #1185): «кто и когда убрал статью из выбора» больше спросить не у кого —
+    // поля «кто» у записи нет нарочно.
+    public static readonly ModuleActivityAction ArticleArchived =
+        new("costs.article.archived", "Статья вне строек отправлена в архив");
+
+    public static readonly ModuleActivityAction ArticleUnarchived =
+        new("costs.article.unarchived", "Статья вне строек возвращена из архива");
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
         [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft, AllocationChanged,
-         Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted];
+         Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
+         ArticleArchived, ArticleUnarchived];
 }

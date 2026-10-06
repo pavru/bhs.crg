@@ -1,3 +1,4 @@
+import { withArchiveWord } from '@/shared/ui/archive';
 import { choiceOf, fromChoice, placeName, type Place, type Places } from './places';
 
 /**
@@ -7,6 +8,11 @@ import { choiceOf, fromChoice, placeName, type Place, type Places } from './plac
  * <p>⚠️ Выбранная цель, которой больше нет (стройку удалили, статью убрали), остаётся пунктом с честной
  * подписью. Без него значение не совпало бы ни с одним пунктом, поле показало бы «— выберите —», а уехала бы
  * удалённая цель — и выглядело бы это как «часть без цели».</p>
+ *
+ * <p>Архивную статью выбор не предлагает (issue #1185) — кроме той, что стоит сейчас: она остаётся
+ * пунктом «Склад — в архиве». Сменили цель — пункт исчезает. Помнить прежнее значение поле не
+ * берётся: часть полей сохраняет выбор сразу, и после сохранения архивная статья у счёта уже не
+ * стоит — вернуть её значило бы предложить то, что сервер отвергнет (ревью PR #1227).</p>
  */
 export function PlaceSelect({ value, places, label, placeholder = '— выберите —', disabled, className, onChange }: {
   value: Place;
@@ -18,6 +24,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
   onChange: (place: Place) => void;
 }) {
   const current = choiceOf(value);
+  const articles = places.articles?.filter(a => !a.archived || a.id === value.article);
   const list = value.article ? places.articles : places.sites;
   const id = value.article ?? value.construction;
   // Список ещё не пришёл — «удалена» было бы неправдой: «ещё не знаем» не то же, что «нет».
@@ -35,9 +42,13 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
           {places.sites.map(s => <option key={s.id} value={choiceOf({ construction: s.id, section: null, article: null })}>{s.name}</option>)}
         </optgroup>
       )}
-      {!!places.articles?.length && (
+      {!!articles?.length && (
         <optgroup label="Вне строек">
-          {places.articles.map(a => <option key={a.id} value={choiceOf({ construction: null, section: null, article: a.id })}>{a.name}</option>)}
+          {articles.map(a => (
+            <option key={a.id} value={choiceOf({ construction: null, section: null, article: a.id })}>
+              {withArchiveWord(a.name, a.archived)}
+            </option>
+          ))}
         </optgroup>
       )}
     </select>

@@ -56,6 +56,9 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/articles/{article}",
             new { name = $"Склад новый {Guid.NewGuid().ToString()[..6]}" }));
         var (spare, _) = await ArticleAsync(client, "Лишняя");
+        // Архив и возврат — тоже действия модуля (issue #1185): сценарий обязан пройти через каждое.
+        await OkAsync(await client.PostAsync($"/api/costs/articles/{spare}/archive", null));
+        await OkAsync(await client.PostAsync($"/api/costs/articles/{spare}/unarchive", null));
         await OkAsync(await client.DeleteAsync($"/api/costs/articles/{spare}"));
 
         // Счёт с меткой «распознано, не подтверждено» — чтобы «Всё верно» было что снимать.

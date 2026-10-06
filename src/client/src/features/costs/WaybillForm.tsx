@@ -10,6 +10,7 @@ import {
   useMatchWaybillLine, useSaveWaybill, useWaybillState, type WaybillView,
 } from '@/shared/api/waybills';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { withArchiveWord } from '@/shared/ui/archive';
 import { formatDate } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import {
@@ -255,17 +256,19 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
                       <td className="py-1 pr-2">
                         {canEdit ? (
                           <NomenclaturePicker chosen={line.nomenclatureId !== null} name={line.nomenclatureName}
-                            lost={line.nomenclatureLost}
+                            lost={line.nomenclatureLost} archived={line.nomenclatureArchived}
                             onPick={(id, name) => posted
                               ? void matchLine(line, id)
-                              : editLine(line.key, { nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false })}
+                              : editLine(line.key, { nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureArchived: false })}
                             onClear={() => posted
                               ? void matchLine(line, null)
-                              : editLine(line.key, { nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false })} />
+                              : editLine(line.key, { nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false, nomenclatureArchived: false })} />
                         ) : (
                           <span className={line.nomenclatureId ? 'text-fg' : 'text-warning'}>
                             {line.nomenclatureLost ? LOST.position
-                              : line.nomenclatureId ? line.nomenclatureName ?? 'позиция без названия' : 'не сопоставлена'}
+                              : line.nomenclatureId
+                                ? withArchiveWord(line.nomenclatureName ?? 'позиция без названия', !!line.nomenclatureArchived)
+                                : 'не сопоставлена'}
                           </span>
                         )}
                       </td>

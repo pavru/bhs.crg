@@ -288,10 +288,13 @@ public static class InvoiceAllocations
 
             if (target.ArticleId is { } article)
             {
-                if (places.Article(article) is null)
-                    throw new InvalidRequestException(
+                // Правило новой ссылки — то же, что у шапки и строк (см. NewReferences), только
+                // справочник статей уже прочитан целиком, и спрашивать его второй раз незачем.
+                var found = places.Article(article)
+                    ?? throw new InvalidRequestException(
                         $"Часть {index + 1}: такой статьи вне строек нет. Так бывает, когда статью убрали из " +
                         "справочника, пока форма была открыта. Выберите цель заново.");
+                if (found.Archived) throw NewReferences.InArchive($"Часть {index + 1}", $"статья «{found.Name}»");
                 continue;
             }
 

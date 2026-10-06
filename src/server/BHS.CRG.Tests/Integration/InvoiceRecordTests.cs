@@ -685,7 +685,7 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     {
         var (client, _) = await SignInAsync("Supplier");
 
-        var organizations = await client.GetFromJsonAsync<JsonElement>("/api/costs/organizations");
+        var organizations = await client.GetFromJsonAsync<JsonElement>("/api/costs/organizations?purpose=choice");
         var names = organizations.EnumerateArray().Select(o => o.GetProperty("name").GetString()).ToList();
 
         Assert.Contains(SupplierName, names);
