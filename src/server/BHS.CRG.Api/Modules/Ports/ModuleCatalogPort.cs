@@ -4,6 +4,8 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
 using MediatR;
+using CoreRecordsFor = BHS.CRG.Application.Documents.RecordsFor;
+using RecordsFor = BHS.CRG.Modules.Ports.RecordsFor;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -26,8 +28,16 @@ namespace BHS.CRG.Api.Modules.Ports;
 public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentType> types) : IModuleCatalog
 {
     public async Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
-        string entityType, CancellationToken ct = default)
+        string entityType, RecordsFor purpose, CancellationToken ct = default)
     {
+        // Назначение модуля переводится в назначение ядра ПЕРЕБОРОМ, а не приведением числа: у двух
+        // перечислений порядок значений ничем не связан, и приведение пережило бы перестановку молча.
+        var records = purpose switch
+        {
+            RecordsFor.Choice => CoreRecordsFor.Choice,
+            RecordsFor.Display => CoreRecordsFor.Display,
+            _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose, "Неизвестное назначение чтения."),
+        };
         var all = await types.GetAllAsync(ct);
 
         // Вида нет — ноль, а не пустой список: «типа с таким кодом не заведено» и «записей такого
@@ -42,7 +52,7 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
         var codes = Family(root, all);
         var entries = new List<DomainObject>();
         foreach (var id in codes.Keys)
-            entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(null, null, id), ct));
+            entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));
 
         // ⚠️ Записи приезжают ЦЕЛИКОМ, с данными: так объявлен контракт порта (`DataJson`), и модулю
         // они нужны — сопоставление поставщика ищет по ИНН. Цена названа: у вида с картинкой в поле
@@ -59,13 +69,23 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
             .OrderBy(e => e.DisplayName, StringComparer.CurrentCulture)];
     }
 
-    public async Task<IReadOnlyList<ModuleCatalogRef>?> SearchAsync(
+    public async Task<ModuleCatalogChoice?> SearchAsync(
         string entityType, string? query, int limit, CancellationToken ct = default)
-        => await RefsAsync(entityType, ids: null, query, limit, ct);
+    {
+        if (await FamilyAsync(entityType, ct) is not { } codes) return null;
+
+        var found = await mediator.Send(new SearchCommonDataForChoiceQuery(codes.Keys, query, limit), ct);
+        return new ModuleCatalogChoice(Refs(found.Items, codes), found.InArchive);
+    }
 
     public async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
         string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
-        => ids.Count == 0 ? [] : await RefsAsync(entityType, ids, query: null, limit: null, ct);
+    {
+        if (await FamilyAsync(entityType, ct) is not { } codes) return null;
+        if (ids.Count == 0) return [];
+
+        return Refs(await mediator.Send(new CommonDataRefsByIdsQuery(codes.Keys, ids), ct), codes);
+    }
 
     /// <summary>
     /// Ссылки на записи вида — узким запросом ядра, БЕЗ данных записи (issue #1078).
@@ -75,24 +95,22 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
     /// грузил бы провод тем, что сам не показывает. Повод сузить назван в контракте порта, и это
     /// он.</para>
     /// </summary>
-    private async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
-        string entityType, IReadOnlyCollection<Guid>? ids, string? query, int? limit, CancellationToken ct)
-    {
-        var all = await types.GetAllAsync(ct);
-
-        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
-        if (root is null) return null;
-
-        var codes = Family(root, all);
-        var refs = await mediator.Send(new ListCommonDataRefsQuery(codes.Keys, query, ids, limit), ct);
-
+    private static IReadOnlyList<ModuleCatalogRef> Refs(
+        IReadOnlyList<CommonDataRef> refs, IReadOnlyDictionary<Guid, string> codes) =>
         // Порядок задаёт ПОРТ, как и в списке: в базе сортировка своя (ею отсекается limit), а список
         // читает человек — «Ёлка» в нём стоит между «Дубом» и «Жасмином», а не после латиницы.
-        return [.. refs
+        [.. refs
             .Select(r => new ModuleCatalogRef(
                 r.Id, codes.TryGetValue(r.CompositeTypeId, out var code) ? code : string.Empty, r.DisplayName,
-                r.MatchedAlias))
+                r.Archived, r.MatchedAlias))
             .OrderBy(r => r.DisplayName, StringComparer.CurrentCulture)];
+
+    /// <summary>Вид и его подтипы; <c>null</c> — вида с таким кодом в системе нет.</summary>
+    private async Task<Dictionary<Guid, string>?> FamilyAsync(string entityType, CancellationToken ct)
+    {
+        var all = await types.GetAllAsync(ct);
+        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
+        return root is null ? null : Family(root, all);
     }
 
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)
@@ -139,5 +157,6 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
         new(e.Id,
             codes.TryGetValue(e.CompositeTypeId, out var code) ? code : string.Empty,
             e.DisplayName,
-            e.Data.RootElement.GetRawText());
+            e.Data.RootElement.GetRawText(),
+            e.IsArchived);
 }

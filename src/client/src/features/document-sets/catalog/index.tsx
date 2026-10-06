@@ -168,15 +168,16 @@ export function CatalogEntryForm({
     .find(v => isFileAttachment(v));
   const attachment = isFileAttachment(fileFieldValue) ? fileFieldValue : null;
 
+  // Кандидаты базового экземпляра — выбор: архивной записи среди них нет (issue #1185).
   const { data: allParentEntries = [] } = useCommonDataForSet({
-    setId: setId ?? '', typeId: parentType?.id, enabled: !!parentType && !!setId,
+    setId: setId ?? '', purpose: 'choice', typeId: parentType?.id, enabled: !!parentType && !!setId,
   });
   const { data: scopeParentEntries = [] } = useListCommonData({
-    scope, scopeId: scopeId ?? undefined, typeId: parentType?.id,
+    purpose: 'choice', scope, scopeId: scopeId ?? undefined, typeId: parentType?.id,
     enabled: !!parentType && !setId && scope !== 'System',
   });
   const { data: systemParentEntries = [] } = useListCommonData({
-    scope: 'System', typeId: parentType?.id, enabled: !!parentType,
+    purpose: 'choice', scope: 'System', typeId: parentType?.id, enabled: !!parentType,
   });
   // ВАЖНО: клиентский фильтр по типу обязателен — useQuery с typeId:undefined (когда parentType нет)
   // возвращает закешированные данные по совпадающему ключу (нефильтрованный список каталога),
@@ -197,14 +198,14 @@ export function CatalogEntryForm({
   // Кандидаты роли/прокси (issue #89): объекты ТОГО ЖЕ типа, видимые в скоупе (кроме самого себя).
   const proxyTypeId = selectedType?.allowsProxy ? selectedType.id : undefined;
   const { data: allProxyEntries = [] } = useCommonDataForSet({
-    setId: setId ?? '', typeId: proxyTypeId, enabled: !!proxyTypeId && !!setId,
+    setId: setId ?? '', purpose: 'choice', typeId: proxyTypeId, enabled: !!proxyTypeId && !!setId,
   });
   const { data: scopeProxyEntries = [] } = useListCommonData({
-    scope, scopeId: scopeId ?? undefined, typeId: proxyTypeId,
+    purpose: 'choice', scope, scopeId: scopeId ?? undefined, typeId: proxyTypeId,
     enabled: !!proxyTypeId && !setId && scope !== 'System',
   });
   const { data: systemProxyEntries = [] } = useListCommonData({
-    scope: 'System', typeId: proxyTypeId, enabled: !!proxyTypeId,
+    purpose: 'choice', scope: 'System', typeId: proxyTypeId, enabled: !!proxyTypeId,
   });
   // Тот же клиентский фильтр по типу (иммунно к cache-collision по ключу typeId:undefined).
   const proxyEntries: CommonDataEntry[] = !proxyTypeId ? [] :

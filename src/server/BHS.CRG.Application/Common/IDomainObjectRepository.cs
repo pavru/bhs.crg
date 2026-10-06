@@ -42,10 +42,19 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// имеет права их грузить.
     ///
     /// <para>Отбор — вид (и его подтипы, развёрнутые вызывающим), часть названия ИЛИ альтернативного
-    /// имени без учёта регистра (issue #1169), перечень известных идентификаторов. Отсечение <paramref name="limit" /> идёт ПОСЛЕ сортировки
-    /// по названию — иначе «первые N» означало бы «произвольные N».</para>
+    /// имени без учёта регистра (issue #1169). Отсечение <paramref name="limit" /> идёт ПОСЛЕ
+    /// сортировки по названию — иначе «первые N» означало бы «произвольные N».</para>
+    ///
+    /// <para>Это ВЫБОР: архивных записей в ответе нет, а сколько их подошло бы под тот же отбор —
+    /// названо числом (issue #1185).</para>
     /// </summary>
-    Task<IReadOnlyList<CommonDataRef>> FindCommonDataRefsAsync(
-        IReadOnlyCollection<Guid> typeIds, string? search, IReadOnlyCollection<Guid>? ids, int? limit,
-        CancellationToken ct = default);
+    Task<ChoiceCandidates> SearchForChoiceAsync(
+        IReadOnlyCollection<Guid> typeIds, string? search, int? limit, CancellationToken ct = default);
+
+    /// <summary>
+    /// Записи общих данных ссылками по известным идентификаторам — для показа уже стоящих ссылок.
+    /// Все, включая архивные; признак — в каждой ссылке (issue #1185).
+    /// </summary>
+    Task<IReadOnlyList<CommonDataRef>> RefsByIdsAsync(
+        IReadOnlyCollection<Guid> typeIds, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 }

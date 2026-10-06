@@ -497,7 +497,9 @@ public static class InvoiceEndpoints
         // Вида нет (ноль) — значит и организаций нет: реестр остаётся реестром, а не превращается в
         // отказ. Счёт со ссылкой на организацию при этом покажет «организация не найдена» — что
         // правда: тип, на который он ссылается, из системы исчез.
-        var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct);
+        // Показ: это названия поставщиков УЖЕ заведённых счетов. Архивный поставщик у счёта
+        // закрытого периода обязан читаться по имени (issue #1185).
+        var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);
         return organizations?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
     }
 }

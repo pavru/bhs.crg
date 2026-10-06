@@ -21,7 +21,21 @@ export interface CommonDataEntry {
   scopeId: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Запись в архиве (issue #1185): из выбора нового значения убрана, сохранённые ссылки на неё целы.
+   * Приходит всегда; в списке, запрошенном «на выбор», таких записей нет вовсе.
+   */
+  archived: boolean;
 }
+
+/**
+ * Зачем читают список записей (issue #1185): `choice` — человек выбирает новое значение, архивных
+ * записей в ответе нет; `display` — показ уже стоящего, архивные на месте с признаком.
+ *
+ * Сервер без назначения отвечает отказом, и умолчания здесь нет нарочно: один адрес кормит и выбор,
+ * и показ, а забытое «показать всё» вернуло бы архивную запись в выбор молча.
+ */
+export type RecordsPurpose = 'choice' | 'display';
 
 export interface CommonDataEntryWithScope extends CommonDataEntry {
   priority: number;

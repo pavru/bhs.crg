@@ -27,7 +27,7 @@ public sealed class ModuleOwnCatalogPort(
         using var data = JsonDocument.Parse("{}");
         var entry = await mediator.Send(new CreateCommonDataEntryCommand(
             displayName, type.Id, data, CatalogScope.System, null), ct);
-        return new ModuleCatalogRef(entry.Id, type.Code, entry.DisplayName);
+        return new ModuleCatalogRef(entry.Id, type.Code, entry.DisplayName, entry.IsArchived);
     }
 
     public async Task<ModuleCatalogRef?> RenameAsync(
@@ -38,7 +38,7 @@ public sealed class ModuleOwnCatalogPort(
         var (type, entry) = found;
         entry.Rename(displayName);
         await objects.SaveChangesAsync(ct);
-        return new ModuleCatalogRef(entry.Id, type.Code, entry.DisplayName);
+        return new ModuleCatalogRef(entry.Id, type.Code, entry.DisplayName, entry.IsArchived);
     }
 
     public async Task<bool> DeleteAsync(string typeCode, Guid id, CancellationToken ct = default)

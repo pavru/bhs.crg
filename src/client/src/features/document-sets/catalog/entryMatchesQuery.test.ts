@@ -5,7 +5,7 @@ import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
 function entry(over: Partial<CommonDataEntry>): CommonDataEntry {
   return {
     id: 'e1', displayName: 'ООО Ромашка', aliases: [], compositeTypeId: 't1',
-    data: {}, scope: 'System', scopeId: null, createdAt: '', updatedAt: '', ...over,
+    data: {}, scope: 'System', scopeId: null, createdAt: '', updatedAt: '', archived: false, ...over,
   };
 }
 

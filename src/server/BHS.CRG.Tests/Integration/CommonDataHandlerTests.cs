@@ -116,7 +116,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         var sys = await m.Send(new CreateCommonDataEntryCommand("Система", typeId, Json("{}"), CatalogScope.System, null));
         var foreign = await m.Send(new CreateCommonDataEntryCommand("Чужая стройка", typeId, Json("{}"), CatalogScope.Construction, Guid.NewGuid()));
 
-        var ids = (await m.Send(new ResolveCommonDataForScopeQuery(CatalogScope.Section, sectionId, null)))
+        var ids = (await m.Send(new ResolveCommonDataForScopeQuery(CatalogScope.Section, sectionId, RecordsFor.Display)))
             .Select(e => e.Id).ToHashSet();
 
         Assert.Contains(c.Id, ids);       // стройка — родитель раздела (раньше пикер её не показывал)
@@ -158,7 +158,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         await Mediator(scope2).Send(new DeleteCommonDataEntryCommand(entry.Id));
 
         using var scope3 = fixture.Services.CreateScope();
-        var list = await Mediator(scope3).Send(new ListCommonDataEntriesQuery());
+        var list = await Mediator(scope3).Send(new ListCommonDataEntriesQuery(RecordsFor.Display));
         Assert.Empty(list);
     }
 
@@ -191,7 +191,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
             await Mediator(scope).Send(new DeleteCommonDataEntryCommand(baseId));
 
         using (var scope = fixture.Services.CreateScope())
-            Assert.Empty(await Mediator(scope).Send(new ListCommonDataEntriesQuery()));
+            Assert.Empty(await Mediator(scope).Send(new ListCommonDataEntriesQuery(RecordsFor.Display)));
     }
 
     // issue #269: запись, на которую ссылаются через "$ref" в значении поля другого объекта
@@ -240,8 +240,8 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         await m.Send(new CreateCommonDataEntryCommand("Объектный", typeId, Json("{}"), CatalogScope.Construction, scopeId));
 
         using var scope2 = fixture.Services.CreateScope();
-        var sysOnly = await Mediator(scope2).Send(new ListCommonDataEntriesQuery(CatalogScope.System));
-        var consOnly = await Mediator(scope2).Send(new ListCommonDataEntriesQuery(CatalogScope.Construction));
+        var sysOnly = await Mediator(scope2).Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CatalogScope.System));
+        var consOnly = await Mediator(scope2).Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CatalogScope.Construction));
 
         Assert.Single(sysOnly);
         Assert.Single(consOnly);
@@ -261,7 +261,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         await m.Send(new CreateCommonDataEntryCommand("Тип2", type2, Json("{}"), CatalogScope.System, null));
 
         using var scope2 = fixture.Services.CreateScope();
-        var byType1 = await Mediator(scope2).Send(new ListCommonDataEntriesQuery(CompositeTypeId: type1));
+        var byType1 = await Mediator(scope2).Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: type1));
         Assert.Equal(2, byType1.Count);
         Assert.All(byType1, e => Assert.Equal(type1, e.CompositeTypeId));
     }
@@ -288,7 +288,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         await m.Send(new CreateCommonDataEntryCommand("Чужой", typeId, Json("{}"), CatalogScope.Set, Guid.NewGuid()));
 
         using var scope2 = fixture.Services.CreateScope();
-        var resolved = await Mediator(scope2).Send(new ResolveCommonDataForSetQuery(setId));
+        var resolved = await Mediator(scope2).Send(new ResolveCommonDataForSetQuery(setId, RecordsFor.Display));
 
         Assert.Equal(4, resolved.Count);
         // Results are ordered by priority (Set=1 first, System=5 last)

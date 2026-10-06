@@ -17,6 +17,7 @@ using BHS.CRG.Modules.Ports;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using RecordsFor = BHS.CRG.Modules.Ports.RecordsFor;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -297,7 +298,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var found = Assert.Single(await catalog.ListAsync("Организация"), e => e.Id == created);
+        var found = Assert.Single(await catalog.ListAsync("Организация", RecordsFor.Display), e => e.Id == created);
         Assert.Equal("ООО «Поставщик»", found.DisplayName);
         Assert.Contains("7701234567", found.DataJson);
         Assert.Equal("Организация", found.EntityType);
@@ -328,7 +329,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var found = Assert.Single(await catalog.ListAsync("Организация"), e => e.Id == entry.Id);
+        var found = Assert.Single(await catalog.ListAsync("Организация", RecordsFor.Display), e => e.Id == entry.Id);
 
         // Вид — свойство ЗАПИСИ, а не запроса: спросили «Организация», а запись своего подтипа.
         Assert.Equal(subtype.Code, found.EntityType);
@@ -353,8 +354,8 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        Assert.Null(await catalog.ListAsync("Органиазция"));
-        Assert.Empty((await catalog.ListAsync(await CodeOfAsync(empty)))!);
+        Assert.Null(await catalog.ListAsync("Органиазция", RecordsFor.Display));
+        Assert.Empty((await catalog.ListAsync(await CodeOfAsync(empty), RecordsFor.Display))!);
     }
 
     /// <summary>
@@ -382,7 +383,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
         Assert.Null(await catalog.GetAsync(document.Id));
-        Assert.DoesNotContain(await catalog.ListAsync("Организация") ?? [], e => e.Id == document.Id);
+        Assert.DoesNotContain(await catalog.ListAsync("Организация", RecordsFor.Display) ?? [], e => e.Id == document.Id);
     }
 
     /// <summary>Код типа по идентификатору — чтобы спросить порт тем же словом, каким тип заведён.</summary>
@@ -407,7 +408,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             await OrganizationAsync(name, "{}");
 
         using var scope = host.Services.CreateScope();
-        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync("Организация");
+        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync("Организация", RecordsFor.Display);
 
         Assert.Equal(["Берёза", "Дуб", "Ёлка", "Яшма"],
             entries.Where(e => e.DisplayName is "Яшма" or "Берёза" or "Ёлка" or "Дуб").Select(e => e.DisplayName));
@@ -431,7 +432,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
         var found = await catalog.SearchAsync("Организация", "кабель-торг (поиск", 10);
-        Assert.Equal("Кабель-Торг (поиск)", Assert.Single(found!).DisplayName);
+        Assert.Equal("Кабель-Торг (поиск)", Assert.Single(found!.Items).DisplayName);
 
         // Ссылка на выбранное: спрашиваем два, существует один — ненайденное в ответ НЕ попадает, и
         // разбираться с этим обязан звавший (иначе «ссылка есть, записи нет» прошло бы молча).

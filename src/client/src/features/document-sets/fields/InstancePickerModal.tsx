@@ -20,7 +20,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
   const [search, setSearch] = useState('');
 
   const { data: setCatalogEntries = [] } = useCommonDataForSet({
-    setId: setId ?? '', enabled: open && !!setId,
+    setId: setId ?? '', purpose: 'choice', enabled: open && !!setId,
   });
 
   const filteredInstances = otherInstances.filter(inst => {

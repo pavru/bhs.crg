@@ -211,7 +211,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   const ancestorIds = useMemo(() => ancestorTypeIds(docType, allDocTypes), [docType, allDocTypes]);
   const hasBase = ancestorIds.length > 0;
   // Общие данные всех уровней скопа комплекта (Set/Section/Construction/System) — кандидаты-записи.
-  const { data: commonData = EMPTY } = useCommonDataForSet({ setId, enabled: hasBase });
+  // Выбор: архивной записи среди кандидатов нет (issue #1185).
+  const { data: commonData = EMPTY } = useCommonDataForSet({ setId, purpose: 'choice', enabled: hasBase });
   const baseRef = useMemo(() => parseBaseRef(values._baseRef), [values._baseRef]);
 
   const baseCandidates = useMemo<BaseCandidate[]>(() => {

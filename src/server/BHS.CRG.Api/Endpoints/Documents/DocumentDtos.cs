@@ -81,9 +81,10 @@ public record ConstructionDto(
 /// <summary>Запись общих данных — форма клиентского CommonDataEntry.</summary>
 public record CommonDataEntryDto(
     Guid Id, string DisplayName, string[] Aliases, Guid CompositeTypeId, JsonDocument Data,
-    Domain.Catalog.CatalogScope Scope, Guid? ScopeId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+    Domain.Catalog.CatalogScope Scope, Guid? ScopeId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    bool Archived)
 {
     public static CommonDataEntryDto From(DomainObject o) => new(
         o.Id, o.DisplayName ?? "", o.Aliases.ToArray(), o.CompositeTypeId, o.Data,
-        o.ScopeLevel, o.ScopeId, o.CreatedAt, o.UpdatedAt);
+        o.ScopeLevel, o.ScopeId, o.CreatedAt, o.UpdatedAt, o.IsArchived);
 }

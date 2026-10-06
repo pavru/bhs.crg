@@ -71,19 +71,30 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
         return rows.ToDictionary(r => (r.SetId, r.TypeId), r => r.Count);
     }
 
-    public async Task<IReadOnlyList<CommonDataRef>> FindCommonDataRefsAsync(
-        IReadOnlyCollection<Guid> typeIds, string? search, IReadOnlyCollection<Guid>? ids, int? limit,
-        CancellationToken ct = default)
+    public async Task<IReadOnlyList<CommonDataRef>> RefsByIdsAsync(
+        IReadOnlyCollection<Guid> typeIds, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
-        if (typeIds.Count == 0) return [];
+        if (typeIds.Count == 0 || ids.Count == 0) return [];
+
+        // Показ уже стоящих ссылок: архивные на месте — ссылка на них цела и обязана читаться.
+        return await Db.Set<DomainObject>()
+            .AsNoTracking()
+            .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId) && ids.Contains(o.Id))
+            .OrderBy(o => o.DisplayName)
+            .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName, o.ArchivedAt != null, null))
+            .ToListAsync(ct);
+    }
+
+    public async Task<ChoiceCandidates> SearchForChoiceAsync(
+        IReadOnlyCollection<Guid> typeIds, string? search, int? limit, CancellationToken ct = default)
+    {
+        if (typeIds.Count == 0) return ChoiceCandidates.Empty;
 
         // Только общие данные: документная фасета здесь ни при чём — у записи справочника её нет, а
         // без этого условия в выбор позиции попали бы документы комплектов.
         var query = Db.Set<DomainObject>()
             .AsNoTracking()
             .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId));
-
-        if (ids is { Count: > 0 }) query = query.Where(o => ids.Contains(o.Id));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -97,25 +108,30 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
                                      || o.Aliases.Any(a => EF.Functions.ILike(a, pattern, "!")));
         }
 
+        // Архив считается ТЕМ ЖЕ отбором, что и выбор, — до того, как архивные из выбора убраны.
+        // Иначе «в архиве: 3» означало бы «в архиве вообще», а не «под ваш запрос», и подсказка
+        // «есть в архиве — вернуть?» звала бы искать то, чего там нет.
+        var inArchive = await query.CountAsync(o => o.ArchivedAt != null, ct);
+
         // Сортировка ДО отсечения — иначе «первые N по названию» означало бы «произвольные N»
         // (контракт метода). Сравнение здесь базы, окончательный порядок задаёт тот, кто показывает.
-        var ordered = query.OrderBy(o => o.DisplayName).AsQueryable();
+        var ordered = query.Where(o => o.ArchivedAt == null).OrderBy(o => o.DisplayName).AsQueryable();
         if (limit is > 0) ordered = ordered.Take(limit.Value);
 
         // Альтернативные имена едут только когда искали текстом: назвать «найдено по …» больше
         // некому, а без поиска они ссылке не нужны.
         if (string.IsNullOrWhiteSpace(search))
-            return await ordered
-                .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName, null))
-                .ToListAsync(ct);
+            return new ChoiceCandidates(await ordered
+                .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName, false, null))
+                .ToListAsync(ct), inArchive);
 
         var needle = search.Trim();
         var found = await ordered
             .Select(o => new { o.Id, o.CompositeTypeId, o.DisplayName, o.Aliases })
             .ToListAsync(ct);
 
-        return [.. found.Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName,
-            MatchedAlias(o.DisplayName, o.Aliases, needle)))];
+        return new ChoiceCandidates([.. found.Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName,
+            false, MatchedAlias(o.DisplayName, o.Aliases, needle)))], inArchive);
     }
 
     /// <summary>

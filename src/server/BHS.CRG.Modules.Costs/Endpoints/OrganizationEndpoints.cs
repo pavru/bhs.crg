@@ -35,7 +35,12 @@ public static class OrganizationEndpoints
     private static async Task<Ok<IReadOnlyList<CostsOrganization>>> ListAsync(
         IModuleCatalog catalog, CancellationToken ct)
     {
-        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct)
+        // ⚠️ Назначение — «показ», хотя из этого списка поставщика и ВЫБИРАЮТ (issue #1185). Форма
+        // счёта берёт из него и варианты, и название уже стоящей организации: скрой он архивные
+        // записи — счёт с архивным поставщиком открылся бы с пустым полем, и сохранение стёрло бы
+        // ссылку. Разнять выбор и название — дело шага со счетами; до него архивная организация в
+        // выборе остаётся.
+        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct)
             ?? throw new ConflictException(
                 $"Тип «{CostsRecordTypes.OrganizationCode}» в системе не заведён, поэтому выбрать " +
                 "поставщика не из чего. Этот тип ведёт человек — заведите его в разделе типов, и " +

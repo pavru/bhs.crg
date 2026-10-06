@@ -17,7 +17,28 @@ namespace BHS.CRG.Modules.Ports;
 /// <param name="DataJson">Данные записи — СТРОКОЙ с JSON, как их хранит ядро. Разбирает их модуль
 /// сам: состав полей у каждого вида свой и меняется настройкой, а не кодом, поэтому типа, который
 /// здесь можно было бы объявить, не существует.</param>
-public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string DisplayName, string DataJson);
+/// <param name="Archived">Запись в архиве (ТЗ CORE-34.4, issue #1185): из выбора нового значения
+/// убрана, сохранённые ссылки на неё целы. Признак обязательный и едет всегда — кто показывает
+/// запись, обязан решить, что сказать об архиве.</param>
+public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string DisplayName, string DataJson, bool Archived);
+
+/// <summary>
+/// Зачем модуль читает справочник: чтобы человек ВЫБРАЛ новое значение или чтобы ПОКАЗАТЬ уже
+/// стоящее (ТЗ CORE-34.4, issue #1185).
+///
+/// <para>Архивная запись из выбора убрана, а сохранённые ссылки на неё целы — поэтому один список
+/// обязан отвечать по-разному. Назначение называет тот, кто зовёт, и умолчания у него нет: забытое
+/// «показать всё» вернуло бы архивного поставщика в выбор, забытое «скрыть» — оставило бы счёт
+/// закрытого периода без названия поставщика.</para>
+/// </summary>
+public enum RecordsFor
+{
+    /// <summary>Список, из которого выбирают новое значение. Архивных в нём нет.</summary>
+    Choice,
+
+    /// <summary>Показ, сверка, сопоставление того, что уже стоит. Архивные на месте, с признаком.</summary>
+    Display,
+}
 
 /// <summary>
 /// Запись справочника ССЫЛКОЙ: чем её называют и какого она вида — без данных (issue #1078).
@@ -36,7 +57,19 @@ public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string Displ
 /// <param name="MatchedAlias">Альтернативное имя, по которому запись найдена поиском, — когда
 /// набранного нет в её названии (issue #1169); иначе <c>null</c>. Кто показывает список, обязан
 /// показать и его: запись, в названии которой набранного нет, без пояснения выглядит ошибкой поиска.</param>
-public sealed record ModuleCatalogRef(Guid Id, string EntityType, string? DisplayName, string? MatchedAlias = null);
+/// <param name="Archived">Запись в архиве — см. <see cref="ModuleCatalogEntry" />.</param>
+public sealed record ModuleCatalogRef(
+    Guid Id, string EntityType, string? DisplayName, bool Archived, string? MatchedAlias = null);
+
+/// <summary>
+/// Ответ поиска на выбор: живые записи — и сколько под тот же запрос лежит в архиве.
+///
+/// <para>Число нужно затем, что пустой выбор и «таких записей нет» — разные вещи: не найдя позицию,
+/// человек заведёт её заново, а она есть, в архиве. Кто показывает список, обязан это сказать.</para>
+/// </summary>
+/// <param name="Items">Живые записи; архивных здесь нет.</param>
+/// <param name="InArchive">Сколько архивных записей подходит под тот же запрос.</param>
+public sealed record ModuleCatalogChoice(IReadOnlyList<ModuleCatalogRef> Items, int InArchive);
 
 /// <summary>
 /// Справочники ядра для модуля — ЧТЕНИЕ (ТЗ CORE-34): поставщик у счёта, стройка у разноски, лицо в
@@ -78,10 +111,15 @@ public interface IModuleCatalog
     /// <para>Отказом на «нет вида» порт не отвечает НАРОЧНО: тип-справочник заводит человек, и его
     /// отсутствие — состояние установки, а не промах модуля. Что с этим делать, решает модуль: форме
     /// счёта нужен отказ с объяснением, а реестру — пустота, потому что счетов без типа тоже нет.</para>
+    ///
+    /// <para><paramref name="purpose" /> обязателен: выбор архивные записи скрывает, показ — отдаёт с
+    /// признаком (<see cref="RecordsFor" />).</para>
     /// </summary>
-    Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(string entityType, CancellationToken ct = default);
+    Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
+        string entityType, RecordsFor purpose, CancellationToken ct = default);
 
-    /// <summary>Запись по идентификатору; <c>null</c> — нет такой (например, её удалили).</summary>
+    /// <summary>Запись по идентификатору; <c>null</c> — нет такой (например, её удалили). Архивная
+    /// запись находится, признак — в ответе: по идентификатору спрашивают то, что уже стоит.</summary>
     Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
@@ -91,6 +129,9 @@ public interface IModuleCatalog
     /// <para>Ответы те же три, что у <see cref="ListAsync" />: список, пустой список, <c>null</c> —
     /// вида нет вовсе.</para>
     ///
+    /// <para>Это ВСЕГДА выбор: архивных записей в списке нет, а сколько их под тот же запрос —
+    /// названо в <see cref="ModuleCatalogChoice.InArchive" /> (issue #1185).</para>
+    ///
     /// <para>Ищет и по альтернативным именам записи; найденное по ним называет
     /// <see cref="ModuleCatalogRef.MatchedAlias" />.</para>
     ///
@@ -99,7 +140,7 @@ public interface IModuleCatalog
     /// тот и говорит человеку, что он неполон, — иначе ненайденная позиция читается как
     /// отсутствующая, и человек заведёт вторую такую же.</para>
     /// </summary>
-    Task<IReadOnlyList<ModuleCatalogRef>?> SearchAsync(
+    Task<ModuleCatalogChoice?> SearchAsync(
         string entityType, string? query, int limit, CancellationToken ct = default);
 
     /// <summary>
@@ -112,6 +153,8 @@ public interface IModuleCatalog
     /// <para>⚠️ Ненайденный идентификатор в ответ НЕ попадает, и это главное, что здесь есть:
     /// «ссылка есть, записи нет» — потеря данных, и молчать о ней нельзя. Разбираться, чего не
     /// хватает, обязан звавший — сравнением того, что просил, с тем, что пришло.</para>
+    ///
+    /// <para>Архивная запись — НЕ потеря: она в ответе, с признаком (issue #1185).</para>
     /// </summary>
     Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
         string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);

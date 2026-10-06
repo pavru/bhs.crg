@@ -295,7 +295,7 @@ async function upload(path, bytes, fileName, mimeType) {
  * диалогу источника нечего подставлять — обе проверки `pages-smoke` сообщили бы «проверять нечего».
  */
 async function findEntry(displayName, compositeTypeId) {
-  const all = await api('GET', '/common-data/for-scope?scope=System');
+  const all = await api('GET', '/common-data/for-scope?scope=System&purpose=display');
   return all.find(e => e.displayName === displayName
     && (!compositeTypeId || e.compositeTypeId === compositeTypeId)) ?? null;
 }

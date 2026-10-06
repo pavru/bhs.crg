@@ -224,7 +224,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
         var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
 
-        var entry = (await m.Send(new ListCommonDataEntriesQuery())).First();
+        var entry = (await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display))).First();
         var refusal = await Assert.ThrowsAsync<ConflictException>(() => svc.CreateBindingAsync(
             new CreateBindingInput(entry.Id, sourceId, "Наименование", null), default));
         Assert.Contains("переживут отзыв права", refusal.Message);
@@ -383,7 +383,7 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
         var (_, sourceId) = await SeedCommonDataSourceAsync(scope, svc);
-        var entry = (await m.Send(new ListCommonDataEntriesQuery())).First();
+        var entry = (await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display))).First();
 
         db.DataSetBindings.Add(Domain.DataSets.DataSetBinding.For(
             entry.Id, sourceId, "Наименование", "{}"));

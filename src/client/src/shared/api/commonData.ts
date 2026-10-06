@@ -1,44 +1,54 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope } from './types';
+import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, RecordsPurpose } from './types';
 
 const QK = 'common-data';
 
-export function useListCommonData(params?: {
+/**
+ * Записи одного уровня. `purpose` обязателен (issue #1185): назначение входит и в ключ кэша —
+ * иначе список «на выбор» и список «на показ» делили бы одну запись кэша, и архивная запись
+ * попадала бы в выбор из чужого ответа.
+ */
+export function useListCommonData(params: {
+  purpose: RecordsPurpose;
   scope?: CatalogScope;
   scopeId?: string;
   typeId?: string;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: [QK, { scope: params?.scope, scopeId: params?.scopeId, typeId: params?.typeId }],
+    queryKey: [QK, { purpose: params.purpose, scope: params.scope, scopeId: params.scopeId, typeId: params.typeId }],
     queryFn: () =>
       apiClient
         .get<CommonDataEntry[]>('/common-data', { params: {
-          scope: params?.scope,
-          scopeId: params?.scopeId,
-          typeId: params?.typeId,
+          purpose: params.purpose,
+          scope: params.scope,
+          scopeId: params.scopeId,
+          typeId: params.typeId,
         }})
         .then(r => r.data),
-    enabled: params?.enabled !== false,
+    enabled: params.enabled !== false,
   });
 }
 
 export function useCommonDataForSet({
   setId,
+  purpose,
   typeId,
   enabled = true,
 }: {
   setId: string | undefined;
+  /** Зачем список — см. {@link RecordsPurpose}. Обязателен: умолчания у этого решения нет. */
+  purpose: RecordsPurpose;
   typeId?: string;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: [QK, 'for-set', setId, typeId ?? null],
+    queryKey: [QK, 'for-set', setId, typeId ?? null, purpose],
     queryFn: () =>
       apiClient
         .get<CommonDataEntryWithScope[]>(`/common-data/for-set/${setId}`, {
-          params: typeId ? { typeId } : undefined,
+          params: { purpose, typeId },
         })
         .then(r => r.data),
     enabled: enabled && !!setId,
@@ -52,20 +62,23 @@ export function useCommonDataForSet({
 export function useCommonDataForScope({
   scope,
   scopeId,
+  purpose,
   typeId,
   enabled = true,
 }: {
   scope: CatalogScope | undefined;
   scopeId?: string | null;
+  /** Зачем список — см. {@link RecordsPurpose}. Обязателен: умолчания у этого решения нет. */
+  purpose: RecordsPurpose;
   typeId?: string;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null],
+    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null, purpose],
     queryFn: () =>
       apiClient
         .get<CommonDataEntryWithScope[]>('/common-data/for-scope', {
-          params: { scope, scopeId: scopeId ?? undefined, typeId },
+          params: { scope, scopeId: scopeId ?? undefined, typeId, purpose },
         })
         .then(r => r.data),
     enabled: enabled && !!scope,

@@ -246,7 +246,8 @@ public sealed class InvoiceTableRows(
     {
         // Названия организаций — одним списком: вида «Организация» на чистой установке может не быть
         // вовсе (см. InvoiceEndpoints.SupplierNamesAsync). Нужны и строкам, и отбору по названию.
-        var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, ct))
+        // Показ: названия нужны счетам, которые уже есть, — архивный поставщик в реестре читается.
+        var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))
             ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
 
         // Объекты разноски — стройки и статьи вне строек одним списком названий: цель части — ровно

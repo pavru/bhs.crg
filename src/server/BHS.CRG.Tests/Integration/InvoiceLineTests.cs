@@ -276,7 +276,7 @@ public class InvoiceLineTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 
             // Двадцать шесть — на одну больше, чем отдаёт адрес: ровно столько, чтобы «есть ещё» стало
             // фактом. Заводим один раз на класс — повторный прогон найдёт их уже посеянными.
-            var existing = await mediator.Send(new ListCommonDataRefsQuery([typeId], "Реле РЭК"));
+            var existing = (await mediator.Send(new SearchCommonDataForChoiceQuery([typeId], "Реле РЭК"))).Items;
             for (var index = existing.Count; index < 26; index++)
                 await mediator.Send(new CreateCommonDataEntryCommand($"Реле РЭК-{index:00}", typeId,
                     JsonDocument.Parse("{}"), CatalogScope.System, null, null));

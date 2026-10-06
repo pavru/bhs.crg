@@ -60,6 +60,22 @@ public class ModuleLostReferenceScan(AppDbContext db)
         return new CoreTable(type.GetSchema() ?? "public", table, key);
     }
 
+    /// <summary>
+    /// Какие из записей справочника лежат в архиве (issue #1185). Отдельным вопросом, а не колонкой
+    /// в <see cref="ExistingAsync" />: тот спрашивает любую таблицу ядра по её ключу, а архив есть
+    /// только у записи справочника.
+    /// </summary>
+    public async Task<IReadOnlySet<Guid>> ArchivedRecordsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new HashSet<Guid>();
+        var asked = ids.ToArray();
+        return (await db.DomainObjects.AsNoTracking()
+            .Where(o => asked.Contains(o.Id) && o.ArchivedAt != null)
+            .Select(o => o.Id)
+            .ToListAsync(ct)).ToHashSet();
+    }
+
     /// <summary>Какие из идентификаторов есть в таблице ядра.</summary>
     public async Task<IReadOnlySet<Guid>> ExistingAsync(
         CoreTable target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
