@@ -179,12 +179,15 @@ export function useUpdateCommonDataEntry(entry?: CommonDataEntry | null) {
     mutationFn: ({ id, displayName, data, aliases }: { id: string; displayName: string; data: string; aliases?: string[] }) =>
       apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
         { headers: { 'If-Match': next.version } }).then(r => r.data),
-    // Отказ 409 — запись изменили: копию в кэше выбрасываем, чтобы форма, открытая заново, собралась
-    // по свежей записи, а не по той же устаревшей (чтение записи кэшируется на минуту).
-    onError: (error, { id }) => {
-      if ((error as { response?: { status?: number } })?.response?.status !== 409) return;
-      qc.removeQueries({ queryKey: [QK, 'by-id', id] });
-      qc.invalidateQueries({ queryKey: [QK] });
+    // Отказ 409 — запись изменили: копия в кэше перечитывается, чтобы форма, открытая заново,
+    // собралась по свежей записи, а не по той же устаревшей (чтение записи кэшируется на минуту).
+    //
+    // ⚠️ Именно перечитывается, а не выбрасывается. Выброшенная копия оставляет открытую форму без
+    // записи: она пересоздаётся на свежей — и человек теряет и набранное, и сообщение об отказе
+    // (наступали при проверке на стенде). Основа открытой формы при этом остаётся прежней.
+    onError: error => {
+      if ((error as { response?: { status?: number } })?.response?.status === 409)
+        qc.invalidateQueries({ queryKey: [QK] });
     },
     onSuccess: (saved, { id }) => {
       // Ответ правки — запись целиком и с новой версией: кладём её в кэш сразу, иначе форма,
