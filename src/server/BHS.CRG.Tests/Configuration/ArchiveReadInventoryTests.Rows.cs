@@ -45,6 +45,10 @@ public partial class ArchiveReadInventoryTests
             Shown("сверка связки: цель по идентификатору, архивная получает статус archived"),
         ["BHS.CRG.Application/Documents/CommonDataBindingCheck.cs|var entry = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();"] =
             Seen("запись, чьи связки проверяют, — по идентификатору"),
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var archived = await repo.GetByIdAsync(twin.Id, ct);"] =
+            Seen("отказ «есть в архиве» при создании: название архивной записи для текста отказа"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|return await Db.Set<DomainObject>().AsNoTracking()"] =
+            Shown("какие из стоящих в форме ссылок — в архиве: ответ и есть признак"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);"] =
             Shown("названия уже стоящих ссылок"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);"] =

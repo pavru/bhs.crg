@@ -13,6 +13,7 @@ import { isFieldRef } from '@/shared/api/types';
 import { type SchemaField } from '@/shared/api/schema';
 import { CELL_INPUT } from './constants';
 import { RefPickerModal } from './RefPickerModal';
+import { ArchivedRefMark } from './ArchivedRefs';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -33,7 +34,7 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
       <button type="button" onClick={() => setPickerOpen(true)}
         className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-brand-subtle">
         {ref
-          ? <><Link2 size={10} className="text-brand shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span></>
+          ? <><Link2 size={10} className="text-brand shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
           : <span className="text-xs text-fg4">—</span>
         }
       </button>
@@ -46,7 +47,7 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
       <RefPickerModal open={pickerOpen} onOpenChange={setPickerOpen}
         compositeType={compositeType}
         setId={setId} scope={scope} scopeId={scopeId}
-        allDocTypes={allDocTypes}
+        allDocTypes={allDocTypes} current={value}
         onSelect={r => onChange(r)} />
     </div>
   );

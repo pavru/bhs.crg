@@ -155,9 +155,23 @@ public record SetDocumentTemplatesCommand(Guid InstanceId, string? TemplateIds) 
 public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) : IRequest<DomainObject>;
 
 // --- CommonDataEntry ---
+/// <param name="CreateAnyway">
+/// «Такая запись есть в архиве — создать всё равно» (issue #1185). Без него создание записи, чей ключ
+/// идентичности совпал с архивной (и ни с одной действующей), отвергается
+/// <see cref="BHS.CRG.Domain.Common.ArchivedTwinException" />. Умолчание — отказ: согласие на дубль
+/// обязан назвать тот, кто создаёт.
+/// </param>
 public record CreateCommonDataEntryCommand(
     string DisplayName, Guid CompositeTypeId, JsonDocument Data,
-    CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
+    CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null,
+    bool CreateAnyway = false) : IRequest<DomainObject>;
+
+/// <summary>
+/// Какие из названных записей — в архиве (issue #1185). Для ПОКАЗА уже стоящих ссылок: форма
+/// документа помечает плитку «в архиве», а в списке выбора этой записи уже нет, и узнать о ней там
+/// нечем. Отвечает идентификаторами, без данных: вопрос задаёт каждая открытая форма.
+/// </summary>
+public sealed record ArchivedAmongQuery(IReadOnlyCollection<Guid> Ids) : IRequest<IReadOnlyList<Guid>>;
 
 /// <param name="Access">
 /// В чьих правах читаются привязанные наборы при сохранении (ТЗ CORE-24.1, issue #965): сохранение

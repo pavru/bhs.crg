@@ -16,6 +16,7 @@ import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/t
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { CatalogEntryForm } from './index';
+import { ArchivedRefsProvider } from '../fields';
 import { ObjectRow } from './ObjectsByTypeList';
 import { ArchivedRows } from '@/shared/ui/ArchivedRows';
 import { ArchivedBanner } from './ArchiveParts';
@@ -345,7 +346,10 @@ function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...res
         <ArchivedBanner employee={employee} busy={archiveBusy}
           onReturn={onUnarchive && (() => onUnarchive(entry))} />
       )}
-      <CatalogEntryForm entry={entry} onClose={onClose} {...rest} />
+      {/* Пометки «в архиве» у плиток ссылок — по сохранённым данным записи (issue #1185). */}
+      <ArchivedRefsProvider data={entry.data}>
+        <CatalogEntryForm entry={entry} onClose={onClose} {...rest} />
+      </ArchivedRefsProvider>
     </>
   );
 }

@@ -6,7 +6,7 @@ import { useListDataSetBindings } from '@/shared/api/datasets';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, compositeFieldHasTag } from '@/shared/api/schema';
-import { STATUS_LABELS, STATUS_COLORS, BaseInstanceChip, type BaseCandidate } from '../fields';
+import { STATUS_LABELS, STATUS_COLORS, BaseInstanceChip, ArchivedRefsProvider, type BaseCandidate } from '../fields';
 import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
@@ -258,10 +258,13 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         </div>
       </div>
       {tab === 'requisites' && (
-        <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
-          allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
-          onClose={onClose} onDirty={setDirty} saveRef={saveRef}
-          onBaseState={setBaseState} baseControlRef={baseControlRef} />
+        // Пометки «в архиве» у плиток ссылок — по сохранённым реквизитам документа (issue #1185).
+        <ArchivedRefsProvider data={instance.requisites}>
+          <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
+            allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
+            onClose={onClose} onDirty={setDirty} saveRef={saveRef}
+            onBaseState={setBaseState} baseControlRef={baseControlRef} />
+        </ArchivedRefsProvider>
       )}
       <Modal open={dataSourcesOpen} onOpenChange={setDataSourcesOpen} title="Источники данных" wide>
         {dataSourcesOpen && (

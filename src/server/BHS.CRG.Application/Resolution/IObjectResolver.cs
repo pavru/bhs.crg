@@ -42,6 +42,27 @@ public sealed record ObjectMatchRequest
 
     public static ObjectMatchRequest ByIdentity(Guid typeId, IReadOnlyDictionary<string, string?> fields) =>
         new() { TypeId = typeId, Strategy = ObjectMatchStrategy.IdentityKey, Fields = fields };
+
+    /// <summary>
+    /// Тот же вопрос, но от ДАННЫХ записи: «есть ли уже запись с таким ключом идентичности?»
+    /// (issue #1185). Скаляры верхнего уровня читаются так же, как резолвер читает их у кандидатов, —
+    /// иначе число <c>7</c> в новой записи не совпало бы с числом <c>7</c> в лежащей.
+    /// </summary>
+    public static ObjectMatchRequest ByIdentityOf(Guid typeId, System.Text.Json.JsonElement data)
+    {
+        var fields = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (data.ValueKind == System.Text.Json.JsonValueKind.Object)
+            foreach (var p in data.EnumerateObject())
+                fields[p.Name] = p.Value.ValueKind switch
+                {
+                    System.Text.Json.JsonValueKind.String => p.Value.GetString(),
+                    System.Text.Json.JsonValueKind.Number => p.Value.GetRawText(),
+                    System.Text.Json.JsonValueKind.True => "true",
+                    System.Text.Json.JsonValueKind.False => "false",
+                    _ => null,
+                };
+        return ByIdentity(typeId, fields);
+    }
 }
 
 /// <summary>
@@ -70,6 +91,13 @@ public interface IObjectResolver
     Task<ObjectMatch?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 
     /// <summary>Батч в одном scope (кандидаты и скоп-цепочка строятся один раз). Порядок результата = порядок запросов.</summary>
+    /// <summary>
+    /// Тот же вопрос, но по базе КАК ОНА ЕСТЬ СЕЙЧАС и без следа в памяти резолвера (issue #1185).
+    /// Для вопроса ПЕРЕД записью («нет ли уже такой?»): кандидаты, запомненные до записи, после неё
+    /// устарели бы, и всё, что в той же области служб резолвит дальше, новой записи не увидело бы.
+    /// </summary>
+    Task<ObjectMatch?> ResolveFreshAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
+
     Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(
         IReadOnlyList<ObjectMatchRequest> reqs, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 }

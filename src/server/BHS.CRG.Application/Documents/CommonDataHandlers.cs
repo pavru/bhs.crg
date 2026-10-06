@@ -21,7 +21,8 @@ public class CommonDataHandlers(
     IReferenceIndex refIndex,
     IRecordHolders holders,
     IDataSetResolver dataSetResolver,
-    ILevelProfileService levelProfiles) :
+    ILevelProfileService levelProfiles,
+    BHS.CRG.Application.Resolution.IObjectResolver objectResolver) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
@@ -29,6 +30,7 @@ public class CommonDataHandlers(
     IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
     IRequestHandler<SearchCommonDataForChoiceQuery, ChoiceCandidates>,
     IRequestHandler<CommonDataRefsByIdsQuery, IReadOnlyList<CommonDataRef>>,
+    IRequestHandler<ArchivedAmongQuery, IReadOnlyList<Guid>>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
@@ -38,6 +40,22 @@ public class CommonDataHandlers(
         var type = await typeRepo.GetByIdAsync(cmd.CompositeTypeId, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.CompositeTypeId} not found");
         TypeStorageRules.EnsureCommonPathAllowed(type);
+        // «Есть в архиве» (issue #1185). Только по КЛЮЧУ ИДЕНТИЧНОСТИ и только когда действующей с
+        // этим ключом нет: резолвер ставит действующие первыми, поэтому архивное совпадение и значит
+        // «действующей нет». По одному названию не отказываем — действующие тёзки ядро не запрещает,
+        // и запрет одних архивных был бы непоследователен.
+        // ⚠️ Именно «свежий» вопрос: обычный резолвер помнит кандидатов всё время жизни области, и
+        // спроси мы его здесь — запись, созданную строкой ниже, он в этой области уже не нашёл бы.
+        if (!cmd.CreateAnyway
+            && await objectResolver.ResolveFreshAsync(
+                   BHS.CRG.Application.Resolution.ObjectMatchRequest.ByIdentityOf(cmd.CompositeTypeId, cmd.Data.RootElement),
+                   cmd.Scope, cmd.ScopeId, ct) is { Archived: true } twin)
+        {
+            var archived = await repo.GetByIdAsync(twin.Id, ct);
+            throw new ArchivedTwinException(twin.Id, archived?.DisplayName ?? "",
+                (archived?.ScopeLevel ?? cmd.Scope).ToString());
+        }
+
         // Охрана записи (issue #957): у создания «как лежит» — ничего, поэтому всё содержимое
         // вносится этой записью, и запертое поле нельзя заполнить даже впервые.
         await Schema.WriteGuard.EnsureAllowedAsync(
@@ -137,6 +155,9 @@ public class CommonDataHandlers(
 
     public async Task<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
+
+    public async Task<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
+        => await objects.ArchivedAmongAsync(q.Ids, ct);
 
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)

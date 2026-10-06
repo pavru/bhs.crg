@@ -33,6 +33,14 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         return index.Match(req);
     }
 
+    public async Task<ObjectMatch?> ResolveFreshAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
+    {
+        // Мимо обоих кэшей: и цепочка уровней, и типы читаются заново — вопрос задают перед записью.
+        var chain = await ScopeChains.LoadForScopeAsync(db, scopeLevel, scopeId, ct);
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        return (await BuildIndexAsync(req.TypeId, chain, allTypes, ct)).Match(req);
+    }
+
     public async Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(
         IReadOnlyList<ObjectMatchRequest> reqs, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
     {
@@ -59,8 +67,14 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         var cacheKey = (typeId, scopeLevel, scopeId);
         if (_indexes.TryGetValue(cacheKey, out var cached)) return cached;
 
-        var chain = await GetChainAsync(scopeLevel, scopeId, ct);
-        var allTypes = await AllTypesAsync(ct);
+        var index = await BuildIndexAsync(
+            typeId, await GetChainAsync(scopeLevel, scopeId, ct), await AllTypesAsync(ct), ct);
+        _indexes[cacheKey] = index;
+        return index;
+    }
+
+    private async Task<TypeIndex> BuildIndexAsync(Guid typeId, ScopeChain chain, List<DocumentType> allTypes, CancellationToken ct)
+    {
         var typeIds = DescendantTypeIds(typeId, allTypes); // сам тип + подтипы (paste-совместимо)
 
         // Кандидаты — только объекты общих данных (Facet==null) нужных типов в скоп-поддереве;
@@ -77,9 +91,7 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         // (issue #1185). Архивные в запросе остаются — совпадение с ними звавший обязан увидеть.
         candidates = candidates.OrderBy(o => o.IsArchived).ThenBy(o => (int)o.ScopeLevel).ToList();
 
-        var index = TypeIndex.Build(candidates, allTypes);
-        _indexes[cacheKey] = index;
-        return index;
+        return TypeIndex.Build(candidates, allTypes);
     }
 
     /// <summary>Тип + все его потомки по цепочке ParentId.</summary>

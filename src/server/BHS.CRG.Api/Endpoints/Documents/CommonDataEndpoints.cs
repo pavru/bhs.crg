@@ -63,6 +63,11 @@ public static class CommonDataEndpoints
                 .Select(Elide));
         });
 
+        // Какие из стоящих в форме ссылок указывают на архивные записи (issue #1185). POST — потому
+        // что идентификаторов бывает сотня (таблица документа), а не потому, что адрес что-то меняет.
+        g.MapPost("/archived-among", async (ArchivedAmongRequest req, IMediator m) =>
+            Results.Ok(new { archived = await m.Send(new ArchivedAmongQuery(req.Ids ?? [])) }));
+
         // По идентификатору — ПОЛНАЯ запись, без отсечения: этот путь кормит редактор (issue #520).
         g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
         {
@@ -103,9 +108,22 @@ public static class CommonDataEndpoints
                 "System"       => CatalogScope.System,
                 _              => CatalogScope.Set,
             };
-            return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
-                req.DisplayName, req.CompositeTypeId,
-                JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases))));
+            try
+            {
+                return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
+                    req.DisplayName, req.CompositeTypeId,
+                    JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases, req.CreateAnyway ?? false))));
+            }
+            // «Есть в архиве» — полями, а не словами (issue #1185): экран предлагает вернуть запись
+            // кнопкой и повторить создание с createAnyway, и разбирать для этого фразу не должен.
+            catch (ArchivedTwinException ex)
+            {
+                return Results.Conflict(new
+                {
+                    error = ex.Message, code = "archived-twin",
+                    archivedId = ex.ArchivedId, archivedName = ex.ArchivedName, archivedScope = ex.ArchivedScope,
+                });
+            }
         });
 
         edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m,
@@ -173,6 +191,8 @@ public static class CommonDataEndpoints
     private static CommonDataEntryWithScope Elide(CommonDataEntryWithScope entry) =>
         entry with { Data = HeavyLeafElision.WithoutHeavyLeaves(entry.Data) };
 
-    record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases);
+    record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases,
+        bool? CreateAnyway = null);
+    record ArchivedAmongRequest(Guid[]? Ids);
     record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
 }

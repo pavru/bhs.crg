@@ -13,6 +13,8 @@ import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { VariantPicker } from './VariantPicker';
 import { useScopeGroups } from './catalogGroups';
 import { ScopeGroupList } from './ScopeGroupList';
+import { useIsArchivedRef } from './archivedRefIds';
+import { RefPickerArchive, RefPickerCurrentArchived } from './RefPickerArchive';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -30,6 +32,9 @@ function sourceLabel(inst: DocumentInstance, dt: DocumentType, f: SchemaField): 
 function instanceLabel(inst: DocumentInstance, dt: DocumentType): string {
   return inst.name ? `${inst.name} (${dt.name})` : dt.name;
 }
+
+/** Устойчивое «пока пусто»: инлайновый `= []` давал бы новый массив на каждый рендер. */
+const NO_ENTRIES: CommonDataEntry[] = [];
 
 /** Значение поля-источника отсутствует: null/undefined, пустая строка, пустой объект или массив. */
 function isBlank(v: unknown): boolean {
@@ -70,6 +75,11 @@ interface RefPickerModalProps {
    * и открылась бы она тихо.
    */
   unionAware?: boolean;
+  /**
+   * Что стоит в поле сейчас. Нужно ради архивного значения (issue #1185): в списке его нет, и пикер
+   * показывает его закреплённой строкой «Сейчас: … — в архиве».
+   */
+  current?: unknown;
   /** Второй аргумент — ключ варианта union'а; отсутствует, когда значение кладётся как есть. */
   onSelect: (ref: FieldRef, variantKey?: string) => void;
 }
@@ -90,9 +100,10 @@ export function RefPickerModal(props: RefPickerModalProps) {
 function RefPickerModalBody({
   onOpenChange, compositeType,
   setId, scope, scopeId,
-  otherInstances = [], allDocTypes, unionAware = false, onSelect,
+  otherInstances = [], allDocTypes, unionAware = false, current, onSelect,
 }: RefPickerModalProps) {
   const [search, setSearch] = useState('');
+  const currentArchived = useIsArchivedRef(current);
 
   // Единый резолв всей цепочки скопов (issue #82): комплект-контекст → (Set, setId), иначе (scope, scopeId).
   // for-scope сам поднимается по родителям (Раздел→Стройка→Система), поэтому объекты более широких
@@ -108,6 +119,11 @@ function RefPickerModalBody({
   // задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
   const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
   const searching = search.trim().length > 0;
+  // Архив читаем ТОЛЬКО при набранном запросе и отдельным чтением «на показ» (issue #1185): список
+  // на выбор архивных не несёт и нести не должен, а раздел «В архиве» отвечает на «не нашёл».
+  const { data: shownEntries = NO_ENTRIES } = useCommonDataForScope({
+    scope: effScope, scopeId: effScopeId, purpose: 'display', enabled: !!effScope && searching,
+  });
   // Запрос ОДИН на все три раздела. Пока их было два, каталог фильтровался нетримленной строкой, а
   // остальное — тримленной: «аоср » с хвостовым пробелом опустошал каталог, оставив документы, и
   // клавиатурный порядок молча перестраивался под другой список.
@@ -151,7 +167,7 @@ function RefPickerModalBody({
     return table.get(typeId) ?? placeInUnion(typeId, compositeType!, allDocTypes, source);
   };
 
-  const filtered = catalogEntries.filter(e => {
+  const fitsQuery = (e: CommonDataEntry) => {
     if (compositeType) {
       const fits = unionMode
         ? placementOf(e.compositeTypeId).kind !== 'none'
@@ -159,7 +175,9 @@ function RefPickerModalBody({
       if (!fits) return false;
     }
     return e.displayName.toLowerCase().includes(query);
-  });
+  };
+  const filtered = catalogEntries.filter(fitsQuery);
+  const inArchive = searching ? shownEntries.filter(e => e.archived && fitsQuery(e)) : NO_ENTRIES;
 
   // Кандидат, для которого тип не назвал единственного варианта: показываем его вторым шагом со
   // списком вариантов вместо того, чтобы прятать. Прятать нельзя — ничья означает, что два
@@ -327,13 +345,11 @@ function RefPickerModalBody({
        ...variantFields.map(f => allDocTypes.find(t => t.id === f.typeId)?.name).filter(Boolean) as string[]]
     : (compositeType ? [compositeType.name] : []);
   const emptyState = searching
-    // Архивных записей в этом списке нет вовсе (issue #1185), и пустой ответ не должен читаться как
-    // «такой записи не существует»: её могли убрать в архив.
-    // Про архив — только там, где он бывает: у записей справочника ядра. Документу и справочнику
-    // модуля совет «проверьте архив» назвал бы путь, которого нет.
-    ? { title: `По запросу «${search.trim()}» ничего не найдено.`,
-        hint: 'Измените запрос или очистите поиск.' + (compositeType?.kind === 'Composite' && compositeType.module.toLowerCase() === 'core'
-          ? ' Записи из архива здесь не показываются — проверьте раздел «В архиве» в справочнике.' : '') }
+    // Пустой ответ не должен читаться как «такой записи не существует» (issue #1185): если она в
+    // архиве, раздел «В архиве» стоит прямо под этой фразой, и фраза говорит только о действующих.
+    ? inArchive.length > 0
+      ? { title: `Среди действующих по запросу «${search.trim()}» ничего нет.`, hint: '' }
+      : { title: `По запросу «${search.trim()}» ничего не найдено.`, hint: 'Измените запрос или очистите поиск.' }
     : catalogEntries.length > 0
       ? {
           title: 'Подходящих записей нет.',
@@ -376,6 +392,10 @@ function RefPickerModalBody({
           aria-activedescendant={options.length ? `rp-opt-${active}` : undefined}
           className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
         />
+
+        {currentArchived && (
+          <RefPickerCurrentArchived name={(current as FieldRef).displayName} onKeep={() => onOpenChange(false)} />
+        )}
 
         {groups.length > 0 && (
           <div>
@@ -479,6 +499,9 @@ function RefPickerModalBody({
             <span className="text-xs">{emptyState.hint}</span>
           </p>
         )}
+
+        {/* Вне навигируемых опций намеренно: стрелки и Enter сюда не доходят (см. RefPickerArchive). */}
+        <RefPickerArchive entries={inArchive} onReturned={entry => choose({ type: 'catalog', entry })} />
       </div>
     </Modal>
   );

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronUp, ShieldCheck, Loader2,
-  RefreshCw, X, CornerUpLeft, Link2,
+  RefreshCw, X, CornerUpLeft,
 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Button } from '@/shared/ui/Button';
@@ -9,7 +9,7 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
-  useUpdateCommonDataEntry, useCommonDataEntry, useCheckBindings,
+  useUpdateCommonDataEntry, useCheckBindings, archivedTwinOf, type ArchivedTwin,
 } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
@@ -45,17 +45,7 @@ import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/shared/api/valueIssues';
 import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { BindingCheckReport } from './BindingCheckReport';
-
-/** Показ резолвнутой $ref-ссылки в связанном поле (issue #99): резолвит запись каталога по id → имя. */
-function BoundRefValue({ entryId }: { entryId: string }) {
-  const { data: entry } = useCommonDataEntry(entryId);
-  return (
-    <span className="inline-flex items-center gap-1 text-brand">
-      <Link2 size={12} className="shrink-0" />
-      {entry ? entry.displayName : <span className="text-fg4">запись каталога…</span>}
-    </span>
-  );
-}
+import { ArchivedTwinNote, BoundRefValue } from './ArchivedTwinNote';
 
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
 // кандидаты (записи родительского типа по скопам) строятся ниже из parentEntries.
@@ -94,6 +84,8 @@ export function CatalogEntryForm({
   // иначе претензия висела бы на исправленном поле.
   const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  // Отказ создания «такая запись есть в архиве» (issue #1185): строка в форме с двумя выходами.
+  const [twin, setTwin] = useState<ArchivedTwin | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [recognizing, setRecognizing] = useState(false);
   const [showAllProxyFields, setShowAllProxyFields] = useState(false); // прокси: раскрыть все поля для переопределения (issue #89)
@@ -339,9 +331,13 @@ export function CatalogEntryForm({
     } finally { setRecognizing(false); }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
+    void save(false);
+  }
+
+  async function save(createAnyway: boolean) {
+    setError(''); setTwin(null);
     if (!displayName.trim() || !typeId) { setError('Укажите название и тип'); return; }
 
     // Ограничения примитивов проверялись только в редакторе ДОКУМЕНТОВ (#463); записи каталога
@@ -366,10 +362,12 @@ export function CatalogEntryForm({
       if (entry) {
         await updateMutation.mutateAsync({ id: entry.id, displayName, data: JSON.stringify(values), aliases });
       } else {
-        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases });
+        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway });
       }
       onClose();
     } catch (err: unknown) {
+      const archivedTwin = archivedTwinOf(err);
+      if (archivedTwin) { setTwin(archivedTwin); return; }
       // Было `err.message` — то есть «Request failed with status code 400»: ни поля, ни причины,
       // хотя сервер называет и то и другое (issue #1008). Текст — общим помощником, адреса
       // нарушений — у полей.
@@ -766,6 +764,7 @@ export function CatalogEntryForm({
         </div>
       )}
 
+      {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
       {error && <p className="text-sm text-danger">{error}</p>}
       </div>
       </div>
