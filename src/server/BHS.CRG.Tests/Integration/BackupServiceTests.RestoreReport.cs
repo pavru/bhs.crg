@@ -66,6 +66,44 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
+    /// Объект типа, чьи записи модуль держит в своей таблице, в общую таблицу из копии не кладётся
+    /// (issue #1215): восстановление — тоже вход, и единственный, которым такая строка могла
+    /// появиться средствами приложения. Остальное восстанавливается, а отчёт называет пропуск.
+    /// </summary>
+    [Fact]
+    public async Task Restore_ObjectOfModuleTableType_IsSkippedAndReported()
+    {
+        var closedTypeId = Guid.NewGuid();
+        var plainTypeId = Guid.NewGuid();
+        var strayId = Guid.NewGuid();
+        BackupDocumentType Type(Guid id, string name, string? storage) => new(
+            id, name, $"c-{Guid.NewGuid():N}", "Composite", null, false,
+            JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+            JsonDocument.Parse("{}").RootElement.Clone(),
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, Module: storage is null ? null : "склад", Storage: storage);
+        BackupCommonDataEntry Entry(Guid id, Guid typeId) => new(
+            id, "Строка", typeId, JsonDocument.Parse("{}").RootElement.Clone(),
+            "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []);
+
+        var report = await ImportManifestAsync(new BackupManifest(
+            SchemaVersion: BackupService.CurrentSchemaVersion,
+            AppVersion: BackupService.CurrentAppVersion,
+            CreatedAt: DateTimeOffset.UtcNow,
+            DocumentTypes: [Type(closedTypeId, "Запись модуля", "ModuleTable"), Type(plainTypeId, "Обычный", null)],
+            Templates: [],
+            CatalogEntities: [],
+            CommonDataEntries: [Entry(strayId, closedTypeId), Entry(Guid.NewGuid(), plainTypeId)]));
+
+        Assert.True(report.Success);
+        Assert.Equal(1, report.CommonDataEntriesCreated);
+        Assert.Contains(report.Warnings, w => w.Contains("«Запись модуля»") && w.Contains("в таблице модуля"));
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.DomainObjects.AnyAsync(o => o.Id == strayId));
+    }
+
+    /// <summary>
     /// Ссылка на документ протухает молча: резолвер при генерации вернёт собственные данные объекта,
     /// без ошибки и без унаследованных полей. Дефект проявился бы в неверном PDF, далеко от
     /// восстановления, — поэтому о нём говорят здесь.

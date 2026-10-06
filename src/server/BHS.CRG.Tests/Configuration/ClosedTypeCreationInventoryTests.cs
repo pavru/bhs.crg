@@ -3,12 +3,14 @@ using System.Text.RegularExpressions;
 namespace BHS.CRG.Tests.Configuration;
 
 /// <summary>
-/// Перепись мест, где общий путь ЗАВОДИТ объект общей таблицы: каждое либо спрашивает, лежат ли
-/// объекты этого типа в общей таблице (<c>TypeStorageRules</c>), либо названо исключением с
+/// Перепись мест, где объект ПОПАДАЕТ в общую таблицу: каждое либо спрашивает, лежат ли объекты
+/// этого типа в общей таблице (<c>TypeStorageRules</c>; у восстановления копии — отбор
+/// <c>CommonTableOnlyAsync</c>, который спрашивает то же правило), либо названо исключением с
 /// причиной (issue #1215, ревью PR #1233).
 ///
 /// <para>Запрет «объект типа, который модуль держит в своей таблице, общим путём не заводится»
-/// стоял у двух входов из пяти. Копия документа и профиль уровня заводили объект, не спрашивая, —
+/// стоял у двух входов из семи. Копия документа, профиль уровня и восстановление копии клали
+/// объект, не спрашивая, —
 /// та же ошибка «закрыл один вход из нескольких», что с охраной записи (#957).</para>
 ///
 /// <para>По исходникам и нарочно грубо: вызов правила ищется в нескольких строках ВЫШЕ места
@@ -24,7 +26,7 @@ public class ClosedTypeCreationInventoryTests
         @"DomainObject\.(Create|CloneAsDocument|Restore|RestoreDocument)\(", RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места создания ищется вызов правила.</summary>
-    private const int Lookback = 25;
+    private const int Lookback = 40;
 
     private const string Asks = "спрашивает";
 
@@ -37,11 +39,8 @@ public class ClosedTypeCreationInventoryTests
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var clone = DomainObject.CloneAsDocument(source, targetSet.Id, data, baseName);"] = Asks,
         ["BHS.CRG.Infrastructure/Generation/LevelProfileService.cs|profile = DomainObject.Create(typeId.Value, null, JsonDocument.Parse(\"{}\"), level, containerId);"] = Asks,
 
-        ["BHS.CRG.Infrastructure/Backup/BackupService.Restore.CommonData.cs|var entity = DomainObject.Restore("] =
-            "восстановление копии кладёт то, что в копии лежит: копия этой системы таких объектов не " +
-            "содержит. Копию, собранную не ею, запрет здесь не останавливает — названо в issue #1215",
-        ["BHS.CRG.Infrastructure/Backup/BackupService.Restore.cs|var obj = DomainObject.RestoreDocument("] =
-            "то же — документы комплекта из копии",
+        ["BHS.CRG.Infrastructure/Backup/BackupService.Restore.CommonData.cs|var entity = DomainObject.Restore("] = Asks,
+        ["BHS.CRG.Infrastructure/Backup/BackupService.Restore.cs|var obj = DomainObject.RestoreDocument("] = Asks,
     };
 
     [Fact]
@@ -71,7 +70,7 @@ public class ClosedTypeCreationInventoryTests
         {
             if (!found.TryGetValue(key, out var asksNearby)) continue; // о пропаже говорит соседний тест
             if (verdict == Asks && !asksNearby)
-                wrong.Add($"{key}\n    назван спрашивающим, но вызова TypeStorageRules выше нет");
+                wrong.Add($"{key}\n    назван спрашивающим, но ни правила TypeStorageRules, ни отбора CommonTableOnlyAsync выше нет");
             if (verdict != Asks && asksNearby)
                 wrong.Add($"{key}\n    назван исключением ({verdict}), а правило рядом стоит — решение изменилось?");
         }
@@ -90,7 +89,7 @@ public class ClosedTypeCreationInventoryTests
                 if (lines[i].TrimStart().StartsWith("//") || !Creation.IsMatch(lines[i])) continue;
                 var asks = false;
                 for (var back = Math.Max(0, i - Lookback); back < i; back++)
-                    if (!lines[back].TrimStart().StartsWith("//") && lines[back].Contains("TypeStorageRules.")) asks = true;
+                    if (!lines[back].TrimStart().StartsWith("//") && (lines[back].Contains("TypeStorageRules.") || lines[back].Contains("CommonTableOnlyAsync("))) asks = true;
                 found[$"{Relative(file)}|{lines[i].Trim()}"] = asks;
             }
         }

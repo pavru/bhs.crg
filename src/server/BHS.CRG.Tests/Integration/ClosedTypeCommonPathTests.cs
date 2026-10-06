@@ -17,9 +17,10 @@ namespace BHS.CRG.Tests.Integration;
 /// Перепись пишущих адресов записи справочника: каждый либо отказывает на объекте типа, который
 /// модуль держит в своей таблице, либо назван исключением с причиной (issue #1215).
 ///
-/// <para>Запрет «тип закрыт для общего адреса» стоял только у создания. Правка и удаление его не
-/// спрашивали — та самая ошибка «закрыл один вход из нескольких»: охрана на одном адресе из трёх
-/// выглядит работающей ровно так же, как на всех.</para>
+/// <para>Запрет «тип закрыт для общего адреса» стоял только у создания, правка его не спрашивала —
+/// та самая ошибка «закрыл один вход из нескольких»: охрана на одном адресе из нескольких выглядит
+/// работающей ровно так же, как на всех. Удаление и возврат из архива свободны НАРОЧНО (решение
+/// владельца 07.10.2026): такая строка в общей таблице — мусор, и убрать его — благо.</para>
 ///
 /// <para>Проверка идёт ПОВЕДЕНИЕМ и по списку адресов самого приложения, а не по исходникам: новый
 /// пишущий адрес под этими путями краснеет здесь, пока о нём не принято решение, а названный
@@ -34,7 +35,10 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
 
     private static readonly string[] Prefixes = ["/api/common-data", "/api/employees"];
 
-    /// <param name="Status">Чем адрес отвечает на объект закрытого типа; <c>null</c> — не зовётся.</param>
+    /// <param name="Status">
+    /// Чем адрес отвечает на объект закрытого типа; <c>null</c> — в общем проходе не зовётся
+    /// (чтение, свой выбор типа или действие, после которого строки нет, — у него свой тест).
+    /// </param>
     /// <param name="Says">Что обязано стоять в отказе: причина, а не один код.</param>
     private sealed record Verdict(HttpStatusCode? Status, string? Says, string Why);
 
@@ -44,7 +48,6 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
     {
         ["POST /api/common-data/"] = Refuses("не заводится", "создание: запрет стоял здесь с самого начала"),
         ["PUT /api/common-data/{id:guid}"] = Refuses("не правится", "правка заменяет запись целиком"),
-        ["DELETE /api/common-data/{id:guid}"] = Refuses("не удаляется", "удаление"),
         ["POST /api/common-data/{id:guid}/archive"] = Refuses("общим путём в архив",
             "своим правилом, по владельцу типа: справочник модуля в архив отправляет модуль"),
 
@@ -52,6 +55,9 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
             "вернуть из архива можно любую запись (ревью PR #1226): признак мог приехать копией, и " +
             "запись, которую нечем вернуть, осталась бы в архиве навсегда. Здесь строка не в архиве, " +
             "и ответ — «без изменений»; сам возврат проверяет соседний тест"),
+        ["DELETE /api/common-data/{id:guid}"] = new(null, null,
+            "удаление проходит: строка закрытого типа в общей таблице — мусор, и интерфейс остаётся " +
+            "способом его убрать. Проверяет соседний тест — после него строки нет"),
         ["POST /api/common-data/archived-among"] = new(null, null,
             "чтение: POST только ради списка идентификаторов в теле"),
         ["POST /api/employees/"] = new(null, null,
@@ -117,6 +123,21 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
         Assert.Equal(planted.Id, stored.Id);
         Assert.Equal("Строка", stored.DisplayName);
         Assert.Null(stored.ArchivedAt);
+    }
+
+    /// <summary>Исключение переписи — поведением: строку закрытого типа общим адресом УБРАТЬ можно.</summary>
+    [Fact]
+    public async Task Строку_закрытого_типа_удалить_можно()
+    {
+        var (typeId, planted) = await PlantAsync();
+        var client = await SignInAsync();
+
+        var response = await client.SendAsync(Request("DELETE /api/common-data/{id:guid}", typeId, planted));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var scope = fixture.Services.CreateScope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .DomainObjects.AnyAsync(o => o.Id == planted.Id));
     }
 
     /// <summary>
