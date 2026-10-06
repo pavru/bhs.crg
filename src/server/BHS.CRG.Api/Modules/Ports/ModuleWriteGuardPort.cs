@@ -20,7 +20,8 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// на находки, а решение остаётся модулю: отказать, спросить человека или дописать своё.</para>
 /// </summary>
 public sealed class ModuleWriteGuardPort(
-    IRepository<DocumentType> types, IRepository<PrimitiveType> primitives) : IModuleWriteGuard
+    IRepository<DocumentType> types, IRepository<PrimitiveType> primitives,
+    IDomainObjectRepository objects) : IModuleWriteGuard
 {
     public async Task<IReadOnlyList<ModuleWriteRefusal>> RefusalsAsync(
         Guid typeId, string? storedJson, string incomingJson, CancellationToken ct = default)
@@ -39,7 +40,7 @@ public sealed class ModuleWriteGuardPort(
 
         try
         {
-            await WriteGuard.EnsureAllowedAsync(stored, incoming, typeId, types, primitives, ct);
+            await WriteGuard.EnsureAllowedAsync(stored, incoming, typeId, types, primitives, objects, ct);
             return [];
         }
         catch (RecordWriteRefusedException refusal)

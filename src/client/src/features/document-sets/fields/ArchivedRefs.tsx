@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { useArchivedAmong } from '@/shared/api/commonData';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
-import { ArchivedRefsContext, catalogRefIds, useIsArchivedRef } from './archivedRefIds';
+import { ArchivedRefsContext, RefsOwnerContext, catalogRefIds, useIsArchivedRef } from './archivedRefIds';
 
 /**
  * Узнаёт у сервера, какие ссылки формы указывают на архивные записи, и раздаёт ответ плиткам.
@@ -10,10 +10,19 @@ import { ArchivedRefsContext, catalogRefIds, useIsArchivedRef } from './archived
  * точнее: новую ссылку на архивную запись поставить нечем (в выборе её нет), значит архивной может
  * быть только та, что уже стояла. А спрашивать на каждое нажатие клавиши было бы незачем.</p>
  */
-export function ArchivedRefsProvider({ data, children }: { data: unknown; children: ReactNode }) {
+export function ArchivedRefsProvider({ data, ownerId, children }: {
+  data: unknown;
+  /** Сохранённый объект, которому принадлежат данные, — его называет вынос в общие данные. */
+  ownerId?: string;
+  children: ReactNode;
+}) {
   const ids = useMemo(() => catalogRefIds(data), [data]);
   const archived = useArchivedAmong(ids);
-  return <ArchivedRefsContext.Provider value={archived}>{children}</ArchivedRefsContext.Provider>;
+  return (
+    <RefsOwnerContext.Provider value={ownerId}>
+      <ArchivedRefsContext.Provider value={archived}>{children}</ArchivedRefsContext.Provider>
+    </RefsOwnerContext.Provider>
+  );
 }
 
 /**

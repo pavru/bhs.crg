@@ -13,6 +13,7 @@ public class QualityDocHandlers(
     IRepository<DocumentType> typeRepo,
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<DomainObject> objRepo,
+    IDomainObjectRepository objects,
     IReferenceIndex refIndex,
     IRecordHolders holders
 ) :
@@ -33,7 +34,7 @@ public class QualityDocHandlers(
         // Охрана записи (issue #957). Документ качества — сегодняшний прообраз записи модуля
         // (ТЗ CORE-20.1): своя таблица с колонками и реквизиты по схеме типа.
         await Application.Schema.WriteGuard.EnsureAllowedAsync(
-            null, cmd.Requisites, cmd.DocumentTypeId, typeRepo, primitiveRepo, ct);
+            null, cmd.Requisites, cmd.DocumentTypeId, typeRepo, primitiveRepo, objects, ct);
         var doc = QualityDocument.Create(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites, cmd.Scope, cmd.ScopeId, cmd.Source);
         doc.SetScan(cmd.ScanBlobPath, cmd.ScanFileName, cmd.ScanMimeType);
         await repo.AddAsync(doc, ct);
@@ -50,7 +51,7 @@ public class QualityDocHandlers(
         if (!string.Equals(doc.DisplayName.Trim(), (cmd.DisplayName ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
             await EnsureNameFreeAsync(cmd.DisplayName, doc.Scope, doc.ScopeId, exceptId: doc.Id, ct);
         await Application.Schema.WriteGuard.EnsureAllowedAsync(
-            doc.Requisites, cmd.Requisites, cmd.DocumentTypeId, typeRepo, primitiveRepo, ct);
+            doc.Requisites, cmd.Requisites, cmd.DocumentTypeId, typeRepo, primitiveRepo, objects, ct);
         doc.Update(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites);
         repo.Update(doc);
         await repo.SaveChangesAsync(ct);

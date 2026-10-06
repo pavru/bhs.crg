@@ -154,13 +154,17 @@ public class InvoiceArchiveTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         var refused = await client.PutAsJsonAsync($"/api/costs/invoices/{other}",
             new { requisites = await RequisitesWithAsync(client, other, "Плательщик", Reference(organization)) });
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-        Assert.Contains("в архиве", await refused.Content.ReadAsStringAsync());
+        // Слова — МОДУЛЯ, одни у всех его адресов. С правилом архива в охране ядра (issue #1185) та
+        // же ссылка отвергалась бы раньше и другими словами; порядок проверок это и стережёт.
+        const string OwnWords = "организация в архиве — в выборе её нет";
+        Assert.Contains("«Плательщик»: " + OwnWords, await refused.Content.ReadAsStringAsync());
 
         var created = await client.PostAsJsonAsync("/api/costs/invoices", new
         {
             requisites = new Dictionary<string, object?> { ["Номер"] = "СЧ-архив", ["Поставщик"] = Reference(organization) },
         });
         Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
+        Assert.Contains("«Поставщик»: " + OwnWords, await created.Content.ReadAsStringAsync());
     }
 
     // ── Номенклатура: строки счёта и накладной ────────────────────────────────

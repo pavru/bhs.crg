@@ -14,6 +14,11 @@ namespace BHS.CRG.Tests.Configuration;
 /// Проверяется В ОБЕ СТОРОНЫ: у объявленного охраняемым рядом обязан стоять вызов охраны, у
 /// объявленного свободным — обязан НЕ стоять. Односторонняя проверка тихо соглашалась бы с тем, что
 /// охрану из адреса убрали.
+///
+/// <para>⚠️ С issue #1185 вердикт значит больше: в той же точке стоит правило архива — новая ссылка
+/// на архивную запись отвергается. «Охраняемый» теперь читается и как «здесь ссылки ВЫБИРАЮТ», а
+/// «свободный» — и как «здесь стоявшие ссылки переносят»: позови машинный путь охрану как создание,
+/// у него «как лежит» было бы пусто, и каждая старая ссылка на архивную запись стала бы отказом.</para>
 /// </summary>
 public class RecordWriteGuardCoverageTests
 {
@@ -21,7 +26,7 @@ public class RecordWriteGuardCoverageTests
 
     /// <summary>Как данные попадают в объект: присвоение или конструктор с готовыми данными.</summary>
     private static readonly Regex DataWrite = new(
-        @"\.SetData\(|\.Update\(cmd\.DisplayName|\.Update\(cmd\.DocumentTypeId|DomainObject\.Create\(|QualityDocument\.Create\(",
+        @"\.SetData\(|\.Update\(cmd\.DisplayName|\.Update\(cmd\.DocumentTypeId|DomainObject\.Create\(|DomainObject\.CloneAsDocument\(|QualityDocument\.Create\(",
         RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>
@@ -55,6 +60,11 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|source.SetData(data);"] =
             (Free, "перенос документа в другой комплект переписывает СВОИ же значения (вычищает " +
                    "неразрешимые ссылки); отказ сделал бы документ непереносимым"),
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var clone = DomainObject.CloneAsDocument(source, targetSet.Id, data, baseName);"] =
+            (Free, "копия документа в другой комплект повторяет значения источника: ссылки в ней стояли, " +
+                   "их никто не выбирал — правило архива отвергло бы копию документа закрытого периода"),
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var clone = DomainObject.CloneAsDocument(source, setId, data, $\"Копия {baseName}\");"] =
+            (Free, "копия документа в том же комплекте — то же самое: значения источника, ссылки стояли"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var obj = DomainObject.Create(cmd.DocumentTypeId, null, JsonDocument.Parse(\"{}\"),"] =
             (Free, "создание пустого документа в комплекте: вносить нечего"),
         ["BHS.CRG.Application/QualityDocs/SearchCommands.cs|var doc = QualityDocument.Create(cmd.DocumentTypeId, name, System.Text.Json.JsonDocument.Parse(\"{}\"),"] =

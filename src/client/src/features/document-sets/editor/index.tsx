@@ -259,7 +259,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       </div>
       {tab === 'requisites' && (
         // Пометки «в архиве» у плиток ссылок — по сохранённым реквизитам документа (issue #1185).
-        <ArchivedRefsProvider data={instance.requisites}>
+        <ArchivedRefsProvider data={instance.requisites} ownerId={instance.id}>
           <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
             allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
             onClose={onClose} onDirty={setDirty} saveRef={saveRef}
