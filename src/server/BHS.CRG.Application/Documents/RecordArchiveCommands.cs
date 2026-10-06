@@ -31,6 +31,7 @@ public record CanArchiveRecordQuery(Guid Id) : IRequest<bool>;
 public class RecordArchiveHandlers(
     IRepository<DomainObject> repo,
     IRepository<DocumentType> types,
+    IRepository<WorkPlanItem> plan,
     IRecordArchive archive,
     IActivityLog journal) :
     IRequestHandler<SetRecordArchiveCommand, RecordArchiveResult>,
@@ -43,7 +44,10 @@ public class RecordArchiveHandlers(
         // проверкой и записью осталась бы щель.
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         var type = await types.GetByIdAsync(entry.CompositeTypeId, ct);
-        EnsureCoreType(type);
+        // Владельца спрашиваем только на пути В архив. Вернуть можно любую запись (ревью PR #1226):
+        // тип мог перейти к модулю уже после архива, признак мог приехать копией — и запись, которую
+        // нечем вернуть, осталась бы в архиве навсегда. Снять признак — всегда благо.
+        if (cmd.Archived) EnsureCoreType(type);
 
         switch (await archive.SetAsync(cmd.Id, cmd.Archived, ct))
         {
@@ -51,9 +55,15 @@ public class RecordArchiveHandlers(
                 // Журнал — после действия и только когда оно что-то изменило (см. IActivityLog). Это
                 // первая запись журнала о данных справочника: «кто и когда убрал из выбора» иначе
                 // спросить не у кого — отдельного поля «кто» у записи нет нарочно.
+                //
+                // ⚠️ Без токена отмены запроса (ревью PR #1226): признак уже записан своим
+                // обновлением, и оборванный запрос — человек ушёл со страницы — не должен оставить
+                // архив без следа. Повтор его не допишет: он вернёт «без изменений». Сбой самой
+                // записи журнала этим не закрыт — общей транзакции у действия и журнала нет, и это
+                // плата, названная в IActivityLog для всех действий.
                 await journal.RecordAsync(
                     cmd.Archived ? ActivityActions.RecordArchived : ActivityActions.RecordUnarchived,
-                    entry.Id.ToString(), Label(entry, type), ct: ct);
+                    entry.Id.ToString(), Label(entry, type), ct: CancellationToken.None);
                 return new RecordArchiveResult(entry.Id, entry.DisplayName ?? "", cmd.Archived, true);
             case ArchiveOutcome.Unchanged:
                 return new RecordArchiveResult(entry.Id, entry.DisplayName ?? "", cmd.Archived, false);
@@ -75,7 +85,11 @@ public class RecordArchiveHandlers(
         var entry = await repo.GetByIdAsync(q.Id, ct);
         if (entry is null) return false;
         var type = await types.GetByIdAsync(entry.CompositeTypeId, ct);
-        return IsCoreType(type) && await archive.AllowsAsync(q.Id, ct);
+        if (!IsCoreType(type) || !await archive.AllowsAsync(q.Id, ct)) return false;
+        // Запись держит перечень работ — архив рядом с отказом не предлагаем (ревью PR #1226): тот
+        // отказ сам говорит «сообщите о находке, запись останется на месте», и кнопка под ним была
+        // бы вторым, противоположным указанием. Само действие при этом не запрещено.
+        return (await plan.FindAsync(p => p.WorkTypeId == q.Id || p.UnitId == q.Id, ct)).Count == 0;
     }
 
     /// <summary>

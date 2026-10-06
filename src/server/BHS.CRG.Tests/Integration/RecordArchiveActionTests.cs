@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Objects;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Activity;
 using BHS.CRG.Domain.Catalog;
 using MediatR;
@@ -117,6 +120,49 @@ public class RecordArchiveActionTests(InvoiceLineHost host) : InvoiceLineTestBas
         var again = await client.DeleteAsync($"/api/common-data/{id}");
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
         Assert.False((await again.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("canArchive").GetBoolean());
+    }
+
+    /// <summary>
+    /// Вернуть из архива можно ЛЮБУЮ запись (ревью PR #1226): признак мог оказаться на записи модуля
+    /// из копии или после смены владельца типа, и запрет на этом пути оставил бы её в архиве навсегда.
+    /// </summary>
+    [Fact]
+    public async Task Вернуть_из_архива_можно_и_запись_справочника_модуля()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var (article, _) = await ArticleAsync(client, $"Статья возврата {Guid.NewGuid().ToString("N")[..6]}");
+        using (var scope = host.Services.CreateScope())
+            Assert.Equal(ArchiveOutcome.Changed,
+                await scope.ServiceProvider.GetRequiredService<IRecordArchive>().SetAsync(article, archived: true));
+
+        var returned = await PostAsync(client, article, "unarchive");
+
+        Assert.False(returned.GetProperty("archived").GetBoolean());
+        Assert.True(returned.GetProperty("changed").GetBoolean());
+    }
+
+    /// <summary>
+    /// Запись, которую держит перечень работ: отказ в удалении сам говорит «запись останется на
+    /// месте, сообщите о находке» — и кнопка «в архив» под ним была бы вторым, обратным указанием.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_из_за_перечня_работ_архив_не_предлагает()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var (type, work) = await RecordAsync();
+        var unit = await EntryAsync(type, $"Единица {Guid.NewGuid().ToString("N")[..6]}");
+        var (site, _) = await SiteAsync($"Перечень {Guid.NewGuid().ToString("N")[..6]}", "Раздел");
+        using (var scope = host.Services.CreateScope())
+        {
+            var plan = scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>();
+            await plan.AddAsync(WorkPlanItem.Create(work, site, null, unit));
+            await plan.SaveChangesAsync();
+        }
+
+        var refused = await client.DeleteAsync($"/api/common-data/{work}");
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.False((await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("canArchive").GetBoolean());
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────

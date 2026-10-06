@@ -5,7 +5,7 @@ import { useToast } from '@/shared/ui/Toast';
 /** Код типа «Сотрудник» в ядре (зеркало серверного `CoreRecordTypes.EmployeeCode`). */
 const EMPLOYEE_TYPE_CODE = 'Сотрудник';
 
-type Target = { id: string; displayName: string; compositeTypeId: string };
+type Target = { id: string; displayName: string; compositeTypeId: string; archived?: boolean };
 
 /**
  * Действие «в архив» / «вернуть из архива» у записи справочника (issue #1185).
@@ -49,9 +49,16 @@ export function useRecordArchive(types: DocumentType[]) {
     set, act, pending: mutation.isPending,
     /**
      * Есть ли у записи действие. Справочник модуля общим путём в архив не уходит (сервер откажет) —
-     * кнопку для него не рисуем вовсе: отключённой с объяснением её держать незачем.
+     * кнопку для него не рисуем вовсе: отключённой с объяснением её держать незачем. Вернуть из
+     * архива можно любую: снять признак — всегда благо, и сервер на этом пути владельца не спрашивает.
+     *
+     * Это подсказка экрану, а не правило: решает сервер. Сравнение без учёта регистра и «тип не
+     * найден — запись ядра» повторяют его нарочно, чтобы кнопка не обещала отказ.
      */
-    allowed: (entry: Target) => { const t = typeOf(entry); return !t || t.module === 'core'; },
+    allowed: (entry: Target) => {
+      const t = typeOf(entry);
+      return !!entry.archived || !t || t.module.toLowerCase() === 'core';
+    },
     isEmployee: (entry: Target) => typeOf(entry)?.code === EMPLOYEE_TYPE_CODE,
   };
 }

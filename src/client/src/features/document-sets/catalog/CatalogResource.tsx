@@ -78,7 +78,8 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const isDocType = (id: string) => documentTypes.some(dt => dt.id === id);
   // Архив (issue #1185): действие — тем, кто ведёт общие данные, и только записям ядра.
   const canEdit = useCan().permission('core.catalog.edit');
-  const archive = useRecordArchive(allSelectableTypes);
+  // Типы — ВСЕ, а не только выбираемые: у записи абстрактного или чужого типа владелец тот же вопрос.
+  const archive = useRecordArchive(allDocTypes);
   const archiveAction = (e: CommonDataEntry) =>
     canEdit && archive.allowed(e) ? (target: CommonDataEntry) => void archive.act(target, !target.archived) : undefined;
 
@@ -89,7 +90,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const profileType = profileTag
     ? compositeTypes.find(t => (((t.schema as { tags?: string[] }).tags) ?? []).includes(profileTag))
     : undefined;
-  const profileObject = profileType ? entries.find(e => e.compositeTypeId === profileType.id) : undefined;
+  // Только действующая (ревью PR #1226): архивная запись профиль-типа профилем не назначается, и
+  // взять её здесь значило бы показывать и править под «Данные уровня» не тот объект.
+  const profileObject = profileType ? entries.find(e => e.compositeTypeId === profileType.id && isLive(e)) : undefined;
   // Профиль не смешиваем с обычными записями (рейл/список/«Все записи»).
   const normalEntries = profileObject ? entries.filter(e => e.id !== profileObject.id) : entries;
 
@@ -118,6 +121,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     });
   const { groups, noType } = groupObjectsByType(filtered, allSelectableTypes);
 
+  // При поиске группы раскрыты все (ревью PR #1226): совпадение в свёрнутой группе — тем более
+  // архивное, которого нет и в её счётчике, — читалось бы как «такой записи нет».
+  const searching = !!search.trim();
   const row = (entry: CommonDataEntry, siblings: CommonDataEntry[], border: boolean) => (
     <ObjectRow key={entry.id} entry={entry} siblings={siblings} resolvePool={scopeChain}
       onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
@@ -133,7 +139,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       <>
         {live.length === 0 && <p className="px-4 py-3 text-sm text-fg4">Действующих записей нет.</p>}
         {live.map((e, idx) => row(e, items, idx > 0))}
-        <ArchivedRows count={gone.length} forceOpen={!!search.trim()}>
+        <ArchivedRows count={gone.length} forceOpen={searching}>
           {gone.map(e => row(e, items, true))}
         </ArchivedRows>
       </>
@@ -230,7 +236,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           // «Все записи» — группы-аккордеоны по типу.
           <div className="space-y-2">
             {groups.map(({ type: t, items }) => {
-              const isOpen = expandedTypes.has(t.id);
+              const isOpen = searching || expandedTypes.has(t.id);
               return (
                 <div key={t.id} className="border border-stroke rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
@@ -248,7 +254,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
               );
             })}
             {noType.length > 0 && (() => {
-              const isOpen = expandedTypes.has(NO_TYPE);
+              const isOpen = searching || expandedTypes.has(NO_TYPE);
               return (
                 <div className="border border-stroke rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(NO_TYPE)} aria-expanded={isOpen}
