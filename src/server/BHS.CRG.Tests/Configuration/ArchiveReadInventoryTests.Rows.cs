@@ -87,12 +87,20 @@ public partial class ArchiveReadInventoryTests
             Documents("документ по идентификатору"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var source = await objRepo.GetByIdAsync(sourceId, ct) ?? throw new NotFoundException();"] =
             Documents("документ по идентификатору"),
-        ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var inst = await objectRepo.GetByIdAsync(grp.Key, ct);"] =
-            Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными"),
+        ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|await using (var rows = await objectRepo.ReadForUpdateAsync(o => typeIds.Contains(o.CompositeTypeId), ct))"] =
+            Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
+        ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|await using var rows = await objectRepo.ReadForUpdateAsync("] =
+            Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|await using var row = await objRepo.ReadForUpdateAsync([source.Id], ct);"] =
+            Documents("документ комплекта под блокировкой строки — записей общих данных здесь нет (issue #1232)"),
+        ["BHS.CRG.Application/Generation/GenerateDocumentHandler.cs|await using var row = await instanceRepo.ReadForUpdateAsync([instance.Id], ct);"] =
+            Documents("документ комплекта под блокировкой строки — записей общих данных здесь нет (issue #1232)"),
+        ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|await using var row = await objects.ReadForUpdateAsync([instance.Id], ct);"] =
+            Documents("документ комплекта под блокировкой строки — записей общих данных здесь нет (issue #1232)"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)"] =
             Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var instances = (await objectRepo.FindAsync(o => typeIds.Contains(o.CompositeTypeId), ct)).ToList();"] =
-            Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными").X(2),
+            Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var objects = await objectRepo.FindAsync(o => o.CompositeTypeId == dt.Id, ct);"] =
             Seen("тип занят объектами и не удаляется: архивная запись держит тип так же, как живая"),
         ["BHS.CRG.Application/Documents/PlanHandlers.cs|var actual = await objects.CountReadyDocumentsByTypeAsync([q.SetId], ct);"] =
@@ -208,8 +216,8 @@ public partial class ArchiveReadInventoryTests
             Shown("резолвер «строка → объект»: находит и архивные, состояние в ответе, действующая побеждает архивную"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var blobSql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%\\\"$type\\\": \\\"image\\\"%' OR \\\"Data\\\"::text LIKE '%\\\"$type\\\":\\\"image\\\"%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
-        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);"] =
-            Service("обслуживание: перенос картинок, уборка сирот, разовые обходы").X(2),
+        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|return (null, await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id, ct));"] =
+            Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var sql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%data:image%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Maintenance/MaterialLabelBackfill.cs|foreach (var data in await db.DomainObjects.AsNoTracking().Select(o => o.Data).ToListAsync(ct))"] =
@@ -224,6 +232,12 @@ public partial class ArchiveReadInventoryTests
             Service("объявление таблицы — не чтение"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|.SqlQuery<long>($\"\"\"SELECT xmin::text::bigint AS \"Value\" FROM domain_objects WHERE \"Id\" = {entry.Id} FOR UPDATE\"\"\")"] =
             Service("правка записи: версия строки читается под блокировкой, архивную запись правят так же (issue #1214)"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|.SqlQuery<Guid>($\"\"\"SELECT \"Id\" AS \"Value\" FROM domain_objects WHERE \"Id\" = ANY({wanted}) ORDER BY \"Id\" FOR UPDATE\"\"\")"] =
+            Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var ids = await Db.Set<DomainObject>().Where(which).Select(o => o.Id).ToListAsync(ct);"] =
+            Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var objects = await Db.Set<DomainObject>().Where(o => wanted.Contains(o.Id)).ToListAsync(ct);"] =
+            Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> Db.Set<DomainObject>()"] =
             Seen("чтение по идентификатору: что делать с архивной, решает звавший"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> await Db.Set<DomainObject>()"] =

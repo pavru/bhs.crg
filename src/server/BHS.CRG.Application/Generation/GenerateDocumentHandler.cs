@@ -15,7 +15,7 @@ using MediatR;
 namespace BHS.CRG.Application.Generation;
 
 public class GenerateDocumentHandler(
-    IRepository<DomainObject> instanceRepo,
+    IDomainObjectRepository instanceRepo,
     IRepository<GeneratedFile> fileRepo,
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
@@ -136,6 +136,9 @@ public class GenerateDocumentHandler(
             // По PDF на каждый выбранный шаблон. Контекст (реквизиты/наборы/каталог) общий — строится
             // один раз выше; на шаблон меняются только params, содержимое и настройки страницы.
             var generated = new List<GeneratedFile>();
+            // Штамп метаданных откладывается до сохранения: он ляжет на данные, прочитанные под
+            // блокировкой строки, а не на снимок, снятый до начала выпуска (issue #1232).
+            Func<JsonDocument, JsonDocument>? stamp = null;
             foreach (var template in templates)
             {
                 context.Set("params", TemplateParams.Effective(template.Parameters,
@@ -159,7 +162,7 @@ public class GenerateDocumentHandler(
                     if (taggedFields.Count > 0)
                     {
                         var meta = metadataExtractor.Extract(bytes, isPdf: cmd.Format == OutputFormat.Pdf, cmd.GeneratedBy);
-                        instance.SetData(SchemaTags.PatchMetadata(instance.Data, taggedFields, meta));
+                        stamp = data => SchemaTags.PatchMetadata(data, taggedFields, meta);
                     }
                 }
 
@@ -170,7 +173,15 @@ public class GenerateDocumentHandler(
                 generated.Add(gf);
             }
 
-            await instanceRepo.SaveChangesAsync(ct);
+            if (stamp is null) await instanceRepo.SaveChangesAsync(ct);
+            else
+            {
+                // Выпуск длится секунды, и документ прочитан в его начале: реквизиты, сохранённые
+                // формой за это время, штамп стёр бы целиком, хотя сам пишет два-три поля.
+                await using var row = await instanceRepo.ReadForUpdateAsync([instance.Id], ct);
+                instance.SetData(stamp(instance.Data));
+                await row.SaveAsync(ct);
+            }
 
             var first = generated[0];
 

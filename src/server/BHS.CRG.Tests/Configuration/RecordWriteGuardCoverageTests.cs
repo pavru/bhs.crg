@@ -69,7 +69,7 @@ public class RecordWriteGuardCoverageTests
             (Free, "создание пустого документа в комплекте: вносить нечего"),
         ["BHS.CRG.Application/QualityDocs/SearchCommands.cs|var doc = QualityDocument.Create(cmd.DocumentTypeId, name, System.Text.Json.JsonDocument.Parse(\"{}\"),"] =
             (Free, "импорт из интернета заводит документ с пустыми реквизитами — вносить нечего"),
-        ["BHS.CRG.Application/Generation/GenerateDocumentHandler.cs|instance.SetData(SchemaTags.PatchMetadata(instance.Data, taggedFields, meta));"] =
+        ["BHS.CRG.Application/Generation/GenerateDocumentHandler.cs|instance.SetData(stamp(instance.Data));"] =
             (Free, "штамп метаданных на последнем шаге выпуска: отказ из-за чужого старого значения " +
                    "остановил бы генерацию; запертых полей штамп не пишет"),
         ["BHS.CRG.Application/Catalog/Handlers.cs|entity.Update(cmd.DisplayName, cmd.Data);"] =

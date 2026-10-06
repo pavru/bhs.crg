@@ -32,6 +32,22 @@ public record ImageMigrationReport(
 /// </summary>
 public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
 {
+    private readonly DomainObjectRepository _objects = new(db);
+
+    /// <summary>
+    /// Объект для переноса: в настоящем прогоне — ПОД БЛОКИРОВКОЙ строки (issue #1232), в пробном —
+    /// простым чтением. Между чтением и записью здесь лежит выгрузка картинок в хранилище, то есть
+    /// секунды: правка формы, пришедшая в них, стиралась снимком, снятым до неё. Блокировка держится
+    /// на время выгрузки одной записи — форма в это время ждёт и получает честный отказ по версии.
+    /// </summary>
+    private async Task<(ILockedObjects? Row, Domain.Objects.DomainObject? Obj)> ReadForUpdateUnlessDryAsync(Guid id, bool dryRun, CancellationToken ct)
+    {
+        if (dryRun)
+            return (null, await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id, ct));
+        var row = await _objects.ReadForUpdateAsync([id], ct);
+        return (row, row.Objects.FirstOrDefault());
+    }
+
     /// <param name="dryRun">Только посчитать: ничего не грузить и не сохранять.</param>
     public async Task<ImageMigrationReport> RunAsync(bool dryRun, CancellationToken ct = default)
     {
@@ -48,7 +64,8 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         var failed = 0;
         foreach (var id in ids)
         {
-            var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);
+            var (row, obj) = await ReadForUpdateUnlessDryAsync(id, dryRun, ct);
+            await using var _ = row;
             if (obj is null) continue;   // запись успели удалить, пока шёл перенос
 
             var node = JsonNode.Parse(obj.Data.RootElement.GetRawText());
@@ -65,11 +82,10 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
             if (!dryRun)
             {
                 obj.SetData(JsonDocument.Parse(node.ToJsonString()));
-                db.DomainObjects.Update(obj);
                 // Сохраняем ПОЗАПИСНО (issue #532): один общий SaveChanges держал бы весь перенос
                 // одной транзакцией, а правки, сделанные людьми во время прогона, затирались бы
                 // снимком, снятым до его начала.
-                await db.SaveChangesAsync(ct);
+                await row!.SaveAsync(ct);
             }
         }
 
@@ -109,7 +125,8 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         var blobSql = "SELECT \"Id\" FROM domain_objects WHERE \"Data\"::text LIKE '%\"$type\": \"image\"%' OR \"Data\"::text LIKE '%\"$type\":\"image\"%'";
         foreach (var id in await db.Database.SqlQueryRaw<Guid>(blobSql).ToListAsync(ct))
         {
-            var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);
+            var (row, obj) = await ReadForUpdateUnlessDryAsync(id, dryRun, ct);
+            await using var _ = row;
             if (obj is null) continue;
 
             var node = JsonNode.Parse(obj.Data.RootElement.GetRawText());
@@ -125,8 +142,7 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
             if (!dryRun)
             {
                 obj.SetData(JsonDocument.Parse(node.ToJsonString()));
-                db.DomainObjects.Update(obj);
-                await db.SaveChangesAsync(ct);
+                await row!.SaveAsync(ct);
             }
         }
 

@@ -14,7 +14,7 @@ namespace BHS.CRG.Application.Documents;
 
 public class DocumentTypeHandlers(
     IRepository<DocumentType> repo,
-    IRepository<DomainObject> objectRepo,
+    IDomainObjectRepository objectRepo,
     IRepository<Template> templateRepo,
     IRepository<QualityDocument> qualityDocRepo,
     IRepository<PrimitiveType> primitiveRepo,
@@ -57,22 +57,27 @@ public class DocumentTypeHandlers(
         var byId = all.ToDictionary(t => t.Id);
         var typeIds = all.Where(t => Schema.DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, cmd.TypeId, byId))
             .Select(t => t.Id).ToList();
-        var instances = (await objectRepo.FindAsync(o => typeIds.Contains(o.CompositeTypeId), ct)).ToList();
-
         var migrated = 0;
-        foreach (var inst in instances)
+        List<Guid> instanceIds;
+        // Под блокировкой строк (issue #1232): перенос читал все объекты типа и клал их одним
+        // сохранением — правка формы, пришедшая в этот промежуток, стиралась снимком, снятым до неё.
+        // Блок закрывается ДО второй половины: держать строки под службой наборов незачем.
+        await using (var rows = await objectRepo.ReadForUpdateAsync(o => typeIds.Contains(o.CompositeTypeId), ct))
         {
-            var root = System.Text.Json.Nodes.JsonNode.Parse(inst.Data.RootElement.GetRawText()) as System.Text.Json.Nodes.JsonObject;
-            if (root is null) continue;
-            if (Schema.JsonPathEditor.Rename(root, cmd.OldKey, cmd.NewKey, out _, out _))
+            instanceIds = rows.Objects.Select(i => i.Id).ToList();
+            foreach (var inst in rows.Objects)
             {
-                inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));
-                objectRepo.Update(inst);
-                migrated++;
+                var root = System.Text.Json.Nodes.JsonNode.Parse(inst.Data.RootElement.GetRawText()) as System.Text.Json.Nodes.JsonObject;
+                if (root is null) continue;
+                if (Schema.JsonPathEditor.Rename(root, cmd.OldKey, cmd.NewKey, out _, out _))
+                {
+                    inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));
+                    migrated++;
+                }
             }
+            // Реквизиты — одним сохранением: либо все инстансы переехали, либо ни один.
+            if (migrated > 0) await rows.SaveAsync(ct);
         }
-        // Реквизиты — одним сохранением: либо все инстансы переехали, либо ни один.
-        if (migrated > 0) await objectRepo.SaveChangesAsync(ct);
 
         // Держатели ключа вне реквизитов. Владельцы привязок — те же инстансы; шаблоны принадлежат
         // самому типу и его подтипам (ключ мог быть объявлен выше по цепочке).
@@ -83,7 +88,7 @@ public class DocumentTypeHandlers(
         // уже переехавшие реквизиты (старого ключа в них больше нет) и доделает привязки. А самое
         // вероятное исключение здесь — неразбираемый маппинг — обезврежено в RenameMappingKey.
         var holders = await dataSetService.MigrateFieldKeyAsync(
-            instances.Select(i => i.Id).ToList(), typeIds, cmd.OldKey, cmd.NewKey, ct);
+            instanceIds, typeIds, cmd.OldKey, cmd.NewKey, ct);
 
         return new MigrateFieldKeyResult(migrated, holders.Bindings, holders.Templates);
     }
@@ -120,11 +125,16 @@ public class DocumentTypeHandlers(
             typesById ??= (await repo.GetAllAsync(ct)).ToDictionary(t => t.Id);
             primitivesById ??= (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         }
-        // Группируем по инстансу — одну загрузку/мутацию Data на инстанс. Осиротевшие пути — ключи
+        // Под блокировкой строк (issue #1232): починка правит данные преобразованием, и лечь оно
+        // обязано на то, что лежит в базе сейчас, а не на снимок, снятый до чужого сохранения.
+        await using var rows = await objectRepo.ReadForUpdateAsync(
+            cmd.Fixes.Select(f => f.InstanceId).Distinct().ToList(), ct);
+        var locked = rows.Objects.ToDictionary(o => o.Id);
+        // Группируем по инстансу — одну мутацию Data на инстанс. Осиротевшие пути — ключи
         // объектов (не индексы массива), поэтому порядок применения внутри инстанса не сдвигает пути.
         foreach (var grp in cmd.Fixes.GroupBy(f => f.InstanceId))
         {
-            var inst = await objectRepo.GetByIdAsync(grp.Key, ct);
+            var inst = locked.GetValueOrDefault(grp.Key);
             if (inst is null)
             {
                 foreach (var f in grp) outcomes.Add(new(f.InstanceId, f.Path, f.Action, false, "Инстанс не найден", null));
@@ -155,11 +165,10 @@ public class DocumentTypeHandlers(
             if (changed)
             {
                 inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));
-                objectRepo.Update(inst);
                 touched = true;
             }
         }
-        if (touched) await objectRepo.SaveChangesAsync(ct); // атомарно: один SaveChanges на все мутации
+        if (touched) await rows.SaveAsync(ct); // атомарно: одно сохранение на все мутации
         return new(outcomes.Count(o => o.Applied), outcomes.Count(o => !o.Applied), outcomes);
     }
 

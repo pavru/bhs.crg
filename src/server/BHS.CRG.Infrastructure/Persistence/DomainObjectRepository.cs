@@ -37,6 +37,82 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
         if (own is not null) await own.CommitAsync(ct);
     }
 
+    public async Task<ILockedObjects> ReadForUpdateAsync(
+        System.Linq.Expressions.Expression<Func<DomainObject, bool>> which, CancellationToken ct = default)
+    {
+        var own = await OwnTransactionAsync(ct);
+        try
+        {
+            // Отбор — внутри той же транзакции, что и блокировка; строка, заведённая после него,
+            // в работу не попадёт — как не попадала и раньше.
+            var ids = await Db.Set<DomainObject>().Where(which).Select(o => o.Id).ToListAsync(ct);
+            return await LockAndReadAsync(ids, own, ct);
+        }
+        catch
+        {
+            if (own is not null) await own.DisposeAsync();
+            throw;
+        }
+    }
+
+    public async Task<ILockedObjects> ReadForUpdateAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        var own = await OwnTransactionAsync(ct);
+        try
+        {
+            return await LockAndReadAsync(ids, own, ct);
+        }
+        catch
+        {
+            if (own is not null) await own.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <summary>Своя транзакция — если вызывающий не открыл её сам: блокировка строки живёт до фиксации.</summary>
+    private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> OwnTransactionAsync(CancellationToken ct) =>
+        Db.Database.CurrentTransaction is null ? await Db.Database.BeginTransactionAsync(ct) : null;
+
+    private async Task<ILockedObjects> LockAndReadAsync(
+        IReadOnlyCollection<Guid> ids, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? own, CancellationToken ct)
+    {
+        var wanted = ids.Distinct().ToArray();
+        // В порядке идентификаторов: два писателя, взявшие одни и те же строки в разном порядке,
+        // ждали бы друг друга вечно.
+        await Db.Database
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM domain_objects WHERE "Id" = ANY({wanted}) ORDER BY "Id" FOR UPDATE""")
+            .ToListAsync(ct);
+
+        // Объект, который контекст уже держит, запрос вернул бы ПРЕЖНИМ: отслеживаемую сущность EF
+        // значениями из базы не обновляет. Поэтому такие перечитываются явно — иначе блокировка
+        // охраняла бы запись того же устаревшего снимка.
+        foreach (var entry in Db.ChangeTracker.Entries<DomainObject>().Where(e => wanted.Contains(e.Entity.Id)).ToList())
+            if (entry.State is not (EntityState.Added or EntityState.Detached))
+                await entry.ReloadAsync(ct);
+
+        var objects = await Db.Set<DomainObject>().Where(o => wanted.Contains(o.Id)).ToListAsync(ct);
+        return new LockedObjects(Db, own, objects);
+    }
+
+    private sealed class LockedObjects(
+        AppDbContext db, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? own,
+        IReadOnlyList<DomainObject> objects) : ILockedObjects
+    {
+        public IReadOnlyList<DomainObject> Objects => objects;
+
+        public async Task SaveAsync(CancellationToken ct = default)
+        {
+            await db.SaveChangesAsync(ct);
+            if (own is not null) await own.CommitAsync(ct);
+        }
+
+        // Незафиксированная транзакция при освобождении откатывается — записано не будет ничего.
+        public async ValueTask DisposeAsync()
+        {
+            if (own is not null) await own.DisposeAsync();
+        }
+    }
+
     public async Task<IReadOnlyList<DomainObject>> GetSetDocumentsAsync(Guid setId, bool tracked, CancellationToken ct = default)
     {
         var q = Db.Set<DomainObject>()

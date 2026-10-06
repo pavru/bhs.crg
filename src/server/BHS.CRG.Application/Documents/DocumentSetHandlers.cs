@@ -228,6 +228,11 @@ public class DocumentSetHandlers(
             throw new ConflictException(
                 $"Нельзя перенести документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
 
+        // Под блокировкой строки (issue #1232): значения переписываются по снимку документа, и
+        // реквизиты, сохранённые формой после чтения выше, перенос унёс бы с собой в небытие.
+        await using var row = await objRepo.ReadForUpdateAsync([source.Id], ct);
+        if (row.Objects.Count == 0) throw new NotFoundException();
+
         var (data, warnings) = await BuildCopyPlanAsync(source, targetSet, cmd.Strategy, ct);
         var docs = await objRepo.GetSetDocumentsAsync(targetSet.Id, tracked: false, ct);
         var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
@@ -241,7 +246,7 @@ public class DocumentSetHandlers(
         setRepo.Update(targetSet);
         if (await setRepo.GetByIdAsync(srcSetId, ct) is { } srcSet) { srcSet.TouchUpdatedAt(); setRepo.Update(srcSet); }
         objRepo.Update(source);
-        await objRepo.SaveChangesAsync(ct);
+        await row.SaveAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
         return new CopyResult(source, warnings);
     }
