@@ -50,7 +50,8 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
 
         ["POST /api/common-data/{id:guid}/unarchive"] = new(HttpStatusCode.OK, null,
             "вернуть из архива можно любую запись (ревью PR #1226): признак мог приехать копией, и " +
-            "запись, которую нечем вернуть, осталась бы в архиве навсегда"),
+            "запись, которую нечем вернуть, осталась бы в архиве навсегда. Здесь строка не в архиве, " +
+            "и ответ — «без изменений»; сам возврат проверяет соседний тест"),
         ["POST /api/common-data/archived-among"] = new(null, null,
             "чтение: POST только ради списка идентификаторов в теле"),
         ["POST /api/employees/"] = new(null, null,
@@ -115,6 +116,33 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
         var stored = await db.DomainObjects.AsNoTracking().SingleAsync(o => o.CompositeTypeId == typeId);
         Assert.Equal(planted.Id, stored.Id);
         Assert.Equal("Строка", stored.DisplayName);
+        Assert.Null(stored.ArchivedAt);
+    }
+
+    /// <summary>
+    /// Исключение переписи — поведением, а не словами: строка закрытого типа, оказавшаяся в архиве,
+    /// из него ВОЗВРАЩАЕТСЯ. В общем тесте строка в архиве не была, и «200» там отвечала ветка
+    /// «без изменений» — она прошла бы и при запрете на настоящем возврате (ревью PR #1233).
+    /// </summary>
+    [Fact]
+    public async Task Строку_закрытого_типа_из_архива_вернуть_можно()
+    {
+        var (typeId, planted) = await PlantAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(1, await db.DomainObjects.Where(o => o.Id == planted.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.ArchivedAt, DateTimeOffset.UtcNow)));
+        }
+        var client = await SignInAsync();
+
+        var response = await client.SendAsync(
+            Request("POST /api/common-data/{id:guid}/unarchive", typeId, planted));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var check = fixture.Services.CreateScope();
+        var stored = await check.ServiceProvider.GetRequiredService<AppDbContext>()
+            .DomainObjects.AsNoTracking().SingleAsync(o => o.Id == planted.Id);
         Assert.Null(stored.ArchivedAt);
     }
 

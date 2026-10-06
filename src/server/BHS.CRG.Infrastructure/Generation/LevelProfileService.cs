@@ -22,6 +22,10 @@ public class LevelProfileService(AppDbContext db) : ILevelProfileService
         var types = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         var typeId = LevelProfiles.ResolveProfileTypeId(types, tag);
         if (typeId is null) return null; // профиль-тип не сконфигурирован
+        // Профиль — объект общей таблицы. Тип, чьи записи модуль держит у себя, профилем не служит
+        // (issue #1215): заведённый здесь объект был бы тем самым, что общим путём не заводится.
+        // Не отказ, а «профиля нет»: служба зовётся и на чтении страницы уровня.
+        if (!TypeStorageRules.KeptInCommonTable(types.First(t => t.Id == typeId.Value))) return null;
 
         // Текущий FK контейнера (tracked — понадобится проставить).
         var currentFk = await GetContainerProfileIdAsync(level, containerId, ct);

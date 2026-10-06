@@ -100,7 +100,7 @@ public sealed class ModuleOwnCatalogPort(
         if (found.Count == 0) return null;
 
         var type = found[0];
-        if (TypeOwner.IsCore(type.Module) || type.Storage != TypeStorage.SharedObject)
+        if (TypeOwner.IsCore(type.Module) || !TypeStorageRules.KeptInCommonTable(type))
             throw new InvalidOperationException(
                 $"Тип «{typeCode}» — не справочник модуля в общей таблице (владелец «{type.Module}», носитель " +
                 $"«{type.Storage}»). Записи ядра и таблиц модулей этим портом не пишутся.");
