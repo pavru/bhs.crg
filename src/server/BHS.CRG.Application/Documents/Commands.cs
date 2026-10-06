@@ -216,8 +216,10 @@ public record ResolveCommonDataForSetQuery(Guid SetId, RecordsFor For, Guid? Com
 /// который стартует только с комплекта. Нужен, чтобы из раздел/строечного объекта ссылаться на
 /// объекты более широких уровней.
 /// </summary>
+/// <param name="ArchivedOnly">Только архивные записи — раздел «В архиве» окна выбора (issue #1185).
+/// Имеет смысл лишь с показом: у выбора архивных нет, и ответ был бы пуст.</param>
 public record ResolveCommonDataForScopeQuery(
-    CatalogScope Scope, Guid? ScopeId, RecordsFor For, Guid? CompositeTypeId = null)
+    CatalogScope Scope, Guid? ScopeId, RecordsFor For, Guid? CompositeTypeId = null, bool ArchivedOnly = false)
     : IRequest<IReadOnlyList<CommonDataEntryWithScope>>;
 
 public record CommonDataEntryWithScope(

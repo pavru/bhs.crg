@@ -304,6 +304,37 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Contains("data", await created.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Дверь сотрудников создаёт той же командой, что и общий адрес, — значит, и отказ «есть в
+    /// архиве» у неё тот же. Без полей ответа и без <c>createAnyway</c> он был бы тупиком: текст
+    /// предлагает «создать, подтвердив», а подтвердить нечем (ревью PR #1229).
+    /// </summary>
+    [Fact]
+    public async Task Сотрудник_с_табельным_номером_архивного_отказ_с_полями_и_согласие()
+    {
+        var type = await EmployeeTypeAsync();
+        var archived = await SendAsync(new CreateCommonDataEntryCommand(
+            "Иванов И. И.", type.Id, JsonDocument.Parse("""{"ТабельныйНомер":"0777"}"""), CatalogScope.System, null));
+        using (var scope = fixture.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<Application.Objects.IRecordArchive>().SetAsync(archived.Id, true);
+
+        var client = fixture.CreateClient();
+        await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
+        object Body(bool? anyway) => new
+        {
+            displayName = "Иванов Иван", data = """{"ТабельныйНомер":"0777"}""", createAnyway = anyway,
+        };
+
+        var refused = await client.PostAsJsonAsync("/api/employees", Body(null));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var body = await refused.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("archived-twin", body.GetProperty("code").GetString());
+        Assert.Equal(archived.Id, body.GetProperty("archivedId").GetGuid());
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/employees", Body(true))).StatusCode);
+    }
+
     [Fact]
     public async Task Правка_чужой_карточки_через_дверь_сотрудников_отвергается()
     {

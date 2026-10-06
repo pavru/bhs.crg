@@ -35,10 +35,15 @@ export function RefPickerCurrentArchived({ name, onKeep }: { name: string; onKee
  * <p>Без права вести общие данные кнопки нет, а текст говорит, к кому идти: отключённая кнопка без
  * объяснения — кнопка в никуда.</p>
  */
-export function RefPickerArchive({ entries, onReturned }: {
+export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
   entries: CommonDataEntry[];
   /** Запись возвращена из архива — её можно выбирать как действующую. */
   onReturned: (entry: CommonDataEntry) => void;
+  /**
+   * Встанет ли запись в поле сразу после возврата. Нет — впереди ещё вопрос (вариант union'а), и
+   * кнопка зовётся «Вернуть из архива»: возврат необратим для всех, а выбор может не состояться.
+   */
+  selectsAtOnce: (entry: CommonDataEntry) => boolean;
 }) {
   const unarchive = useSetCommonDataArchive();
   const canReturn = useCan().permission('core.catalog.edit');
@@ -72,7 +77,7 @@ export function RefPickerArchive({ entries, onReturned }: {
               <Button variant="tonal" size="sm" icon={<ArchiveRestore size={13} />}
                 loading={unarchive.isPending && unarchive.variables?.id === entry.id}
                 disabled={unarchive.isPending} onClick={() => void giveBack(entry)}>
-                Вернуть и выбрать
+                {selectsAtOnce(entry) ? 'Вернуть и выбрать' : 'Вернуть из архива'}
               </Button>
             )}
           </li>

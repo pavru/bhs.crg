@@ -75,8 +75,23 @@ public static class EmployeeEndpoints
             if (ParseData(req.Data, "{}") is not { } data)
                 return Results.BadRequest(new { error = DataNotJson });
 
-            return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
-                req.DisplayName, typeId, data, CatalogScope.System, ScopeId: null, req.Aliases))));
+            try
+            {
+                return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
+                    req.DisplayName, typeId, data, CatalogScope.System, ScopeId: null, req.Aliases,
+                    req.CreateAnyway ?? false))));
+            }
+            // Тот же ответ, что у общего адреса создания (issue #1185): сотрудник с таким табельным
+            // номером лежит в архиве. Без полей и без createAnyway отказ был бы тупиком — текст
+            // предлагает «создать, подтвердив», а подтвердить было бы нечем (ревью PR #1229).
+            catch (ArchivedTwinException ex)
+            {
+                return Results.Conflict(new
+                {
+                    error = ex.Message, code = "archived-twin",
+                    archivedId = ex.ArchivedId, archivedName = ex.ArchivedName, archivedScope = ex.ArchivedScope,
+                });
+            }
         });
 
         edit.MapPut("/{id:guid}", async (
@@ -174,7 +189,7 @@ public static class EmployeeEndpoints
     /// Тип в запросе НЕ принимается: он один и известен двери. Приди он снаружи — дверь сотрудников
     /// заводила бы записи любого типа, и право снова означало бы не то, что написано.
     /// </summary>
-    private record CreateEmployeeRequest(string DisplayName, string? Data, string[]? Aliases);
+    private record CreateEmployeeRequest(string DisplayName, string? Data, string[]? Aliases, bool? CreateAnyway = null);
 
     private record UpdateEmployeeRequest(string DisplayName, string? Data, string[]? Aliases);
 }

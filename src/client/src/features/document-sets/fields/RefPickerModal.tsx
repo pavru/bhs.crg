@@ -121,8 +121,10 @@ function RefPickerModalBody({
   const searching = search.trim().length > 0;
   // Архив читаем ТОЛЬКО при набранном запросе и отдельным чтением «на показ» (issue #1185): список
   // на выбор архивных не несёт и нести не должен, а раздел «В архиве» отвечает на «не нашёл».
+  // Сервер отдаёт одни архивные: весь список уровня ради нескольких записей был бы вторым тяжёлым
+  // запросом на первое же нажатие клавиши (ревью PR #1229).
   const { data: shownEntries = NO_ENTRIES } = useCommonDataForScope({
-    scope: effScope, scopeId: effScopeId, purpose: 'display', enabled: !!effScope && searching,
+    scope: effScope, scopeId: effScopeId, purpose: 'display', archivedOnly: true, enabled: !!effScope && searching,
   });
   // Запрос ОДИН на все три раздела. Пока их было два, каталог фильтровался нетримленной строкой, а
   // остальное — тримленной: «аоср » с хвостовым пробелом опустошал каталог, оставив документы, и
@@ -501,7 +503,10 @@ function RefPickerModalBody({
         )}
 
         {/* Вне навигируемых опций намеренно: стрелки и Enter сюда не доходят (см. RefPickerArchive). */}
-        <RefPickerArchive entries={inArchive} onReturned={entry => choose({ type: 'catalog', entry })} />
+        <RefPickerArchive entries={inArchive} onReturned={entry => choose({ type: 'catalog', entry })}
+          // Ничья по типу: после возврата откроется вопрос «в какой вариант», и выбор может не
+          // состояться. Кнопка тогда обещает только то, что делает наверняка (ревью PR #1229).
+          selectsAtOnce={entry => !unionMode || placementOf(entry.compositeTypeId).kind !== 'ambiguous'} />
       </div>
     </Modal>
   );

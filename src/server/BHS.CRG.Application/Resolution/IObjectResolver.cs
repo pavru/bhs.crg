@@ -53,16 +53,23 @@ public sealed record ObjectMatchRequest
         var fields = new Dictionary<string, string?>(StringComparer.Ordinal);
         if (data.ValueKind == System.Text.Json.JsonValueKind.Object)
             foreach (var p in data.EnumerateObject())
-                fields[p.Name] = p.Value.ValueKind switch
-                {
-                    System.Text.Json.JsonValueKind.String => p.Value.GetString(),
-                    System.Text.Json.JsonValueKind.Number => p.Value.GetRawText(),
-                    System.Text.Json.JsonValueKind.True => "true",
-                    System.Text.Json.JsonValueKind.False => "false",
-                    _ => null,
-                };
+                fields[p.Name] = MatchText(p.Value);
         return ByIdentity(typeId, fields);
     }
+
+    /// <summary>
+    /// Значение поля тем текстом, по которому резолвер сравнивает: строка, число, да/нет; остальное —
+    /// «значения нет». Один читатель на обе стороны — и для лежащих записей, и для вопроса: разойдись
+    /// они, ключ новой записи молча перестал бы совпадать с ключом лежащей (ревью PR #1229).
+    /// </summary>
+    public static string? MatchText(System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.String => value.GetString(),
+        System.Text.Json.JsonValueKind.Number => value.GetRawText(),
+        System.Text.Json.JsonValueKind.True => "true",
+        System.Text.Json.JsonValueKind.False => "false",
+        _ => null,
+    };
 }
 
 /// <summary>
@@ -90,7 +97,6 @@ public interface IObjectResolver
     /// <summary>Резолвит один запрос. null — совпадения нет (создание объектов не выполняется).</summary>
     Task<ObjectMatch?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 
-    /// <summary>Батч в одном scope (кандидаты и скоп-цепочка строятся один раз). Порядок результата = порядок запросов.</summary>
     /// <summary>
     /// Тот же вопрос, но по базе КАК ОНА ЕСТЬ СЕЙЧАС и без следа в памяти резолвера (issue #1185).
     /// Для вопроса ПЕРЕД записью («нет ли уже такой?»): кандидаты, запомненные до записи, после неё
@@ -98,6 +104,7 @@ public interface IObjectResolver
     /// </summary>
     Task<ObjectMatch?> ResolveFreshAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 
+    /// <summary>Батч в одном scope (кандидаты и скоп-цепочка строятся один раз). Порядок результата = порядок запросов.</summary>
     Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(
         IReadOnlyList<ObjectMatchRequest> reqs, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 }

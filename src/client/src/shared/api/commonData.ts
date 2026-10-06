@@ -65,6 +65,7 @@ export function useCommonDataForScope({
   scopeId,
   purpose,
   typeId,
+  archivedOnly = false,
   enabled = true,
 }: {
   scope: CatalogScope | undefined;
@@ -72,14 +73,16 @@ export function useCommonDataForScope({
   /** Зачем список — см. {@link RecordsPurpose}. Обязателен: умолчания у этого решения нет. */
   purpose: RecordsPurpose;
   typeId?: string;
+  /** Только архивные записи (раздел «В архиве» окна выбора). Сервер принимает лишь с `display`. */
+  archivedOnly?: boolean;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null, purpose],
+    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null, purpose, archivedOnly],
     queryFn: () =>
       apiClient
         .get<CommonDataEntryWithScope[]>('/common-data/for-scope', {
-          params: { scope, scopeId: scopeId ?? undefined, typeId, purpose },
+          params: { scope, scopeId: scopeId ?? undefined, typeId, purpose, only: archivedOnly ? 'archived' : undefined },
         })
         .then(r => r.data),
     enabled: enabled && !!scope,

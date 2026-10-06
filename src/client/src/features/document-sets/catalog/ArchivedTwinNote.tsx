@@ -1,22 +1,8 @@
-import { Archive, ArchiveRestore, Link2 } from 'lucide-react';
-import { useCommonDataEntry, useSetCommonDataArchive, type ArchivedTwin } from '@/shared/api/commonData';
+import { Archive, ArchiveRestore } from 'lucide-react';
+import { useSetCommonDataArchive, type ArchivedTwin } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { Button } from '@/shared/ui/Button';
-import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { useToast } from '@/shared/ui/Toast';
-
-/** Показ резолвнутой $ref-ссылки в связанном поле (issue #99): резолвит запись каталога по id → имя. */
-export function BoundRefValue({ entryId }: { entryId: string }) {
-  const { data: entry } = useCommonDataEntry(entryId);
-  return (
-    <span className="inline-flex items-center gap-1 text-brand">
-      <Link2 size={12} className="shrink-0" />
-      {entry ? entry.displayName : <span className="text-fg4">запись каталога…</span>}
-      {/* Запись по идентификатору несёт признак сама (issue #1185): связка цела, пометка — о выборе. */}
-      {entry?.archived && <ArchivedMark />}
-    </span>
-  );
-}
 
 /**
  * «Такая запись есть в архиве» в форме новой записи (issue #1185). Сервер отказал в создании: ключ
@@ -45,7 +31,8 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
       toast.apiError(e, 'Запись не возвращена из архива');
       return;
     }
-    toast.success(`Запись «${twin.archivedName}» возвращена из архива — она снова в списке. Новая не создавалась.`);
+    // Про «снова в списке» не говорим: двойник мог лежать на другом уровне, чем открытый список.
+    toast.success(`Запись «${twin.archivedName}» возвращена из архива. Новая не создавалась.`);
     onReturned();
   }
 

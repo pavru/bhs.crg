@@ -47,9 +47,15 @@ public static class CommonDataEndpoints
         });
 
         // Resolve entries visible from ANY scope level, walking the parent chain (issue #82).
-        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, string? purpose, IMediator m) =>
+        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, string? purpose, string? only, IMediator m) =>
         {
             if (Purpose(purpose) is not { } records) return PurposeRequired();
+            // only=archived — раздел «В архиве» окна выбора: ему нужны одни архивные, а не весь
+            // список уровня ради трёх записей (ревью PR #1229). Только с показом: у выбора архивных
+            // нет, и пустой ответ выглядел бы как «в архиве ничего нет».
+            var archivedOnly = only == "archived";
+            if (only is not null && !(archivedOnly && records == RecordsFor.Display))
+                return Results.BadRequest(new { error = "Параметр only принимает одно значение — archived — и только вместе с purpose=display." });
             CatalogScope? parsed = scope switch
             {
                 "Set"          => CatalogScope.Set,
@@ -59,7 +65,7 @@ public static class CommonDataEndpoints
                 _              => null,
             };
             if (parsed is null) return Results.BadRequest($"Unknown scope '{scope}'.");
-            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId)))
+            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId, archivedOnly)))
                 .Select(Elide));
         });
 

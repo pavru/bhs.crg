@@ -18,7 +18,7 @@ public partial class ArchiveReadInventoryTests
             Shown("карточка сотрудника по идентификатору: редактор и действия над ней").X(3),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))"] =
             ByPurpose("назначение называет клиент параметром purpose; без него — отказ", nameof(ArchiveReadPurposeTests.Адрес_списка_требует_назначение_и_отвечает_по_нему)),
-        ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId)))"] =
+        ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId, archivedOnly)))"] =
             ByPurpose("назначение называет клиент параметром purpose; без него — отказ", nameof(ArchiveReadPurposeTests.Адрес_списка_требует_назначение_и_отвечает_по_нему)),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ResolveCommonDataForSetQuery(setId, records, typeId))).Select(Elide));"] =
             ByPurpose("назначение называет клиент параметром purpose; без него — отказ", nameof(ArchiveReadPurposeTests.Адрес_списка_требует_назначение_и_отвечает_по_нему)),

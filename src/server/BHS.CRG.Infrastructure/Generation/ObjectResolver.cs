@@ -38,6 +38,18 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         // Мимо обоих кэшей: и цепочка уровней, и типы читаются заново — вопрос задают перед записью.
         var chain = await ScopeChains.LoadForScopeAsync(db, scopeLevel, scopeId, ct);
         var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+
+        // Ключа нет — и совпасть нечему: записи типа не читаем вовсе (ревью PR #1229). Вопрос задаёт
+        // каждое создание записи, а у большинства типов полей идентичности нет; читать ради него все
+        // записи типа вместе с их данными (у организаций там картинки) было бы платой ни за что.
+        if (req.Strategy == ObjectMatchStrategy.IdentityKey)
+        {
+            var type = allTypes.FirstOrDefault(t => t.Id == req.TypeId);
+            var keys = type is null ? [] : IdentityFieldKeys(type, allTypes);
+            if (req.Fields is null
+                || BuildCompositeKey(keys, f => req.Fields.TryGetValue(f, out var v) ? v : null) is null)
+                return null;
+        }
         return (await BuildIndexAsync(req.TypeId, chain, allTypes, ct)).Match(req);
     }
 
@@ -134,15 +146,7 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
 
     private static string? ReadField(JsonDocument data, string field)
     {
-        if (!data.RootElement.TryGetProperty(field, out var el)) return null;
-        return el.ValueKind switch
-        {
-            JsonValueKind.String => el.GetString(),
-            JsonValueKind.Number => el.GetRawText(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            _ => null,
-        };
+        return data.RootElement.TryGetProperty(field, out var el) ? ObjectMatchRequest.MatchText(el) : null;
     }
 
     /// <summary>Индекс кандидатов одного (тип, scope): упорядоченный список + lookup по имени/составному ключу.</summary>

@@ -45,7 +45,8 @@ import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/shared/api/valueIssues';
 import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { BindingCheckReport } from './BindingCheckReport';
-import { ArchivedTwinNote, BoundRefValue } from './ArchivedTwinNote';
+import { ArchivedTwinNote } from './ArchivedTwinNote';
+import { BoundRefValue } from './BoundRefValue';
 
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
 // кандидаты (записи родительского типа по скопам) строятся ниже из parentEntries.
@@ -331,11 +332,6 @@ export function CatalogEntryForm({
     } finally { setRecognizing(false); }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    void save(false);
-  }
-
   async function save(createAnyway: boolean) {
     setError(''); setTwin(null);
     if (!displayName.trim() || !typeId) { setError('Укажите название и тип'); return; }
@@ -583,7 +579,7 @@ export function CatalogEntryForm({
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+    <form onSubmit={e => { e.preventDefault(); void save(false); }} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
       <div className={showRail ? 'flex gap-5 items-start' : ''}>
       {showRail && (

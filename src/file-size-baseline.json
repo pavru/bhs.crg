@@ -3,7 +3,7 @@
   "deploy/update.sh": 818,
   "src/client/e2e/seed.mjs": 568,
   "src/client/src/features/datasets/PdfGroupingEditor.tsx": 538,
-  "src/client/src/features/document-sets/catalog/index.tsx": 668,
+  "src/client/src/features/document-sets/catalog/index.tsx": 665,
   "src/client/src/features/document-sets/editor/DataSetsTab.tsx": 706,
   "src/client/src/features/document-sets/editor/RequisitesTab.tsx": 651,
   "src/client/src/features/document-sets/fields/ComplexFields.tsx": 765,

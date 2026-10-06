@@ -180,6 +180,27 @@ public class ArchiveTwinTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal([archived], ids);
     }
 
+    /// <summary>
+    /// Раздел «В архиве» окна выбора просит одни архивные — не весь список уровня. С выбором
+    /// параметр отвергается: у выбора архивных нет, и пустой ответ читался бы как «в архиве пусто».
+    /// </summary>
+    [Fact]
+    public async Task Список_уровня_отдаёт_только_архивные_по_просьбе_и_только_для_показа()
+    {
+        var type = await TypeAsync("TWIN_H", OrgSchema);
+        await EntryAsync(type, "Лютик", "{'ИНН':'1'}");
+        var archived = await EntryAsync(type, "Ромашка", "{'ИНН':'2'}");
+        await ArchiveAsync(archived);
+        var client = await SignInAsync();
+        var url = $"/api/common-data/for-scope?scope=System&typeId={type}";
+
+        var only = await client.GetFromJsonAsync<JsonElement>(url + "&purpose=display&only=archived");
+
+        Assert.Equal([archived], only.EnumerateArray().Select(e => e.GetProperty("id").GetGuid()).ToList());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(url + "&purpose=choice&only=archived")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(url + "&purpose=display&only=live")).StatusCode);
+    }
+
     private async Task<HttpClient> SignInAsync()
     {
         var email = $"twin_{Guid.NewGuid():N}@example.com";
