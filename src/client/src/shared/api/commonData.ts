@@ -4,6 +4,8 @@ import { apiClient } from './client';
 import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, RecordsPurpose } from './types';
 
 const QK = 'common-data';
+/** Ключ действия «в архив / из архива»: по нему правка записи узнаёт, что оно ещё в пути. */
+const ARCHIVE_KEY = [QK, 'archive'];
 
 /**
  * Записи одного уровня. `purpose` обязателен (issue #1185): назначение входит и в ключ кэша —
@@ -194,10 +196,14 @@ export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefin
       if (!next) throw new Error('Правка без записи: форма новой записи создаёт, а не правит.');
       const { id } = next.entry;
       const key = [QK, 'by-id', id];
-      // Запись как раз перечитывается (её только что вернули из архива над этой формой) — ждём:
-      // иначе ушла бы прежняя версия, и сервер отказал бы человеку на его собственное действие.
-      // Какую версию назвать, решает тот же шаг: содержимое то же — новая, другое — прежняя.
-      if (qc.isFetching({ queryKey: key }) > 0) await qc.refetchQueries({ queryKey: key }, { cancelRefetch: false });
+      // Запись только что вернули из архива над этой формой — ждём и само действие, и перечитывание
+      // после него: иначе ушла бы прежняя версия, и сервер отказал бы человеку на его собственное
+      // действие (на стенде так и вышло, пока ждали одно перечитывание: «Сохранить» успевает, пока
+      // «Вернуть» ещё в пути). Какую версию назвать, решает тот же шаг: содержимое то же — новая,
+      // другое — прежняя.
+      while (qc.isMutating({ mutationKey: ARCHIVE_KEY }) > 0) await new Promise(done => setTimeout(done, 50));
+      if (qc.isFetching({ queryKey: key }) > 0 || qc.getQueryState(key)?.isInvalidated)
+        await qc.refetchQueries({ queryKey: key }, { cancelRefetch: false });
       const seen = seenStep(next, qc.getQueryData<CommonDataEntry>(key)).version;
       return apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
         { headers: { 'If-Match': seen } }).then(r => r.data);
@@ -277,6 +283,7 @@ export interface RecordArchiveResult {
 export function useSetCommonDataArchive() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: ARCHIVE_KEY,
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       apiClient.post<RecordArchiveResult>(`/common-data/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
     // Сбрасывается ВСЁ прочитанное, а не один список общих данных (ревью PR #1227): от признака
