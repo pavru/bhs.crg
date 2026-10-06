@@ -32,21 +32,67 @@ public record ImageMigrationReport(
 /// </summary>
 public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
 {
-    private readonly DomainObjectRepository _objects = new(db);
+    /// <summary>Сколько раз запись перечитывается, если её меняют прямо во время переноса.</summary>
+    private const int Attempts = 3;
 
     /// <summary>
-    /// Объект для переноса: в настоящем прогоне — ПОД БЛОКИРОВКОЙ строки (issue #1232), в пробном —
-    /// простым чтением. Между чтением и записью здесь лежит выгрузка картинок в хранилище, то есть
-    /// секунды: правка формы, пришедшая в них, стиралась снимком, снятым до неё. Блокировка держится
-    /// на время выгрузки одной записи — форма в это время ждёт и получает честный отказ по версии.
+    /// «Прочитал — преобразовал — записал, ЕСЛИ строку тем временем не меняли» (issue #1232).
+    ///
+    /// <para>Между чтением и записью здесь лежит выгрузка картинок в хранилище, то есть секунды:
+    /// правка формы, пришедшая в них, стиралась снимком, снятым до неё. Блокировка строки на время
+    /// выгрузки не годится — форма ждала бы хранилище, а зависшее хранилище держало бы и строку, и
+    /// открытую транзакцию. Поэтому запись условная, одним UPDATE: изменили строку — он не тронет
+    /// ничего, и запись проходится заново, по свежим данным. Картинки первой попытки остаются в
+    /// хранилище без владельца — их заберёт уборка сирот.</para>
+    ///
+    /// <para>Не удалось за <see cref="Attempts" /> попытки — запись остаётся как была и попадает в
+    /// число неудач отчёта: следующий прогон её заберёт.</para>
     /// </summary>
-    private async Task<(ILockedObjects? Row, Domain.Objects.DomainObject? Obj)> ReadForUpdateUnlessDryAsync(Guid id, bool dryRun, CancellationToken ct)
+    private static async Task<((int Count, long Amount, int Failed)? Result, bool GaveUp)> RewriteAsync<TSeen>(
+        bool dryRun,
+        Func<Task<(string Json, TSeen Seen)?>> read,
+        Func<JsonNode, Task<(int Count, long Amount, int Failed)>> transform,
+        Func<TSeen, string, Task<bool>> saveIfUnchanged)
     {
-        if (dryRun)
-            return (null, await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id, ct));
-        var row = await _objects.ReadForUpdateAsync([id], ct);
-        return (row, row.Objects.FirstOrDefault());
+        for (var attempt = 1; attempt <= Attempts; attempt++)
+        {
+            if (await read() is not { } row) return (null, false);   // запись успели удалить
+            if (JsonNode.Parse(row.Json) is not { } node) return (null, false);
+
+            var result = await transform(node);
+            if (result.Count == 0 || dryRun) return (result, false);
+            if (await saveIfUnchanged(row.Seen, node.ToJsonString())) return (result, false);
+        }
+        return (null, true);
     }
+
+    private async Task<(string Json, uint Seen)?> ReadObjectAsync(Guid id, CancellationToken ct) =>
+        await db.DomainObjects.AsNoTracking().Where(o => o.Id == id)
+            .Select(o => new { o.Data, o.RowVersion }).FirstOrDefaultAsync(ct) is { } row
+            ? (row.Data.RootElement.GetRawText(), row.RowVersion)
+            : null;
+
+    /// <summary>Версия строки — та же, что сверяет форма (issue #1214): её двигает любая запись.</summary>
+    private async Task<bool> SaveObjectAsync(Guid id, uint seen, string json, CancellationToken ct) =>
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE domain_objects SET "Data" = {json}::jsonb, "UpdatedAt" = {DateTimeOffset.UtcNow}
+            WHERE "Id" = {id} AND xmin::text::bigint = {(long)seen}
+            """, ct) > 0;
+
+    private async Task<(string Json, string Seen)?> ReadQualityAsync(Guid id, CancellationToken ct) =>
+        await db.QualityDocuments.AsNoTracking().Where(d => d.Id == id)
+            .Select(d => d.Requisites).FirstOrDefaultAsync(ct) is { } requisites
+            ? (requisites.RootElement.GetRawText(), requisites.RootElement.GetRawText())
+            : null;
+
+    /// <summary>У документа качества версии строки в модели нет — сверяются сами реквизиты.</summary>
+    private async Task<bool> SaveQualityAsync(Guid id, string seen, string json, CancellationToken ct) =>
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE quality_documents SET "Requisites" = {json}::jsonb, "UpdatedAt" = {DateTimeOffset.UtcNow}
+            WHERE "Id" = {id} AND "Requisites" = {seen}::jsonb
+            """, ct) > 0;
 
     /// <param name="dryRun">Только посчитать: ничего не грузить и не сохранять.</param>
     public async Task<ImageMigrationReport> RunAsync(bool dryRun, CancellationToken ct = default)
@@ -62,31 +108,22 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         var ids = await db.Database.SqlQueryRaw<Guid>(sql).ToListAsync(ct);
 
         var failed = 0;
+        // Сохраняем ПОЗАПИСНО (issue #532): один общий SaveChanges держал бы весь перенос одной
+        // транзакцией, а правки, сделанные людьми во время прогона, затирались бы снимком, снятым
+        // до его начала.
         foreach (var id in ids)
         {
-            var (row, obj) = await ReadForUpdateUnlessDryAsync(id, dryRun, ct);
-            await using var _ = row;
-            if (obj is null) continue;   // запись успели удалить, пока шёл перенос
-
-            var node = JsonNode.Parse(obj.Data.RootElement.GetRawText());
-            if (node is null) continue;
-
-            var moved = await MoveAsync(node, dryRun, ct);
-            failed += moved.Failed;
-            if (moved.Count == 0) continue;
+            var (moved, gaveUp) = await RewriteAsync(dryRun,
+                () => ReadObjectAsync(id, ct), node => MoveAsync(node, dryRun, ct),
+                (seen, json) => SaveObjectAsync(id, seen, json, ct));
+            if (gaveUp) failed++;
+            if (moved is not { } m) continue;
+            failed += m.Failed;
+            if (m.Count == 0) continue;
 
             objects++;
-            images += moved.Count;
-            bytes += moved.Bytes;
-
-            if (!dryRun)
-            {
-                obj.SetData(JsonDocument.Parse(node.ToJsonString()));
-                // Сохраняем ПОЗАПИСНО (issue #532): один общий SaveChanges держал бы весь перенос
-                // одной транзакцией, а правки, сделанные людьми во время прогона, затирались бы
-                // снимком, снятым до его начала.
-                await row!.SaveAsync(ct);
-            }
+            images += m.Count;
+            bytes += m.Amount;
         }
 
         // Документы качества хранят реквизиты в своей таблице, и поле-картинка там тоже бывает
@@ -95,26 +132,17 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         var qualitySql = "SELECT \"Id\" FROM quality_documents WHERE \"Requisites\"::text LIKE '%data:image%'";
         foreach (var id in await db.Database.SqlQueryRaw<Guid>(qualitySql).ToListAsync(ct))
         {
-            var doc = await db.QualityDocuments.FirstOrDefaultAsync(d => d.Id == id, ct);
-            if (doc is null) continue;
-
-            var node = JsonNode.Parse(doc.Requisites.RootElement.GetRawText());
-            if (node is null) continue;
-
-            var moved = await MoveAsync(node, dryRun, ct);
-            failed += moved.Failed;
-            if (moved.Count == 0) continue;
+            var (moved, gaveUp) = await RewriteAsync(dryRun,
+                () => ReadQualityAsync(id, ct), node => MoveAsync(node, dryRun, ct),
+                (seen, json) => SaveQualityAsync(id, seen, json, ct));
+            if (gaveUp) failed++;
+            if (moved is not { } m) continue;
+            failed += m.Failed;
+            if (m.Count == 0) continue;
 
             objects++;
-            images += moved.Count;
-            bytes += moved.Bytes;
-
-            if (!dryRun)
-            {
-                doc.Update(doc.DocumentTypeId, doc.DisplayName, JsonDocument.Parse(node.ToJsonString()));
-                db.QualityDocuments.Update(doc);
-                await db.SaveChangesAsync(ct);
-            }
+            images += m.Count;
+            bytes += m.Amount;
         }
 
         // Второй проход — УМЕНЬШЕНИЕ уже переехавших картинок (issue #523). Отдельно от переноса,
@@ -125,25 +153,16 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         var blobSql = "SELECT \"Id\" FROM domain_objects WHERE \"Data\"::text LIKE '%\"$type\": \"image\"%' OR \"Data\"::text LIKE '%\"$type\":\"image\"%'";
         foreach (var id in await db.Database.SqlQueryRaw<Guid>(blobSql).ToListAsync(ct))
         {
-            var (row, obj) = await ReadForUpdateUnlessDryAsync(id, dryRun, ct);
-            await using var _ = row;
-            if (obj is null) continue;
+            var (shrunk, gaveUp) = await RewriteAsync(dryRun,
+                () => ReadObjectAsync(id, ct), node => ShrinkAsync(node, dryRun, ct),
+                (seen, json) => SaveObjectAsync(id, seen, json, ct));
+            if (gaveUp) failed++;
+            if (shrunk is not { } s) continue;
+            failed += s.Failed;
+            if (s.Count == 0) continue;
 
-            var node = JsonNode.Parse(obj.Data.RootElement.GetRawText());
-            if (node is null) continue;
-
-            var shrunk = await ShrinkAsync(node, dryRun, ct);
-            failed += shrunk.Failed;
-            if (shrunk.Count == 0) continue;
-
-            downscaled += shrunk.Count;
-            saved += shrunk.Saved;
-
-            if (!dryRun)
-            {
-                obj.SetData(JsonDocument.Parse(node.ToJsonString()));
-                await row!.SaveAsync(ct);
-            }
+            downscaled += s.Count;
+            saved += s.Amount;
         }
 
         return new ImageMigrationReport(objects, images, bytes, failed, downscaled, saved);

@@ -91,7 +91,7 @@ public partial class ArchiveReadInventoryTests
             Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|await using var rows = await objectRepo.ReadForUpdateAsync("] =
             Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
-        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|await using var row = await objRepo.ReadForUpdateAsync([source.Id], ct);"] =
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|await using var row = await objRepo.ReadForUpdateAsync([cmd.SourceId], ct);"] =
             Documents("документ комплекта под блокировкой строки — записей общих данных здесь нет (issue #1232)"),
         ["BHS.CRG.Application/Generation/GenerateDocumentHandler.cs|await using var row = await instanceRepo.ReadForUpdateAsync([instance.Id], ct);"] =
             Documents("документ комплекта под блокировкой строки — записей общих данных здесь нет (issue #1232)"),
@@ -216,7 +216,9 @@ public partial class ArchiveReadInventoryTests
             Shown("резолвер «строка → объект»: находит и архивные, состояние в ответе, действующая побеждает архивную"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var blobSql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%\\\"$type\\\": \\\"image\\\"%' OR \\\"Data\\\"::text LIKE '%\\\"$type\\\":\\\"image\\\"%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
-        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|return (null, await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id, ct));"] =
+        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|await db.DomainObjects.AsNoTracking().Where(o => o.Id == id)"] =
+            Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
+        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|UPDATE domain_objects SET \"Data\" = {json}::jsonb, \"UpdatedAt\" = {DateTimeOffset.UtcNow}"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var sql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%data:image%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
@@ -232,11 +234,13 @@ public partial class ArchiveReadInventoryTests
             Service("объявление таблицы — не чтение"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|.SqlQuery<long>($\"\"\"SELECT xmin::text::bigint AS \"Value\" FROM domain_objects WHERE \"Id\" = {entry.Id} FOR UPDATE\"\"\")"] =
             Service("правка записи: версия строки читается под блокировкой, архивную запись правят так же (issue #1214)"),
-        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|.SqlQuery<Guid>($\"\"\"SELECT \"Id\" AS \"Value\" FROM domain_objects WHERE \"Id\" = ANY({wanted}) ORDER BY \"Id\" FOR UPDATE\"\"\")"] =
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|.SqlQuery<Guid>($\"\"\"SELECT \"Id\" AS \"Value\" FROM domain_objects WHERE \"Id\" = ANY({wanted}) ORDER BY \"Id\" FOR NO KEY UPDATE\"\"\")"] =
             Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var ids = await Db.Set<DomainObject>().Where(which).Select(o => o.Id).ToListAsync(ct);"] =
             Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
-        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var objects = await Db.Set<DomainObject>().Where(o => wanted.Contains(o.Id)).ToListAsync(ct);"] =
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|if (Db.Set<DomainObject>().Local.FindEntry(id) is { } entry)"] =
+            Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var objects = await Db.Set<DomainObject>()"] =
             Service("чтение под блокировкой строки для писателя-преобразователя: архивную запись переносят и чинят так же (issue #1232)"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> Db.Set<DomainObject>()"] =
             Seen("чтение по идентификатору: что делать с архивной, решает звавший"),

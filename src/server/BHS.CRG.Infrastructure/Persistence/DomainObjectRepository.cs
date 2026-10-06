@@ -78,37 +78,99 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
     {
         var wanted = ids.Distinct().ToArray();
         // В порядке идентификаторов: два писателя, взявшие одни и те же строки в разном порядке,
-        // ждали бы друг друга вечно.
+        // ждали бы друг друга вечно. NO KEY UPDATE, а не UPDATE: ключ строки писатель не меняет, и
+        // вставка строки, ссылающейся на объект (фасета, привязка набора), ждать его не должна.
         await Db.Database
-            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM domain_objects WHERE "Id" = ANY({wanted}) ORDER BY "Id" FOR UPDATE""")
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM domain_objects WHERE "Id" = ANY({wanted}) ORDER BY "Id" FOR NO KEY UPDATE""")
             .ToListAsync(ct);
 
         // Объект, который контекст уже держит, запрос вернул бы ПРЕЖНИМ: отслеживаемую сущность EF
-        // значениями из базы не обновляет. Поэтому такие перечитываются явно — иначе блокировка
-        // охраняла бы запись того же устаревшего снимка.
-        foreach (var entry in Db.ChangeTracker.Entries<DomainObject>().Where(e => wanted.Contains(e.Entity.Id)).ToList())
-            if (entry.State is not (EntityState.Added or EntityState.Detached))
-                await entry.ReloadAsync(ct);
+        // значениями из базы не обновляет. Поэтому такие освежаются явно — иначе блокировка
+        // охраняла бы запись того же устаревшего снимка. Ищем по ключу, а не обходом трекера.
+        foreach (var id in wanted)
+            if (Db.Set<DomainObject>().Local.FindEntry(id) is { } entry)
+                await RefreshAsync(entry, ct);
 
-        var objects = await Db.Set<DomainObject>().Where(o => wanted.Contains(o.Id)).ToListAsync(ct);
+        // С фасетой и файлами, как GetByIdAsync: документ без фасеты отвечал бы «не документ».
+        var objects = await Db.Set<DomainObject>()
+            .Include(o => o.Facet).ThenInclude(f => f!.GeneratedFiles)
+            .Where(o => wanted.Contains(o.Id)).ToListAsync(ct);
         return new LockedObjects(Db, own, objects);
+    }
+
+    /// <summary>
+    /// Освежить уже отслеживаемый объект, НЕ теряя того, что вызывающий успел в нём изменить: из базы
+    /// берётся каждое поле, которое он не трогал. Полное перечитывание молча отменило бы его
+    /// несохранённое переименование или удаление.
+    /// </summary>
+    private static async Task RefreshAsync(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<DomainObject> entry, CancellationToken ct)
+    {
+        if (entry.State is EntityState.Added or EntityState.Deleted or EntityState.Detached) return;
+        if (await entry.GetDatabaseValuesAsync(ct) is not { } stored) return; // строки уже нет
+
+        foreach (var property in entry.Properties)
+        {
+            if (property.Metadata.IsPrimaryKey()) continue;
+            if (property.IsModified)
+            {
+                // Данные, изменённые ДО блокировки, собраны по устаревшему снимку — ровно то, от чего
+                // блокировка и заведена. Молча оставить их значило бы записать его под её охраной.
+                if (property.Metadata.Name == nameof(DomainObject.Data))
+                    throw new InvalidOperationException(
+                        "Данные объекта изменены до чтения под блокировкой: сначала ReadForUpdateAsync, потом правка.");
+                continue;
+            }
+            property.CurrentValue = stored[property.Metadata];
+            property.OriginalValue = stored[property.Metadata];
+            property.IsModified = false;
+        }
     }
 
     private sealed class LockedObjects(
         AppDbContext db, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? own,
         IReadOnlyList<DomainObject> objects) : ILockedObjects
     {
+        private bool _saved;
+
+        // Что вызывающий изменил ДО блокировки: при освобождении без сохранения это остаётся его.
+        private readonly Dictionary<DomainObject, Dictionary<string, object?>> _before = objects.ToDictionary(
+            o => o,
+            o => db.Entry(o).Properties.Where(p => p.IsModified).ToDictionary(p => p.Metadata.Name, p => p.CurrentValue));
+
         public IReadOnlyList<DomainObject> Objects => objects;
 
         public async Task SaveAsync(CancellationToken ct = default)
         {
             await db.SaveChangesAsync(ct);
             if (own is not null) await own.CommitAsync(ct);
+            _saved = true;
         }
 
-        // Незафиксированная транзакция при освобождении откатывается — записано не будет ничего.
         public async ValueTask DisposeAsync()
         {
+            if (!_saved)
+            {
+                // Откат транзакции правок из контекста не убирает: следующее сохранение того же
+                // контекста записало бы данные, собранные под блокировкой, уже без неё. Поэтому
+                // изменённое под блокировкой возвращается к прочитанному; изменённое до неё — к
+                // тому, что было у вызывающего.
+                foreach (var obj in objects)
+                {
+                    var entry = db.Entry(obj);
+                    if (entry.State is not EntityState.Modified) continue;
+                    foreach (var property in entry.Properties.Where(p => p.IsModified))
+                    {
+                        if (_before[obj].TryGetValue(property.Metadata.Name, out var mine))
+                        {
+                            property.CurrentValue = mine;
+                            continue;
+                        }
+                        property.CurrentValue = property.OriginalValue;
+                        property.IsModified = false;
+                    }
+                }
+            }
             if (own is not null) await own.DisposeAsync();
         }
     }

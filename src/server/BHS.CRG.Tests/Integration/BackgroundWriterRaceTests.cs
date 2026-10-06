@@ -130,13 +130,68 @@ public class BackgroundWriterRaceTests(IntegrationTestFixture fixture) : IAsyncL
         var entry = await EntryAsync("RACE_C");
 
         using (var background = fixture.Services.CreateScope())
-        await using (var rows = await Objects(background).ReadForUpdateAsync([entry.Id]))
-            Stamp(Assert.Single(rows.Objects));
+        {
+            await using (var rows = await Objects(background).ReadForUpdateAsync([entry.Id]))
+                Stamp(Assert.Single(rows.Objects));
+
+            // Откат транзакции правок из контекста не убирает. Следующее сохранение ТОГО ЖЕ
+            // контекста (так устроен разбор отказа у выпуска документа) записало бы штамп уже без
+            // блокировки — поэтому несохранённые данные возвращаются к прочитанным.
+            await Objects(background).SaveChangesAsync();
+        }
 
         // Блокировка отпущена: форма сохраняется, и версия у неё прежняя — строку не трогали.
         var saved = await FormSavesAsync(entry.Id, entry.Version);
         Assert.Equal("Тверь", Field(saved, "Адрес"));
         Assert.Null(Field(await StoredAsync(entry.Id), "Метка"));
+    }
+
+    /// <summary>
+    /// Освежение не отменяет того, что писатель успел изменить сам: полное перечитывание молча
+    /// стёрло бы его несохранённое переименование, и сохранение ответило бы успехом.
+    /// </summary>
+    [Fact]
+    public async Task Несохранённая_правка_писателя_блокировку_переживает()
+    {
+        var entry = await EntryAsync("RACE_F");
+
+        using var background = fixture.Services.CreateScope();
+        var snapshot = (await Objects(background).GetByIdAsync(entry.Id))!;
+        snapshot.Rename("Своё имя");
+
+        await FormSavesAsync(entry.Id, entry.Version);
+
+        await using (var rows = await Objects(background).ReadForUpdateAsync([entry.Id]))
+        {
+            var fresh = Assert.Single(rows.Objects);
+            Assert.Equal("Своё имя", fresh.DisplayName);
+            Assert.Equal("Тверь", Field(fresh, "Адрес"));
+            Stamp(fresh);
+            await rows.SaveAsync();
+        }
+
+        var stored = await StoredAsync(entry.Id);
+        Assert.Equal("Своё имя", stored.DisplayName);
+        Assert.Equal("Тверь", Field(stored, "Адрес"));
+        Assert.Equal("фон", Field(stored, "Метка"));
+    }
+
+    /// <summary>
+    /// Данные, изменённые ДО блокировки, собраны по устаревшему снимку. Принять их молча значило бы
+    /// записать этот снимок под охраной блокировки — отказ называет ошибку вызывающего.
+    /// </summary>
+    [Fact]
+    public async Task Данные_изменённые_до_блокировки_отказ()
+    {
+        var entry = await EntryAsync("RACE_G");
+
+        using var background = fixture.Services.CreateScope();
+        Stamp((await Objects(background).GetByIdAsync(entry.Id))!);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Objects(background).ReadForUpdateAsync([entry.Id]));
+        // Отказ блокировку не оставил: форма сохраняется.
+        Assert.Equal("Тверь", Field(await FormSavesAsync(entry.Id, entry.Version), "Адрес"));
     }
 
     [Fact]

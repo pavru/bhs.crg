@@ -45,6 +45,7 @@ public class DomainExceptionPolicyTests
         // сообщения и показывают на экране — вместе с полным путём к программе на сервере. Теперь
         // это наш TypstUnavailableException: путь остаётся в журнале, человек получает «проверьте
         // установку Typst», а тот же текст спокойно проходит через Refusals.TextOr в тех местах.
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs"] = "данные объекта изменены до чтения под блокировкой (issue #1232): промах кода-писателя, а не действие человека",
         ["BHS.CRG.Infrastructure/Generation/DocumentGeneratorFactory.cs"] = "формат вне перечисления — недостижимо снаружи",
         ["BHS.CRG.Infrastructure/Persistence/ModuleLostReferenceScan.cs"] = "сущности цели нет в модели ядра — дефект таблицы соответствия, ловит ModuleReferenceInventoryTests",
         ["BHS.CRG.Infrastructure/Jobs/JobBackgroundService.cs"] = "неизвестный вид фоновой задачи — дефект реестра задач",

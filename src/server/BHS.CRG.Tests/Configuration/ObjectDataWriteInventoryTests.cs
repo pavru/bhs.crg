@@ -26,7 +26,8 @@ public class ObjectDataWriteInventoryTests
     private static readonly string[] Projects = ["BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure"];
 
     private static readonly Regex DataWrite = new(
-        @"\.SetData\(|entry\.Update\(cmd\.DisplayName|DomainObject\.Restore(Document)?\(", RegexOptions.Compiled);
+        @"\.SetData\(|entry\.Update\(cmd\.DisplayName|DomainObject\.Restore(Document)?\(|UPDATE domain_objects SET ""Data""",
+        RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше ищется чтение под блокировкой и сколько ниже — запись по версии.</summary>
     private const int Reach = 60;
@@ -43,8 +44,10 @@ public class ObjectDataWriteInventoryTests
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|source.SetData(data);"] = Locked,
         ["BHS.CRG.Application/Generation/GenerateDocumentHandler.cs|instance.SetData(stamp(instance.Data));"] = Locked,
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|instance.SetData(patched);"] = Locked,
-        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|obj.SetData(JsonDocument.Parse(node.ToJsonString()));"] = Locked,
 
+        ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|UPDATE domain_objects SET \"Data\" = {json}::jsonb, \"UpdatedAt\" = {DateTimeOffset.UtcNow}"] =
+            "перенос и уменьшение картинок: запись условная, одним UPDATE по версии строки — изменили " +
+            "тем временем, и запись проходится заново; блокировка на время выгрузки держала бы форму",
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|obj.SetData(cmd.Requisites);"] =
             "форма реквизитов документа: версии у неё нет, из двух сохранений побеждает последнее — " +
             "решение #1214 касалось записей общих данных; фоновые писатели её правку не стирают",

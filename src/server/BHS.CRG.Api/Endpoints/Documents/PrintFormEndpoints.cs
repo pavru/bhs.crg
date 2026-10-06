@@ -93,7 +93,14 @@ public static class PrintFormEndpoints
                 // прочитан до выгрузки файла, и реквизиты, сохранённые формой за это время, запись
                 // «всех полей, как прочитал» стёрла бы.
                 await using var row = await objects.ReadForUpdateAsync([instance.Id], ct);
-                if (row.Objects.Count == 0) return Results.NotFound();
+                // Пока файл выгружался, документ могли удалить или перенести в другой комплект —
+                // адрес с прежним комплектом писать в него уже не вправе. Выгруженное убираем:
+                // иначе файл остался бы в хранилище без владельца.
+                if (row.Objects.Count == 0 || instance.ScopeId != setId)
+                {
+                    await blob.DeleteAsync(blobPath, ct);
+                    return Results.NotFound();
+                }
                 var current = instance.Data;
                 var dict = new Dictionary<string, JsonElement>();
                 foreach (var p in current.RootElement.EnumerateObject())

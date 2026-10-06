@@ -219,6 +219,11 @@ public class DocumentSetHandlers(
     // что и copy; PDF сбрасываются (контекст резолва сменился).
     public async Task<CopyResult> Handle(MoveDocumentToSetCommand cmd, CancellationToken ct)
     {
+        // Блокировка строки — ДО первого чтения документа (issue #1232): значения переписываются по
+        // его снимку, и реквизиты, сохранённые формой между чтением и записью, перенос стёр бы. До
+        // чтения — потому что по тому же снимку идут и проверки ниже, и сброс фасеты в черновик:
+        // второй перенос того же документа обязан увидеть его уже в новом комплекте.
+        await using var row = await objRepo.ReadForUpdateAsync([cmd.SourceId], ct);
         var (source, targetSet) = await LoadCopyEndpointsAsync(cmd.SourceId, cmd.TargetSetId, ct);
         var srcSetId = source.ScopeId!.Value;
         if (srcSetId == targetSet.Id) throw new ConflictException("Документ уже в этом комплекте.");
@@ -227,11 +232,6 @@ public class DocumentSetHandlers(
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя перенести документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
-
-        // Под блокировкой строки (issue #1232): значения переписываются по снимку документа, и
-        // реквизиты, сохранённые формой после чтения выше, перенос унёс бы с собой в небытие.
-        await using var row = await objRepo.ReadForUpdateAsync([source.Id], ct);
-        if (row.Objects.Count == 0) throw new NotFoundException();
 
         var (data, warnings) = await BuildCopyPlanAsync(source, targetSet, cmd.Strategy, ct);
         var docs = await objRepo.GetSetDocumentsAsync(targetSet.Id, tracked: false, ct);
