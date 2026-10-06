@@ -35,6 +35,58 @@ public class ImageBlobMigrationTests(IntegrationTestFixture fx)
         new(scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             scope.ServiceProvider.GetRequiredService<IBlobStorage>());
 
+    /// <summary>Хранилище, которое во время первой выгрузки даёт «форме» сохраниться.</summary>
+    private sealed class EditDuringUpload(IBlobStorage inner, Func<Task> edit) : IBlobStorage
+    {
+        private bool _done;
+        public int Uploads { get; private set; }
+
+        public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
+        {
+            Uploads++;
+            if (!_done) { _done = true; await edit(); }
+            return await inner.UploadAsync(fileName, content, contentType, ct);
+        }
+
+        public Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default) => inner.DownloadAsync(blobPath, ct);
+        public Task DeleteAsync(string blobPath, CancellationToken ct = default) => inner.DeleteAsync(blobPath, ct);
+        public Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default) => inner.PutAsync(blobPath, content, contentType, ct);
+        public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default) => inner.GetSizeAsync(blobPath, ct);
+    }
+
+    /// <summary>
+    /// Между чтением записи и её сохранением лежит выгрузка картинок — секунды. Правка, пришедшая в
+    /// них, раньше стиралась снимком, снятым до неё (issue #1232). Теперь запись условная: строку
+    /// изменили — перенос проходит её заново, по свежим данным.
+    /// </summary>
+    [Fact]
+    public async Task Правка_пришедшая_во_время_выгрузки_не_стирается()
+    {
+        var id = await SeedAsync("{\"Печать\":\"" + Png + "\",\"ИНН\":\"7701234567\"}");
+        using var scope = fx.Services.CreateScope();
+        var storage = new EditDuringUpload(scope.ServiceProvider.GetRequiredService<IBlobStorage>(), async () =>
+        {
+            using var form = fx.Services.CreateScope();
+            var other = form.ServiceProvider.GetRequiredService<AppDbContext>();
+            var obj = (await other.DomainObjects.FindAsync(id))!;
+            obj.SetData(Data("{\"Печать\":\"" + Png + "\",\"ИНН\":\"5009998877\"}"));
+            await other.SaveChangesAsync();
+        });
+
+        var report = await new ImageBlobMigration(scope.ServiceProvider.GetRequiredService<AppDbContext>(), storage)
+            .RunAsync(dryRun: false);
+
+        Assert.Equal(0, report.Failed);
+        Assert.Equal(1, report.Images);
+        // Первая попытка записана не была — запись пройдена второй раз.
+        Assert.Equal(2, storage.Uploads);
+
+        using var check = fx.Services.CreateScope();
+        var saved = (await check.ServiceProvider.GetRequiredService<AppDbContext>().DomainObjects.FindAsync(id))!.Data.RootElement;
+        Assert.Equal("5009998877", saved.GetProperty("ИНН").GetString());
+        Assert.DoesNotContain("data:image", saved.GetRawText());
+    }
+
     [Fact]
     public async Task DryRun_CountsButChangesNothing()
     {

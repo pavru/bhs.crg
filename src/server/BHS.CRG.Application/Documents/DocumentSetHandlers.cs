@@ -219,6 +219,11 @@ public class DocumentSetHandlers(
     // что и copy; PDF сбрасываются (контекст резолва сменился).
     public async Task<CopyResult> Handle(MoveDocumentToSetCommand cmd, CancellationToken ct)
     {
+        // Блокировка строки — ДО первого чтения документа (issue #1232): значения переписываются по
+        // его снимку, и реквизиты, сохранённые формой между чтением и записью, перенос стёр бы. До
+        // чтения — потому что по тому же снимку идут и проверки ниже, и сброс фасеты в черновик:
+        // второй перенос того же документа обязан увидеть его уже в новом комплекте.
+        await using var row = await objRepo.ReadForUpdateAsync([cmd.SourceId], ct);
         var (source, targetSet) = await LoadCopyEndpointsAsync(cmd.SourceId, cmd.TargetSetId, ct);
         var srcSetId = source.ScopeId!.Value;
         if (srcSetId == targetSet.Id) throw new ConflictException("Документ уже в этом комплекте.");
@@ -241,7 +246,7 @@ public class DocumentSetHandlers(
         setRepo.Update(targetSet);
         if (await setRepo.GetByIdAsync(srcSetId, ct) is { } srcSet) { srcSet.TouchUpdatedAt(); setRepo.Update(srcSet); }
         objRepo.Update(source);
-        await objRepo.SaveChangesAsync(ct);
+        await row.SaveAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
         return new CopyResult(source, warnings);
     }

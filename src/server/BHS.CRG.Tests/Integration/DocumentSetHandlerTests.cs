@@ -118,6 +118,31 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
     }
 
     /// <summary>
+    /// Чтение под блокировкой отдаёт документ с фасетой, как <c>GetByIdAsync</c> (issue #1232, ревью
+    /// PR #1234): без неё документ отвечал бы «не документ», а статус и порядок бросали бы.
+    /// </summary>
+    [Fact]
+    public async Task Документ_прочитанный_под_блокировкой_приходит_с_фасетой()
+    {
+        var (_, section) = await CreateConstructionWithSectionAsync();
+        var dtId = await CreateDocTypeAsync("AOSR_LOCK");
+        Guid id;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var set = await Mediator(scope).Send(new CreateDocumentSetCommand(section.Id, "Комплект"));
+            id = (await Mediator(scope).Send(new AddDocumentToSetCommand(set.Id, dtId))).Id;
+        }
+
+        using var fresh = fixture.Services.CreateScope();
+        await using var rows = await fresh.ServiceProvider
+            .GetRequiredService<BHS.CRG.Application.Common.IDomainObjectRepository>().ReadForUpdateAsync([id]);
+
+        var doc = Assert.Single(rows.Objects);
+        Assert.True(doc.IsDocument);
+        Assert.Equal(DocumentStatus.Draft, doc.Status);
+    }
+
+    /// <summary>
     /// Копия документа — НОВЫЙ объект, и запрет заведения общим путём стоит у неё так же, как у
     /// создания (issue #1215, ревью PR #1233). Документ закрытого типа через приложение не завести,
     /// поэтому тип «закрывается» уже после: так в общей таблице и оказалась бы строка, пришедшая

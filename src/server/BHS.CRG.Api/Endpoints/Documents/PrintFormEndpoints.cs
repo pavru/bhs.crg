@@ -89,7 +89,18 @@ public static class PrintFormEndpoints
                     }
                 }
 
-                // Патчим реквизиты и сохраняем
+                // Патчим реквизиты и сохраняем — под блокировкой строки (issue #1232): документ
+                // прочитан до выгрузки файла, и реквизиты, сохранённые формой за это время, запись
+                // «всех полей, как прочитал» стёрла бы.
+                await using var row = await objects.ReadForUpdateAsync([instance.Id], ct);
+                // Пока файл выгружался, документ могли удалить или перенести в другой комплект —
+                // адрес с прежним комплектом писать в него уже не вправе. Выгруженное убираем:
+                // иначе файл остался бы в хранилище без владельца.
+                if (row.Objects.Count == 0 || instance.ScopeId != setId)
+                {
+                    await blob.DeleteAsync(blobPath, ct);
+                    return Results.NotFound();
+                }
                 var current = instance.Data;
                 var dict = new Dictionary<string, JsonElement>();
                 foreach (var p in current.RootElement.EnumerateObject())
@@ -103,8 +114,7 @@ public static class PrintFormEndpoints
                 await WriteGuard.EnsureAllowedAsync(
                     instance.Data, patched, instance.CompositeTypeId, docTypeRepo, primitiveRepo, objects, ct);
                 instance.SetData(patched);
-                instanceRepo.Update(instance);
-                await instanceRepo.SaveChangesAsync(ct);
+                await row.SaveAsync(ct);
 
                 return Results.Ok(new { updatedFields });
             })

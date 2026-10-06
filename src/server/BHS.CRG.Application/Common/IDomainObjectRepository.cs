@@ -75,6 +75,48 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// прошли бы сверку и оба записали — побеждало бы последнее, и оба получали бы «сохранено».</para>
     /// </summary>
     Task SaveSeenAsync(DomainObject entry, string seen, CancellationToken ct = default);
+
+    /// <summary>
+    /// Прочитать объекты ПОД БЛОКИРОВКОЙ строк — для писателя, который правит данные не по версии, а
+    /// преобразованием: перенос ключа поля, починка, перенос картинок, штамп выпуска (issue #1232).
+    ///
+    /// <para>Такой писатель работал по схеме «прочитал — изменил — сохранил»: правка формы,
+    /// сохранённая между его чтением и записью, стиралась его снимком, и оба получали успех. Здесь
+    /// чтение идёт уже под блокировкой, и преобразование ложится на то, что лежит в базе сейчас.
+    /// Отказа не получает никто; форма, открытая до такой записи, получит свой 409 — версия строки
+    /// сдвинулась.</para>
+    ///
+    /// <para>Объекты приходят с фасетой и файлами, как у <c>GetByIdAsync</c>. ⚠️ У объекта, который
+    /// этот контекст прочитал РАНЬШЕ, освежаются поля самой строки — те, что вызывающий не менял;
+    /// его несохранённые правки остаются, а данные, изменённые до блокировки, — отказ. Фасета такого
+    /// объекта остаётся прежней: кому нужен свежий документ целиком, блокирует ДО первого чтения.</para>
+    ///
+    /// <para>Блокировка живёт до <see cref="ILockedObjects.SaveAsync" /> либо до освобождения без
+    /// сохранения — тогда транзакция откатывается, а изменённое под блокировкой в строках этих
+    /// объектов возвращается к прочитанному (фасеты это не касается). Строки, которых уже нет, в
+    /// ответ не попадают.</para>
+    /// </summary>
+    Task<ILockedObjects> ReadForUpdateAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>То же — по условию: строки отбираются, блокируются и только потом читаются.</summary>
+    Task<ILockedObjects> ReadForUpdateAsync(
+        System.Linq.Expressions.Expression<Func<DomainObject, bool>> which, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Объекты, прочитанные под блокировкой строк (см. <see cref="IDomainObjectRepository.ReadForUpdateAsync(IReadOnlyCollection{Guid}, CancellationToken)" />).
+/// Освобождение без <see cref="SaveAsync" /> откатывает начатое.
+/// </summary>
+public interface ILockedObjects : IAsyncDisposable
+{
+    /// <summary>Свежие объекты, отслеживаемые контекстом; порядок не обещан.</summary>
+    IReadOnlyList<DomainObject> Objects { get; }
+
+    /// <summary>
+    /// Записать накопленное в контексте и отпустить блокировку. ⚠️ Сохраняется ВСЁ накопленное, не
+    /// только эти объекты, — одной транзакцией с ними.
+    /// </summary>
+    Task SaveAsync(CancellationToken ct = default);
 }
 
 /// <summary>Запись общих данных, лежащая в архиве: идентификатор и название.</summary>

@@ -115,7 +115,7 @@ public partial class ArchiveReadInventoryTests
             foreach (var file in SourceTree.Files(project))
             {
                 var text = File.ReadAllText(file);
-                var repository = Calls(Declared, text, @"(?:Find|Get|Query|Count|Any|Search|Refs|List)\w*");
+                var repository = Calls(Declared, text, @"(?:Find|Get|Query|Count|Any|Search|Refs|List|Read)\w*");
                 var catalog = Calls(DeclaredCatalog, text, "ListAsync|SearchAsync|RefsAsync|GetAsync");
 
                 foreach (var raw in text.Split('\n'))
