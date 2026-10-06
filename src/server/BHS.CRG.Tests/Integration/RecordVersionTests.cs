@@ -145,6 +145,37 @@ public class RecordVersionTests(IntegrationTestFixture fixture) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Сверка и запись НЕРАЗРЫВНЫ: строку держит блокировка. Первая правка сверилась и записала, но
+    /// ещё не зафиксирована; вторая по той же версии обязана ДОЖДАТЬСЯ её и получить отказ.
+    ///
+    /// <para>Без блокировки вторая прочла бы прежнюю версию (чужая запись ещё не видна), прошла бы
+    /// сверку и записалась поверх сразу после фиксации первой — обе получили бы «сохранено». Тест
+    /// гонки ниже это окно случайно не ловит: оно уже, чем разброс между запросами (проверено
+    /// поломкой), — поэтому окно здесь раскрыто руками, незафиксированной транзакцией.</para>
+    /// </summary>
+    [Fact]
+    public async Task Вторая_правка_ждёт_незафиксированную_первую_и_получает_отказ()
+    {
+        var entry = await EntryAsync("VER_F");
+        using var first = fixture.Services.CreateScope();
+        var db = first.ServiceProvider.GetRequiredService<AppDbContext>();
+        var objects = first.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var loaded = (await objects.GetByIdAsync(entry.Id))!;
+        loaded.Update("Первая", J("{'Адрес':'Первая'}"));
+        objects.Update(loaded);
+        await objects.SaveSeenAsync(loaded, entry.Version);
+
+        var second = Task.Run(() => UpdateAsync(entry.Id, "Вторая", entry.Version));
+        await Task.Delay(500);
+        Assert.False(second.IsCompleted, "вторая правка не дождалась первой — строка не заблокирована");
+
+        await transaction.CommitAsync();
+        await Assert.ThrowsAsync<ConflictException>(() => second);
+        Assert.Equal("Первая", (await StoredAsync(entry.Id)).DisplayName);
+    }
+
+    /// <summary>
     /// Гонка: правки по одной версии приходят разом. Записана ровно одна, остальные — отказ; без
     /// блокировки строки прошли бы несколько, и каждая получила бы «сохранено».
     /// </summary>
