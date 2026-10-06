@@ -64,7 +64,7 @@ const SITE = 'Объект прогона затрат';
 const site = (await api('GET', '/constructions')).find(c => c.name === SITE)
   ?? await api('POST', '/constructions', { name: SITE });
 
-const organizations = await api('GET', '/costs/organizations');
+const organizations = await api('GET', '/costs/organizations?purpose=choice');
 if (organizations.length === 0) {
   console.error('В справочнике нет ни одной организации — посев не отработал. Проверять нечего.');
   process.exit(1);

@@ -9,6 +9,12 @@ import { INVOICES_KEY } from './invoices';
 export interface CostsArticle {
   id: string;
   name: string;
+  /**
+   * В архиве (issue #1185): на выбор не предлагается, а там, где на неё уже разнесено, остаётся.
+   * Список один на справочник, названия и выбор — архивные в нём есть, и отбирает их тот, кто
+   * показывает выбор (`PlaceSelect`); новую часть на архивную статью сервер не запишет.
+   */
+  archived: boolean;
 }
 
 const KEY = ['costs-articles'] as const;
@@ -30,6 +36,20 @@ export function useSaveArticle() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: KEY });
       // Название статьи приезжает в разноске счёта — открытые счета иначе показывали бы прежнее.
+      void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+    },
+  });
+}
+
+/** Отправить статью в архив или вернуть. Свой адрес модуля и своё право — `costs.articles.edit`. */
+export function useSetArticleArchive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      apiClient.post<CostsArticle>(`/costs/articles/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Пометка «в архиве» у части разноски приезжает со счётом.
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
   });

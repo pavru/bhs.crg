@@ -18,6 +18,9 @@ import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { AllocationSummary, LineAllocationCell } from './LineAllocation';
 
+/** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
+const NO_MARKS = { nomenclatureLost: false, nomenclatureMoved: false, nomenclatureArchived: false } as const;
+
 /**
  * Строки счёта (задача C2, issue #1078, ТЗ COST-7, COST-7.2, COST-6.2).
  *
@@ -283,11 +286,12 @@ function Row({ draft, number, view, line, blocked, locked, allocationLocked, onA
             ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится. */}
         <NomenclaturePicker chosen={draft.nomenclatureId !== null} name={draft.nomenclatureName}
           lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
+          archived={draft.nomenclatureArchived}
           onPick={(id, name) => onEdit({
-            nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureMoved: false,
+            nomenclatureId: id, nomenclatureName: name, ...NO_MARKS,
           })}
           onClear={() => onEdit({
-            nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false, nomenclatureMoved: false,
+            nomenclatureId: null, nomenclatureName: null, ...NO_MARKS,
           })} />
       </td>
       <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${number}`}

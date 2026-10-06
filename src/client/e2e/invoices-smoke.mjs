@@ -74,7 +74,7 @@ const requisites = (number, purpose) => ({
 });
 
 /** Любая организация справочника — годится первая: проверки не про выбор поставщика. */
-const organizations = await api('GET', '/costs/organizations');
+const organizations = await api('GET', '/costs/organizations?purpose=choice');
 if (organizations.length === 0) {
   console.error('В справочнике нет ни одной организации — посев не отработал. Проверять нечего.');
   await browser.close();

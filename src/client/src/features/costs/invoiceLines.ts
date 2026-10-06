@@ -40,6 +40,8 @@ export interface LineDraft {
   nomenclatureLost: boolean;
   /** Запись есть, но она больше не позиция номенклатуры: помечается иначе, чем удалённая. */
   nomenclatureMoved?: boolean;
+  /** Позиция в архиве — пометка у названия; выбор другой позиции её снимает. */
+  nomenclatureArchived?: boolean;
   supplierText: string;
   supplierCode: string;
   unit: string;
@@ -83,6 +85,7 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
     nomenclatureName: line.nomenclatureName,
     nomenclatureLost: line.nomenclatureLost,
     nomenclatureMoved: line.nomenclatureIssue === 'moved',
+    nomenclatureArchived: line.nomenclatureArchived === true,
     supplierText: line.supplierText ?? '',
     supplierCode: line.supplierCode ?? '',
     unit: line.unit ?? '',

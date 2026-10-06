@@ -3,7 +3,7 @@ import { NO_PLACE, choiceOf, fromChoice, placeName, samePlace } from './places';
 
 const places = {
   sites: [{ id: 's1', name: 'Комарова 36', sections: [{ id: 'r1', name: '4 эт.' }] }],
-  articles: [{ id: 'a1', name: 'Склад' }],
+  articles: [{ id: 'a1', name: 'Склад', archived: false }, { id: 'a2', name: 'Склад на Лесной', archived: true }],
 };
 
 describe('цель разноски', () => {
@@ -24,5 +24,10 @@ describe('цель разноски', () => {
     expect(placeName({ construction: 's1', section: 'r1', article: null }, places)).toBe('Комарова 36 / 4 эт.');
     expect(placeName({ construction: null, section: null, article: 'a1' }, places)).toBe('Склад');
     expect(placeName({ construction: null, section: null, article: 'нет' }, places)).toBe('статьи нет в справочнике');
+  });
+
+  // Архивная статья — не потеря: названа как была, с пометкой, почему её нет в выборе (issue #1185).
+  it('название архивной статьи остаётся, с пометкой', () => {
+    expect(placeName({ construction: null, section: null, article: 'a2' }, places)).toBe('Склад на Лесной — в архиве');
   });
 });

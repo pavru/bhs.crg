@@ -17,7 +17,8 @@ import { SCOPE_LABELS } from '@/shared/api/types';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { CatalogEntryForm } from './index';
 import { ObjectRow } from './ObjectsByTypeList';
-import { ArchivedRows, ArchivedBanner } from './ArchiveParts';
+import { ArchivedRows } from '@/shared/ui/ArchivedRows';
+import { ArchivedBanner } from './ArchiveParts';
 import { useRecordArchive } from './useRecordArchive';
 import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 

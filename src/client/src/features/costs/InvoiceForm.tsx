@@ -26,6 +26,7 @@ import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import { LostReferencesNote } from './LostReferencesNote';
 import { LOST } from './lostReferences';
+import { withArchiveWord } from '@/shared/ui/archive';
 import { ScanUploadButton } from './InvoiceScanPanel';
 
 /**
@@ -291,15 +292,25 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       // Потерю называет СЕРВЕР (issue #1184), и только у значения, которое лежит в счёте: сравнение со
       // списком организаций показывало «удалена» у живого поставщика, пока список грузится. Старый
       // сервер состояния не присылает — тогда судим по списку, как раньше.
-      const state = view.references?.[fieldKey === K.supplier ? 'supplier' : 'payer'];
-      const stored = entryId !== null && entryId === refEntryId(view.requisites[fieldKey]);
+      const side = fieldKey === K.supplier ? 'supplier' : 'payer';
+      const state = view.references?.[side];
+      const storedId = refEntryId(view.requisites[fieldKey]);
+      const stored = entryId !== null && entryId === storedId;
+      // Организация, стоящая в счёте, в архиве (issue #1185). В списке на выбор её нет, название
+      // едет с самим счётом. Пункт держится за СОХРАНЁННЫМ значением, а не за текущим: заменил,
+      // передумал — вернул; сервер стоявшую ссылку принимает. После сохранения с другой он исчезнет.
+      const kept = state === 'archived' && storedId !== null
+        ? { id: storedId, name: withArchiveWord(view.references?.[`${side}Name`] ?? 'организация', true) }
+        : null;
+      const archived = kept !== null && entryId === kept.id;
       const lost = entryId !== null && (view.references
         ? stored && state === 'lost'
         : !organizationsUnread && !organizations.some(o => o.id === entryId));
       // Запись есть, но в списке организаций её нет — перевели в другой вид. Не потеря, но и молчать
       // нельзя: без своего пункта Radix показал бы плейсхолдер, и поле со ссылкой выглядело бы пустым
       // (ревью PR #1211). Пока список не пришёл (он пуст), судить не о чем.
-      const foreign = entryId !== null && !lost && organizations.length > 0 && !organizations.some(o => o.id === entryId);
+      const foreign = entryId !== null && !lost && !archived
+        && organizations.length > 0 && !organizations.some(o => o.id === entryId);
       const title = fieldKey === K.supplier ? 'Поставщик' : 'Плательщик';
 
       // Запертый счёт: выбор заменён полем для чтения, как у остальных, — отключённый выбор приглушён
@@ -308,7 +319,8 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
         return (
           <TextField label={title} readOnly onChange={() => {}}
             value={organizationsUnread ? 'справочник не прочитан'
-              : entryId === null ? '' : organizations.find(o => o.id === entryId)?.name ?? (lost ? LOST.organization : foreign ? LOST.movedOrganization : '')} />
+              : entryId === null ? '' : archived ? kept.name
+              : organizations.find(o => o.id === entryId)?.name ?? (lost ? LOST.organization : foreign ? LOST.movedOrganization : '')} />
         );
 
       return (
@@ -317,7 +329,9 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
             disabled={organizationsUnread}
             hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
               : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию'
-              : foreign ? 'Запись есть, но она больше не организация. Выберите организацию заново' : hint}
+              : foreign ? 'Запись есть, но она больше не организация. Выберите организацию заново'
+              : archived ? 'Запись в архиве. Счёт сохраняется как есть; после замены выбрать её заново будет нельзя'
+              : hint}
             value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
             onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
             {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
@@ -325,6 +339,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
             <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
             {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
             {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
+            {kept && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
             {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </Select>
         </div>

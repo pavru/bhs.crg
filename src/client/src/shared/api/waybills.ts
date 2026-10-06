@@ -16,6 +16,8 @@ export interface WaybillLineView {
   nomenclatureName: string | null;
   /** Ссылка есть, а позиции в справочнике нет. Считает сервер. */
   nomenclatureLost: boolean;
+  /** Позиция в архиве (issue #1185): строка сопоставлена, в поиске этой позиции больше нет. */
+  nomenclatureArchived?: boolean;
   sourceText: string | null;
   unit: string | null;
   quantity: number | null;

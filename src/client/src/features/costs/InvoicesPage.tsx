@@ -1,4 +1,5 @@
 import { MISSING } from './lostReferences';
+import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
@@ -47,7 +48,7 @@ export function InvoicesPage() {
   const [articlesOpen, setArticlesOpen] = useState(false);
 
   const invoices = useInvoices(needsParsing);
-  const organizations = useCostsOrganizations();
+  const organizations = useCostsOrganizations('choice');
   const create = useCreateInvoice();
   const toast = useToast();
 
@@ -222,7 +223,12 @@ function ListRow({ item, active, onClick }: {
  */
 function SupplierName({ item }: { item: InvoiceListItem }) {
   if (item.supplierName) {
-    return <span className="text-xs text-fg3 truncate">{item.supplierName}</span>;
+    return (
+      <span className="inline-flex items-center gap-1 min-w-0 text-xs text-fg3">
+        <span className="truncate">{item.supplierName}</span>
+        {item.supplierArchived && <ArchivedMark words={false} />}
+      </span>
+    );
   }
   if (item.supplierId) {
     return (

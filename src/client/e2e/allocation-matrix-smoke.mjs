@@ -75,7 +75,7 @@ for (let index = 1; index <= 8; index++) {
   sites.push(known.find(c => c.name === name) ?? await api('POST', '/constructions', { name }));
 }
 
-const organizations = await api('GET', '/costs/organizations');
+const organizations = await api('GET', '/costs/organizations?purpose=choice');
 if (organizations.length === 0) {
   console.error('В справочнике нет ни одной организации — посев не отработал. Проверять нечего.');
   process.exit(1);
@@ -226,6 +226,49 @@ await check('invoice-goes-to-article', async () => {
   if (part?.articleId !== article.id || part.constructionId !== null)
     throw new Error(`часть легла не на статью: ${JSON.stringify(part)}`);
   await page.getByText('весь счёт на этот объект').waitFor({ timeout: 5_000 });
+});
+
+// ── 3b. Архивная статья: из выбора ушла, а там, где на неё разнесено, осталась (issue #1185) ───────
+await check('archived-article-leaves-choice-but-stays-where-set', async () => {
+  // Статья своя и с постоянным названием: на дев-стенде прогон повторяется, и новая статья на каждый
+  // прогон копилась бы в архиве. Осталась архивной с прошлого раза — возвращаем.
+  const name = 'Склад архива прогона';
+  const article = (await api('GET', '/costs/articles')).find(a => a.name === name)
+    ?? await api('POST', '/costs/articles', { name });
+  if (article.archived) await api('POST', `/costs/articles/${article.id}/unarchive`);
+
+  const open = async number => {
+    await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: new RegExp(number) }).first().click();
+    return page.getByLabel('Объект счёта', { exact: true });
+  };
+  const outside = select => select.evaluate(s =>
+    [...s.querySelectorAll('optgroup[label="Вне строек"] option')].map(o => o.textContent));
+
+  const kept = `МТР-АС-${stamp}`;
+  const id = await invoice(kept, [{ supplierText: 'Кабель на закрытый склад', unit: 'м', quantity: 5, price: 2 }], 10);
+  const other = `МТР-АН-${stamp}`;
+  await invoice(other, [{ supplierText: 'Кабель', unit: 'м', quantity: 5, price: 2 }], 10);
+
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${id}/allocation`) && r.request().method() === 'PUT'),
+    (await open(kept)).selectOption({ label: name }),
+  ]);
+  await api('POST', `/costs/articles/${article.id}/archive`);
+
+  // Там, где стоит: выбрана и названа, с пометкой — а не «статьи нет в справочнике» и не пустое поле.
+  const standing = await open(kept);
+  const shown = await standing.evaluate(s => s.selectedOptions[0]?.textContent);
+  if (shown !== `${name} — в архиве`) throw new Error(`стоящая архивная статья показана как «${shown}»`);
+
+  // В другом счёте её не предлагают — ни с пометкой, ни без.
+  const offered = await outside(await open(other));
+  if (offered.some(o => o.startsWith(name))) throw new Error(`архивная статья предлагается на выбор: ${JSON.stringify(offered)}`);
+
+  // Пометку части даёт сервер, а не экран по списку статей: её читает и матрица, и строка разноски.
+  const view = await api('GET', `/costs/invoices/${id}`);
+  if (view.lines[0].allocation.parts[0]?.articleArchived !== true)
+    throw new Error(`ответ счёта не помечает часть на архивную статью: ${JSON.stringify(view.lines[0].allocation.parts[0])}`);
 });
 
 // ── 4. Бухгалтер: матрица только для чтения, и ни одного отказа ───────────────────────────────────
