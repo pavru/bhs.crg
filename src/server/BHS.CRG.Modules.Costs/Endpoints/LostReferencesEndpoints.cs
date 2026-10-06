@@ -1,10 +1,9 @@
-using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -14,7 +13,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Waybills">В скольких накладных.</param>
 /// <param name="Other">Ссылок, у которых документ не назван: колонка новой таблицы, которую этот счётчик
 /// ещё не знает, либо объявление без документа. Числом ссылок, а не документов, — и отдельно, чтобы они
-/// не выдавали себя за накладные (ревью PR #1211).</param>
+/// не выдавали себя за накладные (ревью PR #1211). Сюда же — удалённый тип счёта, когда больше в счёте
+/// не потеряно ничего: заменить тип в форме нечем, и в число счетов «исправьте» он не идёт (issue #1186).</param>
 public sealed record LostTally(int References, int Invoices, int Waybills, int Other);
 
 /// <summary>Объявленная ссылка модуля, которую опрос не проверил, — словами.</summary>
@@ -33,7 +33,7 @@ public sealed record LostReferencesView(
 /// Счётчик потерянных ссылок модуля (ТЗ CORE-34.3, issue #1184).
 ///
 /// <para><b>Ядро находит, модуль судит.</b> Какие ссылки потеряны, отвечает обратный опрос ядра по
-/// объявлениям модуля (<see cref="IModuleReferenceTargets.LostAsync" />). Можно ли запись ещё править,
+/// объявлениям модуля (<see cref="IModuleReferenceTargets.NotPresentAsync" />). Можно ли запись ещё править,
 /// знает только модуль — тем же правилом, каким правку запирает закрытый период
 /// (<see cref="ClosedPeriodGuard.LockOf" />).</para>
 ///
@@ -47,24 +47,23 @@ public static class LostReferencesEndpoints
             .WithTags("Счета")
             .RequireAuthorization(AppPolicies.Permission("costs.invoice.read"));
 
-    // Чей документ — говорит объявление ссылки (ReferenceDocument.Table), а не список таблиц здесь:
-    // новая таблица, дочерняя к счёту, попадёт в счета сама — и под проверку закрытого периода тоже.
-    private const string Invoices = "invoices";
     private const string Waybills = "waybills";
 
-    private static async Task<Ok<LostReferencesView>> ReadAsync(
-        CostsDbContext db, IModuleReferenceTargets targets, IModulePeriods periods, CancellationToken ct)
+    private static async Task<Ok<LostReferencesView>> ReadAsync(InvoiceReferenceTrouble trouble, CancellationToken ct)
     {
-        var found = await targets.LostAsync(CostsModule.ModuleCode, ct);
+        // Суждение о счетах — у общего места: то же множество кормит колонку таблицы счетов и отбор
+        // (issue #1186). Свой расчёт здесь разошёлся бы с числом строк под отбором.
+        var troubles = await trouble.ReadAsync(ct);
+        var lost = troubles.Findings.Lost.ToList();
 
-        var ofInvoices = found.Lost.Where(l => l is { DocumentKey: not null, DocumentTable: Invoices }).ToList();
-        var ofWaybills = found.Lost.Where(l => l is { DocumentKey: not null, DocumentTable: Waybills }).ToList();
-        var ofOther = found.Lost.Except(ofInvoices).Except(ofWaybills).ToList();
-        var locked = await LockedAsync(db, periods, [.. ofInvoices.Select(l => l.DocumentKey).OfType<Guid>().Distinct()], ct);
+        var ofInvoices = lost.Where(l => l.DocumentKey is { } key && l.DocumentTable == InvoiceReferenceTrouble.Invoices
+            && troubles.Lost.GetValueOrDefault(key) != LostMark.TypeOnly).ToList();
+        var ofWaybills = lost.Where(l => l is { DocumentKey: not null, DocumentTable: Waybills }).ToList();
+        var ofOther = lost.Except(ofInvoices).Except(ofWaybills).ToList();
 
         LostTally Tally(bool closed)
         {
-            var invoices = ofInvoices.Where(l => (l.DocumentKey is { } key && locked.Contains(key)) == closed).ToList();
+            var invoices = ofInvoices.Where(l => (troubles.Lost[l.DocumentKey!.Value] == LostMark.Locked) == closed).ToList();
             // Накладная закрытым периодом не запирается: её потери — всегда из тех, что можно исправить.
             // То же с тем, чей документ не назван: запереть их нечем.
             var waybills = closed ? [] : ofWaybills;
@@ -78,27 +77,8 @@ public static class LostReferencesEndpoints
 
         return TypedResults.Ok(new LostReferencesView(
             Tally(closed: false), Tally(closed: true),
-            [.. found.Unchecked.Select(u => new UncheckedReferenceView(u.What, Reason(u.Reason)))],
-            found.AsOf));
-    }
-
-    /// <summary>Счета из названных, запертые закрытым периодом. Запирается только оплаченный.</summary>
-    private static async Task<IReadOnlySet<Guid>> LockedAsync(
-        CostsDbContext db, IModulePeriods periods, IReadOnlyList<Guid> ids, CancellationToken ct)
-    {
-        if (ids.Count == 0) return new HashSet<Guid>();
-
-        var paid = await db.Invoices.AsNoTracking()
-            .Where(i => ids.Contains(i.Id) && i.Payment == InvoicePaymentState.Paid).ToListAsync(ct);
-        if (paid.Count == 0) return new HashSet<Guid>();
-
-        var owners = paid.Select(i => i.Id).ToList();
-        var parts = (await db.InvoiceAllocations.AsNoTracking().Where(a => owners.Contains(a.InvoiceId)).ToListAsync(ct))
-            .ToLookup(a => a.InvoiceId);
-        var boundaries = await periods.BoundariesAsync(ct);
-
-        return paid.Where(i => ClosedPeriodGuard.LockOf(i, parts[i.Id], boundaries) is not null)
-            .Select(i => i.Id).ToHashSet();
+            [.. troubles.Findings.Unchecked.Select(u => new UncheckedReferenceView(u.What, Reason(u.Reason)))],
+            troubles.Findings.AsOf));
     }
 
     private static string Reason(UncheckedReason reason) => reason switch

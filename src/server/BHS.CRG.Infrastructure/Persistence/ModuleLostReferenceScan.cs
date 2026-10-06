@@ -6,16 +6,19 @@ using NpgsqlTypes;
 namespace BHS.CRG.Infrastructure.Persistence;
 
 /// <summary>Таблица ядра, в которой живут записи одного вида.</summary>
-public sealed record CoreTable(string Schema, string Table, string Key);
+/// <param name="Archive">Колонка с моментом ухода в архив; <c>null</c> — у этого вида архива нет
+/// (issue #1185: он есть только у записи справочника).</param>
+public sealed record CoreTable(string Schema, string Table, string Key, string? Archive = null);
 
 /// <summary>Колонка вне ядра, о которой спрашивают: целы ли её ссылки.</summary>
 /// <param name="Target">Где искать цель; <c>null</c> — вид цели не назван, проверять негде.</param>
 /// <param name="Via">Колонка той же таблицы с ключом документа; <c>null</c> — не названа.</param>
 public sealed record ReferencingColumn(string Table, string Column, CoreTable? Target, string? Via);
 
-/// <summary>Ссылка, цели которой в ядре нет.</summary>
+/// <summary>Ссылка, цель которой не на месте: её в ядре нет либо она в архиве.</summary>
 /// <param name="Rows">Сколько строк таблицы несут её в этом документе.</param>
-public sealed record LostHit(ReferencingColumn Column, Guid TargetId, Guid? DocumentKey, int Rows);
+/// <param name="Archived">Цель есть, но лежит в архиве (issue #1186); иначе её нет вовсе.</param>
+public sealed record LostHit(ReferencingColumn Column, Guid TargetId, Guid? DocumentKey, int Rows, bool Archived = false);
 
 public enum UnscannedReason { NoTarget, Unreadable, MissingInSchema }
 
@@ -39,6 +42,10 @@ public sealed record LostScan(
 ///
 /// <para>Анти-соединение с таблицей цели, а не «собрать идентификаторы и спросить»: один проход
 /// колонки, и между «собрал» и «спросил» ничего не успевает измениться. Всё в одном снимке.</para>
+///
+/// <para><b>Архив — тем же проходом</b> (issue #1186). Отдельный опрос «что в архиве» шёл бы в своём
+/// снимке: запись, убранную в архив и удалённую между двумя проходами, назвали бы оба ответа либо ни
+/// один — и два счётчика рядом разошлись бы с одной и той же базой.</para>
 /// </summary>
 public class ModuleLostReferenceScan(AppDbContext db)
 {
@@ -48,7 +55,8 @@ public class ModuleLostReferenceScan(AppDbContext db)
 
     /// <summary>Таблица ядра по типу сущности — из модели, а не строкой: переименование таблицы
     /// миграцией не оставит опрос смотреть в пустоту.</summary>
-    public CoreTable TableOf(Type entity)
+    /// <param name="archiveProperty">Свойство с моментом ухода в архив; <c>null</c> — архива у вида нет.</param>
+    public CoreTable TableOf(Type entity, string? archiveProperty = null)
     {
         var type = db.Model.FindEntityType(entity)
             ?? throw new InvalidOperationException($"В модели ядра нет сущности {entity.Name}.");
@@ -57,7 +65,11 @@ public class ModuleLostReferenceScan(AppDbContext db)
         var key = type.FindPrimaryKey()?.Properties is [var single]
             ? single.GetColumnName()
             : throw new InvalidOperationException($"У сущности {entity.Name} ключ не из одной колонки.");
-        return new CoreTable(type.GetSchema() ?? "public", table, key);
+        var archive = archiveProperty is null
+            ? null
+            : type.FindProperty(archiveProperty)?.GetColumnName()
+              ?? throw new InvalidOperationException($"У сущности {entity.Name} нет свойства {archiveProperty}.");
+        return new CoreTable(type.GetSchema() ?? "public", table, key, archive);
     }
 
     /// <summary>
@@ -103,7 +115,7 @@ public class ModuleLostReferenceScan(AppDbContext db)
         }
     }
 
-    /// <summary>Потерянные ссылки в названных колонках схемы — одним снимком базы.</summary>
+    /// <summary>Ссылки названных колонок схемы, цель которых не на месте, — одним снимком базы.</summary>
     public async Task<LostScan> FindAsync(
         string schema, IReadOnlyList<ReferencingColumn> columns, CancellationToken ct = default)
     {
@@ -145,18 +157,22 @@ public class ModuleLostReferenceScan(AppDbContext db)
             try
             {
                 await using var cmd = connection.CreateCommand();
+                // Соединение, а не NOT EXISTS: строка цели нужна, чтобы отличить «в архиве» от «нет
+                // вовсе». У вида без архива условие остаётся прежним — «цели нет».
+                var archived = target.Archive is { } at ? $" OR t.{Id(at)} IS NOT NULL" : "";
                 cmd.CommandText = $"""
-                    SELECT x.{Id(column.Column)}, {via}, count(*)::int
+                    SELECT x.{Id(column.Column)}, {via}, t.{Id(target.Key)} IS NOT NULL, count(*)::int
                     FROM {Id(schema)}.{Id(column.Table)} x
+                    LEFT JOIN {Id(target.Schema)}.{Id(target.Table)} t ON t.{Id(target.Key)} = x.{Id(column.Column)}
                     WHERE x.{Id(column.Column)} IS NOT NULL
-                      AND NOT EXISTS (SELECT 1 FROM {Id(target.Schema)}.{Id(target.Table)} t
-                                      WHERE t.{Id(target.Key)} = x.{Id(column.Column)})
-                    GROUP BY 1, 2
+                      AND (t.{Id(target.Key)} IS NULL{archived})
+                    GROUP BY 1, 2, 3
                     """;
                 await using (var reader = await cmd.ExecuteReaderAsync(ct))
                     while (await reader.ReadAsync(ct))
                         lost.Add(new(column, reader.GetGuid(0),
-                            await reader.IsDBNullAsync(1, ct) ? null : reader.GetGuid(1), reader.GetInt32(2)));
+                            await reader.IsDBNullAsync(1, ct) ? null : reader.GetGuid(1), reader.GetInt32(3),
+                            reader.GetBoolean(2)));
                 await transaction.ReleaseSavepointAsync(Savepoint, ct);
             }
             catch (PostgresException)

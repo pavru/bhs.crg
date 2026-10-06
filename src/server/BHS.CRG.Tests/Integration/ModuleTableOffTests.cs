@@ -31,7 +31,7 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
         Assert.Equal(TableColumnReasons.ModuleOff, table.GetProperty("state").GetString());
         Assert.Empty(table.GetProperty("rows").EnumerateArray());
         var columns = table.GetProperty("columns").EnumerateArray().ToList();
-        Assert.Equal(21, columns.Count);
+        Assert.Equal(23, columns.Count);
         Assert.All(columns, c =>
         {
             Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString());

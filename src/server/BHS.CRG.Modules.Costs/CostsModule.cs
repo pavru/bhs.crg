@@ -199,6 +199,10 @@ public sealed class CostsModule : IAppModule
         // объявленная таблица открылась бы и отказала на первом же чтении.
         services.AddScoped<InvoiceTableRows>();
 
+        // Суждение о ссылках счетов, которые не на месте (issue #1186), — в области запроса: колонка
+        // таблицы, счётчик и отбор одного запроса получают один ответ ядра, а не три опроса.
+        services.AddScoped<InvoiceReferenceTrouble>();
+
         // Раздел модуля в диалоге закрытия периода (E1b, issue #1099): что войдёт в закрытый период
         // и что не завершено. Спрашивает его служба закрытия ядра.
         services.AddScoped<IModuleClosingReport, CostsClosingReport>();

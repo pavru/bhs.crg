@@ -17,20 +17,28 @@ public enum ReferenceState
     Lost,
 }
 
-/// <summary>Потерянная ссылка: в колонке модуля стоит идентификатор записи ядра, которой нет.</summary>
+/// <summary>
+/// Ссылка модуля, цель которой не на месте: записи ядра нет либо она в архиве.
+///
+/// <para>Одной записью на оба случая (issue #1186): их находит один проход и один снимок. Раздельные
+/// ответы пришлось бы снимать дважды, и запись, убранную в архив и удалённую между опросами, назвали
+/// бы оба — либо ни один.</para>
+/// </summary>
 /// <param name="Table">Таблица модуля.</param>
 /// <param name="Column">Колонка со ссылкой.</param>
 /// <param name="Target">Вид цели — как его объявил модуль.</param>
-/// <param name="TargetId">Идентификатор, которого в ядре нет.</param>
+/// <param name="TargetId">Идентификатор цели.</param>
+/// <param name="State"><see cref="ReferenceState.Lost" /> либо <see cref="ReferenceState.Archived" />;
+/// ссылки на записи, которые на месте, в ответ не входят.</param>
 /// <param name="DocumentKey">Ключ документа-держателя (<see cref="ReferenceDocument.Via" />): счёт у
 /// строки счёта. <c>null</c> — у объявления документ не назван.</param>
 /// <param name="Rows">Сколько строк таблицы несут эту ссылку в этом документе.</param>
 /// <param name="DocumentTable">Таблица документа-держателя (<see cref="ReferenceDocument.Table" />):
 /// <c>invoices</c> у строки счёта. Чей это документ, говорит объявление, а не список таблиц у читателя —
 /// второй список разошёлся бы с первым на первой же новой таблице (ревью PR #1211).</param>
-public sealed record LostReference(
-    string Table, string Column, ReferenceTarget Target, Guid TargetId, Guid? DocumentKey, int Rows,
-    string? DocumentTable = null);
+public sealed record ReferenceFinding(
+    string Table, string Column, ReferenceTarget Target, Guid TargetId, ReferenceState State,
+    Guid? DocumentKey, int Rows, string? DocumentTable = null);
 
 /// <summary>Почему колонку не удалось проверить.</summary>
 public enum UncheckedReason
@@ -51,12 +59,19 @@ public enum UncheckedReason
 public sealed record UncheckedColumn(string Table, string Column, UncheckedReason Reason, string What);
 
 /// <summary>Ответ обратного опроса.</summary>
-/// <param name="Lost">Потерянные ссылки.</param>
-/// <param name="Unchecked">Что не проверено. ⚠️ Пустой <paramref name="Lost" /> при непустом этом
-/// списке — НЕ «потерь нет»: показывать его нулём нельзя.</param>
+/// <param name="Found">Ссылки, цель которых не на месте: потерянные и архивные.</param>
+/// <param name="Unchecked">Что не проверено. ⚠️ Пустой <paramref name="Found" /> при непустом этом
+/// списке — НЕ «всё на месте»: показывать его нулём нельзя.</param>
 /// <param name="AsOf">Момент снимка базы, по которому дан ответ.</param>
-public sealed record LostReferences(
-    IReadOnlyList<LostReference> Lost, IReadOnlyList<UncheckedColumn> Unchecked, DateTimeOffset AsOf);
+public sealed record ReferenceFindings(
+    IReadOnlyList<ReferenceFinding> Found, IReadOnlyList<UncheckedColumn> Unchecked, DateTimeOffset AsOf)
+{
+    /// <summary>Потерянные: записи ядра больше нет.</summary>
+    public IEnumerable<ReferenceFinding> Lost => Found.Where(f => f.State == ReferenceState.Lost);
+
+    /// <summary>Архивные: запись цела, из выбора нового значения убрана.</summary>
+    public IEnumerable<ReferenceFinding> Archived => Found.Where(f => f.State == ReferenceState.Archived);
+}
 
 /// <summary>
 /// Обратный опрос: существуют ли записи ядра, на которые ссылается модуль (ТЗ CORE-34.2–34.4, issue
@@ -83,9 +98,9 @@ public interface IModuleReferenceTargets
         ReferenceTarget target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
     /// <summary>
-    /// Потерянные ссылки модуля — по его объявлениям (<see cref="IAppModule.References" />), в одном
-    /// снимке базы. Опрашиваются держащие колонки; помнящие (<see cref="ModuleReference.Remembering" />)
-    /// — нет: удаление их цели законно.
+    /// Ссылки модуля, цель которых не на месте, — по его объявлениям (<see cref="IAppModule.References" />),
+    /// в одном снимке базы: потерянные и архивные вместе (issue #1186). Опрашиваются держащие колонки;
+    /// помнящие (<see cref="ModuleReference.Remembering" />) — нет: удаление их цели законно.
     /// </summary>
-    Task<LostReferences> LostAsync(string moduleCode, CancellationToken ct = default);
+    Task<ReferenceFindings> NotPresentAsync(string moduleCode, CancellationToken ct = default);
 }
