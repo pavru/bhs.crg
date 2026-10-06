@@ -100,7 +100,11 @@ export interface BindingCheckItem {
   fieldKey: string;
   fieldTitle: string;
   /** error (issue #715) — резолв привязки не состоялся: источник недоступен либо материализация без маппинга. */
-  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale' | 'error';
+  /**
+   * `archived` — цель в архиве (issue #1185): стоящая связка цела, новая на архивную запись не
+   * появится. Не «не найдено»: запись есть, и чинится это возвратом из архива.
+   */
+  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale' | 'archived' | 'error';
   linkedName: string | null;
   detail: string | null;
 }

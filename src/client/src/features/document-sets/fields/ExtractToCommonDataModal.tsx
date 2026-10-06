@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, Link2, X } from 'lucide-react';
+import { AlertTriangle, ArchiveRestore, Link2, X } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -8,7 +8,8 @@ import { useToast } from '@/shared/ui/Toast';
 import type { CatalogScope, DocumentType, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { identityFieldKeys, resolveEffectiveFields } from '@/shared/api/schema';
-import { useCreateCommonDataEntry, useCommonDataForScope } from '@/shared/api/commonData';
+import { useCreateCommonDataEntry, useCommonDataForScope, useSetCommonDataArchive } from '@/shared/api/commonData';
+import { useCan } from '@/shared/api/access';
 import { useGetDocumentSet } from '@/shared/api/documentSets';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -115,6 +116,8 @@ export function ExtractToCommonDataModal({
   // подставится в чужой документ, и не заметит никто.
   const [target, setTarget] = useState<CatalogScope>(() => offered[0] ?? allowedMax);
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
+  const unarchive = useSetCommonDataArchive();
+  const canReturn = useCan().permission('core.catalog.edit');
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -169,14 +172,27 @@ export function ExtractToCommonDataModal({
     setAliasDraft('');
   }
 
-  function linkExisting() {
+  /**
+   * Связать с найденной записью. Архивную сначала возвращаем из архива (issue #1185): ссылка на
+   * запись, оставшуюся в архиве, была бы новой ссылкой на то, что из выбора убрали. Не вернулась —
+   * не связываем: отказ остаётся в окне, а не превращается в молчаливую ссылку.
+   */
+  async function linkExisting() {
     if (!duplicate) return;
+    const { match } = duplicate;
+    if (match.archived) {
+      setError('');
+      try { await unarchive.mutateAsync({ id: match.entryId, archived: false }); }
+      catch (e) { setError(errorText(e)); return; }
+    }
     onExtracted({
-      $ref: 'catalog', entryId: duplicate.match.entryId,
-      displayName: duplicate.match.displayName ?? '', scope: duplicate.match.scope,
+      $ref: 'catalog', entryId: match.entryId,
+      displayName: match.displayName ?? '', scope: match.scope,
     });
     onOpenChange(false);
-    toast.success('Поле связано с существующей записью. Новая не создавалась.');
+    toast.success(match.archived
+      ? `Запись «${match.displayName ?? ''}» возвращена из архива и связана с полем. Новая не создавалась.`
+      : 'Поле связано с существующей записью. Новая не создавалась.');
   }
 
   async function submit() {
@@ -321,11 +337,16 @@ export function ExtractToCommonDataModal({
 
         {duplicate && (
           <Note tone="warning" icon={<AlertTriangle size={14} />}
-            title={duplicate.strong
-              ? 'Такая запись уже есть — совпали поля идентичности'
-              : 'Есть запись с таким же наименованием'}>
+            title={duplicate.match.archived
+              ? (duplicate.strong
+                ? 'Такая запись есть в архиве — совпали поля идентичности'
+                : 'В архиве есть запись с таким же наименованием')
+              : duplicate.strong
+                ? 'Такая запись уже есть — совпали поля идентичности'
+                : 'Есть запись с таким же наименованием'}>
             <p className="mb-2">
-              «{duplicate.match.displayName}» на уровне «{SCOPE_LABELS[duplicate.match.scope]}».
+              «{duplicate.match.displayName}» на уровне «{SCOPE_LABELS[duplicate.match.scope]}»
+              {duplicate.match.archived ? ', в архиве.' : '.'}
               {duplicate.strong
                 ? ' Скорее всего это тот же объект.'
                 : ' Возможно, это просто тёзка — одноимённые организации встречаются.'}
@@ -333,9 +354,21 @@ export function ExtractToCommonDataModal({
             <p className="text-xs text-fg4 mb-2">
               Поиск идёт в выбранном уровне и выше: записи более узкого уровня отсюда не видны.
             </p>
-            <Button variant="tonal" size="sm" icon={<Link2 size={13} />} onClick={linkExisting}>
-              Связать с существующей
-            </Button>
+            {!duplicate.match.archived ? (
+              <Button variant="tonal" size="sm" icon={<Link2 size={13} />} onClick={() => void linkExisting()}>
+                Связать с существующей
+              </Button>
+            ) : canReturn ? (
+              <Button variant="tonal" size="sm" icon={<ArchiveRestore size={13} />}
+                loading={unarchive.isPending} disabled={unarchive.isPending} onClick={() => void linkExisting()}>
+                Вернуть из архива и связать
+              </Button>
+            ) : (
+              <p className="text-xs text-fg3">
+                Вернуть запись из архива может тот, кто ведёт общие данные. Связать поле с записью,
+                пока она в архиве, нельзя.
+              </p>
+            )}
           </Note>
         )}
 

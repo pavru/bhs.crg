@@ -29,7 +29,9 @@ public static class ObjectResolveEndpoints
             var res = await m.Send(new ResolveObjectsBatchQuery(scope, req.ScopeId, items));
             return Results.Ok(res.Select(r => r is null
                 ? null
-                : new { entryId = r.EntryId, displayName = r.DisplayName, scope = r.Scope.ToString() }));
+                // Признак архива едет наружу обязательно (issue #1185): без него экран подставил бы
+                // архивную запись как обычную — а отличить её по остальным полям нечем.
+                : new { entryId = r.EntryId, displayName = r.DisplayName, scope = r.Scope.ToString(), archived = r.Archived }));
         }).RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogRead));
     }
 

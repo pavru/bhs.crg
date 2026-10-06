@@ -27,16 +27,16 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
     private readonly Dictionary<(Guid, CatalogScope, Guid?), TypeIndex> _indexes = [];
     private List<DocumentType>? _allTypes;
 
-    public async Task<Guid?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
+    public async Task<ObjectMatch?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
     {
         var index = await GetIndexAsync(req.TypeId, scopeLevel, scopeId, ct);
         return index.Match(req);
     }
 
-    public async Task<IReadOnlyList<Guid?>> ResolveManyAsync(
+    public async Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(
         IReadOnlyList<ObjectMatchRequest> reqs, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default)
     {
-        var result = new List<Guid?>(reqs.Count);
+        var result = new List<ObjectMatch?>(reqs.Count);
         foreach (var req in reqs)
             result.Add(await ResolveAsync(req, scopeLevel, scopeId, ct));
         return result;
@@ -72,7 +72,10 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
                  (o.ScopeLevel == CatalogScope.Construction && o.ScopeId == chain.ConstructionId) ||
                  o.ScopeLevel == CatalogScope.System))
             .ToListAsync(ct);
-        candidates = candidates.OrderBy(o => (int)o.ScopeLevel).ToList(); // Set=1 … System=5
+        // Сначала действующие, потом уровень (Set=1 … System=5): индексы ниже строятся «первый
+        // побеждает», и архивная запись комплекта не должна заслонять действующую системную
+        // (issue #1185). Архивные в запросе остаются — совпадение с ними звавший обязан увидеть.
+        candidates = candidates.OrderBy(o => o.IsArchived).ThenBy(o => (int)o.ScopeLevel).ToList();
 
         var index = TypeIndex.Build(candidates, allTypes);
         _indexes[cacheKey] = index;
@@ -134,13 +137,13 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
     private sealed class TypeIndex
     {
         private readonly List<DomainObject> _candidates;
-        private readonly Dictionary<string, Guid> _byName;
-        private readonly Dictionary<string, Guid> _byIdentity;
+        private readonly Dictionary<string, ObjectMatch> _byName;
+        private readonly Dictionary<string, ObjectMatch> _byIdentity;
         private readonly IReadOnlyList<DocumentType> _allTypes;
         private readonly Dictionary<Guid, IReadOnlyList<string>> _identityKeysByType;
 
-        private TypeIndex(List<DomainObject> candidates, Dictionary<string, Guid> byName,
-            Dictionary<string, Guid> byIdentity, IReadOnlyList<DocumentType> allTypes,
+        private TypeIndex(List<DomainObject> candidates, Dictionary<string, ObjectMatch> byName,
+            Dictionary<string, ObjectMatch> byIdentity, IReadOnlyList<DocumentType> allTypes,
             Dictionary<Guid, IReadOnlyList<string>> identityKeysByType)
         {
             _candidates = candidates;
@@ -152,18 +155,19 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
 
         public static TypeIndex Build(List<DomainObject> candidates, IReadOnlyList<DocumentType> allTypes)
         {
-            var byName = new Dictionary<string, Guid>();
-            var byIdentity = new Dictionary<string, Guid>();
+            var byName = new Dictionary<string, ObjectMatch>();
+            var byIdentity = new Dictionary<string, ObjectMatch>();
             var identityKeysByType = new Dictionary<Guid, IReadOnlyList<string>>();
 
-            foreach (var c in candidates) // уже в порядке scope-приоритета → TryAdd = узкий побеждает
+            foreach (var c in candidates) // уже в порядке приоритета → TryAdd = первый побеждает
             {
+                var match = new ObjectMatch(c.Id, c.IsArchived);
                 var name = MatchKeyNormalizer.Normalize(c.DisplayName);
-                if (name.Length > 0) byName.TryAdd(name, c.Id);
+                if (name.Length > 0) byName.TryAdd(name, match);
                 foreach (var a in c.Aliases)
                 {
                     var an = MatchKeyNormalizer.Normalize(a);
-                    if (an.Length > 0) byName.TryAdd(an, c.Id);
+                    if (an.Length > 0) byName.TryAdd(an, match);
                 }
 
                 if (!identityKeysByType.TryGetValue(c.CompositeTypeId, out var idKeys))
@@ -173,14 +177,14 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
                     identityKeysByType[c.CompositeTypeId] = idKeys;
                 }
                 var ck = BuildCompositeKey(idKeys, f => ReadField(c.Data, f));
-                if (ck is not null) byIdentity.TryAdd(ck, c.Id);
+                if (ck is not null) byIdentity.TryAdd(ck, match);
             }
 
             // Предвычисленные identity-ключи по типу переиспользуем и для lookup-стороны (IdentityKey).
             return new TypeIndex(candidates, byName, byIdentity, allTypes, identityKeysByType);
         }
 
-        public Guid? Match(ObjectMatchRequest req)
+        public ObjectMatch? Match(ObjectMatchRequest req)
         {
             switch (req.Strategy)
             {
@@ -189,10 +193,11 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
                     if (req.FieldKey is null) return null;
                     var needle = MatchKeyNormalizer.Normalize(req.Value);
                     if (needle.Length == 0) return null;
-                    foreach (var c in _candidates) // scope-приоритетный порядок → первый = узкий
+                    foreach (var c in _candidates) // порядок приоритета → первый = действующий и узкий
                     {
                         var hay = ReadField(c.Data, req.FieldKey);
-                        if (hay is not null && MatchKeyNormalizer.Normalize(hay) == needle) return c.Id;
+                        if (hay is not null && MatchKeyNormalizer.Normalize(hay) == needle)
+                            return new ObjectMatch(c.Id, c.IsArchived);
                     }
                     return null;
                 }

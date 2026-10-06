@@ -45,17 +45,31 @@ public sealed record ObjectMatchRequest
 }
 
 /// <summary>
+/// Найденная запись и её состояние (issue #1185). Не голый идентификатор нарочно: резолвер находит
+/// и архивные записи, а подставлять ли такую — решает звавший, и по одному идентификатору он бы
+/// этого не узнал. Тип ответа сменён, чтобы каждый потребитель решил это на компиляции.
+/// </summary>
+/// <param name="Archived">Запись в архиве: совпала, но на новый выбор не годится.</param>
+public readonly record struct ObjectMatch(Guid Id, bool Archived);
+
+/// <summary>
 /// Единый резолвер «строка→объект» (issue #183) для paste составных полей и источников данных.
 /// Находит СУЩЕСТВУЮЩИЙ объект каталога (DomainObject, Facet==null) в скоп-поддереве владельца,
 /// приоритет — узкий scope. **Строго read-only by contract**: не создаёт, не мутирует и не удаляет
 /// объекты — создание/дедуп сюда не добавляется (это была бы отдельная write-операция с Admin-правами).
+///
+/// <para><b>Архивные записи находит, но действующая побеждает</b> (ТЗ CORE-34.4, issue #1185):
+/// сначала состояние, потом уровень. Иначе архивная запись комплекта заслонила бы действующую
+/// системную с тем же ключом — и строка, у которой есть законная цель, осталась бы без ссылки.
+/// Скрывать архивные вовсе нельзя: «не найдено» отправило бы человека заводить дубль записи,
+/// лежащей в архиве.</para>
 /// </summary>
 public interface IObjectResolver
 {
     /// <summary>Резолвит один запрос. null — совпадения нет (создание объектов не выполняется).</summary>
-    Task<Guid?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
+    Task<ObjectMatch?> ResolveAsync(ObjectMatchRequest req, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 
     /// <summary>Батч в одном scope (кандидаты и скоп-цепочка строятся один раз). Порядок результата = порядок запросов.</summary>
-    Task<IReadOnlyList<Guid?>> ResolveManyAsync(
+    Task<IReadOnlyList<ObjectMatch?>> ResolveManyAsync(
         IReadOnlyList<ObjectMatchRequest> reqs, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct = default);
 }

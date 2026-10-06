@@ -10,6 +10,10 @@ import { useLocale, resolveLocale, LOCALE_OPTIONS, SYSTEM_LOCALE } from '@/share
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { coerceScalar, rejectReason, type CoerceContext } from './pasteCoerce';
+import { PasteArchivedNote, type ArchivedCell } from './PasteArchivedNote';
+import { useSetCommonDataArchive } from '@/shared/api/commonData';
+import { useCan } from '@/shared/api/access';
+import { useToast } from '@/shared/ui/Toast';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
 /** Сколько неразобранных ячеек перечислять поимённо: остальные — числом «и ещё N». */
@@ -98,13 +102,21 @@ function PasteMappingModalBody({
     const fallbackKey = identityKeys[0] ?? eff.find(fld => fld.type === 'string' || fld.type === 'number')?.key;
     return { identityKeys, fallbackKey };
   }
+  const refTo = (hit: ObjectResolveResult): FieldRef =>
+    ({ $ref: 'catalog', entryId: hit.entryId, displayName: hit.displayName ?? '', scope: hit.scope }) as FieldRef;
   // Резолв идёт на сервере (issue #183): индикатор + промежуточная сводка перед вставкой.
   const [resolving, setResolving] = useState(false);
   const [pending, setPending] = useState<{
     rows: Record<string, unknown>[]; linked: number; inline: number; rejects: RejectedCell[];
     /** Сколько строк выброшено целиком и какие остались — счёт «пустых ячеек» идёт по оставшимся. */
     dropped: number; kept: Set<number>;
+    /** Ячейки, совпавшие с записью в архиве: лежат встроенно, пока их не решат вернуть и связать. */
+    archived: ArchivedCell[];
   } | null>(null);
+  const [returnArchived, setReturnArchived] = useState(false);
+  const unarchive = useSetCommonDataArchive();
+  const canReturn = useCan().permission('core.catalog.edit');
+  const toast = useToast();
 
   function mapByHeader(headerRow: string[], count: number): Record<string, number> {
     return headerMapping(tableFields, headerRow, count);
@@ -116,6 +128,7 @@ function PasteMappingModalBody({
     setFieldCol(cols);
     setMatchFields({});
     setPending(null);
+    setReturnArchived(false);
   }
 
   const allRows = rawText.trim() ? rawText.trim().split('\n').map(r => r.split('\t')) : [];
@@ -182,21 +195,29 @@ function PasteMappingModalBody({
     const inlineFallback = (c: typeof cells[number]) => { rows[c.row][c.fieldKey] = c.fallbackKey ? { [c.fallbackKey]: c.raw } : {}; };
 
     let linked = 0, inline = 0;
+    const archived: ArchivedCell[] = [];
     setResolving(true);
     try {
       const results = await resolveObjectsBatch(scope, scopeId, flat);
       cells.forEach(c => {
-        let hit: ObjectResolveResult | null = null;
-        for (let i = c.start; i < c.start + c.count; i++) { if (results[i]) { hit = results[i]!; break; } }
-        if (hit) {
-          rows[c.row][c.fieldKey] = { $ref: 'catalog', entryId: hit.entryId, displayName: hit.displayName ?? '', scope: hit.scope } as FieldRef;
+        // Действующее совпадение по ЛЮБОМУ из ключей важнее архивного по первому: иначе запись в
+        // архиве заслонила бы действующую только потому, что её ключ спросили раньше.
+        const hits = results.slice(c.start, c.start + c.count).filter((r): r is ObjectResolveResult => !!r);
+        const hit = hits.find(h => !h.archived) ?? hits[0];
+        if (hit && !hit.archived) {
+          rows[c.row][c.fieldKey] = refTo(hit);
           linked++;
-        } else { inlineFallback(c); inline++; }
+          return;
+        }
+        // Архивную запись молча не подставляем (issue #1185): ячейка ложится встроенно, а связать
+        // её можно осознанно — переключателем в сводке.
+        inlineFallback(c); inline++;
+        if (hit) archived.push({ row: rows[c.row], fieldKey: c.fieldKey, hit });
       });
     } catch {
       // Ошибка резолва не должна терять ввод — вставляем всё как inline-данные.
       cells.forEach(inlineFallback);
-      inline = cells.length; linked = 0;
+      inline = cells.length; linked = 0; archived.length = 0;
     } finally {
       setResolving(false);
     }
@@ -212,7 +233,27 @@ function PasteMappingModalBody({
     // Сводка перед вставкой нужна, если есть что назвать: несопоставленные ссылки ИЛИ ячейки,
     // не разобранные по типу. Молча уехать может только полностью разобранная вставка.
     if (inline === 0 && rejects.length === 0) { onApply(filled); onOpenChange(false); }
-    else setPending({ rows: filled, linked, inline, rejects, dropped, kept: keptRows });
+    else { setReturnArchived(false); setPending({ rows: filled, linked, inline, rejects, dropped, kept: keptRows, archived }); }
+  }
+
+  /**
+   * Вставка из сводки. Переключатель включён — сначала возвращаем записи из архива, и связываем
+   * только те ячейки, чью запись вернуть УДАЛОСЬ: ссылку на запись, оставшуюся в архиве, сервер
+   * всё равно не примет, а ячейка без неё не теряется — она уже лежит встроенно.
+   */
+  async function applyPending() {
+    if (!pending) return;
+    if (returnArchived && pending.archived.length > 0) {
+      const ids = [...new Set(pending.archived.map(c => c.hit.entryId))];
+      const done = await Promise.allSettled(ids.map(id => unarchive.mutateAsync({ id, archived: false })));
+      const returned = new Set(ids.filter((_, i) => done[i].status === 'fulfilled'));
+      pending.archived.forEach(c => { if (returned.has(c.hit.entryId)) c.row[c.fieldKey] = refTo(c.hit); });
+      const failed = ids.length - returned.size;
+      if (returned.size > 0) toast.success(`Возвращено из архива: ${returned.size}.`);
+      if (failed > 0) toast.error(`Не удалось вернуть из архива: ${failed}. Эти значения вставлены встроенно.`);
+    }
+    onApply(pending.rows);
+    onOpenChange(false);
   }
 
   // Отказы делятся надвое: в строках, которые вставятся (ячейка останется пустой), и в строках,
@@ -262,8 +303,8 @@ function PasteMappingModalBody({
             <Button variant="text" onClick={() => setPending(null)}>← Изменить сопоставление</Button>
             <div className="flex gap-3">
               <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
-              <Button variant="filled" disabled={pending.rows.length === 0}
-                onClick={() => { onApply(pending.rows); onOpenChange(false); }}>
+              <Button variant="filled" disabled={pending.rows.length === 0 || unarchive.isPending}
+                onClick={() => void applyPending()}>
                 Вставить {pending.rows.length} стр.
               </Button>
             </div>
@@ -319,6 +360,10 @@ function PasteMappingModalBody({
               Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
               в каталоге не найдено). Их можно дозаполнить/связать вручную после вставки.
             </p>
+          )}
+          {pending.archived.length > 0 && (
+            <PasteArchivedNote cells={pending.archived} canReturn={canReturn}
+              checked={returnArchived} onChange={setReturnArchived} />
           )}
         </div>
       </Modal>

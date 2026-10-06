@@ -6,6 +6,19 @@ namespace BHS.CRG.Application.Generation;
 public enum DiagnosticSeverity { Warning, Error }
 
 /// <summary>
+/// Коды предупреждений о совпадении значения источника с АРХИВНОЙ записью (issue #1185). По ним
+/// экран «Проверка связок» отличает «есть в архиве» от «не найдено»: чинятся они по-разному.
+/// </summary>
+public static class ArchivedRefCodes
+{
+    /// <summary>Ссылка на архивную запись оставлена: она уже стояла либо это генерация документа.</summary>
+    public const string Kept = "archived-ref";
+
+    /// <summary>Ссылка не подставлена: новой ссылки на архивную запись сохранение не создаёт.</summary>
+    public const string Skipped = "archived-ref-skipped";
+}
+
+/// <summary>
 /// Одна проблема, найденная при проверке разрешения ссылок контекста генерации.
 /// <paramref name="Code"/> различает вид (issue #332): "leftover-ref" — висячая ссылка (цель удалена),
 /// "ref-depth-limit" — ссылка цела, но резолвер до неё не дошёл (issue #723), "missing-required" —

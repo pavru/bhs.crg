@@ -11,7 +11,11 @@ public record ObjectResolveItem(
     string? Value = null, string? FieldKey = null, IReadOnlyDictionary<string, string?>? Fields = null);
 
 /// <summary>Результат резолва одного элемента (для UI: подставить ссылку с именем/скопом).</summary>
-public record ObjectResolveResult(Guid EntryId, string? DisplayName, CatalogScope Scope);
+/// <param name="Archived">Совпавшая запись в архиве (issue #1185): подставлять её молча нельзя —
+/// экран обязан сказать «есть в архиве» и предложить вернуть. Действующая запись с тем же ключом,
+/// если она есть, приходит вместо архивной: с этим признаком приходит только совпадение, у
+/// которого действующей пары нет.</param>
+public record ObjectResolveResult(Guid EntryId, string? DisplayName, CatalogScope Scope, bool Archived);
 
 /// <summary>
 /// Батч-резолв «строка→объект» (issue #183, Фаза 3): находит СУЩЕСТВУЮЩИЕ объекты каталога для
@@ -35,15 +39,15 @@ public class ResolveObjectsBatchHandler(IObjectResolver resolver, IRepository<Do
             })
             .ToList();
 
-        var ids = await resolver.ResolveManyAsync(reqs, q.Scope, q.ScopeId, ct);
+        var found = await resolver.ResolveManyAsync(reqs, q.Scope, q.ScopeId, ct);
 
         // Догружаем имя/скоп совпавших объектов одним запросом (для подстановки ссылки в UI).
-        var matched = ids.Where(x => x is not null).Select(x => x!.Value).Distinct().ToList();
+        var matched = found.Where(x => x is not null).Select(x => x!.Value.Id).Distinct().ToList();
         var byId = matched.Count == 0
             ? []
             : (await repo.FindAsync(o => matched.Contains(o.Id), ct))
-                .ToDictionary(o => o.Id, o => new ObjectResolveResult(o.Id, o.DisplayName, o.ScopeLevel));
+                .ToDictionary(o => o.Id, o => new ObjectResolveResult(o.Id, o.DisplayName, o.ScopeLevel, o.IsArchived));
 
-        return ids.Select(id => id is { } g && byId.TryGetValue(g, out var r) ? r : null).ToList();
+        return found.Select(m => m is { } hit && byId.TryGetValue(hit.Id, out var r) ? r : null).ToList();
     }
 }

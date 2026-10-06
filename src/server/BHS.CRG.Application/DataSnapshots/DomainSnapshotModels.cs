@@ -90,15 +90,19 @@ public record DocumentTableField(
 
 /// <summary>Запись каталога (общие данные): организация, лицо, объект строительства и т.п.</summary>
 /// <param name="Scope">Уровень видимости: System / Construction / Section / Set.</param>
+/// <param name="Archived">Запись в архиве (issue #1185): там, где она уже стоит, она работает, но
+/// на новый выбор не годится. Отдаётся всегда — агент предлагает значения человеку, и без признака
+/// предложил бы запись, которую система выбрать не даст.</param>
 public record CatalogEntrySummary(
     Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName,
-    string Scope, Guid? ScopeId);
+    string Scope, Guid? ScopeId, bool Archived);
 
 /// <param name="Data">Данные записи как хранятся. Вложенные ссылки остаются ссылками — их
 /// <c>entryId</c> самодостаточен, и агент проходит цепочку тем же инструментом.</param>
+/// <param name="Archived">Запись в архиве — см. <see cref="CatalogEntrySummary" />.</param>
 public record CatalogEntryDetail(
     Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName,
-    string Scope, Guid? ScopeId, JsonElement Data);
+    string Scope, Guid? ScopeId, bool Archived, JsonElement Data);
 
 /// <param name="HasScan">Есть ли прикреплённый скан — сам файл через MCP не отдаётся.</param>
 /// <param name="UpdatedAt">Когда запись менялась последний раз. По нему строится повторная проверка

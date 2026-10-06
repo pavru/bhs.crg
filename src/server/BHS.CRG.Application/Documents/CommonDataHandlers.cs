@@ -54,8 +54,11 @@ public class CommonDataHandlers(
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
         // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
+        // Стоявшие ссылки — из сохранённых данных, а не из тела запроса: «уже стояла» решает то,
+        // что лежит в записи, иначе архивную цель достаточно было бы прислать с формой (issue #1185).
         var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
-            cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, cmd.Access, null, ct);
+            cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId,
+            CatalogRefs.IdsIn(entry.Data.RootElement), cmd.Access, null, ct);
         var data = resolved.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, resolved);
         // ⚠️ Охрана — ПОСЛЕ слияния с привязками, а не над телом запроса: иначе привязка набора
         // пронесла бы мимо охраны что угодно (issue #957).

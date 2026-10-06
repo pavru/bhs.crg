@@ -18,7 +18,10 @@ public interface IDataSetResolver
     /// Используется sync-on-save общих данных вместо display-превью — чтобы составное поле хранило
     /// настоящую ссылку, а не строку «🔗 …».
     /// </summary>
+    /// <param name="standing">Записи, на которые объект уже ссылается (<c>CatalogRefs.IdsIn</c> от
+    /// сохранённых данных). Обязателен: совпадение с АРХИВНОЙ записью подставляется, только если
+    /// ссылка на неё уже стояла (issue #1185), — а что стояло, знает лишь звавший.</param>
     Task<IReadOnlyDictionary<string, object?>> ResolveOwnerBindingsAsync(
-        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId, DataAccess access,
+        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId, IReadOnlySet<Guid> standing, DataAccess access,
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default);
 }

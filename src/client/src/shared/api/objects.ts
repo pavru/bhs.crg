@@ -19,6 +19,12 @@ export interface ObjectResolveResult {
   entryId: string;
   displayName: string | null;
   scope: CatalogScope;
+  /**
+   * Совпавшая запись в архиве (issue #1185): подставлять её молча нельзя. Действующая запись с тем
+   * же ключом, если она есть, приходит вместо архивной — с признаком приходит только совпадение,
+   * у которого действующей пары нет.
+   */
+  archived: boolean;
 }
 
 /**
