@@ -114,7 +114,7 @@ public class CommonDataHandlers(
         if (scope is { } s && s != CatalogScope.System && scopeId is { } sid)
             await levelProfiles.EnsureProfileAsync(s, sid, ct);
         // Только общие данные (без документной фасеты). Выбор архивные записи скрывает.
-        var live = q.For == RecordsFor.Choice;
+        var live = q.For.HidesArchive();
         return await repo.FindAsync(e => e.Facet == null &&
             (!live || e.ArchivedAt == null) &&
             (!scope.HasValue || e.ScopeLevel == scope.Value) &&
@@ -142,7 +142,7 @@ public class CommonDataHandlers(
         var setId = q.SetId;
         var sectionId = set.SectionId;
         var typeId = q.CompositeTypeId;
-        var live = q.For == RecordsFor.Choice;
+        var live = q.For.HidesArchive();
 
         var relevant = await repo.FindAsync(e => e.Facet == null &&
             (!live || e.ArchivedAt == null) &&
@@ -184,7 +184,7 @@ public class CommonDataHandlers(
             // System — родителей нет.
         }
         var typeId = q.CompositeTypeId;
-        var live = q.For == RecordsFor.Choice;
+        var live = q.For.HidesArchive();
 
         var relevant = await repo.FindAsync(e => e.Facet == null &&
             (!live || e.ArchivedAt == null) &&

@@ -81,19 +81,19 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
     public async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
         string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
-        if (await FamilyAsync(entityType, ct) is not { } codes) return null;
+        // Спрашивать нечего — и вид выяснять незачем: пустой перечень не повод отвечать «вида нет».
         if (ids.Count == 0) return [];
+        if (await FamilyAsync(entityType, ct) is not { } codes) return null;
 
         return Refs(await mediator.Send(new CommonDataRefsByIdsQuery(codes.Keys, ids), ct), codes);
     }
 
     /// <summary>
-    /// Ссылки на записи вида — узким запросом ядра, БЕЗ данных записи (issue #1078).
+    /// Ссылки ядра — в ссылки порта: код вида вместо идентификатора типа, порядок для человека.
     ///
-    /// <para>Отдельным запросом, а не отбором из <see cref="ListAsync" />: тот тянет записи целиком, и
-    /// у номенклатуры это мегабайты картинок на список (issue #1015) — то есть выпадающий список
-    /// грузил бы провод тем, что сам не показывает. Повод сузить назван в контракте порта, и это
-    /// он.</para>
+    /// <para>Сами ссылки приходят узкими запросами ядра, БЕЗ данных записи (issue #1078), а не
+    /// отбором из <see cref="ListAsync" />: тот тянет записи целиком, и у номенклатуры это мегабайты
+    /// картинок на список (issue #1015).</para>
     /// </summary>
     private static IReadOnlyList<ModuleCatalogRef> Refs(
         IReadOnlyList<CommonDataRef> refs, IReadOnlyDictionary<Guid, string> codes) =>

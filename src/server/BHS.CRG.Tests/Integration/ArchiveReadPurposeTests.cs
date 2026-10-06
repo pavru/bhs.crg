@@ -146,6 +146,9 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
         Assert.False(refs!.Single(r => r.Id == live).Archived);
         Assert.True((await catalog.GetAsync(archived))!.Archived);
         Assert.False((await catalog.GetAsync(live))!.Archived);
+        // Пустой перечень — пустой ответ, даже когда вида нет: спрашивать нечего, и «вида нет» здесь
+        // звавший принял бы за отказ.
+        Assert.Empty((await catalog.RefsAsync("ТипаТакогоНет", []))!);
     }
 
     /// <summary>Архивная запись — не потеря: у ссылки на неё своё состояние, третье.</summary>
@@ -180,6 +183,32 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
         var found = await client.GetFromJsonAsync<JsonElement>($"/api/costs/nomenclature?query=Автомат {mark}");
 
         Assert.Equal([live], found.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+        // Число доезжает до формы: без него ненайденная архивная позиция читается как отсутствующая.
+        Assert.Equal(1, found.GetProperty("inArchive").GetInt32());
+    }
+
+    /// <summary>
+    /// «Умолчания нет» держит не только сигнатура (ревью PR #1224): запрос, собранный без назначения,
+    /// несёт нулевое значение — и оно не совпадает ни с выбором, ни с показом. Отказ, а не тихий
+    /// ответ по одному из них.
+    /// </summary>
+    [Fact]
+    public async Task Неназванное_назначение_отвергается_а_не_трактуется_как_одно_из_двух()
+    {
+        var (type, _, _) = await PairAsync();
+        var set = await SetAsync();
+        var code = await CodeAsync(type);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            SendAsync(new ListCommonDataEntriesQuery(default, CompositeTypeId: type)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            SendAsync(new ResolveCommonDataForSetQuery(set, default, type)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            SendAsync(new ResolveCommonDataForScopeQuery(CatalogScope.System, null, (RecordsFor)7, type)));
+
+        using var scope = host.Services.CreateScope();
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync(code, default));
     }
 
     // ── Подготовка ─────────────────────────────────────────────────────────────

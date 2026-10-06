@@ -16,15 +16,18 @@ namespace BHS.CRG.Tests.Configuration;
 ///
 /// <para><b>Ключ — «файл|строка кода», а не файл.</b> Так стережётся путь: второй запрос в уже
 /// названном файле — новая строка, которой в переписи нет. Одинаковые строки одного файла сливаются
-/// (номера строк сдвигает любая правка выше), поэтому решение у них обязано быть одно.</para>
+/// (номера строк сдвигает любая правка выше), поэтому решение у них одно, а ЧИСЛО их названо: второй
+/// такой же запрос в том же файле меняет число — и перепись краснеет (ревью PR #1224).</para>
 ///
 /// <para><b>Перепись доказывает, что решение ПРИНЯТО, а не что оно исполнено.</b> Второй слой —
 /// <see cref="ArchiveReadPurposeTests" />: у каждой строки «выбор» назван живой тест, который кладёт
 /// запись в архив и смотрит, что в выборе её нет. Строка «выбор» без такого теста — отказ.</para>
 ///
-/// <para>Чего перепись НЕ видит: чтения через обобщённый код, где тип объекта не назван в файле, и
-/// клиент, попросивший у сервера «показ» для своего выбора. Первое — редкость; второе ловит только
-/// правило записи (новая ссылка на архивную запись — отказ), оно приезжает последним шагом задачи.</para>
+/// <para>Чего перепись НЕ видит — честно. Вызов, перенесённый на следующую строку (<c>await repo</c>
+/// / <c>.FindAsync(</c>). Чтение через обобщённый код, где тип объекта в файле не назван. Условие
+/// отбора на СОСЕДНЕЙ строке: убери из запроса «только документы» — ключ не изменится. И клиент,
+/// попросивший «показ» для своего выбора. Первые три ловят живые тесты там, где они есть; последнее
+/// — только правило записи (новая ссылка на архивную запись — отказ), оно приезжает последним шагом.</para>
 /// </summary>
 public partial class ArchiveReadInventoryTests
 {
@@ -52,7 +55,11 @@ public partial class ArchiveReadInventoryTests
         Pending,
     }
 
-    private sealed record Row(Kind Kind, string Why, string[] Probes, int Step = 0);
+    private sealed record Row(Kind Kind, string Why, string[] Probes, int Step = 0, int Times = 1)
+    {
+        /// <summary>Сколько раз эта строка кода стоит в файле.</summary>
+        public Row X(int times) => this with { Times = times };
+    }
 
     private static Row Choice(string why, params string[] probes) => new(Kind.Choice, why, probes);
     private static Row ByPurpose(string why, params string[] probes) => new(Kind.ByPurpose, why, probes);
@@ -81,30 +88,40 @@ public partial class ArchiveReadInventoryTests
         @"SearchCommonDataForChoiceQuery|CommonDataRefsByIdsQuery|GetCommonDataEntryQuery)\(",
         RegexOptions.Compiled);
 
-    /// <summary>Порты модулей: справочник и состояние ссылки на запись.</summary>
-    private static readonly Regex Port = new(
-        @"\b[cC]atalog\.(?:ListAsync|SearchAsync|RefsAsync|GetAsync)\(|\.StatesAsync\(ReferenceTarget\.Record",
-        RegexOptions.Compiled);
+    /// <summary>
+    /// Имя, под которым файл держит порт справочников. По ТИПУ, а не по слову «catalog»: порт,
+    /// внедрённый под другим именем, иначе прошёл бы мимо переписи.
+    /// </summary>
+    private static readonly Regex DeclaredCatalog = new(@"IModuleCatalog\s+(\w+)", RegexOptions.Compiled);
 
-    private static HashSet<string> FindReads()
+    /// <summary>Состояние ссылки модуля на запись.</summary>
+    private static readonly Regex States = new(@"\.StatesAsync\(ReferenceTarget\.Record", RegexOptions.Compiled);
+
+    private static Regex? Calls(Regex declared, string text, string methods)
     {
-        var found = new HashSet<string>(StringComparer.Ordinal);
+        var names = declared.Matches(text).Select(m => Regex.Escape(m.Groups[1].Value)).Distinct().ToList();
+        return names.Count == 0 ? null : new Regex(@"\b(?:" + string.Join('|', names) + @")\.(?:" + methods + @")\(");
+    }
+
+    /// <summary>Место чтения → сколько раз такая строка стоит в файле.</summary>
+    private static Dictionary<string, int> FindReads()
+    {
+        var found = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var project in Projects)
             foreach (var file in SourceTree.Files(project))
             {
                 var text = File.ReadAllText(file);
-                var names = Declared.Matches(text).Select(m => Regex.Escape(m.Groups[1].Value)).Distinct().ToList();
-                var repository = names.Count == 0
-                    ? null
-                    : new Regex(@"\b(?:" + string.Join('|', names) + @")\.(?:Find|Get|Query|Count|Any|Search|Refs|List)\w*\(");
+                var repository = Calls(Declared, text, @"(?:Find|Get|Query|Count|Any|Search|Refs|List)\w*");
+                var catalog = Calls(DeclaredCatalog, text, "ListAsync|SearchAsync|RefsAsync|GetAsync");
 
                 foreach (var raw in text.Split('\n'))
                 {
                     var line = raw.Trim();
                     if (line.StartsWith("//", StringComparison.Ordinal) || line.StartsWith('*')) continue;
-                    if (Direct.IsMatch(line) || Query.IsMatch(line) || Port.IsMatch(line)
-                        || repository?.IsMatch(line) == true)
-                        found.Add($"{SourceTree.Relative(file)}|{line}");
+                    if (!Direct.IsMatch(line) && !Query.IsMatch(line) && !States.IsMatch(line)
+                        && repository?.IsMatch(line) != true && catalog?.IsMatch(line) != true) continue;
+                    var key = $"{SourceTree.Relative(file)}|{line}";
+                    found[key] = found.GetValueOrDefault(key) + 1;
                 }
             }
         return found;
@@ -117,7 +134,7 @@ public partial class ArchiveReadInventoryTests
     {
         var found = FindReads();
 
-        var undeclared = found.Where(k => !Reads.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var undeclared = found.Keys.Where(k => !Reads.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
         Assert.True(undeclared.Count == 0,
             "Появилось место чтения записей, о котором архив не знает:\n" + string.Join("\n", undeclared) +
             "\n\nВпишите его в Reads и решите, что оно делает с архивной записью: Choice — список на " +
@@ -125,10 +142,19 @@ public partial class ArchiveReadInventoryTests
             "Documents — только документы; Service — обслуживание. Молча оставлять нельзя: место, " +
             "отдавшее архивную запись на выбор, выглядит исправным.");
 
-        var stale = Reads.Keys.Where(k => !found.Contains(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var stale = Reads.Keys.Where(k => !found.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
         Assert.True(stale.Count == 0,
             "В переписи строки, которых в коде больше нет:\n" + string.Join("\n", stale) +
             "\nУберите их — иначе перепись описывает несуществующее.");
+
+        // Одинаковая строка стала встречаться в файле другое число раз: рядом с уже описанным чтением
+        // появилось ещё одно такое же (или одно ушло) — и решение о нём никто не принимал.
+        var recount = Reads.Where(r => found.TryGetValue(r.Key, out var times) && times != r.Value.Times)
+            .Select(r => $"{r.Key}\n    в переписи — {r.Value.Times}, в коде — {found[r.Key]}")
+            .OrderBy(k => k, StringComparer.Ordinal).ToList();
+        Assert.True(recount.Count == 0,
+            "Число одинаковых мест чтения в файле изменилось:\n" + string.Join("\n", recount) +
+            "\nРешите, что новое место делает с архивной записью, и поправьте число (.X(n)).");
     }
 
     [Fact]

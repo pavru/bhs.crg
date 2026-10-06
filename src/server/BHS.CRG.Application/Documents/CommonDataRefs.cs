@@ -41,12 +41,31 @@ public sealed record CommonDataRef(
 /// </summary>
 public enum RecordsFor
 {
+    // Значения начинаются с единицы НАРОЧНО: нулевое — то, что получается у запроса, собранного
+    // без этого поля (default, десериализация). Стой там «выбор», забытое назначение молча
+    // скрывало бы архив; так оно не совпадает ни с чем и отвергается (ревью PR #1224).
+
     /// <summary>Список, из которого человек или код ВЫБИРАЕТ новое значение. Архивных в нём нет.</summary>
-    Choice,
+    Choice = 1,
 
     /// <summary>Показ того, что уже есть: страница справочника, название сохранённой ссылки, сверка.
     /// Архивные на месте, признак — в ответе.</summary>
-    Display,
+    Display = 2,
+}
+
+public static class RecordsForRules
+{
+    /// <summary>
+    /// Скрывает ли назначение архивные записи. Неизвестное значение — отказ, а не «значит, показ»:
+    /// молчаливое «показ» вернуло бы архивную запись в выбор.
+    /// </summary>
+    public static bool HidesArchive(this RecordsFor purpose) => purpose switch
+    {
+        RecordsFor.Choice => true,
+        RecordsFor.Display => false,
+        _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose,
+            "Назначение чтения записей не названо: ожидается выбор или показ."),
+    };
 }
 
 /// <summary>

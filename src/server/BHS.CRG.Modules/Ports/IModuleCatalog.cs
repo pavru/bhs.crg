@@ -33,11 +33,13 @@ public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string Displ
 /// </summary>
 public enum RecordsFor
 {
+    // С единицы: нулевое значение — «назначение не названо», и порт на него отвечает отказом.
+
     /// <summary>Список, из которого выбирают новое значение. Архивных в нём нет.</summary>
-    Choice,
+    Choice = 1,
 
     /// <summary>Показ, сверка, сопоставление того, что уже стоит. Архивные на месте, с признаком.</summary>
-    Display,
+    Display = 2,
 }
 
 /// <summary>

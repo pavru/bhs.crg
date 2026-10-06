@@ -254,6 +254,11 @@ export interface NomenclatureItem {
 export interface NomenclatureSearchResult {
   items: NomenclatureItem[];
   more: boolean;
+  /**
+   * Сколько позиций под тот же запрос лежит в архиве (issue #1185). В `items` их нет — и сказать об
+   * этом человеку обязательно: иначе ненайденная архивная позиция читается как отсутствующая.
+   */
+  inArchive: number;
 }
 
 export const QK = 'costs-invoices';

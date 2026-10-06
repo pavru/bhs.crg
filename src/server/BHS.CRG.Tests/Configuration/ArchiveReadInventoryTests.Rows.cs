@@ -11,11 +11,11 @@ public partial class ArchiveReadInventoryTests
     private static readonly Dictionary<string, Row> Reads = new(StringComparer.Ordinal)
     {
         ["BHS.CRG.Api/Endpoints/Core/ConstructionEndpoints.cs|var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);"] =
-            Documents("счётчик документов комплекта"),
+            Documents("счётчик документов комплекта").X(2),
         ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId)))"] =
             Shown("страница сотрудников — показ: архивная карточка на месте"),
         ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id));"] =
-            Shown("карточка сотрудника по идентификатору: редактор и действия над ней"),
+            Shown("карточка сотрудника по идентификатору: редактор и действия над ней").X(3),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))"] =
             ByPurpose("назначение называет клиент параметром purpose; без него — отказ", nameof(ArchiveReadPurposeTests.Адрес_списка_требует_назначение_и_отвечает_по_нему)),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId)))"] =
@@ -54,9 +54,9 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|return await repo.FindAsync(e => e.Facet == null &&"] =
             ByPurpose("список уровня: отбор по назначению запроса", nameof(ArchiveReadPurposeTests.Список_уровня_скрывает_архив_в_выборе_и_показывает_в_показе)),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();"] =
-            Seen("правка и удаление записи по идентификатору: архивную править и удалять можно"),
+            Seen("правка и удаление записи по идентификатору: архивную править и удалять можно").X(2),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var relevant = await repo.FindAsync(e => e.Facet == null &&"] =
-            ByPurpose("списки комплекта и цепочки уровней: отбор по назначению запроса", nameof(ArchiveReadPurposeTests.Список_комплекта_скрывает_архив_в_выборе_и_показывает_в_показе), nameof(ArchiveReadPurposeTests.Список_цепочки_уровней_скрывает_архив_в_выборе_и_показывает_в_показе)),
+            ByPurpose("списки комплекта и цепочки уровней: отбор по назначению запроса", nameof(ArchiveReadPurposeTests.Список_комплекта_скрывает_архив_в_выборе_и_показывает_в_показе), nameof(ArchiveReadPurposeTests.Список_цепочки_уровней_скрывает_архив_в_выборе_и_показывает_в_показе)).X(2),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|=> objRepo.GetByIdAsync(q.Id, ct);"] =
             Documents("документ по идентификатору"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|return await objRepo.GetDocumentsInSetsAsync(setIds, ct);"] =
@@ -70,13 +70,13 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var docs = await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct);"] =
             Documents("документы комплекта"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var docs = await objRepo.GetSetDocumentsAsync(targetSet.Id, tracked: false, ct);"] =
-            Documents("документы комплекта"),
+            Documents("документы комплекта").X(2),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var obj = await objRepo.GetByIdAsync(catId, ct);"] =
             Seen("перенос документа: разрешится ли СОХРАНЁННАЯ ссылка в новом месте; архивная цель на месте"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();"] =
-            Documents("документ по идентификатору"),
+            Documents("документ по идентификатору").X(2),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();"] =
-            Documents("документ по идентификатору"),
+            Documents("документ по идентификатору").X(5),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var source = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();"] =
             Documents("документ по идентификатору"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var source = await objRepo.GetByIdAsync(sourceId, ct) ?? throw new NotFoundException();"] =
@@ -86,7 +86,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)"] =
             Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var instances = (await objectRepo.FindAsync(o => typeIds.Contains(o.CompositeTypeId), ct)).ToList();"] =
-            Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными"),
+            Service("аудит типа и починка значений: архивные записи обязаны чиниться вместе с остальными").X(2),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|var objects = await objectRepo.FindAsync(o => o.CompositeTypeId == dt.Id, ct);"] =
             Seen("тип занят объектами и не удаляется: архивная запись держит тип так же, как живая"),
         ["BHS.CRG.Application/Documents/PlanHandlers.cs|var actual = await objects.CountReadyDocumentsByTypeAsync([q.SetId], ct);"] =
@@ -167,7 +167,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Generation/DocumentSetAssemblyService.cs|var ordered = (await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct))"] =
             Documents("документы комплекта для сборки"),
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var counts = await objects.CountDocumentsInSetsAsync(setIds, ct);"] =
-            Documents("MCP: документы комплектов и их счётчики"),
+            Documents("MCP: документы комплектов и их счётчики").X(2),
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var docs = await objects.GetSetDocumentsAsync(setId, tracked: false, ct);"] =
             Documents("MCP: документы комплектов и их счётчики"),
         ["BHS.CRG.Infrastructure/Generation/DomainSnapshotService.cs|var entries = await domainObjects.FindAsync(e => e.Facet == null"] =
@@ -199,7 +199,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var blobSql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%\\\"$type\\\": \\\"image\\\"%' OR \\\"Data\\\"::text LIKE '%\\\"$type\\\":\\\"image\\\"%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);"] =
-            Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
+            Service("обслуживание: перенос картинок, уборка сирот, разовые обходы").X(2),
         ["BHS.CRG.Infrastructure/Maintenance/ImageBlobMigration.cs|var sql = \"SELECT \\\"Id\\\" FROM domain_objects WHERE \\\"Data\\\"::text LIKE '%data:image%'\";"] =
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Maintenance/MaterialLabelBackfill.cs|foreach (var data in await db.DomainObjects.AsNoTracking().Select(o => o.Data).ToListAsync(ct))"] =
@@ -215,7 +215,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> Db.Set<DomainObject>()"] =
             Seen("чтение по идентификатору: что делать с архивной, решает звавший"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> await Db.Set<DomainObject>()"] =
-            Documents("документы комплектов и их счётчики"),
+            Documents("документы комплектов и их счётчики").X(2),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|return await Db.Set<DomainObject>()"] =
             Shown("названия уже стоящих ссылок"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var q = Db.Set<DomainObject>()"] =
@@ -223,12 +223,12 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var query = Db.Set<DomainObject>()"] =
             Choice("кандидаты на выбор", nameof(ArchiveReadPurposeTests.Поиск_на_выбор_архив_не_отдаёт_но_называет_числом_а_по_идентификаторам_находит)),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|var rows = await Db.Set<DomainObject>()"] =
-            Documents("документы комплектов и их счётчики"),
+            Documents("документы комплектов и их счётчики").X(2),
         ["BHS.CRG.Infrastructure/Persistence/MigrationCensus.cs|\"SELECT count(*) FROM domain_objects o WHERE o.\\\"ScopeId\\\" IS NOT NULL AND (\" +"] =
             Service("перепись перед миграцией"),
         ["BHS.CRG.Infrastructure/Persistence/MigrationCensus.cs|private const string Objects = \"domain_objects\";"] =
             Service("перепись перед миграцией"),
-        ["BHS.CRG.Infrastructure/Persistence/ModuleLostReferenceScan.cs|return (await db.DomainObjects.AsNoTracking()"] =
+        ["BHS.CRG.Infrastructure/Persistence/ModuleLostReferenceScan.cs|return await db.DomainObjects.AsNoTracking()"] =
             Shown("состояние ссылки модуля: это и есть вопрос об архиве"),
         ["BHS.CRG.Infrastructure/Persistence/RecordArchive.cs|UPDATE domain_objects o"] =
             Service("сама служба архива"),

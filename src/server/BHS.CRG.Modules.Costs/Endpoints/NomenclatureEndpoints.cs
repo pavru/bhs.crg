@@ -55,7 +55,7 @@ public static class NomenclatureEndpoints
 
         return TypedResults.Ok(new NomenclatureSearchResult(
             [.. found.Items.Take(Limit).Select(r => new NomenclatureItem(r.Id, r.DisplayName, r.EntityType, r.MatchedAlias))],
-            more));
+            more, found.InArchive));
     }
 }
 
@@ -72,4 +72,7 @@ public sealed record NomenclatureItem(Guid Id, string? Name, string Type, string
 /// <summary>Найденное и оговорка о неполноте.</summary>
 /// <param name="More">Есть ли ещё подходящие позиции за пределами ответа. Форма обязана сказать это
 /// человеку словами: неполный список, выданный за полный, заставляет заводить дубли.</param>
-public sealed record NomenclatureSearchResult(IReadOnlyList<NomenclatureItem> Items, bool More);
+/// <param name="InArchive">Сколько позиций под тот же запрос лежит в архиве (issue #1185). В списке
+/// их нет, и форма обязана сказать об этом словами: пустой ответ без оговорки читается как «такой
+/// позиции нет» — и человек заводит дубль архивной.</param>
+public sealed record NomenclatureSearchResult(IReadOnlyList<NomenclatureItem> Items, bool More, int InArchive);

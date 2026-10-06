@@ -61,19 +61,20 @@ public class ModuleLostReferenceScan(AppDbContext db)
     }
 
     /// <summary>
-    /// Какие из записей справочника лежат в архиве (issue #1185). Отдельным вопросом, а не колонкой
-    /// в <see cref="ExistingAsync" />: тот спрашивает любую таблицу ядра по её ключу, а архив есть
-    /// только у записи справочника.
+    /// Какие из объектов общей таблицы есть — и лежит ли каждый в архиве (issue #1185). Ключа нет —
+    /// объекта нет. Отдельным методом, а не колонкой в <see cref="ExistingAsync" />: тот спрашивает
+    /// любую таблицу ядра по её ключу, а архив есть только здесь. Одним запросом, а не двумя: ответ
+    /// нужен на каждое открытие счёта.
     /// </summary>
-    public async Task<IReadOnlySet<Guid>> ArchivedRecordsAsync(
+    public async Task<IReadOnlyDictionary<Guid, bool>> RecordStatesAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
-        if (ids.Count == 0) return new HashSet<Guid>();
-        var asked = ids.ToArray();
-        return (await db.DomainObjects.AsNoTracking()
-            .Where(o => asked.Contains(o.Id) && o.ArchivedAt != null)
-            .Select(o => o.Id)
-            .ToListAsync(ct)).ToHashSet();
+        if (ids.Count == 0) return new Dictionary<Guid, bool>();
+        var asked = ids.Distinct().ToArray();
+        return await db.DomainObjects.AsNoTracking()
+            .Where(o => asked.Contains(o.Id))
+            .Select(o => new { o.Id, Archived = o.ArchivedAt != null })
+            .ToDictionaryAsync(o => o.Id, o => o.Archived, ct);
     }
 
     /// <summary>Какие из идентификаторов есть в таблице ядра.</summary>
