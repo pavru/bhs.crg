@@ -35,12 +35,12 @@ const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
 
 let token = null;
 
-async function api(method, path, body) {
+async function api(method, path, body, headers = {}) {
   const res = await fetch(`${API}/api${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -312,9 +312,10 @@ async function findEntry(displayName, compositeTypeId) {
 async function ensureEntry(compositeTypeId, displayName, data) {
   const found = await findEntry(displayName, compositeTypeId);
   if (found) {
+    // Правка называет версию записи (issue #1214) — ту, с которой запись только что найдена.
     await api('PUT', `/common-data/${found.id}`, {
       displayName, data: JSON.stringify(data), aliases: [],
-    });
+    }, { 'If-Match': found.version });
     return found.id;
   }
   const created = await api('POST', '/common-data', {

@@ -79,12 +79,14 @@ public record ConstructionDto(
 }
 
 /// <summary>Запись общих данных — форма клиентского CommonDataEntry.</summary>
+/// <param name="Version">Версия записи (issue #1214): её называет правка заголовком <c>If-Match</c>.
+/// Строкой — это отметка, а не число: сравнивают на равенство, не на «больше».</param>
 public record CommonDataEntryDto(
     Guid Id, string DisplayName, string[] Aliases, Guid CompositeTypeId, JsonDocument Data,
     Domain.Catalog.CatalogScope Scope, Guid? ScopeId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-    bool Archived)
+    bool Archived, string Version)
 {
     public static CommonDataEntryDto From(DomainObject o) => new(
         o.Id, o.DisplayName ?? "", o.Aliases.ToArray(), o.CompositeTypeId, o.Data,
-        o.ScopeLevel, o.ScopeId, o.CreatedAt, o.UpdatedAt, o.IsArchived);
+        o.ScopeLevel, o.ScopeId, o.CreatedAt, o.UpdatedAt, o.IsArchived, o.Version);
 }

@@ -95,11 +95,14 @@ public static class EmployeeEndpoints
         });
 
         edit.MapPut("/{id:guid}", async (
-            Guid id, UpdateEmployeeRequest req, IMediator m, IRepository<DocumentType> types,
+            Guid id, UpdateEmployeeRequest req, HttpRequest http, IMediator m, IRepository<DocumentType> types,
             ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
             var entry = await m.Send(new GetCommonDataEntryQuery(id));
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
+            // Версия записи — как у общего адреса общих данных (issue #1214): сотрудник — та же
+            // запись. После «не найдено»: чужой карточке незачем объяснять, как её править.
+            if (Documents.RecordIfMatch.Refuse(http, out var seen) is { } refused) return refused;
 
             // ⚠️ Отсутствующее «data» — ОТКАЗ, а не пустой объект (нашло ревью PR #1053). Правка
             // заменяет реквизиты целиком, поэтому подстановка «{}» молча стирала бы карточку и
@@ -114,7 +117,7 @@ public static class EmployeeEndpoints
                 // Псевдонимы, о которых запрос молчит, ОСТАЮТСЯ: null здесь означает «очистить»
                 // (DomainObject.Update нормализует его в пустой список), и промолчавший клиент
                 // стирал бы их заодно с правкой одного поля.
-                id, req.DisplayName, data, await access.ForAsync(user, ct),
+                id, req.DisplayName, data, await access.ForAsync(user, ct), seen,
                 req.Aliases ?? [.. entry.Aliases]))));
         });
 

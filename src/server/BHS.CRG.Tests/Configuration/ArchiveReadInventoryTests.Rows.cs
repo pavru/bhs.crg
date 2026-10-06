@@ -222,6 +222,8 @@ public partial class ArchiveReadInventoryTests
             Service("обслуживание: перенос картинок, уборка сирот, разовые обходы"),
         ["BHS.CRG.Infrastructure/Persistence/Configurations/DomainObjectConfiguration.cs|b.ToTable(\"domain_objects\");"] =
             Service("объявление таблицы — не чтение"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|.SqlQuery<long>($\"\"\"SELECT xmin::text::bigint AS \"Value\" FROM domain_objects WHERE \"Id\" = {entry.Id} FOR UPDATE\"\"\")"] =
+            Service("правка записи: версия строки читается под блокировкой, архивную запись правят так же (issue #1214)"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> Db.Set<DomainObject>()"] =
             Seen("чтение по идентификатору: что делать с архивной, решает звавший"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|=> await Db.Set<DomainObject>()"] =

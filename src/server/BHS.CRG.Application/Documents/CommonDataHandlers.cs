@@ -91,6 +91,9 @@ public class CommonDataHandlers(
     public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        // Версия сверяется ДВАЖДЫ (issue #1214): здесь — чтобы устаревшая правка получила отказ, не
+        // дожидаясь чтения наборов и охраны, — и ещё раз при записи, под блокировкой строки.
+        RecordSeen.Ensure(entry.Version, cmd.Seen);
         // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
         // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
         // Стоявшие ссылки — из сохранённых данных, а не из тела запроса: «уже стояла» решает то,
@@ -106,7 +109,7 @@ public class CommonDataHandlers(
             entry.Data, data, entry.CompositeTypeId, typeRepo, primitiveRepo, objects, ct);
         entry.Update(cmd.DisplayName, data, cmd.Aliases);
         repo.Update(entry);
-        await repo.SaveChangesAsync(ct);
+        await objects.SaveSeenAsync(entry, cmd.Seen, ct);
         return entry;
     }
 
@@ -250,7 +253,7 @@ public class CommonDataHandlers(
             .Select(e => new CommonDataEntryWithScope(
                 e.Id, e.DisplayName ?? "", e.CompositeTypeId, e.Data,
                 e.ScopeLevel, e.ScopeId, (int)e.ScopeLevel,
-                e.CreatedAt, e.UpdatedAt, e.IsArchived))
+                e.CreatedAt, e.UpdatedAt, e.IsArchived, e.Version))
             .OrderBy(e => e.Priority)
             .ThenBy(e => e.DisplayName)
             .ToList();

@@ -95,7 +95,7 @@ export function CatalogEntryForm({
   // потерял бы её молча: на экране она уже видна (issue #522).
   const uploading = useUploadsInFlight();
   const createMutation = useCreateCommonDataEntry();
-  const updateMutation = useUpdateCommonDataEntry();
+  const updateMutation = useUpdateCommonDataEntry(entry);
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
   // Значения не по объявленному типу (issue #644). Записи общих данных до сих пор не проверял никто:
@@ -356,7 +356,7 @@ export function CatalogEntryForm({
 
     try {
       if (entry) {
-        await updateMutation.mutateAsync({ id: entry.id, displayName, data: JSON.stringify(values), aliases });
+        await updateMutation.mutateAsync({ displayName, data: JSON.stringify(values), aliases });
       } else {
         await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway });
       }

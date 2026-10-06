@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, RecordsPurpose } from './types';
 
 const QK = 'common-data';
+/** Ключ действия «в архив / из архива»: по нему правка записи узнаёт, что оно ещё в пути. */
+const ARCHIVE_KEY = [QK, 'archive'];
 
 /**
  * Записи одного уровня. `purpose` обязателен (issue #1185): назначение входит и в ключ кэша —
@@ -90,12 +92,17 @@ export function useCommonDataForScope({
 }
 
 /** Одна запись каталога по id — для показа резолвнутой $ref-ссылки в связанном поле (issue #99). */
-export function useCommonDataEntry(id: string | undefined) {
+/**
+ * @param forEdit запись читают, чтобы открыть на ней форму правки (issue #1214): копия из кэша не
+ *   годится, и чтение идёт заново при каждом открытии — см. `EditEntryForm`.
+ */
+export function useCommonDataEntry(id: string | undefined, forEdit = false) {
   return useQuery({
     queryKey: [QK, 'by-id', id],
     queryFn: () => apiClient.get<CommonDataEntry>(`/common-data/${id}`).then(r => r.data),
     enabled: !!id,
     staleTime: 60_000,
+    refetchOnMount: forEdit ? 'always' : true,
   });
 }
 
@@ -142,12 +149,80 @@ export function useCreateCommonDataEntry() {
   });
 }
 
-export function useUpdateCommonDataEntry() {
+/** То из записи, что правка заменяет целиком, — одной строкой: по ней видно, изменилось ли содержимое. */
+const recordContent = (entry: CommonDataEntry) =>
+  JSON.stringify([entry.displayName, entry.aliases, entry.data]);
+
+/** Основа черновика формы: версия, которую он вправе назвать, и запись, по которой он собран. */
+export interface SeenBase {
+  version: string;
+  entry: CommonDataEntry;
+}
+
+/**
+ * Версия, которую форма вправе назвать при сохранении (issue #1214), — та, по которой собран её
+ * черновик, а не «какая сейчас в кэше»: запись под открытой формой перечитывается сама, и свежая
+ * версия под прежним черновиком затёрла бы чужую правку ровно так же, как до этой задачи.
+ *
+ * Версия строки движется и тогда, когда содержимое не менялось, — запись вернули из архива кнопкой
+ * над этой же формой. Поэтому основа помнит и содержимое: версия новая, а оно то же — черновик
+ * по-прежнему собран по лежащему в базе, и основа молча переезжает. Содержимое другое — основа
+ * остаётся прежней, и сервер откажет.
+ *
+ * Содержимое сравнивается ТОЛЬКО когда версия сдвинулась: в данных лежат картинки на мегабайты, и
+ * сериализовать их при каждом открытии формы ради редкого случая незачем (ревью PR #1231).
+ */
+export function seenStep(base: SeenBase, entry: CommonDataEntry | null | undefined): SeenBase {
+  if (!entry || base.version === entry.version) return base;
+  return recordContent(base.entry) === recordContent(entry) ? { version: entry.version, entry } : base;
+}
+
+/**
+ * Правка записи. Запись — и её идентификатор, и версия — берётся из ОДНОГО места, из аргумента
+ * хука: с идентификатором в переменных мутации версия одной записи могла бы уйти под адресом другой.
+ *
+ * @param entry запись, по которой собрана форма; у формы новой записи её нет, и правку такой хук
+ *   не выполняет.
+ */
+export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefined) {
   const qc = useQueryClient();
+  const [base, setBase] = useState<SeenBase | null>(() => (entry ? { version: entry.version, entry } : null));
+  // Шаг считается при смене записи, а не на каждый кадр: под устаревшей основой он сравнивает содержимое.
+  const next = useMemo(() => (base ? seenStep(base, entry) : null), [base, entry]);
+  // Состояние правится в рендере — приём React для состояния, выведенного из пропсов.
+  if (next !== base) setBase(next);
   return useMutation({
-    mutationFn: ({ id, displayName, data, aliases }: { id: string; displayName: string; data: string; aliases?: string[] }) =>
-      apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases }).then(r => r.data),
-    onSuccess: (_d, { id }) => {
+    mutationFn: async ({ displayName, data, aliases }: { displayName: string; data: string; aliases?: string[] }) => {
+      if (!next) throw new Error('Правка без записи: форма новой записи создаёт, а не правит.');
+      const { id } = next.entry;
+      const key = [QK, 'by-id', id];
+      // Запись только что вернули из архива над этой формой — ждём и само действие, и перечитывание
+      // после него: иначе ушла бы прежняя версия, и сервер отказал бы человеку на его собственное
+      // действие (на стенде так и вышло, пока ждали одно перечитывание: «Сохранить» успевает, пока
+      // «Вернуть» ещё в пути). Какую версию назвать, решает тот же шаг: содержимое то же — новая,
+      // другое — прежняя.
+      while (qc.isMutating({ mutationKey: ARCHIVE_KEY }) > 0) await new Promise(done => setTimeout(done, 50));
+      if (qc.isFetching({ queryKey: key }) > 0 || qc.getQueryState(key)?.isInvalidated)
+        await qc.refetchQueries({ queryKey: key }, { cancelRefetch: false });
+      const seen = seenStep(next, qc.getQueryData<CommonDataEntry>(key)).version;
+      return apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
+        { headers: { 'If-Match': seen } }).then(r => r.data);
+    },
+    // Отказ 409 — запись изменили: копия в кэше перечитывается, чтобы форма, открытая заново,
+    // собралась по свежей записи, а не по той же устаревшей (чтение записи кэшируется на минуту).
+    //
+    // ⚠️ Именно перечитывается, а не выбрасывается. Выброшенная копия оставляет открытую форму без
+    // записи: она пересоздаётся на свежей — и человек теряет и набранное, и сообщение об отказе
+    // (наступали при проверке на стенде). Основа открытой формы при этом остаётся прежней.
+    onError: error => {
+      if ((error as { response?: { status?: number } })?.response?.status === 409)
+        qc.invalidateQueries({ queryKey: [QK] });
+    },
+    onSuccess: saved => {
+      const { id } = saved;
+      // Ответ правки — запись целиком и с новой версией: кладём её в кэш сразу, чтобы всё, что
+      // показывает запись по идентификатору, не держало прежнюю до перечитывания.
+      qc.setQueryData([QK, 'by-id', id], saved);
       qc.invalidateQueries({ queryKey: [QK] });
       // Расхождения значений с типом считает сервер по СОХРАНЁННЫМ данным (issue #644) — без сброса
       // подсказка висела бы у поля, которое только что исправили.
@@ -208,6 +283,7 @@ export interface RecordArchiveResult {
 export function useSetCommonDataArchive() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: ARCHIVE_KEY,
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       apiClient.post<RecordArchiveResult>(`/common-data/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
     // Сбрасывается ВСЁ прочитанное, а не один список общих данных (ревью PR #1227): от признака

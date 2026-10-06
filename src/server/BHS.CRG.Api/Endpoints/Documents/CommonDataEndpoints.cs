@@ -133,11 +133,16 @@ public static class CommonDataEndpoints
             }
         });
 
-        edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m,
+        // Правка называет версию записи, по которой собрана (issue #1214): заменяется запись целиком,
+        // и без версии из двух открытых форм молча побеждала сохранённая последней.
+        edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, HttpRequest http, IMediator m,
             ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
-            Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
+        {
+            if (RecordIfMatch.Refuse(http, out var seen) is { } refused) return refused;
+            return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
                 id, req.DisplayName, JsonDocument.Parse(req.Data),
-                await access.ForAsync(user, ct), req.Aliases)))));
+                await access.ForAsync(user, ct), seen, req.Aliases))));
+        });
 
         edit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {

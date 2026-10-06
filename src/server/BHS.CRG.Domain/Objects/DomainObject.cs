@@ -55,6 +55,19 @@ public class DomainObject : Entity
 
     public bool IsArchived => ArchivedAt is not null;
 
+    /// <summary>
+    /// Версия строки, как она прочитана из базы (issue #1214), — системная колонка PostgreSQL
+    /// <c>xmin</c>: её двигает ЛЮБАЯ запись строки, и забыть её поднять нельзя. Форма получает её
+    /// с записью и называет при правке; не совпала с лежащей — запись тем временем изменили.
+    ///
+    /// <para>У только что созданного объекта — ноль до первого сохранения; после сохранения EF
+    /// перечитывает её сам.</para>
+    /// </summary>
+    public uint RowVersion { get; private set; }
+
+    /// <summary>Версия строкой — в таком виде она ходит наружу: это отметка, а не число для счёта.</summary>
+    public string Version => RowVersion.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     private DomainObject() { }
 
     public static DomainObject Create(

@@ -28,6 +28,16 @@ public class DomainObjectConfiguration : IEntityTypeConfiguration<DomainObject>
         // одна служба — RecordArchive, условным ExecuteUpdate.
         b.Property(e => e.ArchivedAt).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
 
+        // Версия строки (issue #1214) — системная колонка xmin: колонки в таблице не прибавляется,
+        // миграция только сообщает модели, что свойство есть.
+        //
+        // ⚠️ НЕ токен конкурентности (не IsRowVersion), и это решение, а не недосмотр. Токен действует
+        // на модель целиком: каждая запись строки объекта — документа тоже, и из фоновой работы —
+        // стала бы условной, и там, где сегодня побеждает последний, появился бы отказ посреди
+        // выпуска или пакетной сверки. Версию сверяет тот, кому её назвали, — правка записи общих
+        // данных, под блокировкой строки (DomainObjectRepository.SaveSeenAsync).
+        b.Property(e => e.RowVersion).HasColumnName("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate();
+
         // Passthrough-коллекция документной фасеты — НЕ навигация объекта (иначе EF заведёт лишний
         // теневой FK generated_files.DomainObjectId). Файлы висят на фасете (см. DocumentFacetConfiguration).
         b.Ignore(e => e.GeneratedFiles);
