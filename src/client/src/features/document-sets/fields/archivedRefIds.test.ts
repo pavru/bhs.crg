@@ -25,6 +25,12 @@ describe('catalogRefIds', () => {
     expect(catalogRefIds([ref('a'), ref('b')])).toEqual(catalogRefIds([ref('b'), ref('a')]));
   });
 
+  it('основу берёт тоже — объектом вида catalog и голой строкой, а основу-документ пропускает', () => {
+    expect(catalogRefIds({ _baseRef: { kind: 'catalog', id: 'a' } })).toEqual(['a']);
+    expect(catalogRefIds({ _baseRef: 'b' })).toEqual(['b']);
+    expect(catalogRefIds({ _baseRef: { kind: 'instance', id: 'c' } })).toEqual([]);
+  });
+
   it('пустое и не-объекты — пусто, а не падение', () => {
     expect(catalogRefIds(null)).toEqual([]);
     expect(catalogRefIds('строка')).toEqual([]);

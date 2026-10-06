@@ -85,14 +85,14 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Guid>> ArchivedAmongAsync(
+    public async Task<IReadOnlyList<ArchivedRecord>> ArchivedAmongAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
         if (ids.Count == 0) return [];
         // Показ: спрашивают про уже стоящие ссылки, и ответ — сам признак архива.
         return await Db.Set<DomainObject>().AsNoTracking()
             .Where(o => o.Facet == null && o.ArchivedAt != null && ids.Contains(o.Id))
-            .Select(o => o.Id)
+            .Select(o => new ArchivedRecord(o.Id, o.DisplayName))
             .ToListAsync(ct);
     }
 

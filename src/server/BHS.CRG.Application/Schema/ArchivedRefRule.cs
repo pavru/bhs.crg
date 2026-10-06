@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Application.Schema;
@@ -18,89 +19,81 @@ namespace BHS.CRG.Application.Schema;
 /// путей, которыми пишет человек или внешний клиент: там каждая ссылка и есть выбор. Машинные пути,
 /// которые переносят СТОЯВШИЕ ссылки (копия и перенос документа, восстановление копии, починки
 /// данных), этой охраны не зовут вовсе — их вердикты названы в <c>RecordWriteGuardCoverageTests</c>.
-/// Известный край: вынос вложенного значения в общие данные заводит запись создания, и вложенная в
-/// него ссылка на архивную запись даст отказ, хотя в документе она стояла. Отказ называет поле и
-/// оба выхода, так что человек не заперт.</para>
+/// Один машинный путь идёт человеческим адресом — вынос вложенного значения в общие данные: он
+/// называет объект, из которого выносит, и ссылки, СОХРАНЁННЫЕ в том объекте, считаются стоявшими
+/// (<c>alsoStanding</c>).</para>
+///
+/// <para>Замка между вопросом и записью нет, и он не нужен: запись, ушедшая в архив через мгновение
+/// ПОСЛЕ сохранения документа, даёт ровно то же состояние — ссылку, стоявшую до архива. Эти два
+/// порядка неразличимы и одинаково законны; отправка в архив ссылок не проверяет вовсе.</para>
 /// </summary>
 public static class ArchivedRefRule
 {
     public const string ArchivedRef = "archived-ref";
 
-    /// <summary>Ссылка в данных: на что, где стоит и как названа в самой ссылке.</summary>
-    public readonly record struct Placed(Guid EntryId, string Path, string? DisplayName);
-
     /// <summary>
     /// Ссылки, которых в лежащих данных нет, — каждая запись один раз, с первым местом, где она
     /// встретилась: отказу нужно назвать поле, а не перечислить все строки таблицы.
     /// </summary>
-    public static IReadOnlyList<Placed> Added(JsonElement stored, JsonElement incoming)
+    public static IReadOnlyList<CatalogRefs.Placed> Added(
+        JsonElement stored, JsonElement incoming, IReadOnlySet<Guid>? alsoStanding = null)
     {
-        var all = new List<Placed>();
-        Collect(incoming, "", all);
+        var all = CatalogRefs.PlacedIn(incoming);
         if (all.Count == 0) return all;
 
-        var standing = Objects.CatalogRefs.IdsIn(stored);
+        var standing = CatalogRefs.IdsIn(stored);
         var seen = new HashSet<Guid>();
-        return [.. all.Where(p => !standing.Contains(p.EntryId) && seen.Add(p.EntryId))];
+        return [.. all.Where(p => !standing.Contains(p.EntryId)
+                               && alsoStanding?.Contains(p.EntryId) != true && seen.Add(p.EntryId))];
     }
 
     /// <summary>
     /// Находки правила. ⚠️ Запрос к базе — только при непустой разности: обычное сохранение ссылок
-    /// не добавляет, и платить за правило оно не должно.
+    /// не добавляет, и платить за правило оно не должно. Справочник типов (ради заголовка поля)
+    /// спрашивается только на пути отказа — и у того же читателя, что у охраны схемы: второго
+    /// чтения за одно сохранение нет.
     /// </summary>
     public static async Task<IReadOnlyList<AuditIssue>> RefusalsAsync(
-        JsonElement stored, JsonElement incoming, Guid typeId,
-        IRepository<DocumentType> types, IDomainObjectRepository objects, CancellationToken ct)
+        JsonElement stored, JsonElement incoming, Guid typeId, IReadOnlySet<Guid>? alsoStanding,
+        Func<Task<IReadOnlyDictionary<Guid, DocumentType>>> typesById,
+        IDomainObjectRepository objects, CancellationToken ct)
     {
-        var added = Added(stored, incoming);
+        var added = Added(stored, incoming, alsoStanding);
         if (added.Count == 0) return [];
 
-        var archived = (await objects.ArchivedAmongAsync([.. added.Select(p => p.EntryId)], ct)).ToHashSet();
+        var archived = (await objects.ArchivedAmongAsync([.. added.Select(p => p.EntryId)], ct))
+            .ToDictionary(a => a.Id, a => a.DisplayName);
         if (archived.Count == 0) return [];
 
-        // Заголовки полей читаются только здесь, на пути отказа: он редок, а справочник типов тяжёл.
-        var byId = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        var byId = await typesById();
         var titles = byId.ContainsKey(typeId)
-            ? DocumentTypeSchemaReader.EffectiveFields(typeId, byId).ToDictionary(f => f.Key, f => f.Title ?? f.Key)
+            ? DocumentTypeSchemaReader.EffectiveFields(typeId, byId)
+                .ToDictionary(f => f.Key, f => string.IsNullOrWhiteSpace(f.Title) ? f.Key : f.Title!)
             : [];
 
-        return [.. added.Where(p => archived.Contains(p.EntryId)).Select(p =>
+        return [.. added.Where(p => archived.ContainsKey(p.EntryId)).Select(p =>
         {
-            var key = TopKey(p.Path);
-            var field = titles.GetValueOrDefault(key, key);
-            var name = string.IsNullOrWhiteSpace(p.DisplayName) ? "выбранная запись" : $"запись «{p.DisplayName}»";
+            // Имя — из базы, а не из присланной ссылки: её displayName пишет клиент, и запись под
+            // этим именем человек в архиве мог бы не найти.
+            var known = archived[p.EntryId];
+            var name = string.IsNullOrWhiteSpace(known) ? "выбранная запись" : $"запись «{known}»";
             return new AuditIssue(ArchivedRef, AuditSeverity.Error, p.Path,
-                $"Поле «{field}»: {name} в архиве, поставить ссылку на неё нельзя. " +
+                $"{Where(p.Path, titles)}{name} в архиве, поставить ссылку на неё нельзя. " +
                 "Верните запись из архива или выберите другую.");
         })];
     }
 
-    /// <summary>Поле верхнего уровня: заголовок есть у него, а не у строки таблицы внутри.</summary>
-    private static string TopKey(string path)
+    /// <summary>
+    /// «Поле «…»: » — по полю верхнего уровня: заголовок есть у него, а не у строки таблицы внутри.
+    /// Ссылка в корне данных поля не имеет вовсе, основа записи — не поле схемы: называем как есть,
+    /// а не пустыми кавычками.
+    /// </summary>
+    private static string Where(string path, IReadOnlyDictionary<string, string> titles)
     {
+        if (path.Length == 0) return "";
+        if (path == CatalogRefs.BaseRefKey) return "Основа: ";
         var end = path.IndexOfAny(['.', '[']);
-        return end < 0 ? path : path[..end];
-    }
-
-    private static void Collect(JsonElement el, string path, List<Placed> found)
-    {
-        switch (el.ValueKind)
-        {
-            case JsonValueKind.Object:
-                if (el.TryGetProperty("$ref", out var kind) && kind.ValueKind == JsonValueKind.String
-                    && kind.GetString() == "catalog"
-                    && el.TryGetProperty("entryId", out var id) && id.ValueKind == JsonValueKind.String
-                    && Guid.TryParse(id.GetString(), out var parsed))
-                    found.Add(new Placed(parsed, path,
-                        el.TryGetProperty("displayName", out var dn) && dn.ValueKind == JsonValueKind.String
-                            ? dn.GetString() : null));
-                foreach (var prop in el.EnumerateObject())
-                    Collect(prop.Value, path.Length == 0 ? prop.Name : $"{path}.{prop.Name}", found);
-                break;
-            case JsonValueKind.Array:
-                var i = 0;
-                foreach (var item in el.EnumerateArray()) Collect(item, $"{path}[{i++}]", found);
-                break;
-        }
+        var key = end < 0 ? path : path[..end];
+        return $"Поле «{titles.GetValueOrDefault(key, key)}»: ";
     }
 }

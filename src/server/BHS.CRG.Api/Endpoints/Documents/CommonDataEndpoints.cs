@@ -118,7 +118,8 @@ public static class CommonDataEndpoints
             {
                 return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
                     req.DisplayName, req.CompositeTypeId,
-                    JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases, req.CreateAnyway ?? false))));
+                    JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases, req.CreateAnyway ?? false,
+                    req.RefsStandIn))));
             }
             // «Есть в архиве» — полями, а не словами (issue #1185): экран предлагает вернуть запись
             // кнопкой и повторить создание с createAnyway, и разбирать для этого фразу не должен.
@@ -198,7 +199,7 @@ public static class CommonDataEndpoints
         entry with { Data = HeavyLeafElision.WithoutHeavyLeaves(entry.Data) };
 
     record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases,
-        bool? CreateAnyway = null);
+        bool? CreateAnyway = null, Guid? RefsStandIn = null);
     record ArchivedAmongRequest(Guid[]? Ids);
     record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
 }

@@ -43,7 +43,8 @@ public class CommonDataHandlers(
         // Охрана записи (issue #957): у создания «как лежит» — ничего, поэтому всё содержимое
         // вносится этой записью, и запертое поле нельзя заполнить даже впервые.
         await Schema.WriteGuard.EnsureAllowedAsync(
-            null, cmd.Data, cmd.CompositeTypeId, typeRepo, primitiveRepo, objects, ct);
+            null, cmd.Data, cmd.CompositeTypeId, typeRepo, primitiveRepo, objects, ct,
+            await RefsStandingInAsync(cmd.RefsStandIn, ct));
         // После охраны: «есть в архиве» говорят про запись, которую иначе создали бы (ревью PR #1229).
         if (!cmd.CreateAnyway) await EnsureNoArchivedTwinAsync(cmd, ct);
 
@@ -52,6 +53,16 @@ public class CommonDataHandlers(
         await repo.SaveChangesAsync(ct);
         return entry;
     }
+
+    /// <summary>
+    /// Ссылки, стоящие в СОХРАНЁННЫХ данных названного объекта (issue #1185, ревью PR #1230). Вынос
+    /// значения в общие данные переносит их в новую запись, и новыми они от этого не становятся.
+    /// Читается из базы, а не из запроса: «стояла» решает то, что лежит. Объекта нет (форма ещё не
+    /// сохранена, документ качества) — стоявших нет, и правило работает как у обычного создания.
+    /// </summary>
+    private async Task<IReadOnlySet<Guid>?> RefsStandingInAsync(Guid? ownerId, CancellationToken ct) =>
+        ownerId is { } id && await repo.GetByIdAsync(id, ct) is { } owner
+            ? CatalogRefs.IdsIn(owner.Data.RootElement) : null;
 
     /// <summary>
     /// «Есть в архиве» (issue #1185). Только по КЛЮЧУ ИДЕНТИЧНОСТИ и только когда действующей с этим
@@ -166,7 +177,7 @@ public class CommonDataHandlers(
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
 
     public async Task<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
-        => await objects.ArchivedAmongAsync(q.Ids, ct);
+        => [.. (await objects.ArchivedAmongAsync(q.Ids, ct)).Select(a => a.Id)];
 
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)

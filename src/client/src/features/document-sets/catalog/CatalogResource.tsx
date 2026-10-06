@@ -347,7 +347,7 @@ function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...res
           onReturn={onUnarchive && (() => onUnarchive(entry))} />
       )}
       {/* Пометки «в архиве» у плиток ссылок — по сохранённым данным записи (issue #1185). */}
-      <ArchivedRefsProvider data={entry.data}>
+      <ArchivedRefsProvider data={entry.data} ownerId={entry.id}>
         <CatalogEntryForm entry={entry} onClose={onClose} {...rest} />
       </ArchivedRefsProvider>
     </>

@@ -60,7 +60,11 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
 
     /// <summary>
     /// Какие из названных записей общих данных лежат в архиве (issue #1185). Вид записи не спрашивает:
-    /// спрашивает форма, а в ней стоят ссылки на записи разных видов.
+    /// спрашивает форма, а в ней стоят ссылки на записи разных видов. С названием: отказ правила
+    /// записи обязан назвать запись так, как она названа в справочнике.
     /// </summary>
-    Task<IReadOnlyList<Guid>> ArchivedAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+    Task<IReadOnlyList<ArchivedRecord>> ArchivedAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 }
+
+/// <summary>Запись общих данных, лежащая в архиве: идентификатор и название.</summary>
+public readonly record struct ArchivedRecord(Guid Id, string? DisplayName);

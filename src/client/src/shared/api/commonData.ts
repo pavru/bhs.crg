@@ -135,6 +135,8 @@ export function useCreateCommonDataEntry() {
       aliases?: string[];
       /** «Такая запись есть в архиве — создать всё равно» (issue #1185); без него сервер отвечает 409. */
       createAnyway?: boolean;
+      /** Вынос в общие данные: объект, из сохранённых данных которого переезжают ссылки. */
+      refsStandIn?: string;
     }) => apiClient.post<CommonDataEntry>('/common-data', payload).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });

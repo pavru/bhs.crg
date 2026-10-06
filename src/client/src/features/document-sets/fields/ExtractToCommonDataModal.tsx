@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useContext, useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, ArchiveRestore, Link2, X } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -16,6 +16,7 @@ import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { resolveObjectsBatch, type ObjectResolveResult } from '@/shared/api/objects';
 import { collectConstraintViolations, describeViolationPath } from './collectConstraintViolations';
 import { objectSummary } from './objectSummary';
+import { RefsOwnerContext } from './archivedRefIds';
 import {
   suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, offeredScopes,
   hasScopelessCatalogRef,
@@ -60,6 +61,7 @@ export function ExtractToCommonDataModal({
 }) {
   const toast = useToast();
   const create = useCreateCommonDataEntry();
+  const refsOwnerId = useContext(RefsOwnerContext);
   const { data: primitiveTypes = EMPTY_PRIMITIVES } = useListPrimitiveTypes();
   const { data: enumTypes = EMPTY_ENUMS } = useListEnumTypes();
 
@@ -234,6 +236,9 @@ export function ExtractToCommonDataModal({
         // имени согласием не считается — сервер проверит ключ сам и назовёт другую запись, если
         // она есть.
         createAnyway: !!duplicate?.match.archived && duplicate.strong,
+        // Ссылки внутри выносимого значения в объекте уже стояли — сервер сверит это сам, по
+        // сохранённым данным объекта, и не примет их за новые ссылки на архивные записи.
+        refsStandIn: refsOwnerId,
       });
       onExtracted({
         $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: effectiveTarget,

@@ -158,8 +158,10 @@ public static class InvoiceEndpoints
                 "типа занял другой тип).");
 
         var (columns, rest) = InvoiceRequisites.Split(body.Requisites, stored: null);
-        await EnsureAllowedAsync(guard, typeId, stored: null, body.Requisites.GetRawText(), ct);
+        // Стороны — ПРЕЖДЕ охраны: с правилом архива в охране ядра (issue #1185) она отвергла бы
+        // архивного поставщика первой, своими словами, а у четырёх адресов модуля текст один.
         await EnsurePartiesExistAsync(targets, catalog, columns, supplierWas: null, payerWas: null, ct);
+        await EnsureAllowedAsync(guard, typeId, stored: null, body.Requisites.GetRawText(), ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         var marks = body.Unconfirmed ?? [];
@@ -208,10 +210,10 @@ public static class InvoiceEndpoints
             var before = InvoiceRequisites.Merge(invoice);
 
             var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
+            // Стороны — прежде охраны: см. создание.
+            await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
             await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
                 InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
-
-            await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
 
             var changed = InvoiceRequisites.Changed(before, body.Requisites);
 
@@ -394,7 +396,8 @@ public static class InvoiceEndpoints
 
         throw new InvalidRequestException(
             "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select(
-                r => r.Path is { Length: > 0 } path ? $"«{path}»: {r.Message}" : r.Message)));
+                // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
+                r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message)));
     }
 
     /// <summary>

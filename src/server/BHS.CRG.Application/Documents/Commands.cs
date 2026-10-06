@@ -161,10 +161,14 @@ public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) 
 /// <see cref="BHS.CRG.Domain.Common.ArchivedTwinException" />. Умолчание — отказ: согласие на дубль
 /// обязан назвать тот, кто создаёт.
 /// </param>
+/// <param name="RefsStandIn">
+/// Объект (документ или запись), из которого значение ВЫНОСЯТ в общие данные. Ссылки, сохранённые в
+/// нём, правило архива считает стоявшими: их переносят, а не выбирают.
+/// </param>
 public record CreateCommonDataEntryCommand(
     string DisplayName, Guid CompositeTypeId, JsonDocument Data,
     CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null,
-    bool CreateAnyway = false) : IRequest<DomainObject>;
+    bool CreateAnyway = false, Guid? RefsStandIn = null) : IRequest<DomainObject>;
 
 /// <summary>
 /// Какие из названных записей — в архиве (issue #1185). Для ПОКАЗА уже стоящих ссылок: форма

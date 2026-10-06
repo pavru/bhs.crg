@@ -127,7 +127,103 @@ public class ArchivedRefWriteRuleTests(IntegrationTestFixture fixture) : IAsyncL
         Assert.Contains("«Подписанты»", refusal.Message);
     }
 
+    /// <summary>
+    /// Имя в отказе — из справочника, а не из присланной ссылки: её displayName пишет клиент, и по
+    /// чужому имени человек искал бы в архиве не ту запись.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_называет_запись_именем_из_базы_а_не_из_ссылки()
+    {
+        var (archived, _) = await SeedOrgsAsync();
+        var (_, instanceId) = await SeedDocumentAsync("DOC_NAME");
+
+        var refusal = await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(
+            new UpdateRequisitesCommand(instanceId, Ref("Подрядчик", archived, "Выдуманное имя"))));
+
+        Assert.Contains("запись «Ромашка»", refusal.Message);
+        Assert.DoesNotContain("Выдуманное имя", refusal.Message);
+    }
+
+    /// <summary>
+    /// «Основа» — вторая форма ссылки на запись общих данных: и объектом {kind, id}, и голой строкой.
+    /// Её данные подмешиваются в документ, так что это такой же выбор записи.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Новая_основа_на_архивную_запись_отвергнута_а_стоявшая_остаётся(bool asObject)
+    {
+        var (_, org) = await SeedOrgTypeAndEntryAsync("Ромашка");
+        var (_, instanceId) = await SeedDocumentAsync("DOC_BASE" + (asObject ? "O" : "S"));
+        JsonDocument Based(string rest = "") => JsonDocument.Parse(
+            "{\"_baseRef\":" + (asObject ? $"{{\"kind\":\"catalog\",\"id\":\"{org}\"}}" : $"\"{org}\"") + rest + "}");
+
+        await SendAsync(new UpdateRequisitesCommand(instanceId, Based()));
+        await ArchiveAsync(org);
+        // Стоявшая основа правку переживает.
+        await SendAsync(new UpdateRequisitesCommand(instanceId, Based(",\"Примечание\":\"правка\"")));
+
+        var (_, other) = await SeedDocumentAsync("DOC_BASE2" + (asObject ? "O" : "S"));
+        var refusal = await Assert.ThrowsAsync<RecordWriteRefusedException>(
+            () => SendAsync(new UpdateRequisitesCommand(other, Based())));
+        var detail = Assert.Single(refusal.Details);
+        Assert.Equal("_baseRef", detail.Path);
+        Assert.StartsWith("Запись не сохранена. Основа: запись «Ромашка»", refusal.Message);
+    }
+
+    /// <summary>Основа-документ записью общих данных не является: правило её не трогает.</summary>
+    [Fact]
+    public async Task Основа_документ_под_правило_не_попадает()
+    {
+        var (archived, _) = await SeedOrgsAsync();
+        var (_, instanceId) = await SeedDocumentAsync("DOC_BASE_DOC");
+
+        var saved = await SendAsync(new UpdateRequisitesCommand(instanceId, JsonDocument.Parse(
+            "{\"_baseRef\":{\"kind\":\"instance\",\"id\":\"" + archived + "\"}}")));
+
+        Assert.Contains(archived.ToString(), saved.Data.RootElement.GetRawText());
+    }
+
+    /// <summary>Поле с пустым заголовком называется ключом, а не пустыми кавычками.</summary>
+    [Fact]
+    public async Task Пустой_заголовок_поля_заменяется_ключом()
+    {
+        var (archived, _) = await SeedOrgsAsync();
+        var typeId = await SeedTypeAsync("CD_BLANK", DocumentTypeKind.Composite,
+            """{"fields":[{"key":"Подрядчик","type":"complex","title":""}]}""");
+
+        var refusal = await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(
+            new CreateCommonDataEntryCommand("Договор", typeId, Ref("Подрядчик", archived, "Ромашка"),
+                CatalogScope.System, null)));
+
+        Assert.Contains("Поле «Подрядчик»", refusal.Message);
+    }
+
     // ── Общие данные ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Вынос значения в общие данные — создание записи, но ссылки в неё ПЕРЕЕЗЖАЮТ из сохранённого
+    /// объекта. Адрес называет этот объект, и сервер сверяет сам, по лежащим данным: чужой объект
+    /// или ссылка, которой в нём нет, стоявшей не делается.
+    /// </summary>
+    [Fact]
+    public async Task Вынос_в_общие_данные_переносит_стоявшую_ссылку_а_чужую_не_пропускает()
+    {
+        var (_, org) = await SeedOrgTypeAndEntryAsync("Ромашка");
+        var (_, withRef) = await SeedDocumentAsync("DOC_EXTRACT");
+        var (_, withoutRef) = await SeedDocumentAsync("DOC_EXTRACT2");
+        await SendAsync(new UpdateRequisitesCommand(withRef, Signers(RefJson(org, "Ромашка"))));
+        await ArchiveAsync(org);
+        var holder = await SeedTypeAsync("CD_EXTRACT", DocumentTypeKind.Composite, HolderSchema);
+        CreateCommonDataEntryCommand Extract(string name, Guid? from) => new(
+            name, holder, Ref("Подрядчик", org, "Ромашка"), CatalogScope.System, null, RefsStandIn: from);
+
+        var created = await SendAsync(Extract("Вынесено", withRef));
+        Assert.Contains(org.ToString(), created.Data.RootElement.GetRawText());
+
+        await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(Extract("Чужой", withoutRef)));
+        await Assert.ThrowsAsync<RecordWriteRefusedException>(() => SendAsync(Extract("Нет объекта", Guid.NewGuid())));
+    }
 
     [Fact]
     public async Task Создание_записи_общих_данных_со_ссылкой_на_архивную_отвергнуто()
