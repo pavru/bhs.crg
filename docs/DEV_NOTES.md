@@ -1966,6 +1966,14 @@ POST   /api/periods/close                   { contour: company|construction, con
                                               обязателен; перечень изменился → 409
 POST   /api/periods/reopen                  { contour, constructionId?, ifMatch, reason } — отмена
                                               ПОСЛЕДНЕГО закрытия контура, причина обязательна
+POST   /api/common-data/{id}/archive        → { id, displayName, archived, changed } — запись в архив (#1185)
+POST   /api/common-data/{id}/unarchive      → то же, обратно. Право core.catalog.edit.
+                                    Повтор — 200 с changed:false и без записи в журнал.
+                                    409: документ, профиль уровня, запись справочника МОДУЛЯ.
+                                    Отдельные адреса, а не поле PUT: форма, не знающая признака,
+                                    сняла бы архив обычным сохранением.
+DELETE /api/common-data/{id}                409 несёт { error, canArchive }: выход «в архив» экран
+                                    предлагает по ПОЛЮ, а не по словам причины.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
 GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
 POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь

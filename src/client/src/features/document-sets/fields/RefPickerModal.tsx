@@ -327,7 +327,13 @@ function RefPickerModalBody({
        ...variantFields.map(f => allDocTypes.find(t => t.id === f.typeId)?.name).filter(Boolean) as string[]]
     : (compositeType ? [compositeType.name] : []);
   const emptyState = searching
-    ? { title: `По запросу «${search.trim()}» ничего не найдено.`, hint: 'Измените запрос или очистите поиск.' }
+    // Архивных записей в этом списке нет вовсе (issue #1185), и пустой ответ не должен читаться как
+    // «такой записи не существует»: её могли убрать в архив.
+    // Про архив — только там, где он бывает: у записей справочника ядра. Документу и справочнику
+    // модуля совет «проверьте архив» назвал бы путь, которого нет.
+    ? { title: `По запросу «${search.trim()}» ничего не найдено.`,
+        hint: 'Измените запрос или очистите поиск.' + (compositeType?.kind === 'Composite' && compositeType.module.toLowerCase() === 'core'
+          ? ' Записи из архива здесь не показываются — проверьте раздел «В архиве» в справочнике.' : '') }
     : catalogEntries.length > 0
       ? {
           title: 'Подходящих записей нет.',

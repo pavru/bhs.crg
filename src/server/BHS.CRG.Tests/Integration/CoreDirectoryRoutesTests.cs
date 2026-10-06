@@ -62,6 +62,8 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/common-data/",
         "PUT /api/common-data/{id:guid}",
         "DELETE /api/common-data/{id:guid}",
+        "POST /api/common-data/{id:guid}/archive",
+        "POST /api/common-data/{id:guid}/unarchive",
 
         // CatalogEntity — прежнее хранилище того же справочника (аналог «КаталогОбщихДанных»
         // старой системы). Потребителей у него не осталось, но адреса живы и закрыты теми же

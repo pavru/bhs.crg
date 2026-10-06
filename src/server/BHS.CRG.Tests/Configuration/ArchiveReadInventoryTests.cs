@@ -35,7 +35,7 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Modules.Costs"];
 
     /// <summary>Шаги задачи #1185, которые ещё не сделаны. Отложить решение можно только на них.</summary>
-    private static readonly int[] OpenSteps = [2, 3, 4];
+    private static readonly int[] OpenSteps = [3, 4];
 
     private enum Kind
     {
@@ -160,7 +160,10 @@ public partial class ArchiveReadInventoryTests
     [Fact]
     public void У_каждого_решения_есть_причина_а_у_выбора_живой_тест()
     {
-        var probes = typeof(ArchiveReadPurposeTests).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        // Живой тест стоит там, где для него готова обстановка: профиль уровня проверяется на чистой
+        // базе своего класса — на общей базе хоста счетов профиль-тип достался бы всем его стройкам.
+        var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests) }
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())
             .Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
         var wrong = new List<string>();
@@ -171,7 +174,7 @@ public partial class ArchiveReadInventoryTests
             if (row.Kind is Kind.Choice or Kind.ByPurpose && row.Probes.Length == 0)
                 wrong.Add($"{key}\n    выбор без живого теста: решение принято, но ничем не проверено");
             foreach (var probe in row.Probes.Where(p => !probes.Contains(p)))
-                wrong.Add($"{key}\n    живого теста «{probe}» в ArchiveReadPurposeTests нет");
+                wrong.Add($"{key}\n    живого теста «{probe}» нет ни в ArchiveReadPurposeTests, ни в LevelProfileTests");
         }
 
         Assert.True(wrong.Count == 0, "Перепись мест чтения неполна:\n" + string.Join("\n", wrong));

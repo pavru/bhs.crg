@@ -69,9 +69,22 @@ public static class ActivityActions
     public static readonly ActivityAction PeriodReopened =
         new("core.period.reopened", "Отменено закрытие периода");
 
+    /// <summary>
+    /// Запись справочника отправлена в архив (ТЗ CORE-34.4, issue #1185): из списков выбора она
+    /// пропадает у всех. Поля «кто» у записи нет нарочно — второй источник разошёлся бы с журналом
+    /// на первом же восстановлении копии; значит «кто и когда» отвечает только эта запись.
+    /// </summary>
+    public static readonly ActivityAction RecordArchived =
+        new("core.record.archived", "Запись справочника отправлена в архив");
+
+    /// <summary>Запись справочника возвращена из архива — снова предлагается на выбор.</summary>
+    public static readonly ActivityAction RecordUnarchived =
+        new("core.record.unarchived", "Запись справочника возвращена из архива");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
-         RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened];
+         RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
+         RecordArchived, RecordUnarchived];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

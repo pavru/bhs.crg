@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using MediatR;
@@ -88,6 +89,29 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Contains(list, o => o.CompositeTypeId == profType);
         var construction = await m.Send(new GetConstructionQuery(cId));
         Assert.NotNull(construction!.ProfileObjectId);
+    }
+
+    /// <summary>
+    /// Назначение профилем — тот же выбор (issue #1185): запись профиль-типа, лежащая на уровне без
+    /// связи и отправленная в архив, под профиль не берётся — иначе появился бы архивный профиль,
+    /// которого действие «в архив» не допускает. Заводится новая, живая.
+    /// </summary>
+    [Fact]
+    public async Task Под_профиль_уровня_архивная_запись_не_берётся()
+    {
+        var (cId, _, _) = await SetupAsync();
+        var profType = await CompositeTypeAsync("Профиль стройки", "{'tags':['profile.construction'],'fields':[]}");
+        var archived = await CommonDataAsync(profType, "{}", CatalogScope.Construction, cId);
+
+        using var scope = fixture.Services.CreateScope();
+        Assert.Equal(ArchiveOutcome.Changed,
+            await scope.ServiceProvider.GetRequiredService<IRecordArchive>().SetAsync(archived, archived: true));
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CatalogScope.Construction, cId, null));
+
+        var profile = (await m.Send(new GetConstructionQuery(cId)))!.ProfileObjectId;
+        Assert.NotNull(profile);
+        Assert.NotEqual(archived, profile);
     }
 
     [Fact]

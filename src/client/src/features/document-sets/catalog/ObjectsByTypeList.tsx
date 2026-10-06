@@ -1,5 +1,7 @@
-import { Trash2, Link2, FileText } from 'lucide-react';
+import { Trash2, Link2, FileText, Archive, ArchiveRestore } from 'lucide-react';
 import { IconButton } from '@/shared/ui/Button';
+import { ArchivedMark } from '@/shared/ui/ArchivedMark';
+import { ARCHIVED_WORD } from '@/shared/ui/archive';
 import type { CommonDataEntry } from '@/shared/api/types';
 
 // Общие презентационные части списка «объекты по типу» (issue #88) — устраняют дублирование между
@@ -25,7 +27,7 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
     <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
       title="Открыть реальный объект"
       className="flex items-center gap-1 text-[11px] text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
-      <Link2 size={11} className="shrink-0" />→ {target.displayName}
+      <Link2 size={11} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
     </button>
   );
 }
@@ -34,7 +36,7 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
  *  <paramref name="dense"/> — компактный вид (панель) vs просторный (страница). Разделитель/фон —
  *  через <paramref name="className"/> на стороне вызывающего. */
 export function ObjectRow({
-  entry, siblings, resolvePool, onEdit, onDelete, deleteDisabled = false,
+  entry, siblings, resolvePool, onEdit, onDelete, deleteDisabled = false, onArchive, archiveDisabled = false,
   dense = false, showPreview = false, docKind = false, className = '',
 }: {
   entry: CommonDataEntry;
@@ -44,6 +46,12 @@ export function ObjectRow({
   onEdit: (e: CommonDataEntry) => void;
   onDelete: (e: CommonDataEntry) => void;
   deleteDisabled?: boolean;
+  /**
+   * «В архив» у действующей записи, «Вернуть из архива» у архивной (issue #1185). Не задано — кнопки
+   * нет вовсе: у смотрящего нет права либо запись ведёт модуль.
+   */
+  onArchive?: (e: CommonDataEntry) => void;
+  archiveDisabled?: boolean;
   dense?: boolean;
   showPreview?: boolean;
   docKind?: boolean;   // тип-документ во внешнем каталоге — иконка + бейдж (в плотном виде панели)
@@ -67,7 +75,11 @@ export function ObjectRow({
       aria-label={`Редактировать «${entry.displayName}»`}
       className={`group flex items-center cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset ${dense ? 'gap-3 px-3 py-2 hover:bg-muted' : 'gap-4 px-4 py-3 hover:bg-base'} ${className}`}>
       {docKind && dense && <FileText size={12} className="text-warning shrink-0" />}
-      <span className={`flex-1 min-w-[8rem] text-sm truncate ${dense ? 'text-fg1' : 'font-medium text-fg1'}`}>{entry.displayName}</span>
+      {/* Архивная: имя приглушено, но не зачёркнуто — запись цела, её только нет в выборе. */}
+      <span className={`flex-1 min-w-[8rem] flex items-center gap-2 text-sm ${entry.archived ? 'text-fg2' : 'text-fg1'} ${dense ? '' : 'font-medium'}`}>
+        <span className="truncate">{entry.displayName}</span>
+        {entry.archived && <ArchivedMark className="font-normal" />}
+      </span>
       <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
       {docKind && dense && (
         <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>
@@ -76,6 +88,12 @@ export function ObjectRow({
         <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">{preview}</span>
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
+        {onArchive && (
+          <IconButton label={entry.archived ? 'Вернуть из архива' : 'В архив'} size="sm"
+            onClick={e => { e.stopPropagation(); onArchive(entry); }} disabled={archiveDisabled}>
+            {entry.archived ? <ArchiveRestore size={icon} /> : <Archive size={icon} />}
+          </IconButton>
+        )}
         <IconButton label="Удалить" size="sm" danger
           onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled}>
           <Trash2 size={icon} />

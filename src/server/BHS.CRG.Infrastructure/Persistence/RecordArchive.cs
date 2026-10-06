@@ -32,6 +32,10 @@ public class RecordArchive(AppDbContext db) : IRecordArchive
         return ArchiveOutcome.LevelProfile;
     }
 
+    public Task<bool> AllowsAsync(Guid id, CancellationToken ct = default) =>
+        db.DomainObjects.AsNoTracking().AnyAsync(
+            o => o.Id == id && o.Facet == null && o.ArchivedAt == null && !ProfileIds().Contains(o.Id), ct);
+
     public async Task<IReadOnlyList<Guid>> RestoreAsync(
         IReadOnlyDictionary<Guid, DateTimeOffset?> states, CancellationToken ct = default)
     {
