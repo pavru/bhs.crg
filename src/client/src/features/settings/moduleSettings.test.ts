@@ -8,7 +8,7 @@ import {
 function tolerance(over: Partial<ModuleSetting> = {}): ModuleSetting {
   return {
     key: 'costs.allocation.tolerance', title: 'Допуск расхождения сумм', effect: 'Что меняет',
-    kind: 'number', value: '1.00', stored: null, default: '1.00',
+    kind: 'number', value: '1.00', stored: null, stale: null, default: '1.00',
     min: 0, max: 100, scale: 2, unit: '₽', changeWarning: 'Действует на все счета.', ...over,
   };
 }
@@ -54,9 +54,10 @@ describe('changedValues — что уйдёт на сервер', () => {
     expect(changedValues([tolerance()], { [KEY]: null })).toEqual({});
   });
 
-  it('негодное сохранённое можно перезаписать тем же числом, что действует', () => {
-    const stale = tolerance({ value: '1.00', stored: '500' });
+  it('негодное сохранённое можно перезаписать тем же числом, что действует, и сбросить', () => {
+    const stale = tolerance({ value: '1.00', stale: '500' });
     expect(changedValues([stale], { [KEY]: '1' })).toEqual({ [KEY]: '1' });
+    expect(changedValues([stale], { [KEY]: null })).toEqual({ [KEY]: null });
   });
 });
 
@@ -99,6 +100,13 @@ describe('changeWarnings — предупреждение до сохранен�
     expect(warning.to).toBe('1,00 ₽');
   });
 
+  it('замена негодного сохранённого тем же значением — не смена, вопроса нет', () => {
+    const stale = tolerance({ value: '1.00', stale: '500' });
+    expect(changeWarnings([stale], { [KEY]: '1' })).toEqual([]);
+    expect(changeWarnings([stale], { [KEY]: null })).toEqual([]);
+    expect(changeWarnings([stale], { [KEY]: '0.5' })).toHaveLength(1);
+  });
+
   it('у настройки без предупреждения и у неизменённой его нет', () => {
     expect(changeWarnings([tolerance({ changeWarning: null })], { [KEY]: '0.10' })).toEqual([]);
     expect(changeWarnings([tolerance()], {})).toEqual([]);
@@ -114,7 +122,7 @@ describe('подписи', () => {
   it('сохранено одно, действует другое — сказано словами', () => {
     expect(staleStored(tolerance())).toBeNull();
     expect(staleStored(tolerance({ value: '5.00', stored: '5.00' }))).toBeNull();
-    expect(staleStored(tolerance({ value: '1.00', stored: '500' }))).toContain('Сохранено «500»');
+    expect(staleStored(tolerance({ value: '1.00', stale: '500' }))).toContain('Сохранено «500»');
   });
 
   it('число показывается с запятой, уходит с точкой', () => {

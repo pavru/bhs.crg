@@ -46,15 +46,13 @@ export function changedValues(settings: ModuleSetting[], draft: SettingsDraft): 
     const typed = draft[setting.key];
     if (typed === undefined) continue;
     if (typed === null) {
-      if (setting.stored !== null) values[setting.key] = null;
+      if (setting.stored !== null || setting.stale !== null) values[setting.key] = null;
       continue;
     }
     const next = toServer(typed);
-    // Сравниваем с СОХРАНЁННЫМ, когда оно есть: действующее равно умолчанию и тогда, когда в базе
-    // лежит негодное значение, — а его как раз нужно дать перезаписать тем же числом.
-    const current = setting.stored ?? setting.value;
-    if (setting.stored !== null && setting.stored !== setting.value) values[setting.key] = next;
-    else if (!sameNumber(next, current)) values[setting.key] = next;
+    // Негодное сохранённое дают перезаписать и тем же числом, что действует: действует умолчание,
+    // а в базе лежит другое — без записи оно там и останется.
+    if (setting.stale !== null || !sameNumber(next, setting.value)) values[setting.key] = next;
   }
   return values;
 }
@@ -84,10 +82,14 @@ export function localRefusals(
   return refusals;
 }
 
-/** Предупреждения настроек, которые сейчас меняются, — их показывают до сохранения. */
+/**
+ * Предупреждения настроек, которые сейчас меняются, — их показывают до сохранения. Только там, где
+ * меняется ДЕЙСТВУЮЩЕЕ значение: замена негодного сохранённого тем же числом настройку не меняет,
+ * и спрашивать «1,00 ₽ → 1,00 ₽» не о чем.
+ */
 export function changeWarnings(settings: ModuleSetting[], values: Record<string, string | null>) {
   return settings
-    .filter(s => s.key in values && s.changeWarning)
+    .filter(s => s.key in values && s.changeWarning && !sameNumber(values[s.key] ?? s.default, s.value))
     .map(s => ({
       key: s.key,
       title: s.title,
@@ -115,8 +117,8 @@ export function boundsHint(setting: ModuleSetting): string {
  * как будто так и задано.
  */
 export function staleStored(setting: ModuleSetting): string | null {
-  if (setting.stored === null || setting.stored === setting.value) return null;
-  return `Сохранено «${setting.stored}», но это значение не подходит — действует ` +
+  if (setting.stale === null) return null;
+  return `Сохранено «${setting.stale}», но это значение не подходит — действует ` +
     `${withUnit(shown(setting.value), setting.unit)}. Сохраните годное значение или верните умолчание.`;
 }
 

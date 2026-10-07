@@ -38,13 +38,28 @@ public partial class BackupService
 
         var existing = await db.AppSettings.ToDictionaryAsync(a => a.Key, StringComparer.Ordinal, ct);
         int created = 0, updated = 0;
+        var changes = new List<(string Key, BHS.CRG.Application.Settings.SettingChange Change)>();
         foreach (var item in ok)
         {
-            if (existing.TryGetValue(item.Key, out var row)) { row.SetValue(item.Value); updated++; }
-            else { db.AppSettings.Add(BHS.CRG.Domain.Settings.AppSetting.Create(item.Key, item.Value)); created++; }
+            // В хранимом виде: «1» из копии другой сборки — то же, что «1.00» здесь.
+            var value = settingKeys.Normalize(item.Key, item.Value);
+            existing.TryGetValue(item.Key, out var row);
+            if (settingKeys.Change(item.Key, row?.Value, value) is { } change) changes.Add((item.Key, change));
+
+            if (row is not null) { row.SetValue(value); updated++; }
+            else { db.AppSettings.Add(BHS.CRG.Domain.Settings.AppSetting.Create(item.Key, value)); created++; }
         }
 
         await db.SaveChangesAsync(ct);
+
+        // ⚠️ Смена настройки модуля копией — в журнал, как и смена с экрана (ревью PR #1249): допуск
+        // действует на все счета задним числом, и восстановление — штатный путь его поменять. Без
+        // записи вопрос «с какого дня изменились суммы» остался бы без ответа. Пишется в той же
+        // транзакции, что и само восстановление.
+        foreach (var (key, change) in changes)
+            await journal.RecordAsync(BHS.CRG.Application.Activity.ActivityActions.ModuleSettingChanged, key,
+                change.Label, before: change.Before, after: change.After + " (восстановление копии)", ct: ct);
+
         db.ChangeTracker.Clear();
         stats.Count("Настройки системы", created, updated);
     }

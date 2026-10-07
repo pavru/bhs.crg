@@ -13,7 +13,6 @@ namespace BHS.CRG.Modules.Settings;
 public sealed class ModuleSettingCatalog
 {
     private readonly Dictionary<string, ModuleSetting> _byKey = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, IReadOnlyList<ModuleSetting>> _byModule = new(StringComparer.OrdinalIgnoreCase);
 
     public ModuleSettingCatalog(IEnumerable<IAppModule> available)
     {
@@ -21,8 +20,6 @@ public sealed class ModuleSettingCatalog
 
         foreach (var module in available)
         {
-            _byModule[module.Code] = module.Settings;
-
             foreach (var setting in module.Settings)
             {
                 if (setting.Validate() is { } invalid)
@@ -47,9 +44,6 @@ public sealed class ModuleSettingCatalog
 
     /// <summary>Объявление по ключу; <c>null</c> — такого ключа не объявляет ни один модуль сборки.</summary>
     public ModuleSetting? Find(string key) => _byKey.GetValueOrDefault(key);
-
-    /// <summary>Настройки модуля в порядке объявления; у незнакомого модуля — пусто.</summary>
-    public IReadOnlyList<ModuleSetting> Of(string module) => _byModule.GetValueOrDefault(module) ?? [];
 
     /// <summary>
     /// То ли это объявление, что вписано в <c>Settings</c> модуля. Настройка, заведённая полем и не

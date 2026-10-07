@@ -189,6 +189,78 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.False(catalog.Accepts(Key, "500"));
         Assert.False(catalog.Accepts("costs.allocation.tolerence", "0.50"));
         Assert.False(catalog.Accepts("nope.some.key", "1"));
+
+        // В хранимом виде — только настройка модуля; значение ядра каталог не трогает.
+        Assert.Equal("0.50", catalog.Normalize(Key, "0.5"));
+        Assert.Equal("Europe/Moscow", catalog.Normalize(AppSettingKeys.CompanyTimeZone, "Europe/Moscow"));
+    }
+
+    /// <summary>
+    /// «Изменилось ли» — про ДЕЙСТВУЮЩЕЕ значение, одним правилом на экран и на восстановление
+    /// копии (ревью PR #1249). Строка в базе может смениться, а настройка — нет: тогда в журнал
+    /// писать нечего, и запись «было 1,00 ₽, стало 1,00 ₽» была бы шумом.
+    /// </summary>
+    [Fact]
+    public void Смена_настройки_для_журнала_считается_по_действующему_значению()
+    {
+        var catalog = host.Services.GetRequiredService<IAppSettingCatalog>();
+
+        var lowered = catalog.Change(Key, null, "0.10");
+        Assert.Equal(new SettingChange("Счета и накладные: Допуск расхождения сумм", "1,00 ₽", "0,10 ₽"), lowered);
+        Assert.Equal("0,10 ₽", catalog.Change(Key, "0.10", null)!.Before);
+
+        // Та же настройка другой строкой: несохранённый рубль и «1», «1» и «1.00», негодное и сброс.
+        Assert.Null(catalog.Change(Key, null, "1"));
+        Assert.Null(catalog.Change(Key, "1", "1.00"));
+        Assert.Null(catalog.Change(Key, "500", null));
+        // Смена ключа ядра этим действием не журналируется.
+        Assert.Null(catalog.Change(AppSettingKeys.CompanyTimeZone, null, "Europe/Moscow"));
+    }
+
+    /// <summary>
+    /// В базе лежит то, что эта версия не принимает или записала бы иначе. Экран узнаёт об этом от
+    /// сервера, а не сравнением строк: годное «0.5» — не «негодное сохранённое».
+    /// </summary>
+    [Fact]
+    public async Task Сырое_и_негодное_сохранённое_сервер_называет_сам_а_в_журнал_шум_не_идёт()
+    {
+        var (client, _) = await SignInAsync(SystemRoles.Admin);
+
+        // Годное, но не в хранимом виде — так его кладёт правка базы руками.
+        await StoreRawAsync("0.5");
+        var raw = Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray());
+        Assert.Equal("0.50", raw.GetProperty("value").GetString());
+        Assert.Equal("0.50", raw.GetProperty("stored").GetString());
+        Assert.Equal(JsonValueKind.Null, raw.GetProperty("stale").ValueKind);
+
+        // Негодное: действует умолчание, а что лежит — названо отдельно.
+        await StoreRawAsync("500");
+        var stale = Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray());
+        Assert.Equal("1.00", stale.GetProperty("value").GetString());
+        Assert.Equal(JsonValueKind.Null, stale.GetProperty("stored").ValueKind);
+        Assert.Equal("500", stale.GetProperty("stale").GetString());
+
+        // Сброс негодного строку убирает, а настройку не меняет — журнал молчит.
+        await SaveAsync(client, null);
+        Assert.Equal(JsonValueKind.Null, Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+            .GetProperty("stale").ValueKind);
+        // Несохранённая настройка тем же значением, что умолчание, строки не заводит.
+        await SaveAsync(client, "1");
+        Assert.Equal(JsonValueKind.Null, Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+            .GetProperty("stored").ValueKind);
+        Assert.Empty(await ChangesAsync());
+
+        // Отрицательный ноль — это ноль.
+        await SaveAsync(client, "-0");
+        Assert.Equal("0.00", Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+            .GetProperty("stored").GetString());
+        Assert.Equal("0,00 ₽", Assert.Single(await ChangesAsync()).After);
+    }
+
+    private async Task StoreRawAsync(string value)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().SetAsync(Key, value);
     }
 
     /// <summary>

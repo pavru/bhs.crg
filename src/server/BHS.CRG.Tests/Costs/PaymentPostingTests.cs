@@ -206,6 +206,36 @@ public class PaymentPostingTests
             ClosedPeriodGuard.LockOf(invoice, parts, new PeriodBoundaries(D(9, 20), Closed.Constructions)));
     }
 
+    /// <summary>
+    /// Допуск понизили после оплаты (ревью PR #1249). При оплате расхождение было в допуске и ушло в
+    /// последнюю часть — остатка не было, и даты ему не записали. Теперь расхождение — остаток, и из
+    /// учётных месяцев он выпасть не должен: сумма счёта по периодам обязана остаться суммой к оплате.
+    /// </summary>
+    [Fact]
+    public void Остаток_появившийся_после_понижения_допуска_остаётся_в_месяце_последней_доли()
+    {
+        const decimal total = 100_000.80m;
+        InvoiceAllocation[] parts =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteB), quantity: 100),
+            Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000),
+        ];
+        var plan = PaymentPosting.Plan(D(9, 15), total, [First, Second], parts, PostedBefore.None, PeriodBoundaries.None, Rouble);
+        Assert.Null(plan.Remainder);
+        foreach (var part in parts) part.Post(D(9, 15));
+
+        var lowered = PaymentPosting.Balance([First, Second], parts, total, tolerance: 0.50m);
+        var money = PaymentPosting.Money(lowered, total, parts, remainderOn: null);
+
+        Assert.Equal((0.80m, D(9, 15)), (money.Single(m => m.Part is null).Amount, money.Single(m => m.Part is null).AccountingOn));
+        Assert.Equal(total, PaymentPosting.Months(money).Sum(m => m.Amount));
+
+        // У неоплаченного счёта дат нет ни у долей, ни у остатка — период ему не называется.
+        foreach (var part in parts) part.Post(null);
+        var unpaid = PaymentPosting.Money(lowered, total, parts, remainderOn: null);
+        Assert.All(unpaid, m => Assert.Null(m.AccountingOn));
+    }
+
     private static Invoice Invoice(decimal? total)
     {
         var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);

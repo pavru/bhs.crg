@@ -62,16 +62,13 @@ public class ModuleSettingCatalogTests
     /// восстановлении копии. Объявление одного модуля другому не видно.
     /// </summary>
     [Fact]
-    public void Каталог_находит_ключ_и_отдаёт_настройки_по_модулям()
+    public void Каталог_находит_ключ_и_отличает_объявление_от_двойника()
     {
         var first = Number("probe.sums.tolerance");
         var catalog = new ModuleSettingCatalog([new ProbeModule("probe", first), new ProbeModule("empty")]);
 
         Assert.Same(first, catalog.Find("probe.sums.tolerance"));
         Assert.Null(catalog.Find("probe.sums.other"));
-        Assert.Equal([first], catalog.Of("probe"));
-        Assert.Empty(catalog.Of("empty"));
-        Assert.Empty(catalog.Of("nope"));
         Assert.True(catalog.Declares(first));
         // Тот же ключ другим объектом — не объявление: читать можно только то, что вписано.
         Assert.False(catalog.Declares(first with { DefaultValue = 2m }));
@@ -97,6 +94,11 @@ public class ModuleSettingCatalogTests
         Assert.Null(setting.Refuse("10.00"));
         Assert.NotNull(setting.Refuse("1 000"));
         Assert.NotNull(setting.Refuse(""));
+        // Ноль — без знака: «-0» границу проходит, а в базу и журнал знак попасть не должен.
+        Assert.Null(setting.Refuse("-0"));
+        Assert.Equal("0.00", setting.Normalize("-0.00"));
+        Assert.Equal("0,00", setting.Display("-0"));
+        Assert.Equal(0m, setting.Read("-0"));
     }
 
     // ── Настоящие модули ──────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Settings;
 
@@ -21,9 +23,14 @@ public static class ModuleSettingsEndpoints
     /// <summary>Новые значения по ключам; <c>null</c> — снять настройку, вернуться к умолчанию.</summary>
     public record ModuleSettingsRequest(Dictionary<string, string?>? Values);
 
+    /// <param name="Stored">Сохранённое значение в хранимом виде; <c>null</c> — настройку не меняли
+    /// либо в базе лежит негодное (тогда <paramref name="Stale" /> называет его как есть).</param>
+    /// <param name="Stale">Что лежит в базе и не принимается этой версией; <c>null</c> — такого нет.
+    /// Признак считает сервер проверкой объявления: сравнивать строки экрану нельзя — годное «1» и
+    /// действующее «1.00» различаются записью, а не значением (ревью PR #1249).</param>
     public record ModuleSettingView(
         string Key, string Title, string Effect, string Kind,
-        string Value, string? Stored, string Default,
+        string Value, string? Stored, string? Stale, string Default,
         decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning);
 
     public record ModuleSettingsView(string Code, string Title, IReadOnlyList<ModuleSettingView> Settings);
@@ -35,21 +42,20 @@ public static class ModuleSettingsEndpoints
 
         g.MapGet("/", async (ModuleRegistry registry, IAppSettingsStore store, CancellationToken ct) =>
         {
-            var modules = new List<ModuleSettingsView>();
             // Модуль без настроек в ответ не попадает: пустая секция на экране — вопрос «а где?».
-            foreach (var module in registry.Enabled.Where(m => m.Settings.Count > 0))
-            {
-                var views = new List<ModuleSettingView>();
-                foreach (var setting in module.Settings)
-                    views.Add(View(setting, await store.GetAsync(setting.Key, ct)));
-                modules.Add(new(module.Code, module.Title, views));
-            }
+            var modules = registry.Enabled.Where(m => m.Settings.Count > 0).ToList();
+            // Одним чтением на все модули: адрес общий, и запрос на настройку рос бы вместе с ними.
+            var stored = await store.GetManyAsync([.. modules.SelectMany(m => m.Settings).Select(s => s.Key)], ct);
 
-            return Results.Ok(new { modules });
+            return Results.Ok(new
+            {
+                modules = modules.Select(m => new ModuleSettingsView(m.Code, m.Title,
+                    [.. m.Settings.Select(s => View(s, stored.GetValueOrDefault(s.Key)))])),
+            });
         });
 
         g.MapPut("/{code}", async (string code, ModuleSettingsRequest req, ModuleRegistry registry,
-            IAppSettingsStore store, IActivityLog journal, CancellationToken ct) =>
+            IAppSettingsStore store, IActivityLog journal, AppDbContext db, CancellationToken ct) =>
         {
             if (registry.Find(code) is not { } module)
                 return Results.NotFound(new { error = $"Модуль «{code}» на этом экземпляре не включён." });
@@ -72,22 +78,35 @@ public static class ModuleSettingsEndpoints
             if (fields.Count > 0)
                 return Results.BadRequest(new { error = "Настройки не сохранены: " + string.Join("; ", fields.Values) + ".", fields });
 
+            // ⚠️ Значения и записи журнала — ОДНОЙ транзакцией (ревью PR #1249). Хранилище и журнал
+            // сохраняют каждый сам, и без неё значение, записанное до сбоя журнала, уже действовало бы
+            // на все счета — без следа и при ответе «не сохранилось». Журнал здесь единственный
+            // ответ на вопрос «с какого дня изменились суммы».
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var before = await store.GetManyAsync([.. values.Keys], ct);
+
             foreach (var (key, value) in values)
             {
                 var setting = declared[key];
-                var before = await store.GetAsync(key, ct);
-                var after = value is null ? null : setting.Normalize(value.Trim());
-                if (string.Equals(before, after, StringComparison.Ordinal)) continue;
+                var was = before.GetValueOrDefault(key);
+                var now = value is null ? null : setting.Normalize(value.Trim());
 
-                await store.SetAsync(key, after, ct);
-                // В журнал — действующие значения словами, а не сохранённые строки: «было 1,00 ₽,
-                // стало 0,50 ₽» читается и тогда, когда прежнего значения в базе не было вовсе.
-                await journal.RecordAsync(ActivityActions.ModuleSettingChanged, key,
-                    $"{module.Title}: {setting.Title}",
-                    before: setting.Display(Effective(setting, before)),
-                    after: setting.Display(Effective(setting, after)), ct: ct);
+                var change = ModuleSettingValues.Change(module.Title, setting, was, now);
+                // Значение не меняется. Строку правим, только когда в базе лежит не то, что должно:
+                // негодное или записанное не в хранимом виде. Несохранённую настройку тем же
+                // значением, что умолчание, не заводим — иначе экран предложил бы «вернуть умолчание»
+                // там, где оно и действует.
+                if (change is null && (was is null || string.Equals(was, now, StringComparison.Ordinal))) continue;
+
+                await store.SetAsync(key, now, ct);
+                // В журнал — только настоящая смена: «было 1,00 ₽, стало 1,00 ₽» — шум, за которым
+                // теряется запись, ради которой журнал открывали.
+                if (change is not null)
+                    await journal.RecordAsync(ActivityActions.ModuleSettingChanged, key,
+                        change.Label, before: change.Before, after: change.After, ct: ct);
             }
 
+            await tx.CommitAsync(ct);
             return Results.NoContent();
         });
     }
@@ -95,14 +114,12 @@ public static class ModuleSettingsEndpoints
     private static ModuleSettingView View(ModuleSetting setting, string? stored)
     {
         var number = setting as NumberSetting;
+        var stale = ModuleSettingValues.Stale(setting, stored);
         return new(setting.Key, setting.Title, setting.Effect, setting.Kind,
-            Value: Effective(setting, stored),
-            // Сохранённое отдаётся отдельно от действующего: расходятся они, когда в базе лежит
-            // значение, которое эта версия уже не принимает, — и экран обязан это показать.
-            Stored: stored, Default: setting.DefaultText,
+            Value: ModuleSettingValues.Effective(setting, stored),
+            Stored: stored is null || stale ? null : setting.Normalize(stored),
+            Stale: stale ? stored : null,
+            Default: setting.DefaultText,
             number?.Min, number?.Max, number?.Scale, number?.Unit, setting.ChangeWarning);
     }
-
-    private static string Effective(ModuleSetting setting, string? stored) =>
-        stored is not null && setting.Refuse(stored) is null ? setting.Normalize(stored) : setting.DefaultText;
 }

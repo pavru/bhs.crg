@@ -141,7 +141,9 @@ public sealed record NumberSetting(
 
     private string Human(decimal number) => Text(number).Replace('.', ',');
 
-    private static decimal Parse(string value) => TryParse(value, out var number) ? number : 0;
+    // Ноль — без знака: «-0» проходит границу «не меньше нуля», а decimal знак нуля помнит и
+    // печатает — в базе и в журнале оказалось бы «-0,00 ₽» (ревью PR #1249).
+    private static decimal Parse(string value) => TryParse(value, out var number) && number != 0 ? number : 0m;
 
     // Разделитель — точка: значение хранится и едет по сети в одном виде, а запятую человека
     // переводит экран. Пробелы и разделители тысяч не принимаются — «1 000» и «1,000» читались бы

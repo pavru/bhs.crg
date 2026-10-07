@@ -12,6 +12,10 @@ public interface IAppSettingsStore
     Task<string?> GetAsync(string key, CancellationToken ct = default);
 
     /// <summary>Записать значение; <c>null</c> снимает настройку — «вернуть умолчание».</summary>
+    /// <summary>Значения нескольких ключей одним чтением; ключа без значения в ответе нет.</summary>
+    Task<IReadOnlyDictionary<string, string>> GetManyAsync(
+        IReadOnlyCollection<string> keys, CancellationToken ct = default);
+
     Task SetAsync(string key, string? value, CancellationToken ct = default);
 
     /// <summary>

@@ -101,7 +101,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
             <p className="text-xs text-fg3 mt-1.5 max-w-xl">{setting.effect}</p>
             {stale && <p className="text-xs text-warning mt-1 max-w-xl">{stale}</p>}
             {/* «Вернуть» — только когда есть что возвращать: у несохранённой настройки умолчание и так действует. */}
-            {setting.stored !== null && !reset && (
+            {(setting.stored !== null || setting.stale !== null) && !reset && (
               <Button variant="text" size="sm" className="mt-1 -ml-2" onClick={() => edit(setting.key, null)}>
                 Вернуть значение по умолчанию
               </Button>
