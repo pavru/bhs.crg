@@ -24,10 +24,12 @@ namespace BHS.CRG.Tests.Configuration;
 /// запись в архив и смотрит, что в выборе её нет. Строка «выбор» без такого теста — отказ.</para>
 ///
 /// <para>Чего перепись НЕ видит — честно. Вызов, перенесённый на следующую строку (<c>await repo</c>
-/// / <c>.FindAsync(</c>). Чтение через обобщённый код, где тип объекта в файле не назван. Условие
-/// отбора на СОСЕДНЕЙ строке: убери из запроса «только документы» — ключ не изменится. И клиент,
-/// попросивший «показ» для своего выбора. Первые три ловят живые тесты там, где они есть; последнее
-/// — только правило записи (новая ссылка на архивную запись — отказ), оно приезжает последним шагом.</para>
+/// / <c>.FindAsync(</c>). Вызов порта, объявленного в БАЗОВОМ классе: имя порта перепись несёт между
+/// частями partial-типа (см. <see cref="Visible" />), но не по наследованию. Чтение через обобщённый
+/// код, где тип объекта в файле не назван. Условие отбора на СОСЕДНЕЙ строке: убери из запроса
+/// «только документы» — ключ не изменится. И клиент, попросивший «показ» для своего выбора. Первые
+/// четыре ловят живые тесты там, где они есть; последнее — только правило записи (новая ссылка на
+/// архивную запись — отказ), оно приезжает последним шагом.</para>
 /// </summary>
 public partial class ArchiveReadInventoryTests
 {
@@ -75,7 +77,7 @@ public partial class ArchiveReadInventoryTests
 
     // ── Что считается чтением ─────────────────────────────────────────────────
 
-    /// <summary>Имя, под которым файл держит репозиторий объектов.</summary>
+    /// <summary>Имя, под которым репозиторий объектов объявлен в файле.</summary>
     private static readonly Regex Declared = new(
         @"(?:IRepository<DomainObject>|IDomainObjectRepository)\s+(\w+)", RegexOptions.Compiled);
 
@@ -93,7 +95,7 @@ public partial class ArchiveReadInventoryTests
         RegexOptions.Compiled);
 
     /// <summary>
-    /// Имя, под которым файл держит порт справочников. По ТИПУ, а не по слову «catalog»: порт,
+    /// Имя, под которым порт справочников объявлен в файле. По ТИПУ, а не по слову «catalog»: порт,
     /// внедрённый под другим именем, иначе прошёл бы мимо переписи.
     /// </summary>
     private static readonly Regex DeclaredCatalog = new(@"IModuleCatalog\s+(\w+)", RegexOptions.Compiled);
@@ -101,33 +103,81 @@ public partial class ArchiveReadInventoryTests
     /// <summary>Состояние ссылки модуля на запись.</summary>
     private static readonly Regex States = new(@"\.StatesAsync\(ReferenceTarget\.Record", RegexOptions.Compiled);
 
-    private static Regex? Calls(Regex declared, string text, string methods)
+    /// <summary>Исходный файл: проект, путь от каталога решения и текст.</summary>
+    private sealed record Source(string Project, string Path, string Text);
+
+    private static readonly Regex Namespace = new(@"^\s*namespace\s+([\w.]+)", RegexOptions.Compiled | RegexOptions.Multiline);
+
+    private static readonly Regex PartialType = new(
+        @"\bpartial\s+(?:class|struct|interface|record(?:\s+(?:class|struct))?)\s+(\w+)", RegexOptions.Compiled);
+
+    /// <summary>Partial-типы, части которых лежат в файле: «проект|пространство имён|имя».</summary>
+    private static List<string> PartialTypes(Source source)
     {
-        var names = declared.Matches(text).Select(m => Regex.Escape(m.Groups[1].Value)).Distinct().ToList();
-        return names.Count == 0 ? null : new Regex(@"\b(?:" + string.Join('|', names) + @")\.(?:" + methods + @")\(");
+        var ns = Namespace.Match(source.Text).Groups[1].Value;
+        return PartialType.Matches(source.Text).Select(m => $"{source.Project}|{ns}|{m.Groups[1].Value}").Distinct().ToList();
     }
 
-    /// <summary>Место чтения → сколько раз такая строка стоит в файле.</summary>
-    private static Dictionary<string, int> FindReads()
+    /// <summary>
+    /// Имена, под которыми порт виден в каждом файле: объявленные в нём самом и в ОСТАЛЬНЫХ ЧАСТЯХ его
+    /// partial-типов. У такого типа порт объявлен один раз (первичный конструктор), а звать его можно
+    /// из любой части — и вызов из части без объявления проходил мимо переписи молча (PR #1240:
+    /// чтение, перенесённое в соседний файл класса, перестало находиться, и сторож сказал лишь
+    /// «строки больше нет»).
+    ///
+    /// <para>По всему проекту имена не собираем нарочно: «catalog» и «repository» зовут и порты других
+    /// типов, и перепись утонула бы в чужих вызовах.</para>
+    /// </summary>
+    private static Dictionary<string, HashSet<string>> Visible(IReadOnlyList<Source> sources, Regex declared)
     {
-        var found = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var project in Projects)
-            foreach (var file in SourceTree.Files(project))
-            {
-                var text = File.ReadAllText(file);
-                var repository = Calls(Declared, text, @"(?:Find|Get|Query|Count|Any|Search|Refs|List|Read)\w*");
-                var catalog = Calls(DeclaredCatalog, text, "ListAsync|SearchAsync|RefsAsync|GetAsync");
+        var own = sources.ToDictionary(s => s.Path,
+            s => declared.Matches(s.Text).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.Ordinal));
 
-                foreach (var raw in text.Split('\n'))
-                {
-                    var line = raw.Trim();
-                    if (line.StartsWith("//", StringComparison.Ordinal) || line.StartsWith('*')) continue;
-                    if (!Direct.IsMatch(line) && !Query.IsMatch(line) && !States.IsMatch(line)
-                        && repository?.IsMatch(line) != true && catalog?.IsMatch(line) != true) continue;
-                    var key = $"{SourceTree.Relative(file)}|{line}";
-                    found[key] = found.GetValueOrDefault(key) + 1;
-                }
+        var byType = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var source in sources)
+            foreach (var type in PartialTypes(source))
+            {
+                if (!byType.TryGetValue(type, out var names)) byType[type] = names = new(StringComparer.Ordinal);
+                names.UnionWith(own[source.Path]);
             }
+
+        foreach (var source in sources)
+            foreach (var type in PartialTypes(source))
+                own[source.Path].UnionWith(byType[type]);
+        return own;
+    }
+
+    private static Regex? Calls(HashSet<string> names, string methods) =>
+        names.Count == 0
+            ? null
+            : new Regex(@"\b(?:" + string.Join('|', names.Select(Regex.Escape)) + @")\.(?:" + methods + @")\(");
+
+    private static List<Source> Sources() =>
+        Projects.SelectMany(project => SourceTree.Files(project)
+            .Select(file => new Source(project, SourceTree.Relative(file), File.ReadAllText(file)))).ToList();
+
+    /// <summary>Место чтения → сколько раз такая строка стоит в файле.</summary>
+    private static Dictionary<string, int> FindReads(IReadOnlyList<Source> sources)
+    {
+        var repositories = Visible(sources, Declared);
+        var catalogs = Visible(sources, DeclaredCatalog);
+
+        var found = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var source in sources)
+        {
+            var repository = Calls(repositories[source.Path], @"(?:Find|Get|Query|Count|Any|Search|Refs|List|Read)\w*");
+            var catalog = Calls(catalogs[source.Path], "ListAsync|SearchAsync|RefsAsync|GetAsync");
+
+            foreach (var raw in source.Text.Split('\n'))
+            {
+                var line = raw.Trim();
+                if (line.StartsWith("//", StringComparison.Ordinal) || line.StartsWith('*')) continue;
+                if (!Direct.IsMatch(line) && !Query.IsMatch(line) && !States.IsMatch(line)
+                    && repository?.IsMatch(line) != true && catalog?.IsMatch(line) != true) continue;
+                var key = $"{source.Path}|{line}";
+                found[key] = found.GetValueOrDefault(key) + 1;
+            }
+        }
         return found;
     }
 
@@ -136,7 +186,7 @@ public partial class ArchiveReadInventoryTests
     [Fact]
     public void Каждое_место_чтения_названо_и_рассуждено()
     {
-        var found = FindReads();
+        var found = FindReads(Sources());
 
         var undeclared = found.Keys.Where(k => !Reads.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
         Assert.True(undeclared.Count == 0,
