@@ -68,8 +68,11 @@ public class LongRunningEndpointCancellationTests
         var src = File.ReadAllText(Path.Combine(SolutionDir, file));
         var start = src.IndexOf($"MapPost(\"{route}\"", StringComparison.Ordinal);
         Assert.True(start >= 0, $"В {file} не найдена регистрация MapPost(\"{route}\") — маршрут переименован или переехал.");
-        var next = src.IndexOf("        g.Map", start + 1, StringComparison.Ordinal);
-        return next > start ? src[start..next] : src[start..];
+        // Следующая регистрация — у ЛЮБОЙ группы, а не только у `g`: адреса правки документов качества
+        // переехали в группу `edit` (issue #1074), и поиск по имени `g` молча растянул обработчик на
+        // несколько соседних — сторож упал на чужих вызовах, а мог бы так же молча и не упасть.
+        var next = Regex.Match(src[(start + 1)..], @"\r?\n {8}\w+\.Map\w+\(");
+        return next.Success ? src[start..(start + 1 + next.Index)] : src[start..];
     }
 
     private static string Compact(string s) => Regex.Replace(s, @"\s+", " ").Trim();

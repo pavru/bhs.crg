@@ -7,6 +7,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
+using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Identity;
@@ -454,32 +455,8 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>Клиент с ролью, состав которой перечислен здесь и нигде не объявлен.</summary>
-    private async Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions)
-    {
-        var roleName = $"Granted_{Guid.NewGuid():N}";
-        var email = $"granted_{Guid.NewGuid():N}@test.local";
-
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-
-            var role = new IdentityRole<Guid>(roleName);
-            Assert.True((await roles.CreateAsync(role)).Succeeded);
-            foreach (var code in permissions)
-                Assert.True((await roles.AddClaimAsync(
-                    role, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
-
-            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, roleName)).Succeeded);
-        }
-
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", await TokenAsync(client, email));
-        return client;
-    }
+    private Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions) =>
+        GrantedSignIn.WithPermissionsAsync(fixture, permissions);
 
     /// <summary>
     /// Каждые ворота на праве называют ОБЪЯВЛЕННОЕ право — проверяется по всем адресам живого

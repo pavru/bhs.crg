@@ -188,6 +188,9 @@ export function RolesPage() {
                           обычно вместе с: {p.usuallyWith.join(', ')}
                         </span>
                       )}
+                      {p.readAll && (
+                        <span className="block text-[11px] text-fg4">входит в право «читать всё»</span>
+                      )}
                     </span>
                   </label>
                 ))}

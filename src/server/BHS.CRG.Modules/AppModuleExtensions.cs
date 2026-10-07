@@ -101,8 +101,11 @@ public static class AppModuleExtensions
 
         // Каталог собирается ЗДЕСЬ, а не лениво при первом обращении: негодное объявление права
         // обязано ронять старт, а не первый заход администратора в редактор ролей.
+        // Пометки «читать всё» сверяются по модулям СБОРКИ (задача A3, issue #1074) и уходят в тот
+        // же отказ, что и прочие изъяны объявлений: один перезапуск на всё.
         services.AddSingleton(new PermissionCatalog(
-            [.. corePermissions, .. enabled.SelectMany(m => m.Permissions)]));
+            [.. corePermissions, .. enabled.SelectMany(m => m.Permissions)],
+            PermissionCatalog.ReadAllFaults(corePermissions, available.SelectMany(m => m.Permissions))));
 
         // Политики прав и модулей (AUTH-8) — часть механизма модулей, а не приложения: ворота на
         // группу модуля ставит MapAppModules, и он обязан ставить их тем, что здесь объявлено.

@@ -193,22 +193,8 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
     /// Клиент с ролью, состав которой перечислен здесь: системной роли с нужным сочетанием прав
     /// может не быть, а сочетание — как раз то, что проверяется.
     /// </summary>
-    private async Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions)
-    {
-        var roleName = $"McpGate_{Guid.NewGuid():N}";
-
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-            Assert.True((await roles.CreateAsync(new IdentityRole<Guid>(roleName))).Succeeded);
-            var role = (await roles.FindByNameAsync(roleName))!;
-            foreach (var code in permissions)
-                Assert.True((await roles.AddClaimAsync(
-                    role, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
-        }
-
-        return await SignInAsync(roleName);
-    }
+    private Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions) =>
+        Support.GrantedSignIn.WithPermissionsAsync(fixture, permissions);
 
     private async Task<HttpClient> SignInAsync(string role)
     {

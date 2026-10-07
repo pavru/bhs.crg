@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Modules;
 using Microsoft.AspNetCore.Identity;
 
 namespace BHS.CRG.Api.Auth;
@@ -16,12 +17,20 @@ namespace BHS.CRG.Api.Auth;
 /// устаревают ровно тогда, когда это опаснее всего — при отзыве доступа. Кэш появится вместе с
 /// политиками; пока считается напрямую, и это честнее преждевременного кэша, который некому
 /// сбрасывать.
+///
+/// <para><b>Составное «читать всё» раскрывается ЗДЕСЬ</b> (задача A3 этапа 2, issue #1074, ТЗ
+/// AUTH-5.2): в наборе, который отсюда выходит, уже стоят права чтения включённых модулей. Место
+/// выбрано одно на всех, кто спрашивает права, — ворота адресов и модулей, навигация клиента,
+/// адресаты уведомлений, доступ к строкам наборов данных, ресурсы MCP. Раскрытие у ворот дало бы
+/// «Руководителю» адрес и не дало бы пункта меню: набор прав у этих потребителей один, и разойтись
+/// им нельзя.</para>
 /// </summary>
 public sealed class EffectivePermissions(
-    UserManager<ApplicationUser> users, RoleManager<IdentityRole<Guid>> roles)
+    UserManager<ApplicationUser> users, RoleManager<IdentityRole<Guid>> roles, PermissionCatalog catalog)
 {
     public async Task<IReadOnlyCollection<string>> OfAsync(ApplicationUser user)
     {
+        // Без учёта регистра: на это сравнение опирается и раскрытие составного права.
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var roleName in await users.GetRolesAsync(user))
@@ -34,13 +43,12 @@ public sealed class EffectivePermissions(
                     result.Add(claim.Value);
         }
 
-        return result;
+        return catalog.Expand(result);
     }
 
     /// <summary>
-    /// Есть ли право. <c>*.read.all</c> здесь НЕ раскрывается: что в него входит, объявляет каждый
-    /// модуль, и раскрытие появится вместе со вторым модулем (AUTH-5.2). До тех пор владелец
-    /// составного права имеет именно его — и ни одного чужого права по умолчанию.
+    /// Есть ли право — с учётом раскрытия «читать всё»: владелец составного права имеет и те права
+    /// чтения, что объявили входящими включённые модули (AUTH-5.2).
     /// </summary>
     public async Task<bool> HasAsync(ApplicationUser user, string permission) =>
         (await OfAsync(user)).Contains(permission);

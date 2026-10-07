@@ -20,11 +20,17 @@ namespace BHS.CRG.Modules;
 /// С какими правами обычно выдаётся вместе. Подсказка, а не зависимость: система ничего не
 /// досоздаёт сама — иначе выданной окажется не та галка, которую поставили.
 /// </param>
+/// <param name="ReadAll">
+/// Входит ли право в составное «читать всё» (<see cref="PermissionCatalog.ReadAllCode" />, ТЗ
+/// AUTH-5.2). У права МОДУЛЯ пометка обязательна — без неё приложение не стартует; у прав ядра её
+/// нет: составное право раскрывается по модулям, а справочники ядра роль получает своими правами.
+/// </param>
 public sealed record AppPermission(
     string Code,
     string Gives,
     string Opens,
-    IReadOnlyList<string>? UsuallyWith = null)
+    IReadOnlyList<string>? UsuallyWith = null,
+    ReadAllMark? ReadAll = null)
 {
     public IReadOnlyList<string> UsuallyWith { get; init; } = UsuallyWith ?? [];
 
@@ -48,6 +54,34 @@ public sealed record AppPermission(
         if (string.IsNullOrWhiteSpace(Opens))
             return $"«{Code}» — не сказано, к каким данным оно открывает доступ";
 
+        if (ReadAll is { Included: false } && string.IsNullOrWhiteSpace(ReadAll.Why))
+            return $"«{Code}» — не сказано, почему право не входит в «читать всё»";
+
         return null;
     }
+}
+
+/// <summary>
+/// Пометка права: входит оно в составное «читать всё» или нет — и почему нет (задача A3 этапа 2,
+/// issue #1074, ТЗ AUTH-5.2).
+///
+/// <para><b>Почему пометка, а не вывод из кода права.</b> «Право чтения» по коду не узнаётся:
+/// <c>costs.report.read</c> и <c>costs.invoice.read</c> — чтение, но <c>costs.invoice.pay</c> и
+/// <c>costs.allocation.edit</c> — запись без общего суффикса, а завтрашнее <c>….export</c> может
+/// оказаться чем угодно. Угадывание по суффиксу однажды либо выдало бы «Руководителю» правку, либо
+/// молча не выдало бы отчёт — и оба исхода выглядят как исправно работающие права.</para>
+///
+/// <para><b>Почему у отказа обязательна причина.</b> «Не входит» без причины неотличимо от «не
+/// подумали»: пометку ставят один раз, при объявлении права, и через год по ней решают, можно ли
+/// роли с одним составным правом показывать новый экран.</para>
+/// </summary>
+/// <param name="Included">Входит ли право в «читать всё».</param>
+/// <param name="Why">Почему не входит. У входящего права причины нет.</param>
+public sealed record ReadAllMark(bool Included, string? Why)
+{
+    /// <summary>Право только читает — владелец составного права получает и его.</summary>
+    public static ReadAllMark In { get; } = new(true, null);
+
+    /// <summary>Право в «читать всё» не входит — с причиной.</summary>
+    public static ReadAllMark Out(string why) => new(false, why);
 }

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ShieldCheck, Search, Globe, ExternalLink, Download, Eye } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { apiError } from '@/shared/utils/apiError';
 import { Button } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -113,7 +114,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
     if (!term) return;
     setSearching(true); setSearchError(''); setResults(null);
     try { setResults(await searchQualityDocs(term)); }
-    catch (e: unknown) { setSearchError(e instanceof Error ? e.message : 'Ошибка поиска'); }
+    catch (e: unknown) { setSearchError(apiError(e, 'Ошибка поиска')); }
     finally { setSearching(false); }
   }
 

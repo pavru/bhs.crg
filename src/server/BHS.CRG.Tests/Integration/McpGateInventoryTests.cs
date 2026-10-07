@@ -133,6 +133,48 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
             + string.Join("\n  ", bare));
     }
 
+    /// <summary>
+    /// Изменяющий инструмент не достаётся владельцу одного «читать всё» (задача A3, issue #1074;
+    /// ревью PR #1251). То же правило, что у адресов (<c>ReadAllWritesNothingTests</c>): после
+    /// раскрытия составного права ворота МОДУЛЯ проходит и тот, у кого в модуле одно чтение, — а
+    /// инструменты стоят под теми же политиками, и сторож адресов их не видит.
+    ///
+    /// <para>Считается по всем модулям поставки, а не по включённым на тестовом хосте: инструмент
+    /// под воротами выключенного модуля иначе не проверялся бы вовсе.</para>
+    /// </summary>
+    [Fact]
+    public void Изменяющий_инструмент_не_открывается_одним_правом_читать_всё()
+    {
+        var catalog = new PermissionCatalog(
+        [
+            .. BHS.CRG.Api.Auth.CorePermissions.All,
+            .. BHS.CRG.Api.Modules.DeliveredModules.All().SelectMany(m => m.Permissions),
+        ]);
+        var granted = catalog.Expand([PermissionCatalog.ReadAllCode]);
+        Assert.True(granted.Count > 1, "В «читать всё» не входит ни одно право: проверять нечем.");
+
+        var writers = Declared<McpServerToolAttribute>(ToolTypes).Where(x => !x.Attr.ReadOnly).ToList();
+        // Изменяющие инструменты есть — иначе признак ReadOnly читался бы не так, и сторож молчал бы.
+        Assert.NotEmpty(writers);
+
+        var open = writers
+            .Where(x => Gate(x.Method) switch
+            {
+                McpPermissionAttribute p => granted.Contains(p.Code),
+                McpModuleAttribute m => ModuleAccess.IsOpen(m.Code, granted),
+                _ => false,   // без ворот — «личный» инструмент, у него свой сторож выше
+            })
+            .Select(x => x.Attr.Name ?? x.Method.Name)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(open.Count == 0,
+            "Изменяющий инструмент MCP открыт владельцу одного составного права «читать всё»:\n  "
+            + string.Join("\n  ", open) + "\n\n"
+            + "Ворота модуля проходит и тот, у кого в модуле одно чтение, а право с пометкой "
+            + "ReadAllMark.In приходит раскрытием. Поставьте инструменту право на правку.");
+    }
+
     private static List<string> Homeless(Dictionary<string, string> personal) =>
         [.. Primitives()
             .Where(p => Gate(p.Method) is null && !personal.ContainsKey(p.Name))

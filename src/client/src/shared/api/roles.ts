@@ -39,6 +39,11 @@ export interface PermissionInfo {
   opens: string;
   /** С какими правами обычно выдаётся вместе. Подсказка, а не зависимость. */
   usuallyWith: string[];
+  /**
+   * Входит в составное «читать всё» (`*.read.all`): владелец составного права получает и это.
+   * Состав объявляют модули — на клиенте его не вывести ни из кода права, ни из названия.
+   */
+  readAll: boolean;
 }
 
 export interface PermissionGroup {
