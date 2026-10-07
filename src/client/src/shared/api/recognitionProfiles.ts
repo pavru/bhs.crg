@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { plural, type HiddenRecognitionProfile } from './recognitionProfileGroups';
 
 /**
  * Профили распознавания (issue #405/#408): промпты остаются в коде, профиль задаёт к ним параметры.
@@ -33,6 +34,9 @@ export interface RecognitionKindInfo {
   systemFieldNames: string[];
   /** Куда привязывается: 'File' (набор целиком) или 'PageGroup' (группа листов). */
   scope: 'File' | 'PageGroup';
+  /** Владелец вида: код модуля или «core» (issue #1075). По нему виды складываются в группы. */
+  module?: string | null;
+  moduleTitle?: string | null;
 }
 
 export interface RecognitionProfile {
@@ -49,6 +53,20 @@ export interface RecognitionProfile {
   /** Заводская версия ушла вперёд, а правка пользователя сохранена. */
   builtInOutdated: boolean;
   kindInfo: RecognitionKindInfo;
+  /** Владелец ПРОФИЛЯ — по нему профили складываются в группы рейла (issue #1075). */
+  module?: string | null;
+  moduleTitle?: string | null;
+}
+
+/** Профиль PDF для диалога «Распознать PDF» — перечень и тексты отдаёт сервер (issue #1075). */
+export interface PdfProfileInfo {
+  /** Значение, которое уходит в `POST …/pdf-sources`. */
+  profile: string;
+  title: string;
+  nameHint: string;
+  summary: string;
+  /** Спрашивать ли тэги структуры PDF (обложка, титульный лист). */
+  structureTags: boolean;
 }
 
 export interface RecognitionProfileInput {
@@ -73,6 +91,25 @@ export function useRecognitionKinds() {
     queryKey: [...KEY, 'kinds'],
     queryFn: () => apiClient.get('/recognition-profiles/kinds').then(r => r.data),
     staleTime: Infinity, // виды заданы кодом — за сессию не меняются
+  });
+}
+
+/**
+ * Профили выключенных модулей — то, что общий список не отдаёт (issue #1075). Нужны, чтобы назвать
+ * причину: «скрыто столько-то» на экране профилей и «модуль выключен» у привязки набора.
+ */
+export function useHiddenRecognitionProfiles() {
+  return useQuery<HiddenRecognitionProfile[]>({
+    queryKey: [...KEY, 'hidden'],
+    queryFn: () => apiClient.get('/recognition-profiles/hidden').then(r => r.data),
+  });
+}
+
+/** Что предложить в диалоге «Распознать PDF»: только то, что сервер на этом экземпляре примет. */
+export function usePdfProfiles() {
+  return useQuery<PdfProfileInfo[]>({
+    queryKey: [...KEY, 'pdf'],
+    queryFn: () => apiClient.get('/recognition-profiles/pdf').then(r => r.data),
   });
 }
 
@@ -114,11 +151,4 @@ export function profileSummary(p: RecognitionProfile): string {
   if (p.fields.length > 0) parts.push(`${p.fields.length} ${plural(p.fields.length, 'поле', 'поля', 'полей')}`);
   if (p.rowColumns.length > 0) parts.push(`${p.rowColumns.length} ${plural(p.rowColumns.length, 'колонка', 'колонки', 'колонок')}`);
   return parts.length > 0 ? parts.join(' · ') : 'параметров нет';
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10, mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
 }

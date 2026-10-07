@@ -44,9 +44,23 @@ public enum PdfProfileKind
 /// ничего (issue #1075). По нему стоят ворота: владелец вида выключен — выбрать профиль PDF и
 /// запустить по нему распознавание нельзя. Ядро при этом модуль не называет: «ГОСТ» требует вида
 /// «штамп», а чей это вид, знает каталог объявлений.</param>
+/// <param name="Title">Название для выбора в диалоге «Распознать PDF». Раньше оно было зашито в
+/// клиенте вместе с перечнем профилей — и клиент предлагал профиль, который сервер на этом
+/// экземпляре отвергал (issue #1075).</param>
+/// <param name="NameHint">Пример названия источника — подсказка под полем.</param>
+/// <param name="Summary">Что произойдёт после запуска и где искать результат.</param>
 public record PdfProfileDescriptor(
     string ProfileMarker, PdfProfileKind Kind, IReadOnlyList<string> SourceMarkers,
-    bool Background, bool SupportsReprojection, RecognitionProfileKind RequiredKind);
+    bool Background, bool SupportsReprojection, RecognitionProfileKind RequiredKind,
+    string Title, string NameHint, string Summary);
+
+/// <summary>
+/// Профиль PDF для диалога выбора (issue #1075). Отдаются только те, чей вид распознавания на этом
+/// экземпляре есть кому читать.
+/// </summary>
+/// <param name="StructureTags">Спрашивать ли у пользователя тэги структуры PDF (есть обложка, есть
+/// титульный лист) — они значимы только там, где листы группируются.</param>
+public record PdfProfileInfo(string Profile, string Title, string NameHint, string Summary, bool StructureTags);
 
 public static class PdfProfileRegistry
 {
@@ -54,11 +68,30 @@ public static class PdfProfileRegistry
     [
         new(PdfProfiles.GostTitleBlock, PdfProfileKind.Gost,
             [PdfProfiles.GostCoverMarker, PdfProfiles.GostTitlePageMarker, PdfProfiles.GostDocumentsMarker],
-            Background: true, SupportsReprojection: true, RecognitionProfileKind.TitleBlock),
+            Background: true, SupportsReprojection: true, RecognitionProfileKind.TitleBlock,
+            Title: "Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам",
+            NameHint: "Реестр листов",
+            Summary: "Сразу запустится распознавание — оно постранично извлечёт основную надпись по "
+                + "ГОСТ Р 21.101-2020 и сгруппирует листы по шифру документа. Результат появится как "
+                + "кандидаты (Документы/Обложка/Титульный лист) под списком источников — создайте из "
+                + "них источники в один клик."),
         new(PdfProfiles.Invoice, PdfProfileKind.InvoiceFixedSlices,
             [PdfProfiles.InvoiceHeaderMarker, PdfProfiles.InvoiceLineItemsMarker],
-            Background: false, SupportsReprojection: false, RecognitionProfileKind.Invoice),
+            Background: false, SupportsReprojection: false, RecognitionProfileKind.Invoice,
+            Title: "Счёт на оплату — шапка + таблица товаров",
+            NameHint: "Счёт на оплату",
+            Summary: "Сразу запустится распознавание — оно одним вызовом извлечёт реквизиты счёта и "
+                + "таблицу товаров. Результат появится как кандидаты «Шапка» и «Товары» под списком "
+                + "источников — создайте из них источники в один клик."),
     ];
+
+    /// <summary>
+    /// Что предложить в диалоге «Распознать PDF»: профили, вид которых на этом экземпляре доступен.
+    /// Отбор тем же вопросом, что и ворота записи, — иначе список разошёлся бы с отказом.
+    /// </summary>
+    public static IReadOnlyList<PdfProfileInfo> Offered(Func<RecognitionProfileKind, bool> isAvailable) =>
+        [.. All.Where(p => isAvailable(p.RequiredKind)).Select(p => new PdfProfileInfo(
+            p.ProfileMarker, p.Title, p.NameHint, p.Summary, StructureTags: p.Kind == PdfProfileKind.Gost))];
 
     /// <summary>По профилю набора (<see cref="Domain.DataSets.DataSetFile.PreprocessingProfile"/>).</summary>
     public static PdfProfileDescriptor? ByProfileMarker(string? profileMarker) =>

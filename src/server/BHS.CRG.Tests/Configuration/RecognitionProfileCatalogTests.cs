@@ -20,6 +20,22 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class RecognitionProfileCatalogTests
 {
+    /// <summary>
+    /// Перечень профилей PDF для диалога: при включённом модуле ИД — оба, без него — только счёт,
+    /// и тэги структуры спрашивают лишь там, где листы группируются.
+    /// </summary>
+    [Fact]
+    public void Pdf_profiles_are_offered_by_availability_of_their_kind()
+    {
+        var all = Infrastructure.DataSets.PdfProfileRegistry.Offered(TestRecognition.Catalog.IsAvailable);
+        Assert.Equal([Domain.DataSets.PdfProfiles.GostTitleBlock, Domain.DataSets.PdfProfiles.Invoice], all.Select(p => p.Profile));
+        Assert.Equal([true, false], all.Select(p => p.StructureTags));
+        Assert.All(all, p => Assert.False(string.IsNullOrWhiteSpace(p.Title + p.NameHint + p.Summary)));
+
+        var withoutId = Infrastructure.DataSets.PdfProfileRegistry.Offered(TestRecognition.WithoutId.IsAvailable);
+        Assert.Equal([Domain.DataSets.PdfProfiles.Invoice], withoutId.Select(p => p.Profile));
+    }
+
     private static RecognitionProfileCatalog Build(IAppModule[] enabled, IAppModule[]? disabled = null) =>
         ModuleRecognitionCollector.Build(new ModuleRegistry(enabled, disabled ?? []));
 

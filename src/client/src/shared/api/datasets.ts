@@ -308,7 +308,7 @@ export function useCreatePdfSource() {
   // они кандидаты после распознавания); «Счёт» — 200 + источник-шапка.
   return useMutation<DataSetSource | null, Error, {
     fileId: string; name: string; tags?: string[] | null;
-    profile?: 'gost-titleblock' | 'invoice';
+    profile: string; // один из GET /recognition-profiles/pdf; умолчания у сервера нет (issue #1075)
   }>({
     mutationFn: ({ fileId, ...data }) =>
       apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data ?? null),

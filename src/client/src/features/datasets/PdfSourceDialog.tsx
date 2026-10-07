@@ -5,6 +5,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreatePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
+import { usePdfProfiles } from '@/shared/api/recognitionProfiles';
 
 /**
  * Выбор профиля препроцессинга PDF-набора (issue #38/#44). Ставит профиль на НАБОР и сразу запускает
@@ -12,13 +13,20 @@ import { useTagRegistry, datasetTags } from '@/shared/api/tags';
  * DataSetFile.PreprocessingProfile, см. PdfProfileRegistry). Ни один профиль источников не создаёт —
  * оба пишут сырьё на набор (Grouping/InvoiceRawData), кандидаты (Обложка/Титул/Документы или
  * Шапка/Товары) создаёт пользователь. Распознавание больше не прячется в меню источника.
+ *
+ * Перечень профилей и их тексты приходят с сервера (issue #1075). Зашитый здесь список предлагал
+ * ГОСТ и там, где модуль исполнительной документации выключен, — и выбор кончался отказом сервера.
  */
 export function PdfSourceDialog(
   { fileId, onClose, onRecognizeError }:
   { fileId: string; onClose: () => void; onRecognizeError?: (err: unknown) => void },
 ) {
   const [name, setName] = useState('');
-  const [profile, setProfile] = useState<'gost-titleblock' | 'invoice'>('gost-titleblock');
+  const { data: profiles, isLoading: profilesLoading } = usePdfProfiles();
+  // Выбор пользователя; пока он не выбирал — первый из предложенных. Не эффектом: значение
+  // выводится из ответа сервера, и хранить его копию незачем.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const current = profiles?.find(p => p.profile === chosen) ?? profiles?.[0];
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState('');
   const { data: allTags = [] } = useTagRegistry();
@@ -30,12 +38,13 @@ export function PdfSourceDialog(
   }
 
   async function handleSave() {
+    if (!current) return;
     if (!name.trim()) { setError('Укажите название'); return; }
     setError('');
     try {
       await create.mutateAsync({
-        fileId, name: name.trim(), profile,
-        tags: profile === 'gost-titleblock' && tags.length ? tags : null,
+        fileId, name: name.trim(), profile: current.profile,
+        tags: current.structureTags && tags.length ? tags : null,
       });
       // Профиль выбран → сразу распознаём, единым вызовом по НАБОРУ для любого профиля.
       //
@@ -56,22 +65,28 @@ export function PdfSourceDialog(
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
+          <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}
+            disabled={!current}>
             {create.isPending ? 'Создание…' : 'Создать и распознать'}
           </Button>
         </div>
       }>
       <div className="space-y-4 min-w-[420px]">
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
-          hint={profile === 'invoice' ? 'Например: Счёт на оплату' : 'Например: Реестр листов'} />
+          hint={current ? `Например: ${current.nameHint}` : undefined} />
 
-        <Select label="Профиль распознавания" value={profile}
-          onValueChange={v => setProfile(v as 'gost-titleblock' | 'invoice')}>
-          <SelectItem value="gost-titleblock">Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам</SelectItem>
-          <SelectItem value="invoice">Счёт на оплату — шапка + таблица товаров</SelectItem>
-        </Select>
+        {current && (
+          <Select label="Профиль распознавания" value={current.profile} onValueChange={setChosen}>
+            {profiles!.map(p => <SelectItem key={p.profile} value={p.profile}>{p.title}</SelectItem>)}
+          </Select>
+        )}
+        {!current && !profilesLoading && (
+          <p className="text-sm text-fg3">
+            На этом экземпляре нет ни одного профиля для PDF: модули, которые их читают, выключены.
+          </p>
+        )}
 
-        {profile === 'gost-titleblock' && datasetTags(allTags).length > 0 && (
+        {current?.structureTags && datasetTags(allTags).length > 0 && (
           <div>
             <p className="text-sm font-medium text-fg1 mb-1">Структура PDF</p>
             <div className="space-y-1.5">
@@ -89,11 +104,7 @@ export function PdfSourceDialog(
           </div>
         )}
 
-        <p className="text-xs text-fg4">
-          {profile === 'invoice'
-            ? 'Сразу запустится распознавание — оно одним вызовом извлечёт реквизиты счёта и таблицу товаров. Результат появится как кандидаты «Шапка» и «Товары» под списком источников — создайте из них источники в один клик.'
-            : 'Сразу запустится распознавание — оно постранично извлечёт основную надпись по ГОСТ Р 21.101-2020 и сгруппирует листы по шифру документа. Результат появится как кандидаты (Документы/Обложка/Титульный лист) под списком источников — создайте из них источники в один клик.'}
-        </p>
+        {current && <p className="text-xs text-fg4">{current.summary}</p>}
 
         {error && <p className="text-sm text-danger">{error}</p>}
       </div>

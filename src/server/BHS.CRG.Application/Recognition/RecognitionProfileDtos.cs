@@ -39,3 +39,18 @@ public record RecognitionProfileDto(
     // Владелец ПРОФИЛЯ, а не вида (issue #1075): по нему экран складывает профили в группы.
     string? Module = null,
     string? ModuleTitle = null);
+
+/// <summary>
+/// Профиль, которого на этом экземпляре не предлагают: его модуль выключен (issue #1075).
+///
+/// <para>Отдаётся отдельно и без содержимого. Экрану он нужен в двух местах: сказать «скрыто столько-то
+/// профилей — и почему», и назвать привязку набора, сделанную, пока модуль был включён. Без него такая
+/// привязка выглядела бы как «встроенный профиль»: идентификатор стоит, а в списке его нет.</para>
+/// </summary>
+public record HiddenRecognitionProfileDto(
+    Guid Id,
+    string Name,
+    string Kind,
+    string KindLabel,
+    string? Module,
+    string? ModuleTitle);

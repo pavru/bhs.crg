@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useSetFileRecognitionProfiles } from '@/shared/api/datasets';
-import { useListRecognitionProfiles, useRecognitionKinds } from '@/shared/api/recognitionProfiles';
+import {
+  useHiddenRecognitionProfiles, useListRecognitionProfiles, useRecognitionKinds,
+} from '@/shared/api/recognitionProfiles';
+import { hiddenLabel } from '@/shared/api/recognitionProfileGroups';
 import type { DataSetFile } from '@/shared/api/types';
 
 /**
@@ -15,7 +18,14 @@ import type { DataSetFile } from '@/shared/api/types';
 export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClose: () => void }) {
   const { data: kinds = [] } = useRecognitionKinds();
   const { data: profiles = [] } = useListRecognitionProfiles();
+  const { data: hidden = [] } = useHiddenRecognitionProfiles();
   const save = useSetFileRecognitionProfiles(file.id);
+  // Привязки к профилям выключенных модулей (issue #1075). Вида такого профиля в списке видов нет,
+  // и без отдельной строки привязка была бы невидима: она стоит, действовать начнёт с включением
+  // модуля, а окно о ней молчит. Сохранение её не трогает — оно отправляет только предложенные виды.
+  const dormant = Object.values(file.recognitionProfiles ?? {})
+    .map(id => hidden.find(h => h.id === id))
+    .filter(h => h !== undefined);
 
   const fileKinds = useMemo(() => kinds.filter(k => k.scope === 'File'), [kinds]);
   const [map, setMap] = useState<Record<string, string>>(() => ({ ...(file.recognitionProfiles ?? {}) }));
@@ -74,6 +84,18 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
             </div>
           );
         })}
+
+        {dormant.map(h => (
+          <div key={h.id}>
+            <p className="text-sm font-medium text-fg3 mb-1">{h.kindLabel}</p>
+            {/* Текстом, а не выключенным селектом: длинная подпись в селекте обрезается, и
+                обрезается как раз причина — «модуль … выключен». */}
+            <p className="border border-stroke rounded-md px-2 py-1.5 text-sm bg-muted text-fg3">{hiddenLabel(h)}</p>
+            <p className="text-[11px] text-fg4 mt-1">
+              Привязка сохранена и начнёт действовать, когда модуль включат.
+            </p>
+          </div>
+        ))}
 
         {error && <p className="text-sm text-danger">{error}</p>}
         <p className="text-[11px] text-fg4">

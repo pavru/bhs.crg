@@ -18,6 +18,7 @@ public class RecognitionProfileHandlers(
     RecognitionProfileCatalog catalog) :
     IRequestHandler<ListRecognitionProfilesQuery, IReadOnlyList<RecognitionProfileDto>>,
     IRequestHandler<ListRecognitionKindsQuery, IReadOnlyList<RecognitionKindInfo>>,
+    IRequestHandler<ListHiddenRecognitionProfilesQuery, IReadOnlyList<HiddenRecognitionProfileDto>>,
     IRequestHandler<CreateRecognitionProfileCommand, RecognitionProfileDto>,
     IRequestHandler<UpdateRecognitionProfileCommand, RecognitionProfileDto>,
     IRequestHandler<ResetRecognitionProfileCommand, RecognitionProfileDto>,
@@ -32,6 +33,20 @@ public class RecognitionProfileHandlers(
 
     public Task<IReadOnlyList<RecognitionKindInfo>> Handle(ListRecognitionKindsQuery _, CancellationToken ct)
         => Task.FromResult(provider.ListKinds());
+
+    /// <summary>
+    /// Дополнение общего списка: то, что он отсеял. Вместе они дают все строки базы — профиль не может
+    /// выпасть из обоих и стать невидимым совсем.
+    /// </summary>
+    public async Task<IReadOnlyList<HiddenRecognitionProfileDto>> Handle(
+        ListHiddenRecognitionProfilesQuery _, CancellationToken ct)
+    {
+        var all = await repo.GetAllAsync(ct);
+        return [.. all.Where(p => !catalog.IsAvailable(p)).OrderBy(p => p.Name).Select(p =>
+            new HiddenRecognitionProfileDto(
+                p.Id, p.Name, p.Kind.ToString(), provider.DescribeKind(p.Kind).Label,
+                catalog.OwnerOf(p)?.Code, catalog.OwnerOf(p)?.Title))];
+    }
 
     public async Task<RecognitionProfileDto> Handle(CreateRecognitionProfileCommand cmd, CancellationToken ct)
     {

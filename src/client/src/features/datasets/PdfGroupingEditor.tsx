@@ -5,7 +5,8 @@ import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
   loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
 } from '@/shared/api/datasets';
-import { useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
+import { useHiddenRecognitionProfiles, useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
+import { withBoundOption, type HiddenRecognitionProfile, type ProfileOption } from '@/shared/api/recognitionProfileGroups';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -230,7 +231,7 @@ function SelectionActionBar({
 function GroupSection({
   fileId, group, otherGroups, selected, suspiciousOnly, dirty, pagesWithoutAnswer,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
-  onSetProfile, tableProfiles, savingProfile,
+  onSetProfile, tableProfiles, hiddenProfiles, savingProfile,
   onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
 }: {
   fileId: string;
@@ -249,7 +250,7 @@ function GroupSection({
   onView: (pageIndex: number) => void;
   onSetTag: (groupId: string, tag: string) => void;
   onSetProfile: (firstPageIndex: number, profileId: string | null) => void;
-  tableProfiles: { id: string; name: string }[];
+  tableProfiles: ProfileOption[]; hiddenProfiles: HiddenRecognitionProfile[];
   savingProfile: boolean;
   onRecognizeTable: (firstPageIndex: number) => void;
   onRecognizeDoc: (firstPageIndex: number) => void;
@@ -329,7 +330,7 @@ function GroupSection({
             title="Профиль распознавания — набор колонок для произвольной таблицы (задаётся в «Профили распознавания»)"
             className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[190px] disabled:opacity-50">
             <option value="">— профиль таблицы</option>
-            {tableProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <option key={p.id} value={p.id} disabled={p.disabled}>{p.name}</option>)}
           </select>
           {(currentTag || group.profileId) && (
             <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage}
@@ -386,9 +387,8 @@ export function PdfGroupingEditor() {
   // не стирает уже распознанное сырьё таблицы и не требует предварительного сохранения.
   const setProfile = useSetDocumentProfile(fileId!);
   const { data: allProfiles = [] } = useListRecognitionProfiles();
-  const tableProfiles = allProfiles
-    .filter(p => p.kindInfo.isTabular)
-    .map(p => ({ id: p.id, name: p.name }));
+  const { data: hiddenProfiles = [] } = useHiddenRecognitionProfiles();
+  const tableProfiles = allProfiles.filter(p => p.kindInfo.isTabular).map(p => ({ id: p.id, name: p.name }));
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
@@ -591,7 +591,7 @@ export function PdfGroupingEditor() {
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
             onSetTag={handleSetTag}
             onSetProfile={(page, profileId) => setProfile.mutate({ firstPageIndex: page, profileId })}
-            tableProfiles={tableProfiles}
+            tableProfiles={tableProfiles} hiddenProfiles={hiddenProfiles}
             savingProfile={setProfile.isPending}
             onRecognizeTable={p => recognizeTable.mutate(p, { onError: showRecognizeError })}
             onRecognizeDoc={p => recognizeDoc.mutate(p, { onError: showRecognizeError })}
