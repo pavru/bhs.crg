@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -20,7 +21,8 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class ClosedTypeCreationInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure");
 
     private static readonly Regex Creation = new(
         @"DomainObject\.(Create|CloneAsDocument|Restore|RestoreDocument)\(", RegexOptions.Compiled);
@@ -81,7 +83,7 @@ public class ClosedTypeCreationInventoryTests
     private static Dictionary<string, bool> Find()
     {
         var found = new Dictionary<string, bool>(StringComparer.Ordinal);
-        foreach (var file in Projects.SelectMany(SourceFiles))
+        foreach (var file in Projects.SelectMany(SourceTree.Files))
         {
             var lines = File.ReadAllLines(file);
             for (var i = 0; i < lines.Length; i++)
@@ -90,28 +92,9 @@ public class ClosedTypeCreationInventoryTests
                 var asks = false;
                 for (var back = Math.Max(0, i - Lookback); back < i; back++)
                     if (!lines[back].TrimStart().StartsWith("//") && (lines[back].Contains("TypeStorageRules.") || lines[back].Contains("CommonTableOnlyAsync("))) asks = true;
-                found[$"{Relative(file)}|{lines[i].Trim()}"] = asks;
+                found[$"{SourceTree.Relative(file)}|{lines[i].Trim()}"] = asks;
             }
         }
         return found;
-    }
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException("Не найден каталог решения (BHS.CRG.slnx).");
     }
 }

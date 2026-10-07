@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -34,7 +35,7 @@ namespace BHS.CRG.Tests.Configuration;
 public class NotificationRefusalTextTests
 {
     private static readonly string[] Projects =
-        ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>
     /// Осознанное исключение из правила: файл, ОБРЫВОК самого вызова и причина.
@@ -101,15 +102,10 @@ public class NotificationRefusalTextTests
 
         foreach (var project in Projects)
         {
-            var root = Path.Combine(SolutionDir, project);
-            if (!Directory.Exists(root)) continue;
-
-            foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            // Общий обход (issue #1071): без obj, bin и миграций — и с отказом на проект, которого нет,
+            // вместо прежнего молчаливого пропуска.
+            foreach (var file in SourceTree.Files(project))
             {
-                if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                    || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                    continue;
-
                 var name = Path.GetFileName(file);
                 var text = File.ReadAllText(file);
                 var access = MessageAccessIn(text);
@@ -291,16 +287,5 @@ public class NotificationRefusalTextTests
         return flat.Length <= 120 ? flat : flat[..120] + "…";
     }
 
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
-    }
+    private static string SolutionDir => SourceTree.SolutionDir;
 }

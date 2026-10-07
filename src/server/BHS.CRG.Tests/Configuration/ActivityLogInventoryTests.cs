@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -14,13 +15,20 @@ namespace BHS.CRG.Tests.Configuration;
 /// путём — из модуля, из фоновой задачи, из восстановления копии, — она пойдёт с другим
 /// представлением об авторе и времени, а сводить два журнала потом уже не с чем.
 ///
+/// <para><b>Проекты модулей — под той же переписью</b> (задача M3, issue #1071). Набора
+/// <c>ActivityRecords</c> у модуля нет: до контекста ядра он не дотягивается. Зато у него та же база,
+/// и строка в таблицу журнала ложится сырым запросом из его собственного контекста — мимо порта
+/// <c>IModuleActivityLog</c>, то есть без автора, времени и кода действия из каталога. Поэтому
+/// перепись ищет и ИМЯ ТАБЛИЦЫ, а не только имя набора.</para>
+///
 /// ⚠️ Проверка читает ИСХОДНИКИ: в метаданных сборки «кто обращался к набору» не отражено никак.
 /// Приём тот же, что у <see cref="NotificationAudienceInventoryTests" /> и
 /// <see cref="Integration.EndpointGateInventoryTests" />.
 /// </summary>
 public class ActivityLogInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>
     /// Кому позволено обращаться к набору записей — и почему. Добавляя строку, вы принимаете
@@ -32,29 +40,36 @@ public class ActivityLogInventoryTests
             "сама служба журнала — единственный путь записи и чтения (ТЗ CORE-28)",
         ["BHS.CRG.Infrastructure/Persistence/AppDbContext.cs"] =
             "объявление набора и отказ на правку/удаление записи: там же, где единственная точка сохранения",
+        ["BHS.CRG.Infrastructure/Persistence/Configurations/ActivityRecordConfiguration.cs"] =
+            "отображение сущности на таблицу: имя таблицы здесь объявлено, запросов нет",
     };
 
-    /// <summary>Имя набора в контексте базы. Упоминание — это и запись, и чтение: и то и другое мимо службы.</summary>
-    private static readonly Regex Set = new(@"\bActivityRecords\b", RegexOptions.Compiled);
+    /// <summary>
+    /// Имя набора в контексте базы и имя его таблицы. Упоминание — это и запись, и чтение: и то и
+    /// другое мимо службы. Таблица названа ради сырого запроса — единственного пути, которым до
+    /// журнала дотянется код без контекста ядра (модуль).
+    /// </summary>
+    private static readonly Regex Set = new(@"\bActivityRecords\b|\bactivity_log\b", RegexOptions.Compiled);
 
     [Fact]
     public void К_набору_журнала_обращается_только_его_служба()
     {
         var outsiders = new List<string>();
 
-        foreach (var file in Projects.SelectMany(SourceFiles))
+        // Без миграций: имя таблицы стоит в каждом снимке модели, и запросом это не является.
+        foreach (var file in Projects.SelectMany(SourceTree.Files))
         {
-            var rel = Relative(file);
+            var rel = SourceTree.Relative(file);
             if (MayTouchTheSet.ContainsKey(rel)) continue;
 
             var text = File.ReadAllText(file);
             foreach (Match m in Set.Matches(text))
-                outsiders.Add($"{rel}:{LineOf(text, m.Index)}");
+                outsiders.Add($"{rel}:{SourceTree.LineOf(text, m.Index)}");
         }
 
         Assert.True(outsiders.Count == 0,
             "К набору записей журнала обратились мимо службы:\n" + string.Join("\n", outsiders) + "\n\n" +
-            "Журнал пишется и читается через IActivityLog: только там у записи есть автор, время и " +
+            "Журнал пишется и читается через IActivityLog (модуль — через порт IModuleActivityLog): только там у записи есть автор, время и " +
             "код действия из каталога, и только там правка записи невозможна. Если обращение " +
             "всё-таки нужно — впишите файл в MayTouchTheSet с причиной.");
     }
@@ -69,7 +84,7 @@ public class ActivityLogInventoryTests
         var stale = MayTouchTheSet.Keys
             .Where(rel =>
             {
-                var path = Path.Combine(SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
+                var path = Path.Combine(SourceTree.SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
                 return !File.Exists(path) || !Set.IsMatch(File.ReadAllText(path));
             })
             .Order(StringComparer.Ordinal)
@@ -99,28 +114,5 @@ public class ActivityLogInventoryTests
         Assert.True(open.Count == 0,
             "У записи журнала появились открытые сеттеры: " + string.Join(", ", open) +
             ". Запись только создаётся (ActivityRecord.Create) и больше не меняется (ТЗ CORE-28).");
-    }
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
-
-    private static int LineOf(string text, int index) => text.AsSpan(0, index).Count('\n') + 1;
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -32,7 +33,7 @@ namespace BHS.CRG.Tests.Configuration;
 public class RefusalTextTests
 {
     private static readonly string[] Projects =
-        ["BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Api"];
+        SolutionModules.WithCore("BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Api");
 
     /// <summary>
     /// Все потомки <see cref="DomainException" /> — ОТРАЖЕНИЕМ, а не списком имён.
@@ -54,6 +55,10 @@ public class RefusalTextTests
             typeof(TemplateCompilationException).Assembly,
             typeof(TypstTimeoutException).Assembly,
         }
+        // И сборки модулей (issue #1071): исходники модулей проверка читает, а свой род отказа модуль
+        // завести вправе так же, как ядро. Без его имени вызов с чужим сообщением не нашёлся бы вовсе.
+        // Берутся из поставки, а не из AppDomain — по той же причине, что и три сборки выше.
+        .Concat(BHS.CRG.Api.Modules.DeliveredModules.All().Select(m => m.GetType().Assembly))
         .Distinct()
         .SelectMany(a => a.GetTypes())
         .Where(t => !t.IsAbstract && typeof(DomainException).IsAssignableFrom(t))
@@ -97,6 +102,18 @@ public class RefusalTextTests
             + "где оборвалась скобка, какой символ не на месте. Общий текст оставил бы построитель без "
             + "диагностики; типы разбора названы в catch поимённо, а ArgumentException и "
             + "InvalidOperationException ловятся отдельной веткой и уходят в inner",
+        // Модуль счетов (issue #1071 — перепись стала видеть проекты модулей). В обоих местах ловится
+        // ТОЛЬКО InvalidRequestException: текст наш, чужому сообщению взяться неоткуда.
+        ["$\"Строка {line.Ordinal}: {e.Message}\", e"] =
+            "матрица разноски: наш же отказ о части получает номер строки счёта — без него человек видит "
+            + "«разнесено больше, чем в строке» и не знает, в какой",
+        ["$\"Счёт целиком: {e.Message}\", e"] =
+            "то же для разноски счёта суммой: наш отказ с пометкой, что он про счёт, а не про строку",
+        ["""
+         "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select( r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message))
+         """] =
+            "Message здесь — поле находки охраны записи (ModuleWriteRefusal), а не сообщение исключения: "
+            + "слова ядра, писаны для человека. Сторож читает вызов, а не типы, и отличить не может",
     };
 
     [Fact]
@@ -121,7 +138,7 @@ public class RefusalTextTests
             {
                 if (!ForeignMessage.IsMatch(call)) continue;
                 if (Deliberate.ContainsKey(Flat(call))) continue;
-                offenders.Add($"{Path.GetFileName(file)}:{line}  {Short(call)}");
+                offenders.Add($"{SourceTree.Relative(file)}:{line}  {Short(call)}");
             }
 
         Assert.True(offenders.Count == 0,
@@ -143,7 +160,7 @@ public class RefusalTextTests
             foreach (var (call, line) in Calls(text, EngineThrow))
             {
                 if (!ForeignMessage.IsMatch(call) && !ForeignBody.IsMatch(call)) continue;
-                offenders.Add($"{Path.GetFileName(file)}:{line}  {Short(call)}");
+                offenders.Add($"{SourceTree.Relative(file)}:{line}  {Short(call)}");
             }
 
         Assert.True(offenders.Count == 0,
@@ -157,14 +174,16 @@ public class RefusalTextTests
     }
 
     /// <summary>
-    /// Осознанные исключения ТРЕТЬЕЙ проверки — по имени файла: отказ там адресован не клиенту.
+    /// Осознанные исключения ТРЕТЬЕЙ проверки — по пути файла от корня решения: отказ там адресован
+    /// не клиенту. Путь, а не имя: проверка читает и проекты модулей, и одноимённый файл модуля
+    /// получил бы чужое освобождение.
     /// </summary>
     private static readonly Dictionary<string, string> DeliberateResponses = new(StringComparer.Ordinal)
     {
-        ["ServiceRegistration.Host.cs"] =
+        ["BHS.CRG.Api/Configuration/ServiceRegistration.Host.cs"] =
             "отказ на СТАРТЕ: каталог ключей Data Protection недоступен для записи. Приложение не "
             + "поднимается вовсе, текст читает администратор в журнале запуска, до клиента он не доходит",
-        ["StorageConfigGuard.cs"] =
+        ["BHS.CRG.Api/Configuration/StorageConfigGuard.cs"] =
             "то же: неразбираемая строка подключения останавливает запуск. Ответа на запрос в этот "
             + "момент не существует — принимать его некому",
     };
@@ -178,14 +197,14 @@ public class RefusalTextTests
         // Configuration/EndpointMap.cs (там же /api/version, причём анонимный), и следующий такой
         // файл появится, не спросив проверку. Startup-отказы, которые сюда попадают заодно, названы
         // в DeliberateResponses поимённо — это решение, а не обход.
-        foreach (var (file, text) in Sources(["BHS.CRG.Api"]))
+        foreach (var (file, text) in Sources(SolutionModules.WithCore("BHS.CRG.Api")))
         {
-            if (DeliberateResponses.ContainsKey(Path.GetFileName(file))) continue;
+            if (DeliberateResponses.ContainsKey(SourceTree.Relative(file))) continue;
 
             foreach (var (body, line) in GeneralCatchBodies(text))
             {
                 if (!ForeignMessage.IsMatch(Sanctioned.Replace(body, string.Empty))) continue;
-                offenders.Add($"{Path.GetFileName(file)}:{line}  {Short(body)}");
+                offenders.Add($"{SourceTree.Relative(file)}:{line}  {Short(body)}");
             }
         }
 
@@ -202,23 +221,12 @@ public class RefusalTextTests
 
     // ── Разбор исходника ────────────────────────────────────────────────────────
 
-    /// <summary>Все .cs проекта или подкаталога, кроме obj/bin.</summary>
-    private static IEnumerable<(string File, string Text)> Sources(IEnumerable<string> relativeRoots)
-    {
-        foreach (var relative in relativeRoots)
-        {
-            var root = Path.Combine(SolutionDir, relative);
-            if (!Directory.Exists(root)) continue;
-
-            foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
-            {
-                if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                    || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                    continue;
-                yield return (file, File.ReadAllText(file));
-            }
-        }
-    }
+    /// <summary>
+    /// Рукописные .cs проектов — общим обходом (issue #1071): без obj, bin и миграций. Проект, которого
+    /// нет, — отказ, а не молчаливый пропуск: пропущенный проект выглядел бы проверенным.
+    /// </summary>
+    private static IEnumerable<(string File, string Text)> Sources(IEnumerable<string> projects) =>
+        projects.SelectMany(SourceTree.Files).Select(file => (file, File.ReadAllText(file)));
 
     /// <summary>
     /// Аргументы каждого вызова, найденного <paramref name="marker" />, — по балансу скобок.
@@ -313,16 +321,5 @@ public class RefusalTextTests
         return flat.Length <= 140 ? flat : flat[..140] + "…";
     }
 
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
-    }
+    private static string SolutionDir => SourceTree.SolutionDir;
 }

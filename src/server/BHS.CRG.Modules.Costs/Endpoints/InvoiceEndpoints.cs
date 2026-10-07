@@ -203,7 +203,7 @@ public static class InvoiceEndpoints
         // Срок, пришедший из распознавания, ручным не считается — и отличим он ровно меткой: «оплатить
         // до» стоит в бумаге поставщика, а правило подстановки (C4) обходит стороной только тот срок,
         // который вписал человек.
-        invoice.Apply(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));
+        invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));
         if (marks.Count > 0) invoice.MarkUnconfirmed(marks);
 
         db.Invoices.Add(invoice);
@@ -253,7 +253,7 @@ public static class InvoiceEndpoints
 
             // Правка — всегда человек: метки этот адрес не принимает (отказ выше), то есть фоновому
             // заполнению сюда дороги нет.
-            invoice.Apply(columns, rest, dueDateByHand: true);
+            invoice.ApplyRequisites(columns, rest, dueDateByHand: true);
             invoice.Confirm(changed);
 
             // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
@@ -428,9 +428,9 @@ public static class InvoiceEndpoints
         var refusals = await guard.RefusalsAsync(typeId, stored, incoming, ct);
         if (refusals.Count == 0) return;
 
+        // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
         throw new InvalidRequestException(
             "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select(
-                // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
                 r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message)));
     }
 

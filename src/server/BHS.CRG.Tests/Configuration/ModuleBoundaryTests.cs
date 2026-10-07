@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using BHS.CRG.Modules;
 using Microsoft.Extensions.Configuration;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -91,7 +92,7 @@ public class ModuleBoundaryTests
             "Проект ссылается на контракты ядра, то есть является модулем, но назван не по\n" +
             "соглашению: " + string.Join(", ", wrong) + ".\n" +
             $"Имя обязано быть «{ContractsProject}.<код модуля>» — например {ContractsProject}.Costs.\n" +
-            "Если это не модуль, а хост (приложение или тесты), добавьте его в KnownHosts с причиной.");
+            "Если это не модуль, а хост (приложение или тесты), добавьте его в SolutionModules.KnownHosts с причиной.");
     }
 
     /// <summary>
@@ -300,77 +301,12 @@ public class ModuleBoundaryTests
         public Task InitializeAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Ссылки на проекты из файла проекта.
-    ///
-    /// Разбор в два шага — тег целиком, потом атрибут — потому что однострочный регекс требовал
-    /// <c>Include</c> ПЕРВЫМ атрибутом и только в двойных кавычках, а
-    /// <c>&lt;ProjectReference Condition="…" Include='…'&gt;</c> проходил бы мимо правила
-    /// (поймано на ревью #968). Сторож, который обходится перестановкой атрибутов, — не сторож.
-    /// </summary>
-    private static IEnumerable<string> ReferencedProjects(string csproj)
-    {
-        foreach (Match tag in ProjectReferenceTag.Matches(csproj))
-        {
-            var include = IncludeAttribute.Match(tag.Value);
-            if (include.Success)
-                yield return (include.Groups[1].Success ? include.Groups[1] : include.Groups[2]).Value;
-        }
-    }
+    private const string ContractsProject = SolutionModules.ContractsProject;
 
-    private static readonly Regex ProjectReferenceTag = new(
-        @"<ProjectReference\b[^>]*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Отбор проектов модулей — общий для всех сторожей (issue #1071): см. SolutionModules.
+    private static IEnumerable<string> ReferencedProjects(string csproj) => SolutionModules.ReferencedProjects(csproj);
 
-    private static readonly Regex IncludeAttribute = new(
-        @"\bInclude\s*=\s*(?:""([^""]*)""|'([^']*)')", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static IEnumerable<(string Name, IReadOnlyList<string> References)> ModuleProjects() => SolutionModules.Projects;
 
-    private const string ContractsProject = "BHS.CRG.Modules";
-
-    /// <summary>
-    /// Проекты, которые ссылаются на контракты ядра, но модулями не являются, и почему. Добавляя
-    /// сюда строку, вы принимаете решение — именно этого тест и добивается.
-    /// </summary>
-    private static readonly Dictionary<string, string> KnownHosts = new()
-    {
-        ["BHS.CRG.Api"] = "хост: перечисляет модули в корне композиции и держит обёртку `id`, пока её код не переехал",
-        ["BHS.CRG.Tests"] = "тесты: проверяют сам механизм модулей",
-    };
-
-    /// <summary>
-    /// Модули решения — проекты, ссылающиеся на контракты ядра, кроме известных хостов. Отбор по
-    /// ссылке, а не по имени каталога: имя — это соглашение, и оно проверяется отдельным тестом,
-    /// а не служит фильтром (иначе проект, названный иначе, просто выпал бы из проверки).
-    /// </summary>
-    private static IEnumerable<(string Name, IReadOnlyList<string> References)> ModuleProjects()
-    {
-        foreach (var csproj in Directory.EnumerateFiles(SolutionDir, "*.csproj", SearchOption.AllDirectories))
-        {
-            if (csproj.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                || csproj.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                continue;
-
-            var name = Path.GetFileNameWithoutExtension(csproj);
-            if (name == ContractsProject || KnownHosts.ContainsKey(name)) continue;
-
-            var references = ReferencedProjects(File.ReadAllText(csproj))
-                .Select(r => Path.GetFileNameWithoutExtension(r.Replace('\\', '/')))
-                .ToList();
-
-            if (references.Contains(ContractsProject))
-                yield return (name, references);
-        }
-    }
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает файлы проектов и без них проверять нечего.");
-    }
+    private static string SolutionDir => SourceTree.SolutionDir;
 }

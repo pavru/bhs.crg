@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -22,7 +23,8 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class RecordDeletionInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>Файл удаляет — что-нибудь.</summary>
     private static readonly Regex Deletes = new(@"\.Remove\(|RemoveRange\(|ExecuteDeleteAsync", RegexOptions.Compiled);
@@ -69,8 +71,8 @@ public class RecordDeletionInventoryTests
     [Fact]
     public void Каждый_путь_удаления_записи_ядра_спрашивает_держателей_в_модулях()
     {
-        var silent = Projects.SelectMany(SourceFiles)
-            .Select(file => (Rel: Relative(file), Text: Code(File.ReadAllText(file))))
+        var silent = Projects.SelectMany(SourceTree.Files)
+            .Select(file => (Rel: SourceTree.Relative(file), Text: Code(File.ReadAllText(file))))
             .Where(f => Deletes.IsMatch(f.Text) && TouchesRecords.IsMatch(f.Text))
             .Where(f => !Asks.IsMatch(f.Text) && !DeletesSomethingElse.ContainsKey(f.Rel))
             .Select(f => f.Rel)
@@ -96,7 +98,7 @@ public class RecordDeletionInventoryTests
         var stale = DeletesSomethingElse.Keys
             .Where(rel =>
             {
-                var path = Path.Combine(SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
+                var path = Path.Combine(SourceTree.SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
                 if (!File.Exists(path)) return true;
                 var text = Code(File.ReadAllText(path));
                 return !Deletes.IsMatch(text) || !TouchesRecords.IsMatch(text) || Asks.IsMatch(text);
@@ -117,9 +119,9 @@ public class RecordDeletionInventoryTests
     [Fact]
     public void Принудительное_удаление_отправляет_один_адрес()
     {
-        var senders = Projects.Append("BHS.CRG.Modules.Costs").SelectMany(SourceFiles)
+        var senders = Projects.SelectMany(SourceTree.Files)
             .Where(file => Code(File.ReadAllText(file)).Contains("new PurgeHeldRecordCommand("))
-            .Select(Relative)
+            .Select(SourceTree.Relative)
             .Order(StringComparer.Ordinal)
             .ToList();
 
@@ -132,26 +134,4 @@ public class RecordDeletionInventoryTests
     /// </summary>
     private static string Code(string source) =>
         string.Join('\n', source.Split('\n').Where(line => !line.TrimStart().StartsWith("//")));
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"));
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
-    }
 }

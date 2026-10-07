@@ -34,7 +34,7 @@ namespace BHS.CRG.Tests.Configuration;
 public partial class ArchiveReadInventoryTests
 {
     private static readonly string[] Projects =
-        ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Modules.Costs"];
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>
     /// Шаги задачи #1185, которые ещё не сделаны. Отложить решение можно только на них. Сейчас

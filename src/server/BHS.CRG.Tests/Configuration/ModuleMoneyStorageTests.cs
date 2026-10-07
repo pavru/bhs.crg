@@ -239,9 +239,8 @@ public class ModuleMoneyStorageTests
     [Fact]
     public void Ядро_не_читает_таблицы_модуля_мимо_контрактов()
     {
-        var names = Directory.EnumerateDirectories(SourceTree.SolutionDir, "BHS.CRG.Modules.*")
-            // Шаблон «BHS.CRG.Modules.*» в Windows находит и сам проект контрактов — он не модуль.
-            .Select(Path.GetFileName).Where(n => n != "BHS.CRG.Modules").Select(n => Regex.Escape(n!)).ToList();
+        // Проекты модулей — общим отбором, по ссылке на контракты (issue #1071), а не маской по имени.
+        var names = SolutionModules.Names.Select(Regex.Escape).ToList();
         var schemas = DeliveredModules.All().Select(m => m.Schema?.Name).OfType<string>().ToList();
         Assert.NotEmpty(names);
         Assert.NotEmpty(schemas);

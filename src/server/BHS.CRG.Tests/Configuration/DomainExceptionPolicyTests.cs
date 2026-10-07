@@ -1,4 +1,5 @@
 ﻿using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -21,7 +22,12 @@ namespace BHS.CRG.Tests.Configuration;
 public class DomainExceptionPolicyTests
 {
     /// <summary>Проекты, где живут отказы пользователю. Api сюда не входит: см. <see cref="ApiOnly" />.</summary>
-    private static readonly string[] Projects = ["BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        // Без проекта контрактов — единственное место, где он вынут из общего отбора. Доменного отказа
+        // там бросить НЕЧЕМ: на домен контракты не ссылаются (ModuleBoundaryTests), и каждый отказ в них
+        // по устройству framework-типом. Почти все — отказы объявления модуля на старте.
+        [.. SolutionModules.WithCore("BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure")
+            .Where(p => p != SolutionModules.ContractsProject)];
 
     // \s+ между словами, а не пробел: длинный throw переносят на следующую строку, и построчная
     // проверка такой пропустила бы — то есть обойти правило можно было бы, просто нажав Enter.
@@ -56,6 +62,8 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",
         ["BHS.CRG.Infrastructure/Generation/TypeBlocksMaterializer.cs"] = "та же защита для блоков типов: пути формирует сервер, выход за папку компиляции — дефект, не отказ пользователю",
         ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
+        ["BHS.CRG.Modules.Costs/Data/AllocationSplit.cs"] = "делить не на что или вес не больше нуля: цели и веса проверяет адрес предпросмотра раньше (AllocationMatrixEndpoints.Targets, DocumentTargetsAsync) и отказывает своими словами — сюда такое доходит только из нашего кода",
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs"] = "счёт правят вне запроса — версию, по которой собрана правка, назвать некому: так вызвать связку может только наш код (фоновая правка без своего пути), человек до этого отказа не доходит",
         ["BHS.CRG.Domain/Objects/DomainObject.cs"] = "документные свойства спросили у не-документа — дефект вызывающего кода",
         ["BHS.CRG.Domain/Notifications/Notification.cs"] = "уведомление адресовано и лично, и по праву разом — путаница в издателе; до пользователя такой отказ не доходит вовсе",
         ["BHS.CRG.Infrastructure/Persistence/AppDbContext.cs"] = "правка дописываемой записи (журнал действий, закрытие периода) — дефект кода, а не отказ пользователю: такой правки в интерфейсе нет вовсе (ТЗ CORE-28, CORE-35)",
@@ -79,13 +87,13 @@ public class DomainExceptionPolicyTests
     {
         var offenders = new List<string>();
         foreach (var project in Projects)
-            foreach (var file in SourceFiles(project))
+            foreach (var file in SourceTree.Files(project))
             {
-                var rel = Relative(file);
+                var rel = SourceTree.Relative(file);
                 if (DeliberatelyFramework.ContainsKey(rel)) continue;
                 var text = File.ReadAllText(file);
                 foreach (Match m in FrameworkThrow.Matches(text))
-                    offenders.Add($"{rel}:{LineOf(text, m.Index)}  throw new {m.Groups[1].Value}");
+                    offenders.Add($"{rel}:{SourceTree.LineOf(text, m.Index)}  throw new {m.Groups[1].Value}");
             }
 
         Assert.True(offenders.Count == 0,
@@ -106,7 +114,7 @@ public class DomainExceptionPolicyTests
         var stale = DeliberatelyFramework.Keys
             .Where(rel =>
             {
-                var path = Path.Combine(SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
+                var path = Path.Combine(SourceTree.SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
                 return !File.Exists(path) || !FrameworkThrow.IsMatch(File.ReadAllText(path));
             })
             .OrderBy(x => x, StringComparer.Ordinal)
@@ -125,43 +133,14 @@ public class DomainExceptionPolicyTests
             @"\bthrow\s+new\s+(InvalidRequestException|NotFoundException|ConflictException|ForbiddenException)\b",
             RegexOptions.Singleline);
 
-        var offenders = SourceFiles(ApiOnly)
+        var offenders = SourceTree.Files(ApiOnly)
             .Select(f => (file: f, text: File.ReadAllText(f)))
-            .SelectMany(x => domainThrow.Matches(x.text).Select(m => $"{Relative(x.file)}:{LineOf(x.text, m.Index)}"))
+            .SelectMany(x => domainThrow.Matches(x.text).Select(m => $"{SourceTree.Relative(x.file)}:{SourceTree.LineOf(x.text, m.Index)}"))
             .ToList();
 
         Assert.True(offenders.Count == 0,
             "Доменный отказ брошен в слое API: " + string.Join(", ", offenders) + ".\n" +
             "Эндпоинт отвечает кодом (Results.BadRequest и соседи) — исключение здесь только " +
             "удлиняет путь до того же ответа.");
-    }
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
-
-    /// <summary>Номер строки по смещению в тексте — сообщение должно вести прямо к месту.</summary>
-    private static int LineOf(string text, int index) =>
-        text.AsSpan(0, index).Count('\n') + 1;
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    /// <summary>
-    /// Каталог решения — от папки сборки вверх до файла решения. Тест читает ИСХОДНИКИ, а не
-    /// сборку: правило про то, как написан код, отражения в метаданных не имеет.
-    /// </summary>
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
     }
 }

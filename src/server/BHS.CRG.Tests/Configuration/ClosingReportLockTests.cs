@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -41,25 +42,12 @@ public class ClosingReportLockTests
 
     private static IEnumerable<(string Rel, string Code)> Sources()
     {
-        var root = FindSolutionDir();
-        return Directory.EnumerateDirectories(root, "BHS.CRG.Modules.*")
-            .SelectMany(dir => Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"))
+        // Проекты модулей — общим отбором, по ссылке на контракты (issue #1071): маска по имени каталога
+        // пропустила бы модуль, названный не по соглашению.
+        return SolutionModules.Names
+            .SelectMany(SourceTree.Files)
             .Select(f => (
-                Path.GetRelativePath(root, f).Replace('\\', '/'),
+                SourceTree.Relative(f),
                 string.Join("\n", File.ReadAllLines(f).Where(l => !l.TrimStart().StartsWith("//")))));
-    }
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
     }
 }

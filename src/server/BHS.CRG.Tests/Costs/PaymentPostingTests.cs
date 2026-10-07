@@ -239,7 +239,7 @@ public class PaymentPostingTests
     private static Invoice Invoice(decimal? total)
     {
         var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);
-        invoice.Apply(new InvoiceColumns(null, null, null, null, null, total, null, null, null, null),
+        invoice.ApplyRequisites(new InvoiceColumns(null, null, null, null, null, total, null, null, null, null),
             JsonDocument.Parse("{}"), dueDateByHand: false);
         return invoice;
     }

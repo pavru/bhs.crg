@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -13,12 +14,19 @@ namespace BHS.CRG.Tests.Configuration;
 /// всё. Приём тот же, что у инвентаризации адресов (<see cref="Integration.EndpointGateInventoryTests" />):
 /// связать «добавил уведомление» с «назови, кому оно», пока решение ещё дёшево.
 ///
+/// <para><b>Проекты модулей — под той же переписью</b> (задача M3, issue #1071). Модуль публикует
+/// портом <c>IModuleNotifications</c>, и адресат у порта необязателен так же, как у службы: вызов без
+/// него уходит всем вошедшим. Метод порта назван так же нарочно — перепись находит его тем же
+/// выражением. Сам переходник (<c>ModuleNotificationsPort</c>) передаёт оба параметра дальше как
+/// получил и потому проходит; решает тот, кто порт зовёт.</para>
+///
 /// ⚠️ Проверка читает ИСХОДНИКИ: в метаданных сборки необязательный аргумент, который не передали,
 /// никак не отражается — его просто нет.
 /// </summary>
 public class NotificationAudienceInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>
     /// Кому дозволено звонить всем вошедшим — с причиной. Добавляя строку, вы принимаете решение:
@@ -47,9 +55,9 @@ public class NotificationAudienceInventoryTests
     {
         var nameless = new List<string>();
 
-        foreach (var file in Projects.SelectMany(SourceFiles))
+        foreach (var file in Projects.SelectMany(SourceTree.Files))
         {
-            var rel = Relative(file);
+            var rel = SourceTree.Relative(file);
             if (NotPublishers.Contains(rel) || EveryoneSignedIn.ContainsKey(rel)) continue;
 
             var text = File.ReadAllText(file);
@@ -57,14 +65,15 @@ public class NotificationAudienceInventoryTests
             {
                 var args = Arguments(text, m.Index + m.Length);
                 if (args.Contains("userId") || args.Contains("audience:")) continue;
-                nameless.Add($"{rel}:{LineOf(text, m.Index)}");
+                nameless.Add($"{rel}:{SourceTree.LineOf(text, m.Index)}");
             }
         }
 
         Assert.True(nameless.Count == 0,
             "Уведомление опубликовано без адресата — значит, придёт всем вошедшим, включая тех, кого " +
             "оно не касается:\n" + string.Join("\n", nameless) + "\n\n" +
-            "Назовите право (audience: NotificationAudiences.…) или человека (userId:). " +
+            "Назовите право (audience: NotificationAudiences.…; у модуля — код его права или код модуля) " +
+            "или человека (userId:). " +
             "Если оно и правда для всех — впишите файл в EveryoneSignedIn с причиной.");
     }
 
@@ -78,7 +87,7 @@ public class NotificationAudienceInventoryTests
         var stale = EveryoneSignedIn.Keys
             .Where(rel =>
             {
-                var path = Path.Combine(SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
+                var path = Path.Combine(SourceTree.SolutionDir, rel.Replace('/', Path.DirectorySeparatorChar));
                 return !File.Exists(path) || !Call.IsMatch(File.ReadAllText(path));
             })
             .ToList();
@@ -117,28 +126,5 @@ public class NotificationAudienceInventoryTests
             if (text[j] == '\n') return j;   // не закрылась на строке — не наше дело, идём дальше
         }
         return text.Length - 1;
-    }
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
-
-    private static int LineOf(string text, int index) => text.AsSpan(0, index).Count('\n') + 1;
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден каталог решения (BHS.CRG.slnx) выше " + AppContext.BaseDirectory +
-                " — тест читает исходники и без них проверять нечего.");
     }
 }
