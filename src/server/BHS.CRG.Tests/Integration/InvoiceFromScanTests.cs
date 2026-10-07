@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -9,63 +8,10 @@ using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Tests.Integration;
-
-/// <summary>
-/// Хост проверок пути «скан → черновик» (B1b, issue #1077): тот же, что у строк счёта (та же база, тот
-/// же состав модулей), но распознаёт в нём сценарий теста, а не движок.
-///
-/// <para>Заменяется именно ПОРТ <see cref="IModuleRecognition" />, а не движок под ним: что порт делает
-/// с движком, проверяют <c>ModuleRecognitionPortTests</c>. Здесь проверяется то, что модуль делает с
-/// ответом порта, — и очередь, обработчик, связка записи и адреса при этом настоящие.</para>
-/// </summary>
-public sealed class InvoiceScanHost : InvoiceLineHost
-{
-    public ScriptedRecognition Recognition { get; } = new();
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureTestServices(services =>
-        {
-            services.RemoveAll<IModuleRecognition>();
-            services.AddSingleton<IModuleRecognition>(Recognition);
-        });
-    }
-
-    /// <summary>
-    /// Распознавание по сценарию: ответ назначается СОДЕРЖИМОМУ файла. Так сценарий не зависит от
-    /// порядка тестов и не протекает между ними — у каждого теста свой файл.
-    /// </summary>
-    public sealed class ScriptedRecognition : IModuleRecognition
-    {
-        private readonly ConcurrentDictionary<string, Func<Task<ModuleRecognitionResult>>> answers = new();
-
-        /// <summary>Отказ готовности — «распознавать некому». Тест ставит и обязан снять.</summary>
-        public RecognitionRefusedException? NotReady { get; set; }
-
-        public void On(string content, Func<Task<ModuleRecognitionResult>> answer) => answers[content] = answer;
-
-        public Task EnsureReadyAsync(string profileCode, CancellationToken ct = default) =>
-            NotReady is { } refusal ? Task.FromException(refusal) : Task.CompletedTask;
-
-        public Task<ModuleRecognitionResult> RecognizeAsync(
-            string profileCode, byte[] content, string mimeType, CancellationToken ct = default)
-        {
-            Assert.Equal(CostsRecognitionProfiles.InvoiceCode, profileCode);
-            return answers.TryGetValue(Encoding.UTF8.GetString(content), out var answer)
-                ? answer()
-                : Task.FromException<ModuleRecognitionResult>(new RecognitionRefusedException(
-                    RecognitionRefusal.NoAnswer, "В сценарии теста для этого файла ответа нет."));
-        }
-    }
-}
 
 /// <summary>
 /// Путь «скан → черновик счёта» (ТЗ COST-8, COST-6.2; задача B1b, issue #1077).
@@ -302,7 +248,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         var scan = Scan();
         host.Recognition.On(scan, () => Task.FromResult(Read(
             Header(number: "СЧ-502", date: "01.02.26", total: "1.234"),
-            Row("Кабель", "м", "1.234", "десять", "12,34"))));
+            Row("Кабель", "м", "1.234", "1.250", "12,34"))));
 
         var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
         var recognition = await OutcomeAsync(client, id);
@@ -320,7 +266,53 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         var line = Assert.Single(view.GetProperty("lines").EnumerateArray());
         Assert.Equal(1.234m, line.GetProperty("quantity").GetDecimal());
         Assert.Equal(JsonValueKind.Null, line.GetProperty("price").ValueKind);
-        Assert.Contains("цена «десять»", line.GetProperty("note").GetString());
+        // Цена — деньгами: «1.250» в графе цены бывает и тысячей двести пятьюдесятью, а количество
+        // «1.234» читается дробью. Один и тот же вид числа, разные правила — и это не случайность.
+        Assert.Contains("цена «1.250»", line.GetProperty("note").GetString());
+    }
+
+    /// <summary>
+    /// Пределы строки — те же, что у формы: длина, точность колонки. Форма на нарушение отвечает
+    /// отказом; здесь значение уходит в примечание, а не округляется молча и не роняет распознавание
+    /// отказом базы вместе с шапкой.
+    /// </summary>
+    [Fact]
+    public async Task Значение_строки_которое_не_помещается_уходит_в_примечание()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        var unit = new string('м', InvoiceLine.UnitLength + 1);
+        host.Recognition.On(scan, () => Task.FromResult(Read(Header(number: "СЧ-506"),
+            Row("Кабель", unit, "0,1255", "45,678", "5,73"),
+            Row("Труба", "м", "2", "10,50", "9999999999999,00"),
+            new Dictionary<string, string?> { [CostsRecognitionProfiles.LineName] = " ", [CostsRecognitionProfiles.LineUnit] = null })));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        var recognition = await OutcomeAsync(client, id);
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+
+        var view = await ReadAsync(client, id);
+        Assert.Equal("СЧ-506", view.GetProperty("requisites").GetProperty("Номер").GetString());
+
+        // Пустая строка скана строкой счёта не стала.
+        var lines = view.GetProperty("lines");
+        Assert.Equal(2, lines.GetArrayLength());
+
+        var first = lines[0];
+        Assert.Equal(JsonValueKind.Null, first.GetProperty("unit").ValueKind);
+        Assert.Equal(JsonValueKind.Null, first.GetProperty("quantity").ValueKind);
+        Assert.Equal(JsonValueKind.Null, first.GetProperty("price").ValueKind);
+        Assert.Equal(5.73m, first.GetProperty("amount").GetDecimal());
+        var note = first.GetProperty("note").GetString()!;
+        Assert.Contains("количество «0,1255»", note);
+        Assert.Contains("цена «45,678»", note);
+        Assert.Contains($"длиннее {InvoiceLine.UnitLength} знаков", note);
+
+        // Сумма больше, чем здесь бывает, не записана — и НЕ подменена посчитанной 2 × 10,50: посчитанное
+        // выглядело бы как прочитанное, а в скане стоит другое.
+        var second = lines[1];
+        Assert.Contains("сумма «9999999999999,00»", second.GetProperty("note").GetString());
+        Assert.Equal(JsonValueKind.Null, second.GetProperty("amount").ValueKind);
     }
 
     /// <summary>Таблица не прочиталась — шапка всё равно ложится, а причина названа, а не «строк нет».</summary>
@@ -373,6 +365,106 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         }
 
         Assert.Equal("done", (await OutcomeAsync(client, id)).GetProperty("state").GetString());
+    }
+
+    /// <summary>
+    /// Второе нажатие, прошедшее проверку раньше, чем первое сохранило номер задачи: очередь отвечает
+    /// «уже выполняется». Это отказ второму — и ничего больше: запись, по которой работает первая
+    /// задача, остаётся её записью, и первая дочитывает скан.
+    /// </summary>
+    [Fact]
+    public async Task Второй_запуск_не_отменяет_работу_первого()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        var gate = Hold(scan, Read(Header(number: "СЧ-507")));
+        Guid id;
+        try
+        {
+            id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+
+            // То самое окно: запись ждёт исхода, а номера задачи в ней ещё (или уже) нет.
+            using (var scope = host.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+                await db.Database.ExecuteSqlRawAsync(
+                    "UPDATE costs.invoice_recognitions SET job_id = NULL WHERE invoice_id = {0}", id);
+            }
+
+            var again = await client.PostAsync($"/api/costs/invoices/{id}/recognition", null);
+            Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+            Assert.Contains("уже распознаётся", await again.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            gate.SetResult();
+        }
+
+        var recognition = await OutcomeAsync(client, id, wait: "failed");
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+        Assert.Equal("СЧ-507", (await ReadAsync(client, id)).GetProperty("requisites").GetProperty("Номер").GetString());
+    }
+
+    /// <summary>
+    /// Правка формы пришла одновременно с исходом распознавания, и слияние проиграло ей запись.
+    /// Прочитанное не выбрасывается: счёт перечитывается, и то же прочитанное раскладывается заново —
+    /// уже мимо поля, которое человек только что заполнил. Иначе за тот же файл платили бы движку дважды.
+    /// </summary>
+    [Fact]
+    public async Task Слияние_проигравшее_правке_формы_повторяется_а_не_выбрасывает_прочитанное()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        var gate = Hold(scan, Read(Header(number: "СЧ-508", basis: "Договор № 8")));
+        Guid id;
+        try
+        {
+            id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+            host.BetweenReadAndSave = async () =>
+            {
+                using var scope = host.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+                await db.Database.ExecuteSqlRawAsync(
+                    "UPDATE costs.invoices SET purpose = 'вписано рукой' WHERE id = {0}", id);
+            };
+        }
+        finally
+        {
+            gate.SetResult();
+        }
+
+        var recognition = await OutcomeAsync(client, id);
+        Assert.Null(host.BetweenReadAndSave); // помеха действительно случилась
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+        Assert.Equal("Договор № 8", recognition.GetProperty("offers").GetProperty("Назначение").GetString());
+
+        var view = await ReadAsync(client, id);
+        Assert.Equal("вписано рукой", view.GetProperty("requisites").GetProperty("Назначение").GetString());
+        Assert.Equal("СЧ-508", view.GetProperty("requisites").GetProperty("Номер").GetString());
+        Assert.Equal(["Номер"], Unconfirmed(view));
+    }
+
+    /// <summary>
+    /// Скан заменили ПОСЛЕ распознавания: предложения и строки прежнего файла под полями нового счёта
+    /// показывать нельзя — запись о другой бумаге читается как «не запускалось».
+    /// </summary>
+    [Fact]
+    public async Task После_замены_скана_прочитанное_с_прежнего_не_показывается()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(Header(number: "СЧ-509", total: "1.234"))));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        Assert.Equal("1.234", (await OutcomeAsync(client, id)).GetProperty("offers").GetProperty("Итого").GetString());
+
+        using (var form = Form(Scan(), "Другой.pdf", "application/pdf"))
+            await OkAsync(await client.PostAsync($"/api/costs/invoices/{id}/scan", form));
+
+        var recognition = await RecognitionAsync(client, id);
+        Assert.Equal("none", recognition.GetProperty("state").GetString());
+        Assert.Equal(JsonValueKind.Null, recognition.GetProperty("offers").ValueKind);
+        Assert.True(recognition.GetProperty("canStart").GetBoolean());
     }
 
     /// <summary>
@@ -543,13 +635,16 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{id}/recognition");
 
     /// <summary>Дождаться исхода — тем же опросом, каким его ждёт форма.</summary>
-    private static async Task<JsonElement> OutcomeAsync(HttpClient client, Guid id)
+    /// <param name="wait">Состояние, которое тоже НЕ исход: тест, сам стёрший номер задачи, видит
+    /// «failed / прервано», пока задача ещё работает.</param>
+    private static async Task<JsonElement> OutcomeAsync(HttpClient client, Guid id, string? wait = null)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
         while (true)
         {
             var recognition = await RecognitionAsync(client, id);
-            if (recognition.GetProperty("state").GetString() != "running") return recognition;
+            var state = recognition.GetProperty("state").GetString();
+            if (state != "running" && state != wait) return recognition;
 
             Assert.True(DateTime.UtcNow < deadline, $"Распознавание счёта {id} так и не закончилось.");
             await Task.Delay(50);

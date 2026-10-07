@@ -19,7 +19,9 @@ public static partial class RecognizedValues
 
     private static readonly string[] DateFormats =
     [
-        "d.M.yyyy", "dd.MM.yyyy", "yyyy-MM-dd", "d/M/yyyy", "d MMMM yyyy", "d MMMM yyyy 'г.'", "d MMMM yyyy 'г'",
+        // Косая черта — литералом: без кавычек «/» в формате означает разделитель дат КУЛЬТУРЫ, у
+        // русской это точка, и «12/03/2026» не читалось бы никогда.
+        "d.M.yyyy", "dd.MM.yyyy", "yyyy-MM-dd", "d'/'M'/'yyyy", "d MMMM yyyy", "d MMMM yyyy 'г.'", "d MMMM yyyy 'г'",
         "d MMMM yyyy 'года'",
     ];
 
@@ -39,10 +41,14 @@ public static partial class RecognizedValues
     public static decimal? Money(string? text) => Number(text, maxFraction: 2);
 
     /// <summary>
-    /// Количество и цена. Тут разделитель один и он дробный: «0,125» м или «1,5» шт — обычное дело,
-    /// а тысячи в количестве разделителем не пишут. Два разных разделителя — как у суммы.
+    /// Количество. Тут разделитель один и он дробный: «0,125» м или «1,5» шт — обычное дело, а тысячи
+    /// в количестве разделителем не пишут. Два разных разделителя — как у суммы. Знаков после
+    /// разделителя — не больше трёх: точнее тысячной количество счёт не хранит.
+    ///
+    /// <para>⚠️ Цену этим разбором не читают — только <see cref="Money" />: «1.250» в графе цены бывает
+    /// тысячей двести пятьюдесятью, и прочитанное дробью дало бы цену в тысячу раз меньше.</para>
     /// </summary>
-    public static decimal? Quantity(string? text) => Number(text, maxFraction: 6);
+    public static decimal? Quantity(string? text) => Number(text, maxFraction: 3);
 
     private static decimal? Number(string? text, int maxFraction)
     {

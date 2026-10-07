@@ -4,6 +4,7 @@ using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -25,19 +26,33 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, IModuleBlobs blobs,
-    IModuleWriteGuard guard, IModuleActivityLog log)
+    IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs)
 {
+    /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
+    private const int MergeAttempts = 3;
+
     /// <summary>
-    /// Работа фоновой задачи: прочитать скан и разложить прочитанное по черновику. Любой НАШ отказ
+    /// Работа фоновой задачи: прочитать скан и разложить прочитанное по черновику. Любой отказ
     /// записывается причиной и пробрасывается — задача завершается отказом с тем же текстом.
     /// </summary>
-    public async Task RunAsync(Guid invoiceId, string? scanBlobPath, CancellationToken ct)
+    public async Task RunAsync(Guid invoiceId, Guid jobId, string? scanBlobPath, CancellationToken ct)
     {
         var stored = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoiceId, ct)
             ?? throw new ConflictException("Распознавать нечего: счёт удалён или распознавание по нему не ставили.");
         if (stored.Outcome != InvoiceRecognitionOutcome.Pending)
             throw new ConflictException("Распознавание по этому счёту уже завершено другой попыткой.");
 
+        // Свой номер задача знает сама и вписывает его, если запись его не несёт: постановка сохраняет
+        // номер ПОСЛЕ очереди, и между ними запись могли перезапустить вторым нажатием. Без номера
+        // форма читала бы работающую задачу как «прервано».
+        if (stored.JobId != jobId)
+        {
+            stored.Queued(jobId);
+            await db.SaveChangesAsync(ct);
+        }
+
+        ModuleRecognitionResult read;
+        (string Label, int Filled, int Lines) merged;
         try
         {
             var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
@@ -52,31 +67,81 @@ public sealed class InvoiceScanReading(
                 content = buffer.ToArray();
             }
 
-            var read = await recognition.RecognizeAsync(
+            read = await recognition.RecognizeAsync(
                 CostsRecognitionProfiles.InvoiceCode, content, invoice.ScanMimeType!, ct);
-
-            var (label, filled, lines) = await desk.MergeAsync(invoiceId, async write =>
-            {
-                // Счёт пришёл СВЕЖИМ, под замком: пока скан читался, его могли править, разобрать,
-                // заменить ему скан. Условие проверяется заново — и против того же файла.
-                EnsureSameScan(write.Invoice, scanBlobPath);
-                var applied = await ApplyAsync(write.Invoice, stored, read, ct);
-                await db.SaveChangesAsync(ct);
-                return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines);
-            }, ct);
-
-            await log.RecordAsync(InvoiceActions.Recognized, invoiceId.ToString(), label,
-                after: $"полей: {filled}, строк: {lines}" + (read.Engine is { } engine ? $"; {engine}" : string.Empty), ct: ct);
+            merged = await MergeAsync(invoiceId, scanBlobPath, read, ct);
         }
         catch (DomainException refusal)
         {
-            // Отказ мог прийти из середины записи — несохранённое в счёт уйти не должно.
-            db.ChangeTracker.Clear();
-            var failed = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
-            failed.Fail(refusal is RecognitionRefusedException refused ? refused.Reason.ToString() : "Refused", refusal.Message);
-            await db.SaveChangesAsync(ct);
+            await FailAsync(invoiceId,
+                refusal is RecognitionRefusedException refused ? refused.Reason.ToString() : "Refused", refusal.Message);
             throw;
         }
+        catch (Exception crash) when (crash is not OperationCanceledException)
+        {
+            // Не наш отказ — сбой базы или хранилища. Исход всё равно обязан быть записан: иначе запись
+            // ждала бы вечно, а форма показывала «прервано» без единого слова о том, что случилось.
+            // Чужой текст человеку не отдаём — он в журнале сервера, вместе с самим исключением.
+            await FailAsync(invoiceId, "Refused",
+                "Прочитанное не удалось записать в счёт: внутренняя ошибка. Запустите распознавание ещё раз; " +
+                "если повторится — подробности в журнале сервера.");
+            throw;
+        }
+
+        // Журнал — ПОСЛЕ исхода и вне его: счёт уже заполнен, и отказ журнала не вправе ни объявить
+        // задачу упавшей, ни переписать «прочитано» на «не удалось».
+        try
+        {
+            await log.RecordAsync(InvoiceActions.Recognized, invoiceId.ToString(), merged.Label,
+                after: $"полей: {merged.Filled}, строк: {merged.Lines}" + (read.Engine is { } engine ? $"; {engine}" : string.Empty),
+                ct: ct);
+        }
+        catch (Exception lost) when (lost is not OperationCanceledException)
+        {
+            logs.CreateLogger<InvoiceScanReading>().LogError(lost,
+                "Счёт {InvoiceId} заполнен из скана, но запись об этом в журнал действий не легла.", invoiceId);
+        }
+    }
+
+    /// <summary>
+    /// Разложить прочитанное по счёту. Проиграв одновременной правке формы, слияние ПОВТОРЯЕТСЯ: счёт
+    /// перечитывается, и то же прочитанное раскладывается заново — уже мимо поля, которое человек
+    /// только что заполнил. Выбросить прочитанное значило бы платить движку второй раз за тот же файл.
+    /// </summary>
+    private async Task<(string Label, int Filled, int Lines)> MergeAsync(
+        Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await desk.MergeAsync(invoiceId, async write =>
+                {
+                    // Счёт пришёл СВЕЖИМ, под замком: пока скан читался, его могли править, разобрать,
+                    // заменить ему скан. Условие проверяется заново — и против того же файла.
+                    EnsureSameScan(write.Invoice, scanBlobPath);
+                    var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
+                    var applied = await ApplyAsync(write.Invoice, stored, read, ct);
+                    await db.SaveChangesAsync(ct);
+                    return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines);
+                }, ct);
+            }
+            catch (ConflictException lost) when (lost.InnerException is DbUpdateConcurrencyException && attempt < MergeAttempts)
+            {
+                // Несохранённое уходит целиком: следующая попытка читает счёт и запись заново.
+                db.ChangeTracker.Clear();
+            }
+        }
+    }
+
+    private async Task FailAsync(Guid invoiceId, string reason, string error)
+    {
+        // Отказ мог прийти из середины записи — несохранённое в счёт уйти не должно. И без токена
+        // отмены: исход пишется и тогда, когда задачу остановили.
+        db.ChangeTracker.Clear();
+        var failed = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, CancellationToken.None);
+        failed.Fail(reason, error);
+        await db.SaveChangesAsync(CancellationToken.None);
     }
 
     private static void EnsureSameScan(Invoice invoice, string? scanBlobPath)
@@ -149,7 +214,7 @@ public sealed class InvoiceScanReading(
             invoice.AddUnconfirmed(filled);
         }
 
-        var rows = read.Rows.Select(Line).ToList();
+        var rows = read.Rows.Select(Line).OfType<InvoiceLineValues>().ToList();
         if (read.RowsProblem is { } problem)
             notes.Add($"Строки счёта не прочитаны: {problem}. Введите их вручную или вставьте из буфера.");
 
@@ -187,32 +252,72 @@ public sealed class InvoiceScanReading(
 
     /// <summary>
     /// Строка скана → строка счёта. Номенклатуры нет: её выбирает человек, строка ждёт в очереди
-    /// «Разобрать». Число, которое не прочиталось однозначно, не угадывается — уходит в примечание.
+    /// «Разобрать».
+    ///
+    /// <para>⚠️ Пределы — те же, что у строки из формы (<see cref="InvoiceLineRequests" />): длина,
+    /// «триллион», точность колонки. Форма на нарушение отвечает отказом; здесь отказывать некому, и
+    /// значение, которое не помещается или не читается однозначно, в поле не попадает — уходит в
+    /// примечание строки. Молча округлить или обрезать нельзя: записанное разошлось бы с бумагой, а
+    /// отказ базы уронил бы всё распознавание вместе с шапкой.</para>
     /// </summary>
-    private static InvoiceLineValues Line(IReadOnlyDictionary<string, string?> row)
+    private static InvoiceLineValues? Line(IReadOnlyDictionary<string, string?> row)
     {
+        // Строка, в которой движок не прочитал ничего, — не строка счёта.
+        if (row.Values.All(string.IsNullOrWhiteSpace)) return null;
+
         var unread = new List<string>();
 
-        decimal? Number(string key, string title, Func<string?, decimal?> parse)
+        decimal? Number(string key, string title, Func<string?, decimal?> parse, int digits)
         {
             var text = row.GetValueOrDefault(key);
-            var value = parse(text);
-            if (text is not null && value is null) unread.Add($"{title} «{text}»");
-            return value;
+            if (string.IsNullOrWhiteSpace(text)) return null;
+
+            if (parse(text) is { } value && Math.Abs(value) < CostsValues.Limit && decimal.Round(value, digits) == value)
+                return value;
+
+            unread.Add($"{title} «{Short(text)}»");
+            return null;
         }
 
-        var quantity = Number(CostsRecognitionProfiles.LineQuantity, "количество", RecognizedValues.Quantity);
-        var price = Number(CostsRecognitionProfiles.LinePrice, "цена", RecognizedValues.Quantity);
-        var amount = Number(CostsRecognitionProfiles.LineAmount, "сумма", RecognizedValues.Money);
+        string? Text(string key, string title, int limit)
+        {
+            var text = row.GetValueOrDefault(key);
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            if (text.Length <= limit) return text;
 
-        return new InvoiceLineValues(
+            unread.Add($"{title} «{Short(text)}» (длиннее {limit} знаков)");
+            return null;
+        }
+
+        var quantity = Number(CostsRecognitionProfiles.LineQuantity, "количество", RecognizedValues.Quantity, 3);
+        // Цена — деньгами, а не количеством: «1.250» в графе цены бывает и тысячей двести пятьюдесятью.
+        var price = Number(CostsRecognitionProfiles.LinePrice, "цена", RecognizedValues.Money, 2);
+        var amount = Number(CostsRecognitionProfiles.LineAmount, "сумма", RecognizedValues.Money, 2);
+        var unit = Text(CostsRecognitionProfiles.LineUnit, "единица", InvoiceLine.UnitLength);
+
+        if (amount is null && quantity is { } q && price is { } p && Math.Abs(q * p) >= CostsValues.Limit)
+        {
+            // Сумму досчитала бы строка сама — и получила бы число, которого колонка не вместит.
+            unread.Add($"цена «{CostsValues.Shown(p)}» (количество × цена больше, чем здесь бывает)");
+            price = null;
+        }
+
+        var values = new InvoiceLineValues(
             NomenclatureId: null,
-            SupplierText: row.GetValueOrDefault(CostsRecognitionProfiles.LineName),
+            SupplierText: row.GetValueOrDefault(CostsRecognitionProfiles.LineName) is { } name && !string.IsNullOrWhiteSpace(name)
+                ? name
+                : null,
             SupplierCode: null,
-            Unit: row.GetValueOrDefault(CostsRecognitionProfiles.LineUnit),
+            Unit: unit,
             Quantity: quantity, Price: price, VatRate: null, VatAmount: null, Amount: amount,
             Note: unread.Count > 0 ? "В скане не прочитано: " + string.Join(", ", unread) : null);
+
+        // Сумму досчитываем, только когда в скане её НЕТ. Стояла, но не прочиталась — оставляем пустой:
+        // посчитанная выглядела бы прочитанной, а на бумаге написано другое.
+        return string.IsNullOrWhiteSpace(row.GetValueOrDefault(CostsRecognitionProfiles.LineAmount)) ? values.Completed() : values;
     }
+
+    private static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
 
     private static bool IsBlank(JsonNode? node) =>
         node is null || (node is JsonValue value && value.TryGetValue<string>(out var text) && string.IsNullOrWhiteSpace(text));
@@ -226,5 +331,5 @@ public sealed class InvoiceRecognitionJob(InvoiceScanReading scan) : IModuleJobH
 {
     public string Operation => InvoiceScanRecognition.Operation;
 
-    public Task RunAsync(ModuleJobRun run, CancellationToken ct) => scan.RunAsync(run.TargetId, run.Payload, ct);
+    public Task RunAsync(ModuleJobRun run, CancellationToken ct) => scan.RunAsync(run.TargetId, run.JobId, run.Payload, ct);
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -46,7 +47,8 @@ public static class InvoiceRecognitionEndpoints
     /// </summary>
     private static async Task<Created<InvoiceFromScanView>> FromScanAsync(
         IFormFile file, CostsDbContext db, IModuleTypes types, IModuleUser user, IModuleBlobs blobs,
-        IModuleActivityLog log, InvoiceDesk desk, InvoiceScanRecognition scan, CancellationToken ct)
+        IModuleActivityLog log, InvoiceDesk desk, InvoiceScanRecognition scan, ILoggerFactory logs,
+        CancellationToken ct)
     {
         if (file.Length == 0)
             throw new InvalidRequestException("Файл пуст — распознавать и прикладывать нечего.");
@@ -79,22 +81,41 @@ public static class InvoiceRecognitionEndpoints
             throw;
         }
 
-        await log.RecordAsync(InvoiceActions.Created, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
-            after: $"из скана: {file.FileName}", ct: ct);
+        // ⚠️ Черновик со сканом ЗАВЕДЁН — с этой строки ответом может быть только он. Отказ после
+        // сохранения оставил бы человека с ошибкой на экране и счётом, о котором он не знает: он
+        // загрузил бы файл ещё раз, и в реестре стояли бы два черновика с одним сканом. Поэтому дальше —
+        // без токена отмены (оборванный запрос не бросает постановку на полпути) и без отказов наружу:
+        // что не удалось, названо в журнале сервера, а состояние распознавания уходит в ответе как есть.
+        var none = CancellationToken.None;
+        try
+        {
+            await log.RecordAsync(InvoiceActions.Created, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
+                after: $"из скана: {file.FileName}", ct: none);
+        }
+        catch (Exception lost)
+        {
+            logs.CreateLogger(typeof(InvoiceRecognitionEndpoints)).LogError(lost,
+                "Счёт {InvoiceId} заведён из скана, но запись об этом в журнал действий не легла.", invoice.Id);
+        }
 
         try
         {
-            await scan.StartAsync(invoice, ct);
+            await scan.StartAsync(invoice, none);
         }
         catch (DomainException)
         {
-            // Очередь отказала в постановке. Черновик со сканом уже заведён, и отвечать на него отказом
-            // значило бы оставить человека с ошибкой на экране и счётом, о котором он не знает. Причина
-            // не потеряна: постановка записала её исходом, и она уходит в ответе ниже.
+            // Очередь отказала в постановке. Причина не потеряна: постановка записала её исходом.
+        }
+        catch (Exception crash)
+        {
+            // Не наш отказ: профиль не объявлен, у операции нет исполнителя, сбой базы. Распознавание
+            // не поставлено — форма покажет «не запускалось» или «прервано», и запустить можно снова.
+            logs.CreateLogger(typeof(InvoiceRecognitionEndpoints)).LogError(crash,
+                "Счёт {InvoiceId} заведён из скана, но распознавание поставить не удалось.", invoice.Id);
         }
 
         return TypedResults.Created($"/api/costs/invoices/{invoice.Id}",
-            new InvoiceFromScanView(await desk.ViewAsync(invoice, ct), await scan.ViewAsync(invoice, ct)));
+            new InvoiceFromScanView(await desk.ViewAsync(invoice, none), await scan.ViewAsync(invoice, none)));
     }
 
     private static async Task<Ok<InvoiceRecognitionView>> GetAsync(

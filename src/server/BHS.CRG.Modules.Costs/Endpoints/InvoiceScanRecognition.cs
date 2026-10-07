@@ -64,7 +64,9 @@ public sealed class InvoiceScanRecognition(
         var stored = await db.InvoiceRecognitions.AsNoTracking().FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
         var whyNot = WhyNot(invoice);
 
-        if (stored is null)
+        // Запись о ДРУГОМ файле — не о нынешнем скане: скан заменили после распознавания. Показать её
+        // значило бы предложить под полями нового счёта то, что прочитано со старой бумаги.
+        if (stored is null || stored.ScanBlobPath != invoice.ScanBlobPath)
             return new("none", null, null, null, null, null, null, null, [], null, null, whyNot is null, whyNot);
 
         if (stored.Outcome == InvoiceRecognitionOutcome.Pending)
@@ -109,10 +111,9 @@ public sealed class InvoiceScanRecognition(
 
         var stored = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
         if (stored is not null && await AliveAsync(stored, ct) is not null)
-            throw new ConflictException(
-                $"{InvoiceEndpoints.Label(invoice)}: скан уже распознаётся. Дождитесь исхода — второй запуск " +
-                "прочитал бы тот же файл и ничего не добавил.");
+            throw AlreadyRunning(invoice);
 
+        var first = stored is null;
         if (stored is null) db.InvoiceRecognitions.Add(stored = InvoiceRecognition.Start(invoice.Id, invoice.ScanBlobPath!));
         else stored.Restart(invoice.ScanBlobPath!);
 
@@ -123,17 +124,24 @@ public sealed class InvoiceScanRecognition(
         catch (RecognitionRefusedException refused)
         {
             stored.Fail(refused.Reason.ToString(), refused.Message);
-            await db.SaveChangesAsync(ct);
+            await SaveAsync(invoice, first, ct);
             return;
         }
 
         // Запись — ДО постановки: обработчик находит её по счёту и может стартовать раньше, чем мы
         // сохраним идентификатор задачи. Обратный порядок оставил бы задачу без записи об исходе.
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(invoice, first, ct);
         try
         {
             stored.Queued(await jobs.EnqueueAsync(
                 Operation, invoice.Id, $"Распознавание скана: {InvoiceEndpoints.Label(invoice)}", invoice.ScanBlobPath, ct));
+        }
+        catch (ConflictException busy)
+        {
+            // Очередь держит одну задачу на счёт, и она уже есть: это второе нажатие, прошедшее проверку
+            // выше раньше, чем первое сохранило номер задачи. Запись НЕ трогаем — по ней работает первая
+            // задача, и «не удалось», записанное отсюда, отменило бы её работу.
+            throw AlreadyRunning(invoice, busy);
         }
         catch (DomainException refusal)
         {
@@ -143,4 +151,24 @@ public sealed class InvoiceScanRecognition(
         }
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Сохранить запись перед постановкой. Первую запись счёта два одновременных запуска добавляют оба
+    /// — и второй получает от базы отказ по ключу: это то же «уже распознаётся», а не сбой.
+    /// </summary>
+    private async Task SaveAsync(Invoice invoice, bool first, CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException taken) when (first)
+        {
+            throw AlreadyRunning(invoice, taken);
+        }
+    }
+
+    private static ConflictException AlreadyRunning(Invoice invoice, Exception? inner = null) =>
+        new($"{InvoiceEndpoints.Label(invoice)}: скан уже распознаётся. Дождитесь исхода — второй запуск " +
+            "прочитал бы тот же файл и ничего не добавил.", inner);
 }

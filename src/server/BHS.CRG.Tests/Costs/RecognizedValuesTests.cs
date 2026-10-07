@@ -12,6 +12,7 @@ public class RecognizedValuesTests
     [InlineData("12.03.2026", 2026, 3, 12)]
     [InlineData("1.2.2026", 2026, 2, 1)]
     [InlineData("2026-03-12", 2026, 3, 12)]
+    [InlineData("12/03/2026", 2026, 3, 12)]   // косая черта — литералом, а не разделителем культуры
     [InlineData("12 марта 2026 г.", 2026, 3, 12)]
     [InlineData("12 марта 2026 года", 2026, 3, 12)]
     [InlineData(" «12  марта 2026» ", 2026, 3, 12)]
@@ -64,7 +65,8 @@ public class RecognizedValuesTests
         Assert.Equal(decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), RecognizedValues.Quantity(text));
 
     [Theory]
-    [InlineData("1,2345678")]      // семь знаков — столько счёт не хранит
+    [InlineData("0,1255")]         // точнее тысячной количество счёт не хранит — и не округляет молча
+    [InlineData("1,2345678")]
     [InlineData("1,2,3")]
     [InlineData("десять")]
     public void Количество_которое_не_прочесть_не_читается(string text) =>
