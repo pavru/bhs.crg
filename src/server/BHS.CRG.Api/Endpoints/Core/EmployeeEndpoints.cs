@@ -121,13 +121,17 @@ public static class EmployeeEndpoints
                 req.Aliases ?? [.. entry.Aliases]))));
         });
 
-        edit.MapDelete("/{id:guid}", async (Guid id, IMediator m, IRepository<DocumentType> types) =>
+        edit.MapDelete("/{id:guid}", async (
+            Guid id, IMediator m, IRepository<DocumentType> types, ClaimsPrincipal user,
+            IUserPermissions permissions, CancellationToken ct) =>
         {
             var entry = await m.Send(new GetCommonDataEntryQuery(id));
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
 
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
-            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+            // Тело отказа — то же, что у общего адреса: выходы «в архив» и «удалить, потеряв ссылки»
+            // у сотрудника те же, и узнать о них экран может только отсюда (issue #1187).
+            catch (ConflictException ex) { return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct); }
         });
     }
 

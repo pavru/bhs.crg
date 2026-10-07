@@ -81,10 +81,18 @@ public static class ActivityActions
     public static readonly ActivityAction RecordUnarchived =
         new("core.record.unarchived", "Запись справочника возвращена из архива");
 
+    /// <summary>
+    /// Запись справочника удалена, хотя на неё ссылались данные выключенного или снятого модуля
+    /// (issue #1187). «До» — кто держал и сколько, «после» — сколько ссылок потеряно. Единственный
+    /// след этих потерь: часть из них не покажет потом ни один модуль.
+    /// </summary>
+    public static readonly ActivityAction RecordPurged =
+        new("core.record.purged", "Запись справочника удалена вместе со ссылками выключенных модулей");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
-         RecordArchived, RecordUnarchived];
+         RecordArchived, RecordUnarchived, RecordPurged];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

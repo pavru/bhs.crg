@@ -50,6 +50,12 @@ public static class CorePermissions
     /// <summary>Правка справочника сущностей и общих данных.</summary>
     public const string CatalogEdit = "core.catalog.edit";
 
+    /// <summary>
+    /// Удаление записи, на которую ссылаются данные выключенного или снятого модуля, — с потерей этих
+    /// ссылок (issue #1187). Отдельно от правки справочника: правка ссылок не рвёт никогда.
+    /// </summary>
+    public const string CatalogPurge = "core.catalog.purge";
+
     /// <summary>Чтение справочника сотрудников (ТЗ CORE-7).</summary>
     public const string EmployeesRead = "core.employees.read";
 
@@ -228,6 +234,12 @@ public static class CorePermissions
             "заводить и править записи справочника сущностей",
             "то же, что и чтение, плюс изменение: на эти карточки ссылаются документы всех модулей",
             [CatalogRead]),
+
+        new(CatalogPurge,
+            "удалять записи, на которые ссылаются данные выключенных модулей",
+            "удаление с потерей ссылок: в данных выключенного модуля они останутся вести в пустоту, " +
+            "а вернуть запись можно только из резервной копии",
+            [CatalogEdit]),
 
         new(DataSetsRead,
             "видеть наборы данных, их источники и привязки",

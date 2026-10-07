@@ -60,7 +60,9 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|return await repo.FindAsync(e => e.Facet == null &&"] =
             ByPurpose("список уровня: отбор по назначению запроса", nameof(ArchiveReadPurposeTests.Список_уровня_скрывает_архив_в_выборе_и_показывает_в_показе)),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();"] =
-            Seen("правка и удаление записи по идентификатору: архивную править и удалять можно").X(2),
+            Seen("правка записи по идентификатору: архивную править можно"),
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var entry = await repo.GetByIdAsync(id, ct) ?? throw new NotFoundException();"] =
+            Seen("удаление записи по идентификатору, обычное и принудительное (issue #1187): архивную удалять можно"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var relevant = await repo.FindAsync(e => e.Facet == null &&"] =
             ByPurpose("списки комплекта и цепочки уровней: отбор по назначению запроса", nameof(ArchiveReadPurposeTests.Список_комплекта_скрывает_архив_в_выборе_и_показывает_в_показе), nameof(ArchiveReadPurposeTests.Список_цепочки_уровней_скрывает_архив_в_выборе_и_показывает_в_показе)).X(2),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|=> objRepo.GetByIdAsync(q.Id, ct);"] =

@@ -81,16 +81,16 @@ public sealed class ModuleRecordHolders(
                     : "Обратитесь к администратору: причина видна ему в том же сообщении."));
         }
 
-        var lines = new List<string>();
+        var found = new List<RecordHolder>();
         foreach (var column in columns)
         {
             var declared = Declared(column);
             if (declared is { Holds: false }) continue;
 
-            lines.Add(await DescribeAsync(column, ModuleOf(column.Schema), declared, granted, admin, ct));
+            found.Add(await DescribeAsync(column, ModuleOf(column.Schema), declared, granted, admin, ct));
         }
 
-        return new RecordHoldings(lines);
+        return new RecordHoldings(found);
     }
 
     private ModuleReference? Declared(HeldColumn column) =>
@@ -98,33 +98,45 @@ public sealed class ModuleRecordHolders(
             string.Equals(r.Table, column.Table, StringComparison.Ordinal)
             && string.Equals(r.Column, column.Column, StringComparison.Ordinal));
 
-    private async Task<string> DescribeAsync(
+    private async Task<RecordHolder> DescribeAsync(
         HeldColumn column, IAppModule? module, ModuleReference? declared,
         IReadOnlyCollection<string> granted, bool admin, CancellationToken ct)
     {
         var address = admin ? $" ({column.Address})" : "";
 
+        // Схему не назвал ни один модуль сборки. ⚠️ Этот исход получается ИСКЛЮЧЕНИЕМ, и с #1187 он
+        // отпускает запись: модуль, чьё имя схемы разошлось бы с настоящим, выглядел бы снятым.
         if (module is null)
-            return $"данные модуля, которого нет в этой сборке: {column.Rows}{address}";
+            return new RecordHolder(HolderState.Absent, AbsentOwner, "записи", column.Rows,
+                Traceable: false, column.Address, Documents: null, $"{AbsentOwner}: {column.Rows}{address}");
 
-        var owner = $"«{module.Title}»" + (registry.IsEnabled(module.Code) ? "" : " (модуль выключен)");
+        var enabled = registry.IsEnabled(module.Code);
+        var state = enabled ? HolderState.Enabled : HolderState.Disabled;
+        var owner = $"«{module.Title}»" + (enabled ? "" : " (модуль выключен)");
 
         // Колонку модуль не объявил: держит она так же, а назвать её нечем, кроме числа. Адрес
         // помогает тому, кто пойдёт разбираться, — и показывается только ему.
         if (declared is null)
-            return $"{owner}: записей — {column.Rows}{address}";
+            return new RecordHolder(state, owner, "записи", column.Rows, Traceable: false,
+                column.Address, Documents: null, $"{owner}: записей — {column.Rows}{address}");
 
-        var line = $"{owner}: {declared.What} — {column.Rows}";
+        string? documents = null;
         if (declared.Document is { } doc && granted.Contains(doc.Permission))
         {
             var labels = await scan.LabelsAsync(
                 column, doc.Table, doc.Key, doc.LabelColumn, doc.Via, NamedDocuments + 1, ct);
             if (labels.Count > 0)
-                line += $" ({doc.Noun}: {string.Join(", ", labels.Take(NamedDocuments))}"
-                    + (labels.Count > NamedDocuments ? " и другие" : "") + ")";
+                documents = $"{doc.Noun}: {string.Join(", ", labels.Take(NamedDocuments))}"
+                    + (labels.Count > NamedDocuments ? " и другие" : "");
         }
-        return line;
+        // Обратный опрос находит потерю только у колонки, цель которой объявлена записью справочника:
+        // у колонки JSON с разными целями вид цели неизвестен.
+        return new RecordHolder(state, owner, declared.What, column.Rows,
+            Traceable: declared.Target == ReferenceTarget.Record, column.Address, documents,
+            $"{owner}: {declared.What} — {column.Rows}" + (documents is null ? "" : $" ({documents})"));
     }
+
+    private const string AbsentOwner = "данные модуля, которого нет в этой сборке";
 
     private IAppModule? ModuleOf(string schema) =>
         registry.Enabled.Concat(registry.Disabled)

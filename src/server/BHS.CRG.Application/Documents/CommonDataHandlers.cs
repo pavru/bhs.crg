@@ -1,4 +1,5 @@
-﻿using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
@@ -20,12 +21,14 @@ public class CommonDataHandlers(
     IRepository<WorkPlanItem> planRepo,
     IReferenceIndex refIndex,
     IRecordHolders holders,
+    IActivityLog journal,
     IDataSetResolver dataSetResolver,
     ILevelProfileService levelProfiles,
     BHS.CRG.Application.Resolution.IObjectResolver objectResolver) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
+    IRequestHandler<PurgeHeldRecordCommand, PurgedRecord>,
     IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<DomainObject>>,
     IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
     IRequestHandler<SearchCommonDataForChoiceQuery, ChoiceCandidates>,
@@ -132,21 +135,49 @@ public class CommonDataHandlers(
             TypeStorageRules.EnsureCommonPathAllowed(type, CommonPathAction.Update);
     }
 
-    public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct)
+    public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct) =>
+        await DeleteAsync(cmd.Id, found => { found.EnsureNone("запись"); return null; }, ct);
+
+    public async Task<PurgedRecord> Handle(PurgeHeldRecordCommand cmd, CancellationToken ct)
     {
-        var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        var (entry, release) = await DeleteAsync(
+            cmd.Id, found => found.EnsureOnlyDormant("запись", cmd.References), ct);
+
+        // Журнал — после удаления (см. IActivityLog) и без токена отмены запроса: запись уже удалена,
+        // и оборванный запрос не должен оставить потерянные ссылки без следа. Адрес колонки пишется
+        // там, где потерю потом не покажет никто: кроме этой строки, искать её будет не по чему.
+        var type = await typeRepo.GetByIdAsync(entry.CompositeTypeId, ct);
+        await journal.RecordAsync(
+            ActivityActions.RecordPurged, entry.Id.ToString(), RecordArchiveHandlers.Label(entry, type),
+            before: string.Join("; ", release!.Holders.Select(h =>
+                $"{h.Owner}: {h.What} — {h.Rows}" + (h.Traceable ? "" : $" ({h.Address})"))),
+            after: $"потеряно ссылок: {release.References}",
+            ct: CancellationToken.None);
+
+        return new PurgedRecord(entry.Id, entry.DisplayName ?? "", release.References, release.Untraceable);
+    }
+
+    /// <summary>
+    /// Удаление записи — одно тело на оба пути, обычный и принудительный (issue #1187). Различаются
+    /// они ТОЛЬКО вопросом к держателям в модулях, и передаётся он действием, а не признаком:
+    /// отказ ядра, дописанный сюда позже, встаёт на оба пути сам, и обойти его нечем.
+    /// </summary>
+    private async Task<(DomainObject Entry, DormantRelease? Release)> DeleteAsync(
+        Guid id, Func<RecordHoldings, DormantRelease?> moduleGate, CancellationToken ct)
+    {
+        var entry = await repo.GetByIdAsync(id, ct) ?? throw new NotFoundException();
         // Запрета «тип закрыт для общего адреса» здесь НЕТ нарочно (issue #1215): строка такого
         // типа в общей таблице — мусор, и удаление — способ его убрать. См. TypeStorageRules.
         // issue #258: объект-профиль (на который ссылается FK контейнера) — синглтон, удалять нельзя.
-        if ((await constructionRepo.FindAsync(c => c.ProfileObjectId == cmd.Id, ct)).Count > 0
-            || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0
-            || (await setRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0)
+        if ((await constructionRepo.FindAsync(c => c.ProfileObjectId == id, ct)).Count > 0
+            || (await sectionRepo.FindAsync(s => s.ProfileObjectId == id, ct)).Count > 0
+            || (await setRepo.FindAsync(s => s.ProfileObjectId == id, ct)).Count > 0)
             throw new ConflictException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
         // issue #964: запись, на которую ссылается ПЕРЕЧЕНЬ РАБОТ — вид работы или единица
         // измерения позиции (ТЗ CORE-10). Её удаление запрещает внешний ключ, и без этой проверки
         // человек получил бы внутреннюю ошибку сервера вместо отказа: отказ, переодетый в поломку,
         // читается как «система сломалась», а не «так нельзя».
-        var inPlan = (await planRepo.FindAsync(p => p.WorkTypeId == cmd.Id || p.UnitId == cmd.Id, ct)).Count;
+        var inPlan = (await planRepo.FindAsync(p => p.WorkTypeId == id || p.UnitId == id, ct)).Count;
         if (inPlan > 0)
             throw new ConflictException(
                 $"Нельзя удалить запись — на неё ссылается перечень работ, позиций: {inPlan}. " +
@@ -157,15 +188,18 @@ public class CommonDataHandlers(
 
         // issue #71/#269: запись, на которую ссылаются другие объекты (базовый экземпляр "_baseRef"
         // или "$ref" в значениях полей), — тот же guard, что и для документа: иначе висячая ссылка.
-        var referrers = await DomainObjectReferences.FindReferrersAsync(repo, qualityDocRepo, refIndex, cmd.Id, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(repo, qualityDocRepo, refIndex, id, ct);
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
         // issue #1094: и данные модулей. Индекс ссылок выше видит только таблицы ядра — позиция
         // номенклатуры, стоящая в строке счёта, для него свободна (issue #1168).
-        (await holders.FindAsync([cmd.Id], ct)).EnsureNone("запись");
+        // ⚠️ ПОСЛЕДНИМ из отказов: по нему адрес предлагает принудительное удаление, а предлагать
+        // его записи, которую держит ещё и ядро, нельзя.
+        var release = moduleGate(await holders.FindAsync([id], ct));
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
+        return (entry, release);
     }
 
     public async Task<DomainObject?> Handle(GetCommonDataEntryQuery q, CancellationToken ct)
