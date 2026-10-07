@@ -500,7 +500,8 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         scope.ServiceProvider.GetRequiredService<IActivityLog>(),
         modules,
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Periods.IPeriodClosures>(),
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Objects.IRecordArchive>());
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Objects.IRecordArchive>(),
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Settings.IAppSettingCatalog>());
 
     /// <summary>Копия целиком в памяти: её читают дважды — как манифест и как вход восстановления.</summary>
     private static async Task<MemoryStream> ArchiveAsync(BackupService service, BackupScope scope)

@@ -69,8 +69,10 @@ public static class SiteCostsEndpoints
     /// <param name="vat"><c>without</c> — без НДС; иначе суммы как в бумаге.</param>
     private static async Task<Ok<SiteCostsView>> ReadAsync(
         Guid? site, string? from, string? to, string? vat,
-        CostsDbContext db, AllocationPlacesSource places, IModuleCatalog catalog, IModuleClock clock, CancellationToken ct)
+        CostsDbContext db, AllocationPlacesSource places, IModuleCatalog catalog, IModuleClock clock,
+        IModuleSettings settings, CancellationToken ct)
     {
+        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
         var today = await clock.TodayAsync(ct);
         var first = Month(from, "from") ?? PaymentPosting.MonthOf(today);
         var last = Month(to, "to") ?? first;
@@ -100,14 +102,14 @@ public static class SiteCostsEndpoints
         var shares = InvoiceShares.Of(known);
         var labels = shares.Labels;
 
-        var (costs, lines) = await InvoicesAsync(db, paid, ct);
+        var (costs, lines) = await InvoicesAsync(db, paid, tolerance, ct);
         // «К оплате» с НДС по всем стройкам — суммы к оплате из самих записей: строки и части ВСЕХ
         // неоплаченных счетов ради них не читаются.
         var (waiting, waitingLines) = site is null && withVat
             ? ([.. (await unpaid.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal }).ToListAsync(ct))
                     .Select(i => new CostInvoice(i.Id, i.SupplierId, i.Total, i.VatTotal, false, false, []))],
                 new Dictionary<Guid, LineVat>())
-            : await InvoicesAsync(db, unpaid, ct);
+            : await InvoicesAsync(db, unpaid, tolerance, ct);
 
         // Доля в срезе стройки — всегда на стройку, раздел у неё есть (хотя бы «без раздела»).
         var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet(), part => shares.SectionOf(part)!);
@@ -163,12 +165,12 @@ public static class SiteCostsEndpoints
 
     /// <summary>Счета отчёта с их деньгами — тем же читателем, что у реестра, — и НДС их строк.</summary>
     internal static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
-        CostsDbContext db, IQueryable<Invoice> invoices, CancellationToken ct)
+        CostsDbContext db, IQueryable<Invoice> invoices, decimal tolerance, CancellationToken ct)
     {
         var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment, i.State }).ToListAsync(ct);
         var owners = invoices.Select(i => i.Id);
         var money = await InvoiceMoney.ReadAsync(db,
-            [.. heads.Select(h => new InvoiceHead(h.Id, h.Total, h.RemainderAccountingOn, h.Payment == InvoicePaymentState.Paid))], owners, null, ct);
+            [.. heads.Select(h => new InvoiceHead(h.Id, h.Total, h.RemainderAccountingOn, h.Payment == InvoicePaymentState.Paid))], owners, null, tolerance, ct);
         var lines = await db.InvoiceLines.AsNoTracking().Where(l => owners.Contains(l.InvoiceId))
             .Select(l => new { l.Id, l.InvoiceId, l.Amount, l.VatAmount, l.NomenclatureId }).ToListAsync(ct);
         var unmatched = lines.Where(l => l.NomenclatureId is null).Select(l => l.InvoiceId).ToHashSet();

@@ -127,7 +127,8 @@ public static class AllocationEndpoints
             // части этой строки — те, что сейчас лягут.
             var returned = invoice.State == InvoiceState.Parsed
                 && !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
-                    await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct, id => id == line.Id, now);
+                    await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), await desk.ToleranceAsync(ct), ct,
+                    id => id == line.Id, now);
             if (returned) invoice.ReturnToDraft();
 
             // Разноска — часть счёта: её правка отмечается у него самого. От этого зависит и время правки

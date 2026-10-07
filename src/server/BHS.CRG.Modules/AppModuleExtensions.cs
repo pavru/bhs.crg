@@ -88,6 +88,10 @@ public static class AppModuleExtensions
         // ронять запуск, а не первый заход на экран.
         services.AddSingleton(new Tables.ModuleTableCatalog(available, corePermissions));
 
+        // Настройки — тоже из всей сборки и тоже при старте (M1, issue #1070): ключ выключенного
+        // модуля обязан узнаваться при восстановлении копии.
+        services.AddSingleton(new Settings.ModuleSettingCatalog(available));
+
         var registry = new ModuleRegistry(enabled, disabled);
         services.AddSingleton(registry);
         // Узкий взгляд на состав поставки — для модулей (ТЗ AUTH-19). Тем же объектом, а не второй

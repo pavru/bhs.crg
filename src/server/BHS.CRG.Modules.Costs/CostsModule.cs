@@ -163,6 +163,8 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public IReadOnlyList<ModuleTable> Tables => [InvoiceTable.Declaration];
 
+    public IReadOnlyList<BHS.CRG.Modules.Settings.ModuleSetting> Settings => CostsSettings.All;
+
     public IReadOnlyList<ModuleReference> References => CostsReferences.All;
 
     /// <summary>

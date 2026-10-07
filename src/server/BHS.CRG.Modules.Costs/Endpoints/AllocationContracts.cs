@@ -114,14 +114,14 @@ public static class InvoiceAllocations
     /// </summary>
     public static async Task<InvoiceAllocationRead> ReadAsync(
         CostsDbContext db, AllocationPlacesSource places, Invoice invoice, IReadOnlyList<InvoiceLine> lines,
-        CancellationToken ct)
+        decimal tolerance, CancellationToken ct)
     {
         var parts = await db.InvoiceAllocations.AsNoTracking()
             .Where(a => a.InvoiceId == invoice.Id)
             .ToListAsync(ct);
 
         var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
-        return Read(invoice, lines.Select(Line), parts, known);
+        return Read(invoice, lines.Select(Line), parts, known, tolerance);
     }
 
     /// <summary>
@@ -137,7 +137,8 @@ public static class InvoiceAllocations
     /// </summary>
     public static async Task<bool> AllocatedAfterAsync(
         CostsDbContext db, AllocationPlacesSource places, Invoice invoice, IReadOnlyList<AllocationLine> lines,
-        CancellationToken ct, Func<Guid?, bool>? replaced = null, IReadOnlyList<InvoiceAllocation>? replacement = null)
+        decimal tolerance, CancellationToken ct,
+        Func<Guid?, bool>? replaced = null, IReadOnlyList<InvoiceAllocation>? replacement = null)
     {
         var kept = lines.Select(l => l.Id).ToHashSet();
         var stored = await db.InvoiceAllocations.AsNoTracking()
@@ -149,15 +150,15 @@ public static class InvoiceAllocations
              .. replacement ?? []];
 
         var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
-        return Read(invoice, lines, parts, known).Summary.Allocated;
+        return Read(invoice, lines, parts, known, tolerance).Summary.Allocated;
     }
 
     /// <summary>Посчитать разноску по уже прочитанному.</summary>
     public static InvoiceAllocationRead Read(
         Invoice invoice, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        AllocationPlaces sites)
+        AllocationPlaces sites, decimal tolerance)
     {
-        var balance = AllocationMath.Of(lines, parts.Select(Part), invoice.Total);
+        var balance = AllocationMath.Of(lines, parts.Select(Part), invoice.Total, tolerance);
         var byId = parts.ToDictionary(p => p.Id);
         var lost = parts.Count(p => Lost(p, sites));
 

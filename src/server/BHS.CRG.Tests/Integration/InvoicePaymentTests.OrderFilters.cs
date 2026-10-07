@@ -287,7 +287,8 @@ public partial class InvoicePaymentTests
             services.GetRequiredService<CostsDbContext>(), services.GetRequiredService<IModuleCatalog>(),
             services.GetRequiredService<AllocationPlacesSource>(), services.GetRequiredService<IModuleClock>(),
             new InvoiceReferenceTrouble(services.GetRequiredService<CostsDbContext>(), recording,
-                services.GetRequiredService<IModulePeriods>()));
+                services.GetRequiredService<IModulePeriods>()),
+                services.GetRequiredService<BHS.CRG.Modules.Ports.IModuleSettings>());
 
         await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn }, Guid.Empty, Limit: 1), default);
         await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { ArchivedColumn }, Guid.Empty, Limit: 1), default);
@@ -327,7 +328,8 @@ public partial class InvoicePaymentTests
             services.GetRequiredService<CostsDbContext>(), services.GetRequiredService<IModuleCatalog>(),
             services.GetRequiredService<AllocationPlacesSource>(), services.GetRequiredService<IModuleClock>(),
             new InvoiceReferenceTrouble(services.GetRequiredService<CostsDbContext>(), new ForbiddenTargets(),
-                services.GetRequiredService<IModulePeriods>()));
+                services.GetRequiredService<IModulePeriods>()),
+                services.GetRequiredService<BHS.CRG.Modules.Ports.IModuleSettings>());
         var plain = new HashSet<string> { InvoiceRequisites.NumberKey };
 
         await rows.ReadAsync(new ModuleTableQuery(plain, Guid.Empty, Limit: 1), default);
@@ -349,7 +351,8 @@ public partial class InvoicePaymentTests
                 services.GetRequiredService<CostsDbContext>(), services.GetRequiredService<IModuleCatalog>(),
                 services.GetRequiredService<AllocationPlacesSource>(), services.GetRequiredService<IModuleClock>(),
                 new InvoiceReferenceTrouble(services.GetRequiredService<CostsDbContext>(), new ForbiddenTargets(),
-                    services.GetRequiredService<IModulePeriods>()));
+                    services.GetRequiredService<IModulePeriods>()),
+                services.GetRequiredService<BHS.CRG.Modules.Ports.IModuleSettings>());
             await Assert.ThrowsAsync<InvalidOperationException>(() => fresh.ReadAsync(query, default));
         }
     }

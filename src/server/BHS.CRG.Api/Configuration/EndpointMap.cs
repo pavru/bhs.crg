@@ -76,6 +76,7 @@ internal static class EndpointMap
     app.MapObservationEndpoints();
     app.MapObjectResolveEndpoints();
     app.MapSettingsEndpoints();
+    app.MapModuleSettingsEndpoints();
     // Название и логотип (ТЗ CORE-25.1, issue #967). Чтение анонимно — оформление стоит на входе.
     app.MapBrandingEndpoints();
     app.MapUpdateEndpoints();

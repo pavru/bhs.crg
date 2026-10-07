@@ -41,6 +41,9 @@ public class ModuleClockPortTests
 
         public Task<string?> GetAsync(string key, CancellationToken ct = default) => throw new NotSupportedException();
 
+        public Task<IReadOnlyDictionary<string, string>> GetManyAsync(
+            IReadOnlyCollection<string> keys, CancellationToken ct = default) => throw new NotSupportedException();
+
         public Task SetAsync(string key, string? value, CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

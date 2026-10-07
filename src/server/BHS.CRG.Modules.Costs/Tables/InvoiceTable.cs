@@ -292,7 +292,7 @@ public static class InvoiceTable
 /// </summary>
 public sealed partial class InvoiceTableRows(
     CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModuleClock clock,
-    InvoiceReferenceTrouble trouble)
+    InvoiceReferenceTrouble trouble, IModuleSettings settings)
     : IModuleTableRows
 {
     private static readonly IReadOnlyDictionary<InvoiceState, string> States =
@@ -381,7 +381,8 @@ public sealed partial class InvoiceTableRows(
                 shareTotal
                     ? await InvoiceMoney.HeadsAsync(owners, ct)
                     : [.. InvoiceMoney.Heads(invoices).Where(h => unpaidToo || h.Paid)],
-                shareTotal ? owners.Select(i => i.Id) : null, parts, ct)
+                shareTotal ? owners.Select(i => i.Id) : null, parts,
+                await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct)
             : InvoiceMoney.None;
         // Счёта в деньгах может не быть: неоплаченный не читали, а под итогом деньги читаются ВТОРЫМ
         // запросом по всему отбору — счёт страницы за это время могли удалить или увести из отбора.

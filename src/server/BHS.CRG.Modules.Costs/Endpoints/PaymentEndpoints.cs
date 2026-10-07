@@ -44,7 +44,7 @@ public static class PaymentEndpoints
     /// </summary>
     private static async Task<Ok<PaymentPostingView>> PreviewAsync(
         Guid id, PaymentPreviewRequest body, CostsDbContext db, AllocationPlacesSource places,
-        IModulePeriods periods, IModuleClock clock, CancellationToken ct)
+        IModulePeriods periods, IModuleClock clock, IModuleSettings settings, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         if (invoice.Payment == InvoicePaymentState.Paid)
@@ -54,13 +54,13 @@ public static class PaymentEndpoints
 
         var today = await clock.TodayAsync(ct);
         return TypedResults.Ok(await PostingAsync(db, places, invoice, body.PaidOn ?? today, today,
-            PostedBefore.None, await periods.BoundariesAsync(ct), ct));
+            PostedBefore.None, await periods.BoundariesAsync(ct), await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct));
     }
 
     /// <summary>Записанный расклад оплаченного счёта — той же функцией и в том же виде, что предпросмотр.</summary>
     private static async Task<Ok<PaymentPostingView>> PostedAsync(
         Guid id, CostsDbContext db, AllocationPlacesSource places, IModulePeriods periods, IModuleClock clock,
-        CancellationToken ct)
+        IModuleSettings settings, CancellationToken ct)
     {
         var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct)
             ?? throw new NotFoundException("Счёт не найден.");
@@ -69,7 +69,7 @@ public static class PaymentEndpoints
 
         var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
         return TypedResults.Ok(await PostingAsync(db, places, invoice, paidOn, await clock.TodayAsync(ct),
-            PaymentPosting.Before(invoice, parts), await periods.BoundariesAsync(ct), ct));
+            PaymentPosting.Before(invoice, parts), await periods.BoundariesAsync(ct), await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct));
     }
 
     /// <summary>
@@ -92,6 +92,7 @@ public static class PaymentEndpoints
 
         var document = Text(body.Document);
         var today = await clock.TodayAsync(ct);
+        var tolerance = await desk.ToleranceAsync(ct);
 
         var (invoice, moved) = await desk.WriteAsync(id, async write =>
         {
@@ -101,7 +102,7 @@ public static class PaymentEndpoints
                     $"{InvoiceEndpoints.Label(invoice)} уже оплачен {invoice.PaidOn:dd.MM.yyyy}. Дату меняют отменой " +
                     "оплаты и новой отметкой.");
 
-            var posting = await PostingAsync(db, places, invoice, paidOn, today, PostedBefore.None, write.Boundaries, ct);
+            var posting = await PostingAsync(db, places, invoice, paidOn, today, PostedBefore.None, write.Boundaries, tolerance, ct);
             if ((posting.Refusal ?? posting.DateRefusal) is { } why)
                 throw new InvalidRequestException($"{InvoiceEndpoints.Label(invoice)}: оплатить нельзя — {why}.");
             if (posting.Stamp != seen)
@@ -189,13 +190,13 @@ public static class PaymentEndpoints
     /// </summary>
     private static async Task<PaymentPostingView> PostingAsync(
         CostsDbContext db, AllocationPlacesSource places, Invoice invoice, DateOnly paidOn, DateOnly today,
-        PostedBefore kept, PeriodBoundaries boundaries, CancellationToken ct)
+        PostedBefore kept, PeriodBoundaries boundaries, decimal tolerance, CancellationToken ct)
     {
         var lines = await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
         var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
         var math = lines.Select(InvoiceAllocations.Line).ToList();
 
-        var refusal = InvoiceDesk.Unpayable(invoice, PaymentPosting.Balance(math, parts, invoice.Total));
+        var refusal = InvoiceDesk.Unpayable(invoice, PaymentPosting.Balance(math, parts, invoice.Total, tolerance));
         var late = paidOn > today
             ? $"дата платежа {paidOn:dd.MM.yyyy} в будущем: сегодня {today:dd.MM.yyyy}"
             : null;
@@ -203,7 +204,7 @@ public static class PaymentEndpoints
             return new PaymentPostingView(today, paidOn, invoice.Total, refusal, late, [], string.Empty);
 
         var total = invoice.Total!.Value;
-        var plan = PaymentPosting.Plan(paidOn, total, math, parts, kept, boundaries);
+        var plan = PaymentPosting.Plan(paidOn, total, math, parts, kept, boundaries, tolerance);
         var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
 
         return new PaymentPostingView(today, paidOn, total, null, null,

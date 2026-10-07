@@ -46,7 +46,7 @@ internal static class InvoiceMoney
     /// неоплаченному счёту учётный период и внесла бы его в затраты месяца (ревью PR #1199).</returns>
     public static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PostedMoney>>> ReadAsync(
         CostsDbContext db, IReadOnlyList<InvoiceHead> invoices, IQueryable<Guid>? owners,
-        IReadOnlyList<InvoiceAllocation>? loaded, CancellationToken ct)
+        IReadOnlyList<InvoiceAllocation>? loaded, decimal tolerance, CancellationToken ct)
     {
         if (invoices.Count == 0) return None;
 
@@ -62,7 +62,7 @@ internal static class InvoiceMoney
         return invoices.ToDictionary(i => i.Id, i =>
         {
             IReadOnlyList<InvoiceAllocation> own = [.. parts[i.Id]];
-            var money = PaymentPosting.Money(PaymentPosting.Balance(lines[i.Id], own, i.Total), i.Total, own, i.RemainderAccountingOn);
+            var money = PaymentPosting.Money(PaymentPosting.Balance(lines[i.Id], own, i.Total, tolerance), i.Total, own, i.RemainderAccountingOn);
             return i.Paid ? money : [.. money.Select(m => m with { AccountingOn = null })];
         });
     }

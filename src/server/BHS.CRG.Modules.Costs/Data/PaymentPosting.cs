@@ -81,9 +81,9 @@ public static class PaymentPosting
     /// </summary>
     public static PaymentPlan Plan(
         DateOnly paidOn, decimal total, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        PostedBefore kept, PeriodBoundaries boundaries)
+        PostedBefore kept, PeriodBoundaries boundaries, decimal tolerance)
     {
-        var money = Balance(lines, parts, total).Money
+        var money = Balance(lines, parts, total, tolerance).Money
             .Where(share => share.Amount is not null)
             .ToDictionary(share => share.Id, share => share.Amount!.Value);
 
@@ -133,9 +133,11 @@ public static class PaymentPosting
     }
 
     public static AllocationBalance Balance(
-        IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total) =>
+        IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total,
+        decimal tolerance) =>
         AllocationMath.Of(lines,
-            parts.Select(p => new AllocationPart(p.Id, p.LineId, p.Ordinal, p.Quantity, p.Amount)), total);
+            parts.Select(p => new AllocationPart(p.Id, p.LineId, p.Ordinal, p.Quantity, p.Amount)), total,
+            tolerance);
 
     /// <summary>
     /// Деньги счёта по частям: каждая часть разноски со своей суммой и учётным днём и — если суммы
@@ -149,7 +151,18 @@ public static class PaymentPosting
         var amounts = balance.Money.ToDictionary(share => share.Id, share => share.Amount);
         var money = parts.Select(p => new PostedMoney(p, amounts.GetValueOrDefault(p.Id), p.AccountingOn)).ToList();
         if (total is { } whole && whole - money.Sum(m => m.Amount ?? 0) is var rest && rest != 0)
-            money.Add(new(null, rest, remainderOn));
+        {
+            // ⚠️ Остаток без своей даты у счёта, доли которого датированы (ревью PR #1249). Так бывает
+            // после понижения допуска: при оплате расхождение было в допуске и ушло в последнюю
+            // часть, остатка не было — и даты ему не записали. Теперь он есть, а без даты выпал бы из
+            // ВСЕХ учётных месяцев: сумма счёта по периодам стала бы меньше суммы к оплате. День
+            // берём у самой поздней доли с деньгами — тем же правилом, каким расклад датирует
+            // поправку к деньгам долей (см. Plan). У неоплаченного счёта дат нет ни у кого — и здесь.
+            var on = remainderOn
+                ?? money.Where(m => m.Amount is not null).Max(m => m.AccountingOn);
+            money.Add(new(null, rest, on));
+        }
+
         return money;
     }
 

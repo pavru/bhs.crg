@@ -59,6 +59,12 @@ public static class ModulePorts
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IModuleClock, ModuleClockPort>();
 
+        // Настройки модуля (M1, issue #1070). Scoped: значения читаются из базы один раз на запрос.
+        services.AddScoped<IModuleSettings, ModuleSettingsPort>();
+        // Какие ключи настроек экземпляра знает ЭТА сборка — ядро плюс модули. Спрашивает его
+        // восстановление копии в инфраструктуре, которой о контрактах модулей знать нельзя.
+        services.AddSingleton<BHS.CRG.Application.Settings.IAppSettingCatalog, AppSettingCatalog>();
+
         // Кто выполняет фоновую работу модуля. Спрашивает её фоновый цикл в инфраструктуре — по
         // интерфейсу из слоя приложения, потому что о контрактах модулей ему знать нельзя.
         services.AddScoped<IModuleWorkRunner, ModuleWorkRunner>();
