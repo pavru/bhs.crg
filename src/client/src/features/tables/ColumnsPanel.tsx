@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Columns3, EyeOff, Unlink } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import type { TableColumn } from '@/shared/api/tables';
+import { defaultColumnKeys, type TableColumn } from '@/shared/api/tables';
 import { AGGREGATES, aggregatesFor } from './tableTotals';
 import {
   chooserOrder, columnsCustomised, withColumnMoved, withColumnReturned, withColumnShown, withColumnsReset, withPinned,
@@ -31,8 +31,10 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
   onChange: (change: ViewChange) => void;
 }) {
   const all = columns.map(c => c.key);
+  // «Колонки не выбраны» — не все объявленные: те, что приходят только названными, выключены.
+  const unset = defaultColumnKeys(columns);
   const byKey = new Map(columns.map(c => [c.key, c]));
-  const shown = view.columns ?? all;
+  const shown = view.columns ?? unset;
   const customised = columnsCustomised(view, base);
 
   // Порядок строк списка запоминается, когда окошко открывают: показанные колонки, за ними
@@ -70,16 +72,16 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
               const above = order.slice(0, i);
               return place < 0 ? (
                 <ColumnRow key={key} column={column} label={column?.label ?? key} checked={false} total={null}
-                  onShown={() => onChange(v => withColumnReturned(v, all, key, above))} />
+                  onShown={() => onChange(v => withColumnReturned(v, unset, key, above))} />
               ) : (
                 <ColumnRow key={key} column={column} label={column?.label ?? key} checked
                   total={view.totals.find(t => t.column === key)?.aggregate ?? null}
-                  onShown={() => onChange(v => withColumnShown(v, all, key, false))}
+                  onShown={() => onChange(v => withColumnShown(v, unset, key, false))}
                   onTotal={aggregate => onChange(v => withTotal(v, key, aggregate))}
                   move={{
                     isFirst: place === 0, isLast: place === shown.length - 1,
-                    onUp: () => onChange(v => withColumnMoved(v, all, key, -1)),
-                    onDown: () => onChange(v => withColumnMoved(v, all, key, 1)),
+                    onUp: () => onChange(v => withColumnMoved(v, unset, key, -1)),
+                    onDown: () => onChange(v => withColumnMoved(v, unset, key, 1)),
                   }} />
               );
             })}

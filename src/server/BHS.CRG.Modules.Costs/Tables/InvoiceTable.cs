@@ -228,10 +228,13 @@ public static class InvoiceTable
             new(PeriodKey, "Учётный период", ModuleTableColumnKind.List),
             new(PeriodSumsKey, "Суммы по периодам", ModuleTableColumnKind.Text, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),
-            // В «Реестр счетов» по умолчанию не входят: значение даёт опрос ядра, и платить за него
-            // обязан тот, кто колонку назвал, а не каждый читатель таблицы (issue #1186).
-            new(LostKey, "Ссылки на удалённые записи", ModuleTableColumnKind.Choice, Options: [.. LostWords.Values]),
-            new(ArchivedKey, "Ссылки на записи в архиве", ModuleTableColumnKind.Choice, Options: [.. ArchivedWords.Values]),
+            // Только по требованию: значение даёт опрос ядра, и платить за него обязан тот, кто колонку
+            // назвал, а не каждый читатель таблицы. В «Реестр счетов» по умолчанию не входят, в запрос
+            // «все колонки» и в набор данных — тоже (issue #1186).
+            new(LostKey, "Ссылки на удалённые записи", ModuleTableColumnKind.Choice, Options: [.. LostWords.Values],
+                OnDemand: true),
+            new(ArchivedKey, "Ссылки на записи в архиве", ModuleTableColumnKind.Choice, Options: [.. ArchivedWords.Values],
+                OnDemand: true),
         ],
         typeof(InvoiceTableRows),
         CostsRecordTypes.InvoiceCode,
@@ -297,9 +300,11 @@ public sealed class InvoiceTableRows(
 
         // Ссылки не на месте — ТОЛЬКО когда о них спросили: колонкой, отбором, сортировкой или итогом.
         // Это опрос ядра по всем держащим колонкам модуля, и таблицу читают не только с экрана (наборы
-        // данных, внешний агент) — им он не нужен вовсе.
-        var troubles = Asked(query, InvoiceTable.LostKey) || Asked(query, InvoiceTable.ArchivedKey)
-            ? await trouble.ReadAsync(ct)
+        // данных, внешний агент) — им он не нужен вовсе. Архив — отдельным согласием: ссылок на
+        // архивные записи на порядки больше, чем потерянных.
+        var aboutArchive = Asked(query, InvoiceTable.ArchivedKey);
+        var troubles = aboutArchive || Asked(query, InvoiceTable.LostKey)
+            ? await trouble.ReadAsync(aboutArchive, ct)
             : InvoiceTroubles.None;
 
         var calendar = InvoicePeriods.Labels(today);
@@ -473,11 +478,15 @@ public sealed class InvoiceTableRows(
         // Множества приходят от ядра ключами счетов: модуль к его таблицам не соединяется, и «потеряна
         // ли ссылка» в запросе к своей схеме не выразить. Массивами — так их принимает база, одним
         // параметром каждое.
+        //
+        // Потерь — единицы: это следы восстановления копии и гонок. Счетов с архивной записью — сколько
+        // их у закрывшихся поставщиков, поэтому массив для них ОДИН, а «оплачен ли» запрос берёт из
+        // самого счёта: два массива, поделённых по оплате, вдвое утяжеляли бы каждое место, куда
+        // построитель подставляет выражение (ревью PR #1239).
         var fixable = troubles.With(LostMark.Fixable);
         var locked = troubles.With(LostMark.Locked);
         var typeOnly = troubles.With(LostMark.TypeOnly);
-        var open = troubles.With(ArchivedMark.Open);
-        var paid = troubles.With(ArchivedMark.Paid);
+        var archived = troubles.Archived.ToArray();
 
         return TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
@@ -535,8 +544,8 @@ public sealed class InvoiceTableRows(
                     : typeOnly.Contains(i.Id) ? (int?)(int)LostMark.TypeOnly : null,
                 InvoiceTable.LostWords)
             .Choice(InvoiceTable.ArchivedKey,
-                i => open.Contains(i.Id) ? (int?)(int)ArchivedMark.Open
-                    : paid.Contains(i.Id) ? (int?)(int)ArchivedMark.Paid : null,
+                i => !archived.Contains(i.Id) ? null
+                    : i.Payment == InvoicePaymentState.Paid ? (int?)(int)ArchivedMark.Paid : (int?)(int)ArchivedMark.Open,
                 InvoiceTable.ArchivedWords)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
     }
@@ -586,8 +595,8 @@ public sealed class InvoiceTableRows(
             row[InvoiceTable.LostKey] = troubles.Lost.TryGetValue(invoice.Id, out var lost)
                 ? InvoiceTable.LostWords[(int)lost] : null;
         if (open.Contains(InvoiceTable.ArchivedKey))
-            row[InvoiceTable.ArchivedKey] = troubles.Archived.TryGetValue(invoice.Id, out var archived)
-                ? InvoiceTable.ArchivedWords[(int)archived] : null;
+            row[InvoiceTable.ArchivedKey] = troubles.Archived.Contains(invoice.Id)
+                ? InvoiceTable.ArchivedWords[(int)InvoiceReferenceTrouble.ArchivedMarkOf(invoice)] : null;
 
         foreach (var field in invoice.Data.RootElement.EnumerateObject())
             if (!row.ContainsKey(field.Name)) row[field.Name] = Scalar(field.Value);

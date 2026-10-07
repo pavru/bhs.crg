@@ -23,6 +23,11 @@ export interface TableColumn {
   /** Та же причина словами: «нет права на суммы». */
   reason: string | null;
   dependsOnFilter: boolean;
+  /**
+   * Колонка приходит, только когда её назвали: в запрос «все колонки» сервер её не кладёт (значение
+   * дорого — за ним опрос ядра). В настройке «колонки не выбраны» её нет, пока человек не включит.
+   */
+  onDemand: boolean;
   /** Что колонка значит под этим отбором: «доля: Комарова 36». */
   note: string | null;
   /** Закрытый перечень значений — у колонки вида `choice`. */
@@ -243,6 +248,15 @@ export function useTableDeclaration(address: string) {
  * заголовок. Колонка, чьё значение зависит от самого отбора, в отбор не идёт — по ней не отбирают
  * (операторов у неё нет); закрытая остаётся с причиной: условие по ней названо, а не спрятано.
  */
+/**
+ * Что значит «колонки не выбраны» — ключи в порядке таблицы. Те же колонки сервер отдаёт на запрос
+ * без списка: все, кроме приходящих только названными. Разойдись два списка — колонка стояла бы в
+ * окошке выбора с галочкой, а в сетке её не было бы.
+ */
+export function defaultColumnKeys(columns: TableColumn[]): string[] {
+  return columns.filter(c => !c.onDemand).map(c => c.key);
+}
+
 export function tableFilterColumns(columns: TableColumn[]): FilterColumn[] {
   return columns.filter(c => !c.dependsOnFilter).map(c => ({
     name: c.key,

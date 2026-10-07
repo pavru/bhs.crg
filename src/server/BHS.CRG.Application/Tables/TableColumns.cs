@@ -145,10 +145,12 @@ public static class TableOperators
 /// <param name="Requires">Код права, которого не хватило, — у колонки с причиной
 /// <see cref="TableColumnReasons.NoRight" /> (G1e, issue #1092). Слова причины человек понесёт
 /// администратору, а тот ищет право по коду: совпадение строки избавляет обоих от угадывания.</param>
+/// <param name="OnDemand">Колонка приходит, только когда её назвали (issue #1186): в «все колонки» не
+/// входит. Экран по ней показывает её выключенной, пока человек не включит.</param>
 public record TableColumnDto(
     string Key, string Label, string Kind, IReadOnlyList<string> Operators, bool System,
     string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null,
-    IReadOnlyList<string>? Options = null, string? Requires = null);
+    IReadOnlyList<string>? Options = null, string? Requires = null, bool OnDemand = false);
 
 /// <summary>
 /// Таблица без строк — что она такое и из чего состоит (G1e, issue #1092). Экран спрашивает это

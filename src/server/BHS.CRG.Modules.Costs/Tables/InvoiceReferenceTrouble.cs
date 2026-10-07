@@ -10,11 +10,14 @@ public enum LostMark
     /// <summary>Удалённая запись стоит в поле, которое можно заменить, и счёт открыт для правки.</summary>
     Fixable = 1,
 
-    /// <summary>Счёт заперт закрытым периодом: исправить нельзя, пока закрытие не отменят.</summary>
+    /// <summary>Удалённая запись стоит в поле, которое можно заменить, но счёт заперт закрытым периодом:
+    /// исправить нельзя, пока закрытие не отменят. Отменят — счёт станет <see cref="Fixable" />.</summary>
     Locked = 2,
 
     /// <summary>Удалён только тип счёта. Поля, в котором его заменяют, нет — и в отбор «исправьте» такой
-    /// счёт не идёт: отбор обещает, что всё показанное можно поправить.</summary>
+    /// счёт не идёт: отбор обещает, что всё показанное можно поправить. Запертость тут ничего не меняет,
+    /// поэтому стоит ВЫШЕ неё: «период закрыт» обещал бы, что после отмены закрытия счёт исправят
+    /// (ревью PR #1239).</summary>
     TypeOnly = 3,
 }
 
@@ -33,21 +36,20 @@ public enum ArchivedMark
 /// Счета, у которых ссылки на записи ядра не на месте, — с суждением модуля о каждом.
 /// </summary>
 /// <param name="Lost">Счета со ссылкой на удалённую запись.</param>
-/// <param name="Archived">Счета со ссылкой на запись в архиве.</param>
+/// <param name="Archived">Счета со ссылкой на запись в архиве; пусто и тогда, когда об архиве не
+/// спрашивали. Оплачен ли счёт, здесь не сказано: это знает сам счёт
+/// (<see cref="InvoiceReferenceTrouble.ArchivedMarkOf" />), а множество бывает большим.</param>
 /// <param name="Findings">Ответ ядра, по которому это посчитано: что не проверено и на какой момент.</param>
 public sealed record InvoiceTroubles(
     IReadOnlyDictionary<Guid, LostMark> Lost,
-    IReadOnlyDictionary<Guid, ArchivedMark> Archived,
+    IReadOnlySet<Guid> Archived,
     ReferenceFindings Findings)
 {
     public static InvoiceTroubles None { get; } =
-        new(new Dictionary<Guid, LostMark>(), new Dictionary<Guid, ArchivedMark>(), new([], [], DateTimeOffset.MinValue));
+        new(new Dictionary<Guid, LostMark>(), new HashSet<Guid>(), new([], [], DateTimeOffset.MinValue));
 
     /// <summary>Ключи счетов с такой пометкой — массивом: так его принимает запрос к базе.</summary>
     public Guid[] With(LostMark mark) => [.. Lost.Where(l => l.Value == mark).Select(l => l.Key)];
-
-    /// <inheritdoc cref="With(LostMark)" />
-    public Guid[] With(ArchivedMark mark) => [.. Archived.Where(a => a.Value == mark).Select(a => a.Key)];
 }
 
 /// <summary>
@@ -60,9 +62,16 @@ public sealed record InvoiceTroubles(
 /// Посчитай каждый своё — число на чипе разошлось бы с числом строк под ним, а в отборе «исправьте»
 /// оказался бы счёт, который править нельзя: это два способа, которыми задача ломается.</para>
 ///
-/// <para><b>Ничего не хранится</b>, и опрос идёт один раз на запрос: служба живёт в его области, и
-/// второй спросивший получает тот же ответ. Не один раз на приложение: потери приходят
-/// восстановлением копии и гонкой удаления с записью — там, где запомненный ответ устарел бы первым.</para>
+/// <para><b>Ничего не хранится и не запоминается</b> — ни между запросами, ни внутри одного: каждый
+/// вызов опрашивает заново. Потери приходят восстановлением копии и гонкой удаления с записью — там,
+/// где запомненный ответ устарел бы первым; а ответ, запомненный на область, пережил бы правку счёта,
+/// сделанную в той же области, и повторял бы отказ первого спросившего (ревью PR #1239).</para>
+///
+/// <para>⚠️ <b>Это не один снимок базы.</b> Ссылки ядро читает в своём снимке и на своём соединении;
+/// запертость — следующим запросом к схеме модуля, строки таблицы — ещё одним. Счёт, оплаченный или
+/// запертый между ними, получит суждение по старым ссылкам и новому состоянию. Вреда нет — правку
+/// запертого счёта отвергнет форма, а число перечитывается с таблицей, — но равенство «число на чипе —
+/// число строк под ним» держится в покое, а не под записью.</para>
 /// </summary>
 public sealed class InvoiceReferenceTrouble(
     CostsDbContext db, IModuleReferenceTargets targets, IModulePeriods periods)
@@ -74,44 +83,44 @@ public sealed class InvoiceReferenceTrouble(
     /// <summary>Колонка типа счёта. Названа, потому что заменить тип в форме нечем.</summary>
     private const string TypeColumn = "document_type_id";
 
-    private Task<InvoiceTroubles>? _read;
-
-    public Task<InvoiceTroubles> ReadAsync(CancellationToken ct) => _read ??= LoadAsync(ct);
-
-    private async Task<InvoiceTroubles> LoadAsync(CancellationToken ct)
+    /// <param name="withArchive">Нужны ли и счета со ссылкой на запись в архиве. Тому, кто спрашивает
+    /// о потерях, — нет: архивных ссылок на порядки больше, и читать их ради нуля незачем.</param>
+    public async Task<InvoiceTroubles> ReadAsync(bool withArchive, CancellationToken ct)
     {
-        var findings = await targets.NotPresentAsync(CostsModule.ModuleCode, ct);
+        var findings = await targets.NotPresentAsync(CostsModule.ModuleCode, withArchive, ct);
         var ofInvoices = findings.Found.Where(f => f is { DocumentKey: not null, DocumentTable: Invoices }).ToList();
 
-        var lostKeys = ofInvoices.Where(f => f.State == ReferenceState.Lost).Select(f => f.DocumentKey!.Value).ToHashSet();
-        var archivedKeys = ofInvoices.Where(f => f.State == ReferenceState.Archived).Select(f => f.DocumentKey!.Value).ToHashSet();
-        if (lostKeys.Count == 0 && archivedKeys.Count == 0) return InvoiceTroubles.None with { Findings = findings };
-
-        // Оплаченные из названных: запирается только оплаченный счёт, и «в работе» — тоже про оплату.
-        var named = lostKeys.Union(archivedKeys).ToArray();
-        var paid = await db.Invoices.AsNoTracking()
-            .Where(i => named.Contains(i.Id) && i.Payment == InvoicePaymentState.Paid).ToListAsync(ct);
-        var locked = await LockedAsync(paid.Where(i => lostKeys.Contains(i.Id)).ToList(), ct);
-
-        // Счёт, у которого потеряно что-то кроме типа, исправим: остальное заменяют в полях.
-        var fixable = ofInvoices.Where(f => f.State == ReferenceState.Lost && !IsType(f))
+        var lost = ofInvoices.Where(f => f.State == ReferenceState.Lost).ToList();
+        var archived = ofInvoices.Where(f => f.State == ReferenceState.Archived)
             .Select(f => f.DocumentKey!.Value).ToHashSet();
-        var paidKeys = paid.Select(i => i.Id).ToHashSet();
+
+        // Счёт, у которого потеряно что-то кроме типа, исправим: остальное заменяют в полях. Запертость
+        // спрашиваем только у таких — у счёта с одним удалённым типом она ничего не решает.
+        var fixable = lost.Where(f => !IsType(f)).Select(f => f.DocumentKey!.Value).ToHashSet();
+        var locked = await LockedAsync(fixable, ct);
 
         return new InvoiceTroubles(
-            lostKeys.ToDictionary(id => id, id =>
-                locked.Contains(id) ? LostMark.Locked : fixable.Contains(id) ? LostMark.Fixable : LostMark.TypeOnly),
-            archivedKeys.ToDictionary(id => id, id => paidKeys.Contains(id) ? ArchivedMark.Paid : ArchivedMark.Open),
-            findings);
+            lost.Select(f => f.DocumentKey!.Value).Distinct().ToDictionary(id => id, id =>
+                !fixable.Contains(id) ? LostMark.TypeOnly : locked.Contains(id) ? LostMark.Locked : LostMark.Fixable),
+            archived, findings);
     }
 
     /// <summary>Ссылка — тип счёта: поле, которого в форме нет.</summary>
     public static bool IsType(ReferenceFinding finding) => finding is { Table: Invoices, Column: TypeColumn };
 
-    /// <summary>Счета из названных оплаченных, запертые закрытым периодом, — тем же правилом, каким
-    /// правку запирает форма (<see cref="ClosedPeriodGuard.LockOf" />).</summary>
-    private async Task<IReadOnlySet<Guid>> LockedAsync(IReadOnlyList<Invoice> paid, CancellationToken ct)
+    /// <summary>Зовёт ли архивная запись к правке этого счёта: только пока он не оплачен.</summary>
+    public static ArchivedMark ArchivedMarkOf(Invoice invoice) =>
+        invoice.Payment == InvoicePaymentState.Paid ? ArchivedMark.Paid : ArchivedMark.Open;
+
+    /// <summary>Счета из названных, запертые закрытым периодом, — тем же правилом, каким правку
+    /// запирает форма (<see cref="ClosedPeriodGuard.LockOf" />). Запирается только оплаченный.</summary>
+    private async Task<IReadOnlySet<Guid>> LockedAsync(IReadOnlySet<Guid> ids, CancellationToken ct)
     {
+        if (ids.Count == 0) return new HashSet<Guid>();
+
+        var named = ids.ToArray();
+        var paid = await db.Invoices.AsNoTracking()
+            .Where(i => named.Contains(i.Id) && i.Payment == InvoicePaymentState.Paid).ToListAsync(ct);
         if (paid.Count == 0) return new HashSet<Guid>();
 
         var owners = paid.Select(i => i.Id).ToArray();

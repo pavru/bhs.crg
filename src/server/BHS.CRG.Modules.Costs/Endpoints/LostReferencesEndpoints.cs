@@ -13,8 +13,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Waybills">В скольких накладных.</param>
 /// <param name="Other">Ссылок, у которых документ не назван: колонка новой таблицы, которую этот счётчик
 /// ещё не знает, либо объявление без документа. Числом ссылок, а не документов, — и отдельно, чтобы они
-/// не выдавали себя за накладные (ревью PR #1211). Сюда же — удалённый тип счёта, когда больше в счёте
-/// не потеряно ничего: заменить тип в форме нечем, и в число счетов «исправьте» он не идёт (issue #1186).</param>
+/// не выдавали себя за накладные (ревью PR #1211).</param>
 public sealed record LostTally(int References, int Invoices, int Waybills, int Other);
 
 /// <summary>Объявленная ссылка модуля, которую опрос не проверил, — словами.</summary>
@@ -25,9 +24,14 @@ public sealed record UncheckedReferenceView(string What, string Reason);
 /// владельца: записи закрытого периода в счётчик не идут, требовать их правки незачем).</param>
 /// <param name="Locked">В счетах закрытого периода: исправить нельзя. Названо отдельно, а не выброшено —
 /// иначе после отмены закрытия потери «появлялись бы из ниоткуда».</param>
+/// <param name="Unfixable">Ссылок на удалённый ТИП счёта (issue #1186). Заменить тип в форме нечем,
+/// поэтому ни в «можно исправить», ни в «заперто» они не идут — где бы счёт ни стоял и что бы ещё в нём
+/// ни было потеряно. Своим числом, а не в <see cref="LostTally.Other" />: там ссылки без документа, и
+/// одна и та же ссылка не должна считаться по-разному от соседей по счёту (ревью PR #1239).</param>
 /// <param name="Unchecked">Что не проверено. ⚠️ Нули при непустом этом списке — не «потерь нет».</param>
 public sealed record LostReferencesView(
-    LostTally Editable, LostTally Locked, IReadOnlyList<UncheckedReferenceView> Unchecked, DateTimeOffset AsOf);
+    LostTally Editable, LostTally Locked, int Unfixable,
+    IReadOnlyList<UncheckedReferenceView> Unchecked, DateTimeOffset AsOf);
 
 /// <summary>
 /// Счётчик потерянных ссылок модуля (ТЗ CORE-34.3, issue #1184).
@@ -53,11 +57,12 @@ public static class LostReferencesEndpoints
     {
         // Суждение о счетах — у общего места: то же множество кормит колонку таблицы счетов и отбор
         // (issue #1186). Свой расчёт здесь разошёлся бы с числом строк под отбором.
-        var troubles = await trouble.ReadAsync(ct);
-        var lost = troubles.Findings.Lost.ToList();
+        // Архив счётчику не нужен: ссылок на архивные записи на порядки больше, чем потерянных.
+        var troubles = await trouble.ReadAsync(withArchive: false, ct);
+        var types = troubles.Findings.Lost.Where(InvoiceReferenceTrouble.IsType).ToList();
+        var lost = troubles.Findings.Lost.Except(types).ToList();
 
-        var ofInvoices = lost.Where(l => l.DocumentKey is { } key && l.DocumentTable == InvoiceReferenceTrouble.Invoices
-            && troubles.Lost.GetValueOrDefault(key) != LostMark.TypeOnly).ToList();
+        var ofInvoices = lost.Where(l => l is { DocumentKey: not null, DocumentTable: InvoiceReferenceTrouble.Invoices }).ToList();
         var ofWaybills = lost.Where(l => l is { DocumentKey: not null, DocumentTable: Waybills }).ToList();
         var ofOther = lost.Except(ofInvoices).Except(ofWaybills).ToList();
 
@@ -76,7 +81,7 @@ public static class LostReferencesEndpoints
         }
 
         return TypedResults.Ok(new LostReferencesView(
-            Tally(closed: false), Tally(closed: true),
+            Tally(closed: false), Tally(closed: true), types.Sum(t => t.Rows),
             [.. troubles.Findings.Unchecked.Select(u => new UncheckedReferenceView(u.What, Reason(u.Reason)))],
             troubles.Findings.AsOf));
     }

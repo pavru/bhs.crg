@@ -5,7 +5,7 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
+import { defaultColumnKeys, tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
 import { recordLink, recordScreen } from '@/shared/ui/recordRoutes';
 import { apiError } from '@/shared/utils/apiError';
@@ -88,7 +88,7 @@ export function TablePage() {
         </p>
       </div>
     );
-  const allKeys = decl.columns.map(c => c.key);
+  const allKeys = defaultColumnKeys(decl.columns);
   const kinds = new Map(decl.columns.map(c => [c.key, c.kind]));
   const filterColumns = tableFilterColumns(decl.columns);
   // Сортируют по колонке с постоянным смыслом и видимыми значениями — остальным сервер откажет.

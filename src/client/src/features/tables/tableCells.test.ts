@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tableFilterColumns, tableRequest, type TableColumn, type TableData } from '@/shared/api/tables';
+import { defaultColumnKeys, tableFilterColumns, tableRequest, type TableColumn, type TableData } from '@/shared/api/tables';
 import {
   cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, plural, shownOf,
 } from './tableCells';
@@ -8,7 +8,7 @@ import {
 
 const column = (patch: Partial<TableColumn>): TableColumn => ({
   key: 'Номер', label: 'Номер счёта', kind: 'text', operators: ['eq'], system: true,
-  unavailable: null, reason: null, dependsOnFilter: false, note: null, options: null, requires: null, ...patch,
+  unavailable: null, reason: null, dependsOnFilter: false, onDemand: false, note: null, options: null, requires: null, ...patch,
 });
 
 const table = (patch: Partial<TableData>): TableData => ({
@@ -169,5 +169,14 @@ describe('tableRequest — состояние экрана становится 
     });
     // Латиница той же длины в адрес помещается.
     expect(tableRequest('costs.invoices', { filter: { ...filter, value: 'z'.repeat(700) } }).method).toBe('get');
+  });
+});
+
+describe('колонки по умолчанию', () => {
+  // «Колонки не выбраны» и запрос без списка колонок обязаны значить одно: сервер такую колонку не
+  // пришлёт, и галочка у неё в окошке выбора была бы неправдой (issue #1186).
+  it('колонка, приходящая только по требованию, в умолчание не входит', () => {
+    const columns = [column({ key: 'Номер' }), column({ key: 'Ссылки', onDemand: true }), column({ key: 'Дата' })];
+    expect(defaultColumnKeys(columns)).toEqual(['Номер', 'Дата']);
   });
 });

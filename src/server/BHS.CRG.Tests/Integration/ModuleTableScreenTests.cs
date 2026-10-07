@@ -36,7 +36,13 @@ public sealed class ModuleTableScreenTests(InvoiceLineHost host) : InvoiceLineTe
         var full = await GetAsync(supplier, $"/api/tables/{Address}/columns");
         var narrow = await GetAsync(waybills, $"/api/tables/{Address}/columns");
 
-        Assert.Equal(Keys(await GetAsync(supplier, $"/api/tables/{Address}")), Keys(full));
+        // Таблица без списка колонок — всё объявленное, кроме приходящего только по требованию (issue
+        // #1186): описание такие колонки называет, иначе экрану нечем было бы их предложить.
+        Assert.Equal(
+            Keys(await GetAsync(supplier, $"/api/tables/{Address}")),
+            full.GetProperty("columns").EnumerateArray().Where(c => !c.GetProperty("onDemand").GetBoolean())
+                .Select(c => c.GetProperty("key").GetString()!).ToArray());
+        Assert.Contains(BHS.CRG.Modules.Costs.Tables.InvoiceTable.LostKey, Keys(full));
         Assert.Equal(Keys(full), Keys(narrow));
         Assert.False(full.TryGetProperty("rows", out _));
         Assert.Equal("Счета на оплату", full.GetProperty("title").GetString());

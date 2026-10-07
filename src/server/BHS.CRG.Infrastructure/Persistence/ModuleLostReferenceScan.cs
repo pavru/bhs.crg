@@ -46,6 +46,10 @@ public sealed record LostScan(
 /// <para><b>Архив — тем же проходом</b> (issue #1186). Отдельный опрос «что в архиве» шёл бы в своём
 /// снимке: запись, убранную в архив и удалённую между двумя проходами, назвали бы оба ответа либо ни
 /// один — и два счётчика рядом разошлись бы с одной и той же базой.</para>
+///
+/// <para><b>Но только тому, кто об архиве спросил.</b> Потерь на здоровой базе нет, и ответ пуст; ссылок
+/// на архивные записи — сколько счетов у закрывшихся поставщиков, и число это только растёт. Счётчику
+/// потерь читать их незачем (ревью PR #1239).</para>
 /// </summary>
 public class ModuleLostReferenceScan(AppDbContext db)
 {
@@ -116,8 +120,9 @@ public class ModuleLostReferenceScan(AppDbContext db)
     }
 
     /// <summary>Ссылки названных колонок схемы, цель которых не на месте, — одним снимком базы.</summary>
+    /// <param name="withArchive">Называть ли и ссылки на записи в архиве; иначе — только потерянные.</param>
     public async Task<LostScan> FindAsync(
-        string schema, IReadOnlyList<ReferencingColumn> columns, CancellationToken ct = default)
+        string schema, IReadOnlyList<ReferencingColumn> columns, bool withArchive, CancellationToken ct = default)
     {
         // Чужую транзакцию не трогаем: снимок и пределы в ней задаёт тот, кто её открыл.
         var foreign = db.Database.CurrentTransaction;
@@ -159,7 +164,7 @@ public class ModuleLostReferenceScan(AppDbContext db)
                 await using var cmd = connection.CreateCommand();
                 // Соединение, а не NOT EXISTS: строка цели нужна, чтобы отличить «в архиве» от «нет
                 // вовсе». У вида без архива условие остаётся прежним — «цели нет».
-                var archived = target.Archive is { } at ? $" OR t.{Id(at)} IS NOT NULL" : "";
+                var archived = withArchive && target.Archive is { } at ? $" OR t.{Id(at)} IS NOT NULL" : "";
                 cmd.CommandText = $"""
                     SELECT x.{Id(column.Column)}, {via}, t.{Id(target.Key)} IS NOT NULL, count(*)::int
                     FROM {Id(schema)}.{Id(column.Table)} x

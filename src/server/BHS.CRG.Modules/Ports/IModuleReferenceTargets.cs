@@ -102,5 +102,8 @@ public interface IModuleReferenceTargets
     /// в одном снимке базы: потерянные и архивные вместе (issue #1186). Опрашиваются держащие колонки;
     /// помнящие (<see cref="ModuleReference.Remembering" />) — нет: удаление их цели законно.
     /// </summary>
-    Task<ReferenceFindings> NotPresentAsync(string moduleCode, CancellationToken ct = default);
+    /// <param name="includeArchived">Называть ли ссылки на записи в архиве. Без умолчания нарочно:
+    /// потерь на здоровой базе нет, а архивных ссылок — тысячи и становится только больше, и читать их
+    /// «заодно» тому, кому нужны одни потери, незачем.</param>
+    Task<ReferenceFindings> NotPresentAsync(string moduleCode, bool includeArchived, CancellationToken ct = default);
 }

@@ -9,8 +9,10 @@ using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Tables;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -122,23 +124,63 @@ public partial class InvoicePaymentTests
         Assert.False(Has(await TroubleTableAsync(admin, LostColumn, locked), invoice));
     }
 
+    private static async Task<int> UnfixableAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<JsonElement>("/api/costs/lost-references")).GetProperty("unfixable").GetInt32();
+
+    private async Task LoseTypeAsync(Guid invoice)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlRawAsync(
+            "UPDATE costs.invoices SET document_type_id = {0} WHERE id = {1}", Guid.NewGuid(), invoice);
+    }
+
     /// <summary>
     /// <b>Удалённый тип счёта — не «исправьте»</b>: поля, в котором тип заменяют, в форме нет. Счёт назван
-    /// своим словом, а в число счетов, которые можно исправить, не идёт.
+    /// своим словом, а ссылка считается своим числом — ни в «можно исправить», ни в «заперто».
     /// </summary>
     [Fact]
     public async Task Счёт_с_удалённым_типом_назван_отдельно_и_в_отбор_исправимых_не_входит()
     {
         var (admin, _) = await SignInAsync("Admin");
-        var before = (await TallyAsync(admin, "editable")).Invoices;
+        var (editable, unfixable) = (await TallyAsync(admin, "editable"), await UnfixableAsync(admin));
         var orphan = await CreateAsync(admin);
-        using (var scope = host.Services.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlRawAsync(
-                "UPDATE costs.invoices SET document_type_id = {0} WHERE id = {1}", Guid.NewGuid(), orphan);
+        await LoseTypeAsync(orphan);
 
         Assert.Equal(InvoiceTable.LostWords[(int)LostMark.TypeOnly], await TroubleCellAsync(admin, LostColumn, orphan));
         Assert.False(Has(await TroubleTableAsync(admin, LostColumn, InvoiceTable.TroubleFixable), orphan));
-        Assert.Equal(before, (await TallyAsync(admin, "editable")).Invoices);
+        Assert.Equal(editable, await TallyAsync(admin, "editable"));
+        Assert.Equal(unfixable + 1, await UnfixableAsync(admin));
+    }
+
+    /// <summary>
+    /// <b>Запертость удалённого типа не меняет</b> (ревью PR #1239): «период закрыт» обещал бы, что после
+    /// отмены закрытия счёт исправят, а исправить тип нечем. И наоборот — у счёта с потерей, которую
+    /// заменить можно, ссылка на тип не переезжает из числа в число вместе с соседями.
+    /// </summary>
+    [Fact]
+    public async Task Удалённый_тип_считается_одинаково_у_запертого_счёта_и_рядом_с_другой_потерей()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, position, site) = await InvoiceWithPositionAsync(admin, "Тип запертого");
+        var paidOn = today.AddDays(-5);
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        await CloseAsync(site, today.AddDays(-1));
+        var (locked, editable, unfixable) =
+            (await TallyAsync(admin, "locked"), await TallyAsync(admin, "editable"), await UnfixableAsync(admin));
+
+        await LoseTypeAsync(invoice);
+        Assert.Equal(InvoiceTable.LostWords[(int)LostMark.TypeOnly], await TroubleCellAsync(admin, LostColumn, invoice));
+        Assert.Equal(locked, await TallyAsync(admin, "locked"));
+        Assert.Equal(unfixable + 1, await UnfixableAsync(admin));
+
+        // Рядом появилась потеря, которую заменить можно: счёт — в запертых, а ссылка на тип — там же,
+        // где была.
+        await ForgetAsync(position);
+        Assert.Equal(InvoiceTable.LostWords[(int)LostMark.Locked], await TroubleCellAsync(admin, LostColumn, invoice));
+        Assert.Equal((locked.References + 1, locked.Invoices + 1), await TallyAsync(admin, "locked"));
+        Assert.Equal(editable, await TallyAsync(admin, "editable"));
+        Assert.Equal(unfixable + 1, await UnfixableAsync(admin));
     }
 
     /// <summary>
@@ -186,8 +228,89 @@ public partial class InvoicePaymentTests
             ReferenceTarget target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
             throw new InvalidOperationException("состояние записей не спрашивали");
 
-        public Task<ReferenceFindings> NotPresentAsync(string moduleCode, CancellationToken ct = default) =>
+        public Task<ReferenceFindings> NotPresentAsync(
+            string moduleCode, bool includeArchived, CancellationToken ct = default) =>
             throw new InvalidOperationException("опрос ядра не заказывали");
+    }
+
+    /// <summary>
+    /// <b>Тот, кто читает таблицу без списка колонок, опроса не получает</b> (ревью PR #1239) — а так её
+    /// читает набор данных: «без списка» значит «все колонки». Проверено настоящим путём, через службу
+    /// таблиц приложения, а не службой строк, собранной руками: порт подменён тем, что бросает.
+    /// </summary>
+    [Fact]
+    public async Task Чтение_таблицы_без_списка_колонок_ядро_не_опрашивает_и_колонок_о_ссылках_не_несёт()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        await using var forbidding = host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IModuleReferenceTargets>();
+            services.AddScoped<IModuleReferenceTargets, ForbiddenTargets>();
+        }));
+        var client = forbidding.CreateClient();
+        client.DefaultRequestHeaders.Authorization = admin.DefaultRequestHeaders.Authorization;
+
+        var whole = await client.GetAsync("/api/tables/costs.invoices?limit=5");
+        await OkAsync(whole);
+        var keys = (await whole.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("columns")
+            .EnumerateArray().Select(c => c.GetProperty("key").GetString()).ToList();
+        Assert.DoesNotContain(LostColumn, keys);
+        Assert.DoesNotContain(ArchivedColumn, keys);
+        Assert.Contains(InvoiceRequisites.NumberKey, keys);
+
+        // Набор данных читает тем же запросом — пустым, без списка колонок (ModuleTableDataProvider):
+        // чего нет в этом ответе, того нет и в наборе.
+
+        // Объявлены обе — и названы приходящими только по требованию: экран их предлагает.
+        var declared = (await client.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices/columns"))
+            .GetProperty("columns").EnumerateArray()
+            .Where(c => c.GetProperty("key").GetString() is LostColumn or ArchivedColumn).ToList();
+        Assert.Equal(2, declared.Count);
+        Assert.All(declared, c => Assert.True(c.GetProperty("onDemand").GetBoolean()));
+
+        // А спросили — опрос идёт, и подменный порт это показывает отказом.
+        var asked = await client.GetAsync($"/api/tables/costs.invoices?columns=Номер,{LostColumn}&limit=5");
+        Assert.Equal(System.Net.HttpStatusCode.InternalServerError, asked.StatusCode);
+    }
+
+    /// <summary>
+    /// <b>Об архиве ядро спрашивают, только когда спросили о нём.</b> Ссылок на архивные записи на порядки
+    /// больше, чем потерянных, и счётчику потерь, как и колонке удалённых, они не нужны.
+    /// </summary>
+    [Fact]
+    public async Task Архивные_ссылки_читаются_только_для_колонки_архива()
+    {
+        using var scope = host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var recording = new RecordingTargets(services.GetRequiredService<IModuleReferenceTargets>());
+        var rows = new InvoiceTableRows(
+            services.GetRequiredService<CostsDbContext>(), services.GetRequiredService<IModuleCatalog>(),
+            services.GetRequiredService<AllocationPlacesSource>(), services.GetRequiredService<IModuleClock>(),
+            new InvoiceReferenceTrouble(services.GetRequiredService<CostsDbContext>(), recording,
+                services.GetRequiredService<IModulePeriods>()));
+
+        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn }, Guid.Empty, Limit: 1), default);
+        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { ArchivedColumn }, Guid.Empty, Limit: 1), default);
+        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn, ArchivedColumn }, Guid.Empty, Limit: 1), default);
+
+        Assert.Equal([false, true, true], recording.Asked);
+    }
+
+    /// <summary>Порт, который помнит, спрашивали ли его об архиве.</summary>
+    private sealed class RecordingTargets(IModuleReferenceTargets inner) : IModuleReferenceTargets
+    {
+        public List<bool> Asked { get; } = [];
+
+        public Task<IReadOnlyDictionary<Guid, ReferenceState>> StatesAsync(
+            ReferenceTarget target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            inner.StatesAsync(target, ids, ct);
+
+        public Task<ReferenceFindings> NotPresentAsync(
+            string moduleCode, bool includeArchived, CancellationToken ct = default)
+        {
+            Asked.Add(includeArchived);
+            return inner.NotPresentAsync(moduleCode, includeArchived, ct);
+        }
     }
 
     /// <summary>

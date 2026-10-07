@@ -57,7 +57,8 @@ public sealed class ModuleReferenceTargetsPort(ModuleRegistry registry, ModuleLo
     private CoreTable TableOf(ReferenceTarget target) =>
         scan.TableOf(Entities[target], target == ReferenceTarget.Record ? nameof(DomainObject.ArchivedAt) : null);
 
-    public async Task<ReferenceFindings> NotPresentAsync(string moduleCode, CancellationToken ct = default)
+    public async Task<ReferenceFindings> NotPresentAsync(
+        string moduleCode, bool includeArchived, CancellationToken ct = default)
     {
         var module = registry.Find(moduleCode)
             ?? throw new InvalidOperationException($"Модуля «{moduleCode}» в этой сборке нет.");
@@ -71,7 +72,7 @@ public sealed class ModuleReferenceTargetsPort(ModuleRegistry registry, ModuleLo
             columns[new ReferencingColumn(reference.Table, reference.Column,
                 reference.Target is { } target ? TableOf(target) : null, reference.Document?.Via)] = reference;
 
-        var found = await scan.FindAsync(schema, [.. columns.Keys], ct);
+        var found = await scan.FindAsync(schema, [.. columns.Keys], includeArchived, ct);
 
         return new ReferenceFindings(
             [.. found.Lost.Select(hit =>
