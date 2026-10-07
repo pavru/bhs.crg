@@ -19,14 +19,33 @@ namespace BHS.CRG.Api.Endpoints.Documents;
 /// </summary>
 public static class RecordRefusal
 {
+    /// <param name="offerArchive">
+    /// Спрашивать ли об архиве. Отказ самого принудительного удаления его не предлагает: человек уже
+    /// прошёл мимо этого выхода, и запрос ушёл бы впустую (ревью PR #1246).
+    /// </param>
     public static async Task<IResult> ConflictAsync(
         ConflictException refusal, Guid id, IMediator mediator, ClaimsPrincipal user,
-        IUserPermissions permissions, CancellationToken ct) =>
+        IUserPermissions permissions, CancellationToken ct, bool offerArchive = true) =>
         Results.Conflict(new
         {
             error = refusal.Message,
-            canArchive = await mediator.Send(new CanArchiveRecordQuery(id), ct),
+            canArchive = offerArchive && await mediator.Send(new CanArchiveRecordQuery(id), ct),
             purge = await OfferAsync(refusal, user, permissions, ct),
+        });
+
+    /// <summary>
+    /// Запись держит внешний ключ базы, а не только значение в колонке (ревью PR #1246). Скан
+    /// держателей такую колонку видит и считает, но отпустить её принудительное удаление не может:
+    /// база откажет. Отказ, а не внутренняя ошибка, — и без предложения: повтор дал бы то же.
+    /// </summary>
+    public static IResult HeldByConstraint(string? constraint) =>
+        Results.Conflict(new
+        {
+            error = "Запись не удалена: на неё ссылается внешний ключ базы" +
+                (constraint is null ? "" : $" ({constraint})") +
+                ". Такую ссылку удаление оборвать не может — её убирают в самих данных.",
+            canArchive = false,
+            purge = (PurgeOffer?)null,
         });
 
     /// <summary>

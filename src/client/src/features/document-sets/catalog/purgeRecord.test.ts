@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { purgeOffered, type PurgeOffer } from '@/shared/api/recordPurge';
-import { changedNote, consequences, countMatches, holderLabel, mismatchShown, purgedToast, typedCount } from './purgeRecord';
+import {
+  changedNote, consequences, countMatches, holderLabel, mismatchShown, purgeFailure, purgedToast, typedCount,
+} from './purgeRecord';
 
 /** Принудительное удаление записи — подтверждение числом теряемых ссылок (issue #1187). */
 
@@ -90,6 +92,39 @@ describe('последствия', () => {
     for (const text of [of(40, 0), of(43, 3), of(3, 3)]) {
       expect(text).toContain('только из резервной копии');
       expect(text).toContain('записывается в журнал');
+    }
+  });
+});
+
+describe('неудачная попытка', () => {
+  const answer = (status: number, data: unknown) => ({ isAxiosError: true, response: { status, data } });
+  const fresh = (references: number) => ({ allowed: true, references, untraceable: 0, holders: [] });
+
+  it('число изменилось — пересчёт со словами «было, стало»', () => {
+    const failure = purgeFailure(answer(409, { error: 'Число ссылок не совпало', purge: fresh(45) }), offer(43));
+
+    expect(failure.kind).toBe('recount');
+    expect(failure.kind === 'recount' && failure.note).toContain('было 43, стало 45');
+  });
+
+  it('итог тот же, а сервер отказал — показываем его слова, а не молча стираем ввод', () => {
+    const failure = purgeFailure(answer(409, { error: 'Состав держателей изменился.', purge: fresh(43) }), offer(43));
+
+    expect(failure.kind === 'recount' && failure.note).toContain('Состав держателей изменился.');
+  });
+
+  it('отказ без предложения — выхода больше нет', () => {
+    expect(purgeFailure(answer(409, { error: 'Держит включённый модуль.', purge: null }), offer(3)))
+      .toEqual({ kind: 'final', text: 'Держит включённый модуль.' });
+    expect(purgeFailure(answer(404, ''), offer(3)).kind).toBe('final');
+  });
+
+  it('сбой сервера или сети — не «удаление невозможно»: судьба записи неизвестна, можно повторить', () => {
+    for (const e of [answer(500, { error: 'Внутренняя ошибка' }), new Error('Network Error')]) {
+      const failure = purgeFailure(e, offer(3));
+
+      expect(failure.kind).toBe('retry');
+      expect(failure.kind === 'retry' && failure.text).toContain('неизвестно');
     }
   });
 });

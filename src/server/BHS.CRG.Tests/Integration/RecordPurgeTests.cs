@@ -188,11 +188,44 @@ public class RecordPurgeTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         Assert.True(holder.Traceable);
         Assert.Equal(0, found.Release!.Untraceable);
         Assert.Throws<RecordHeldException>(() => found.EnsureOnlyDormant("запись", 5));
+
+        // Слова отказа: «убрать негде» — только там, где есть принудительный выход. Документ, стройка
+        // и остальные пути его не имеют, и им обязан остаться названным прежний путь (ревью PR #1246).
+        Assert.Contains("выключен или снят",
+            Assert.Throws<RecordHeldException>(() => found.EnsureNone("запись", forcedExit: true)).Message);
+        Assert.Contains("включите его",
+            Assert.Throws<RecordHeldException>(() => found.EnsureNone("документ")).Message);
         Assert.Equal(1, found.EnsureOnlyDormant("запись", 1).References);
 
         var unverified = RecordHoldings.Unverified("Не удалось проверить.");
         Assert.Null(unverified.Release);
         Assert.Throws<ConflictException>(() => unverified.EnsureOnlyDormant("запись", 0));
+    }
+
+    /// <summary>
+    /// Запись, которую держит внешний КЛЮЧ посторонней схемы, принудительно не удаляется: скан видит
+    /// колонку и предлагает выход, но база такую ссылку оборвать не даёт. Ответ — отказ со словами,
+    /// а не внутренняя ошибка, и запись на месте (ревью PR #1246).
+    /// </summary>
+    [Fact]
+    public async Task Внешний_ключ_посторонней_схемы_отвечает_отказом_а_не_поломкой()
+    {
+        var (client, _) = await SignInAsync(SystemRoles.Admin);
+        var record = await OwnPositionAsync();
+        var schema = $"probe_{Guid.NewGuid():N}";
+        await SqlAsync($"CREATE SCHEMA {schema}");
+        await using var probe = new Probe(schema, () => SqlAsync($"DROP SCHEMA {schema} CASCADE"));
+        await SqlAsync($"CREATE TABLE {schema}.things (id uuid PRIMARY KEY, held uuid REFERENCES public.domain_objects(\"Id\"))");
+        await SqlAsync($"INSERT INTO {schema}.things VALUES (gen_random_uuid(), @p0)", record);
+
+        var purge = await client.PostAsJsonAsync($"/api/common-data/{record}/purge", new { references = 1 });
+
+        Assert.Equal(HttpStatusCode.Conflict, purge.StatusCode);
+        var body = await purge.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("внешний ключ базы", body.GetProperty("error").GetString());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("purge").ValueKind);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/common-data/{record}")).StatusCode);
+        Assert.Empty(await PurgedAsync(record));
     }
 
     /// <summary>

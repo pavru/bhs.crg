@@ -3,9 +3,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
-import { apiError } from '@/shared/utils/apiError';
-import { purgeOffered, usePurgeRecord, type PurgeOffer } from '@/shared/api/recordPurge';
-import { changedNote, consequences, countMatches, holderLabel, mismatchShown, purgedToast } from './purgeRecord';
+import { usePurgeRecord, type PurgeOffer } from '@/shared/api/recordPurge';
+import { consequences, countMatches, holderLabel, mismatchShown, purgeFailure, purgedToast } from './purgeRecord';
 
 /**
  * Удаление записи, которую держат только данные выключенного или снятого модуля, — с потерей этих
@@ -33,6 +32,8 @@ export function PurgeRecordDialog({ target, offer: offered, onClose }: {
   const [changed, setChanged] = useState<string | null>(null);
   // Отказ, после которого выхода больше нет: модуль включили, запись стало держать ядро.
   const [refused, setRefused] = useState<string | null>(null);
+  // Ответа по существу нет (сеть, сбой сервера): диалог остаётся, попытку можно повторить.
+  const [failed, setFailed] = useState<string | null>(null);
   const fieldId = useId(), hintId = useId(), errorId = useId();
 
   const matches = countMatches(input, offer);
@@ -42,20 +43,23 @@ export function PurgeRecordDialog({ target, offer: offered, onClose }: {
     e.preventDefault();
     setSettled(true);
     if (!matches || purge.isPending) return;
+    setFailed(null);
     try {
       const done = await purge.mutateAsync({ id: target.id, references: offer.references });
       toast.success(purgedToast(target.displayName, done.references));
       onClose();
     } catch (err) {
-      const fresh = purgeOffered(err);
-      if (fresh?.allowed) {
-        // Число изменилось: подтверждено не то, что удалялось бы. Показываем заново, поле пустое.
-        if (fresh.references !== offer.references) setChanged(changedNote(offer.references, fresh.references));
-        setOffer(fresh);
+      const failure = purgeFailure(err, offer);
+      if (failure.kind === 'recount') {
+        // Подтверждено не то, что удалялось бы: показываем заново, поле пустое — и говорим почему.
+        setChanged(failure.note);
+        setOffer(failure.offer);
         setInput('');
         setSettled(false);
+      } else if (failure.kind === 'final') {
+        setRefused(failure.text);
       } else {
-        setRefused(apiError(err, 'Не удалось удалить запись.'));
+        setFailed(failure.text);
       }
     }
   }
@@ -116,6 +120,9 @@ export function PurgeRecordDialog({ target, offer: offered, onClose }: {
               {changed && (
                 <div className="mt-3 rounded-md bg-warning-subtle px-3 py-2 text-xs text-fg1" role="alert">{changed}</div>
               )}
+              {failed && (
+                <div className="mt-3 rounded-md bg-danger-subtle px-3 py-2 text-xs text-fg1" role="alert">{failed}</div>
+              )}
 
               <div className="mt-4">
                 <label htmlFor={fieldId} className="block text-xs font-medium text-fg2 mb-1">Число теряемых ссылок</label>
@@ -125,6 +132,9 @@ export function PurgeRecordDialog({ target, offer: offered, onClose }: {
                   value={input} disabled={purge.isPending}
                   onChange={e => { setInput(e.target.value); setSettled(false); }}
                   onBlur={() => setSettled(true)}
+                  // Кнопка при несовпадении выключена, и Enter форму не отправит: без этого нажатие
+                  // не делало бы ничего и не объясняло почему (ревью PR #1246).
+                  onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
                   aria-invalid={mismatch || undefined} aria-describedby={mismatch ? errorId : hintId}
                   className={`w-full h-10 px-3 rounded-md bg-surface border text-base sm:text-sm text-fg1 tabular-nums outline-none focus-visible:ring-2 ${
                     mismatch ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong focus-visible:ring-brand'}`} />

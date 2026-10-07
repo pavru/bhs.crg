@@ -136,7 +136,7 @@ public class CommonDataHandlers(
     }
 
     public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct) =>
-        await DeleteAsync(cmd.Id, found => { found.EnsureNone("запись"); return null; }, ct);
+        await DeleteAsync(cmd.Id, found => { found.EnsureNone("запись", forcedExit: true); return null; }, ct);
 
     public async Task<PurgedRecord> Handle(PurgeHeldRecordCommand cmd, CancellationToken ct)
     {
@@ -146,7 +146,9 @@ public class CommonDataHandlers(
         // Журнал — после удаления (см. IActivityLog) и без токена отмены запроса: запись уже удалена,
         // и оборванный запрос не должен оставить потерянные ссылки без следа. Адрес колонки пишется
         // там, где потерю потом не покажет никто: кроме этой строки, искать её будет не по чему.
-        var type = await typeRepo.GetByIdAsync(entry.CompositeTypeId, ct);
+        // ⚠️ Без токена и чтение типа (ревью PR #1246): оно стоит между удалением и журналом, и
+        // отмена на нём оборвала бы путь до записи следа.
+        var type = await typeRepo.GetByIdAsync(entry.CompositeTypeId, CancellationToken.None);
         await journal.RecordAsync(
             ActivityActions.RecordPurged, entry.Id.ToString(), RecordArchiveHandlers.Label(entry, type),
             before: string.Join("; ", release!.Holders.Select(h =>

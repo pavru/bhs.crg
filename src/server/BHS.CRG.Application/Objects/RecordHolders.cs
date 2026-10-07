@@ -148,12 +148,17 @@ public sealed class RecordHoldings
     /// <para>Число в отказе обязательно: «на запись ссылаются» не говорит человеку, сколько работы его
     /// ждёт. Выход назван один — убрать ссылки: другого сегодня нет (архив — issue #1185).</para>
     /// </summary>
-    public void EnsureNone(string what)
+    /// <param name="forcedExit">
+    /// Есть ли у этого пути удаления принудительный выход (issue #1187). От этого зависят слова: там,
+    /// где его нет, отказ обязан назвать единственный оставшийся путь — включить модуль, — а не
+    /// сообщить, что убрать ссылки негде (ревью PR #1246).
+    /// </param>
+    public void EnsureNone(string what, bool forcedExit = false)
     {
         if (IsUnverified) throw new ConflictException($"Удаление отменено. {Lines[0]}");
         if (!Any) return;
 
-        throw Held(what);
+        throw Held(what, forcedExit);
     }
 
     /// <summary>
@@ -169,7 +174,7 @@ public sealed class RecordHoldings
             throw new ConflictException(
                 $"На {what} никто не ссылается — удалите обычным путём: принудительное удаление " +
                 "нужно только там, где ссылку убрать негде.");
-        if (Release is not { } release) throw Held(what);
+        if (Release is not { } release) throw Held(what, forcedExit: true);
         if (release.References != confirmed)
             throw new RecordHeldException(
                 $"Число ссылок не совпало: сейчас их {release.References}, а подтверждено {confirmed}. " +
@@ -177,11 +182,11 @@ public sealed class RecordHoldings
         return release;
     }
 
-    private RecordHeldException Held(string what) =>
+    private RecordHeldException Held(string what, bool forcedExit) =>
         new($"Нельзя удалить {what}: на это ссылаются данные модулей — {string.Join("; ", Lines)}. " +
             "Удаление оставило бы эти ссылки вести в пустоту. " +
-            (Release is null
-                ? "Уберите их в модуле (если он выключен — включите его), после этого удаление пройдёт."
-                : "Убрать их можно только в модуле, а он выключен или снят."),
+            (forcedExit && Release is not null
+                ? "Убрать их можно только в модуле, а он выключен или снят."
+                : "Уберите их в модуле (если он выключен — включите его), после этого удаление пройдёт."),
             this);
 }

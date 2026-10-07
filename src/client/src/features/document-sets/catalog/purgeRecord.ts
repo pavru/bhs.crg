@@ -1,4 +1,5 @@
-import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
+import { purgeOffered, type PurgeHolder, type PurgeOffer } from '@/shared/api/recordPurge';
+import { apiError, isConflict } from '@/shared/utils/apiError';
 
 /**
  * Чистая логика диалога принудительного удаления (issue #1187): разбор введённого числа и слова.
@@ -57,6 +58,38 @@ export function consequences(offer: PurgeOffer): string[] {
 export function changedNote(before: number, now: number): string {
   return `Пока диалог был открыт, число ссылок изменилось: было ${before}, стало ${now}. ` +
     'Ничего не удалено — сверьте разбивку и введите новое число.';
+}
+
+/**
+ * Чем кончилась неудачная попытка — от этого зависит, что человеку остаётся (ревью PR #1246):
+ *  - `recount` — сервер прислал свежее предложение: разбивку показать заново, число ввести снова;
+ *  - `final`   — выхода больше нет (модуль включили, запись стало держать ядро, записи уже нет);
+ *  - `retry`   — ответа по существу нет (сеть, сбой сервера): диалог остаётся, можно повторить.
+ *    ⚠️ Удалена ли запись, в этом случае неизвестно — и говорить «удаление невозможно» нельзя.
+ */
+export type PurgeFailure =
+  | { kind: 'recount'; offer: PurgeOffer; note: string }
+  | { kind: 'final'; text: string }
+  | { kind: 'retry'; text: string };
+
+export function purgeFailure(e: unknown, shown: PurgeOffer): PurgeFailure {
+  const fresh = purgeOffered(e);
+  if (fresh?.allowed)
+    return {
+      kind: 'recount', offer: fresh,
+      // Итог тот же — значит, отказ о другом: показываем слова сервера, а не молча стираем ввод.
+      note: fresh.references !== shown.references
+        ? changedNote(shown.references, fresh.references)
+        : `${apiError(e, 'Сервер не принял подтверждение.')} Сверьте разбивку и введите число заново.`,
+    };
+  if (isConflict(e)) return { kind: 'final', text: apiError(e, 'Удалить запись нельзя.') };
+  if ((e as { response?: { status?: number } })?.response?.status === 404)
+    return { kind: 'final', text: 'Записи уже нет: её удалили, пока диалог был открыт.' };
+  return {
+    kind: 'retry',
+    text: `${apiError(e, 'Ответ от сервера не получен.')} Удалена ли запись — неизвестно: закройте диалог и ` +
+      'проверьте список. Если запись на месте, удаление можно повторить.',
+  };
 }
 
 /** Слова успеха: что удалено и сколько ссылок потеряно. */

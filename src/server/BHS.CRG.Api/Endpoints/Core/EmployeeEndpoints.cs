@@ -130,7 +130,9 @@ public static class EmployeeEndpoints
 
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             // Тело отказа — то же, что у общего адреса: выходы «в архив» и «удалить, потеряв ссылки»
-            // у сотрудника те же, и узнать о них экран может только отсюда (issue #1187).
+            // у сотрудника те же (issue #1187). ⚠️ Потребителя у этих полей пока нет: клиент удаляет
+            // сотрудника общим адресом, со страницы справочника. Одно тело — чтобы экран сотрудников,
+            // когда он появится, не получил отказ одними словами.
             catch (ConflictException ex) { return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct); }
         });
     }

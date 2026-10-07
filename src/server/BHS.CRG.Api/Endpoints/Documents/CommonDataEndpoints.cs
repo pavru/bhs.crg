@@ -165,7 +165,16 @@ public static class CommonDataEndpoints
             try { return Results.Ok(await m.Send(new PurgeHeldRecordCommand(id, req.References))); }
             catch (NotFoundException) { return Results.NotFound(); }
             // Число не совпало — в отказе свежее предложение: экран показывает его заново.
-            catch (ConflictException ex) { return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct); }
+            catch (ConflictException ex)
+            {
+                return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct, offerArchive: false);
+            }
+            // Сюда обычное удаление не доходит: держателя оно встречает отказом раньше базы.
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.ForeignKeyViolation } pg)
+            {
+                return RecordRefusal.HeldByConstraint(pg.ConstraintName);
+            }
         });
 
         // Архив — отдельными адресами, а не полем правки (issue #1185): форма, не знающая признака,
