@@ -1,6 +1,7 @@
 ﻿using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Application.Recognition;
+using BHS.CRG.Infrastructure.DataSets;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Recognition;
@@ -19,6 +20,16 @@ public static class RecognitionProfileEndpoints
 
         g.MapGet("/kinds", async (IMediator m) =>
             Results.Ok(await m.Send(new ListRecognitionKindsQuery())));
+
+        // Профили выключенных модулей: только имя и владелец (issue #1075). Нужны экрану, чтобы
+        // назвать причину — «скрыто столько-то» и «привязан профиль выключенного модуля».
+        g.MapGet("/hidden", async (IMediator m) =>
+            Results.Ok(await m.Send(new ListHiddenRecognitionProfilesQuery())));
+
+        // Что предложить в диалоге «Распознать PDF» (issue #1075). Перечень раньше был зашит в
+        // клиенте и расходился с воротами записи: выбор, который сервер отвергнет, предлагать нельзя.
+        g.MapGet("/pdf", (RecognitionProfileCatalog catalog) =>
+            Results.Ok(PdfProfileRegistry.Offered(catalog.IsAvailable)));
 
         admin.MapPost("/", async (ProfileRequest req, IMediator m) =>
         {

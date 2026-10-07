@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { defaultColumnKeys, tableFilterColumns, tableRequest, type TableColumn, type TableData } from '@/shared/api/tables';
 import {
-  cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, plural, shownOf,
+  cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf,
 } from './tableCells';
 
 /** Таблица модуля → сетка и отбор (задачи G1d и G1e, issue #1091, #1092). */
@@ -67,8 +67,8 @@ describe('hiddenByRight — строка над таблицей называе�
     expect(hiddenCountText(1)).toBe('1 колонка скрыта');
     expect(hiddenCountText(3)).toBe('3 колонки скрыты');
     expect(hiddenCountText(5)).toBe('5 колонок скрыто');
-    expect(plural(11, 'а', 'б', 'в')).toBe('в');
-    expect(plural(21, 'а', 'б', 'в')).toBe('а');
+    expect(hiddenCountText(11)).toBe('11 колонок скрыто');
+    expect(hiddenCountText(21)).toBe('21 колонка скрыта');
   });
 });
 

@@ -1,6 +1,7 @@
 import { columnUnavailable, type GridState } from '@/shared/ui/dataGridStates';
 import type { DataGridColumn } from '@/shared/ui/DataGrid';
 import { formatCount, formatDay, formatNumber } from '@/shared/format/format';
+import { ruCount } from '@/shared/utils/pluralize';
 import type { TableBreakdown, TableColumn, TableData, TableDeclaration } from '@/shared/api/tables';
 
 /**
@@ -58,7 +59,7 @@ export function hiddenByRight(columns: TableColumn[], chosen: string[] | null): 
 
 /** «2 колонки скрыты» — начало строки над таблицей; причину и код права экран ставит следом. */
 export function hiddenCountText(count: number): string {
-  return `${count} ${plural(count, 'колонка скрыта', 'колонки скрыты', 'колонок скрыто')}`;
+  return ruCount(count, 'колонка скрыта', 'колонки скрыты', 'колонок скрыто');
 }
 
 /** Клетка так, как её читает человек: дата — днём, флаг — «да / нет», перечень — через запятую. */
@@ -99,15 +100,6 @@ export function shownOf(table: Pick<TableData, 'rows' | 'count' | 'offset'>): st
 /** Сколько страниц в отборе; пустой отбор — одна (пустая) страница. */
 export function pageCount(count: number, size: number): number {
   return Math.max(1, Math.ceil(count / size));
-}
-
-/** Русское множественное: 1 колонка, 2 колонки, 5 колонок. */
-export function plural(n: number, one: string, few: string, many: string): string {
-  const tens = Math.abs(n) % 100;
-  const units = tens % 10;
-  if (tens > 10 && tens < 20) return many;
-  if (units === 1) return one;
-  return units >= 2 && units <= 4 ? few : many;
 }
 
 /** «Счёт целиком» — зерно таблицы с заглавной: что именно сложено, называет сама таблица. */

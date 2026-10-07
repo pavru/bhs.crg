@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Plus, Trash2, Lock, RotateCcw, ScanText, AlertTriangle } from 'lucide-react';
+import { Fragment, useMemo, useState } from 'react';
+import { Plus, Trash2, Lock, RotateCcw, ScanText, AlertTriangle, EyeOff } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -14,9 +14,10 @@ import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/sha
 import {
   useListRecognitionProfiles, useRecognitionKinds, useCreateRecognitionProfile,
   useUpdateRecognitionProfile, useResetRecognitionProfile, useDeleteRecognitionProfile,
-  profileSummary,
+  useHiddenRecognitionProfiles, profileSummary,
   type RecognitionProfile, type RecognitionProfileField, type RecognitionKindInfo, type RecognitionTableShape,
 } from '@/shared/api/recognitionProfiles';
+import { groupByModule, hiddenSummary, type HiddenRecognitionProfile } from '@/shared/api/recognitionProfileGroups';
 
 /**
  * Библиотека профилей распознавания (issue #408). Промпты пишем мы — пользователь правит только
@@ -33,6 +34,9 @@ const FIELD_TYPES = [
 ];
 
 const EMPTY_SHAPE: RecognitionTableShape = { twoTierHeader: false, pairedSections: false, skipTotals: true };
+// Модульная константа, а не `= []` в месте чтения: новый массив на каждый рендер.
+const EMPTY_HIDDEN: HiddenRecognitionProfile[] = [];
+const EMPTY_PROFILES: RecognitionProfile[] = [];
 
 // ─── Редактор списка полей/колонок ─────────────────────────────────────────────
 
@@ -291,6 +295,9 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
   const [error, setError] = useState('');
   const create = useCreateRecognitionProfile();
   const info = kinds.find(k => k.kind === kind);
+  // Виды — по модулям (issue #1075): профиль получит владельцем владельца вида, и это видно до
+  // создания, а не после — по группе, в которой он окажется.
+  const kindGroups = groupByModule(kinds);
 
   async function save() {
     if (!name.trim()) { setError('Укажите название'); return; }
@@ -314,7 +321,11 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
         <label className="block text-sm font-medium text-fg1 mb-1">Вид</label>
         <select value={kind} onChange={e => setKind(e.target.value)}
           className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
-          {kinds.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+          {kindGroups.map(g => (
+            <optgroup key={g.module} label={g.title}>
+              {g.items.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+            </optgroup>
+          ))}
         </select>
         <p className="text-xs text-fg4 mt-1">
           Вид определяет, какой промпт применяется, и после создания не меняется.
@@ -338,8 +349,14 @@ const SELECTION_KEYS = ['profile'] as const;
 const PROFILES_LAST_KEY = 'recognition-profiles-last';
 
 export function RecognitionProfilesPage() {
-  const { data: profiles = [], isLoading } = useListRecognitionProfiles();
-  const { data: kinds = [] } = useRecognitionKinds();
+  const { data: loaded, isLoading, isError: profilesFailed } = useListRecognitionProfiles();
+  const profiles = loaded ?? EMPTY_PROFILES;
+  const { data: kinds } = useRecognitionKinds();
+  const { data: hidden = EMPTY_HIDDEN } = useHiddenRecognitionProfiles();
+  // «Видов нет» — это ОТВЕТ сервера: ни ожидание, ни отказ запроса им не считаются. Пока ответа
+  // нет, кнопка создания просто недоступна, а причину «нет модулей» называем, только получив пустой.
+  const noKinds = kinds?.length === 0;
+  const hiddenLine = hiddenSummary(hidden);
   // Удалённый id страхует `?? filtered[0]` ниже — восстановление молча уходит на первый профиль.
   // Выбранный ищется по всем профилям, а не по отфильтрованным: не прошедший поиск профиль
   // остаётся открытым и показывается в рейле отдельной строкой (issue #792, см. `outsideFilter`).
@@ -352,13 +369,18 @@ export function RecognitionProfilesPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q
-      ? profiles.filter(p => p.name.toLowerCase().includes(q) || p.kindInfo.label.toLowerCase().includes(q))
+      ? profiles.filter(p => p.name.toLowerCase().includes(q) || p.kindInfo.label.toLowerCase().includes(q)
+          || (p.moduleTitle ?? '').toLowerCase().includes(q))
       : profiles;
   }, [profiles, query]);
 
-  const builtIn = filtered.filter(p => p.isBuiltIn);
-  const custom = filtered.filter(p => !p.isBuiltIn);
-  const selected = profiles.find(p => p.id === selectedId) ?? filtered[0];
+  // Группы — по модулю-владельцу, а не «Встроенные / Свои» (issue #1075): модулей несколько, и
+  // вопрос «чей это профиль» стал первым. Заголовок стоит и при единственной группе — иначе
+  // появление второго модуля меняло бы устройство списка, а не добавляло строку.
+  const groups = groupByModule(filtered);
+  // Умолчание — ВЕРХНЯЯ строка рейла, а не первая в ответе сервера: рейл сложен по модулям, и
+  // первый по имени профиль может стоять в середине списка.
+  const selected = profiles.find(p => p.id === selectedId) ?? groups[0]?.items[0];
   // Открытый профиль, не прошедший поиск, показываем отдельной строкой (issue #792): иначе он
   // остаётся в детали, но пропадает из рейла — ни строки, ни подсветки, и снять выбор неоткуда.
   const outsideFilter = selected && !filtered.some(p => p.id === selected.id) ? selected : null;
@@ -372,7 +394,9 @@ export function RecognitionProfilesPage() {
         {p.builtInOutdated && <AlertTriangle size={12} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
         {p.isModified && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="Изменён" />}
       </span>
-      <span className="block text-xs text-fg4 truncate">{p.kindInfo.label} · {profileSummary(p)}</span>
+      <span className="block text-xs text-fg4 truncate">
+        {p.kindInfo.label} · {profileSummary(p)}{p.isBuiltIn ? '' : ' · свой'}
+      </span>
     </button>
   );
 
@@ -383,14 +407,22 @@ export function RecognitionProfilesPage() {
         subtitle="Параметры к промптам распознавания: какие поля и колонки извлекать из документа"
         titleIcon={<ScanText size={20} className="text-fg3" />}
         headerAction={
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-            Добавить профиль
-          </Button>
+          <span className="flex items-center gap-3">
+            {/* Причина — текстом рядом, а не подсказкой на кнопке: выключенная кнопка событий
+                мыши не получает, и подсказка на ней не показалась бы никогда. */}
+            {noKinds && (
+              <span className="text-xs text-fg4">Ни один включённый модуль не объявляет видов профилей</span>
+            )}
+            <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}
+              disabled={!kinds || noKinds}>
+              Добавить профиль
+            </Button>
+          </span>
         }
         overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div> : undefined}
         nav={
           <div className="flex flex-col min-h-0">
-            <div className="p-2"><NavSearchInput value={query} onChange={setQuery} placeholder="Поиск профиля…" /></div>
+            <div className="p-2"><NavSearchInput value={query} onChange={setQuery} placeholder="Профиль, вид или модуль…" /></div>
             <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
               {outsideFilter && (
                 <>
@@ -398,16 +430,29 @@ export function RecognitionProfilesPage() {
                   {row(outsideFilter)}
                 </>
               )}
-              {builtIn.length > 0 && <NavSection label="Встроенные" />}
-              {builtIn.map(row)}
-              {custom.length > 0 && <NavSection label="Свои" />}
-              {custom.map(row)}
+              {groups.map(g => (
+                <Fragment key={g.module}>
+                  <NavSection label={g.title} />
+                  {g.items.map(row)}
+                </Fragment>
+              ))}
               {filtered.length === 0 && (
                 <p className="text-sm text-fg4 px-3 py-2">
-                  {outsideFilter ? 'Больше ничего не найдено' : 'Ничего не найдено'}
+                  {profilesFailed
+                    ? 'Не удалось получить список профилей'
+                    : emptyText(loaded?.length === 0, !!outsideFilter)}
                 </p>
               )}
             </div>
+            {/* Профили выключенных модулей лежат в базе, но не предлагаются. Строка говорит, что
+                они есть и почему их не видно, — иначе «у меня был профиль» выглядит потерей. */}
+            {hiddenLine && (
+              <p className="flex items-start gap-1.5 border-t border-stroke px-3 py-2 text-xs text-fg4"
+                title={hidden.map(h => h.name).join('\n')}>
+                <EyeOff size={12} className="shrink-0 mt-0.5" />
+                <span>{hiddenLine}</span>
+              </p>
+            )}
           </div>
         }
         detail={selected
@@ -416,7 +461,7 @@ export function RecognitionProfilesPage() {
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый профиль распознавания">
         <div className="px-6 py-4">
-          <CreateProfileForm kinds={kinds}
+          <CreateProfileForm kinds={kinds ?? []}
             onSaved={id => { setSelectedId(id); setCreateOpen(false); }}
             onCancel={() => setCreateOpen(false)} />
         </div>
@@ -426,6 +471,12 @@ export function RecognitionProfilesPage() {
 }
 
 // ─── Вспомогательное ───────────────────────────────────────────────────────────
+
+/** Почему список пуст: искали и не нашли — или профилей на этом экземпляре нет вовсе. */
+function emptyText(noProfiles: boolean, hasOutside: boolean): string {
+  if (noProfiles) return 'Ни один включённый модуль не объявляет профили';
+  return hasOutside ? 'Больше ничего не найдено' : 'Ничего не найдено';
+}
 
 /** Пустые строки редактора в сохранение не уходят. */
 function clean(fields: RecognitionProfileField[]): RecognitionProfileField[] {

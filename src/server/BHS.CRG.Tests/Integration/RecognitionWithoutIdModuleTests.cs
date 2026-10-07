@@ -67,6 +67,38 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
     }
 
     /// <summary>
+    /// То, что общий список отсеял, отдаётся отдельно — именем и владельцем: экрану есть чем
+    /// объяснить «скрыто четыре профиля» и чем подписать привязку набора к такому профилю.
+    /// А диалог «Распознать PDF» получает перечень с сервера — и профиля ГОСТ в нём нет.
+    ///
+    /// Ломается, если отдать скрытые профили без владельца или вернуть в перечень PDF профиль,
+    /// выбор которого сервер отвергнет.
+    /// </summary>
+    [Fact]
+    public async Task Hidden_profiles_are_named_with_their_module_and_pdf_choice_follows_the_gate()
+    {
+        var client = await AdminAsync();
+
+        var hidden = await client.GetFromJsonAsync<JsonElement>("/api/recognition-profiles/hidden");
+        var rows = hidden.EnumerateArray().ToList();
+        Assert.Equal(4, rows.Count(r => r.GetProperty("module").GetString() == "id"));
+        Assert.All(rows, r =>
+        {
+            Assert.Equal(new IdModule().Title, r.GetProperty("moduleTitle").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(r.GetProperty("name").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(r.GetProperty("kindLabel").GetString()));
+        });
+
+        // Списки не пересекаются: профиль либо предлагают, либо называют скрытым.
+        var offered = await client.GetFromJsonAsync<JsonElement>("/api/recognition-profiles");
+        Assert.Empty(offered.EnumerateArray().Select(p => p.GetProperty("id").GetGuid())
+            .Intersect(rows.Select(r => r.GetProperty("id").GetGuid())));
+
+        var pdf = await client.GetFromJsonAsync<JsonElement>("/api/recognition-profiles/pdf");
+        Assert.Equal([PdfProfiles.Invoice], pdf.EnumerateArray().Select(p => p.GetProperty("profile").GetString()));
+    }
+
+    /// <summary>
     /// Профили выключенного модуля лежат в базе и подписаны его кодом: выключение их не удаляет, и
     /// включённый обратно модуль найдёт их там же — вместе с правками администратора.
     ///

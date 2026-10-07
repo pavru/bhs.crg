@@ -10,6 +10,9 @@ public record ListRecognitionProfilesQuery : IRequest<IReadOnlyList<RecognitionP
 
 public record ListRecognitionKindsQuery : IRequest<IReadOnlyList<RecognitionKindInfo>>;
 
+/// <summary>Профили выключенных модулей — имя и владелец, без содержимого (issue #1075).</summary>
+public record ListHiddenRecognitionProfilesQuery : IRequest<IReadOnlyList<HiddenRecognitionProfileDto>>;
+
 public record CreateRecognitionProfileCommand(
     string Name,
     string Kind,
