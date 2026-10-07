@@ -135,6 +135,8 @@ public sealed record ModuleTableColumn(
 /// открывается всеми колонками в порядке объявления.</param>
 /// <param name="Breakdown">Расшифровка строки — её нижнее зерно в боковой панели
 /// (<see cref="ModuleTableBreakdown" />): «Разноска» у счёта. null — строка не расшифровывается.</param>
+/// <param name="Shortcuts">Готовые отборы таблицы — условия, которые модуль предлагает поставить одним
+/// нажатием, с числом строк под каждым (<see cref="ModuleTableShortcut" />). null — готовых нет.</param>
 public sealed record ModuleTable(
     string Code,
     string Title,
@@ -146,7 +148,8 @@ public sealed record ModuleTable(
     Type Reader,
     string? RecordType = null,
     IReadOnlyList<ModuleTableView>? Views = null,
-    ModuleTableBreakdown? Breakdown = null)
+    ModuleTableBreakdown? Breakdown = null,
+    IReadOnlyList<ModuleTableShortcut>? Shortcuts = null)
 {
     /// <summary>Полный адрес таблицы: <c>модуль.таблица</c>.</summary>
     public static string Address(string module, string code) => $"{module}.{code}";
@@ -214,6 +217,15 @@ public sealed record ModuleTable(
             problems.Add($"представление «{twice.Key}» объявлено дважды");
 
         if (Breakdown is not null) problems.AddRange(Breakdown.Problems(Columns));
+
+        foreach (var shortcut in Shortcuts ?? [])
+        {
+            if (shortcut is null) { problems.Add("в списке готовых отборов пустое место"); continue; }
+            problems.AddRange(shortcut.Problems(Columns));
+        }
+        foreach (var twice in (Shortcuts ?? []).Where(s => s?.Code is not null)
+                     .GroupBy(s => s.Code, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            problems.Add($"готовый отбор «{twice.Key}» объявлен дважды");
 
         return problems;
     }

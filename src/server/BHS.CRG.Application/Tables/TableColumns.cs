@@ -185,6 +185,20 @@ public record TableViewDto(
     IReadOnlyList<TableSortRequest> Sort, IReadOnlyList<TableViewTotalDto> Totals, int Pinned,
     IReadOnlyList<string> Filters);
 
+/// <summary>
+/// Готовый отбор таблицы с числом строк под ним (issue #1186). Экран по нажатию ставит условие
+/// «<paramref name="Column" /> равно <paramref name="Value" />» в обычный отбор.
+/// </summary>
+/// <param name="Count">Сколько строк таблицы под этим условием — тем же счётом, каким таблица считает
+/// строки отбора. Прочие условия экрана сюда не входят: это число по всей таблице.</param>
+/// <param name="Unchecked">Почему числу нельзя верить как полному: «проверено не всё: …». ⚠️ Ноль с
+/// этой причиной — НЕ «строк нет»: экран обязан показать его иначе, чем проверенный ноль. null —
+/// посчитано полностью.</param>
+/// <param name="Quiet">Отбор не зовёт к срочному действию — показывается тише.</param>
+public record TableShortcutDto(
+    string Code, string Title, string? Hint, string Column, string Op, string Value, int Count,
+    string? Unchecked = null, bool Quiet = false);
+
 /// <summary>Итог готового представления: колонка и слово итога (<c>sum</c>, <c>count</c>…).</summary>
 public record TableViewTotalDto(string Column, string Aggregate);
 
@@ -200,6 +214,9 @@ public record TableViewTotalDto(string Column, string Aggregate);
 /// открытую в боковой панели (<see cref="TableRequest.Row" />). null — таблица ключей не называет.</param>
 /// <param name="Breakdown">Расшифровка строки — только в ответе на запрос одной строки
 /// (<see cref="TableRequest.Row" />): «Разноска» счёта. null — у строки её нет.</param>
+/// <param name="Doubts">По каким колонкам ответ НЕПОЛОН (issue #1186): значение колонки даёт опрос,
+/// который проверил не всё. ⚠️ Касается и колонки, которой среди показанных нет, — по ней мог стоять
+/// отбор: пустая выдача с сомнением — не «таких строк нет». null — сомнений нет.</param>
 public record TableDto(
     string Address, string Title, string Grain, string Boundary,
     IReadOnlyList<TableColumnDto> Columns,
@@ -208,7 +225,11 @@ public record TableDto(
     int Count = 0, int Offset = 0, int? Limit = null,
     IReadOnlyDictionary<string, TableTotalDto>? Totals = null,
     IReadOnlyList<string>? Keys = null,
-    TableBreakdownDto? Breakdown = null);
+    TableBreakdownDto? Breakdown = null,
+    IReadOnlyList<TableDoubtDto>? Doubts = null);
+
+/// <summary>Колонка, по которой ответ неполон, и причина словами: «проверено не всё: …».</summary>
+public record TableDoubtDto(string Column, string Label, string Reason);
 
 /// <summary>
 /// Расшифровка строки — её нижнее зерно под тем же отбором (ТЗ CORE-33, COST-20.1; задача G4, issue

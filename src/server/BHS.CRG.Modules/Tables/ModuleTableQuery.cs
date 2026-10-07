@@ -169,13 +169,19 @@ public sealed record ModuleTableQuery(
 /// <param name="Breakdown">Расшифровка строки — только в ответе на запрос ОДНОЙ строки
 /// (<see cref="ModuleTableQuery.Row" />) и только у таблицы, которая её объявила
 /// (<see cref="ModuleTable.Breakdown" />). Со страницей — ошибка модуля, а не лишнее поле.</param>
+/// <param name="Doubts">По каким колонкам ответ НЕПОЛОН и почему — словами для человека: «проверено не
+/// всё: база отказала в чтении строк счёта» (issue #1186). Нужно колонке, значение которой даёт опрос,
+/// умеющий отказать частично: без этого слова её пустая клетка и число строк под отбором по ней
+/// значили бы «всё на месте», когда на деле не проверено. Ядро ставит причину подписью колонки и
+/// отдаёт её вместе с числом готового отбора. null — сомнений нет.</param>
 public sealed record ModuleTablePage(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     int Count,
     IReadOnlyDictionary<string, TableTotal> Totals,
     IReadOnlyDictionary<string, string>? Notes = null,
     IReadOnlyList<string>? Keys = null,
-    TableRowBreakdown? Breakdown = null);
+    TableRowBreakdown? Breakdown = null,
+    IReadOnlyDictionary<string, string>? Doubts = null);
 
 /// <summary>
 /// Итог по колонке — по всему отбору (ТЗ CORE-33).
@@ -211,4 +217,26 @@ public sealed record TableTotal(
 public interface IModuleTableRows
 {
     Task<ModuleTablePage> ReadAsync(ModuleTableQuery query, CancellationToken ct);
+}
+
+/// <summary>Сколько строк под отбором — без самих строк.</summary>
+/// <param name="Doubts">То же, что <see cref="ModuleTablePage.Doubts" />: по каким колонкам ответ неполон.</param>
+public sealed record ModuleTableCount(int Count, IReadOnlyDictionary<string, string>? Doubts = null);
+
+/// <summary>
+/// Служба строк, умеющая ПОСЧИТАТЬ строки под несколькими отборами разом, не читая их (issue #1186).
+/// Необязательна: без неё ядро считает готовые отборы обычным чтением страницы нулевой длины.
+///
+/// <para>Нужна службе, у которой подготовка чтения дорога: справочники названий, опрос ядра. Готовых
+/// отборов у таблицы несколько, и считать каждый отдельным чтением значило бы повторить подготовку
+/// столько же раз (ревью PR #1240).</para>
+///
+/// <para>⚠️ Число обязано совпадать с <see cref="ModuleTablePage.Count" /> того же запроса: на него
+/// нажимают, чтобы увидеть ровно столько строк. Поэтому считать его положено ТЕМ ЖЕ построителем
+/// запроса, каким читается страница, а не своей арифметикой.</para>
+/// </summary>
+public interface IModuleTableCounts
+{
+    /// <returns>По одному ответу на запрос, в том же порядке.</returns>
+    Task<IReadOnlyList<ModuleTableCount>> CountAsync(IReadOnlyList<ModuleTableQuery> queries, CancellationToken ct);
 }

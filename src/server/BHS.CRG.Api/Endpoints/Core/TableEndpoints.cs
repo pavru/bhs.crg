@@ -35,6 +35,19 @@ public static class TableEndpoints
                 : Results.Json(new { error = refusal!.Error }, statusCode: refusal.Status);
         });
 
+        // Готовые отборы таблицы с числом строк под каждым (issue #1186). Отдельным адресом, а не
+        // частью описания или страницы: число даёт запрос к строкам, а у колонки по требованию — ещё и
+        // опрос ядра, и платить за него на каждую страницу и сортировку незачем.
+        g.MapGet("/{address}/shortcuts", async (
+            string address, ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables,
+            CancellationToken ct) =>
+        {
+            var (shortcuts, refusal) = await tables.ShortcutsAsync(address, await access.ForAsync(user, ct), ct);
+            return shortcuts is not null
+                ? Results.Ok(shortcuts)
+                : Results.Json(new { error = refusal!.Error }, statusCode: refusal.Status);
+        });
+
         // ?columns=Номер,Итого — колонки сохранённого представления: исчезнувшая из типа приходит
         // колонкой с причиной, а не пропадает. Отбор — тем же деревом условий, что у наборов данных
         // (?filter=…), сортировка — ?sort=Итого:desc,Номер, итоги — ?totals=Итого, одна строка —

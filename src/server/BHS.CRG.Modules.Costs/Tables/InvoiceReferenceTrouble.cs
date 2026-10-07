@@ -48,6 +48,29 @@ public sealed record InvoiceTroubles(
     public static InvoiceTroubles None { get; } =
         new(new Dictionary<Guid, LostMark>(), new HashSet<Guid>(), new([], [], DateTimeOffset.MinValue));
 
+    /// <summary>
+    /// Почему ответу нельзя верить как полному — словами для человека; null — проверено всё, что
+    /// проверяется.
+    ///
+    /// <para>⚠️ Колонка со смешанными целями (<see cref="UncheckedReason.MixedTargets" /> — выбор в
+    /// дополнительном поле счёта) сюда НЕ входит: она не проверяется по построению, всегда, и сомнение
+    /// из-за неё стояло бы у числа вечно — то есть перестало бы что-либо значить. Здесь — только сбой:
+    /// база отказала в чтении либо схема отстала от объявления.</para>
+    ///
+    /// <para>Чьей таблицы сбой — счетов или накладных — не разбираем: непроверенная колонка накладных
+    /// счёту не мешает, но сказать лишнее «проверено не всё» дешевле, чем промолчать о своём.</para>
+    /// </summary>
+    public string? Doubt
+    {
+        get
+        {
+            // Числом, а не словами объявления: те названы от записи («счета этого поставщика») и в
+            // подписи колонки читались бы как отбор.
+            var failed = Findings.Unchecked.Count(u => u.Reason != UncheckedReason.MixedTargets);
+            return failed == 0 ? null : $"проверено не всё: не прочитано колонок со ссылками — {failed}";
+        }
+    }
+
     /// <summary>Ключи счетов с такой пометкой — массивом: так его принимает запрос к базе.</summary>
     public Guid[] With(LostMark mark) => [.. Lost.Where(l => l.Value == mark).Select(l => l.Key)];
 }
