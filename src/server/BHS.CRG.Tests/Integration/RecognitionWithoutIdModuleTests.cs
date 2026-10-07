@@ -197,6 +197,27 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
         Assert.Contains("Исполнительная документация", refusal.Message);
     }
 
+    /// <summary>
+    /// Профиль выключенного модуля, привязанный к набору или группе листов раньше: поставщик отвечает
+    /// отказом, а не «такого нет». По «нет» потребитель взял бы заводской профиль вида — и прочитал
+    /// бы документ не теми параметрами, которые выбрал человек, не сказав об этом никому.
+    /// </summary>
+    [Fact]
+    public async Task Bound_profile_of_the_disabled_module_refuses_instead_of_falling_back()
+    {
+        _ = host.CreateClient();
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stamp = await db.RecognitionProfiles.AsNoTracking()
+            .SingleAsync(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
+        var provider = scope.ServiceProvider.GetRequiredService<IRecognitionProfileProvider>();
+
+        var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => provider.GetByIdAsync(stamp.Id));
+
+        Assert.Contains("Исполнительная документация", refusal.Message);
+        Assert.Null(await provider.GetByIdAsync(Guid.NewGuid()));
+    }
+
     private static async Task AssertNamesModuleAsync(HttpResponseMessage response)
     {
         var text = await response.Content.ReadAsStringAsync();

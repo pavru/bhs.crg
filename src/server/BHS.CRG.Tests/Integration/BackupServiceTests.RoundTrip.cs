@@ -180,7 +180,7 @@ public partial class BackupServiceTests
             var restored = await db.RecognitionProfiles.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Name == "Список деталей шкафа");
             Assert.NotNull(restored);
-            Assert.Equal(RecognitionProfileKind.Table, restored!.Kind);
+            Assert.Equal((RecognitionProfileKind.Table, "id"), (restored!.Kind, restored.Module));   // владелец едет в копии (#1075)
             Assert.Null(restored.Code);          // пользовательский — кода нет
             Assert.False(restored.IsBuiltIn);
             Assert.True(RecognitionProfileJson.ReadShape(restored.Shape)!.TwoTierHeader);
