@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -20,7 +21,8 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class ClosedTypeCreationInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure");
 
     private static readonly Regex Creation = new(
         @"DomainObject\.(Create|CloneAsDocument|Restore|RestoreDocument)\(", RegexOptions.Compiled);

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -19,15 +20,40 @@ namespace BHS.CRG.Tests.Configuration;
 /// на архивную запись отвергается. «Охраняемый» теперь читается и как «здесь ссылки ВЫБИРАЮТ», а
 /// «свободный» — и как «здесь стоявшие ссылки переносят»: позови машинный путь охрану как создание,
 /// у него «как лежит» было бы пусто, и каждая старая ссылка на архивную запись стала бы отказом.</para>
+///
+/// <para><b>Проекты модулей — в том же перечне</b> (задача M3, issue #1071). Запись, которую модуль
+/// хранит в своей таблице, ядро не сохраняет и проверить не может: охрану зовёт сам модуль, портом
+/// <c>IModuleWriteGuard</c>. Забытый вызов там выглядит так же, как забытый у ядра, — никак. Путь
+/// записи у модуля свой (метод его сущности), поэтому каждый тип с носителем «таблица модуля»
+/// обязан назвать его в <see cref="ModuleTableWrites" />: тип без названного пути — красный тест.</para>
 /// </summary>
 public class RecordWriteGuardCoverageTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Application", "BHS.CRG.Api"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Application", "BHS.CRG.Api");
+
+    /// <summary>
+    /// Чем тип модуля с носителем «таблица модуля» кладёт данные по схеме в свою запись: код типа →
+    /// выражение, по которому это место находят. Ключи сверяются с объявлениями поставленных модулей.
+    /// </summary>
+    private static readonly Dictionary<string, string> ModuleTableWrites = new()
+    {
+        ["СчётНаОплату"] = @"\binvoice\.Apply\(",
+    };
 
     /// <summary>Как данные попадают в объект: присвоение или конструктор с готовыми данными.</summary>
     private static readonly Regex DataWrite = new(
-        @"\.SetData\(|\.Update\(cmd\.DisplayName|\.Update\(cmd\.DocumentTypeId|DomainObject\.Create\(|DomainObject\.CloneAsDocument\(|QualityDocument\.Create\(",
+        @"\.SetData\(|\.Update\(cmd\.DisplayName|\.Update\(cmd\.DocumentTypeId|DomainObject\.Create\(|DomainObject\.CloneAsDocument\(|QualityDocument\.Create\(|"
+        + string.Join('|', ModuleTableWrites.Values),
         RegexOptions.Compiled);
+
+    /// <summary>
+    /// Вызов охраны: у ядра — <c>WriteGuard.EnsureAllowedAsync</c>, у модуля — его обёртка над портом,
+    /// первым аргументом которой идёт сам порт (отказы порт возвращает, а не бросает, и превращает их
+    /// в отказ запросу модуль).
+    /// </summary>
+    private static readonly Regex GuardCall = new(
+        @"WriteGuard\.EnsureAllowedAsync|\bEnsureAllowedAsync\(guard\b|\bguard\.RefusalsAsync\(", RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>
     private const int GuardLookback = 15;
@@ -53,6 +79,10 @@ public class RecordWriteGuardCoverageTests
             (Guarded, "правка документа качества"),
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|instance.SetData(patched);"] =
             (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо MediatR"),
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.Apply(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));"] =
+            (Guarded, "создание счёта: реквизиты пришли из формы или из распознавания, лежащего нет — всё вносится впервые"),
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.Apply(columns, rest, dueDateByHand: true);"] =
+            (Guarded, "правка шапки счёта — проверяется против лежащего, дополненного неприсланным состоянием"),
 
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =
             (Free, "перенос ключа поля и починка аудита: их работа и есть трогать кривые данные; " +
@@ -85,8 +115,9 @@ public class RecordWriteGuardCoverageTests
         var undeclared = found.Keys.Where(k => !Writes.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
         Assert.True(undeclared.Count == 0,
             "Появился путь записи данных, о котором охрана не знает:\n" + string.Join("\n", undeclared) +
-            "\n\nВпишите его в Writes: Guarded — если рядом обязан стоять вызов " +
-            "WriteGuard.EnsureAllowedAsync, Free — с причиной, почему охраны там быть не должно.");
+            "\n\nВпишите его в Writes: Guarded — если рядом обязан стоять вызов охраны " +
+            "(WriteGuard.EnsureAllowedAsync у ядра, порт IModuleWriteGuard у модуля), Free — с причиной, " +
+            "почему охраны там быть не должно.");
 
         var stale = Writes.Keys.Where(k => !found.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
         Assert.True(stale.Count == 0,
@@ -104,7 +135,7 @@ public class RecordWriteGuardCoverageTests
         {
             if (!found.TryGetValue(key, out var guardNearby)) continue; // о пропаже говорит соседний тест
             if (guarded && !guardNearby)
-                wrong.Add($"{key}\n    объявлен охраняемым ({why}), но вызова WriteGuard.EnsureAllowedAsync рядом нет");
+                wrong.Add($"{key}\n    объявлен охраняемым ({why}), но вызова охраны рядом нет");
             if (!guarded && guardNearby)
                 wrong.Add($"{key}\n    объявлен свободным ({why}), а охрана рядом стоит — решение изменилось?");
         }
@@ -112,21 +143,51 @@ public class RecordWriteGuardCoverageTests
         Assert.True(wrong.Count == 0, "Перечень охраны разошёлся с кодом:\n" + string.Join("\n", wrong));
     }
 
+    /// <summary>
+    /// Каждый тип модуля, чьи записи лежат в таблице модуля, назвал свой путь записи — и назвал
+    /// действующий. Без первого новый такой тип писал бы данные по схеме, а перечень его не видел бы
+    /// вовсе; без второго переименованный метод увёл бы путь из-под перечня при зелёном тесте.
+    /// </summary>
+    [Fact]
+    public void Каждый_тип_в_таблице_модуля_назвал_свой_путь_записи()
+    {
+        var own = BHS.CRG.Api.Modules.DeliveredModules.All()
+            .SelectMany(m => m.RecordTypes)
+            .Where(t => t.Storage == BHS.CRG.Modules.ModuleStorage.ModuleTable)
+            .Select(t => t.Code)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(own.Count > 0,
+            "Среди поставленных модулей нет ни одного типа с носителем «таблица модуля» — проверять нечего. " +
+            "Счёт таким был: либо объявление сменило носитель, либо модули собраны не те.");
+        Assert.Equal(own, ModuleTableWrites.Keys.Order(StringComparer.Ordinal).ToList());
+
+        var found = FindWrites().Keys.Select(k => k[(k.IndexOf('|') + 1)..]).ToList();
+        var unused = ModuleTableWrites
+            .Where(w => !found.Any(line => Regex.IsMatch(line, w.Value)))
+            .Select(w => $"{w.Key}: {w.Value}")
+            .ToList();
+        Assert.True(unused.Count == 0,
+            "Путь записи назван, а в коде по нему ничего не находится: " + string.Join("; ", unused) +
+            ".\nМетод переименовали? Поправьте выражение — иначе запись этого типа перечень не видит.");
+    }
+
     /// <summary>Место записи → стоит ли рядом (выше) вызов охраны.</summary>
     private static Dictionary<string, bool> FindWrites()
     {
         var found = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (var project in Projects)
-            foreach (var file in SourceFiles(project))
+            foreach (var file in SourceTree.Files(project))
             {
                 var lines = File.ReadAllLines(file);
                 for (var i = 0; i < lines.Length; i++)
                 {
                     if (!DataWrite.IsMatch(lines[i])) continue;
-                    var key = $"{Relative(file)}|{lines[i].Trim()}";
+                    var key = $"{SourceTree.Relative(file)}|{lines[i].Trim()}";
                     var guarded = false;
                     for (var back = Math.Max(0, i - GuardLookback); back < i; back++)
-                        if (lines[back].Contains("WriteGuard.EnsureAllowedAsync")) guarded = true;
+                        if (GuardCall.IsMatch(lines[back])) guarded = true;
                     // Одинаковые строки в одном файле сливаются: если хоть одна из них охраняется,
                     // считаем охраняемой пару — иначе перечень потребовал бы различать их номерами
                     // строк, а номера сдвигает любая правка выше по файлу.
@@ -134,24 +195,5 @@ public class RecordWriteGuardCoverageTests
                 }
             }
         return found;
-    }
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException("Не найден каталог решения (BHS.CRG.slnx).");
     }
 }

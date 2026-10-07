@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -22,7 +23,8 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class RecordDeletionInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>Файл удаляет — что-нибудь.</summary>
     private static readonly Regex Deletes = new(@"\.Remove\(|RemoveRange\(|ExecuteDeleteAsync", RegexOptions.Compiled);
@@ -117,7 +119,7 @@ public class RecordDeletionInventoryTests
     [Fact]
     public void Принудительное_удаление_отправляет_один_адрес()
     {
-        var senders = Projects.Append("BHS.CRG.Modules.Costs").SelectMany(SourceFiles)
+        var senders = Projects.SelectMany(SourceFiles)
             .Where(file => Code(File.ReadAllText(file)).Contains("new PurgeHeldRecordCommand("))
             .Select(Relative)
             .Order(StringComparer.Ordinal)

@@ -1,4 +1,5 @@
 ﻿using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -21,7 +22,8 @@ namespace BHS.CRG.Tests.Configuration;
 public class DomainExceptionPolicyTests
 {
     /// <summary>Проекты, где живут отказы пользователю. Api сюда не входит: см. <see cref="ApiOnly" />.</summary>
-    private static readonly string[] Projects = ["BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     // \s+ между словами, а не пробел: длинный throw переносят на следующую строку, и построчная
     // проверка такой пропустила бы — то есть обойти правило можно было бы, просто нажав Enter.
@@ -56,6 +58,8 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",
         ["BHS.CRG.Infrastructure/Generation/TypeBlocksMaterializer.cs"] = "та же защита для блоков типов: пути формирует сервер, выход за папку компиляции — дефект, не отказ пользователю",
         ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
+        ["BHS.CRG.Modules.Costs/Data/AllocationSplit.cs"] = "делить не на что или вес не больше нуля: цели и веса проверяет адрес предпросмотра раньше (AllocationMatrixEndpoints.Targets, DocumentTargetsAsync) и отказывает своими словами — сюда такое доходит только из нашего кода",
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs"] = "счёт правят вне запроса — версию, по которой собрана правка, назвать некому: так вызвать связку может только наш код (фоновая правка без своего пути), человек до этого отказа не доходит",
         ["BHS.CRG.Domain/Objects/DomainObject.cs"] = "документные свойства спросили у не-документа — дефект вызывающего кода",
         ["BHS.CRG.Domain/Notifications/Notification.cs"] = "уведомление адресовано и лично, и по праву разом — путаница в издателе; до пользователя такой отказ не доходит вовсе",
         ["BHS.CRG.Infrastructure/Persistence/AppDbContext.cs"] = "правка дописываемой записи (журнал действий, закрытие периода) — дефект кода, а не отказ пользователю: такой правки в интерфейсе нет вовсе (ТЗ CORE-28, CORE-35)",

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Tests.Integration;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -19,7 +20,8 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class PeriodClosureInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     private static readonly Dictionary<string, string> MayTouchTheSet = new()
     {

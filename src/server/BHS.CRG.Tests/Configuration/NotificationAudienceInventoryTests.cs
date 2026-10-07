@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -13,12 +14,19 @@ namespace BHS.CRG.Tests.Configuration;
 /// всё. Приём тот же, что у инвентаризации адресов (<see cref="Integration.EndpointGateInventoryTests" />):
 /// связать «добавил уведомление» с «назови, кому оно», пока решение ещё дёшево.
 ///
+/// <para><b>Проекты модулей — под той же переписью</b> (задача M3, issue #1071). Модуль публикует
+/// портом <c>IModuleNotifications</c>, и адресат у порта необязателен так же, как у службы: вызов без
+/// него уходит всем вошедшим. Метод порта назван так же нарочно — перепись находит его тем же
+/// выражением. Сам переходник (<c>ModuleNotificationsPort</c>) передаёт оба параметра дальше как
+/// получил и потому проходит; решает тот, кто порт зовёт.</para>
+///
 /// ⚠️ Проверка читает ИСХОДНИКИ: в метаданных сборки необязательный аргумент, который не передали,
 /// никак не отражается — его просто нет.
 /// </summary>
 public class NotificationAudienceInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>
     /// Кому дозволено звонить всем вошедшим — с причиной. Добавляя строку, вы принимаете решение:

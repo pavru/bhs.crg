@@ -428,10 +428,14 @@ public static class InvoiceEndpoints
         var refusals = await guard.RefusalsAsync(typeId, stored, incoming, ct);
         if (refusals.Count == 0) return;
 
-        throw new InvalidRequestException(
-            "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select(
-                // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
-                r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message)));
+        // Message здесь — поле находки охраны ядра (ModuleWriteRefusal), а не сообщение исключения:
+        // слова наши, писаны для человека. Собраны отдельно от отказа, чтобы это было видно и сторожу
+        // текстов отказов (RefusalTextTests), который читает вызов, а не типы.
+        var found = string.Join(" ", refusals.Select(
+            // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
+            r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message));
+
+        throw new InvalidRequestException("Счёт не сохранён — охрана записи: " + found);
     }
 
     /// <summary>

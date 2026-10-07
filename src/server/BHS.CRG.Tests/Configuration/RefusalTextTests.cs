@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -32,7 +33,7 @@ namespace BHS.CRG.Tests.Configuration;
 public class RefusalTextTests
 {
     private static readonly string[] Projects =
-        ["BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Api"];
+        SolutionModules.WithCore("BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Api");
 
     /// <summary>
     /// Все потомки <see cref="DomainException" /> — ОТРАЖЕНИЕМ, а не списком имён.
@@ -97,6 +98,13 @@ public class RefusalTextTests
             + "где оборвалась скобка, какой символ не на месте. Общий текст оставил бы построитель без "
             + "диагностики; типы разбора названы в catch поимённо, а ArgumentException и "
             + "InvalidOperationException ловятся отдельной веткой и уходят в inner",
+        // Модуль счетов (issue #1071 — перепись стала видеть проекты модулей). В обоих местах ловится
+        // ТОЛЬКО InvalidRequestException: текст наш, чужому сообщению взяться неоткуда.
+        ["$\"Строка {line.Ordinal}: {e.Message}\", e"] =
+            "матрица разноски: наш же отказ о части получает номер строки счёта — без него человек видит "
+            + "«разнесено больше, чем в строке» и не знает, в какой",
+        ["$\"Счёт целиком: {e.Message}\", e"] =
+            "то же для разноски счёта суммой: наш отказ с пометкой, что он про счёт, а не про строку",
     };
 
     [Fact]
@@ -178,7 +186,7 @@ public class RefusalTextTests
         // Configuration/EndpointMap.cs (там же /api/version, причём анонимный), и следующий такой
         // файл появится, не спросив проверку. Startup-отказы, которые сюда попадают заодно, названы
         // в DeliberateResponses поимённо — это решение, а не обход.
-        foreach (var (file, text) in Sources(["BHS.CRG.Api"]))
+        foreach (var (file, text) in Sources(SolutionModules.WithCore("BHS.CRG.Api")))
         {
             if (DeliberateResponses.ContainsKey(Path.GetFileName(file))) continue;
 

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -23,7 +24,8 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class ObjectDataWriteInventoryTests
 {
-    private static readonly string[] Projects = ["BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure"];
+    private static readonly string[] Projects =
+        SolutionModules.WithCore("BHS.CRG.Application", "BHS.CRG.Api", "BHS.CRG.Infrastructure");
 
     private static readonly Regex DataWrite = new(
         @"\.SetData\(|entry\.Update\(cmd\.DisplayName|DomainObject\.Restore(Document)?\(|UPDATE domain_objects SET ""Data""",

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Tests.Common;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -34,7 +35,7 @@ namespace BHS.CRG.Tests.Configuration;
 public class NotificationRefusalTextTests
 {
     private static readonly string[] Projects =
-        ["BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
+        SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure");
 
     /// <summary>
     /// Осознанное исключение из правила: файл, ОБРЫВОК самого вызова и причина.
