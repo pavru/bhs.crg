@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { plural, type HiddenRecognitionProfile } from './recognitionProfileGroups';
+import { ruCount } from '@/shared/utils/pluralize';
+import type { HiddenRecognitionProfile } from './recognitionProfileGroups';
 
 /**
  * Профили распознавания (issue #405/#408): промпты остаются в коде, профиль задаёт к ним параметры.
@@ -148,7 +149,7 @@ export function useDeleteRecognitionProfile() {
 /** Короткое превью параметров для строки списка. */
 export function profileSummary(p: RecognitionProfile): string {
   const parts: string[] = [];
-  if (p.fields.length > 0) parts.push(`${p.fields.length} ${plural(p.fields.length, 'поле', 'поля', 'полей')}`);
-  if (p.rowColumns.length > 0) parts.push(`${p.rowColumns.length} ${plural(p.rowColumns.length, 'колонка', 'колонки', 'колонок')}`);
+  if (p.fields.length > 0) parts.push(ruCount(p.fields.length, 'поле', 'поля', 'полей'));
+  if (p.rowColumns.length > 0) parts.push(ruCount(p.rowColumns.length, 'колонка', 'колонки', 'колонок'));
   return parts.length > 0 ? parts.join(' · ') : 'параметров нет';
 }

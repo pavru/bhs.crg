@@ -36,6 +36,7 @@ const FIELD_TYPES = [
 const EMPTY_SHAPE: RecognitionTableShape = { twoTierHeader: false, pairedSections: false, skipTotals: true };
 // Модульная константа, а не `= []` в месте чтения: новый массив на каждый рендер.
 const EMPTY_HIDDEN: HiddenRecognitionProfile[] = [];
+const EMPTY_PROFILES: RecognitionProfile[] = [];
 
 // ─── Редактор списка полей/колонок ─────────────────────────────────────────────
 
@@ -348,12 +349,13 @@ const SELECTION_KEYS = ['profile'] as const;
 const PROFILES_LAST_KEY = 'recognition-profiles-last';
 
 export function RecognitionProfilesPage() {
-  const { data: profiles = [], isLoading } = useListRecognitionProfiles();
-  const { data: kinds, isLoading: kindsLoading } = useRecognitionKinds();
+  const { data: loaded, isLoading, isError: profilesFailed } = useListRecognitionProfiles();
+  const profiles = loaded ?? EMPTY_PROFILES;
+  const { data: kinds } = useRecognitionKinds();
   const { data: hidden = EMPTY_HIDDEN } = useHiddenRecognitionProfiles();
-  // «Видов нет» — это ответ сервера, а не его ожидание: пока список грузится, кнопка создания
-  // просто ждёт, а причину «нет модулей» называем, только получив пустой ответ.
-  const noKinds = !kindsLoading && (kinds?.length ?? 0) === 0;
+  // «Видов нет» — это ОТВЕТ сервера: ни ожидание, ни отказ запроса им не считаются. Пока ответа
+  // нет, кнопка создания просто недоступна, а причину «нет модулей» называем, только получив пустой.
+  const noKinds = kinds?.length === 0;
   const hiddenLine = hiddenSummary(hidden);
   // Удалённый id страхует `?? filtered[0]` ниже — восстановление молча уходит на первый профиль.
   // Выбранный ищется по всем профилям, а не по отфильтрованным: не прошедший поиск профиль
@@ -376,7 +378,9 @@ export function RecognitionProfilesPage() {
   // вопрос «чей это профиль» стал первым. Заголовок стоит и при единственной группе — иначе
   // появление второго модуля меняло бы устройство списка, а не добавляло строку.
   const groups = groupByModule(filtered);
-  const selected = profiles.find(p => p.id === selectedId) ?? filtered[0];
+  // Умолчание — ВЕРХНЯЯ строка рейла, а не первая в ответе сервера: рейл сложен по модулям, и
+  // первый по имени профиль может стоять в середине списка.
+  const selected = profiles.find(p => p.id === selectedId) ?? groups[0]?.items[0];
   // Открытый профиль, не прошедший поиск, показываем отдельной строкой (issue #792): иначе он
   // остаётся в детали, но пропадает из рейла — ни строки, ни подсветки, и снять выбор неоткуда.
   const outsideFilter = selected && !filtered.some(p => p.id === selected.id) ? selected : null;
@@ -403,11 +407,17 @@ export function RecognitionProfilesPage() {
         subtitle="Параметры к промптам распознавания: какие поля и колонки извлекать из документа"
         titleIcon={<ScanText size={20} className="text-fg3" />}
         headerAction={
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}
-            disabled={kindsLoading || noKinds}
-            title={noKinds ? 'Ни один включённый модуль не объявляет видов профилей — создавать нечего' : undefined}>
-            Добавить профиль
-          </Button>
+          <span className="flex items-center gap-3">
+            {/* Причина — текстом рядом, а не подсказкой на кнопке: выключенная кнопка событий
+                мыши не получает, и подсказка на ней не показалась бы никогда. */}
+            {noKinds && (
+              <span className="text-xs text-fg4">Ни один включённый модуль не объявляет видов профилей</span>
+            )}
+            <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}
+              disabled={!kinds || noKinds}>
+              Добавить профиль
+            </Button>
+          </span>
         }
         overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div> : undefined}
         nav={
@@ -428,7 +438,9 @@ export function RecognitionProfilesPage() {
               ))}
               {filtered.length === 0 && (
                 <p className="text-sm text-fg4 px-3 py-2">
-                  {emptyText(profiles.length === 0 && !isLoading, !!outsideFilter)}
+                  {profilesFailed
+                    ? 'Не удалось получить список профилей'
+                    : emptyText(loaded?.length === 0, !!outsideFilter)}
                 </p>
               )}
             </div>

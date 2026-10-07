@@ -42,10 +42,13 @@ public class RecognitionProfileHandlers(
         ListHiddenRecognitionProfilesQuery _, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
-        return [.. all.Where(p => !catalog.IsAvailable(p)).OrderBy(p => p.Name).Select(p =>
-            new HiddenRecognitionProfileDto(
-                p.Id, p.Name, p.Kind.ToString(), provider.DescribeKind(p.Kind).Label,
-                catalog.OwnerOf(p)?.Code, catalog.OwnerOf(p)?.Title))];
+        // Владелец — один раз на строку: по нему и отбор, и подпись.
+        return [.. all.Select(p => (Profile: p, Owner: catalog.OwnerOf(p)))
+            .Where(x => x.Owner is not { Enabled: true })
+            .OrderBy(x => x.Profile.Name)
+            .Select(x => new HiddenRecognitionProfileDto(
+                x.Profile.Id, x.Profile.Name, x.Profile.Kind.ToString(),
+                provider.DescribeKind(x.Profile.Kind).Label, x.Owner?.Code, x.Owner?.Title))];
     }
 
     public async Task<RecognitionProfileDto> Handle(CreateRecognitionProfileCommand cmd, CancellationToken ct)

@@ -5,7 +5,7 @@ import { useSetFileRecognitionProfiles } from '@/shared/api/datasets';
 import {
   useHiddenRecognitionProfiles, useListRecognitionProfiles, useRecognitionKinds,
 } from '@/shared/api/recognitionProfiles';
-import { hiddenLabel } from '@/shared/api/recognitionProfileGroups';
+import { hiddenLabel, withBoundOption } from '@/shared/api/recognitionProfileGroups';
 import type { DataSetFile } from '@/shared/api/types';
 
 /**
@@ -19,15 +19,18 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
   const { data: kinds = [] } = useRecognitionKinds();
   const { data: profiles = [] } = useListRecognitionProfiles();
   const { data: hidden = [] } = useHiddenRecognitionProfiles();
+  const fileKinds = useMemo(() => kinds.filter(k => k.scope === 'File'), [kinds]);
   const save = useSetFileRecognitionProfiles(file.id);
-  // Привязки к профилям выключенных модулей (issue #1075). Вида такого профиля в списке видов нет,
-  // и без отдельной строки привязка была бы невидима: она стоит, действовать начнёт с включением
-  // модуля, а окно о ней молчит. Сохранение её не трогает — оно отправляет только предложенные виды.
-  const dormant = Object.values(file.recognitionProfiles ?? {})
-    .map(id => hidden.find(h => h.id === id))
+  // Привязки к профилям выключенных модулей, ВИДА которых на этом экземпляре тоже нет
+  // (issue #1075). Без отдельной строки такая привязка была бы невидима: она стоит, действовать
+  // начнёт с включением модуля, а окно о ней молчит. Если же вид предлагается (заводской профиль
+  // остался за выключенным модулем, а вид теперь объявляет другой), привязка показана в селекте
+  // этого вида — см. `withBoundOption` ниже, — и второй строки для неё нет.
+  const dormant = Object.entries(file.recognitionProfiles ?? {})
+    .filter(([kind]) => !fileKinds.some(k => k.kind === kind))
+    .map(([, id]) => hidden.find(h => h.id === id))
     .filter(h => h !== undefined);
 
-  const fileKinds = useMemo(() => kinds.filter(k => k.scope === 'File'), [kinds]);
   const [map, setMap] = useState<Record<string, string>>(() => ({ ...(file.recognitionProfiles ?? {}) }));
   const [error, setError] = useState('');
 
@@ -35,9 +38,13 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
 
   async function handleSave() {
     setError('');
-    // Отправляем ВСЕ виды: снятые приходят как null, иначе сервер не отличит «не трогали» от «сняли».
+    // Отправляем только ИЗМЕНЁННЫЕ виды; снятые — как null. Вид, которого в теле нет, сервер не
+    // трогает. Отправь мы всё, нетронутая привязка к профилю выключенного модуля ушла бы на
+    // проверку — и человек получил бы отказ на правку, которой не делал.
+    const original = file.recognitionProfiles ?? {};
     const payload: Record<string, string | null> = {};
-    for (const k of fileKinds) payload[k.kind] = map[k.kind] ?? null;
+    for (const k of fileKinds)
+      if ((map[k.kind] ?? null) !== (original[k.kind] ?? null)) payload[k.kind] = map[k.kind] ?? null;
     try {
       await save.mutateAsync(payload);
       onClose();
@@ -65,7 +72,10 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
         </p>
 
         {fileKinds.map(k => {
-          const options = profiles.filter(p => p.kind === k.kind);
+          const options = withBoundOption(
+            profiles.filter(p => p.kind === k.kind)
+              .map(p => ({ id: p.id, name: p.isBuiltIn ? `${p.name} (встроенный)` : p.name })),
+            map[k.kind], hidden);
           return (
             <div key={k.kind}>
               <label className="block text-sm font-medium text-fg1 mb-1">{k.label}</label>
@@ -77,9 +87,7 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
                 })}
                 className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
                 <option value="">— встроенный профиль</option>
-                {options.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}{p.isBuiltIn ? ' (встроенный)' : ''}</option>
-                ))}
+                {options.map(p => <option key={p.id} value={p.id} disabled={p.disabled}>{p.name}</option>)}
               </select>
             </div>
           );

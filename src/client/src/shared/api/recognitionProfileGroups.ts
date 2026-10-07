@@ -5,6 +5,8 @@
  * Отдельно от хуков — это чистая логика, и проверяется она тестом без сервера.
  */
 
+import { ruCount, ruPlural } from '@/shared/utils/pluralize';
+
 /** То, по чему складывается группа: владелец приходит с сервера и у профиля, и у вида. */
 interface Owned {
   module?: string | null;
@@ -37,6 +39,7 @@ export interface ProfileOption {
 }
 
 const NO_OWNER = 'Без модуля';
+const UNDECLARED = 'вид не объявлен ни одним модулем сборки';
 
 /**
  * Складывает в группы по владельцу. Группы — по алфавиту названий, внутри порядок сохраняется: его
@@ -62,18 +65,27 @@ export function groupByModule<T extends Owned>(items: readonly T[]): ModuleGroup
  */
 export function hiddenSummary(hidden: readonly HiddenRecognitionProfile[]): string | null {
   if (hidden.length === 0) return null;
-  const titles = [...new Set(hidden.map(h => h.moduleTitle || NO_OWNER))].sort((a, b) => a.localeCompare(b, 'ru'));
+  const titles = [...new Set(hidden.flatMap(h => h.moduleTitle ? [h.moduleTitle] : []))]
+    .sort((a, b) => a.localeCompare(b, 'ru'));
   const n = hidden.length;
-  const count = `${plural(n, 'Скрыт', 'Скрыто', 'Скрыто')} ${n} ${plural(n, 'профиль', 'профиля', 'профилей')}`;
-  const reason = titles.length === 1
-    ? `модуль «${titles[0]}» выключен`
-    : `модули ${titles.map(t => `«${t}»`).join(', ')} выключены`;
-  return `${count}: ${reason}`;
+  const count = `${ruPlural(n, 'Скрыт', 'Скрыто', 'Скрыто')} ${ruCount(n, 'профиль', 'профиля', 'профилей')}`;
+  const reasons: string[] = [];
+  if (titles.length === 1) reasons.push(`модуль «${titles[0]}» выключен`);
+  if (titles.length > 1) reasons.push(`модули ${titles.map(t => `«${t}»`).join(', ')} выключены`);
+  // Владелец неизвестен — причина другая, и включать тут нечего: строка приехала из копии
+  // экземпляра, где вид объявлял модуль, которого в этой сборке нет.
+  if (hidden.some(h => !h.moduleTitle)) reasons.push(UNDECLARED);
+  return `${count}: ${reasons.join('; ')}`;
 }
 
-/** Подпись привязки к профилю выключенного модуля. */
+/** Подпись привязки к профилю, которого на этом экземпляре не предлагают, — с причиной. */
 export function hiddenLabel(h: HiddenRecognitionProfile): string {
-  return `${h.name} — модуль «${h.moduleTitle || NO_OWNER}» выключен`;
+  return h.moduleTitle ? `${h.name} — модуль «${h.moduleTitle}» выключен` : `${h.name} — ${UNDECLARED}`;
+}
+
+/** Привязан ли профиль, которым на этом экземпляре не читают: запуск по нему кончится отказом. */
+export function isHiddenBound(boundId: string | null | undefined, hidden: readonly HiddenRecognitionProfile[]): boolean {
+  return !!boundId && hidden.some(h => h.id === boundId);
 }
 
 /**
@@ -92,11 +104,4 @@ export function withBoundOption(
   if (!boundId || offered.some(o => o.id === boundId)) return [...offered];
   const h = hidden.find(x => x.id === boundId);
   return h ? [...offered, { id: h.id, name: hiddenLabel(h), disabled: true }] : [...offered];
-}
-
-export function plural(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10, mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
 }

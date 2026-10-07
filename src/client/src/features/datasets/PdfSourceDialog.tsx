@@ -22,7 +22,7 @@ export function PdfSourceDialog(
   { fileId: string; onClose: () => void; onRecognizeError?: (err: unknown) => void },
 ) {
   const [name, setName] = useState('');
-  const { data: profiles, isLoading: profilesLoading } = usePdfProfiles();
+  const { data: profiles, isError: profilesFailed } = usePdfProfiles();
   // Выбор пользователя; пока он не выбирал — первый из предложенных. Не эффектом: значение
   // выводится из ответа сервера, и хранить его копию незачем.
   const [chosen, setChosen] = useState<string | null>(null);
@@ -80,7 +80,14 @@ export function PdfSourceDialog(
             {profiles!.map(p => <SelectItem key={p.profile} value={p.profile}>{p.title}</SelectItem>)}
           </Select>
         )}
-        {!current && !profilesLoading && (
+        {/* Три разных «нечего выбрать»: ответа ещё нет, ответа не будет, ответ пуст. Причину
+            «модули выключены» называет только пустой ОТВЕТ — отказ запроса ею не объясняется. */}
+        {profilesFailed && (
+          <p className="text-sm text-danger">
+            Не удалось получить список профилей. Закройте окно и попробуйте ещё раз.
+          </p>
+        )}
+        {profiles?.length === 0 && (
           <p className="text-sm text-fg3">
             На этом экземпляре нет ни одного профиля для PDF: модули, которые их читают, выключены.
           </p>

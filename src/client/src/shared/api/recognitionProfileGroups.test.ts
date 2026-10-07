@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  groupByModule, hiddenSummary, withBoundOption, type HiddenRecognitionProfile,
+  groupByModule, hiddenLabel, hiddenSummary, isHiddenBound, withBoundOption, type HiddenRecognitionProfile,
 } from './recognitionProfileGroups';
 
 const hidden = (id: string, name: string, moduleTitle: string | null = 'Исполнительная документация'): HiddenRecognitionProfile =>
@@ -40,6 +40,26 @@ describe('hiddenSummary', () => {
   it('несколько модулей перечислены, каждый один раз', () => {
     expect(hiddenSummary([hidden('1', 'a'), hidden('2', 'b'), hidden('3', 'c', 'Учёт работ')]))
       .toBe('Скрыто 3 профиля: модули «Исполнительная документация», «Учёт работ» выключены');
+  });
+});
+
+describe('владелец неизвестен', () => {
+  // Строка из копии экземпляра, где вид объявлял модуль, которого в этой сборке нет. Причина
+  // «модуль выключен» была бы выдумкой: включать нечего.
+  it('причина названа другая — модуль не выдумывается', () => {
+    expect(hiddenLabel(hidden('1', 'Акт', null))).toBe('Акт — вид не объявлен ни одним модулем сборки');
+    expect(hiddenSummary([hidden('1', 'Акт', null)]))
+      .toBe('Скрыт 1 профиль: вид не объявлен ни одним модулем сборки');
+    expect(hiddenSummary([hidden('1', 'a'), hidden('2', 'Акт', null)]))
+      .toBe('Скрыто 2 профиля: модуль «Исполнительная документация» выключен; вид не объявлен ни одним модулем сборки');
+  });
+});
+
+describe('isHiddenBound', () => {
+  it('привязка к скрытому профилю — да; нет привязки или профиль предлагается — нет', () => {
+    expect(isHiddenBound('h1', [hidden('h1', 'x')])).toBe(true);
+    expect(isHiddenBound('p1', [hidden('h1', 'x')])).toBe(false);
+    expect(isHiddenBound(null, [hidden('h1', 'x')])).toBe(false);
   });
 });
 

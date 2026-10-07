@@ -6,7 +6,7 @@ import {
   loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
 } from '@/shared/api/datasets';
 import { useHiddenRecognitionProfiles, useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
-import { withBoundOption, type HiddenRecognitionProfile, type ProfileOption } from '@/shared/api/recognitionProfileGroups';
+import { isHiddenBound, withBoundOption, type HiddenRecognitionProfile, type ProfileOption } from '@/shared/api/recognitionProfileGroups';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -333,8 +333,8 @@ function GroupSection({
             {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <option key={p.id} value={p.id} disabled={p.disabled}>{p.name}</option>)}
           </select>
           {(currentTag || group.profileId) && (
-            <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage}
-              title={dirty ? 'Сначала сохраните разбиение' : 'Распознать таблицу этого документа как отдельный источник данных'}
+            <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
+              title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}
               className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
               {tableBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <Table2 size={12} />}
               Таблица

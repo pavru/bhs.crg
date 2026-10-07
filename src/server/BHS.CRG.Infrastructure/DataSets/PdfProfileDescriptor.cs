@@ -49,10 +49,13 @@ public enum PdfProfileKind
 /// экземпляре отвергал (issue #1075).</param>
 /// <param name="NameHint">Пример названия источника — подсказка под полем.</param>
 /// <param name="Summary">Что произойдёт после запуска и где искать результат.</param>
+/// <param name="StructureTags">Спрашивать ли тэги структуры PDF (есть обложка, есть титульный лист).
+/// Свойство профиля, как соседние, а не сравнение с категорией в месте выдачи: новый профиль с
+/// группировкой листов обязан сказать это сам.</param>
 public record PdfProfileDescriptor(
     string ProfileMarker, PdfProfileKind Kind, IReadOnlyList<string> SourceMarkers,
     bool Background, bool SupportsReprojection, RecognitionProfileKind RequiredKind,
-    string Title, string NameHint, string Summary);
+    string Title, string NameHint, string Summary, bool StructureTags);
 
 /// <summary>
 /// Профиль PDF для диалога выбора (issue #1075). Отдаются только те, чей вид распознавания на этом
@@ -74,7 +77,8 @@ public static class PdfProfileRegistry
             Summary: "Сразу запустится распознавание — оно постранично извлечёт основную надпись по "
                 + "ГОСТ Р 21.101-2020 и сгруппирует листы по шифру документа. Результат появится как "
                 + "кандидаты (Документы/Обложка/Титульный лист) под списком источников — создайте из "
-                + "них источники в один клик."),
+                + "них источники в один клик.",
+            StructureTags: true),
         new(PdfProfiles.Invoice, PdfProfileKind.InvoiceFixedSlices,
             [PdfProfiles.InvoiceHeaderMarker, PdfProfiles.InvoiceLineItemsMarker],
             Background: false, SupportsReprojection: false, RecognitionProfileKind.Invoice,
@@ -82,7 +86,8 @@ public static class PdfProfileRegistry
             NameHint: "Счёт на оплату",
             Summary: "Сразу запустится распознавание — оно одним вызовом извлечёт реквизиты счёта и "
                 + "таблицу товаров. Результат появится как кандидаты «Шапка» и «Товары» под списком "
-                + "источников — создайте из них источники в один клик."),
+                + "источников — создайте из них источники в один клик.",
+            StructureTags: false),
     ];
 
     /// <summary>
@@ -91,7 +96,7 @@ public static class PdfProfileRegistry
     /// </summary>
     public static IReadOnlyList<PdfProfileInfo> Offered(Func<RecognitionProfileKind, bool> isAvailable) =>
         [.. All.Where(p => isAvailable(p.RequiredKind)).Select(p => new PdfProfileInfo(
-            p.ProfileMarker, p.Title, p.NameHint, p.Summary, StructureTags: p.Kind == PdfProfileKind.Gost))];
+            p.ProfileMarker, p.Title, p.NameHint, p.Summary, p.StructureTags))];
 
     /// <summary>По профилю набора (<see cref="Domain.DataSets.DataSetFile.PreprocessingProfile"/>).</summary>
     public static PdfProfileDescriptor? ByProfileMarker(string? profileMarker) =>

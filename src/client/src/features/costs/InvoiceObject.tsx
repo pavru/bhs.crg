@@ -10,6 +10,7 @@ import { K } from './invoiceFields';
 import { toNumber } from './invoiceLines';
 import { headerObject, matrixSignature, newTarget, targetName, targetsOf } from './matrix';
 import { PlaceSelect } from './PlaceSelect';
+import { ruCount } from '@/shared/utils/pluralize';
 import { NO_PLACE, chosen, samePlace, usePlaces, type Place } from './places';
 
 /**
@@ -61,7 +62,7 @@ export function InvoiceObject({ view, locked }: {
   }
 
   const status = current.kind === 'none' ? 'не разнесён'
-    : current.kind === 'many' ? `разнесён на ${current.count} ${plural(current.count)}`
+    : current.kind === 'many' ? `разнесён на ${ruCount(current.count, 'объект', 'объекта', 'объектов')}`
       : current.complete ? 'весь счёт на этот объект' : 'разнесено не полностью';
 
   return (
@@ -94,10 +95,3 @@ export function InvoiceObject({ view, locked }: {
 
 type InitialPreview = NonNullable<Parameters<typeof AllocationMatrix>[0]['initialPreview']>;
 
-function plural(count: number): string {
-  const tail = count % 100;
-  if (tail >= 11 && tail <= 14) return 'объектов';
-  if (count % 10 === 1) return 'объект';
-  if (count % 10 >= 2 && count % 10 <= 4) return 'объекта';
-  return 'объектов';
-}
