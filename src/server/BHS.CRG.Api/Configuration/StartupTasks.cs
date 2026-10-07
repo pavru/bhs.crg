@@ -74,7 +74,10 @@ internal static class StartupTasks
         await scope.ServiceProvider.MigrateModuleSchemasAsync(app.Logger);
 
         // Встроенные профили распознавания (issue #406) — идемпотентно; правленые пользователем не трогает.
-        await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(db);
+        // Объявления — ядра и ВСЕХ модулей сборки (issue #1075): профиль выключенного модуля лежит в
+        // базе и не предлагается.
+        await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(
+            db, scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Recognition.RecognitionProfileCatalog>());
 
         // Секреты интеграций до 0.92.0 лежали в БД открытым текстом. Перешифровываем оставшиеся —
         // идемпотентно: уже зашифрованные пропускаются, второй прогон работы не находит.

@@ -1,3 +1,5 @@
+using BHS.CRG.Api.Modules;
+using BHS.CRG.Tests.Support;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
@@ -19,13 +21,13 @@ public class RecognitionProfileMigrationTests
 {
     private static ResolvedRecognitionProfile ThroughDb(string code)
     {
-        var def = BuiltInRecognitionProfiles.All.Single(d => d.Code == code);
+        var def = TestRecognition.Catalog.All.Single(d => d.Code == code);
         var profile = RecognitionProfile.CreateBuiltIn(
-            def.Code, def.Name, def.Kind,
+            def.Code, def.Name, def.Kind, def.Owner,
             RecognitionProfileJson.WriteFields(def.Fields),
             RecognitionProfileJson.WriteFieldsOrNull(def.RowColumns),
             RecognitionProfileJson.WriteShape(def.Shape),
-            BuiltInRecognitionProfiles.HashOf(def));
+            def.Hash);
         return RecognitionProfileJson.Resolve(profile);
     }
 
@@ -33,8 +35,8 @@ public class RecognitionProfileMigrationTests
     public void TitleBlock_PromptUnchanged()
     {
         Assert.Equal(
-            RecognitionShared.BuildTitleBlockPrompt(GostTitleBlockFields.All),
-            RecognitionShared.BuildTitleBlockPrompt(ThroughDb(BuiltInProfileCodes.TitleBlock).ToRecognitionFields()));
+            RecognitionShared.BuildTitleBlockPrompt(TestRecognition.TitleBlock),
+            RecognitionShared.BuildTitleBlockPrompt(ThroughDb(IdRecognitionProfiles.TitleBlockCode).ToRecognitionFields()));
     }
 
     [Fact]
@@ -42,20 +44,20 @@ public class RecognitionProfileMigrationTests
     {
         // Классификаторы в профиль не входят и подмешиваются кодом — блоки промпта про ТипСтраницы/
         // Форму включаются по факту их наличия, поэтому проверяем именно составленный набор.
-        // Один профиль обслуживает ОБА живых пути (легаси-реестр по All и «3 источника» по
-        // AllWithClassifiers) — второй профиль для этого не нужен.
+        // Один профиль обслуживает ОБА живых пути (легаси-реестр по графам штампа и «3 источника» по
+        // графам с классификаторами) — второй профиль для этого не нужен.
         Assert.Equal(
-            RecognitionShared.BuildTitleBlockPrompt(GostTitleBlockFields.AllWithClassifiers),
+            RecognitionShared.BuildTitleBlockPrompt(GostTitleBlockFields.WithClassifiers(TestRecognition.TitleBlock)),
             RecognitionShared.BuildTitleBlockPrompt(GostTitleBlockFields.WithClassifiers(
-                ThroughDb(BuiltInProfileCodes.TitleBlock).ToRecognitionFields())));
+                ThroughDb(IdRecognitionProfiles.TitleBlockCode).ToRecognitionFields())));
     }
 
     [Fact]
     public void CoverTitle_PromptUnchanged()
     {
         Assert.Equal(
-            RecognitionShared.BuildCoverTitlePrompt(GostCoverTitleFields.All),
-            RecognitionShared.BuildCoverTitlePrompt(ThroughDb(BuiltInProfileCodes.CoverTitle).ToRecognitionFields()));
+            RecognitionShared.BuildCoverTitlePrompt(TestRecognition.CoverTitle),
+            RecognitionShared.BuildCoverTitlePrompt(ThroughDb(IdRecognitionProfiles.CoverTitleCode).ToRecognitionFields()));
     }
 
     [Fact]
@@ -65,26 +67,26 @@ public class RecognitionProfileMigrationTests
         Assert.Equal(
             RecognitionShared.BuildInvoicePrompt(InvoiceFields.All),
             RecognitionShared.BuildInvoicePrompt(
-                RecognitionKinds.ComposeCallFields(ThroughDb(BuiltInProfileCodes.Invoice))));
+                RecognitionKinds.ComposeCallFields(ThroughDb(CoreRecognitionProfiles.InvoiceCode))));
     }
 
     [Fact]
     public void SpecificationTable_PromptUnchanged()
     {
-        var p = ThroughDb(BuiltInProfileCodes.SpecificationTable);
+        var p = ThroughDb(IdRecognitionProfiles.SpecificationTableCode);
         Assert.Equal(
             RecognitionShared.BuildTablePrompt(
-                GostTableFields.RecognitionFieldsFor(GostTableFields.SpecificationColumns)),
+                GostTableFields.RecognitionFieldsFor(TestRecognition.Specification)),
             RecognitionShared.BuildTablePrompt(RecognitionKinds.ComposeCallFields(p), p.Shape));
     }
 
     [Fact]
     public void CableJournal_PromptUnchanged()
     {
-        var p = ThroughDb(BuiltInProfileCodes.CableJournal);
+        var p = ThroughDb(IdRecognitionProfiles.CableJournalCode);
         Assert.Equal(
             RecognitionShared.BuildCableJournalPrompt(
-                GostTableFields.RecognitionFieldsFor(GostTableFields.CableJournalColumns)),
+                GostTableFields.RecognitionFieldsFor(TestRecognition.CableJournal)),
             RecognitionShared.BuildCableJournalPrompt(RecognitionKinds.ComposeCallFields(p), p.Shape));
     }
 
@@ -93,7 +95,7 @@ public class RecognitionProfileMigrationTests
     {
         // Механизм #29: колонки приходят из типа документа, но форма вызова та же — состав полей
         // обязан совпасть с профильным путём, иначе тип и профиль дали бы разные промпты.
-        var p = ThroughDb(BuiltInProfileCodes.SpecificationTable);
+        var p = ThroughDb(IdRecognitionProfiles.SpecificationTableCode);
         var asIfFromType = p.ToRowColumns();
         Assert.Equal(
             RecognitionKinds.ComposeCallFields(p).Select(f => f.Path),
@@ -104,7 +106,7 @@ public class RecognitionProfileMigrationTests
     public void Options_SurviveRoundTrip()
     {
         // «варианты: П, Р, И» печатаются в промпт — потеря Options тихо ухудшила бы распознавание.
-        var vid = ThroughDb(BuiltInProfileCodes.TitleBlock).ToRecognitionFields()
+        var vid = ThroughDb(IdRecognitionProfiles.TitleBlockCode).ToRecognitionFields()
             .Single(f => f.Path == "ВидДокументации");
         Assert.Equal(["П", "Р", "И"], vid.Options);
     }
@@ -141,17 +143,17 @@ public class RecognitionProfileMigrationTests
     public void EveryBuiltInProfile_HasUniqueCode_AndNonEmptyParameters()
     {
         Assert.Equal(
-            BuiltInRecognitionProfiles.All.Select(d => d.Code).Distinct().Count(),
-            BuiltInRecognitionProfiles.All.Count);
-        Assert.All(BuiltInRecognitionProfiles.All, d => Assert.NotEmpty(d.Fields.Concat(d.RowColumns)));
+            TestRecognition.Catalog.All.Select(d => d.Code).Distinct().Count(),
+            TestRecognition.Catalog.All.Count);
+        Assert.All(TestRecognition.Catalog.All, d => Assert.NotEmpty(d.Fields.Concat(d.RowColumns)));
     }
 
     [Fact]
     public void BuiltInHash_ChangesWithContent()
     {
-        var def = BuiltInRecognitionProfiles.All.Single(d => d.Code == BuiltInProfileCodes.CableJournal);
+        var def = TestRecognition.Catalog.All.Single(d => d.Code == IdRecognitionProfiles.CableJournalCode);
         var edited = def with { Fields = [.. def.Fields, new RecognitionProfileField("Новое")] };
-        Assert.NotEqual(BuiltInRecognitionProfiles.HashOf(def), BuiltInRecognitionProfiles.HashOf(edited));
+        Assert.NotEqual(def.Hash, edited.Hash);
     }
 
     // ── Флаги формы (новая функциональность, не влияющая на дефолт) ──────────────
@@ -159,7 +161,7 @@ public class RecognitionProfileMigrationTests
     [Fact]
     public void TableShape_DefaultAddsNothing()
     {
-        var fields = GostTableFields.RecognitionFieldsFor(GostTableFields.SpecificationColumns);
+        var fields = GostTableFields.RecognitionFieldsFor(TestRecognition.Specification);
         Assert.Equal(
             RecognitionShared.BuildTablePrompt(fields),
             RecognitionShared.BuildTablePrompt(fields, new RecognitionTableShape()));
@@ -168,7 +170,7 @@ public class RecognitionProfileMigrationTests
     [Fact]
     public void TableShape_FlagsAddInstructions()
     {
-        var fields = GostTableFields.RecognitionFieldsFor(GostTableFields.SpecificationColumns);
+        var fields = GostTableFields.RecognitionFieldsFor(TestRecognition.Specification);
         var prompt = RecognitionShared.BuildTablePrompt(fields,
             new RecognitionTableShape(TwoTierHeader: true, PairedSections: true, SkipTotals: false));
 

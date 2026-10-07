@@ -1,3 +1,4 @@
+using BHS.CRG.Tests.Support;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Recognition;
 
@@ -5,26 +6,34 @@ namespace BHS.CRG.Tests.Recognition;
 
 public class GostTableFieldsTests
 {
+    /// <summary>Тэг документа ведёт к профилю с колонками этого тэга. Прежде связь лежала в ядре
+    /// переключателем по тэгу; теперь её объявляет модуль-владелец (issue #1075).</summary>
     [Fact]
-    public void ColumnsForTag_MapsKnownTags()
+    public void Document_tag_leads_to_the_profile_declared_for_it()
     {
-        Assert.Same(GostTableFields.SpecificationColumns, GostTableFields.ColumnsForTag(FunctionalTag.GostDocSpecification));
-        Assert.Same(GostTableFields.CableJournalColumns, GostTableFields.ColumnsForTag(FunctionalTag.GostDocCableJournal));
-        Assert.Null(GostTableFields.ColumnsForTag("что-то другое"));
+        var catalog = TestRecognition.Catalog;
+
+        Assert.Equal(
+            TestRecognition.Specification.Select(c => c.Path),
+            catalog.ForTag(FunctionalTag.GostDocSpecification)!.RowColumns.Select(c => c.Name));
+        Assert.Equal(
+            TestRecognition.CableJournal.Select(c => c.Path),
+            catalog.ForTag(FunctionalTag.GostDocCableJournal)!.RowColumns.Select(c => c.Name));
+        Assert.Null(catalog.ForTag("что-то другое"));
     }
 
     [Fact]
     public void RecognitionFieldsFor_AppendsRowsArrayField()
     {
-        var fields = GostTableFields.RecognitionFieldsFor(GostTableFields.CableJournalColumns);
-        Assert.Equal(GostTableFields.CableJournalColumns.Count + 1, fields.Count);
+        var fields = GostTableFields.RecognitionFieldsFor(TestRecognition.CableJournal);
+        Assert.Equal(TestRecognition.CableJournal.Count + 1, fields.Count);
         Assert.Contains(fields, f => f.Path == GostTableFields.RowsPath);
     }
 
     [Fact]
     public void SplitRows_NormalizesToColumns_DropsExtraAndEmpty()
     {
-        var cols = GostTableFields.CableJournalColumns;
+        var cols = TestRecognition.CableJournal;
         var json = """
         [
           {"НомерКабеля":"1","Начало":"ЩВ","Конец":"Розетки","МаркаПроект":"ВВГнг","лишнее":"игнор"},
@@ -49,7 +58,7 @@ public class GostTableFieldsTests
     [Fact]
     public void CableJournalColumns_SupersetHasProjectAndFactPairs()
     {
-        var keys = GostTableFields.CableJournalColumns.Select(c => c.Path).ToList();
+        var keys = TestRecognition.CableJournal.Select(c => c.Path).ToList();
         string[] expected =
         [
             "НомерКабеля", "Начало", "Конец", "Участок",
@@ -64,7 +73,7 @@ public class GostTableFieldsTests
     public void BuildCableJournalPrompt_DescribesProjectFactMapping()
     {
         var p = RecognitionShared.BuildCableJournalPrompt(
-            GostTableFields.RecognitionFieldsFor(GostTableFields.CableJournalColumns));
+            GostTableFields.RecognitionFieldsFor(TestRecognition.CableJournal));
         Assert.Contains("Проложен", p);   // фактическая секция описана (её терял общий промпт)
         Assert.Contains("*Проект", p);
         Assert.Contains("*Факт", p);
@@ -78,6 +87,6 @@ public class GostTableFieldsTests
     public void SplitRows_BrokenOrMissing_ReturnsEmpty(string? json)
     {
         var values = new Dictionary<string, string?> { [GostTableFields.RowsPath] = json };
-        Assert.Empty(GostTableFields.SplitRows(values, GostTableFields.SpecificationColumns));
+        Assert.Empty(GostTableFields.SplitRows(values, TestRecognition.Specification));
     }
 }

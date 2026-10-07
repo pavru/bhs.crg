@@ -240,11 +240,12 @@ public record UpdateSourceInput(
 /// Ручное создание PDF-источника: без SheetOrPath/ColumnExpressions (Extraction для PDF —
 /// распознавание, а не XPath/JSONPath-builder, см. RecognizePdfSourceAsync). Tags — коды
 /// функциональных тэгов (scope Dataset), напр. dataset.hasTitleBlock — применимы только к
-/// профилю "gost-titleblock". Profile — "gost-titleblock" (по умолчанию, один источник,
-/// реестр по страницам) или "invoice" (счёт на оплату — создаёт пару источников
-/// шапка+товары, см. PdfProfiles в Infrastructure).
+/// профилю "gost-titleblock". Profile — "gost-titleblock" (реестр по страницам) или "invoice"
+/// (счёт на оплату: шапка и товары), см. PdfProfiles. Называется ЯВНО: умолчания нет (issue #1075) —
+/// прежде всё, что не «счёт», молча становилось ГОСТом, и набор получал профиль, которого не
+/// выбирал никто.
 /// </summary>
-public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile = null);
+public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile);
 
 /// <summary>План распознавания: Background=true — операция долгая (GOST-набор), её ставят в
 /// фоновую задачу; false — короткая (счёт/legacy), выполняется синхронно. Title — заголовок для

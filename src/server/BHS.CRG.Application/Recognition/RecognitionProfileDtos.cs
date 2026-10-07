@@ -8,6 +8,9 @@
 /// <param name="Scope">Куда привязывается профиль этого вида: "File" (набор целиком — штамп/обложка/
 /// счёт) или "PageGroup" (группа листов — таблицы). «Есть табличная часть» для этого не годится:
 /// у счёта она есть, но привязывается он к набору.</param>
+/// <param name="Module">Код владельца вида: модуль или «core» (issue #1075). null — вид не объявлен
+/// никем.</param>
+/// <param name="ModuleTitle">Название владельца — заголовок группы на экране.</param>
 public record RecognitionKindInfo(
     string Kind,
     string Label,
@@ -15,7 +18,9 @@ public record RecognitionKindInfo(
     bool HasScalarFields,
     bool IsTabular,
     IReadOnlyList<string> SystemFieldNames,
-    string Scope = "File");
+    string Scope = "File",
+    string? Module = null,
+    string? ModuleTitle = null);
 
 /// <summary>Профиль распознавания для UI. Признак «системное поле» приходит списком имён из
 /// дескриптора вида — в данных профиля он не хранится (иначе снимался бы импортом).</summary>
@@ -30,4 +35,7 @@ public record RecognitionProfileDto(
     bool IsBuiltIn,
     bool IsModified,
     bool BuiltInOutdated,
-    RecognitionKindInfo KindInfo);
+    RecognitionKindInfo KindInfo,
+    // Владелец ПРОФИЛЯ, а не вида (issue #1075): по нему экран складывает профили в группы.
+    string? Module = null,
+    string? ModuleTitle = null);

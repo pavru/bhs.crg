@@ -150,7 +150,7 @@ public partial class BackupService
                 p.Id, p.Name, p.Code, p.Kind.ToString(),
                 p.Fields.RootElement.Clone(), p.Shape?.RootElement.Clone(),
                 p.IsBuiltIn, p.IsModified, p.CreatedAt, p.UpdatedAt,
-                p.RowColumns?.RootElement.Clone(), p.BuiltInHash)).ToArray(),
+                p.RowColumns?.RootElement.Clone(), p.BuiltInHash, p.Module)).ToArray(),
             DataSetBindingTemplates: bindingTemplates.Select(t => new BackupDataSetBindingTemplate(
                 t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey, t.ColumnMappings,
                 t.SortOrder, t.CreatedAt, t.UpdatedAt)).ToArray(),

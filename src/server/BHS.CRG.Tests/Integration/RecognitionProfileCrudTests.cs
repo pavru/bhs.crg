@@ -1,3 +1,5 @@
+using BHS.CRG.Api.Modules;
+using BHS.CRG.Tests.Support;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Persistence;
@@ -23,7 +25,7 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
         await db.SaveChangesAsync();
-        await RecognitionProfileSeeder.SeedAsync(db);
+        await RecognitionProfileSeeder.SeedAsync(db, TestRecognition.Catalog);
         db.ChangeTracker.Clear();
         return scope;
     }
@@ -34,15 +36,15 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         using var scope = await SeededScopeAsync();
         var list = await M(scope).Send(new ListRecognitionProfilesQuery());
 
-        Assert.Equal(BuiltInRecognitionProfiles.All.Count, list.Count(p => p.IsBuiltIn));
+        Assert.Equal(TestRecognition.Catalog.All.Count, list.Count(p => p.IsBuiltIn));
 
         // UI не должен знать частных случаев вида — всё нужное приходит в KindInfo.
-        var stamp = list.Single(p => p.Code == BuiltInProfileCodes.TitleBlock);
+        var stamp = list.Single(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
         Assert.True(stamp.KindInfo.HasScalarFields);
         Assert.False(stamp.KindInfo.IsTabular);
         Assert.Contains("НаименованиеДокумента", stamp.KindInfo.SystemFieldNames);
 
-        var cable = list.Single(p => p.Code == BuiltInProfileCodes.CableJournal);
+        var cable = list.Single(p => p.Code == IdRecognitionProfiles.CableJournalCode);
         Assert.True(cable.KindInfo is { IsTabular: true, SupportsShape: true });
         Assert.NotEmpty(cable.RowColumns);
     }
@@ -53,7 +55,7 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         using var scope = await SeededScopeAsync();
         var m = M(scope);
         var stamp = (await m.Send(new ListRecognitionProfilesQuery()))
-            .Single(p => p.Code == BuiltInProfileCodes.TitleBlock);
+            .Single(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
 
         var without = stamp.Fields.Where(f => f.Name != "НаименованиеДокумента").ToList();
         var ex = await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
@@ -73,7 +75,7 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         using var scope = await SeededScopeAsync();
         var m = M(scope);
         var stamp = (await m.Send(new ListRecognitionProfilesQuery()))
-            .Single(p => p.Code == BuiltInProfileCodes.TitleBlock);
+            .Single(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
 
         var edited = stamp.Fields
             .Select(f => f.Name == "Масштаб" ? f with { Description = "Масштаб чертежа, напр. 1:100" } : f)
@@ -99,7 +101,7 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         using var scope = await SeededScopeAsync();
         var m = M(scope);
         var cable = (await m.Send(new ListRecognitionProfilesQuery()))
-            .Single(p => p.Code == BuiltInProfileCodes.CableJournal);
+            .Single(p => p.Code == IdRecognitionProfiles.CableJournalCode);
 
         var dup = cable.RowColumns.Append(cable.RowColumns[0]).ToList();
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(

@@ -153,13 +153,17 @@ public partial class DataSetPdfRecognitionService
     ///
     /// Привязка с чужим или удалённым профилем деградирует к встроенному, а не роняет распознавание:
     /// потерять альбом из-за удалённого профиля хуже, чем распознать его дефолтными параметрами.
+    ///
+    /// ⚠️ Профиль ВЫКЛЮЧЕННОГО модуля — не «удалённый»: поставщик отвечает на него отказом, и сюда
+    /// отказ проходит насквозь (issue #1075). Заводской профиль вида берётся у поставщика по виду —
+    /// чей это вид, ядро не знает и не спрашивает.
     /// </summary>
     private async Task<ResolvedRecognitionProfile> ProfileForFileAsync(
         Domain.DataSets.DataSetFile file, RecognitionProfileKind kind, CancellationToken ct)
     {
         var bound = ParseFileProfileMap(file.RecognitionProfiles).GetValueOrDefault(kind.ToString());
         if (bound is { } id && await profiles.GetByIdAsync(id, ct) is { } p && p.Kind == kind) return p;
-        return await profiles.GetBuiltInAsync(BuiltInRecognitionProfiles.CodeForKind(kind), ct);
+        return await profiles.GetDefaultAsync(kind, ct);
     }
 
     /// <summary>Карта {вид: id профиля} набора. Сломанный JSON — пустая карта (не падаем: распознавание

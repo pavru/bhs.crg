@@ -20,7 +20,7 @@ public record GostPageGroupingResult(
 
 /// <summary>
 /// Чистая логика маршрутизации и группировки постранично распознанных строк (см.
-/// GostTitleBlockFields.AllWithClassifiers) — вынесена отдельно от DataSetService ради
+/// GostTitleBlockFields.WithClassifiers) — вынесена отдельно от DataSetService ради
 /// юнит-тестируемости без БД/blob/LLM. Никогда не бросает.
 ///
 /// <para>Последовательный проход. Обложка/титул уходят в свои вёдра по <c>ТипСтраницы</c>.

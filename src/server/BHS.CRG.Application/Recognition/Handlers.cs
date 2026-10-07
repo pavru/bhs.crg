@@ -8,11 +8,14 @@ namespace BHS.CRG.Application.Recognition;
 /// CRUD профилей распознавания (issue #408). Правила, которые здесь защищаются:
 /// — вид не меняется после создания (он выбирает применяемый промпт);
 /// — системные поля вида нельзя удалить или переименовать (иначе молча ломается разбиение альбома);
-/// — встроенный профиль нельзя удалить — только «сбросить к заводским» (сидер всё равно воссоздаст).
+/// — встроенный профиль нельзя удалить — только «сбросить к заводским» (сидер всё равно воссоздаст);
+/// — профиль выключенного модуля не отдаётся и не правится (issue #1075): он лежит в базе, но на
+///   этом экземпляре им некому читать. Правка по прямому идентификатору — отказ с названием модуля.
 /// </summary>
 public class RecognitionProfileHandlers(
     IRepository<RecognitionProfile> repo,
-    IRecognitionProfileProvider provider) :
+    IRecognitionProfileProvider provider,
+    RecognitionProfileCatalog catalog) :
     IRequestHandler<ListRecognitionProfilesQuery, IReadOnlyList<RecognitionProfileDto>>,
     IRequestHandler<ListRecognitionKindsQuery, IReadOnlyList<RecognitionKindInfo>>,
     IRequestHandler<CreateRecognitionProfileCommand, RecognitionProfileDto>,
@@ -23,7 +26,8 @@ public class RecognitionProfileHandlers(
     public async Task<IReadOnlyList<RecognitionProfileDto>> Handle(ListRecognitionProfilesQuery _, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
-        return [.. all.OrderByDescending(p => p.IsBuiltIn).ThenBy(p => p.Name).Select(ToDto)];
+        return [.. all.Where(catalog.IsAvailable)
+            .OrderByDescending(p => p.IsBuiltIn).ThenBy(p => p.Name).Select(ToDto)];
     }
 
     public Task<IReadOnlyList<RecognitionKindInfo>> Handle(ListRecognitionKindsQuery _, CancellationToken ct)
@@ -34,10 +38,12 @@ public class RecognitionProfileHandlers(
         if (!Enum.TryParse<RecognitionProfileKind>(cmd.Kind, out var kind))
             throw new InvalidRequestException($"Неизвестный вид профиля «{cmd.Kind}».");
         var info = provider.DescribeKind(kind);
+        // Свой профиль принадлежит владельцу вида: читать им будет тот же код, что и заводским.
+        var owner = catalog.Require(kind).Owner;
         Validate(cmd.Name, cmd.Fields, cmd.RowColumns, info, isBuiltIn: false);
 
         var profile = RecognitionProfile.Create(
-            cmd.Name, kind,
+            cmd.Name, kind, owner,
             RecognitionProfileJson.WriteFields(cmd.Fields),
             RecognitionProfileJson.WriteFieldsOrNull(cmd.RowColumns),
             RecognitionProfileJson.WriteShape(info.SupportsShape ? cmd.Shape : null));
@@ -50,6 +56,7 @@ public class RecognitionProfileHandlers(
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
+        catalog.Require(profile);
         var info = provider.DescribeKind(profile.Kind);
         Validate(cmd.Name, cmd.Fields, cmd.RowColumns, info, profile.IsBuiltIn);
 
@@ -66,6 +73,7 @@ public class RecognitionProfileHandlers(
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
+        catalog.Require(profile);
         if (!profile.IsBuiltIn)
             throw new ConflictException("Сбросить к заводским можно только встроенный профиль.");
 
@@ -84,6 +92,7 @@ public class RecognitionProfileHandlers(
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
+        catalog.Require(profile);
         if (profile.IsBuiltIn)
             throw new ConflictException(
                 "Встроенный профиль удалить нельзя — он будет создан заново при следующем запуске. " +
@@ -139,5 +148,6 @@ public class RecognitionProfileHandlers(
         RecognitionProfileJson.ReadFields(p.RowColumns),
         RecognitionProfileJson.ReadShape(p.Shape),
         p.IsBuiltIn, p.IsModified, p.BuiltInOutdated,
-        provider.DescribeKind(p.Kind));
+        provider.DescribeKind(p.Kind),
+        catalog.OwnerOf(p)?.Code, catalog.OwnerOf(p)?.Title);
 }

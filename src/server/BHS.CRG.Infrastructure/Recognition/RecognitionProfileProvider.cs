@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Application.Recognition;
+using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -6,29 +6,36 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Infrastructure.Recognition;
 
 /// <inheritdoc />
-public class RecognitionProfileProvider(AppDbContext db) : IRecognitionProfileProvider
+public class RecognitionProfileProvider(AppDbContext db, RecognitionProfileCatalog catalog) : IRecognitionProfileProvider
 {
-    public async Task<ResolvedRecognitionProfile> GetBuiltInAsync(string code, CancellationToken ct = default)
-    {
-        var profile = await db.RecognitionProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Code == code, ct)
-            ?? throw new InvalidOperationException(
-                $"Встроенный профиль распознавания «{code}» отсутствует — не сработал сидинг при старте.");
-        return RecognitionProfileJson.Resolve(profile);
-    }
+    public async Task<ResolvedRecognitionProfile> GetDefaultAsync(
+        RecognitionProfileKind kind, CancellationToken ct = default)
+        => await LoadAsync(catalog.Require(kind), ct);
+
+    public void RequireKind(RecognitionProfileKind kind) => catalog.Require(kind);
 
     public async Task<ResolvedRecognitionProfile?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var profile = await db.RecognitionProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
-        return profile is null ? null : RecognitionProfileJson.Resolve(profile);
+        if (profile is null) return null;
+        // Ворота. Профиль выключенного модуля не «не найден»: по «не найден» потребитель молча
+        // взял бы заводской — и прочитал бы документ не теми параметрами, которые выбрал человек.
+        catalog.Require(profile);
+        return RecognitionProfileJson.Resolve(profile);
     }
 
     public async Task<ResolvedRecognitionProfile?> GetForTagAsync(string tag, CancellationToken ct = default)
     {
-        var code = BuiltInRecognitionProfiles.CodeForTag(tag);
-        return code is null ? null : await GetBuiltInAsync(code, ct);
+        if (catalog.ForTag(tag) is not { } declaration) return null;
+        catalog.Require(declaration.Owner, $"Профиль распознавания «{declaration.Name}»");
+        return await LoadAsync(declaration, ct);
     }
 
-    public bool IsTableTag(string tag) => BuiltInRecognitionProfiles.CodeForTag(tag) is not null;
+    // ⚠️ Оба предиката ворот НЕ спрашивают — нарочно. По ним решается «источник осиротел», и там по
+    // ответу УДАЛЯЮТСЯ данные: ответь выключенный модуль «это не таблица», и его выключение снесло бы
+    // источники таблиц. Выключение модуля данных не трогает; ворота стоят там, где профиль берут,
+    // чтобы распознавать.
+    public bool IsTableTag(string tag) => catalog.ForTag(tag) is not null;
 
     public async Task<bool> IsTableGroupAsync(
         Guid? profileId, IReadOnlyList<string>? tags, CancellationToken ct = default)
@@ -45,18 +52,29 @@ public class RecognitionProfileProvider(AppDbContext db) : IRecognitionProfilePr
         return (tags ?? []).Any(IsTableTag);
     }
 
-    public async Task<IReadOnlyList<RecognitionProfile>> ListByKindAsync(
-        RecognitionProfileKind kind, CancellationToken ct = default)
-        => await db.RecognitionProfiles.AsNoTracking()
-            .Where(p => p.Kind == kind).OrderBy(p => p.Name).ToListAsync(ct);
-
     public RecognitionKindInfo DescribeKind(RecognitionProfileKind kind) => ToInfo(RecognitionKinds.Describe(kind));
 
-    public IReadOnlyList<RecognitionKindInfo> ListKinds() => [.. RecognitionKinds.All.Select(ToInfo)];
+    public IReadOnlyList<RecognitionKindInfo> ListKinds() =>
+        [.. RecognitionKinds.All.Where(d => catalog.IsAvailable(d.Kind)).Select(ToInfo)];
 
-    public Task ReseedBuiltInAsync(CancellationToken ct = default) => RecognitionProfileSeeder.SeedAsync(db, ct);
+    public Task ReseedBuiltInAsync(CancellationToken ct = default) => RecognitionProfileSeeder.SeedAsync(db, catalog, ct);
 
-    private static RecognitionKindInfo ToInfo(RecognitionKindDescriptor d) => new(
-        d.Kind.ToString(), d.Label, d.SupportsShape, d.HasScalarFields,
-        IsTabular: d.RowsKey is not null, d.SystemFieldNames, d.Scope.ToString());
+    private async Task<ResolvedRecognitionProfile> LoadAsync(
+        RecognitionProfileDeclaration declaration, CancellationToken ct)
+    {
+        var profile = await db.RecognitionProfiles.AsNoTracking()
+                          .FirstOrDefaultAsync(p => p.Code == declaration.Code, ct)
+            ?? throw new InvalidOperationException(
+                $"Встроенный профиль распознавания «{declaration.Code}» отсутствует — не сработал сидинг при старте.");
+        return RecognitionProfileJson.Resolve(profile);
+    }
+
+    private RecognitionKindInfo ToInfo(RecognitionKindDescriptor d)
+    {
+        var owner = catalog.OwnerOfKind(d.Kind);
+        return new(
+            d.Kind.ToString(), d.Label, d.SupportsShape, d.HasScalarFields,
+            IsTabular: d.RowsKey is not null, d.SystemFieldNames, d.Scope.ToString(),
+            Module: owner?.Code, ModuleTitle: owner?.Title);
+    }
 }

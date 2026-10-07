@@ -138,10 +138,10 @@ public partial class BackupServiceTests
             // оставшиеся от прошлых прогонов, иначе счётчик восстановленных накапливается.
             db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
             await db.SaveChangesAsync();
-            await RecognitionProfileSeeder.SeedAsync(db);
+            await RecognitionProfileSeeder.SeedAsync(db, Support.TestRecognition.Catalog);
             db.ChangeTracker.Clear();
             var custom = RecognitionProfile.Create(
-                "Список деталей шкафа", RecognitionProfileKind.Table,
+                "Список деталей шкафа", RecognitionProfileKind.Table, Support.TestRecognition.OwnerOf(RecognitionProfileKind.Table),
                 fields: RecognitionProfileJson.WriteFields([]),
                 rowColumns: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция", "string")]),
                 shape: RecognitionProfileJson.WriteShape(new RecognitionTableShape(TwoTierHeader: true)));
@@ -180,7 +180,7 @@ public partial class BackupServiceTests
             var restored = await db.RecognitionProfiles.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Name == "Список деталей шкафа");
             Assert.NotNull(restored);
-            Assert.Equal(RecognitionProfileKind.Table, restored!.Kind);
+            Assert.Equal((RecognitionProfileKind.Table, "id"), (restored!.Kind, restored.Module));   // владелец едет в копии (#1075)
             Assert.Null(restored.Code);          // пользовательский — кода нет
             Assert.False(restored.IsBuiltIn);
             Assert.True(RecognitionProfileJson.ReadShape(restored.Shape)!.TwoTierHeader);
@@ -191,9 +191,9 @@ public partial class BackupServiceTests
             Assert.Empty(await db.RecognitionProfiles.AsNoTracking()
                 .Where(p => p.Code != null).ToListAsync());
 
-            await RecognitionProfileSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+            await RecognitionProfileSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), Support.TestRecognition.Catalog);
             Assert.NotNull(await db.RecognitionProfiles.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Code == BuiltInProfileCodes.CableJournal));
+                .FirstOrDefaultAsync(p => p.Code == Api.Modules.IdRecognitionProfiles.CableJournalCode));
         }
     }
 

@@ -36,6 +36,12 @@ public partial class DataSetPdfRecognitionService
             throw new InvalidRequestException("Источник не относится к PDF-файлу.");
 
         var descriptor = PdfProfileRegistry.BySourceMarker(source.SheetOrPath);
+        // Ворота — до постановки задачи, как и у планирования по набору (ревью PR #1252): иначе этот
+        // адрес отвечал 202, а отказ «модуль выключен» приходил строкой в журнале задач. Таблица
+        // документа и старый постраничный реестр описателя не имеют, но принадлежат альбому по ГОСТ.
+        if (descriptor is not null) profiles.RequireKind(descriptor.RequiredKind);
+        else if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal)
+                 || source.SheetOrPath == PdfProfiles.LegacyTitleBlockRegistryMarker) RequireGost();
         if (descriptor?.Kind == PdfProfileKind.Gost)
         {
             // 409-проверка ручной правки — ДО постановки в фон (чтобы диалог подтверждения был интерактивным).
