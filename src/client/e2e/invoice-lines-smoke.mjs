@@ -293,8 +293,8 @@ try {
       throw new Error('после перехода на форме не сказано, что счёт разобран');
   });
 
-  // ── 6. Отбор «Только Разобрать» показывает счёт со строкой без позиции ───────
-  await check('отбор «Только Разобрать» оставляет счета, у которых строки ждут позиции', async () => {
+  // ── 6. Отбор «Разобрать» показывает счёт со строкой без позиции ──────────────
+  await check('отбор «Разобрать» оставляет счета, у которых строки ждут позиции', async () => {
     const waiting = `СЧ-Ж${stamp}`;
     const created = await invoice(waiting);
     await api('PUT', `/costs/invoices/${created.id}/lines`, {
@@ -302,7 +302,9 @@ try {
     });
 
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
-    await page.getByLabel('Только «Разобрать»').check();
+    // Чип в ряду отборов списка, а не флажок (issue #1186): три очереди одним приёмом, выбор один.
+    await page.getByRole('group', { name: 'Отбор списка счетов' })
+      .getByRole('button', { name: 'Разобрать', exact: true }).click();
     await page.getByRole('button', { name: new RegExp(waiting) }).first()
       .waitFor({ timeout: 10_000 });
 

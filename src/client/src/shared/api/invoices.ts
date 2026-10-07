@@ -235,7 +235,32 @@ export interface InvoiceListItem {
   linesCount: number;
   /** Сколько строк ждёт позиции номенклатуры — счётчик «Разобрать». */
   linesWithoutNomenclature: number;
+  /** Что со ссылками счёта на записи справочников (issue #1186). Старый сервер поля не присылает. */
+  references?: InvoiceListReferences | null;
 }
+
+/** Где в счёте стоят ссылки не на месте. `count` — ссылок, а не мест формы. */
+export interface InvoiceReferencePlace {
+  kind: 'supplier' | 'payer' | 'type' | 'position' | 'allocation' | 'other';
+  count: number;
+}
+
+export interface InvoiceListReferences {
+  /**
+   * Сервер подтвердил: запись поставщика удалена. ⚠️ `false` — не «на месте» и не «другого вида»,
+   * а только «потеря не найдена»: списку остаются осторожные слова.
+   */
+  supplierLost: boolean;
+  /** Что можно сделать с удалёнными записями: исправить, ждать отмены закрытия периода, ничего. */
+  lostState: 'fixable' | 'locked' | 'type' | null;
+  /** Архивная запись зовёт к правке: счёт ещё не оплачен. */
+  archivedCalls: boolean;
+  lost: InvoiceReferencePlace[];
+  archived: InvoiceReferencePlace[];
+}
+
+/** Очередь списка счетов — отбор, который считает сервер. Выбор один: пересечений он не считает. */
+export type InvoiceQueue = 'parsing' | 'lost' | 'archived';
 
 export interface CostsOrganization {
   id: string;
@@ -278,17 +303,24 @@ export const QK = 'costs-invoices';
 export const INVOICES_KEY = [QK] as const;
 
 /**
- * Реестр счетов. `needsParsing` — отбор «Разобрать»: счета, у которых есть строки без позиции.
+ * Реестр счетов. Очередь: «Разобрать» — счета, у которых есть строки без позиции; «удалённые записи»
+ * и «в архиве» — отборы «наведите порядок» (issue #1186).
  *
  * ⚠️ Отбор входит в ключ запроса. Без этого React Query отдал бы отобранному списку кэш полного (и
  * наоборот), и «счёт есть, а в списке его нет» стало бы поведением.
  */
-export function useInvoices(needsParsing = false) {
+export function useInvoices(queue: InvoiceQueue | null = null) {
   return useQuery({
-    queryKey: [QK, 'list', needsParsing] as const,
+    queryKey: [QK, 'list', queue] as const,
     queryFn: () => apiClient
-      .get<InvoiceListItem[]>('/costs/invoices', { params: needsParsing ? { needsParsing: true } : {} })
+      .get<InvoiceListItem[]>('/costs/invoices', {
+        params: queue === 'parsing' ? { needsParsing: true } : queue ? { fix: queue } : {},
+      })
       .then(r => r.data),
+    // Свежесть — как у чисел над списком (`useInvoiceQueues`): запись в общих данных удаляют и
+    // убирают в архив на другом экране, ключ счетов это не сбрасывает. Из кэша список вернулся бы
+    // с тремя счетами под чипом «4» (ревью PR #1241). Мигания нет: прежние строки стоят, пока идёт запрос.
+    staleTime: 0,
   });
 }
 

@@ -2121,6 +2121,17 @@ GET    /api/costs/invoices          → реестр счетов               
                                       ?needsParsing=true — отбор «Разобрать»: только счета, у которых
                                       есть строки без позиции номенклатуры (счёт БЕЗ строк вовсе сюда
                                       не попадает — это другая работа, и её отбор приедет с G4)
+                                      ?fix=lost | archived — отборы «наведите порядок» (#1186): счета с
+                                      удалённой записью, которые можно исправить; неоплаченные счета с
+                                      записью из архива. Множества — те же, что у готовых отборов таблицы
+                                      costs.invoices; неизвестное значение — 400.
+                                      У каждой строки — references: { supplierLost, lostState,
+                                      archivedCalls, lost[], archived[] } — пометки ссылок не на месте;
+                                      null — опрос ядра отказал: список от него не зависит (под fix —
+                                      отказ, отбирать нечем)
+GET    /api/costs/invoices/queues   → числа чипов над списком: { lost, archived, locked, doubt } —
+                                      одним опросом ядра; lost и archived равны числам готовых отборов
+                                      таблицы costs.invoices                  costs.invoice.read
 GET    /api/costs/invoices/{id}     → счёт: реквизиты по схеме + метки + дубликаты + строки + сверка сумм
 GET    /api/costs/invoices/{id}/scan → скан потоком (у файла в хранилище прав нет, у адреса есть)
 POST   /api/costs/invoices          { requisites, unconfirmed? }            costs.invoice.edit

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -38,6 +40,7 @@ public static class InvoiceEndpoints
         var group = endpoints.MapGroup("/api/costs/invoices").WithTags("Счета на оплату");
 
         group.MapGet("/", ListAsync).RequireAuthorization(AppPolicies.Permission(Read));
+        group.MapGet("/queues", InvoiceListMarks.QueuesAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}/scan", ScanAsync).RequireAuthorization(AppPolicies.Permission(Read));
 
@@ -74,9 +77,23 @@ public static class InvoiceEndpoints
     /// <para>⚠️ ОТКЛОНЁННЫЙ счёт в отбор тоже не попадает, сколько бы строк у него ни ждало позиции:
     /// «не платим» — значит и не разбираем, переход «разобран» на нём отвечает отказом. Очередь, в
     /// которой стоит то, что разобрать нельзя, перестаёт быть очередью (issue #1166).</para></param>
+    /// <param name="fix">Отбор «наведите порядок» (issue #1186): <c>lost</c> — счета с удалённой
+    /// записью, которые можно исправить; <c>archived</c> — неоплаченные счета с записью из архива. Те же
+    /// множества, что у готовых отборов таблицы счетов: число на чипе считается там, и разойдись
+    /// правила — под чипом «3» стояло бы два счёта.</param>
     private static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
-        CostsDbContext db, IModuleCatalog catalog, CancellationToken ct, bool needsParsing = false)
+        CostsDbContext db, IModuleCatalog catalog, InvoiceReferenceTrouble trouble, ILoggerFactory logs,
+        CancellationToken ct, bool needsParsing = false, string? fix = null)
     {
+        if (fix is not (null or InvoiceListReferences.FixLost or InvoiceListReferences.FixArchived))
+            throw new InvalidRequestException(
+                $"Отбор списка счетов «{fix}» не известен: бывают «{InvoiceListReferences.FixLost}» и «{InvoiceListReferences.FixArchived}».");
+
+        // Ссылки не на месте — на каждое чтение списка и с архивом: пометку несёт каждая строка, а
+        // видно в строке только поставщика — счёт с удалённой позицией выглядел бы чистым.
+        var marks = await InvoiceListMarks.ReadAsync(
+            trouble, required: fix is not null, logs.CreateLogger(typeof(InvoiceEndpoints)), ct);
+
         // Очередь «Разобрать» отбирает БАЗА (issue #1171), и запрос идёт от строк без позиции, а не от
         // счетов: так частичный индекс ix_invoice_lines_unmatched — он заведён ровно под этот отбор —
         // получает работу. Раньше реестр читал все счета и отбирал очередь в памяти: индекс при этом не
@@ -85,6 +102,17 @@ public static class InvoiceEndpoints
         if (needsParsing)
             selected = selected.Where(i => i.State != InvoiceState.Rejected
                 && db.InvoiceLines.Where(l => l.NomenclatureId == null).Select(l => l.InvoiceId).Contains(i.Id));
+
+        if (fix is not null)
+        {
+            // Подзапросом, а не сравнением с массивом: его база сворачивает в хеш, а сравнение исполняет
+            // перебором на каждую строку — счетов с архивной записью бывают тысячи (замер в InvoiceTable).
+            var named = fix == InvoiceListReferences.FixLost ? marks!.Fixable : marks!.Archived;
+            var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({named}) AS \"Value\"");
+            selected = selected.Where(i => keys.Contains(i.Id));
+            if (fix == InvoiceListReferences.FixArchived)
+                selected = selected.Where(i => i.Payment != InvoicePaymentState.Paid);
+        }
 
         var invoices = await selected
             .OrderByDescending(i => i.IssuedOn)
@@ -96,7 +124,13 @@ public static class InvoiceEndpoints
         // той же ценой, что уже названа у названий поставщиков. У очереди — только по её счетам:
         // группировать всю таблицу ради десятка счетов незачем.
         var counted = db.InvoiceLines.AsNoTracking();
-        if (needsParsing)
+        if (fix is not null)
+        {
+            // Под отбором «наведите порядок» счетов бывают тысячи — тем же подзапросом, каким отобран
+            // список, а не массивом их ключей: массив база сверяла бы перебором (ревью PR #1241).
+            counted = counted.Where(l => selected.Select(i => i.Id).Contains(l.InvoiceId));
+        }
+        else if (needsParsing)
         {
             var queued = invoices.Select(i => i.Id).ToList();
             counted = counted.Where(l => queued.Contains(l.InvoiceId));
@@ -124,7 +158,7 @@ public static class InvoiceEndpoints
                 i.SupplierId is { } id && names.TryGetValue(id, out var supplier) ? supplier.DisplayName : null,
                 i.SupplierId is { } key && names.TryGetValue(key, out var found) && found.Archived,
                 lines.TryGetValue(i.Id, out var total) ? total.Count : 0,
-                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0))]);
+                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0) with { References = marks?.Of(i) })]);
     }
 
     private static async Task<Ok<InvoiceView>> GetAsync(
