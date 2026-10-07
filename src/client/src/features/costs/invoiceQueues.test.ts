@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { InvoiceListItem } from '@/shared/api/invoices';
-import type { TableShortcut } from '@/shared/api/tables';
+import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { emptyText, heldRow, lostTitle, placesCount, placesText, queueChip, queueRows } from './invoiceQueues';
 
 /** Очереди списка счетов — чипы «наведите порядок» в рейле (issue #1186). */
 
-const shortcut = (patch: Partial<TableShortcut>): TableShortcut => ({
-  code: 'lost', title: 'Ссылки на удалённые записи', hint: null, column: 'Ссылки', op: 'eq', value: 'есть',
-  count: 3, unchecked: null, quiet: false, ...patch,
+const numbers = (patch: Partial<InvoiceQueues> = {}): InvoiceQueues => ({
+  lost: 3, archived: 5, locked: 0, doubt: null, ...patch,
 });
 
 const invoice = (id: string, patch: Partial<InvoiceListItem> = {}): InvoiceListItem => ({
@@ -17,34 +16,36 @@ const invoice = (id: string, patch: Partial<InvoiceListItem> = {}): InvoiceListI
 });
 
 describe('чип очереди', () => {
-  it('без готового отбора чипа нет: сервер его не предложил', () => {
+  it('числа не пришли: чипа нет, а нажатый остаётся — без числа и без слова «ноль»', () => {
     expect(queueChip('lost', undefined, false)).toBeNull();
-    // Даже нажатый: права править счёт нет — и снимать нечего.
-    expect(queueChip('lost', undefined, true)).toBeNull();
+    // Иначе отбор нечем снять.
+    expect(queueChip('lost', undefined, true)).toEqual({ count: '', title: 'Сколько таких счетов — не посчитано.', doubt: false });
   });
 
   it('ноль не рисуется, а нажатый чип остаётся — без числа', () => {
-    expect(queueChip('lost', shortcut({ count: 0 }), false)).toBeNull();
-    expect(queueChip('lost', shortcut({ count: 0 }), true)?.count).toBe('');
-    expect(queueChip('lost', shortcut({}), false)?.count).toBe('3');
+    expect(queueChip('lost', numbers({ lost: 0 }), false)).toBeNull();
+    expect(queueChip('lost', numbers({ lost: 0 }), true)?.count).toBe('');
+    expect(queueChip('lost', numbers(), false)?.count).toBe('3');
+    expect(queueChip('archived', numbers(), false)?.count).toBe('5');
   });
 
   it('непроверенный ноль — знак вопроса, а не отсутствие чипа', () => {
-    const doubt = queueChip('lost', shortcut({ count: 0, unchecked: 'проверено не всё: колонок — 1' }), false);
+    const doubt = queueChip('lost', numbers({ lost: 0, doubt: 'проверено не всё: колонок — 1' }), false);
 
     expect(doubt?.count).toBe('?');
     expect(doubt?.doubt).toBe(true);
     expect(doubt?.title).toContain('Число неполное — проверено не всё: колонок — 1.');
-    expect(queueChip('lost', shortcut({ unchecked: 'проверено не всё' }), false)?.count).toBe('3?');
+    expect(queueChip('lost', numbers({ doubt: 'проверено не всё' }), false)?.count).toBe('3?');
   });
 
-  it('о запертых говорит подсказка, а в число они не входят', () => {
-    expect(queueChip('lost', shortcut({}), true, 2)?.title).toContain('закрытого периода (2)');
-    expect(queueChip('lost', shortcut({}), true, 0)?.title).not.toContain('закрытого периода');
+  it('о запертых говорит подсказка чипа потерь, а в число они не входят', () => {
+    expect(queueChip('lost', numbers({ locked: 2 }), true)?.title).toContain('закрытого периода (2)');
+    expect(queueChip('lost', numbers(), true)?.title).not.toContain('закрытого периода');
+    expect(queueChip('archived', numbers({ locked: 2 }), true)?.title).not.toContain('закрытого периода');
   });
 
   it('архив не зовёт исправлять', () => {
-    const title = queueChip('archived', shortcut({ code: 'archived', quiet: true }), false)!.title;
+    const title = queueChip('archived', numbers(), false)!.title;
 
     expect(title).toContain('Счёт верен');
     expect(title).not.toContain('замените');
@@ -64,7 +65,7 @@ describe('пометка строки', () => {
 
   it('говорит, что с потерей можно сделать', () => {
     const of = (lostState: 'fixable' | 'locked' | 'type') => lostTitle(invoice('1', {
-      references: { supplierLost: null, lostState, archivedCalls: false, lost: [{ kind: 'type', count: 1 }], archived: [] },
+      references: { supplierLost: false, lostState, archivedCalls: false, lost: [{ kind: 'type', count: 1 }], archived: [] },
     }));
 
     expect(of('fixable')).toContain('замените значение');
@@ -115,17 +116,25 @@ describe('открытый счёт под отбором', () => {
 
 describe('пустой список', () => {
   it('у каждого отбора свои слова', () => {
-    expect(emptyText(null, '', null, 0)).toBe('Счетов пока нет.');
-    expect(emptyText('lost', '', null, 0)).toBe('Исправлять нечего: счетов с удалёнными записями нет.');
-    expect(emptyText('lost', '', null, 2)).toContain('закрытого периода (2)');
-    expect(emptyText('lost', '', 'проверено не всё: колонок — 1', 2))
+    expect(emptyText(null, '', numbers())).toBe('Счетов пока нет.');
+    expect(emptyText('lost', '', numbers())).toBe('Исправлять нечего: счетов с удалёнными записями нет.');
+    expect(emptyText('lost', '', numbers({ locked: 2 }))).toContain('закрытого периода (2)');
+    expect(emptyText('lost', '', numbers({ locked: 2, doubt: 'проверено не всё: колонок — 1' })))
       .toBe('Удалённых записей не найдено, но проверено не всё: колонок — 1.');
-    expect(emptyText('archived', '', null, 0)).toContain('из архива нет');
-    expect(emptyText('parsing', '', null, 0)).toContain('Разбирать нечего');
+    expect(emptyText('archived', '', numbers())).toContain('из архива нет');
+    expect(emptyText('parsing', '', undefined)).toContain('Разбирать нечего');
+  });
+
+  it('числа не пришли — «исправлять нечего» не говорится: о запертых не известно ничего', () => {
+    const lost = emptyText('lost', '', undefined);
+
+    expect(lost).not.toContain('Исправлять нечего');
+    expect(lost).toContain('не посчитано');
+    expect(emptyText('archived', '', undefined)).toContain('не посчитано');
   });
 
   it('поиск под отбором называет и отбор, и запрос', () => {
-    expect(emptyText('lost', ' ромашка ', null, 0)).toBe('В отборе «Удалённые записи» по запросу «ромашка» ничего нет.');
-    expect(emptyText(null, 'ромашка', null, 0)).toBe('Ничего не найдено.');
+    expect(emptyText('lost', ' ромашка ', numbers())).toBe('В отборе «Удалённые записи» по запросу «ромашка» ничего нет.');
+    expect(emptyText(null, 'ромашка', undefined)).toBe('Ничего не найдено.');
   });
 });

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -39,6 +40,7 @@ public static class InvoiceEndpoints
         var group = endpoints.MapGroup("/api/costs/invoices").WithTags("Счета на оплату");
 
         group.MapGet("/", ListAsync).RequireAuthorization(AppPolicies.Permission(Read));
+        group.MapGet("/queues", InvoiceListMarks.QueuesAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}/scan", ScanAsync).RequireAuthorization(AppPolicies.Permission(Read));
 
@@ -80,8 +82,8 @@ public static class InvoiceEndpoints
     /// множества, что у готовых отборов таблицы счетов: число на чипе считается там, и разойдись
     /// правила — под чипом «3» стояло бы два счёта.</param>
     private static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
-        CostsDbContext db, IModuleCatalog catalog, InvoiceReferenceTrouble trouble, CancellationToken ct,
-        bool needsParsing = false, string? fix = null)
+        CostsDbContext db, IModuleCatalog catalog, InvoiceReferenceTrouble trouble, ILoggerFactory logs,
+        CancellationToken ct, bool needsParsing = false, string? fix = null)
     {
         if (fix is not (null or InvoiceListReferences.FixLost or InvoiceListReferences.FixArchived))
             throw new InvalidRequestException(
@@ -89,7 +91,8 @@ public static class InvoiceEndpoints
 
         // Ссылки не на месте — на каждое чтение списка и с архивом: пометку несёт каждая строка, а
         // видно в строке только поставщика — счёт с удалённой позицией выглядел бы чистым.
-        var marks = new InvoiceListMarks(await trouble.ReadAsync(withArchive: true, ct));
+        var marks = await InvoiceListMarks.ReadAsync(
+            trouble, required: fix is not null, logs.CreateLogger(typeof(InvoiceEndpoints)), ct);
 
         // Очередь «Разобрать» отбирает БАЗА (issue #1171), и запрос идёт от строк без позиции, а не от
         // счетов: так частичный индекс ix_invoice_lines_unmatched — он заведён ровно под этот отбор —
@@ -104,7 +107,7 @@ public static class InvoiceEndpoints
         {
             // Подзапросом, а не сравнением с массивом: его база сворачивает в хеш, а сравнение исполняет
             // перебором на каждую строку — счетов с архивной записью бывают тысячи (замер в InvoiceTable).
-            var named = fix == InvoiceListReferences.FixLost ? marks.Fixable : marks.Archived;
+            var named = fix == InvoiceListReferences.FixLost ? marks!.Fixable : marks!.Archived;
             var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({named}) AS \"Value\"");
             selected = selected.Where(i => keys.Contains(i.Id));
             if (fix == InvoiceListReferences.FixArchived)
@@ -121,7 +124,13 @@ public static class InvoiceEndpoints
         // той же ценой, что уже названа у названий поставщиков. У очереди — только по её счетам:
         // группировать всю таблицу ради десятка счетов незачем.
         var counted = db.InvoiceLines.AsNoTracking();
-        if (needsParsing || fix is not null)
+        if (fix is not null)
+        {
+            // Под отбором «наведите порядок» счетов бывают тысячи — тем же подзапросом, каким отобран
+            // список, а не массивом их ключей: массив база сверяла бы перебором (ревью PR #1241).
+            counted = counted.Where(l => selected.Select(i => i.Id).Contains(l.InvoiceId));
+        }
+        else if (needsParsing)
         {
             var queued = invoices.Select(i => i.Id).ToList();
             counted = counted.Where(l => queued.Contains(l.InvoiceId));
@@ -149,7 +158,7 @@ public static class InvoiceEndpoints
                 i.SupplierId is { } id && names.TryGetValue(id, out var supplier) ? supplier.DisplayName : null,
                 i.SupplierId is { } key && names.TryGetValue(key, out var found) && found.Archived,
                 lines.TryGetValue(i.Id, out var total) ? total.Count : 0,
-                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0) with { References = marks.Of(i) })]);
+                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0) with { References = marks?.Of(i) })]);
     }
 
     private static async Task<Ok<InvoiceView>> GetAsync(

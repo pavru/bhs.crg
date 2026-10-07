@@ -1,6 +1,6 @@
 import { Archive, Check, ListChecks, TriangleAlert } from 'lucide-react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
-import type { TableShortcut } from '@/shared/api/tables';
+import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { QUEUE_LABEL, queueChip } from './invoiceQueues';
 
 /**
@@ -9,25 +9,21 @@ import { QUEUE_LABEL, queueChip } from './invoiceQueues';
  * Выбор один, повторное нажатие снимает: отбирает сервер, и пересечения очередей он не считает —
  * «разобрать И удалённые» никто не просил.
  *
- * Числа — готовые отборы таблицы счетов, те же, что над реестром. Тому, кто счёт править не может,
- * сервер их не предлагает, и чипов «наведите порядок» у него нет: число было бы упрёком без выхода.
+ * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, чипов «наведите
+ * порядок» не показывают (числа у него и не спрашивают): число было бы упрёком без выхода.
  */
-export function InvoiceQueueChips({ queue, onChange, counts, failed, onRetry, locked }: {
+export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: {
   queue: InvoiceQueue | null;
   onChange: (queue: InvoiceQueue | null) => void;
-  /** Готовые отборы таблицы счетов; `undefined` — ещё не пришли. */
-  counts: TableShortcut[] | undefined;
+  /** Числа; `undefined` — не пришли или их не спрашивали. */
+  queues: InvoiceQueues | undefined;
   /** Числа не пришли: это не «ноль», и молча убрать чип нельзя. */
   failed: boolean;
   onRetry: () => void;
-  /** Счетов с удалёнными записями в закрытом периоде; `null` — не спрашивали. */
-  locked: number | null;
 }) {
   const toggle = (next: InvoiceQueue) => onChange(queue === next ? null : next);
-  const of = (code: 'lost' | 'archived') => queueChip(
-    code, counts?.find(s => s.code === code), queue === code, code === 'lost' ? locked : null);
-  const lost = of('lost');
-  const archived = of('archived');
+  const lost = queueChip('lost', queues, queue === 'lost');
+  const archived = queueChip('archived', queues, queue === 'archived');
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-xs" role="group" aria-label="Отбор списка счетов">

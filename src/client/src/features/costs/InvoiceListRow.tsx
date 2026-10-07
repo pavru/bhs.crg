@@ -10,24 +10,20 @@ import { LOST, MISSING } from './lostReferences';
  * Строка списка счетов.
  *
  * @param queue отбор, под которым стоит список: под «удалёнными» и «архивом» строка называет места.
- * @param left счёт под отбор больше не попадает (его исправили), но открыт — и потому остался.
  */
-export function InvoiceListRow({ item, active, queue, left, onClick }: {
-  item: InvoiceListItem; active: boolean; queue: InvoiceQueue | null; left: boolean; onClick: () => void;
+export function InvoiceListRow({ item, active, queue, onClick }: {
+  item: InvoiceListItem; active: boolean; queue: InvoiceQueue | null; onClick: () => void;
 }) {
   // Открытый счёт — на виду: сюда приходят и по ссылке из реестра, а там счёт мог стоять сотым.
   // `nearest` — строка, которая и так видна, с места не сдвигается.
   const row = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (active) row.current?.scrollIntoView({ block: 'nearest' }); }, [active]);
 
-  // Счёт, ушедший из-под отбора, запомнен таким, каким под ним стоял: его число по этому отбору
-  // устарело, и рядом со словом «исправлено» оно читалось бы как «исправлено не всё».
-  const lost = left && queue === 'lost' ? 0 : placesCount(item.references?.lost);
-  const archived = left && queue === 'archived' ? 0 : placesCount(item.references?.archived);
+  const lost = placesCount(item.references?.lost);
+  const archived = placesCount(item.references?.archived);
   // Третья строчка — что чинить: под отбором человек пришёл именно за этим, и открывать каждый счёт
   // ради ответа «а здесь что» незачем.
-  const where = left ? null
-    : queue === 'lost' ? placesText(item.references?.lost)
+  const where = queue === 'lost' ? placesText(item.references?.lost)
     : queue === 'archived' ? placesText(item.references?.archived)
     : null;
 
@@ -65,7 +61,7 @@ export function InvoiceListRow({ item, active, queue, left, onClick }: {
           </span>
         )}
         {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать». */}
-        {item.linesWithoutNomenclature > 0 && !(left && queue === 'parsing') && (
+        {item.linesWithoutNomenclature > 0 && (
           <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
             title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
             <ListChecks size={11} />{item.linesWithoutNomenclature}
@@ -75,12 +71,28 @@ export function InvoiceListRow({ item, active, queue, left, onClick }: {
       {where && (
         <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-danger' : 'text-fg3'}`}>{where}</div>
       )}
-      {left && (
-        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3"
-          title="Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт">
-          <Check size={11} aria-hidden /> {queue === 'parsing' ? 'разобрано' : queue === 'archived' ? 'больше не в отборе' : 'исправлено'}
-        </div>
-      )}
+    </button>
+  );
+}
+
+/**
+ * Строка открытого счёта, который под отбор больше не попадает: держится, пока с него не ушли, —
+ * исчезнувший без действия человека счёт читался бы как сбой.
+ *
+ * Рисует только номер — и берёт его у ОТКРЫТОГО счёта, а не из списка: строка списка осталась
+ * снимком до правки, и поставщик, сумма и пометки в ней устарели тем же сохранением. Почему счёт
+ * ушёл из-под отбора, список не знает (исправили, отклонили, оплатили в закрытый период) — поэтому
+ * слова нейтральные, без «исправлено» (ревью PR #1241).
+ */
+export function InvoiceLeftRow({ number, onClick }: { number: string | null; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="w-full text-left px-3 py-2 border-b border-stroke/60 bg-brand-subtle"
+      title="Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт">
+      <div className="text-sm text-fg1 font-medium truncate">{number || 'без номера'}</div>
+      <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
+        <Check size={11} aria-hidden /> больше не в отборе
+      </div>
     </button>
   );
 }
@@ -91,9 +103,10 @@ export function InvoiceListRow({ item, active, queue, left, onClick }: {
  * ⚠️ Ссылка без названия и «поставщик не выбран» — РАЗНЫЕ вещи, и одним прочерком их путать нельзя:
  * первое означает, что запись справочника удалили, и счёт остался со ссылкой в пустоту.
  *
- * Удалена запись или переведена в другой вид, говорит СЕРВЕР (`references.supplierLost`), а не
- * сравнение со списком: пока тот грузится, «нет в списке» выглядело бы потерей. Сервер не сказал —
- * остаются осторожные слова: «удалена» было бы утверждением, которого никто не проверял.
+ * «Удалена» говорит СЕРВЕР (`references.supplierLost`), а не сравнение со списком: пока тот
+ * грузится, «нет в списке» выглядело бы потерей. Сервер потери не подтвердил — остаются осторожные
+ * слова: названия может не быть и по другой причине (запись перевели в другой вид, вида «Организация»
+ * нет, запись удалили между опросом и чтением), и утверждать любую из них список не вправе.
  */
 function SupplierName({ item }: { item: InvoiceListItem }) {
   if (item.supplierName) {
@@ -106,15 +119,7 @@ function SupplierName({ item }: { item: InvoiceListItem }) {
   }
   if (!item.supplierId) return <span className="text-xs text-fg4 truncate">поставщик не выбран</span>;
 
-  const lost = item.references?.supplierLost;
-  if (lost === false) {
-    return (
-      <span className="text-xs text-fg3 truncate"
-        title="Запись есть, но она больше не организация: её перевели в другой вид. Откройте счёт и выберите организацию">
-        {LOST.movedOrganization}
-      </span>
-    );
-  }
+  const lost = item.references?.supplierLost === true;
   return (
     <span className="inline-flex items-center gap-1 text-xs text-danger truncate"
       title={lost

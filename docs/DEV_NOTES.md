@@ -2126,7 +2126,12 @@ GET    /api/costs/invoices          → реестр счетов               
                                       записью из архива. Множества — те же, что у готовых отборов таблицы
                                       costs.invoices; неизвестное значение — 400.
                                       У каждой строки — references: { supplierLost, lostState,
-                                      archivedCalls, lost[], archived[] } — пометки ссылок не на месте
+                                      archivedCalls, lost[], archived[] } — пометки ссылок не на месте;
+                                      null — опрос ядра отказал: список от него не зависит (под fix —
+                                      отказ, отбирать нечем)
+GET    /api/costs/invoices/queues   → числа чипов над списком: { lost, archived, locked, doubt } —
+                                      одним опросом ядра; lost и archived равны числам готовых отборов
+                                      таблицы costs.invoices                  costs.invoice.read
 GET    /api/costs/invoices/{id}     → счёт: реквизиты по схеме + метки + дубликаты + строки + сверка сумм
 GET    /api/costs/invoices/{id}/scan → скан потоком (у файла в хранилище прав нет, у адреса есть)
 POST   /api/costs/invoices          { requisites, unconfirmed? }            costs.invoice.edit

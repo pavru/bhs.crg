@@ -12,14 +12,14 @@ import {
   useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
-import { useInvoiceQueueCounts, useLostReferences } from '@/shared/api/invoiceQueues';
+import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
 import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
-import { InvoiceListRow } from './InvoiceListRow';
+import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
 import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
-import { K, scanFitsBeside } from './invoiceFields';
+import { K, asInput, scanFitsBeside } from './invoiceFields';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -49,14 +49,13 @@ export function InvoicesPage() {
   const [articlesOpen, setArticlesOpen] = useState(false);
 
   const invoices = useInvoices(queue);
-  // Числа чипов «наведите порядок» и, под отбором удалённых, — счета закрытого периода: в отбор они
-  // не входят, и список обязан сказать о них сам.
-  const counts = useInvoiceQueueCounts();
-  const lostReferences = useLostReferences(queue === 'lost');
-  const locked = lostReferences.data?.locked.invoices ?? null;
-  const doubt = queue === 'lost' || queue === 'archived'
-    ? counts.data?.find(s => s.code === queue)?.unchecked ?? null
-    : null;
+  // Числа чипов «наведите порядок» — тому, кто счёт может исправить: остальным число было бы упрёком
+  // без выхода. Вместе с ними приходят счета закрытого периода (в отбор не входят, и список обязан
+  // сказать о них сам) и оговорка «проверено не всё».
+  const counts = useInvoiceQueues(hasPermission(access, 'costs.invoice.edit'));
+  const queues = counts.data;
+  const fixing = queue === 'lost' || queue === 'archived';
+  const doubt = fixing ? queues?.doubt ?? null : null;
   const organizations = useCostsOrganizations('choice');
   const create = useCreateInvoice();
   const toast = useToast();
@@ -108,8 +107,8 @@ export function InvoicesPage() {
       nav={
         <>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
-          <InvoiceQueueChips queue={queue} onChange={setQueue} counts={counts.data} failed={counts.isError}
-            onRetry={() => void counts.refetch()} locked={locked} />
+          <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} failed={counts.isError}
+            onRetry={() => void counts.refetch()} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-xs text-warning" role="status">
@@ -124,7 +123,7 @@ export function InvoicesPage() {
             )}
             {!invoices.isPending && !invoices.isError && rows.length === 0 && (
               <div className="px-3 py-2 text-xs text-fg3 space-y-1">
-                <p>{emptyText(queue, query, doubt, locked ?? 0)}</p>
+                <p>{emptyText(queue, query, queues)}</p>
                 {queue && !query.trim() && (
                   <button type="button" className="underline hover:text-fg1" onClick={() => setQueue(null)}>
                     Показать все счета
@@ -132,15 +131,24 @@ export function InvoicesPage() {
                 )}
               </div>
             )}
-            {rows.map(({ item, left }) => (
-              <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue} left={left}
+            {rows.map(({ item, left }) => left ? (
+              // Номер — у открытого счёта: строка списка осталась снимком до правки.
+              <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
+                number={view.data?.id === item.id ? asInput(view.data.requisites[K.number]) : item.number} />
+            ) : (
+              <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
                 onClick={() => setSelected(item.id)} />
             ))}
             {/* Запертые — строкой, а не кнопкой: открыть их можно, исправить нельзя. Под пустым списком
-                о них уже сказано словами пустого состояния. */}
-            {queue === 'lost' && !!locked && rows.length > 0 && (
-              <p className="px-3 py-2 text-xs text-fg3">{lockedNote(locked)}</p>
-            )}
+                о них уже сказано словами пустого состояния. Числа не пришли — так и говорим: молчание
+                читалось бы как «запертых нет». */}
+            {queue === 'lost' && rows.length > 0 && (queues
+              ? queues.locked > 0 && <p className="px-3 py-2 text-xs text-fg3">{lockedNote(queues.locked)}</p>
+              : !counts.isPending && (
+                <p className="px-3 py-2 text-xs text-warning">
+                  Есть ли счета закрытого периода с удалёнными записями — не посчитано.
+                </p>
+              ))}
           </div>
         </>
       }

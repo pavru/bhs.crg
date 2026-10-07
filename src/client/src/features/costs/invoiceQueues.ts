@@ -1,5 +1,5 @@
 import type { InvoiceListItem, InvoiceQueue, InvoiceReferencePlace } from '@/shared/api/invoices';
-import type { TableShortcut } from '@/shared/api/tables';
+import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 
 /**
  * Очереди списка счетов (issue #1186): «Разобрать», «Удалённые записи», «В архиве» — чипами над
@@ -23,29 +23,32 @@ export interface QueueChip {
 }
 
 /**
- * Чип очереди по готовому отбору таблицы счетов — или `null`, когда показывать нечего.
+ * Чип очереди по числам сервера — или `null`, когда показывать нечего.
  *
  * Ноль не рисуем: чип с нулём звал бы туда, где пусто. Два исключения: нажатый чип остаётся (иначе
  * отбор нечем снять, а его пропажа после последней замены читалась бы как сбой), и «проверено не
  * всё» — ноль с этой оговоркой не значит «нет».
  *
- * @param locked сколько счетов с удалёнными записями заперто закрытым периодом; `null` — не спрашивали.
+ * @param queues числа; `undefined` — не пришли. Нажатый чип тогда остаётся без числа: «не пришло» —
+ * не «ноль», и о несчитанном экран говорит отдельно.
  */
 export function queueChip(
-  queue: 'lost' | 'archived', shortcut: TableShortcut | undefined, active: boolean, locked: number | null = null,
+  queue: 'lost' | 'archived', queues: InvoiceQueues | undefined, active: boolean,
 ): QueueChip | null {
-  if (!shortcut) return null;
-  const doubt = shortcut.unchecked !== null;
-  if (shortcut.count === 0 && !doubt && !active) return null;
+  if (!queues)
+    return active ? { count: '', title: 'Сколько таких счетов — не посчитано.', doubt: false } : null;
+  const number = queues[queue];
+  const doubt = queues.doubt !== null;
+  if (number === 0 && !doubt && !active) return null;
 
-  const count = shortcut.count > 0 ? `${shortcut.count}${doubt ? '?' : ''}` : doubt ? '?' : '';
+  const count = number > 0 ? `${number}${doubt ? '?' : ''}` : doubt ? '?' : '';
   const said = [
     queue === 'lost'
-      ? `Счета, в которых стоит удалённая запись справочника: ${shortcut.count}. Откройте счёт и замените значение.`
-      : `Неоплаченные счета, в которых выбрана запись из архива: ${shortcut.count}. Счёт верен; заменить стоит, `
+      ? `Счета, в которых стоит удалённая запись справочника: ${number}. Откройте счёт и замените значение.`
+      : `Неоплаченные счета, в которых выбрана запись из архива: ${number}. Счёт верен; заменить стоит, `
         + 'если запись убрали как дубль.',
-    ...(locked ? [lockedNote(locked)] : []),
-    ...(doubt ? [`Число неполное — ${shortcut.unchecked}.`] : []),
+    ...(queue === 'lost' && queues.locked > 0 ? [lockedNote(queues.locked)] : []),
+    ...(doubt ? [`Число неполное — ${queues.doubt}.`] : []),
   ];
   return { count, title: said.join(' '), doubt };
 }
@@ -89,10 +92,15 @@ export function lostTitle(item: InvoiceListItem): string {
   }
 }
 
-/** Строка списка: счёт и, если он уже не под отбором, — слово о том, что его исправили. */
+/** Строка списка: счёт и признак того, что под отбором его уже нет. */
 export interface QueueRow {
   item: InvoiceListItem;
-  /** Счёт под отбор больше не попадает, но открыт — строка держится до ухода с него. */
+  /**
+   * Счёт под отбор больше не попадает, но открыт — строка держится до ухода с него.
+   * ⚠️ `item` тогда — СНИМОК, каким счёт под отбором стоял: рисовать по нему можно только то, что
+   * правкой не меняется. И ПОЧЕМУ счёт ушёл, отсюда не видно: его могли исправить, а могли отклонить
+   * или оплатить в закрытый период — слова «исправлено» список сказать не вправе (ревью PR #1241).
+   */
   left: boolean;
 }
 
@@ -133,8 +141,14 @@ export function queueRows(listed: InvoiceListItem[], held: HeldRow | null): Queu
   return rows;
 }
 
-/** Почему список пуст — словами того отбора, под которым он пуст. */
-export function emptyText(queue: InvoiceQueue | null, query: string, doubt: string | null, locked: number): string {
+/**
+ * Почему список пуст — словами того отбора, под которым он пуст.
+ *
+ * @param queues числа сервера; `undefined` — не пришли (идёт запрос либо отказ). ⚠️ Тогда о запертых
+ * счетах и о полноте проверки не известно ничего, и сказать «исправлять нечего» было бы отказом,
+ * переодетым в ответ (ревью PR #1241).
+ */
+export function emptyText(queue: InvoiceQueue | null, query: string, queues: InvoiceQueues | undefined): string {
   const text = query.trim();
   if (text)
     return queue ? `В отборе «${QUEUE_LABEL[queue]}» по запросу «${text}» ничего нет.` : 'Ничего не найдено.';
@@ -143,12 +157,18 @@ export function emptyText(queue: InvoiceQueue | null, query: string, doubt: stri
       return 'Разбирать нечего: строк, ждущих позиции номенклатуры, нет ни у одного счёта. '
         + 'Счета без строк вовсе в этот отбор не входят — это другая работа.';
     case 'lost':
-      if (doubt) return `Удалённых записей не найдено, но ${doubt}.`;
-      return locked > 0
-        ? `Исправлять нечего. В счетах закрытого периода (${locked}) удалённые записи остались — исправить их нельзя.`
+      if (!queues)
+        return 'Счетов с удалёнными записями, которые можно исправить, не найдено. '
+          + 'Есть ли такие в закрытом периоде и всё ли проверено — не посчитано.';
+      if (queues.doubt) return `Удалённых записей не найдено, но ${queues.doubt}.`;
+      return queues.locked > 0
+        ? `Исправлять нечего. В счетах закрытого периода (${queues.locked}) удалённые записи остались — исправить их нельзя.`
         : 'Исправлять нечего: счетов с удалёнными записями нет.';
     case 'archived':
-      return doubt ? `Счетов с записями из архива не найдено, но ${doubt}.` : 'Неоплаченных счетов с записями из архива нет.';
+      if (!queues) return 'Неоплаченных счетов с записями из архива не найдено. Всё ли проверено — не посчитано.';
+      return queues.doubt
+        ? `Счетов с записями из архива не найдено, но ${queues.doubt}.`
+        : 'Неоплаченных счетов с записями из архива нет.';
     default: return 'Счетов пока нет.';
   }
 }

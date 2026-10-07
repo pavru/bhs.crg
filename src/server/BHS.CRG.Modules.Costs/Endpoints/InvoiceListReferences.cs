@@ -1,5 +1,10 @@
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Ports;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -14,16 +19,17 @@ public sealed record InvoiceReferencePlace(string Kind, int Count);
 /// Что со ссылками счёта на записи ядра — для строки списка (issue #1186). В списке виден только
 /// поставщик, и счёт с удалённой позицией или статьёй разноски выглядел бы чистым.
 /// </summary>
-/// <param name="SupplierLost">Удалена ли запись поставщика: <c>true</c> — удалена, <c>false</c> —
-/// проверено, запись есть (названия нет — значит, её перевели в другой вид), <c>null</c> — поставщика
-/// нет либо колонку проверить не удалось. ⚠️ Третье — не «на месте»: списку остаются осторожные слова.</param>
+/// <param name="SupplierLost">Опрос ядра подтвердил: запись поставщика удалена. ⚠️ <c>false</c> — НЕ
+/// «запись на месте» и не «её перевели в другой вид»: это лишь «потеря не найдена». Названия может не
+/// быть и потому, что вида «Организация» на установке нет, и потому, что запись удалили между опросом
+/// и чтением счетов (снимки разные). Списку тогда остаются осторожные слова (ревью PR #1241).</param>
 /// <param name="LostState">Что можно сделать с удалёнными записями счёта: <c>fixable</c>,
 /// <c>locked</c> (закрытый период) или <c>type</c> (удалён только тип счёта); <c>null</c> — их нет.
 /// Отбор списка «удалённые» показывает только первое.</param>
 /// <param name="ArchivedCalls">Зовёт ли архивная запись к правке: счёт ещё не оплачен. По этому
 /// признаку отбирает отбор «в архиве»; у оплаченного счёта пометка остаётся, но тихой.</param>
 public sealed record InvoiceListReferences(
-    bool? SupplierLost, string? LostState, bool ArchivedCalls,
+    bool SupplierLost, string? LostState, bool ArchivedCalls,
     IReadOnlyList<InvoiceReferencePlace> Lost, IReadOnlyList<InvoiceReferencePlace> Archived)
 {
     public const string Fixable = "fixable";
@@ -37,6 +43,18 @@ public sealed record InvoiceListReferences(
 }
 
 /// <summary>
+/// Числа для чипов «наведите порядок» над списком счетов — одним ответом и одним опросом ядра.
+/// </summary>
+/// <param name="Lost">Счетов с удалённой записью, которые можно исправить. То же число, что у готового
+/// отбора таблицы счетов «lost», и столько же строк отдаёт список под <c>fix=lost</c>.</param>
+/// <param name="Archived">Неоплаченных счетов с записью из архива — как у готового отбора «archived».</param>
+/// <param name="Locked">Счетов с удалённой записью в закрытом периоде: в <paramref name="Lost" /> не
+/// входят, исправить их нельзя — и промолчать о них значило бы сказать «больше нет».</param>
+/// <param name="Doubt">Почему числам нельзя верить как полным; <c>null</c> — проверено всё.
+/// ⚠️ Ноль с этой причиной — не «счетов нет».</param>
+public sealed record InvoiceQueuesView(int Lost, int Archived, int Locked, string? Doubt);
+
+/// <summary>
 /// Пометки строк списка счетов из ответа обратного опроса ядра.
 ///
 /// <para>Суждение — у <see cref="InvoiceReferenceTrouble" />, здесь только раскладка по счетам: посчитай
@@ -48,7 +66,6 @@ public sealed class InvoiceListMarks
 
     private readonly InvoiceTroubles troubles;
     private readonly ILookup<Guid, ReferenceFinding> found;
-    private readonly bool supplierChecked;
 
     public InvoiceListMarks(InvoiceTroubles troubles)
     {
@@ -56,8 +73,44 @@ public sealed class InvoiceListMarks
         found = troubles.Findings.Found
             .Where(f => f is { DocumentKey: not null, DocumentTable: InvoiceReferenceTrouble.Invoices })
             .ToLookup(f => f.DocumentKey!.Value);
-        supplierChecked = !troubles.Findings.Unchecked
-            .Any(u => u is { Table: InvoiceReferenceTrouble.Invoices, Column: SupplierColumn });
+    }
+
+    /// <summary>
+    /// Пометки для списка. <b>Список от опроса не зависит</b>: пометки — вспомогательные данные, и
+    /// отказ опроса (второе соединение, границы периодов) не должен отнимать у человека сами счета.
+    /// Тогда пометок нет (<c>null</c>), а о несчитанных числах скажет адрес чисел — своим отказом.
+    /// Под отбором иначе: без ответа отбирать нечем, и отказ остаётся отказом (ревью PR #1241).
+    /// </summary>
+    public static async Task<InvoiceListMarks?> ReadAsync(
+        InvoiceReferenceTrouble trouble, bool required, ILogger log, CancellationToken ct)
+    {
+        try
+        {
+            return new(await trouble.ReadAsync(withArchive: true, ct));
+        }
+        catch (Exception e) when (!required && e is not OperationCanceledException)
+        {
+            log.LogWarning(e, "Список счетов отдан без пометок ссылок: обратный опрос ядра отказал");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Числа чипов над списком (<c>GET /api/costs/invoices/queues</c>) — одним опросом на все три.
+    /// Отдельным адресом, а не в ответе списка: список отдаётся массивом, и на нём стоят прогоны и посев.
+    /// </summary>
+    public static async Task<Ok<InvoiceQueuesView>> QueuesAsync(
+        CostsDbContext db, InvoiceReferenceTrouble trouble, CancellationToken ct)
+    {
+        var troubles = await trouble.ReadAsync(withArchive: true, ct);
+        var archived = troubles.Archived.ToArray();
+        var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({archived}) AS \"Value\"");
+        return TypedResults.Ok(new InvoiceQueuesView(
+            troubles.With(LostMark.Fixable).Length,
+            archived.Length == 0 ? 0 : await db.Invoices.AsNoTracking()
+                .CountAsync(i => keys.Contains(i.Id) && i.Payment != InvoicePaymentState.Paid, ct),
+            troubles.With(LostMark.Locked).Length,
+            troubles.Doubt));
     }
 
     /// <summary>Счета под отбором «удалённые записи»: только те, что можно исправить.</summary>
@@ -66,15 +119,13 @@ public sealed class InvoiceListMarks
     /// <summary>Счета со ссылкой в архив. Оплату отбор сверяет по самому счёту.</summary>
     public Guid[] Archived => [.. troubles.Archived];
 
-    public InvoiceListReferences Of(Data.Invoice invoice)
+    public InvoiceListReferences Of(Invoice invoice)
     {
         var mine = found[invoice.Id].ToList();
         var lost = mine.Where(f => f.State == ReferenceState.Lost).ToList();
 
         return new(
-            invoice.SupplierId is null || !supplierChecked
-                ? null
-                : lost.Any(f => f is { Table: InvoiceReferenceTrouble.Invoices, Column: SupplierColumn }),
+            lost.Any(f => f is { Table: InvoiceReferenceTrouble.Invoices, Column: SupplierColumn }),
             troubles.Lost.TryGetValue(invoice.Id, out var mark)
                 ? mark switch
                 {
