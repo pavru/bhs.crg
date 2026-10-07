@@ -92,21 +92,6 @@ public static class AppModuleExtensions
         // модуля обязан узнаваться при восстановлении копии.
         services.AddSingleton(new Settings.ModuleSettingCatalog(available));
 
-        // Пометка «входит в „читать всё"» — у каждого права каждого модуля СБОРКИ, а не включённых
-        // (задача A3, issue #1074): право без пометки выпало бы из составного молча, и обнаружилось
-        // бы это на экземпляре, где модуль включили, — отсутствием раздела у «Руководителя».
-        var unmarked = available
-            .SelectMany(m => m.Permissions)
-            .Where(p => p.ReadAll is null)
-            .Select(p => p.Code)
-            .ToList();
-        if (unmarked.Count > 0)
-            throw new InvalidOperationException(
-                "У права модуля не сказано, входит ли оно в «читать всё»: " + string.Join(", ", unmarked) + ".\n" +
-                "Поставьте пометку в объявлении: ReadAllMark.In — право только читает, " +
-                "ReadAllMark.Out(\"причина\") — меняет данные или открывает лишнее. По коду права это " +
-                "не выводится, а без пометки владелец составного права молча не получит ничего.");
-
         var registry = new ModuleRegistry(enabled, disabled);
         services.AddSingleton(registry);
         // Узкий взгляд на состав поставки — для модулей (ТЗ AUTH-19). Тем же объектом, а не второй
@@ -116,8 +101,11 @@ public static class AppModuleExtensions
 
         // Каталог собирается ЗДЕСЬ, а не лениво при первом обращении: негодное объявление права
         // обязано ронять старт, а не первый заход администратора в редактор ролей.
+        // Пометки «читать всё» сверяются по модулям СБОРКИ (задача A3, issue #1074) и уходят в тот
+        // же отказ, что и прочие изъяны объявлений: один перезапуск на всё.
         services.AddSingleton(new PermissionCatalog(
-            [.. corePermissions, .. enabled.SelectMany(m => m.Permissions)]));
+            [.. corePermissions, .. enabled.SelectMany(m => m.Permissions)],
+            PermissionCatalog.ReadAllFaults(corePermissions, available.SelectMany(m => m.Permissions))));
 
         // Политики прав и модулей (AUTH-8) — часть механизма модулей, а не приложения: ворота на
         // группу модуля ставит MapAppModules, и он обязан ставить их тем, что здесь объявлено.

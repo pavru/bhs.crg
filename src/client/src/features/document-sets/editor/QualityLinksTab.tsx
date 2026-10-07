@@ -317,6 +317,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       const s = await suggestLinks({ setId, materials: materials.map(m => ({ key: m.key, name: m.label })) });
       setSuggestions(s);
       setSuggestSel(new Set(s.map(x => x.materialKey)));
+    } catch (e) {
+      // Без этого отказ (например, 403 у роли без права вести документы качества) уходил
+      // необработанным: кнопка крутилась и молча не делала ничего (ревью PR #1251).
+      linksToast.apiError(e, 'Не удалось подобрать связи');
     } finally { setSuggesting(false); }
   }
 

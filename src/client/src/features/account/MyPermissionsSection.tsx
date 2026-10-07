@@ -17,6 +17,9 @@ import { useMyPermissions } from '@/shared/api/account';
  * которая понадобилась. Счётчик у заголовка виден всегда, иначе свёрнутая группа не отличается от
  * пустой.
  */
+/** Составное право «читать всё» — тот же код, что на сервере (`PermissionCatalog.ReadAllCode`). */
+const READ_ALL = '*.read.all';
+
 export function MyPermissionsSection() {
   const { data: groups, isLoading, isError } = useMyPermissions();
   const [open, setOpen] = useState<string | null>(null);
@@ -28,6 +31,11 @@ export function MyPermissionsSection() {
   if (!groups || groups.length === 0) {
     return <p className="text-sm text-fg4">Прав нет — разделы не открываются. Права выдаёт администратор.</p>;
   }
+
+  // Подпись «входит в „читать всё"» — свойство ПРАВА, одинаковое для всех. Показанная бухгалтеру,
+  // у которого счета выданы напрямую, она читалась бы как «у меня есть „читать всё"» (ревью
+  // PR #1251). Поэтому она стоит только у того, у кого составное право действительно есть.
+  const holdsReadAll = groups.some(g => g.permissions.some(p => p.code === READ_ALL));
 
   return (
     <div className="space-y-1">
@@ -53,10 +61,10 @@ export function MyPermissionsSection() {
                     <div className="text-sm text-fg1">{p.gives}</div>
                     <div className="text-xs text-fg3">{p.opens}</div>
                     <code className="text-[11px] text-fg4">{p.code}</code>
-                    {/* Откуда право у человека с одной ролью «Руководитель»: в составе роли его
-                        нет, оно приходит раскрытием составного. Без подписи список расходился бы
-                        с тем, что видит администратор в редакторе ролей. */}
-                    {p.readAll && (
+                    {/* У человека с одной ролью «Руководитель» этого права в составе роли нет:
+                        оно приходит раскрытием составного. Без подписи список расходился бы с
+                        тем, что видит администратор в редакторе ролей. */}
+                    {holdsReadAll && p.readAll && (
                       <div className="text-[11px] text-fg4">входит в право «читать всё»</div>
                     )}
                   </li>

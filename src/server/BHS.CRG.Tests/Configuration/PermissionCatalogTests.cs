@@ -155,8 +155,56 @@ public class PermissionCatalogTests
             [new AppPermission("core.catalog.read", "справочники", "общие данные")],
             new GoodModule("id"));
 
-        Assert.Empty(services.BuildServiceProvider().GetRequiredService<PermissionCatalog>()
-            .Expand(["core.catalog.read"]).Except(["core.catalog.read"]));
+        Assert.Equal(["id.thing.read"],
+            services.BuildServiceProvider().GetRequiredService<PermissionCatalog>().ReadAll);
+    }
+
+    /// <summary>
+    /// Пометка на праве ЯДРА — отказ: составное право раскрывается по модулям, и это сказано
+    /// администратору в руководстве. Иначе право ядра молча уехало бы каждому владельцу «читать всё».
+    /// </summary>
+    [Fact]
+    public void Core_permission_with_a_mark_stops_startup()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddAppModules(
+            new ConfigurationBuilder().Build(),
+            [new AppPermission("core.employees.read", "сотрудники", "справочник", ReadAll: ReadAllMark.In)],
+            new GoodModule("id")));
+
+        Assert.Contains("core.employees.read", ex.Message);
+        Assert.Contains("только по модулям", ex.Message);
+    }
+
+    /// <summary>
+    /// Изъян пометки идёт в ТОТ ЖЕ отказ, что и право без объяснения: модуль с обоими чинится за
+    /// один перезапуск, а не за два.
+    /// </summary>
+    [Fact]
+    public void Missing_mark_is_named_together_with_other_faults()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Modules:Enabled"] = "id,costs" })
+            .Build();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddAppModules(
+            configuration, [], new UnmarkedModule(), new BrokenModule2()));
+
+        Assert.Contains("id.thing.export", ex.Message);      // нет пометки
+        Assert.Contains("costs.thing.read", ex.Message);     // нет объяснения
+    }
+
+    /// <summary>
+    /// Пометка стоит у каждого права каждого модуля ПОСТАВКИ и ни у одного права ядра. Старт
+    /// отказывает на том же, но роняет с собой все тесты на живом хосте; здесь отказ один и с именем.
+    /// </summary>
+    [Fact]
+    public void Delivered_permissions_are_marked_correctly()
+    {
+        var faults = PermissionCatalog.ReadAllFaults(
+            BHS.CRG.Api.Auth.CorePermissions.All,
+            BHS.CRG.Api.Modules.DeliveredModules.All().SelectMany(m => m.Permissions)).ToList();
+
+        Assert.True(faults.Count == 0, string.Join("\n", faults));
     }
 
     [Fact]
@@ -201,10 +249,8 @@ public class PermissionCatalogTests
     [Fact]
     public void Expanded_read_all_opens_the_module()
     {
-        IReadOnlyCollection<string> bare = [PermissionCatalog.ReadAllCode];
-
-        Assert.False(ModuleAccess.IsOpen("costs", bare));
-        Assert.True(ModuleAccess.IsOpen("costs", Composite().Expand(bare)));
+        Assert.False(ModuleAccess.IsOpen("costs", [PermissionCatalog.ReadAllCode]));
+        Assert.True(ModuleAccess.IsOpen("costs", Composite().Expand([PermissionCatalog.ReadAllCode])));
     }
 
     private static PermissionCatalog Composite() => new(
@@ -215,6 +261,13 @@ public class PermissionCatalogTests
         new AppPermission("costs.report.read", "отчёты", "суммы", ReadAll: ReadAllMark.In),
         new AppPermission("costs.invoice.edit", "править счета", "счета", ReadAll: ReadAllMark.Out("правит счета")),
     ]);
+
+    private sealed class BrokenModule2 : TestModule
+    {
+        public override string Code => "costs";
+        public override IReadOnlyList<AppPermission> Permissions =>
+            [new AppPermission("costs.thing.read", "", "вещи", ReadAll: ReadAllMark.In)];
+    }
 
     private sealed class UnmarkedModule : TestModule
     {

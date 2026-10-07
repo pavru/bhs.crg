@@ -37,8 +37,6 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<ModulePortsHost>
 {
-    private const string Password = "Passw0rd!";
-
     /// <summary>
     /// Изменяющие адреса, которые владелец одного «читать всё» проходит по описанию ворот, — с
     /// причиной, почему это не правка. Ключ — «МЕТОД путь».
@@ -83,25 +81,6 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
         Assert.True(stale.Count == 0,
             "В Deliberate адреса, которые «читать всё» больше не открывает или которых нет: " +
             string.Join(", ", stale) + ".");
-    }
-
-    /// <summary>
-    /// Пометка стоит у каждого права каждого модуля поставки. Старт приложения отказывает на том же
-    /// (см. <c>AddAppModules</c>), но здесь отказ называет право, не роняя с собой весь набор.
-    /// </summary>
-    [Fact]
-    public void У_каждого_права_модуля_есть_пометка_читать_всё()
-    {
-        var unmarked = DeliveredModules.All()
-            .SelectMany(m => m.Permissions)
-            .Where(p => p.ReadAll is null)
-            .Select(p => p.Code)
-            .ToList();
-
-        Assert.True(unmarked.Count == 0,
-            "У права модуля не сказано, входит ли оно в «читать всё»: " + string.Join(", ", unmarked) + ".\n" +
-            "ReadAllMark.In — право только читает; ReadAllMark.Out(\"причина\") — меняет данные. Без пометки " +
-            "владелец составного права («Руководитель») молча не получит этого права вовсе.");
     }
 
     /// <summary>
@@ -175,33 +154,6 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
                 _ => false,
             });
 
-    /// <summary>Заводит роль ровно с этими правами, пользователя в ней — и возвращает клиент с его токеном.</summary>
-    private async Task<HttpClient> SignInWithAsync(params string[] permissions)
-    {
-        var roleName = $"ReadAll_{Guid.NewGuid():N}";
-        var email = $"readall_{Guid.NewGuid():N}@test.local";
-
-        var client = fixture.CreateClient();
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-
-            var role = new IdentityRole<Guid>(roleName);
-            Assert.True((await roles.CreateAsync(role)).Succeeded);
-            foreach (var permission in permissions)
-                Assert.True((await roles.AddClaimAsync(
-                    role, new System.Security.Claims.Claim(RoleSynchronizer.PermissionClaim, permission))).Succeeded);
-
-            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, roleName)).Succeeded);
-        }
-
-        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
-        login.EnsureSuccessStatusCode();
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
-    }
+    private Task<HttpClient> SignInWithAsync(params string[] permissions) =>
+        GrantedSignIn.WithPermissionsAsync(fixture, permissions);
 }

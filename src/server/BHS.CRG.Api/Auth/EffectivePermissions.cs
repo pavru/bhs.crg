@@ -30,6 +30,7 @@ public sealed class EffectivePermissions(
 {
     public async Task<IReadOnlyCollection<string>> OfAsync(ApplicationUser user)
     {
+        // Без учёта регистра: на это сравнение опирается и раскрытие составного права.
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var roleName in await users.GetRolesAsync(user))
