@@ -50,9 +50,12 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
         // каждая с причиной. Экран по нему и рисует «модуль выключен» вместо пустой таблицы.
         var described = await client.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices/columns");
         Assert.Equal(TableColumnReasons.ModuleOff, described.GetProperty("state").GetString());
+        // Описание называет и колонки, приходящие только по требованию (issue #1186); в таблице без
+        // списка колонок их нет.
         Assert.Equal(
             columns.Select(c => c.GetProperty("key").GetString()),
-            described.GetProperty("columns").EnumerateArray().Select(c => c.GetProperty("key").GetString()));
+            described.GetProperty("columns").EnumerateArray().Where(c => !c.GetProperty("onDemand").GetBoolean())
+                .Select(c => c.GetProperty("key").GetString()));
         Assert.All(described.GetProperty("columns").EnumerateArray(),
             c => Assert.Equal(TableColumnReasons.ModuleOff, c.GetProperty("unavailable").GetString()));
         // Готовых представлений у выключенной таблицы нет (G4, issue #1097): настраивать нечего, строк нет.

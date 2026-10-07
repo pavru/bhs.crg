@@ -231,18 +231,20 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
             c.Key, c.Title, TableKinds.Name(c.Kind),
             // Колонке, чьё значение зависит от отбора, операторов не положено: по ней не отбирают.
             c.DependsOnFilter ? [] : TableOperators.For(TableKinds.Name(c.Kind)), true,
-            DependsOnFilter: c.DependsOnFilter, Options: c.Options))];
+            DependsOnFilter: c.DependsOnFilter, Options: c.Options, OnDemand: c.OnDemand))];
 
     /// <summary>
     /// Запрошенные колонки в запрошенном порядке; ключ, которого нет, — колонка с причиной «поле
-    /// удалено из типа». Ничего не просили — все колонки таблицы.
+    /// удалено из типа». Ничего не просили — все колонки таблицы, кроме тех, что приходят только
+    /// названными (<see cref="ModuleTableColumn.OnDemand" />): «все» спрашивает и набор данных, и
+    /// дорогую колонку он получал бы на каждое чтение, не прося её (ревью PR #1239).
     ///
     /// <para>Пустой список — тоже «ничего не просили» (<c>?columns=,</c>): таблица без единой колонки
     /// нарушила бы главное обещание — меньше объявленного не приходит никогда (ревью PR #1130).</para>
     /// </summary>
     private static IEnumerable<TableColumnDto> Mark(List<TableColumnDto> columns, IReadOnlyList<string>? requested)
     {
-        if (requested is null or { Count: 0 }) return columns;
+        if (requested is null or { Count: 0 }) return columns.Where(c => !c.OnDemand);
 
         var byKey = columns.ToDictionary(c => c.Key, StringComparer.Ordinal);
         return requested.Distinct(StringComparer.Ordinal).Select(key => byKey.TryGetValue(key, out var column)

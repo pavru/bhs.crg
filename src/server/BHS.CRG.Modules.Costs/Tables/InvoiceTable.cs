@@ -145,6 +145,38 @@ public static class InvoiceTable
         _ => null,
     };
 
+    /// <summary>
+    /// Есть ли в счёте ссылки на УДАЛЁННЫЕ записи справочников и можно ли это исправить (issue #1186).
+    /// Пусто — удалённых записей не найдено.
+    ///
+    /// <para>Перечень, а не признак «есть потеря, которую можно исправить»: у запертого счёта признак
+    /// отвечал бы «нет», а форма того же счёта показывает пометку. Запертые НАЗВАНЫ; отбор «наведите
+    /// порядок» берёт первое значение.</para>
+    ///
+    /// <para>⚠️ Дополнительные поля типа счёта не проверяются: пустая клетка — «не найдено», а не «нет».</para>
+    /// </summary>
+    public const string LostKey = "СсылкиНаУдалённое";
+
+    /// <summary>Есть ли в счёте ссылки на записи В АРХИВЕ. Ссылка законна (issue #1185); к правке зовёт
+    /// только счёт в работе — неоплаченный (решение владельца 07.10.2026).</summary>
+    public const string ArchivedKey = "СсылкиВАрхив";
+
+    /// <summary>Слово готового отбора: то, что человек может исправить. Одно на обе колонки.</summary>
+    public const string TroubleFixable = "есть";
+
+    public static readonly IReadOnlyDictionary<int, string> LostWords = new Dictionary<int, string>
+    {
+        [(int)LostMark.Fixable] = TroubleFixable,
+        [(int)LostMark.Locked] = "есть, период закрыт",
+        [(int)LostMark.TypeOnly] = "удалён тип счёта",
+    };
+
+    public static readonly IReadOnlyDictionary<int, string> ArchivedWords = new Dictionary<int, string>
+    {
+        [(int)ArchivedMark.Open] = TroubleFixable,
+        [(int)ArchivedMark.Paid] = "есть, счёт оплачен",
+    };
+
     /// <summary>Код готового представления «Реестр счетов» (ТЗ COST-20.1).</summary>
     public const string RegistryView = "registry";
 
@@ -196,6 +228,13 @@ public static class InvoiceTable
             new(PeriodKey, "Учётный период", ModuleTableColumnKind.List),
             new(PeriodSumsKey, "Суммы по периодам", ModuleTableColumnKind.Text, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),
+            // Только по требованию: значение даёт опрос ядра, и платить за него обязан тот, кто колонку
+            // назвал, а не каждый читатель таблицы. В «Реестр счетов» по умолчанию не входят, в запрос
+            // «все колонки» и в набор данных — тоже (issue #1186).
+            new(LostKey, "Ссылки на удалённые записи", ModuleTableColumnKind.Choice, Options: [.. LostWords.Values],
+                OnDemand: true),
+            new(ArchivedKey, "Ссылки на записи в архиве", ModuleTableColumnKind.Choice, Options: [.. ArchivedWords.Values],
+                OnDemand: true),
         ],
         typeof(InvoiceTableRows),
         CostsRecordTypes.InvoiceCode,
@@ -233,7 +272,8 @@ public static class InvoiceTable
 /// приходят теми же ключами — их колонки ядро берёт из схемы типа.
 /// </summary>
 public sealed class InvoiceTableRows(
-    CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModuleClock clock)
+    CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModuleClock clock,
+    InvoiceReferenceTrouble trouble)
     : IModuleTableRows
 {
     private static readonly IReadOnlyDictionary<InvoiceState, string> States =
@@ -258,8 +298,17 @@ public sealed class InvoiceTableRows(
         // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
         var today = await clock.TodayAsync(ct);
 
+        // Ссылки не на месте — ТОЛЬКО когда о них спросили: колонкой, отбором, сортировкой или итогом.
+        // Это опрос ядра по всем держащим колонкам модуля, и таблицу читают не только с экрана (наборы
+        // данных, внешний агент) — им он не нужен вовсе. Архив — отдельным согласием: ссылок на
+        // архивные записи на порядки больше, чем потерянных.
+        var aboutArchive = Asked(query, InvoiceTable.ArchivedKey);
+        var troubles = aboutArchive || Asked(query, InvoiceTable.LostKey)
+            ? await trouble.ReadAsync(aboutArchive, ct)
+            : InvoiceTroubles.None;
+
         var calendar = InvoicePeriods.Labels(today);
-        var sql = Sql(names, shares, calendar, today);
+        var sql = Sql(names, shares, calendar, today, troubles);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Одна строка по ключу — тот же отбор и ещё одно условие: счёт вне отбора не приходит. Ключ,
@@ -398,10 +447,15 @@ public sealed class InvoiceTableRows(
         var listed = shares.SectionsOf(parts);
         return new(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, listed, amounts, unmatched, today,
-                periods.GetValueOrDefault(i.Id)))],
+                periods.GetValueOrDefault(i.Id), troubles))],
             count, totals, notes.Count == 0 ? null : notes,
             [.. invoices.Select(i => i.Id.ToString())], breakdown);
     }
+
+    /// <summary>Спрошена ли колонка этим запросом: показом, отбором, сортировкой или итогом.</summary>
+    private static bool Asked(ModuleTableQuery query, string key) =>
+        query.Columns.Contains(key) || TableFilters.Mentions(query.Filter, key)
+        || (query.Sort?.Any(s => s.Column == key) ?? false) || (query.Totals?.ContainsKey(key) ?? false);
 
     /// <summary>Две подписи одной — через «;»; пустые пропускаются.</summary>
     private static string? Joined(string? first, string? second) =>
@@ -419,8 +473,22 @@ public sealed class InvoiceTableRows(
     /// </summary>
     private TableSql<Invoice> Sql(
         Dictionary<Guid, string> names, InvoiceShares shares,
-        IReadOnlyDictionary<int, string> months, DateOnly today) =>
-        TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
+        IReadOnlyDictionary<int, string> months, DateOnly today, InvoiceTroubles troubles)
+    {
+        // Множества приходят от ядра ключами счетов: модуль к его таблицам не соединяется, и «потеряна
+        // ли ссылка» в запросе к своей схеме не выразить. Массивами — так их принимает база, одним
+        // параметром каждое.
+        //
+        // Потерь — единицы: это следы восстановления копии и гонок. Счетов с архивной записью — сколько
+        // их у закрывшихся поставщиков, поэтому массив для них ОДИН, а «оплачен ли» запрос берёт из
+        // самого счёта: два массива, поделённых по оплате, вдвое утяжеляли бы каждое место, куда
+        // построитель подставляет выражение (ревью PR #1239).
+        var fixable = troubles.With(LostMark.Fixable);
+        var locked = troubles.With(LostMark.Locked);
+        var typeOnly = troubles.With(LostMark.TypeOnly);
+        var archived = troubles.Archived.ToArray();
+
+        return TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
             .Lookup(InvoiceRequisites.SupplierKey, i => i.SupplierId, names)
@@ -470,7 +538,17 @@ public sealed class InvoiceTableRows(
                 months, InvoicePeriods.Unknown, byKey: true)
             // Клетку собирает служба строк; запросу тут считать нечего — по колонке не отбирают.
             .Text(InvoiceTable.PeriodSumsKey, i => null)
+            .Choice(InvoiceTable.LostKey,
+                i => fixable.Contains(i.Id) ? (int?)(int)LostMark.Fixable
+                    : locked.Contains(i.Id) ? (int?)(int)LostMark.Locked
+                    : typeOnly.Contains(i.Id) ? (int?)(int)LostMark.TypeOnly : null,
+                InvoiceTable.LostWords)
+            .Choice(InvoiceTable.ArchivedKey,
+                i => !archived.Contains(i.Id) ? null
+                    : i.Payment == InvoicePaymentState.Paid ? (int?)(int)ArchivedMark.Paid : (int?)(int)ArchivedMark.Open,
+                InvoiceTable.ArchivedWords)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
+    }
 
     /// <param name="amounts">Деньги счетов под сужающим отбором — доли на названные объекты, деньги
     /// названных месяцев; null — отбор не называет ни того, ни другого, и «Сумма» — сумма счёта целиком.</param>
@@ -478,7 +556,7 @@ public sealed class InvoiceTableRows(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> sections, IReadOnlyDictionary<Guid, decimal?>? amounts,
-        Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods)
+        Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods, InvoiceTroubles troubles)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -512,6 +590,13 @@ public sealed class InvoiceTableRows(
         if (open.Contains(InvoiceTable.OverdueKey)) row[InvoiceTable.OverdueKey] = InvoiceDue.OverdueOf(invoice, today);
         if (open.Contains(InvoiceTable.UnmatchedKey))
             row[InvoiceTable.UnmatchedKey] = unmatched.TryGetValue(invoice.Id, out var waiting) ? (decimal)waiting : null;
+
+        if (open.Contains(InvoiceTable.LostKey))
+            row[InvoiceTable.LostKey] = troubles.Lost.TryGetValue(invoice.Id, out var lost)
+                ? InvoiceTable.LostWords[(int)lost] : null;
+        if (open.Contains(InvoiceTable.ArchivedKey))
+            row[InvoiceTable.ArchivedKey] = troubles.Archived.Contains(invoice.Id)
+                ? InvoiceTable.ArchivedWords[(int)InvoiceReferenceTrouble.ArchivedMarkOf(invoice)] : null;
 
         foreach (var field in invoice.Data.RootElement.EnumerateObject())
             if (!row.ContainsKey(field.Name)) row[field.Name] = Scalar(field.Value);

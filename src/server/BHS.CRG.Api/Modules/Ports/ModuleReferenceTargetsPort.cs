@@ -48,31 +48,39 @@ public sealed class ModuleReferenceTargetsPort(ModuleRegistry registry, ModuleLo
                 : ReferenceState.Present);
         }
 
-        var present = await scan.ExistingAsync(scan.TableOf(Entities[target]), ids, ct);
+        var present = await scan.ExistingAsync(TableOf(target), ids, ct);
         return ids.Distinct().ToDictionary(id => id, id => present.Contains(id) ? ReferenceState.Present : ReferenceState.Lost);
     }
 
-    public async Task<LostReferences> LostAsync(string moduleCode, CancellationToken ct = default)
+    /// <summary>Таблица вида цели. Архив — только у записи справочника: колонку называет это место,
+    /// и скан спрашивает о ней тем же проходом, что и о существовании.</summary>
+    private CoreTable TableOf(ReferenceTarget target) =>
+        scan.TableOf(Entities[target], target == ReferenceTarget.Record ? nameof(DomainObject.ArchivedAt) : null);
+
+    public async Task<ReferenceFindings> NotPresentAsync(
+        string moduleCode, bool includeArchived, CancellationToken ct = default)
     {
         var module = registry.Find(moduleCode)
             ?? throw new InvalidOperationException($"Модуля «{moduleCode}» в этой сборке нет.");
         if (module.Schema?.Name is not { } schema)
-            return new LostReferences([], [], DateTimeOffset.MinValue);
+            return new ReferenceFindings([], [], DateTimeOffset.MinValue);
 
         // Помнящие колонки не опрашиваются: их цель удаляют законно (учётная запись автора счёта).
         var declared = module.References.Where(r => r.Holds).ToList();
         var columns = new Dictionary<ReferencingColumn, ModuleReference>(ReferenceEqualityComparer.Instance);
         foreach (var reference in declared)
             columns[new ReferencingColumn(reference.Table, reference.Column,
-                reference.Target is { } target ? scan.TableOf(Entities[target]) : null, reference.Document?.Via)] = reference;
+                reference.Target is { } target ? TableOf(target) : null, reference.Document?.Via)] = reference;
 
-        var found = await scan.FindAsync(schema, [.. columns.Keys], ct);
+        var found = await scan.FindAsync(schema, [.. columns.Keys], includeArchived, ct);
 
-        return new LostReferences(
+        return new ReferenceFindings(
             [.. found.Lost.Select(hit =>
             {
                 var reference = columns[hit.Column];
-                return new LostReference(reference.Table, reference.Column, reference.Target!.Value, hit.TargetId, hit.DocumentKey, hit.Rows, reference.Document?.Table);
+                return new ReferenceFinding(reference.Table, reference.Column, reference.Target!.Value, hit.TargetId,
+                    hit.Archived ? ReferenceState.Archived : ReferenceState.Lost,
+                    hit.DocumentKey, hit.Rows, reference.Document?.Table);
             })],
             [.. found.Unscanned.Select(skipped =>
             {

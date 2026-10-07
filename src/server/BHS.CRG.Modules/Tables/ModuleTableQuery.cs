@@ -21,6 +21,17 @@ public static class TableFilters
     public static bool IsPresence(string op) => op is "is_empty" or "is_not_empty" or "is_null" or "is_not_null";
 
     /// <summary>
+    /// Стоит ли по колонке хоть одно условие — любое: положительное, отрицание, «пусто». Нужно колонке,
+    /// значение которой дорого считать (опрос ядра): не спрошена и в отборе не стоит — не считается.
+    /// </summary>
+    public static bool Mentions(TableFilter? filter, string column) => filter switch
+    {
+        TableFilterCondition condition => condition.Column == column,
+        TableFilterGroup group => group.Children.Any(c => Mentions(c, column)),
+        _ => false,
+    };
+
+    /// <summary>
     /// Условия, которыми отбор НАЗЫВАЕТ значения колонки: «объект равен X», «объект из списка». Пусто —
     /// отбор колонку не называет, и её значениями строки не ограничены.
     ///

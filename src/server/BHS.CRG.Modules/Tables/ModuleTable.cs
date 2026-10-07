@@ -84,6 +84,11 @@ public enum ModuleTableIsolation
 /// <param name="Options">Значения закрытого перечня — у колонки вида <see cref="ModuleTableColumnKind.Choice" />
 /// и только у неё, в порядке показа. Те же слова, что стоят в клетках: по ним идёт отбор, и их же
 /// предлагает экран.</param>
+/// <param name="OnDemand">Колонка приходит, только когда её НАЗВАЛИ: в запросе без списка колонок
+/// («все колонки») её нет, и в набор данных она не едет (issue #1186). Для колонки, значение которой
+/// дорого, — за ним идёт опрос ядра по всем ссылкам модуля. Без этого признака «не считать, пока не
+/// спросили» не держится: набор данных читает таблицу без списка колонок, то есть спрашивает все.
+/// Отбирать и сортировать по ней можно, как по любой.</param>
 public sealed record ModuleTableColumn(
     string Key,
     string Title,
@@ -91,7 +96,8 @@ public sealed record ModuleTableColumn(
     string? Requires = null,
     string? Hides = null,
     bool DependsOnFilter = false,
-    IReadOnlyList<string>? Options = null);
+    IReadOnlyList<string>? Options = null,
+    bool OnDemand = false);
 
 /// <summary>
 /// Табличный источник, который объявляет модуль (ТЗ CORE-33, CORE-24; задача G1b, issue #1089).

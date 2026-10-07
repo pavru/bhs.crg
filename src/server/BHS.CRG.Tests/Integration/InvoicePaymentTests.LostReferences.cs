@@ -58,10 +58,10 @@ public partial class InvoicePaymentTests
         return new(invoice, lostSupplier, lostPayer, position, article, site, sections[0], kept);
     }
 
-    private async Task<LostReferences> LostAsync()
+    private async Task<ReferenceFindings> LostAsync()
     {
         using var scope = host.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<IModuleReferenceTargets>().LostAsync(CostsModule.ModuleCode);
+        return await scope.ServiceProvider.GetRequiredService<IModuleReferenceTargets>().NotPresentAsync(CostsModule.ModuleCode, includeArchived: true);
     }
 
     private static async Task<(int References, int Invoices)> TallyAsync(HttpClient client, string which)
@@ -111,9 +111,10 @@ public partial class InvoicePaymentTests
         // Дополнительные поля типа не проверены — и это сказано, а не спрятано за нулём.
         Assert.Contains(found.Unchecked, u => u is { Table: "invoices", Column: "data", Reason: UncheckedReason.MixedTargets });
 
-        // Счётчик модуля: шесть ссылок первого счёта и одна второго — в двух счетах.
+        // Счётчик модуля: шесть ссылок первого счёта. Ссылка второго — на удалённый тип — считается
+        // своим числом: заменить тип в форме нечем, и в «можно исправить» она не идёт (issue #1186).
         var after = await TallyAsync(admin, "editable");
-        Assert.Equal((before.References + 7, before.Invoices + 2), after);
+        Assert.Equal((before.References + 6, before.Invoices + 1), after);
         var unchecked_ = (await admin.GetFromJsonAsync<JsonElement>("/api/costs/lost-references")).GetProperty("unchecked");
         Assert.Contains(unchecked_.EnumerateArray(), u => u.GetProperty("what").GetString()!.Contains("дополнительном поле"));
     }
