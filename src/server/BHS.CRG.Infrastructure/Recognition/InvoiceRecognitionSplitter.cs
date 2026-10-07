@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 
 namespace BHS.CRG.Infrastructure.Recognition;
@@ -16,18 +15,8 @@ public static class InvoiceRecognitionSplitter
         => headerFields.ToDictionary(f => f.Path, f => values.GetValueOrDefault(f.Path));
 
     /// <summary>Сломанный/не-JSON ответ модели по товарам — не падаем, возвращаем пустой список
-    /// (шапка при этом уже распознана независимо).</summary>
+    /// (шапка при этом уже распознана независимо): набор данных хранит сырьё и показывает его как
+    /// есть. Разбор общий с портом модулей — <see cref="WholeFileRecognition.ReadRows" />.</summary>
     public static List<Dictionary<string, string?>> SplitLineItems(IReadOnlyDictionary<string, string?> values)
-    {
-        var rows = new List<Dictionary<string, string?>>();
-        if (!values.TryGetValue(InvoiceFields.LineItemsPath, out var json) || string.IsNullOrWhiteSpace(json))
-            return rows;
-        try
-        {
-            var parsed = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(json);
-            if (parsed is not null) rows.AddRange(parsed);
-        }
-        catch (JsonException) { /* сломанный JSON от модели — пустой список товаров, не падаем */ }
-        return rows;
-    }
+        => WholeFileRecognition.ReadRows(values.GetValueOrDefault(InvoiceFields.LineItemsPath)).Rows;
 }

@@ -45,7 +45,11 @@ public partial class DataSetPdfRecognitionService(
         // Профиль называют явно (issue #1075). Прежде всё, что не «счёт», молча становилось ГОСТом —
         // и опечатка в названии, и профиль выключенного модуля давали набор, который потом нечем
         // прочитать.
-        var known = string.Join(", ", PdfProfileRegistry.All.Select(p => p.ProfileMarker));
+        // Перечень — только доступное на этом экземпляре: назвать профиль выключенного модуля
+        // значило бы посоветовать то, что следующим же запросом ответит отказом (ревью PR #1254).
+        var offeredKinds = profiles.ListKinds().Select(k => k.Kind).ToHashSet(StringComparer.Ordinal);
+        var known = string.Join(", ", PdfProfileRegistry.All
+            .Where(p => offeredKinds.Contains(p.RequiredKind.ToString())).Select(p => p.ProfileMarker));
         if (string.IsNullOrWhiteSpace(input.Profile))
             throw new InvalidRequestException($"Не указан профиль распознавания PDF (поле profile). Известные: {known}.");
         var descriptor = PdfProfileRegistry.ByProfileMarker(input.Profile)

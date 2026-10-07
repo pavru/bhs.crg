@@ -25,7 +25,8 @@ public class BuiltInProfileHashPinTests
     [InlineData("cable-journal", "95FC222F0967378ACB383F4D72D840DCD7BCD7E9475D8C2F089CC8D0362CBF52")]
     public void Factory_hash_is_pinned(string code, string expected)
     {
-        // Числа сняты с кода ДО переноса объявлений в модули — со статического списка ядра.
+        // Числа сняты с кода ДО переноса объявлений в модули — со статического списка ядра. «invoice»
+        // с тех пор переехал ещё раз, от ядра к модулю счетов (issue #1077), и число пережило и это.
         var def = TestRecognition.Catalog.All.Single(d => d.Code == code);
 
         Assert.Equal(expected, def.Hash);

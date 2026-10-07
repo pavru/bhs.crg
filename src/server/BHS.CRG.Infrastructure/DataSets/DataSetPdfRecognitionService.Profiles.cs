@@ -49,23 +49,10 @@ public partial class DataSetPdfRecognitionService
         var headerFields = invoiceProfile.ToRecognitionFields();
         var lineItemFields = invoiceProfile.ToRowColumns();
 
-        RecognitionResult result;
-        try
-        {
-            result = await recognizer.RecognizeAsync(bytes, "application/pdf",
-                RecognitionKinds.ComposeCallFields(invoiceProfile), RecognitionShared.BuildInvoicePrompt, ct: ct);
-        }
-        catch (RecognitionSilentException ex)
-        {
-            // Одиночный вызов по прямой просьбе человека: он указал, ЧТО распознать, и «ответа не
-            // было» тут не страничная случайность, а результат. Отдельно от «недоступно» ради
-            // текста: движок работает, но ответа не отдал, и совет проверять настройки был бы ложью.
-            throw new InvalidRequestException($"Модель не отдала ответ: {EngineRefusal.TextOf(ex)}", ex);
-        }
-        catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
-        {
-            throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
-        }
+        // Одиночный вызов по прямой просьбе человека: он указал, ЧТО распознать, и «ответа не было»
+        // тут не страничная случайность, а результат — отказ. Шаг общий с портом модулей (#1077).
+        var result = await WholeFileRecognition.RunAsync(
+            recognizer, preflight: null, invoiceProfile, bytes, "application/pdf", ct);
 
         var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values, headerFields);
         // Сломанный/не-JSON ответ модели по товарам — InvoiceRecognitionSplitter молча вернёт []

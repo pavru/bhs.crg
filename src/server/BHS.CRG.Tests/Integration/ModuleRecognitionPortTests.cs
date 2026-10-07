@@ -112,6 +112,9 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
     [InlineData(null, "модель не вернула таблицу")]
     [InlineData("не json", "таблицу в ответе модели не разобрать")]
     [InlineData("""{"не":"список"}""", "таблица в ответе модели — не список строк")]
+    // Модель что-то вернула, а строк не вышло — это «не разобрали», а не «строк нет» (ревью PR #1254).
+    [InlineData("""["Кабель 3 шт","Розетка 5 шт"]""", "строки таблицы в ответе модели — не записи с колонками")]
+    [InlineData("""[{"наименование":"Кабель","кол-во":3}]""", "в строках таблицы нет ни одной запрошенной колонки")]
     [InlineData("[]", null)]
     public async Task Unreadable_table_is_named_and_an_empty_one_is_not(string? table, string? problem)
     {
@@ -150,6 +153,30 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         Assert.Contains("достигнут лимит", down.Message);
         Assert.Equal(RecognitionRefusal.NotConfigured, unset.Reason);
         Assert.Equal(noEngine.Message, unset.Message);
+    }
+
+    /// <summary>
+    /// Предполётная проверка на пути отказа ходит к тому же движку, который только что отказал, и
+    /// может упасть сама. Её сбой исходного отказа не затирает: причина — «недоступно» со словами
+    /// движка, а не чужое исключение с общими словами (ревью PR #1254). Срок повтора доезжает.
+    /// </summary>
+    [Fact]
+    public async Task Failing_readiness_check_does_not_replace_the_refusal_of_the_engine()
+    {
+        _ = host.CreateClient();
+        using var scope = host.Services.CreateScope();
+        var port = new ModuleRecognitionPort(
+            scope.ServiceProvider.GetRequiredService<RecognitionProfileCatalog>(),
+            scope.ServiceProvider.GetRequiredService<IRecognitionProfileProvider>(),
+            new Failing(new RecognitionLimitException("достигнут лимит запросов.", retryAfterSeconds: 40)),
+            new BrokenPreflight());
+
+        var refusal = await Assert.ThrowsAsync<RecognitionRefusedException>(() =>
+            port.RecognizeAsync(Code, Scan, "application/pdf"));
+
+        Assert.Equal(RecognitionRefusal.Unavailable, refusal.Reason);
+        Assert.Contains("достигнут лимит", refusal.Message);
+        Assert.Equal(40, refusal.RetryAfterSeconds);
     }
 
     /// <summary>До постановки задачи: «не настроено» — ответом на нажатие; настроено — молчит.</summary>
@@ -218,6 +245,13 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         Assert.Contains("Счета и накладные", onCheck.Message);
         Assert.Contains("Счета и накладные", onRead.Message);
         Assert.Null(recognizer.Prompt);
+
+        // Ворота — первыми, каким бы ни был вид: постраничный профиль выключенного модуля тоже
+        // отвечает человеку названием модуля, а не ошибкой «такой вид порт не читает».
+        var idOff = new ModuleRecognitionPort(TestRecognition.WithoutId, null!, recognizer, new Preflight(null));
+        var pageWise = await Assert.ThrowsAsync<InvalidRequestException>(() =>
+            idOff.EnsureReadyAsync(BHS.CRG.Api.Modules.IdRecognitionProfiles.TitleBlockCode));
+        Assert.Contains("Исполнительная документация", pageWise.Message);
     }
 
     /// <summary>
@@ -249,6 +283,12 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         public RecognitionKindInfo DescribeKind(RecognitionProfileKind kind) => throw new NotSupportedException();
         public IReadOnlyList<RecognitionKindInfo> ListKinds() => throw new NotSupportedException();
         public Task ReseedBuiltInAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class BrokenPreflight : IRecognitionPreflight
+    {
+        public Task<RecognitionBlock?> CheckAsync(CancellationToken ct = default) =>
+            Task.FromException<RecognitionBlock?>(new HttpRequestException("движок не отвечает"));
     }
 
     private sealed class Preflight(RecognitionBlock? block) : IRecognitionPreflight

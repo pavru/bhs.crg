@@ -15,8 +15,21 @@ namespace BHS.CRG.Infrastructure.Backup;
 public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger,
     BHS.CRG.Application.Activity.IActivityLog journal, IModuleSchemaBackup modules,
     BHS.CRG.Application.Periods.IPeriodClosures periods,
-    BHS.CRG.Application.Objects.IRecordArchive archive, BHS.CRG.Application.Settings.IAppSettingCatalog settingKeys)
+    BHS.CRG.Application.Objects.IRecordArchive archive, BHS.CRG.Application.Settings.IAppSettingCatalog settingKeys,
+    BHS.CRG.Application.Recognition.RecognitionProfileCatalog recognition)
 {
+    /// <summary>
+    /// Владелец восстанавливаемого профиля распознавания — по каталогу ЭТОЙ сборки, а не из копии
+    /// (ревью PR #1254). Копия помнит владельца на день снятия, а вид мог сменить хозяина: «Счёт на
+    /// оплату» переехал от ядра к модулю счетов (issue #1077), и правленый профиль из прежней копии
+    /// вернулся бы подписанным «core» — виден в списке под «Общие», а на чтение отвечает «модуль
+    /// выключен». Сидер приводит владельца при старте, но после восстановления он не запускается.
+    /// Каталог не знает — оставляем, что было: это честнее выдуманного владельца.
+    /// </summary>
+    private string RecognitionOwner(BackupRecognitionProfile item, Domain.Recognition.RecognitionProfileKind kind) =>
+        (item is { IsBuiltIn: true, Code: { } code } ? recognition.Find(code)?.Owner : recognition.OwnerOfKind(kind)?.Code)
+        ?? item.Module ?? "";
+
     // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
     // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.
     public const int CurrentSchemaVersion = 2;

@@ -5,6 +5,24 @@ namespace BHS.CRG.Tests.Recognition;
 
 public class InvoiceRecognitionSplitterTests
 {
+    /// <summary>
+    /// Число в ячейке — не повод терять таблицу (ревью PR #1254). Прежде набор данных разбирал
+    /// строки в «ключ → строка» и на количестве, пришедшем числом, молча отдавал ноль товаров, а
+    /// порт модулей тот же ответ читал. Разбор теперь один.
+    /// </summary>
+    [Fact]
+    public void SplitLineItems_keeps_rows_whose_values_are_not_strings()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            [InvoiceFields.LineItemsPath] = """[{"Наименование":"Кабель","Количество":3,"Цена":400.5,"Примечание":null}]""",
+        };
+
+        var row = Assert.Single(InvoiceRecognitionSplitter.SplitLineItems(values));
+
+        Assert.Equal(("Кабель", "3", "400.5", null), (row["Наименование"], row["Количество"], row["Цена"], row["Примечание"]));
+    }
+
     [Fact]
     public void SplitHeader_ExtractsOnlyHeaderFields_IgnoresLineItemsKey()
     {

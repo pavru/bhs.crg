@@ -36,4 +36,7 @@ public sealed class RecognitionRefusedException(RecognitionRefusal reason, strin
     : InvalidRequestException(message, inner)
 {
     public RecognitionRefusal Reason { get; } = reason;
+
+    /// <summary>Через сколько секунд движок советует повторить (исчерпан лимит); иначе <c>null</c>.</summary>
+    public int? RetryAfterSeconds { get; init; }
 }

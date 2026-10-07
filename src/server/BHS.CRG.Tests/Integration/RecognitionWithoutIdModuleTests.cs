@@ -169,6 +169,12 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
         Assert.Contains("Не указан профиль", await missing.Content.ReadAsStringAsync());
 
+        // Перечень в отказе называет только доступное: посоветовать профиль выключенного модуля
+        // значило бы отправить за следующим отказом (ревью PR #1254).
+        var advice = await unknown.Content.ReadAsStringAsync();
+        Assert.Contains($"Известные: {PdfProfiles.Invoice}.", advice);
+        Assert.DoesNotContain(PdfProfiles.GostTitleBlock, advice);
+
         var invoice = await client.PostAsJsonAsync(
             $"/api/datasets/files/{fileId}/pdf-sources", new { name = "x", profile = PdfProfiles.Invoice });
         Assert.Equal(HttpStatusCode.NoContent, invoice.StatusCode);
