@@ -57,6 +57,8 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Jobs/JobBackgroundService.cs"] = "неизвестный вид фоновой задачи — дефект реестра задач",
         ["BHS.CRG.Application/Recognition/RecognitionProfileCatalog.cs"] = "негодное объявление профилей распознавания — отказ при старте, дефект модуля",
         ["BHS.CRG.Infrastructure/Recognition/RecognitionKinds.cs"] = "вид профиля не описан в реестре — дефект",
+        ["BHS.CRG.Infrastructure/Recognition/WholeFileRecognition.cs"] =
+            "вид, который одним вызовом на файл не читается, попросили так прочитать — дефект вызывающего кода, человеку его не исправить",
         ["BHS.CRG.Infrastructure/Recognition/RecognitionProfileProvider.cs"] = "не сработал сидинг при старте — дефект развёртывания",
         ["BHS.CRG.Infrastructure/DataSets/DataSetParserFactory.cs"] = "нет парсера для формата — дефект реестра парсеров",
         ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",

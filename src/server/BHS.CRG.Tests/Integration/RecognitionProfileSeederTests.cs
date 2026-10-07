@@ -2,6 +2,7 @@
 using BHS.CRG.Tests.Support;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
@@ -169,8 +170,8 @@ public class RecognitionProfileSeederTests(IntegrationTestFixture fixture)
 
         var after = await db.RecognitionProfiles.AsNoTracking().ToListAsync();
         Assert.Equal("id", after.Single(p => p.Code == IdRecognitionProfiles.TitleBlockCode).Module);
-        Assert.Equal(RecognitionProfileCatalog.CoreOwner, after.Single(p => p.Code == CoreRecognitionProfiles.InvoiceCode).Module);
-        Assert.Equal(RecognitionProfileCatalog.CoreOwner, after.Single(p => p.Id == custom.Id).Module);
+        Assert.Equal("costs", after.Single(p => p.Code == CostsRecognitionProfiles.InvoiceCode).Module);
+        Assert.Equal("costs", after.Single(p => p.Id == custom.Id).Module);
         Assert.Equal("id", after.Single(p => p.Id == foreign.Id).Module);
         Assert.All(after, p => Assert.Equal(stampedAt[p.Id], p.UpdatedAt));
     }

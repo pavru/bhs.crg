@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 
 namespace BHS.CRG.Infrastructure.Recognition;
@@ -10,27 +9,14 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// </summary>
 public static class InvoiceRecognitionSplitter
 {
-    public static Dictionary<string, string?> SplitHeader(IReadOnlyDictionary<string, string?> values)
-        => SplitHeader(values, InvoiceFields.HeaderFields);
-
-    /// <summary>То же с полями ПРОФИЛЯ шапки (issue #406) — набор полей больше не жёстко зашит.</summary>
+    /// <summary>Шапка по полям ПРОФИЛЯ (issue #406): набор полей задаёт профиль, а не код.</summary>
     public static Dictionary<string, string?> SplitHeader(
         IReadOnlyDictionary<string, string?> values, IReadOnlyList<RecognitionField> headerFields)
         => headerFields.ToDictionary(f => f.Path, f => values.GetValueOrDefault(f.Path));
 
     /// <summary>Сломанный/не-JSON ответ модели по товарам — не падаем, возвращаем пустой список
-    /// (шапка при этом уже распознана независимо).</summary>
+    /// (шапка при этом уже распознана независимо): набор данных хранит сырьё и показывает его как
+    /// есть. Разбор общий с портом модулей — <see cref="WholeFileRecognition.ReadRows" />.</summary>
     public static List<Dictionary<string, string?>> SplitLineItems(IReadOnlyDictionary<string, string?> values)
-    {
-        var rows = new List<Dictionary<string, string?>>();
-        if (!values.TryGetValue(InvoiceFields.LineItemsPath, out var json) || string.IsNullOrWhiteSpace(json))
-            return rows;
-        try
-        {
-            var parsed = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(json);
-            if (parsed is not null) rows.AddRange(parsed);
-        }
-        catch (JsonException) { /* сломанный JSON от модели — пустой список товаров, не падаем */ }
-        return rows;
-    }
+        => WholeFileRecognition.ReadRows(values.GetValueOrDefault(InvoiceFields.LineItemsPath)).Rows;
 }

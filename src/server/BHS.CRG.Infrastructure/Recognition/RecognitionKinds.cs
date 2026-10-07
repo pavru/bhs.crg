@@ -36,7 +36,11 @@ public record RecognitionKindDescriptor(
     IReadOnlyList<string> SystemFieldNames,
     bool ListRowColumnsAsFields = false,
     string Label = "",
-    RecognitionProfileScope Scope = RecognitionProfileScope.File);
+    RecognitionProfileScope Scope = RecognitionProfileScope.File,
+    // Запрос к модели для чтения ОДНИМ вызовом на файл целиком; null — вид так не читается
+    // (постранично или по группам листов). Здесь, а не у потребителей: их двое — набор данных и
+    // порт модулей, — и выбери каждый запрос сам, один профиль читался бы разными запросами.
+    Func<IReadOnlyList<RecognitionField>, string>? WholeFilePrompt = null);
 
 public static class RecognitionKinds
 {
@@ -58,7 +62,8 @@ public static class RecognitionKinds
 
         [RecognitionProfileKind.Invoice] = new(
             RecognitionProfileKind.Invoice, RowsKey: InvoiceFields.LineItemsPath,
-            SupportsShape: false, HasScalarFields: true, [], Label: "Счёт на оплату"),
+            SupportsShape: false, HasScalarFields: true, [], Label: "Счёт на оплату",
+            WholeFilePrompt: RecognitionShared.BuildInvoicePrompt),
 
         [RecognitionProfileKind.Table] = new(
             RecognitionProfileKind.Table, RowsKey: GostTableFields.RowsPath,
