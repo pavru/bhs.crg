@@ -6,7 +6,9 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
+import { purgeOffered, type PurgeOffer } from '@/shared/api/recordPurge';
+import { PurgeRecordDialog } from './PurgeRecordDialog';
 import {
   useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope, useCommonDataEntry, archiveOffered,
 } from '@/shared/api/commonData';
@@ -53,6 +55,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const [typeSearch, setTypeSearch] = useState('');
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<CommonDataEntry | null>(null);
+  const [purging, setPurging] = useState<{ target: CommonDataEntry; offer: PurgeOffer } | null>(null);
 
   // Выбранный тип — в URL (?type=id), deep-link/back-forward. Пустой = «Все записи».
   const [searchParams, setSearchParams] = useSearchParams();
@@ -149,16 +152,34 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   };
   // Отказ в удалении: есть ли у человека другой путь. Занятую запись предлагаем отправить в архив —
   // по полю ответа; у записи, которая уже там, выхода нет и не нужно — так и говорим.
-  const refusalExit = (e: unknown, target: CommonDataEntry) => {
+  const refusalExit = (e: unknown, target: CommonDataEntry): RefusalExit | null => {
     if (!isConflict(e)) return null;
+    const secondary = purgeExit(e, target);
     if (target.archived)
-      return { note: 'Запись уже в архиве: в списках выбора её нет. Больше ничего делать не нужно.' };
-    if (!canEdit || !archiveOffered(e)) return null;
+      return { note: 'Запись уже в архиве: в списках выбора её нет. Больше ничего делать не нужно.', secondary };
+    if (!canEdit || !archiveOffered(e)) return secondary ? { note: null, secondary } : null;
     return {
       note: 'Запись можно отправить в архив: из списков выбора она пропадёт, а в уже сохранённых документах и счетах останется.',
       action: {
         label: 'Отправить в архив', errorTitle: 'Не удалось отправить в архив',
         onConfirm: () => archive.set(target, true),
+      },
+      secondary,
+    };
+  };
+  // Жёсткий выход (issue #1187): запись держат только данные выключенного модуля, и убрать ссылку
+  // негде. По ПОЛЮ ответа, как и архив. Права нет — строка без кнопки: выход есть, и молчать о нём
+  // нельзя, а кнопка привела бы к отказу.
+  const purgeExit = (e: unknown, target: CommonDataEntry): RefusalExit['secondary'] => {
+    const offer = purgeOffered(e);
+    if (!offer) return undefined;
+    if (!offer.allowed) return { note: 'Удалить запись, потеряв ссылки, может администратор.' };
+    return {
+      note: 'Запись можно удалить совсем — ссылки будут потеряны.',
+      action: {
+        label: 'Удалить, потеряв ссылки…',
+        // Не диалог поверх диалога: отказ закрывается, у жёсткого выхода своё окно и своё подтверждение.
+        onClick: () => { setDeleteTarget(null); setPurging({ target, offer }); },
       },
     };
   };
@@ -293,6 +314,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
         title={`Удалить «${deleteTarget?.displayName ?? ''}»?`} confirmLabel="Удалить"
         onConfirm={() => { if (deleteTarget) return deleteMutation.mutateAsync(deleteTarget.id); }}
         onRefused={e => (deleteTarget ? refusalExit(e, deleteTarget) : null)} />
+      {purging && (
+        <PurgeRecordDialog target={purging.target} offer={purging.offer} onClose={() => setPurging(null)} />
+      )}
     </div>
   );
 }

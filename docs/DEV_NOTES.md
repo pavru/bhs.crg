@@ -2032,14 +2032,31 @@ PUT    /api/common-data/{id}                { displayName, data, aliases } + з�
                                     Значение принимается и в кавычках, и как W/"…" (запись HTTP);
                                     «*» и нечисловое — 400 «версия записана не так». То же правило —
                                     у If-Match счёта: заголовок читает общий SeenVersion.
-DELETE /api/common-data/{id}                409 несёт { error, canArchive }: выход «в архив» экран
-                                    предлагает по ПОЛЮ, а не по словам причины.
+DELETE /api/common-data/{id}                409 несёт { error, canArchive, purge }: выходы «в архив» и
+                                    «удалить, потеряв ссылки» экран предлагает по ПОЛЯМ, а не по
+                                    словам причины. purge = { allowed, references, untraceable,
+                                    holders[] } | null — не null, только если запись держат ОДНИ
+                                    данные выключенного или снятого модуля (#1187); без права
+                                    core.catalog.purge — allowed:false и пустая разбивка.
+POST   /api/common-data/{id}/purge          { references } → { id, name, references, untraceable } —
+                                    удалить запись, потеряв ссылки выключенных модулей (#1187).
+                                    Право core.catalog.purge. references — число из отказа: не
+                                    совпало с нынешним — 409 со свежим purge. 409 и тогда, когда
+                                    запись держит включённый модуль или ядро (purge: null) либо не
+                                    держит никто («удалите обычным путём»), либо её держит
+                                    внешний КЛЮЧ посторонней схемы — его удаление оборвать не
+                                    может. ⚠️ Сверка числа и удаление не атомарны: строки модуля
+                                    из ядра ничем не заперты, и ссылка, появившаяся между ними,
+                                    теряется сверх подтверждённого числа. В журнал —
+                                    core.record.purged: держатели и число, с адресом колонки там,
+                                    где потерю потом не покажет никто. Сотрудник удаляется этим же
+                                    адресом; у модуля такого пути нет.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
 GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
 POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь
 PUT    /api/employees/{id}                  { displayName, data, aliases } + If-Match: <version> —
                                     как у PUT /api/common-data/{id} (#1214)
-DELETE /api/employees/{id}
+DELETE /api/employees/{id}                  409 — то же тело, что у DELETE /api/common-data/{id}
                                     Право core.employees.* — отдельное от core.catalog.*, но
                                     разграничением НЕ является: те же карточки отдаёт
                                     /api/common-data, пока пути чтения не разведены (STG-11).

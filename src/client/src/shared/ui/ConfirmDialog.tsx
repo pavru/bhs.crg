@@ -44,7 +44,8 @@ interface ConfirmDialogProps {
 }
 
 export interface RefusalExit {
-  /** Абзац под причиной отказа — обычным цветом: это не ещё одна ошибка, а что делать дальше. */
+  /** Абзац под причиной отказа — обычным цветом: это не ещё одна ошибка, а что делать дальше.
+   *  Пустой — первого выхода нет, есть только второй. */
   note: ReactNode;
   action?: {
     label: string;
@@ -52,6 +53,15 @@ export interface RefusalExit {
     onConfirm: () => Promise<unknown>;
     /** Заголовок, если не удался сам выход. */
     errorTitle: string;
+  };
+  /**
+   * Второй, жёсткий выход (issue #1187) — под чертой, тихой текстовой кнопкой и НЕ в ряду кнопок:
+   * залитой остаётся первый, мягкий. Действие диалог не исполняет сам — у жёсткого выхода своё
+   * подтверждение, и открывает его вызывающий. Без `action` — одна строка: выход есть, но не у вас.
+   */
+  secondary?: {
+    note: ReactNode;
+    action?: { label: string; onClick: () => void };
   };
 }
 
@@ -136,7 +146,18 @@ function ConfirmDialogBody({
                 <AlertTriangle size={16} className="shrink-0 mt-0.5 text-danger" />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>
-              {exit && <p className="mt-3 text-xs text-fg2">{exit.note}</p>}
+              {exit?.note && <p className="mt-3 text-xs text-fg2">{exit.note}</p>}
+              {exit?.secondary && (
+                <div className="mt-3 pt-3 border-t border-stroke text-xs text-fg2">
+                  <p>{exit.secondary.note}</p>
+                  {exit.secondary.action && (
+                    <Button variant="text" danger size="sm" className="mt-1 -ml-3" disabled={busy}
+                      onClick={exit.secondary.action.onClick}>
+                      {exit.secondary.action.label}
+                    </Button>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <>

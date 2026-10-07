@@ -109,6 +109,7 @@ public class RecordArchiveHandlers(
     // здесь значило бы оставить осиротевшую запись в выборе навсегда.
     private static bool IsCoreType(DocumentType? type) => type is null || TypeOwner.IsCore(type.Module);
 
-    private static string Label(DomainObject entry, DocumentType? type) =>
+    /// <summary>Название записи для журнала: «Тип: Название». Общее с принудительным удалением.</summary>
+    internal static string Label(DomainObject entry, DocumentType? type) =>
         type is null ? entry.DisplayName ?? "" : $"{type.Name}: {entry.DisplayName}";
 }

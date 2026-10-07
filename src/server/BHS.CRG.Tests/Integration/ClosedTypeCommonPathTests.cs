@@ -58,6 +58,9 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
         ["DELETE /api/common-data/{id:guid}"] = new(null, null,
             "удаление проходит: строка закрытого типа в общей таблице — мусор, и интерфейс остаётся " +
             "способом его убрать. Проверяет соседний тест — после него строки нет"),
+        ["POST /api/common-data/{id:guid}/purge"] = new(null, null,
+            "принудительное удаление (issue #1187) — то же тело, что у обычного: строку закрытого " +
+            "типа убрать можно. В общем проходе не зовётся: без тела с числом ссылок адрес отвечает 400"),
         ["POST /api/common-data/archived-among"] = new(null, null,
             "чтение: POST только ради списка идентификаторов в теле"),
         ["POST /api/employees/"] = new(null, null,

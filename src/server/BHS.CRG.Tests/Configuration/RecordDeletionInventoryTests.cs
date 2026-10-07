@@ -110,6 +110,23 @@ public class RecordDeletionInventoryTests
     }
 
     /// <summary>
+    /// Принудительное удаление (issue #1187) отправляет ОДИН адрес — тот, что закрыт своим правом.
+    /// Команда, созданная вторым местом, дала бы потерю ссылок тому, у кого права нет: порту модуля,
+    /// фоновой уборке, соседнему адресу под правом обычной правки.
+    /// </summary>
+    [Fact]
+    public void Принудительное_удаление_отправляет_один_адрес()
+    {
+        var senders = Projects.Append("BHS.CRG.Modules.Costs").SelectMany(SourceFiles)
+            .Where(file => Code(File.ReadAllText(file)).Contains("new PurgeHeldRecordCommand("))
+            .Select(Relative)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs"], senders);
+    }
+
+    /// <summary>
     /// Исходник без комментариев: упоминание порта в комментарии — не вопрос держателям, а удаление,
     /// описанное словами, — не удаление.
     /// </summary>

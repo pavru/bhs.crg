@@ -15,6 +15,7 @@ public static class CommonDataEndpoints
         // Чтение и запись — разными правами (см. CatalogEndpoints).
         var g = app.MapGroup("/api/common-data").RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogRead));
         var edit = app.MapGroup("/api/common-data").RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogEdit));
+        var purge = app.MapGroup("/api/common-data").RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogPurge));
 
         // List — optional filters: scope, scopeId, typeId
         g.MapGet("/", async (string? scope, Guid? scopeId, Guid? typeId, string? purpose, IMediator m) =>
@@ -144,15 +145,35 @@ public static class CommonDataEndpoints
                 await access.ForAsync(user, ct), seen, req.Aliases))));
         });
 
-        edit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        edit.MapDelete("/{id:guid}", async (
+            Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct) =>
         {
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (NotFoundException) { return Results.NotFound(); }
-            // «Можно в архив» — полем, а не словами причины: экран предлагает выход кнопкой и не
-            // должен ни разбирать фразу, ни звать туда, куда пути нет (issue #1185).
+            // Выходы из отказа — полями, а не словами причины: экран предлагает их кнопками и не
+            // должен ни разбирать фразу, ни звать туда, куда пути нет (issue #1185, #1187).
+            catch (ConflictException ex) { return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct); }
+        });
+
+        // Принудительное удаление (issue #1187): запись держат только данные выключенного или снятого
+        // модуля, и убрать ссылку негде. Свой адрес, а не параметр удаления: право видно переписи
+        // ворот только на воротах. Сотрудник удаляется этим же адресом — запись та же.
+        purge.MapPost("/{id:guid}/purge", async (
+            Guid id, PurgeRequest req, IMediator m, ClaimsPrincipal user, IUserPermissions permissions,
+            CancellationToken ct) =>
+        {
+            try { return Results.Ok(await m.Send(new PurgeHeldRecordCommand(id, req.References))); }
+            catch (NotFoundException) { return Results.NotFound(); }
+            // Число не совпало — в отказе свежее предложение: экран показывает его заново.
             catch (ConflictException ex)
             {
-                return Results.Conflict(new { error = ex.Message, canArchive = await m.Send(new CanArchiveRecordQuery(id)) });
+                return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct, offerArchive: false);
+            }
+            // Сюда обычное удаление не доходит: держателя оно встречает отказом раньше базы.
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.ForeignKeyViolation } pg)
+            {
+                return RecordRefusal.HeldByConstraint(pg.ConstraintName);
             }
         });
 
