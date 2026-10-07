@@ -1,4 +1,5 @@
 ﻿using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Domain.Recognition;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -39,9 +40,13 @@ public enum PdfProfileKind
 /// <param name="SupportsReprojection">Капабилити-флаг (issue #42): перенос пользовательской разметки
 /// (тэги/табличное сырьё) по стабильному id группы при ре-распознавании. false — профиль не имеет
 /// понятия "группа", капабилити неприменима (не noop-метод интерфейса — искали бы ISP-нарушение).</param>
+/// <param name="RequiredKind">Вид профиля распознавания, без которого этот профиль PDF не читает
+/// ничего (issue #1075). По нему стоят ворота: владелец вида выключен — выбрать профиль PDF и
+/// запустить по нему распознавание нельзя. Ядро при этом модуль не называет: «ГОСТ» требует вида
+/// «штамп», а чей это вид, знает каталог объявлений.</param>
 public record PdfProfileDescriptor(
     string ProfileMarker, PdfProfileKind Kind, IReadOnlyList<string> SourceMarkers,
-    bool Background, bool SupportsReprojection);
+    bool Background, bool SupportsReprojection, RecognitionProfileKind RequiredKind);
 
 public static class PdfProfileRegistry
 {
@@ -49,10 +54,10 @@ public static class PdfProfileRegistry
     [
         new(PdfProfiles.GostTitleBlock, PdfProfileKind.Gost,
             [PdfProfiles.GostCoverMarker, PdfProfiles.GostTitlePageMarker, PdfProfiles.GostDocumentsMarker],
-            Background: true, SupportsReprojection: true),
+            Background: true, SupportsReprojection: true, RecognitionProfileKind.TitleBlock),
         new(PdfProfiles.Invoice, PdfProfileKind.InvoiceFixedSlices,
             [PdfProfiles.InvoiceHeaderMarker, PdfProfiles.InvoiceLineItemsMarker],
-            Background: false, SupportsReprojection: false),
+            Background: false, SupportsReprojection: false, RecognitionProfileKind.Invoice),
     ];
 
     /// <summary>По профилю набора (<see cref="Domain.DataSets.DataSetFile.PreprocessingProfile"/>).</summary>

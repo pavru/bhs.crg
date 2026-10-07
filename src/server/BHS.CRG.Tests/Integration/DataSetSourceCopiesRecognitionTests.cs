@@ -1,3 +1,4 @@
+using BHS.CRG.Tests.Support;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -60,7 +61,7 @@ public class DataSetSourceCopiesRecognitionTests(IntegrationTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return new DataSetPdfRecognitionService(
             db, scope.ServiceProvider.GetRequiredService<IBlobStorage>(), new EmptyRecognizer(),
-            scope.ServiceProvider.GetRequiredService<INotificationService>(), new RecognitionProfileProvider(db),
+            scope.ServiceProvider.GetRequiredService<INotificationService>(), new RecognitionProfileProvider(db, TestRecognition.Catalog),
             NullLogger<DataSetPdfRecognitionService>.Instance);
     }
 
@@ -69,7 +70,7 @@ public class DataSetSourceCopiesRecognitionTests(IntegrationTestFixture fixture)
         IServiceScope scope, string? profile, GostGroupingData? grouping, params string[] markers)
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await RecognitionProfileSeeder.SeedAsync(db);
+        await RecognitionProfileSeeder.SeedAsync(db, TestRecognition.Catalog);
         db.ChangeTracker.Clear();
 
         using var upload = new MemoryStream(MakePdf(3));
@@ -106,7 +107,7 @@ public class DataSetSourceCopiesRecognitionTests(IntegrationTestFixture fixture)
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var profile = RecognitionProfile.Create(
-            "Список деталей шкафа", RecognitionProfileKind.Table,
+            "Список деталей шкафа", RecognitionProfileKind.Table, TestRecognition.OwnerOf(RecognitionProfileKind.Table),
             fields: RecognitionProfileJson.WriteFields([]),
             rowColumns: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция")]),
             shape: RecognitionProfileJson.WriteShape(new RecognitionTableShape(TwoTierHeader: false)));

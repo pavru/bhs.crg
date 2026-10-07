@@ -43,12 +43,14 @@ public static class RecognitionProfileEndpoints
         admin.MapPost("/{id:guid}/reset", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new ResetRecognitionProfileCommand(id))); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteRecognitionProfileCommand(id)); return Results.NoContent(); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }

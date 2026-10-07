@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+﻿using BHS.CRG.Tests.Support;
+using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
@@ -310,7 +311,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         db.TypstUserLibFiles.Add(TypstUserLibFile.Restore(Guid.NewGuid(), "lib/a.typ", "#let a() = []", now, now));
 
         db.RecognitionProfiles.Add(RecognitionProfile.Create(
-            "Профиль покрытия", RecognitionProfileKind.Table,
+            "Профиль покрытия", RecognitionProfileKind.Table, TestRecognition.OwnerOf(RecognitionProfileKind.Table),
             fields: RecognitionProfileJson.WriteFields([]),
             rowColumns: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция", "string")])));
 

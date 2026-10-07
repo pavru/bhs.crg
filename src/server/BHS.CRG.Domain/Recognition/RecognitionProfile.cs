@@ -50,6 +50,19 @@ public class RecognitionProfile : Entity
 
     public RecognitionProfileKind Kind { get; private set; }
 
+    /// <summary>
+    /// Владелец профиля: код модуля или «core» (issue #1075). Профиль выключенного владельца не
+    /// предлагается и не удаляется.
+    ///
+    /// <para>Колонка, а не вывод из вида: вид — стратегия ядра, владелец — свойство профиля, и
+    /// склеивать их значит обещать, что у вида всегда один хозяин. У встроенного профиля владельца
+    /// проставляет сидер из объявления, у своего — создание, по владельцу вида.</para>
+    ///
+    /// <para>Пустая строка — владелец ещё не проставлен: так приезжает строка из копии, снятой до
+    /// появления колонки. Сидер проставит его при ближайшем старте, а до того он выводится из вида.</para>
+    /// </summary>
+    public string Module { get; private set; } = "";
+
     /// <summary>JSON-массив СКАЛЯРНЫХ полей: <c>[{ name, description, type, options? }]</c>.
     /// Порядок значим — в этом порядке поля печатаются в промпт. Признак «системное» здесь НЕ
     /// хранится: он производный от кодового дескриптора вида, иначе снимался бы через импорт/бэкап
@@ -84,17 +97,21 @@ public class RecognitionProfile : Entity
     private RecognitionProfile() { }
 
     public static RecognitionProfile Create(
-        string name, RecognitionProfileKind kind,
+        string name, RecognitionProfileKind kind, string module,
         JsonDocument fields, JsonDocument? rowColumns = null, JsonDocument? shape = null)
-        => new() { Name = name.Trim(), Kind = kind, Fields = fields, RowColumns = rowColumns, Shape = shape };
+        => new()
+        {
+            Name = name.Trim(), Kind = kind, Module = module,
+            Fields = fields, RowColumns = rowColumns, Shape = shape,
+        };
 
     /// <summary>Встроенный профиль (сидинг). Не помечен как правленый — до первой правки пользователем.</summary>
     public static RecognitionProfile CreateBuiltIn(
-        string code, string name, RecognitionProfileKind kind,
+        string code, string name, RecognitionProfileKind kind, string module,
         JsonDocument fields, JsonDocument? rowColumns, JsonDocument? shape, string builtInHash)
         => new()
         {
-            Code = code, Name = name.Trim(), Kind = kind,
+            Code = code, Name = name.Trim(), Kind = kind, Module = module,
             Fields = fields, RowColumns = rowColumns, Shape = shape,
             IsBuiltIn = true, BuiltInHash = builtInHash,
         };
@@ -124,6 +141,10 @@ public class RecognitionProfile : Entity
         TouchUpdatedAt();
     }
 
+    /// <summary>Проставляет владельца — сидером, из объявления или по виду. Время правки не
+    /// двигает: содержимое профиля не изменилось, изменилось знание о том, чей он.</summary>
+    public void AssignModule(string module) => Module = module;
+
     /// <summary>Заводская версия ушла вперёд, но пользовательская правка сохраняется — только отмечаем.</summary>
     public void MarkBuiltInOutdated()
     {
@@ -144,10 +165,10 @@ public class RecognitionProfile : Entity
         Guid id, string name, string? code, RecognitionProfileKind kind,
         JsonDocument fields, JsonDocument? rowColumns, JsonDocument? shape,
         bool isBuiltIn, bool isModified, string? builtInHash, bool builtInOutdated,
-        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        DateTimeOffset createdAt, DateTimeOffset updatedAt, string module = "")
         => new()
         {
-            Id = id, Name = name, Code = code, Kind = kind,
+            Id = id, Name = name, Code = code, Kind = kind, Module = module,
             Fields = fields, RowColumns = rowColumns, Shape = shape,
             IsBuiltIn = isBuiltIn, IsModified = isModified,
             BuiltInHash = builtInHash, BuiltInOutdated = builtInOutdated,

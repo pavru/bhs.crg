@@ -368,7 +368,10 @@ public record BackupRecognitionProfile(
     Guid Id, string Name, string? Code, string Kind,
     JsonElement Fields, JsonElement? Shape, bool IsBuiltIn, bool IsModified,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-    JsonElement? RowColumns = null, string? BuiltInHash = null);
+    JsonElement? RowColumns = null, string? BuiltInHash = null,
+    // Владелец профиля (issue #1075). Аддитивно: у копии, снятой раньше, поля нет — владельца
+    // проставит сидер при старте, по коду или по виду.
+    string? Module = null);
 
 /// <summary>
 /// Сколько весит копия, снятая прямо сейчас, и с чем этот вес сравнивать (issue #711).

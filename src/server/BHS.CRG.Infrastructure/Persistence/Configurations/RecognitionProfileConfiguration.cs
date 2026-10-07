@@ -17,6 +17,8 @@ public class RecognitionProfileConfiguration : IEntityTypeConfiguration<Recognit
         b.HasIndex(e => e.Code).IsUnique().HasFilter("\"Code\" IS NOT NULL");
         // Enum'ы храним строками (конвенция проекта — см. архитектурный отчёт, пункт 1).
         b.Property(e => e.Kind).HasConversion<string>().HasMaxLength(32).IsRequired();
+        // Владелец: код модуля или «core»; пусто — ещё не проставлен (строка из старой копии).
+        b.Property(e => e.Module).HasMaxLength(64).IsRequired().HasDefaultValue("");
         b.Property(e => e.Fields).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.RowColumns).HasColumnType("jsonb");
         b.Property(e => e.Shape).HasColumnType("jsonb");

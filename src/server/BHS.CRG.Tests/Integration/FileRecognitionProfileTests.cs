@@ -1,4 +1,6 @@
-﻿using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Api.Modules;
+using BHS.CRG.Tests.Support;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Catalog;
@@ -29,7 +31,7 @@ public class FileRecognitionProfileTests(IntegrationTestFixture fixture) : IAsyn
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
         await db.SaveChangesAsync();
-        await RecognitionProfileSeeder.SeedAsync(db);
+        await RecognitionProfileSeeder.SeedAsync(db, TestRecognition.Catalog);
         db.ChangeTracker.Clear();
 
         using var doc = new SharpPdfDocument();
@@ -49,12 +51,12 @@ public class FileRecognitionProfileTests(IntegrationTestFixture fixture) : IAsyn
     {
         // Свой штамп: заводские поля + собственное «Стадия». Системные поля обязаны остаться.
         var builtIn = await db.RecognitionProfiles.AsNoTracking()
-            .FirstAsync(p => p.Code == BuiltInProfileCodes.TitleBlock);
+            .FirstAsync(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
         var fields = RecognitionProfileJson.ReadFields(builtIn.Fields).ToList();
         fields.Add(new RecognitionProfileField("Стадия", "Стадия документации"));
 
         var profile = RecognitionProfile.Create(
-            "Штамп с полем Стадия", RecognitionProfileKind.TitleBlock,
+            "Штамп с полем Стадия", RecognitionProfileKind.TitleBlock, TestRecognition.OwnerOf(RecognitionProfileKind.TitleBlock),
             fields: RecognitionProfileJson.WriteFields(fields));
         db.RecognitionProfiles.Add(profile);
         await db.SaveChangesAsync();

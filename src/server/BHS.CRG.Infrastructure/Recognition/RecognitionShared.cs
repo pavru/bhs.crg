@@ -58,7 +58,7 @@ public static class RecognitionShared
 
     /// <summary>Промпт для ЗАГЛАВНОГО листа комплекта (обложка/титульный лист): в отличие от
     /// <see cref="BuildTitleBlockPrompt"/> здесь НЕТ штампа в углу — реквизиты по всему листу, поэтому
-    /// читаем ТЕЛО листа, а не штамп (набор полей — <see cref="GostCoverTitleFields"/>).</summary>
+    /// читаем ТЕЛО листа, а не штамп (набор полей — профиль вида «обложка / титульный лист»).</summary>
     public static string BuildCoverTitlePrompt(IReadOnlyList<RecognitionField> fields)
     {
         var sb = new StringBuilder();

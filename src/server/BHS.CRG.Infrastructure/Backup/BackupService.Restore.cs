@@ -90,7 +90,7 @@ public partial class BackupService
                 item.RowColumns is { } rc ? JsonDocument.Parse(rc.GetRawText()) : null,
                 item.Shape is { } sh ? JsonDocument.Parse(sh.GetRawText()) : null,
                 item.IsBuiltIn, item.IsModified, item.BuiltInHash, builtInOutdated: false,
-                item.CreatedAt, item.UpdatedAt);
+                item.CreatedAt, item.UpdatedAt, item.Module ?? "");
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.RecognitionProfilesUpdated++; else stats.RecognitionProfilesCreated++;
         }

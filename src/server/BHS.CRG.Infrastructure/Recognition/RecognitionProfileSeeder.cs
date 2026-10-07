@@ -17,29 +17,44 @@ namespace BHS.CRG.Infrastructure.Recognition;
 ///    <c>BuiltInOutdated</c> — повод показать «заводской профиль обновился / сбросить к заводским».
 ///    Без этого правка одного описания молча замораживала бы профиль целиком.
 /// 3. «Сбросить к заводским» снимает <c>IsModified</c> — и ближайший старт вернёт дефолт.
+/// 4. Сидятся объявления ВСЕХ владельцев сборки, включая выключенные модули (issue #1075): иначе
+///    включение модуля означало бы появление его профилей только после перезапуска, а выключение —
+///    строки, о которых никто не знает, чьи они. На установке без модуля его профили лежат в базе
+///    и не предлагаются.
+/// 5. Владелец проставляется из объявления; у строки без владельца (копия, снятая до появления
+///    колонки) — по виду.
 /// </summary>
 public static class RecognitionProfileSeeder
 {
-    public static async Task SeedAsync(AppDbContext db, CancellationToken ct = default)
+    public static async Task SeedAsync(
+        AppDbContext db, RecognitionProfileCatalog catalog, CancellationToken ct = default)
     {
-        var existing = await db.RecognitionProfiles.Where(p => p.Code != null).ToListAsync(ct);
-        var byCode = existing.ToDictionary(p => p.Code!, StringComparer.Ordinal);
+        var existing = await db.RecognitionProfiles.ToListAsync(ct);
+        var byCode = existing.Where(p => p.Code != null).ToDictionary(p => p.Code!, StringComparer.Ordinal);
         var changed = false;
 
-        foreach (var def in BuiltInRecognitionProfiles.All)
+        foreach (var def in catalog.All)
         {
-            var hash = BuiltInRecognitionProfiles.HashOf(def);
+            var hash = def.Hash;
 
             if (!byCode.TryGetValue(def.Code, out var profile))
             {
                 db.RecognitionProfiles.Add(Domain.Recognition.RecognitionProfile.CreateBuiltIn(
-                    def.Code, def.Name, def.Kind,
+                    def.Code, def.Name, def.Kind, def.Owner,
                     RecognitionProfileJson.WriteFields(def.Fields),
                     RecognitionProfileJson.WriteFieldsOrNull(def.RowColumns),
                     RecognitionProfileJson.WriteShape(def.Shape),
                     hash));
                 changed = true;
                 continue;
+            }
+
+            // Владелец — из объявления, и у правленого профиля тоже: правка содержимого не делает
+            // профиль чужим.
+            if (profile.Module != def.Owner)
+            {
+                profile.AssignModule(def.Owner);
+                changed = true;
             }
 
             if (profile.IsModified)
@@ -55,7 +70,7 @@ public static class RecognitionProfileSeeder
 
             // Сравниваем ТЕКУЩЕЕ содержимое строки с заводским (а не сохранённый хеш с заводским —
             // тот описывает заводскую версию и после «сбросить к заводским» отличий бы не показал).
-            if (BuiltInRecognitionProfiles.HashOfCurrent(profile) == hash && profile.BuiltInHash == hash)
+            if (RecognitionProfileCatalog.HashOfCurrent(profile) == hash && profile.BuiltInHash == hash)
                 continue;   // совпадает с заводским — не дёргаем UpdatedAt
 
             profile.ApplySeed(def.Name,
@@ -63,6 +78,15 @@ public static class RecognitionProfileSeeder
                 RecognitionProfileJson.WriteFieldsOrNull(def.RowColumns),
                 RecognitionProfileJson.WriteShape(def.Shape),
                 hash);
+            changed = true;
+        }
+
+        // Строки без владельца — свои профили из копии, снятой до появления колонки. Вид не объявлен
+        // никем — оставляем пустым: такой профиль недоступен, и это честнее выдуманного владельца.
+        foreach (var orphan in existing.Where(p => p.Module.Length == 0))
+        {
+            if (catalog.OwnerOfKind(orphan.Kind) is not { } owner) continue;
+            orphan.AssignModule(owner.Code);
             changed = true;
         }
 

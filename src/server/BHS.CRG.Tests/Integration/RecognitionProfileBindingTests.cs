@@ -1,3 +1,5 @@
+using BHS.CRG.Api.Modules;
+using BHS.CRG.Tests.Support;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -50,7 +52,7 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
     {
         var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await RecognitionProfileSeeder.SeedAsync(db);
+        await RecognitionProfileSeeder.SeedAsync(db, TestRecognition.Catalog);
         db.ChangeTracker.Clear();
 
         var blobStorage = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
@@ -67,7 +69,7 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
     private static async Task<Guid> CustomTableProfileAsync(AppDbContext db)
     {
         var profile = RecognitionProfile.Create(
-            "Список деталей шкафа", RecognitionProfileKind.Table,
+            "Список деталей шкафа", RecognitionProfileKind.Table, TestRecognition.OwnerOf(RecognitionProfileKind.Table),
             fields: RecognitionProfileJson.WriteFields([]),
             rowColumns: RecognitionProfileJson.WriteFields([
                 new RecognitionProfileField("Поз", "Позиция"),
@@ -100,7 +102,7 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
     private static async Task<Guid> CustomTitleBlockProfileAsync(AppDbContext db)
     {
         var profile = RecognitionProfile.Create(
-            "Штамп заказчика", RecognitionProfileKind.TitleBlock,
+            "Штамп заказчика", RecognitionProfileKind.TitleBlock, TestRecognition.OwnerOf(RecognitionProfileKind.TitleBlock),
             fields: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Шифр", "Обозначение листа")]),
             rowColumns: RecognitionProfileJson.WriteFields([]),
             shape: null);
@@ -360,7 +362,7 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var stamp = await db.RecognitionProfiles.AsNoTracking()
-                .FirstAsync(p => p.Code == BuiltInProfileCodes.TitleBlock);
+                .FirstAsync(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
 
             // К группе листов привязывается профиль ТАБЛИЦЫ — штамп сюда не годится.

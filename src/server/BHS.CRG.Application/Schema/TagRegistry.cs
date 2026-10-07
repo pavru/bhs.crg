@@ -196,13 +196,6 @@ public static class TagRegistry
             "Каждая страница PDF содержит основную надпись (штамп) по ГОСТ Р 21.101-2020 — распознаётся построчно в реестр листов.",
             TagScope.Dataset, [], Multiple: false),
 
-        // ── GostDocument: тип таблицы внутри распознанного документа ГОСТ-профиля ──
-        new(FunctionalTag.GostDocSpecification, "Спецификация / ведомость",
-            "Документ — спецификация или ведомость материалов и/или оборудования. Таблица распознаётся и доступна к выгрузке (CSV/XLS/XLSX).",
-            TagScope.GostDocument, [], Multiple: false),
-        new(FunctionalTag.GostDocCableJournal, "Кабельный журнал",
-            "Документ — кабельный журнал. Таблица распознаётся и доступна к выгрузке (CSV/XLS/XLSX).",
-            TagScope.GostDocument, [], Multiple: false),
     ];
 
 }

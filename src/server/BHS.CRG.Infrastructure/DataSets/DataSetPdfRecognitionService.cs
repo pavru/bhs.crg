@@ -42,7 +42,16 @@ public partial class DataSetPdfRecognitionService(
         if (file.Format != DataSetFormat.Pdf)
             throw new InvalidRequestException("Файл не в формате PDF.");
 
-        file.SetPreprocessingProfile(input.Profile == PdfProfiles.Invoice ? PdfProfiles.Invoice : PdfProfiles.GostTitleBlock);
+        // Профиль называют явно (issue #1075). Прежде всё, что не «счёт», молча становилось ГОСТом —
+        // и опечатка в названии, и профиль выключенного модуля давали набор, который потом нечем
+        // прочитать.
+        var descriptor = PdfProfileRegistry.ByProfileMarker(input.Profile)
+            ?? throw new InvalidRequestException(
+                $"Неизвестный профиль распознавания PDF «{input.Profile}». Известные: " +
+                string.Join(", ", PdfProfileRegistry.All.Select(p => p.ProfileMarker)) + ".");
+        profiles.RequireKind(descriptor.RequiredKind);
+
+        file.SetPreprocessingProfile(descriptor.ProfileMarker);
         await db.SaveChangesAsync(ct);
         return null;
     }
@@ -79,6 +88,9 @@ public partial class DataSetPdfRecognitionService(
         if (file.Format != DataSetFormat.Pdf)
             throw new InvalidRequestException("Набор не в формате PDF.");
         var descriptor = ResolveDescriptor(file);
+        // Ворота — до постановки задачи: отказ «модуль выключен» из середины фоновой работы пришёл бы
+        // строкой в журнале задач, а не ответом на нажатие.
+        profiles.RequireKind(descriptor.RequiredKind);
         if (descriptor.Kind == PdfProfileKind.Gost)
         {
             var existingGrouping = ParseGrouping(file.Grouping);
@@ -103,6 +115,7 @@ public partial class DataSetPdfRecognitionService(
         if (file.Format != DataSetFormat.Pdf)
             throw new InvalidRequestException("Набор не в формате PDF.");
         var descriptor = ResolveDescriptor(file);
+        profiles.RequireKind(descriptor.RequiredKind);
 
         if (descriptor.Kind == PdfProfileKind.Gost)
         {

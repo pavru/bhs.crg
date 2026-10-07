@@ -102,8 +102,21 @@ public sealed class IdModule : IAppModule
     /// из тройки один уровень — и в редакторе исчез бы ровно один пункт из трёх соседних, без
     /// объяснимой для администратора причины.</para>
     /// </summary>
+    public IReadOnlyList<BHS.CRG.Modules.Recognition.ModuleRecognitionProfile> RecognitionProfiles =>
+        IdRecognitionProfiles.All;
+
     public IReadOnlyList<ModuleTag> Tags =>
     [
+        // Тип таблицы внутри документа альбома — по нему лист читается своими колонками
+        // (IdRecognitionProfiles). До issue #1075 эти два тэга объявляло ядро, хотя читает их только
+        // разбор альбома по ГОСТ.
+        new(FunctionalTag.GostDocSpecification, "Спецификация / ведомость",
+            "Документ — спецификация или ведомость материалов и/или оборудования. Таблица распознаётся и доступна к выгрузке (CSV/XLS/XLSX).",
+            ModuleTagScope.GostDocument),
+        new(FunctionalTag.GostDocCableJournal, "Кабельный журнал",
+            "Документ — кабельный журнал. Таблица распознаётся и доступна к выгрузке (CSV/XLS/XLSX).",
+            ModuleTagScope.GostDocument),
+
         new(FunctionalTag.DocPageCount, "Кол-во страниц (PDF)",
             "Автозаполняется числом страниц после генерации/загрузки печатной формы.",
             ModuleTagScope.Field, ["number", "string", "text"], Group: "Генерация документа"),

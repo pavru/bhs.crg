@@ -180,6 +180,7 @@ internal static class WorkerRegistration
     // Реестр функциональных тэгов: ядро + тэги ВКЛЮЧЁННЫХ модулей (ТЗ TYPE-22, issue #959). Сразу за
     // регистрацией модулей — он собирается из их объявлений.
     builder.Services.AddTagCatalog();
+    builder.Services.AddRecognitionProfileCatalog();
     builder.Services.AddScoped<EffectivePermissions>();
     // Чем ворота модулей и прав отвечают на вопрос «что этому пользователю можно» (AUTH-6).
     builder.Services.AddSingleton<IUserPermissions, PermissionCache>();

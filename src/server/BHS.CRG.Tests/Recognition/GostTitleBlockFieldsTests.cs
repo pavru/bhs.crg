@@ -1,3 +1,4 @@
+using BHS.CRG.Tests.Support;
 using BHS.CRG.Infrastructure.Recognition;
 
 namespace BHS.CRG.Tests.Recognition;
@@ -7,8 +8,8 @@ public class GostTitleBlockFieldsTests
     [Fact]
     public void All_IsNotEmptyAndHasNoDuplicatePaths()
     {
-        Assert.NotEmpty(GostTitleBlockFields.All);
-        var paths = GostTitleBlockFields.All.Select(f => f.Path).ToList();
+        Assert.NotEmpty(TestRecognition.TitleBlock);
+        var paths = TestRecognition.TitleBlock.Select(f => f.Path).ToList();
         Assert.Equal(paths.Count, paths.Distinct().Count());
     }
 
@@ -19,7 +20,7 @@ public class GostTitleBlockFieldsTests
     [InlineData("ОбъектСтроительства")]
     public void All_ContainsExpectedGostFields(string path)
     {
-        Assert.Contains(GostTitleBlockFields.All, f => f.Path == path);
+        Assert.Contains(TestRecognition.TitleBlock, f => f.Path == path);
     }
 
     [Fact]
@@ -27,17 +28,17 @@ public class GostTitleBlockFieldsTests
     {
         // Path — JSON-ключ, который должен вернуть распознаватель; без пробелов надёжнее
         // (та же конвенция, что и у остальных RecognitionField в проекте — см. QualityDocs).
-        Assert.All(GostTitleBlockFields.All, f => Assert.DoesNotContain(' ', f.Path));
+        Assert.All(TestRecognition.TitleBlock, f => Assert.DoesNotContain(' ', f.Path));
     }
 
     [Fact]
-    public void AllWithClassifiers_AppendsBothClassifierFieldsOnce()
+    public void WithClassifiers_AppendsBothClassifierFieldsOnce()
     {
-        Assert.Equal(GostTitleBlockFields.All.Count + 2, GostTitleBlockFields.AllWithClassifiers.Count);
-        Assert.Contains(GostTitleBlockFields.AllWithClassifiers, f => f.Path == GostTitleBlockFields.PageTypePath);
-        Assert.Contains(GostTitleBlockFields.AllWithClassifiers, f => f.Path == GostTitleBlockFields.StampFormPath);
-        Assert.DoesNotContain(GostTitleBlockFields.All, f => f.Path == GostTitleBlockFields.PageTypePath);
-        Assert.DoesNotContain(GostTitleBlockFields.All, f => f.Path == GostTitleBlockFields.StampFormPath);
+        Assert.Equal(TestRecognition.TitleBlock.Count + 2, GostTitleBlockFields.WithClassifiers(TestRecognition.TitleBlock).Count);
+        Assert.Contains(GostTitleBlockFields.WithClassifiers(TestRecognition.TitleBlock), f => f.Path == GostTitleBlockFields.PageTypePath);
+        Assert.Contains(GostTitleBlockFields.WithClassifiers(TestRecognition.TitleBlock), f => f.Path == GostTitleBlockFields.StampFormPath);
+        Assert.DoesNotContain(TestRecognition.TitleBlock, f => f.Path == GostTitleBlockFields.PageTypePath);
+        Assert.DoesNotContain(TestRecognition.TitleBlock, f => f.Path == GostTitleBlockFields.StampFormPath);
     }
 
     [Fact]
