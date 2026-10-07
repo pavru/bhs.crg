@@ -264,7 +264,26 @@ public static class InvoiceTable
                     ObjectsKey, SectionsKey, InvoiceRequisites.PaymentKey, PeriodKey,
                 ]),
         ],
-        InvoiceBreakdown.Declaration);
+        InvoiceBreakdown.Declaration,
+        // Готовые отборы «наведите порядок» (issue #1186) — тем, кто счёт может исправить: бухгалтеру
+        // без права правки число было бы упрёком без выхода. Условие — слово «есть» своей колонки:
+        // запертый периодом счёт и счёт с удалённым типом под него не попадают, потому что исправить
+        // их нечем, а отбор обещает, что всё показанное можно поправить.
+        [
+            new("lost", "Ссылки на удалённые записи", LostKey, TroubleFixable,
+                "Счета, в которых выбрана запись, удалённая из общих данных. Откройте счёт и замените её.",
+                EditRight),
+            // Архив — тише: счёт верен, запись цела (issue #1185). Только неоплаченные — оплаченные
+            // счета закрывшегося поставщика верны навсегда, и число, которое нельзя довести до нуля,
+            // обесценило бы соседнее (решение владельца 07.10.2026).
+            new("archived", "Записи в архиве", ArchivedKey, TroubleFixable,
+                "Неоплаченные счета, в которых выбрана запись, убранная в архив. Счёт верен; запись стоит "
+                + "заменить, если ею больше не пользуются.",
+                EditRight, Quiet: true),
+        ]);
+
+    /// <summary>Право правки счёта: готовые отборы предлагаются только тому, кто может исправить.</summary>
+    private const string EditRight = "costs.invoice.edit";
 }
 
 /// <summary>
@@ -449,7 +468,15 @@ public sealed class InvoiceTableRows(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, listed, amounts, unmatched, today,
                 periods.GetValueOrDefault(i.Id), troubles))],
             count, totals, notes.Count == 0 ? null : notes,
-            [.. invoices.Select(i => i.Id.ToString())], breakdown);
+            [.. invoices.Select(i => i.Id.ToString())], breakdown,
+            // Опрос проверил не всё — говорим это у обеих колонок: причины непроверенности у потери и у
+            // архива одни. Без этого слова пустая клетка и ноль под отбором значили бы «всё на месте».
+            troubles.Doubt is { } doubt
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    [InvoiceTable.LostKey] = doubt, [InvoiceTable.ArchivedKey] = doubt,
+                }
+                : null);
     }
 
     /// <summary>Спрошена ли колонка этим запросом: показом, отбором, сортировкой или итогом.</summary>
@@ -486,7 +513,14 @@ public sealed class InvoiceTableRows(
         var fixable = troubles.With(LostMark.Fixable);
         var locked = troubles.With(LostMark.Locked);
         var typeOnly = troubles.With(LostMark.TypeOnly);
-        var archived = troubles.Archived.ToArray();
+        //
+        // ⚠️ И этот массив в запрос идёт НЕ сравнением «ключ среди массива», а подзапросом, который его
+        // разворачивает. Сравнение с массивом база исполняет перебором — на каждую строку заново: на
+        // 29 тысячах счетов, из которых 20 тысяч у архивного поставщика, число под отбором считалось
+        // 2 с, а страница с итогом — 6,6 с. Подзапрос база сворачивает в хеш один раз: те же ответы за
+        // десятки миллисекунд (замер 07.10.2026, issue #1186).
+        var archivedKeys = troubles.Archived.ToArray();
+        var archived = db.Database.SqlQuery<Guid>($"SELECT unnest({archivedKeys}) AS \"Value\"");
 
         return TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)

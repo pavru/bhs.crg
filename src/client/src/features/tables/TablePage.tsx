@@ -12,6 +12,8 @@ import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
 import { RowPanel } from './RowPanel';
+import { ShortcutChips } from './ShortcutChips';
+import { withShortcut } from './tableShortcuts';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { hasShownTotals, totalText } from './tableTotals';
 import {
@@ -120,6 +122,10 @@ export function TablePage() {
             )}
           </p>
         </div>
+
+        {/* Готовые отборы модуля — над рядом условий: нажатие кладёт условие в этот ряд, обычным чипом. */}
+        <ShortcutChips address={address} filter={view.filter} enabled={wanted && !off}
+          onToggle={shortcut => setView(v => withShortcut(v, defaultColumnKeys(decl.columns), shortcut))} />
 
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">

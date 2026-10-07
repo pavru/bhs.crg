@@ -20,7 +20,7 @@ namespace BHS.CRG.Api.Modules.Tables;
 /// модуля — всеми колонками с «модуль выключен». Меньше колонок не приходит никогда: три отсутствия
 /// иначе стали бы на экране одним дефисом.</para>
 /// </summary>
-public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext db, IServiceProvider services)
+public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDbContext db, IServiceProvider services)
 {
     /// <summary>Таблицы, которые спрашивающий может открыть, — включённых модулей и по его ключам.</summary>
     public IReadOnlyList<TableListItemDto> List(DataAccess access) =>
@@ -85,8 +85,13 @@ public sealed class ModuleTableService(ModuleTableCatalog catalog, AppDbContext 
 
         // Подпись смысла — только колонке, объявленной зависящей от отбора, и только открытой: служба
         // строк не переименовывает чужие колонки и не подписывает то, чего человек не видит.
-        var noted = marked.Select(c => c.DependsOnFilter && c.Unavailable is null
-            && page.Notes is { } notes && notes.TryGetValue(c.Key, out var note) ? c with { Note = note } : c).ToList();
+        //
+        // Сомнение службы строк («проверено не всё») — той же подписью и любой открытой колонке: пустая
+        // клетка без этого слова читалась бы как «всё на месте».
+        var noted = marked.Select(c => c.Unavailable is not null ? c
+            : c.DependsOnFilter && page.Notes is { } notes && notes.TryGetValue(c.Key, out var note) ? c with { Note = note }
+            : page.Doubts is { } doubts && doubts.TryGetValue(c.Key, out var doubt) ? c with { Note = doubt }
+            : c).ToList();
 
         // Вычистка — здесь, а не в службе модуля: служба вправе не считать закрытое, но гарантия
         // обязана стоять в одном месте. Забытое службой значение суммы иначе ушло бы наружу.

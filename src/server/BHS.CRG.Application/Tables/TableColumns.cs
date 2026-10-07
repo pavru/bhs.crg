@@ -185,6 +185,20 @@ public record TableViewDto(
     IReadOnlyList<TableSortRequest> Sort, IReadOnlyList<TableViewTotalDto> Totals, int Pinned,
     IReadOnlyList<string> Filters);
 
+/// <summary>
+/// Готовый отбор таблицы с числом строк под ним (issue #1186). Экран по нажатию ставит условие
+/// «<paramref name="Column" /> равно <paramref name="Value" />» в обычный отбор.
+/// </summary>
+/// <param name="Count">Сколько строк таблицы под этим условием — тем же счётом, каким таблица считает
+/// строки отбора. Прочие условия экрана сюда не входят: это число по всей таблице.</param>
+/// <param name="Unchecked">Почему числу нельзя верить как полному: «проверено не всё: …». ⚠️ Ноль с
+/// этой причиной — НЕ «строк нет»: экран обязан показать его иначе, чем проверенный ноль. null —
+/// посчитано полностью.</param>
+/// <param name="Quiet">Отбор не зовёт к срочному действию — показывается тише.</param>
+public record TableShortcutDto(
+    string Code, string Title, string? Hint, string Column, string Op, string Value, int Count,
+    string? Unchecked = null, bool Quiet = false);
+
 /// <summary>Итог готового представления: колонка и слово итога (<c>sum</c>, <c>count</c>…).</summary>
 public record TableViewTotalDto(string Column, string Aggregate);
 

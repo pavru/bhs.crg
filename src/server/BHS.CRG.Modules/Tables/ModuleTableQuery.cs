@@ -169,13 +169,19 @@ public sealed record ModuleTableQuery(
 /// <param name="Breakdown">Расшифровка строки — только в ответе на запрос ОДНОЙ строки
 /// (<see cref="ModuleTableQuery.Row" />) и только у таблицы, которая её объявила
 /// (<see cref="ModuleTable.Breakdown" />). Со страницей — ошибка модуля, а не лишнее поле.</param>
+/// <param name="Doubts">По каким колонкам ответ НЕПОЛОН и почему — словами для человека: «проверено не
+/// всё: база отказала в чтении строк счёта» (issue #1186). Нужно колонке, значение которой даёт опрос,
+/// умеющий отказать частично: без этого слова её пустая клетка и число строк под отбором по ней
+/// значили бы «всё на месте», когда на деле не проверено. Ядро ставит причину подписью колонки и
+/// отдаёт её вместе с числом готового отбора. null — сомнений нет.</param>
 public sealed record ModuleTablePage(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     int Count,
     IReadOnlyDictionary<string, TableTotal> Totals,
     IReadOnlyDictionary<string, string>? Notes = null,
     IReadOnlyList<string>? Keys = null,
-    TableRowBreakdown? Breakdown = null);
+    TableRowBreakdown? Breakdown = null,
+    IReadOnlyDictionary<string, string>? Doubts = null);
 
 /// <summary>
 /// Итог по колонке — по всему отбору (ТЗ CORE-33).
