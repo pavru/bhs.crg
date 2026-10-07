@@ -222,6 +222,12 @@ public sealed class CostsModule : IAppModule
         // отказ запертому счёту и учётные даты оплаченного — одним местом на все адреса.
         services.AddScoped<InvoiceDesk>();
 
+        // Путь «скан → черновик» (B1b, issue #1077): служба и её фоновая операция. Обработчик
+        // регистрируется по интерфейсу порта — постановка операции без исполнителя есть отказ сразу.
+        services.AddScoped<InvoiceScanRecognition>();
+        services.AddScoped<InvoiceScanReading>();
+        services.AddScoped<IModuleJobHandler, InvoiceRecognitionJob>();
+
         // Служба строк таблицы счетов (G1b, issue #1089). Не зарегистрировать её — отказ старта:
         // объявленная таблица открылась бы и отказала на первом же чтении.
         services.AddScoped<InvoiceTableRows>();
@@ -261,6 +267,7 @@ public sealed class CostsModule : IAppModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         InvoiceEndpoints.MapInvoices(endpoints);
+        InvoiceRecognitionEndpoints.Map(endpoints);
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
         AllocationEndpoints.MapAllocation(endpoints);
         AllocationMatrixEndpoints.Map(endpoints);

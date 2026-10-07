@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Periods;
 using BHS.CRG.Domain.Activity;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Ports;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +25,7 @@ namespace BHS.CRG.Tests.Integration;
 /// молча, и сторож охранял бы только то, что было на день его написания.</para>
 /// </summary>
 [Collection("Integration")]
-public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
+public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(host), IClassFixture<InvoiceScanHost>
 {
     private const decimal Price = 1_234.5m;      // 7 м × 1 234,50 = 8 641,50; доли 3 м и 4 м — 3 703,50 и 4 938,00
     private const decimal Delivery = 3_777.25m;  // строка без количества: 2 777,25 + 1 000 → 1 777,25 + 2 000
@@ -128,6 +129,21 @@ public class CostsJournalMoneyTests(InvoiceLineHost host) : InvoiceLineTestBase(
         scan.Headers.ContentType = new("application/pdf");
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/scan",
             new MultipartFormDataContent { { scan, "file", "счёт.pdf" } }));
+
+        // Распознавание скана (issue #1077) читает со счёта именно суммы — и событие о нём обязано
+        // назвать только счётные «полей, строк», а не прочитанное.
+        host.Recognition.On("%PDF-1.4 скан", () => Task.FromResult(new ModuleRecognitionResult(
+            [CostsRecognitionProfiles.Total], new Dictionary<string, string?> { [CostsRecognitionProfiles.Total] = "12 418,75 руб." },
+            [CostsRecognitionProfiles.LineAmount],
+            [new Dictionary<string, string?> { [CostsRecognitionProfiles.LineAmount] = "8 641,50" }], null, "сценарий")));
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/recognition", null));
+        for (var deadline = DateTime.UtcNow.AddSeconds(30); ; await Task.Delay(50))
+        {
+            var state = (await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{invoice}/recognition"))
+                .GetProperty("state").GetString();
+            if (state == "done") break;
+            Assert.True(state == "running" && DateTime.UtcNow < deadline, $"Распознавание не дошло до исхода: {state}.");
+        }
 
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null));

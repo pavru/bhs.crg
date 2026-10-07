@@ -54,6 +54,18 @@ public static class CostsReferences
         ModuleReference.Remembering("invoices", "paid_by", ReferenceTarget.User,
             "кто отметил оплату — справочное поле; удаление учётной записи счетов не касается"),
 
+        // Запись о распознавании скана (issue #1077). Идентификатор в ней один — фоновой задачи, и
+        // он справка: задачи ядро чистит само и держателей не спрашивает. Три колонки JSON — текст,
+        // прочитанный со скана, как напечатано; идентификаторов записей ядра в них не бывает.
+        ModuleReference.Remembering("invoice_recognitions", "job_id", target: null,
+            "фоновая задача распознавания — справка о ходе; задачи ядро убирает само, счёт от неё не зависит"),
+        ModuleReference.Remembering("invoice_recognitions", "values", target: null,
+            "прочитанное в шапке скана — текст как напечатано; идентификаторов записей в нём нет"),
+        ModuleReference.Remembering("invoice_recognitions", "offers", target: null,
+            "прочитанное, но не записанное в поле, — текст из скана; идентификаторов записей в нём нет"),
+        ModuleReference.Remembering("invoice_recognitions", "lines", target: null,
+            "распознанные строки, не добавленные в счёт, — текст из скана; позиция номенклатуры в них не выбрана"),
+
         ModuleReference.Holding("invoice_lines", "nomenclature_id", ReferenceTarget.Record,
             "строки счетов с этой позицией номенклатуры", Invoice("invoice_id")),
 

@@ -38,6 +38,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public DbSet<InvoiceAllocation> InvoiceAllocations => Set<InvoiceAllocation>();
 
+    public DbSet<InvoiceRecognition> InvoiceRecognitions => Set<InvoiceRecognition>();
+
     public DbSet<Waybill> Waybills => Set<Waybill>();
 
     public DbSet<WaybillLine> WaybillLines => Set<WaybillLine>();
@@ -246,6 +248,29 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // Перечень отпущенного на стройку читается по стройке и только из проведённых.
         waybill.HasIndex(w => new { w.ConstructionId, w.IssuedOn })
             .HasDatabaseName("ix_waybills_issued").HasFilter("state = 'Posted'");
+
+        // Распознавание скана — отдельной таблицей, чтобы его постановка и отказ не двигали версию
+        // счёта (issue #1077). Одна запись на счёт; уходит вместе со счётом.
+        var recognition = builder.Entity<InvoiceRecognition>();
+        recognition.ToTable("invoice_recognitions");
+        recognition.HasKey(r => r.InvoiceId);
+        recognition.Property(r => r.InvoiceId).HasColumnName("invoice_id").ValueGeneratedNever();
+        recognition.Property(r => r.JobId).HasColumnName("job_id");
+        recognition.Property(r => r.ScanBlobPath).HasColumnName("scan_blob_path");
+        recognition.Property(r => r.Outcome).HasColumnName("outcome").HasConversion<string>().HasMaxLength(32);
+        recognition.Property(r => r.Reason).HasColumnName("reason").HasMaxLength(32);
+        recognition.Property(r => r.Error).HasColumnName("error").HasMaxLength(InvoiceRecognition.ErrorLength);
+        recognition.Property(r => r.Engine).HasColumnName("engine");
+        recognition.Property(r => r.Values).HasColumnName("values").HasColumnType("jsonb");
+        recognition.Property(r => r.Offers).HasColumnName("offers").HasColumnType("jsonb");
+        recognition.Property(r => r.Lines).HasColumnName("lines").HasColumnType("jsonb");
+        recognition.Property(r => r.Notes).HasColumnName("notes");
+        recognition.Property(r => r.StartedAt).HasColumnName("started_at");
+        recognition.Property(r => r.FinishedAt).HasColumnName("finished_at");
+        recognition.HasOne<Invoice>().WithOne().HasForeignKey<InvoiceRecognition>(r => r.InvoiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Отбор «Не распознано» в реестре идёт по исходу.
+        recognition.HasIndex(r => r.Outcome).HasDatabaseName("ix_invoice_recognitions_outcome");
 
         var line = builder.Entity<WaybillLine>();
         line.ToTable("waybill_lines");

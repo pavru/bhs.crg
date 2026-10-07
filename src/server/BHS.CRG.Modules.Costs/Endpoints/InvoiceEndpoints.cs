@@ -331,8 +331,16 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> AttachScanAsync(
         Guid id, IFormFile file, CostsDbContext db, IModuleBlobs blobs, IModuleActivityLog log,
-        InvoiceDesk desk, CancellationToken ct)
+        InvoiceDesk desk, InvoiceScanRecognition scan, CancellationToken ct)
     {
+        // Прежний скан сейчас читается (issue #1077): заменить его — значит получить поля от бумаги,
+        // которой у счёта уже нет. Обработчик сверяет файл и сам, но отказ на нажатие честнее, чем
+        // распознавание, молча выброшенное через минуту.
+        if (await scan.IsRunningAsync(id, ct))
+            throw new ConflictException(
+                "Скан распознаётся. Заменить его можно, когда распознавание закончится: прочитанное " +
+                "относилось бы к прежнему файлу.");
+
         if (file.Length == 0)
             throw new InvalidRequestException(
                 "Файл пуст. Пустой скан прикладывать не к чему: в форме он выглядел бы приложенным, а " +
@@ -422,7 +430,7 @@ public static class InvoiceEndpoints
     /// который приложение превратит в 400. Тихо пропустить их значило бы записать значение, которое
     /// форма потом не нарисует.</para>
     /// </summary>
-    private static async Task EnsureAllowedAsync(
+    internal static async Task EnsureAllowedAsync(
         IModuleWriteGuard guard, Guid typeId, string? stored, string incoming, CancellationToken ct)
     {
         var refusals = await guard.RefusalsAsync(typeId, stored, incoming, ct);
