@@ -33,7 +33,7 @@ public sealed partial class ModuleTableService
         var open = opened.Columns.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
         var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
 
-        var shortcuts = new List<TableShortcutDto>();
+        var queries = new List<ModuleTableQuery>();
         foreach (var shortcut in offered)
         {
             // Колонка названа показанной: служба строк, считающая её по требованию, так узнаёт, что о
@@ -50,11 +50,39 @@ public sealed partial class ModuleTableService
                 throw new InvalidOperationException(
                     $"Готовый отбор «{shortcut.Code}» таблицы «{table.Title}» не разобрался: {refusal!.Error}");
 
-            var page = await reader.ReadAsync(query, ct);
-            shortcuts.Add(new(shortcut.Code, shortcut.Title, shortcut.Hint, shortcut.Column, ModuleTableShortcut.Op,
-                shortcut.Value, page.Count, page.Doubts?.GetValueOrDefault(shortcut.Column), shortcut.Quiet));
+            queries.Add(query);
         }
-        return (shortcuts, null);
+
+        var counts = await CountAsync(reader, queries, table, ct);
+        return ([.. offered.Select((shortcut, i) => new TableShortcutDto(
+            shortcut.Code, shortcut.Title, shortcut.Hint, shortcut.Column, ModuleTableShortcut.Op, shortcut.Value,
+            counts[i].Count, counts[i].Doubts?.GetValueOrDefault(shortcut.Column), shortcut.Quiet))], null);
+    }
+
+    /// <summary>
+    /// Числа под отборами: одним вызовом, если служба строк умеет считать без строк, иначе — чтением
+    /// страницы нулевой длины на каждый отбор.
+    /// </summary>
+    private static async Task<IReadOnlyList<ModuleTableCount>> CountAsync(
+        IModuleTableRows reader, List<ModuleTableQuery> queries, ModuleTable table, CancellationToken ct)
+    {
+        if (reader is not IModuleTableCounts counting)
+        {
+            var read = new List<ModuleTableCount>();
+            foreach (var query in queries)
+            {
+                var page = await reader.ReadAsync(query, ct);
+                read.Add(new(page.Count, page.Doubts));
+            }
+            return read;
+        }
+
+        var counts = await counting.CountAsync(queries, ct);
+        // Ответов — сколько запросов: список короче сдвинул бы числа, и чип показал бы число соседа.
+        if (counts.Count != queries.Count)
+            throw new InvalidOperationException(
+                $"Служба строк таблицы «{table.Title}» на запросов — {queries.Count} отдала чисел — {counts.Count}.");
+        return counts;
     }
 
     /// <summary>Условие готового отбора — тем же текстом, каким отбор присылает экран.</summary>

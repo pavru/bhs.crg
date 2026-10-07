@@ -79,12 +79,32 @@ public class ModuleTableShortcutTests
         {
             Assert.Empty(s.Problems(invoices.Columns));
             Assert.Equal(InvoiceTable.TroubleFixable, s.Value);
-            Assert.Equal("costs.invoice.edit", s.Requires);
+            // Право — то, что модуль объявил, а не похожая строка: опечатку поймал бы и старт.
+            Assert.Equal(CostsModule.InvoiceEdit, s.Requires);
+            Assert.Contains(new CostsModule().Permissions, p => p.Code == s.Requires);
             // Колонка отбора приходит только по требованию: иначе опрос ядра ехал бы в каждое чтение.
             Assert.True(invoices.Columns.Single(c => c.Key == s.Column).OnDemand);
         });
         Assert.Equal([InvoiceTable.LostKey, InvoiceTable.ArchivedKey], invoices.Shortcuts!.Select(s => s.Column));
         Assert.Equal([false, true], invoices.Shortcuts!.Select(s => s.Quiet));
+    }
+
+    /// <summary>
+    /// <b>Ключ доступа отбора обязан существовать</b> (ревью PR #1240). Опечатка в коде права не даёт
+    /// отказа нигде: отбор просто не предлагается никому, и экран читается как «наводить нечего».
+    /// </summary>
+    [Fact]
+    public void Готовый_отбор_с_ключом_которого_нет_в_сборке_роняет_старт()
+    {
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            new ModuleTableCatalog([new ProbeModule(Table(Good() with { Requires = "probe.edt" }))]));
+        Assert.Contains("готовый отбор «lost» открывается ключом «probe.edt»", refused.Message);
+
+        // Годятся код модуля, право модуля и право ядра.
+        _ = new ModuleTableCatalog([new ProbeModule(Table(Good() with { Requires = "probe" }))]);
+        _ = new ModuleTableCatalog([new ProbeModule(Table(Good() with { Requires = "probe.edit" }), "probe.edit")]);
+        _ = new ModuleTableCatalog([new ProbeModule(Table(Good() with { Requires = "core.x" }))],
+            [new AppPermission("core.x", "Даёт", "Открывает")]);
     }
 
     private static ModuleTableShortcut Good() => new("lost", "Потерянные ссылки", "Ссылки", "есть", "Замените запись");
@@ -105,11 +125,11 @@ public class ModuleTableShortcutTests
             Task.FromResult(new ModuleTablePage([], 0, new Dictionary<string, TableTotal>()));
     }
 
-    private sealed class ProbeModule(ModuleTable table) : IAppModule
+    private sealed class ProbeModule(ModuleTable table, params string[] rights) : IAppModule
     {
         public string Code => "probe";
         public string Title => "Проба";
-        public IReadOnlyList<AppPermission> Permissions => [];
+        public IReadOnlyList<AppPermission> Permissions => [.. rights.Select(r => new AppPermission(r, "Даёт", "Открывает"))];
         public IReadOnlyList<string> RoutePrefixes => ["/api/probe"];
         public IReadOnlyList<ModuleTable> Tables => [table];
 

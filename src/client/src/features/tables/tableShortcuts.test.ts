@@ -14,6 +14,8 @@ const all = ['Номер', 'Поставщик'];
 const view = (patch: Partial<TableView>): TableView => ({ ...DEFAULT_VIEW, ...patch });
 const supplier: FilterNode = { type: 'condition', column: 'Поставщик', op: 'eq', value: 'Ромашка' };
 const and = (...children: FilterNode[]): FilterNode => ({ type: 'group', logic: 'and', children });
+/** Отбор экрана: дерево условий и, если есть, неразобранный отбор из адреса. */
+const under = (filter: FilterNode | null, brokenFilter: string | null = null) => ({ filter, brokenFilter });
 
 describe('нажатие на готовый отбор', () => {
   it('ставит условие обычным чипом, рядом с уже стоящими, и показывает колонку', () => {
@@ -23,7 +25,7 @@ describe('нажатие на готовый отбор', () => {
     expect(next.columns).toEqual(['Номер', 'Ссылки']);
     // Отбор сменился — страница первая: третьей под новым отбором может не быть.
     expect(next.page).toBe(1);
-    expect(shortcutState(next.filter, lost)).toBe('on');
+    expect(shortcutState(next, lost)).toBe('on');
   });
 
   it('второе нажатие снимает условие, а колонку оставляет', () => {
@@ -42,6 +44,22 @@ describe('нажатие на готовый отбор', () => {
       .toEqual(and(supplier, shortcutCondition(lost)));
   });
 
+  it('снимая, убирает только своё условие, а соседнее по той же колонке оставляет', () => {
+    const notType: FilterNode = { type: 'condition', column: 'Ссылки', op: 'neq', value: 'удалён тип счёта' };
+    const both = view({ filter: and(shortcutCondition(lost), notType) });
+
+    expect(shortcutState(both, lost)).toBe('on');
+    expect(withShortcut(both, all, lost).filter).toEqual(and(notType));
+  });
+
+  it('неразобранный отбор из адреса не заменяет: его условий экран не знает', () => {
+    const broken = view({ filter: null, brokenFilter: '{не дерево' });
+
+    expect(shortcutState(broken, lost)).toBe('broken');
+    expect(withShortcut(broken, all, lost)).toBe(broken);
+    expect(shortcutTitle(lost, 'broken')).toContain('сначала снимите его');
+  });
+
   it('под колонками по умолчанию добавляет колонку к ним, а не оставляет её одну', () => {
     expect(withShortcut(view({}), all, lost).columns).toEqual(['Номер', 'Поставщик', 'Ссылки']);
   });
@@ -50,9 +68,9 @@ describe('нажатие на готовый отбор', () => {
     const complex: FilterNode = { type: 'group', logic: 'or', children: [supplier, shortcutCondition(lost)] };
     const before = view({ filter: complex });
 
-    expect(shortcutState(complex, lost)).toBe('blocked');
+    expect(shortcutState(before, lost)).toBe('complex');
     expect(withShortcut(before, all, lost)).toBe(before);
-    expect(shortcutTitle(lost, 'blocked')).toContain('расширенном режиме');
+    expect(shortcutTitle(lost, 'complex')).toContain('расширенном режиме');
   });
 });
 
@@ -60,11 +78,11 @@ describe('что показывает чип', () => {
   it('ноль не показывается, а «не проверено» и стоящий отбор — да', () => {
     const none = { ...lost, count: 0 };
 
-    expect(shortcutShown(null, lost)).toBe(true);
-    expect(shortcutShown(null, none)).toBe(false);
-    expect(shortcutShown(null, { ...none, unchecked: 'проверено не всё' })).toBe(true);
+    expect(shortcutShown(under(null), lost)).toBe(true);
+    expect(shortcutShown(under(null), none)).toBe(false);
+    expect(shortcutShown(under(null), { ...none, unchecked: 'проверено не всё' })).toBe(true);
     // Исправили последний счёт: нажатый чип остаётся, иначе его пропажа читалась бы как сбой.
-    expect(shortcutShown(and(shortcutCondition(none)), none)).toBe(true);
+    expect(shortcutShown(under(and(shortcutCondition(none))), none)).toBe(true);
   });
 
   it('непроверенный ноль числом не пишется', () => {

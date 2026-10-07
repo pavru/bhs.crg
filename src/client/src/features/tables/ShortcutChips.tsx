@@ -1,7 +1,6 @@
 import { Archive, Check, TriangleAlert } from 'lucide-react';
 import { useTableShortcuts, type TableShortcut } from '@/shared/api/tables';
-import type { FilterNode } from '@/shared/api/types';
-import { shortcutCount, shortcutShown, shortcutState, shortcutTitle } from './tableShortcuts';
+import { shortcutCount, shortcutShown, shortcutState, shortcutTitle, type ShortcutFilter } from './tableShortcuts';
 
 /**
  * Строка «Навести порядок» над таблицей (issue #1186): готовые отборы модуля чипами с числом строк
@@ -15,8 +14,8 @@ import { shortcutCount, shortcutShown, shortcutState, shortcutTitle } from './ta
  */
 export function ShortcutChips({ address, filter, enabled, onToggle }: {
   address: string;
-  /** Отбор, который стоит на экране: по нему видно, нажат ли чип. */
-  filter: FilterNode | null;
+  /** Отбор, который стоит на экране: по нему видно, нажат ли чип и можно ли его нажать. */
+  filter: ShortcutFilter;
   enabled: boolean;
   onToggle: (shortcut: TableShortcut) => void;
 }) {
@@ -39,7 +38,7 @@ export function ShortcutChips({ address, filter, enabled, onToggle }: {
           : s.quiet ? 'border-stroke text-fg3 hover:text-fg1'
           : 'border-danger text-danger hover:bg-danger-subtle';
         return (
-          <button key={s.code} type="button" disabled={state === 'blocked'} aria-pressed={state === 'on'}
+          <button key={s.code} type="button" disabled={state === 'complex' || state === 'broken'} aria-pressed={state === 'on'}
             title={shortcutTitle(s, state)} onClick={() => onToggle(s)}
             className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 bg-surface disabled:opacity-50 ${tone}`}>
             <Icon size={12} aria-hidden />

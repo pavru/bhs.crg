@@ -21,7 +21,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public static class InvoiceLineEndpoints
 {
-    private const string Edit = "costs.invoice.edit";
+    private const string Edit = CostsModule.InvoiceEdit;
 
     public static void MapInvoiceLines(IEndpointRouteBuilder endpoints)
     {

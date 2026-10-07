@@ -124,8 +124,8 @@ export function TablePage() {
         </div>
 
         {/* Готовые отборы модуля — над рядом условий: нажатие кладёт условие в этот ряд, обычным чипом. */}
-        <ShortcutChips address={address} filter={view.filter} enabled={wanted && !off}
-          onToggle={shortcut => setView(v => withShortcut(v, defaultColumnKeys(decl.columns), shortcut))} />
+        <ShortcutChips address={address} filter={view} enabled={wanted && !off}
+          onToggle={shortcut => setView(v => withShortcut(v, allKeys, shortcut))} />
 
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
@@ -171,6 +171,13 @@ export function TablePage() {
           <p className="mt-3 text-sm text-fg4">Строки загружаются…</p>
         ) : (
           <>
+            {/* Ответ неполон — говорим это НАД строками, а не подписью колонки: колонки может не быть
+                на экране, а отбор по ней стоит, и пустая таблица читалась бы как «таких строк нет». */}
+            {data.doubts?.map(doubt => (
+              <p key={doubt.column} role="status" className="mt-2 text-xs text-warning">
+                «{doubt.label}» — {doubt.reason}. Строк под отбором по этой колонке может быть больше, чем показано.
+              </p>
+            ))}
             <DataGrid className={`mt-3 flex-1 min-h-0 ${table.isFetching ? 'opacity-60' : ''}`}
               columns={grid} rows={data.rows}
               state={gridState(decl, filter !== null)}

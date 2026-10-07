@@ -1,4 +1,4 @@
-import type { FilterCondition, FilterNode, FilterOp } from '@/shared/api/types';
+import type { FilterCondition, FilterOp } from '@/shared/api/types';
 import type { TableShortcut } from '@/shared/api/tables';
 import { chipsView, fromChips } from '@/shared/filter/chipsModel';
 import { withColumnShown, withFilterChange, type TableView } from './tableViewState';
@@ -20,15 +20,23 @@ function same(cond: FilterCondition, shortcut: TableShortcut): boolean {
   return cond.column === shortcut.column && cond.op === shortcut.op && cond.value === shortcut.value;
 }
 
+export type ShortcutState = 'on' | 'off' | 'complex' | 'broken';
+
+/** Отбор экрана — то, что из него нужно готовому отбору. */
+export type ShortcutFilter = Pick<TableView, 'filter' | 'brokenFilter'>;
+
 /**
  * Что с готовым отбором под текущим отбором экрана:
- * `on` — его условие стоит; `off` — не стоит, поставить можно; `blocked` — отбор сложный (с «ИЛИ»
- * или группами), и добавить к нему условие чипом нельзя: куда именно, ряд чипов не скажет.
+ * `on` — его условие стоит; `off` — не стоит, поставить можно; `complex` — отбор сложный (с «ИЛИ»
+ * или группами), и добавить к нему условие чипом нельзя: куда именно, ряд чипов не скажет;
+ * `broken` — в адресе стоит отбор, который не разобрался. Его условий экран не знает, и нажатие
+ * заменило бы их молча — человек потерял бы отбор, о котором сервер ещё только говорит отказом.
  */
-export function shortcutState(filter: FilterNode | null, shortcut: TableShortcut): 'on' | 'off' | 'blocked' {
-  const view = chipsView(filter);
-  if (view.mode !== 'chips') return 'blocked';
-  return view.conditions.some(c => same(c, shortcut)) ? 'on' : 'off';
+export function shortcutState(view: ShortcutFilter, shortcut: TableShortcut): ShortcutState {
+  if (view.brokenFilter !== null) return 'broken';
+  const chips = chipsView(view.filter);
+  if (chips.mode !== 'chips') return 'complex';
+  return chips.conditions.some(c => same(c, shortcut)) ? 'on' : 'off';
 }
 
 /**
@@ -38,16 +46,19 @@ export function shortcutState(filter: FilterNode | null, shortcut: TableShortcut
  * «равно „есть, период закрыт“» — пересечение, то есть пустая таблица под видом «исправлять нечего».
  * Колонка включается в показ: без неё человек видит счета и не видит, почему они здесь. Снимая отбор,
  * колонку не убираем — её убирают как любую, из окошка «Колонки».
+ *
+ * Снимая — убираем только СВОЁ условие: прочие по той же колонке человек ставил сам.
  */
 export function withShortcut(view: TableView, all: string[], shortcut: TableShortcut): TableView {
-  const state = shortcutState(view.filter, shortcut);
-  if (state === 'blocked') return view;
+  const state = shortcutState(view, shortcut);
+  if (state !== 'on' && state !== 'off') return view;
 
   const next = withFilterChange(view, current => {
     const chips = chipsView(current);
     if (chips.mode !== 'chips') return current;
-    const others = chips.conditions.filter(c => c.column !== shortcut.column);
-    return fromChips(state === 'on' ? others : [...others, shortcutCondition(shortcut)]);
+    return fromChips(state === 'on'
+      ? chips.conditions.filter(c => !same(c, shortcut))
+      : [...chips.conditions.filter(c => c.column !== shortcut.column), shortcutCondition(shortcut)]);
   });
   return state === 'on' ? next : withColumnShown(next, all, shortcut.column, true);
 }
@@ -57,8 +68,8 @@ export function withShortcut(view: TableView, all: string[], shortcut: TableShor
  * отбор, который стоит, тоже остаётся: нажатый чип, пропавший вместе с последней строкой, читался бы
  * как сбой.
  */
-export function shortcutShown(filter: FilterNode | null, shortcut: TableShortcut): boolean {
-  return shortcut.count > 0 || shortcut.unchecked !== null || shortcutState(filter, shortcut) === 'on';
+export function shortcutShown(view: ShortcutFilter, shortcut: TableShortcut): boolean {
+  return shortcut.count > 0 || shortcut.unchecked !== null || shortcutState(view, shortcut) === 'on';
 }
 
 /**
@@ -71,11 +82,12 @@ export function shortcutCount(shortcut: TableShortcut): string {
 }
 
 /** Подсказка чипа: что это за строки, почему числу нельзя верить и почему чип не нажимается. */
-export function shortcutTitle(shortcut: TableShortcut, state: 'on' | 'off' | 'blocked'): string {
+export function shortcutTitle(shortcut: TableShortcut, state: ShortcutState): string {
   return [
     shortcut.hint,
     shortcut.unchecked && `Число неполное — ${shortcut.unchecked}.`,
-    state === 'blocked' && 'Отбор сложный: условие добавляется в расширенном режиме.',
+    state === 'complex' && 'Отбор сложный: условие добавляется в расширенном режиме.',
+    state === 'broken' && 'Отбор из адреса не применён: сначала снимите его.',
     state === 'on' && 'Нажмите, чтобы снять отбор.',
   ].filter(Boolean).join(' ');
 }

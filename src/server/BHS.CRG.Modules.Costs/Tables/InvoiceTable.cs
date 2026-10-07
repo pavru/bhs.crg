@@ -283,14 +283,14 @@ public static class InvoiceTable
         ]);
 
     /// <summary>Право правки счёта: готовые отборы предлагаются только тому, кто может исправить.</summary>
-    private const string EditRight = "costs.invoice.edit";
+    private const string EditRight = CostsModule.InvoiceEdit;
 }
 
 /// <summary>
 /// Строки таблицы счетов. Поля, которые заказчик дописал в тип, лежат в <see cref="Invoice.Data" /> и
 /// приходят теми же ключами — их колонки ядро берёт из схемы типа.
 /// </summary>
-public sealed class InvoiceTableRows(
+public sealed partial class InvoiceTableRows(
     CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModuleClock clock,
     InvoiceReferenceTrouble trouble)
     : IModuleTableRows
@@ -301,33 +301,25 @@ public sealed class InvoiceTableRows(
     private static readonly IReadOnlyDictionary<InvoicePaymentState, string> Payments =
         Enum.GetValues<InvoicePaymentState>().ToDictionary(p => p, InvoiceRequisites.Label);
 
-    public async Task<ModuleTablePage> ReadAsync(ModuleTableQuery query, CancellationToken ct)
+    /// <summary>
+    /// Названия организаций — одним списком: вида «Организация» на чистой установке может не быть
+    /// вовсе (см. InvoiceEndpoints.SupplierNamesAsync). Нужны и строкам, и отбору по названию.
+    ///
+    /// <para>⚠️ Стоит В ЭТОМ файле, рядом с объявлением порта справочников, нарочно: перепись мест
+    /// чтения записей (<c>ArchiveReadInventoryTests</c>) узнаёт порт по его объявлению в файле и в
+    /// соседней части класса этого чтения не увидела бы.</para>
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> OrganizationNamesAsync(CancellationToken ct)
     {
-        // Названия организаций — одним списком: вида «Организация» на чистой установке может не быть
-        // вовсе (см. InvoiceEndpoints.SupplierNamesAsync). Нужны и строкам, и отбору по названию.
         // Показ: названия нужны счетам, которые уже есть, — архивный поставщик в реестре читается.
         var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))
             ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
+        return names;
+    }
 
-        // Объекты разноски — стройки и статьи вне строек одним списком названий: цель части — ровно
-        // одно из двух. Раздел стройки — своей колонкой: отбор «по стройке» — по стройке целиком.
-        var shares = InvoiceShares.Of(await places.LoadAsync(ct));
-
-        // «Сегодня» — одно на весь ответ: и отбору, и клеткам. Спроси мы его дважды, запрос на
-        // границе суток отобрал бы «просроченные» по вчерашнему дню, а признак показал бы по сегодняшнему.
-        var today = await clock.TodayAsync(ct);
-
-        // Ссылки не на месте — ТОЛЬКО когда о них спросили: колонкой, отбором, сортировкой или итогом.
-        // Это опрос ядра по всем держащим колонкам модуля, и таблицу читают не только с экрана (наборы
-        // данных, внешний агент) — им он не нужен вовсе. Архив — отдельным согласием: ссылок на
-        // архивные записи на порядки больше, чем потерянных.
-        var aboutArchive = Asked(query, InvoiceTable.ArchivedKey);
-        var troubles = aboutArchive || Asked(query, InvoiceTable.LostKey)
-            ? await trouble.ReadAsync(aboutArchive, ct)
-            : InvoiceTroubles.None;
-
-        var calendar = InvoicePeriods.Labels(today);
-        var sql = Sql(names, shares, calendar, today, troubles);
+    public async Task<ModuleTablePage> ReadAsync(ModuleTableQuery query, CancellationToken ct)
+    {
+        var (names, shares, calendar, today, troubles, sql) = await PrepareAsync([query], ct);
         var selected = sql.Where(db.Invoices.AsNoTracking(), query.Filter);
 
         // Одна строка по ключу — тот же отбор и ещё одно условие: счёт вне отбора не приходит. Ключ,
@@ -468,15 +460,7 @@ public sealed class InvoiceTableRows(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, listed, amounts, unmatched, today,
                 periods.GetValueOrDefault(i.Id), troubles))],
             count, totals, notes.Count == 0 ? null : notes,
-            [.. invoices.Select(i => i.Id.ToString())], breakdown,
-            // Опрос проверил не всё — говорим это у обеих колонок: причины непроверенности у потери и у
-            // архива одни. Без этого слова пустая клетка и ноль под отбором значили бы «всё на месте».
-            troubles.Doubt is { } doubt
-                ? new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    [InvoiceTable.LostKey] = doubt, [InvoiceTable.ArchivedKey] = doubt,
-                }
-                : null);
+            [.. invoices.Select(i => i.Id.ToString())], breakdown, Doubts(query, troubles));
     }
 
     /// <summary>Спрошена ли колонка этим запросом: показом, отбором, сортировкой или итогом.</summary>

@@ -26,7 +26,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public static class InvoiceEndpoints
 {
     private const string Read = "costs.invoice.read";
-    private const string Edit = "costs.invoice.edit";
+    private const string Edit = CostsModule.InvoiceEdit;
 
     /// <summary>Как называется счёт в журнале действий и в отказах.</summary>
     internal static string Label(Invoice invoice) =>

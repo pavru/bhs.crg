@@ -85,13 +85,15 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
 
         // Подпись смысла — только колонке, объявленной зависящей от отбора, и только открытой: служба
         // строк не переименовывает чужие колонки и не подписывает то, чего человек не видит.
-        //
-        // Сомнение службы строк («проверено не всё») — той же подписью и любой открытой колонке: пустая
-        // клетка без этого слова читалась бы как «всё на месте».
-        var noted = marked.Select(c => c.Unavailable is not null ? c
-            : c.DependsOnFilter && page.Notes is { } notes && notes.TryGetValue(c.Key, out var note) ? c with { Note = note }
-            : page.Doubts is { } doubts && doubts.TryGetValue(c.Key, out var doubt) ? c with { Note = doubt }
-            : c).ToList();
+        var noted = marked.Select(c => c.DependsOnFilter && c.Unavailable is null
+            && page.Notes is { } notes && notes.TryGetValue(c.Key, out var note) ? c with { Note = note } : c).ToList();
+
+        // Сомнение службы строк («проверено не всё») — полем ТАБЛИЦЫ, а не подписью колонки: отбирать
+        // можно и по колонке, которой на экране нет, и тогда пустая выдача без этого слова читалась бы
+        // как «всё на месте» (ревью PR #1240). Только по открытым колонкам — о закрытой не говорим.
+        var doubts = (page.Doubts ?? new Dictionary<string, string>())
+            .Where(d => open.Contains(d.Key))
+            .Select(d => new TableDoubtDto(d.Key, columns.First(c => c.Key == d.Key).Label, d.Value)).ToList();
 
         // Вычистка — здесь, а не в службе модуля: служба вправе не считать закрытое, но гарантия
         // обязана стоять в одном месте. Забытое службой значение суммы иначе ушло бы наружу.
@@ -103,6 +105,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
             Totals = page.Totals.Where(t => open.Contains(t.Key)).ToDictionary(
                 t => t.Key, t => ModuleTableQueries.Total(t.Value, query.Totals![t.Key]), StringComparer.Ordinal),
             Keys = page.Keys,
+            Doubts = doubts.Count == 0 ? null : doubts,
             Breakdown = ModuleTableBreakdowns.Build(table, query, page, columns, open,
                 // Журнала может не быть у службы, собранной без хоста (тесты ядра); молчать он тогда вправе.
                 services.GetService<ILogger<ModuleTableService>>()

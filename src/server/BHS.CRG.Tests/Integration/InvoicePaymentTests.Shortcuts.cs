@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Costs.Tables;
@@ -110,6 +111,49 @@ public partial class InvoicePaymentTests
         Assert.Equal(HttpStatusCode.NotFound, (await accountant.GetAsync("/api/tables/costs.nothing/shortcuts")).StatusCode);
     }
 
+    /// <summary>Порт, который записывает, сколько раз и с каким согласием на архив его опросили.</summary>
+    private sealed class CountingTargets(IModuleReferenceTargets inner, List<bool> asked) : IModuleReferenceTargets
+    {
+        public Task<IReadOnlyDictionary<Guid, ReferenceState>> StatesAsync(
+            ReferenceTarget target, IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            inner.StatesAsync(target, ids, ct);
+
+        public Task<ReferenceFindings> NotPresentAsync(
+            string moduleCode, bool includeArchived, CancellationToken ct = default)
+        {
+            asked.Add(includeArchived);
+            return inner.NotPresentAsync(moduleCode, includeArchived, ct);
+        }
+    }
+
+    /// <summary>
+    /// <b>Оба числа — одним опросом ядра</b> (ревью PR #1240): ответ с архивом покрывает и вопрос о
+    /// потерях, и считать каждый отбор отдельным чтением значило бы опросить ядро дважды на один запрос
+    /// экрана. Числа при этом те же, что у таблицы под условием каждого отбора.
+    /// </summary>
+    [Fact]
+    public async Task Числа_готовых_отборов_считаются_одним_опросом_ядра()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var asked = new List<bool>();
+        await using var counting = host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IModuleReferenceTargets>();
+            services.AddScoped<IModuleReferenceTargets>(sp =>
+                new CountingTargets(ActivatorUtilities.CreateInstance<ModuleReferenceTargetsPort>(sp), asked));
+        }));
+        var client = counting.CreateClient();
+        client.DefaultRequestHeaders.Authorization = admin.DefaultRequestHeaders.Authorization;
+
+        var shortcuts = await ShortcutsAsync(client);
+
+        Assert.Equal([true], asked);
+        foreach (var shortcut in shortcuts.EnumerateArray())
+            Assert.Equal(
+                Count(await TroubleTableAsync(admin, shortcut.GetProperty("column").GetString()!, shortcut.GetProperty("value").GetString()!)),
+                shortcut.GetProperty("count").GetInt32());
+    }
+
     /// <summary>Порт, у которого опрос проверил не всё: одна колонка не прочиталась, найденного нет.</summary>
     private sealed class HalfBlindTargets : IModuleReferenceTargets
     {
@@ -151,11 +195,26 @@ public partial class InvoicePaymentTests
             Assert.Equal("проверено не всё: не прочитано колонок со ссылками — 1", s.GetProperty("unchecked").GetString());
         });
 
-        var table = await client.GetFromJsonAsync<JsonElement>($"/api/tables/costs.invoices?columns=Номер,{LostColumn}&limit=1");
-        var notes = table.GetProperty("columns").EnumerateArray()
-            .ToDictionary(c => c.GetProperty("key").GetString()!, c => c.GetProperty("note").GetString());
-        Assert.StartsWith("проверено не всё", notes[LostColumn]);
-        Assert.Null(notes["Номер"]);
+        // Сомнение — полем таблицы, и названа в нём та колонка, о которой спросили. Колонки на экране
+        // при этом может и не быть: отбор по ней стоит, а пустая выдача без оговорки читалась бы как
+        // «всё на месте» (ревью PR #1240).
+        var hidden = await TroubleTableAsync(client, LostColumn, InvoiceTable.TroubleFixable);
+        var filtered = await (await client.GetAsync("/api/tables/costs.invoices?columns=Номер&limit=1&filter="
+            + Uri.EscapeDataString(JsonSerializer.Serialize(
+                new { type = "condition", column = LostColumn, op = "eq", value = InvoiceTable.TroubleFixable }))))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        foreach (var table in new[] { hidden, filtered })
+        {
+            Assert.Equal(0, Count(table));
+            var doubt = Assert.Single(table.GetProperty("doubts").EnumerateArray());
+            Assert.Equal(LostColumn, doubt.GetProperty("column").GetString());
+            Assert.Equal("Ссылки на удалённые записи", doubt.GetProperty("label").GetString());
+            Assert.StartsWith("проверено не всё", doubt.GetProperty("reason").GetString());
+        }
+
+        // Не спросили о ссылках — и сомневаться не в чем.
+        var plain = await client.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices?columns=Номер&limit=1");
+        Assert.Equal(JsonValueKind.Null, plain.GetProperty("doubts").ValueKind);
 
         // На здоровом опросе непроверенным остаётся только дополнительное поле счёта — и сомнения нет:
         // оговорка, которая стоит всегда, у числа ничего бы не значила.

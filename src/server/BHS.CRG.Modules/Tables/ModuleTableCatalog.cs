@@ -26,13 +26,30 @@ public sealed class ModuleTableCatalog
 {
     private readonly Dictionary<string, ModuleTableEntry> _byAddress;
 
-    public ModuleTableCatalog(IEnumerable<IAppModule> modules)
+    /// <param name="corePermissions">Права ядра (<c>core.*</c>): готовый отбор вправе назвать и такое.</param>
+    public ModuleTableCatalog(IEnumerable<IAppModule> modules, IEnumerable<AppPermission>? corePermissions = null)
     {
-        All = [.. modules.SelectMany(m => m.Tables.Select(t => new ModuleTableEntry(m.Code, m.Title, t)))];
+        var all = modules.ToList();
+        All = [.. all.SelectMany(m => m.Tables.Select(t => new ModuleTableEntry(m.Code, m.Title, t)))];
+
+        // Ключи доступа сборки: коды модулей и права — всех модулей, включая выключенные, и ядра.
+        var keys = all.Select(m => m.Code)
+            .Concat(all.SelectMany(m => m.Permissions).Concat(corePermissions ?? []).Select(p => p.Code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var broken = new List<string>();
         foreach (var entry in All)
+        {
             broken.AddRange(entry.Table.Problems().Select(p => $"«{entry.Address}»: {p}"));
+
+            // Ключа, которого нет в сборке, нет ни у кого: отбор с опечаткой в коде права не предлагался
+            // бы НИКОМУ, и экран читался бы как «наводить нечего» (ревью PR #1240). Проверяется здесь,
+            // а не в самом объявлении: какие права есть, знает только сборка.
+            broken.AddRange((entry.Table?.Shortcuts ?? [])
+                .Where(s => !string.IsNullOrWhiteSpace(s?.Requires) && !keys.Contains(s!.Requires!))
+                .Select(s => $"«{entry.Address}»: готовый отбор «{s.Code}» открывается ключом «{s.Requires}», " +
+                             "а такого нет ни среди модулей, ни среди прав"));
+        }
         foreach (var twice in All.GroupBy(e => e.Address, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
             broken.Add($"«{twice.Key}»: таблица объявлена дважды");
 

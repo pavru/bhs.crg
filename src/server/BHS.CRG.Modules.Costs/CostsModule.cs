@@ -33,6 +33,13 @@ public sealed class CostsModule : IAppModule
 {
     public const string ModuleCode = "costs";
 
+    /// <summary>
+    /// Право правки счёта — одним местом: его называют и адреса, и готовые отборы таблицы. Копия
+    /// строки, забытая при переименовании, отказа не дала бы — отборы просто перестали бы
+    /// предлагаться (ревью PR #1240).
+    /// </summary>
+    public const string InvoiceEdit = "costs.invoice.edit";
+
     public string Code => ModuleCode;
 
     public string Title => "Счета и накладные";
@@ -81,7 +88,7 @@ public sealed class CostsModule : IAppModule
             "изоляции по стройкам в первой версии нет (COST-30)",
             ["core.constructions.read", "core.catalog.read"]),
 
-        new("costs.invoice.edit",
+        new(InvoiceEdit,
             "заводить и править счета, их строки и сопоставление наименований поставщиков с номенклатурой",
             "то же, что чтение, плюс изменение — включая исправление счёта закрытого периода новой " +
             "версией с причиной",
