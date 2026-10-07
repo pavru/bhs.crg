@@ -307,7 +307,7 @@ public partial class ArchiveReadInventoryTests
             Seen("названия поставщиков уже заведённых счетов"),
         ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct))"] =
             Shown("позиции стоящих строк накладной и перечня отпущенного: название и признак"),
-        ["BHS.CRG.Modules.Costs/Tables/InvoiceTable.cs|var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))"] =
+        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))"] =
             Seen("названия поставщиков уже заведённых счетов"),
     };
 }

@@ -301,22 +301,6 @@ public sealed partial class InvoiceTableRows(
     private static readonly IReadOnlyDictionary<InvoicePaymentState, string> Payments =
         Enum.GetValues<InvoicePaymentState>().ToDictionary(p => p, InvoiceRequisites.Label);
 
-    /// <summary>
-    /// Названия организаций — одним списком: вида «Организация» на чистой установке может не быть
-    /// вовсе (см. InvoiceEndpoints.SupplierNamesAsync). Нужны и строкам, и отбору по названию.
-    ///
-    /// <para>⚠️ Стоит В ЭТОМ файле, рядом с объявлением порта справочников, нарочно: перепись мест
-    /// чтения записей (<c>ArchiveReadInventoryTests</c>) узнаёт порт по его объявлению в файле и в
-    /// соседней части класса этого чтения не увидела бы.</para>
-    /// </summary>
-    private async Task<Dictionary<Guid, string>> OrganizationNamesAsync(CancellationToken ct)
-    {
-        // Показ: названия нужны счетам, которые уже есть, — архивный поставщик в реестре читается.
-        var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))
-            ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
-        return names;
-    }
-
     public async Task<ModuleTablePage> ReadAsync(ModuleTableQuery query, CancellationToken ct)
     {
         var (names, shares, calendar, today, troubles, sql) = await PrepareAsync([query], ct);
