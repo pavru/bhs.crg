@@ -35,10 +35,14 @@ public class RecordWriteGuardCoverageTests
     /// <summary>
     /// Чем тип модуля с носителем «таблица модуля» кладёт данные по схеме в свою запись: код типа →
     /// выражение, по которому это место находят. Ключи сверяются с объявлениями поставленных модулей.
+    ///
+    /// <para>⚠️ Выражение — ИМЯ МЕТОДА сущности, без имени переменной перед точкой: <c>draft.…</c> и
+    /// <c>write.Invoice.…</c> — тот же путь записи, что <c>invoice.…</c>. Поэтому метод обязан зваться
+    /// неповторимо (не <c>Apply</c> — так зовутся правки строк и частей разноски).</para>
     /// </summary>
     private static readonly Dictionary<string, string> ModuleTableWrites = new()
     {
-        ["СчётНаОплату"] = @"\binvoice\.Apply\(",
+        ["СчётНаОплату"] = @"\.ApplyRequisites\(",
     };
 
     /// <summary>Как данные попадают в объект: присвоение или конструктор с готовыми данными.</summary>
@@ -48,12 +52,12 @@ public class RecordWriteGuardCoverageTests
         RegexOptions.Compiled);
 
     /// <summary>
-    /// Вызов охраны: у ядра — <c>WriteGuard.EnsureAllowedAsync</c>, у модуля — его обёртка над портом,
-    /// первым аргументом которой идёт сам порт (отказы порт возвращает, а не бросает, и превращает их
-    /// в отказ запросу модуль).
+    /// Вызов охраны: у ядра — <c>WriteGuard.EnsureAllowedAsync</c>, у модуля — метод порта
+    /// <c>RefusalsAsync</c> либо обёртка над ним (отказы порт возвращает, а не бросает, и превращает
+    /// их в отказ запросу модуль). По имени метода, а не переменной: порт вправе зваться как угодно.
     /// </summary>
     private static readonly Regex GuardCall = new(
-        @"WriteGuard\.EnsureAllowedAsync|\bEnsureAllowedAsync\(guard\b|\bguard\.RefusalsAsync\(", RegexOptions.Compiled);
+        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+EnsureAllowedAsync\(|\.RefusalsAsync\(", RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>
     private const int GuardLookback = 15;
@@ -79,9 +83,9 @@ public class RecordWriteGuardCoverageTests
             (Guarded, "правка документа качества"),
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|instance.SetData(patched);"] =
             (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо MediatR"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.Apply(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));"] =
             (Guarded, "создание счёта: реквизиты пришли из формы или из распознавания, лежащего нет — всё вносится впервые"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.Apply(columns, rest, dueDateByHand: true);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: true);"] =
             (Guarded, "правка шапки счёта — проверяется против лежащего, дополненного неприсланным состоянием"),
 
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =

@@ -232,7 +232,7 @@ public sealed class Invoice
     /// поставщика, то есть правило подстановки обходило бы стороной ровно те счета, ради которых
     /// заводится, а сбросить признак нечем.</para>
     /// </param>
-    public void Apply(InvoiceColumns columns, JsonDocument data, bool dueDateByHand)
+    public void ApplyRequisites(InvoiceColumns columns, JsonDocument data, bool dueDateByHand)
     {
         Number = columns.Number;
         IssuedOn = columns.IssuedOn;

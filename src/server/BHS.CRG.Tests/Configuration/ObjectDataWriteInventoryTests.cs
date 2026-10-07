@@ -106,7 +106,7 @@ public class ObjectDataWriteInventoryTests
     private static Dictionary<string, (bool Locked, bool Versioned)> Find()
     {
         var found = new Dictionary<string, (bool Locked, bool Versioned)>(StringComparer.Ordinal);
-        foreach (var file in Projects.SelectMany(SourceFiles))
+        foreach (var file in Projects.SelectMany(SourceTree.Files))
         {
             var lines = File.ReadAllLines(file);
             for (var i = 0; i < lines.Length; i++)
@@ -117,7 +117,7 @@ public class ObjectDataWriteInventoryTests
                 var versioned = Enumerable.Range(i + 1, Math.Min(lines.Length - i - 1, Reach))
                     .Any(n => !IsComment(lines[n]) && lines[n].Contains("SaveSeenAsync("));
 
-                var key = $"{Relative(file)}|{lines[i].Trim()}";
+                var key = $"{SourceTree.Relative(file)}|{lines[i].Trim()}";
                 found[key] = found.TryGetValue(key, out var was)
                     ? (was.Locked && locked, was.Versioned && versioned)
                     : (locked, versioned);
@@ -127,23 +127,4 @@ public class ObjectDataWriteInventoryTests
     }
 
     private static bool IsComment(string line) => line.TrimStart().StartsWith("//");
-
-    private static IEnumerable<string> SourceFiles(string project) =>
-        Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
-
-    private static string Relative(string full) =>
-        Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');
-
-    private static string SolutionDir { get; } = FindSolutionDir();
-
-    private static string FindSolutionDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException("Не найден каталог решения (BHS.CRG.slnx).");
-    }
 }

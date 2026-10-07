@@ -44,10 +44,16 @@ public static class SolutionModules
     public static IReadOnlyList<string> Names { get; } = [.. Projects.Select(p => p.Name)];
 
     /// <summary>
-    /// Проекты ядра, названные переписью, И все проекты модулей. Перепись зовёт это вместо своего
-    /// списка: назвать ядро и забыть модули так нельзя.
+    /// Проекты ядра, названные переписью, проект контрактов И все проекты модулей. Перепись зовёт это
+    /// вместо своего списка: назвать ядро и забыть модули так нельзя.
+    ///
+    /// <para>Контракты — тоже здесь, хотя модулем они не являются. Кода там не меньше, чем объявлений
+    /// (<c>ModuleDbContext</c>, замок записи против закрытия периода, реестр модулей), у него та же
+    /// база под рукой — и ни ядром, ни модулем его никто не называл: проект выпадал из всех переписей
+    /// разом (ревью PR #1250).</para>
     /// </summary>
-    public static string[] WithCore(params string[] core) => [.. core, .. Names];
+    public static string[] WithCore(params string[] core) =>
+        [.. core.Append(ContractsProject).Distinct(StringComparer.Ordinal), .. Names];
 
     /// <summary>
     /// Ссылки на проекты из файла проекта.
