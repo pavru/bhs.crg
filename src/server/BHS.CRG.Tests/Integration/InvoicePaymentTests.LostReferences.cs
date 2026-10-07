@@ -317,7 +317,7 @@ public partial class InvoicePaymentTests
         part.Apply(1, new(BHS.CRG.Modules.Costs.Data.AllocationTarget.Article(Guid.NewGuid()), null, 100m));
 
         var read = BHS.CRG.Modules.Costs.Endpoints.InvoiceAllocations.Read(invoice, [], [part],
-            new BHS.CRG.Modules.Costs.Endpoints.AllocationPlaces([], [], ArticlesKnown: false));
+            new BHS.CRG.Modules.Costs.Endpoints.AllocationPlaces([], [], ArticlesKnown: false), tolerance: 1.00m);
 
         var seen = Assert.Single(read.Summary.Document.Parts);
         Assert.Equal("article-unread", seen.TargetIssue);

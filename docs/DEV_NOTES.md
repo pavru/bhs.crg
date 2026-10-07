@@ -2101,6 +2101,21 @@ POST   /api/tables/{модуль.таблица}/query   → то же тело�
 GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved }
 PUT    /api/settings/company                { timeZoneId }  — null снимает настройку
 
+GET    /api/settings/modules                → { modules: [{ code, title, settings: [{ key, title, effect,
+                                    kind, value, stored, default, min, max, scale, unit, changeWarning }] }] }
+                                    Настройки ВКЛЮЧЁННЫХ модулей, у которых они объявлены
+                                    (IAppModule.Settings, issue #1070). value — действующее, stored —
+                                    сохранённое (null — не меняли); расходятся, когда в базе лежит
+                                    значение, которое эта версия не принимает. Право core.system.manage.
+PUT    /api/settings/modules/{code}         { values: { ключ: "значение" | null } }  — только изменённые
+                                    ключи, null снимает настройку. Всё или ничего: 400 с { error,
+                                    fields: { ключ: причина } }, если не годится хоть одно значение
+                                    или ключ модулем не объявлен; 404 — модуль не включён. Число —
+                                    с точкой. В журнал — core.settings.changed, «до» и «после» словами.
+                                    Хранятся в app_settings под ключом «модуль.объект.настройка»:
+                                    копия эту таблицу уже несёт, а ключ выключенного модуля
+                                    узнаётся при восстановлении по каталогу всей сборки.
+
 GET    /api/branding                        → { productName, isCustom, hasLogo, logoVersion }  — БЕЗ входа
 GET    /api/branding/logo?v=                → файл логотипа (404, если не задан)  — БЕЗ входа
 PUT    /api/branding                        { productName }  — пусто снимает настройку

@@ -43,7 +43,7 @@ public static class AllocationMatrixEndpoints
     /// </summary>
     private static async Task<Ok<AllocationPreview>> PreviewAsync(
         Guid id, AllocationPreviewRequest body, CostsDbContext db, AllocationPlacesSource places,
-        IModuleReferenceTargets references, CancellationToken ct)
+        IModuleReferenceTargets references, IModuleSettings settings, CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
@@ -82,7 +82,7 @@ public static class AllocationMatrixEndpoints
                 Existing = (await references.StatesAsync(ReferenceTarget.Record, articles, ct))
                     .Where(r => r.Value != ReferenceState.Lost).Select(r => r.Key).ToHashSet(),
             };
-        var read = InvoiceAllocations.Read(invoice, lines, parts, known);
+        var read = InvoiceAllocations.Read(invoice, lines, parts, known, await settings.GetAsync(CostsSettings.AllocationTolerance, ct));
 
         var state = new MatrixState(
             [.. lines.OrderBy(l => l.Ordinal).Select(l => new MatrixLine(l.Id,
@@ -115,6 +115,7 @@ public static class AllocationMatrixEndpoints
 
         var loaded = await places.LoadAsync(ct);
         var known = loaded;
+        var tolerance = await desk.ToleranceAsync(ct);
         var (invoice, was, after, moved, returned) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         // Писать ли событие, решают сами части, а не их описание: сумм в описании нет (issue #1190), и
@@ -169,7 +170,7 @@ public static class AllocationMatrixEndpoints
 
             // Заменяется разноска ВСЕГО счёта — сохранённые части в расчёт не идут, и читать их снова незачем.
             var returned = invoice.State == InvoiceState.Parsed
-                && !InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), now, known).Summary.Allocated;
+                && !InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), now, known, tolerance).Summary.Allocated;
             if (returned) invoice.ReturnToDraft();
 
             // Разноска — часть счёта: её правка отмечается у него самого (issue #1173).

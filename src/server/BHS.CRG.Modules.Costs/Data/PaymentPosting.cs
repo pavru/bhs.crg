@@ -81,9 +81,9 @@ public static class PaymentPosting
     /// </summary>
     public static PaymentPlan Plan(
         DateOnly paidOn, decimal total, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        PostedBefore kept, PeriodBoundaries boundaries)
+        PostedBefore kept, PeriodBoundaries boundaries, decimal tolerance)
     {
-        var money = Balance(lines, parts, total).Money
+        var money = Balance(lines, parts, total, tolerance).Money
             .Where(share => share.Amount is not null)
             .ToDictionary(share => share.Id, share => share.Amount!.Value);
 
@@ -133,9 +133,11 @@ public static class PaymentPosting
     }
 
     public static AllocationBalance Balance(
-        IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total) =>
+        IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total,
+        decimal tolerance) =>
         AllocationMath.Of(lines,
-            parts.Select(p => new AllocationPart(p.Id, p.LineId, p.Ordinal, p.Quantity, p.Amount)), total);
+            parts.Select(p => new AllocationPart(p.Id, p.LineId, p.Ordinal, p.Quantity, p.Amount)), total,
+            tolerance);
 
     /// <summary>
     /// Деньги счёта по частям: каждая часть разноски со своей суммой и учётным днём и — если суммы

@@ -11,6 +11,9 @@ namespace BHS.CRG.Tests.Costs;
 /// </summary>
 public class AllocationMathTests
 {
+    /// <summary>Допуск расхождения сумм — умолчание настройки модуля (ТЗ COST-13): рубль на счёт.</summary>
+    private const decimal Rouble = 1.00m;
+
     private static readonly Guid LineId = Guid.NewGuid();
 
     private static AllocationLine Line(decimal? quantity, decimal? amount) => new(LineId, 1, quantity, amount);
@@ -158,7 +161,7 @@ public class AllocationMathTests
             new AllocationPart(Guid.NewGuid(), second.Id, 2, 1, null),
         };
 
-        var balance = AllocationMath.Of([first, second], parts, total: 300.40m);
+        var balance = AllocationMath.Of([first, second], parts, total: 300.40m, Rouble);
 
         Assert.True(balance.Allocated);
         Assert.Equal(0.40m, balance.Discrepancy);
@@ -172,7 +175,7 @@ public class AllocationMathTests
     public void Расхождение_сверх_допуска_не_даёт_разнесён()
     {
         var line = new AllocationLine(Guid.NewGuid(), 1, 1, 100m);
-        var balance = AllocationMath.Of([line], [new AllocationPart(Guid.NewGuid(), line.Id, 1, 1, null)], 105m);
+        var balance = AllocationMath.Of([line], [new AllocationPart(Guid.NewGuid(), line.Id, 1, 1, null)], 105m, Rouble);
 
         Assert.False(balance.Allocated);
         Assert.False(balance.WithinTolerance);
@@ -183,7 +186,7 @@ public class AllocationMathTests
     public void Разнесено_не_всё_расхождение_в_части_не_уходит()
     {
         var line = new AllocationLine(Guid.NewGuid(), 1, 2, 100m);
-        var balance = AllocationMath.Of([line], [new AllocationPart(Guid.NewGuid(), line.Id, 1, 1, null)], 100.50m);
+        var balance = AllocationMath.Of([line], [new AllocationPart(Guid.NewGuid(), line.Id, 1, 1, null)], 100.50m, Rouble);
 
         Assert.False(balance.Allocated);
         Assert.Equal([1], balance.Unbalanced);
@@ -194,7 +197,7 @@ public class AllocationMathTests
     public void Без_суммы_к_оплате_сверять_не_с_чем()
     {
         var line = new AllocationLine(Guid.NewGuid(), 1, 1, 100m);
-        var balance = AllocationMath.Of([line], [new AllocationPart(Guid.NewGuid(), line.Id, 1, 1, null)], null);
+        var balance = AllocationMath.Of([line], [new AllocationPart(Guid.NewGuid(), line.Id, 1, 1, null)], null, Rouble);
 
         Assert.True(balance.Allocated);
         Assert.Null(balance.Discrepancy);
@@ -206,12 +209,12 @@ public class AllocationMathTests
     {
         AllocationPart Document(decimal amount) => new(Guid.NewGuid(), null, 1, null, amount);
 
-        var half = AllocationMath.Of([], [Document(400m)], 1_000m);
+        var half = AllocationMath.Of([], [Document(400m)], 1_000m, Rouble);
         Assert.Equal(600m, half.Document.UnallocatedAmount);
         Assert.False(half.Allocated);
         Assert.Null(half.Discrepancy);
 
-        Assert.True(AllocationMath.Of([], [Document(400m), Document(600m)], 1_000m).Allocated);
+        Assert.True(AllocationMath.Of([], [Document(400m), Document(600m)], 1_000m, Rouble).Allocated);
     }
 
     /// <summary>
@@ -221,7 +224,7 @@ public class AllocationMathTests
     [Fact]
     public void Разноска_суммой_при_строках_ждёт_пересчёта()
     {
-        var balance = AllocationMath.Of([Line(1, 100m)], [ByQuantity(1, 1), new(Guid.NewGuid(), null, 1, null, 100m)], 100m);
+        var balance = AllocationMath.Of([Line(1, 100m)], [ByQuantity(1, 1), new(Guid.NewGuid(), null, 1, null, 100m)], 100m, Rouble);
 
         Assert.True(balance.Document.Pending);
         Assert.True(balance.Lines[0].Balanced);

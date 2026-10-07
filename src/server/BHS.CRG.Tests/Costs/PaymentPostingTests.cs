@@ -10,6 +10,9 @@ namespace BHS.CRG.Tests.Costs;
 /// </summary>
 public class PaymentPostingTests
 {
+    /// <summary>Допуск расхождения сумм — умолчание настройки модуля (ТЗ COST-13): рубль на счёт.</summary>
+    private const decimal Rouble = 1.00m;
+
     private static readonly Guid SiteA = Guid.NewGuid();
     private static readonly Guid SiteB = Guid.NewGuid();
     private static readonly Guid Stock = Guid.NewGuid();
@@ -42,7 +45,7 @@ public class PaymentPostingTests
             Part(Second, 2, AllocationTarget.Article(Stock), amount: 10_000),
         ];
 
-        var plan = PaymentPosting.Plan(D(9, 15), 100_000m, [First, Second], parts, PostedBefore.None, Closed);
+        var plan = PaymentPosting.Plan(D(9, 15), 100_000m, [First, Second], parts, PostedBefore.None, Closed, Rouble);
 
         var a = plan.Shares.Single(s => s.Target.ConstructionId == SiteA);
         Assert.Equal((D(10, 1), true, 40_000m), (a.AccountingOn, a.Moved, a.Amount));
@@ -72,7 +75,7 @@ public class PaymentPostingTests
             Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000m),
         ];
         IReadOnlyList<PostedMoney> Money(decimal? total) =>
-            PaymentPosting.Money(PaymentPosting.Balance([First, Second], parts, total), total, parts, D(9, 15));
+            PaymentPosting.Money(PaymentPosting.Balance([First, Second], parts, total, Rouble), total, parts, D(9, 15));
 
         var exact = Money(100_000m);
         Assert.Equal([40_000m, 60_000m], exact.Select(m => m.Amount!.Value));
@@ -103,14 +106,14 @@ public class PaymentPostingTests
         ];
         const decimal total = 99_999.50m;
 
-        var plan = PaymentPosting.Plan(D(9, 15), total, [First, Second], parts, PostedBefore.None, Closed);
+        var plan = PaymentPosting.Plan(D(9, 15), total, [First, Second], parts, PostedBefore.None, Closed, Rouble);
 
         // Стройка А закрыта по 30.09 — её доля в октябре; поправка идёт с ней, а не остаётся в сентябре.
         Assert.Equal(new PostedRemainder(-0.30m, D(10, 1), true), plan.Remainder);
 
         PaymentPosting.Apply(Invoice(total), parts, plan);
         var months = PaymentPosting.Months(
-            PaymentPosting.Balance([First, Second], parts, total), total, parts, plan.Remainder!.AccountingOn);
+            PaymentPosting.Balance([First, Second], parts, total, Rouble), total, parts, plan.Remainder!.AccountingOn);
         Assert.Equal(
             [new PostedMonth(D(9, 1), 59_999.80m), new PostedMonth(D(10, 1), 39_999.70m)],
             months);
@@ -119,7 +122,7 @@ public class PaymentPostingTests
         // Под отбором по объекту — только доли на него, без поправки: она не лежит ни на одном объекте.
         Assert.Equal(
             [new PostedMonth(D(10, 1), 40_000m)],
-            PaymentPosting.Months(PaymentPosting.Balance([First, Second], parts, total), total, parts,
+            PaymentPosting.Months(PaymentPosting.Balance([First, Second], parts, total, Rouble), total, parts,
                 plan.Remainder.AccountingOn, (p, _) => p?.ConstructionId == SiteA));
     }
 
@@ -132,7 +135,7 @@ public class PaymentPostingTests
             Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000),
         ];
 
-        var plan = PaymentPosting.Plan(D(8, 20), 100_000m, [First, Second], parts, PostedBefore.None, Closed);
+        var plan = PaymentPosting.Plan(D(8, 20), 100_000m, [First, Second], parts, PostedBefore.None, Closed, Rouble);
 
         Assert.Equal(D(10, 1), plan.Shares.Single(s => s.Target.ConstructionId == SiteA).AccountingOn);
         Assert.Equal(D(9, 1), plan.Shares.Single(s => s.Target.ConstructionId == SiteB).AccountingOn);
@@ -158,7 +161,7 @@ public class PaymentPostingTests
         ];
 
         var later = new PeriodBoundaries(D(9, 30), new Dictionary<Guid, DateOnly>());
-        var plan = PaymentPosting.Plan(D(9, 15), 100_000m, [First, Second], parts, kept, later);
+        var plan = PaymentPosting.Plan(D(9, 15), 100_000m, [First, Second], parts, kept, later, Rouble);
 
         Assert.Equal(D(9, 15), plan.Shares.Single(s => s.Target.ConstructionId == SiteB).AccountingOn);
         Assert.Equal(D(10, 1), plan.Shares.Single(s => s.Target.ConstructionId == SiteA).AccountingOn);
@@ -168,16 +171,16 @@ public class PaymentPostingTests
     [Fact]
     public void Отказ_оплаты_без_суммы_и_при_расхождении_сверх_допуска()
     {
-        Assert.Contains("не указана сумма", PaymentPosting.Refusal(Invoice(null), PaymentPosting.Balance([First], [], null)));
+        Assert.Contains("не указана сумма", PaymentPosting.Refusal(Invoice(null), PaymentPosting.Balance([First], [], null, Rouble)));
 
-        var off = PaymentPosting.Refusal(Invoice(40_500m), PaymentPosting.Balance([First], [], 40_500m));
+        var off = PaymentPosting.Refusal(Invoice(40_500m), PaymentPosting.Balance([First], [], 40_500m, Rouble));
         Assert.Contains("расходится", off);
 
         // В пределах допуска — не отказ: это округление, оно уходит в последнюю долю.
-        Assert.Null(PaymentPosting.Refusal(Invoice(40_000.50m), PaymentPosting.Balance([First], [], 40_000.50m)));
+        Assert.Null(PaymentPosting.Refusal(Invoice(40_000.50m), PaymentPosting.Balance([First], [], 40_000.50m, Rouble)));
 
         // Счёт без строк сверять не с чем.
-        Assert.Null(PaymentPosting.Refusal(Invoice(100m), PaymentPosting.Balance([], [], 100m)));
+        Assert.Null(PaymentPosting.Refusal(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
     }
 
     [Fact]
@@ -193,7 +196,7 @@ public class PaymentPostingTests
 
         invoice.Pay(D(9, 15), null, null);
         PaymentPosting.Apply(invoice, parts,
-            PaymentPosting.Plan(D(9, 15), 100_000m, [First, Second], parts, PostedBefore.None, PeriodBoundaries.None));
+            PaymentPosting.Plan(D(9, 15), 100_000m, [First, Second], parts, PostedBefore.None, PeriodBoundaries.None, Rouble));
 
         Assert.Null(ClosedPeriodGuard.LockOf(invoice, parts, PeriodBoundaries.None));
         // Стройка А закрыта по 30.09 — доля от 15.09 закрыта, и заперт счёт целиком.

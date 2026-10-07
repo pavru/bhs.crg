@@ -25,7 +25,8 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// <para>⚠️ Замка записи отчёт НЕ берёт и через <c>InvoiceDesk</c> не ходит: при закрытии его зовут под
 /// исключительным замком ядра (см. <see cref="IModuleClosingReport" />).</para>
 /// </summary>
-public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource places, IModuleClock clock)
+public sealed class CostsClosingReport(
+    CostsDbContext db, AllocationPlacesSource places, IModuleClock clock, IModuleSettings settings)
     : IModuleClosingReport
 {
     /// <summary>Экран «Реестр счетов». Тот же адрес, что у ссылок отчёта «Затраты по стройке» на клиенте
@@ -46,7 +47,8 @@ public sealed class CostsClosingReport(CostsDbContext db, AllocationPlacesSource
         var first = scope.From ?? DateOnly.MinValue;
         var site = scope.ConstructionId;
 
-        var (read, lines) = await SiteCostsEndpoints.InvoicesAsync(db, SiteCostsEndpoints.Paid(db, first, scope.Through, site), ct);
+        var (read, lines) = await SiteCostsEndpoints.InvoicesAsync(db, SiteCostsEndpoints.Paid(db, first, scope.Through, site),
+            await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct);
         // У каждого счёта оставлены только деньги впервые закрываемых дней — дальше всё считается по ним.
         IReadOnlyList<CostInvoice> invoices = [.. read.Select(i => i with
         {

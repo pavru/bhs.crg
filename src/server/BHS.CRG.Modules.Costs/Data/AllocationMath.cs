@@ -102,15 +102,6 @@ public sealed record AllocationBalance(
 /// </summary>
 public static class AllocationMath
 {
-    /// <summary>
-    /// Допуск расхождения суммы строк с суммой к оплате — 1 ₽ на счёт (ТЗ COST-13).
-    ///
-    /// <para>⚠️ По ТЗ это НАСТРОЙКА модуля, а настроек модуля ещё нет (M1, issue #1070). Число живёт
-    /// здесь одним местом и уезжает в ответе счёта — форма его не повторяет, — так что с приездом
-    /// настройки меняется только источник.</para>
-    /// </summary>
-    public const decimal Tolerance = 1.00m;
-
     /// <summary>Как разносится строка: есть количество — количеством, нет — суммой.</summary>
     public static AllocationMode ModeOf(decimal? quantity, decimal? amount) =>
         quantity is > 0 ? AllocationMode.Quantity
@@ -119,9 +110,14 @@ public static class AllocationMath
 
     /// <summary>Баланс счёта: каждая строка отдельно, потом расхождение с суммой к оплате.</summary>
     /// <param name="total">Сумма к оплате из бумаги; <c>null</c> — её в счёте нет.</param>
+    /// <param name="tolerance">
+    /// Допуск расхождения суммы строк с суммой к оплате (ТЗ COST-13) — настройка модуля
+    /// (<see cref="CostsSettings.AllocationTolerance" />). ⚠️ Умолчания у параметра нет нарочно: с ним
+    /// забытое место считало бы по рублю при любой настройке — и настройка сохранялась бы, не действуя.
+    /// </param>
     public static AllocationBalance Of(
         IEnumerable<AllocationLine> lines, IEnumerable<AllocationPart> parts, decimal? total,
-        decimal tolerance = Tolerance)
+        decimal tolerance)
     {
         var byLine = parts.ToLookup(p => p.LineId);
         var ordered = lines.OrderBy(l => l.Ordinal).ToList();

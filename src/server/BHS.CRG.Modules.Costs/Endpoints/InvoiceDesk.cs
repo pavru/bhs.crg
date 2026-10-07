@@ -28,10 +28,17 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 /// </summary>
 public sealed class InvoiceDesk(
     CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModulePeriods periods,
-    IHttpContextAccessor http, IModuleReferenceTargets targets)
+    IHttpContextAccessor http, IModuleReferenceTargets targets, IModuleSettings settings)
 {
     /// <summary>Заголовок, которым правка называет версию счёта, по которой она собрана.</summary>
     public const string SeenHeader = SeenVersion.Header;
+
+    /// <summary>
+    /// Допуск расхождения сумм — настройка модуля. Здесь, а не у каждого обработчика: стол записи уже
+    /// у всех, кто правит счёт, и спрашивают они одно и то же значение.
+    /// </summary>
+    public Task<decimal> ToleranceAsync(CancellationToken ct) =>
+        settings.GetAsync(CostsSettings.AllocationTolerance, ct);
 
     /// <summary>
     /// Выполнить правку счёта.
@@ -179,13 +186,14 @@ public sealed class InvoiceDesk(
         }
 
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
-        if (PaymentPosting.Refusal(invoice, PaymentPosting.Balance(lines, parts, invoice.Total)) is { } why)
+        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
+        if (PaymentPosting.Refusal(invoice, PaymentPosting.Balance(lines, parts, invoice.Total, tolerance)) is { } why)
             throw new InvalidRequestException(
                 $"{InvoiceEndpoints.Label(invoice)} оплачен, и после этой правки {why}. Оплаченный счёт обязан " +
                 "оставаться сведённым: его сумма уже вошла в затраты. Сначала отмените оплату.");
 
         PaymentPosting.Apply(invoice, parts,
-            PaymentPosting.Plan(invoice.PaidOn!.Value, invoice.Total!.Value, lines, parts, before, boundaries));
+            PaymentPosting.Plan(invoice.PaidOn!.Value, invoice.Total!.Value, lines, parts, before, boundaries, tolerance));
         await db.SaveChangesAsync(ct);
     }
 
@@ -232,11 +240,12 @@ public sealed class InvoiceDesk(
             : await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);
         string? Name(Guid? id) => organizations?.FirstOrDefault(o => o.Id == id)?.DisplayName;
 
+        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
         return InvoiceViews.Of(invoice, db.VersionOf(invoice),
             await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines,
             await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct),
-            InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known),
-            await PaymentAsync(invoice, lines, parts, known, ct),
+            InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known, tolerance),
+            await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
                 Name(invoice.SupplierId), Name(invoice.PayerId)),
@@ -250,9 +259,9 @@ public sealed class InvoiceDesk(
     /// </summary>
     private async Task<PaymentView> PaymentAsync(
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        AllocationPlaces known, CancellationToken ct)
+        AllocationPlaces known, decimal tolerance, CancellationToken ct)
     {
-        var balance = PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, invoice.Total);
+        var balance = PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, invoice.Total, tolerance);
 
         if (invoice.Payment != InvoicePaymentState.Paid)
             return new PaymentView(false, null, null, null, Unpayable(invoice, balance), null, []);

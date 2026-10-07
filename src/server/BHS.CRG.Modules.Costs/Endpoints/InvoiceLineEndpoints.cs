@@ -132,7 +132,7 @@ public static class InvoiceLineEndpoints
                     ? "позиция номенклатуры есть не у всех строк"
                 : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
                     [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
-                    ct)
+                    await desk.ToleranceAsync(ct), ct)
                     ? "баланс разноски не сходится"
                 : null;
             if (reason is not null) invoice.ReturnToDraft();
@@ -161,7 +161,9 @@ public static class InvoiceLineEndpoints
         Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, InvoiceDesk desk,
         IModuleActivityLog log, CancellationToken ct)
     {
-        var (invoice, lines) = await desk.WriteAsync(id, write => MarkAsync(write.Invoice, db, catalog, places, ct), ct);
+        var tolerance = await desk.ToleranceAsync(ct);
+        var (invoice, lines) = await desk.WriteAsync(id,
+            write => MarkAsync(write.Invoice, db, catalog, places, tolerance, ct), ct);
 
         // Ноль строк — «уже был разобран»: решения не было, и в журнал писать нечего.
         if (lines > 0)
@@ -172,7 +174,8 @@ public static class InvoiceLineEndpoints
     }
 
     private static async Task<(Invoice Invoice, int Lines)> MarkAsync(
-        Invoice invoice, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, CancellationToken ct)
+        Invoice invoice, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, decimal tolerance,
+        CancellationToken ct)
     {
         if (invoice.State == InvoiceState.Rejected)
             throw new ConflictException(
@@ -214,7 +217,7 @@ public static class InvoiceLineEndpoints
 
         await EnsureReferencesAliveAsync(catalog, invoice, lines, ct);
 
-        EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, places, invoice, lines, ct)).Summary);
+        EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, places, invoice, lines, tolerance, ct)).Summary);
 
         invoice.MarkParsed();
         await db.SaveChangesAsync(ct);

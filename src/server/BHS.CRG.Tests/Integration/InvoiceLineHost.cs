@@ -76,7 +76,7 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         }
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public virtual Task DisposeAsync() => Task.CompletedTask;
 
     // ── Помощники ─────────────────────────────────────────────────────────────
 

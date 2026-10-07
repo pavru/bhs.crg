@@ -263,7 +263,7 @@ public static class InvoiceEndpoints
                 : InvoiceRequisites.Missing(invoice) is { Count: > 0 } missing
                     ? "не заполнено обязательное — " + string.Join(", ", missing.Select(m => $"«{m}»"))
                 : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
-                    await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), ct)
+                    await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), await desk.ToleranceAsync(ct), ct)
                     ? "баланс разноски не сходится"
                 : null;
             if (reason is not null) invoice.ReturnToDraft();

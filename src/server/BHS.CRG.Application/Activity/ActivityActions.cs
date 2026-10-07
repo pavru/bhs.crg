@@ -89,10 +89,18 @@ public static class ActivityActions
     public static readonly ActivityAction RecordPurged =
         new("core.record.purged", "Запись справочника удалена вместе со ссылками выключенных модулей");
 
+    /// <summary>
+    /// Изменена настройка модуля (issue #1070). «До» и «после» — действующие значения. В журнал —
+    /// потому что настройка действует на уже записанные данные: после смены допуска суммы по
+    /// стройкам меняются без единой правки счёта, и спросить «с какого дня» больше не у кого.
+    /// </summary>
+    public static readonly ActivityAction ModuleSettingChanged =
+        new("core.settings.changed", "Изменена настройка модуля");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
-         RecordArchived, RecordUnarchived, RecordPurged];
+         RecordArchived, RecordUnarchived, RecordPurged, ModuleSettingChanged];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных
