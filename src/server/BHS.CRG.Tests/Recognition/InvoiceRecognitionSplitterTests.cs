@@ -1,4 +1,5 @@
 using BHS.CRG.Infrastructure.Recognition;
+using BHS.CRG.Tests.Support;
 
 namespace BHS.CRG.Tests.Recognition;
 
@@ -14,19 +15,19 @@ public class InvoiceRecognitionSplitterTests
             [InvoiceFields.LineItemsPath] = """[{"Наименование":"Кабель"}]""",
         };
 
-        var header = InvoiceRecognitionSplitter.SplitHeader(values);
+        var header = InvoiceRecognitionSplitter.SplitHeader(values, TestRecognition.InvoiceHeader);
 
         Assert.Equal("123", header["НомерСчёта"]);
         Assert.Equal("ООО Ромашка", header["Поставщик"]);
         Assert.DoesNotContain(InvoiceFields.LineItemsPath, header.Keys);
-        Assert.Equal(InvoiceFields.HeaderFields.Count, header.Count);
+        Assert.Equal(TestRecognition.InvoiceHeader.Count, header.Count);
     }
 
     [Fact]
     public void SplitHeader_MissingKeys_AreNull()
     {
-        var header = InvoiceRecognitionSplitter.SplitHeader(new Dictionary<string, string?>());
-        Assert.All(InvoiceFields.HeaderFields, f => Assert.Null(header[f.Path]));
+        var header = InvoiceRecognitionSplitter.SplitHeader(new Dictionary<string, string?>(), TestRecognition.InvoiceHeader);
+        Assert.All(TestRecognition.InvoiceHeader, f => Assert.Null(header[f.Path]));
     }
 
     [Fact]

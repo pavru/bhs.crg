@@ -10,10 +10,7 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// </summary>
 public static class InvoiceRecognitionSplitter
 {
-    public static Dictionary<string, string?> SplitHeader(IReadOnlyDictionary<string, string?> values)
-        => SplitHeader(values, InvoiceFields.HeaderFields);
-
-    /// <summary>То же с полями ПРОФИЛЯ шапки (issue #406) — набор полей больше не жёстко зашит.</summary>
+    /// <summary>Шапка по полям ПРОФИЛЯ (issue #406): набор полей задаёт профиль, а не код.</summary>
     public static Dictionary<string, string?> SplitHeader(
         IReadOnlyDictionary<string, string?> values, IReadOnlyList<RecognitionField> headerFields)
         => headerFields.ToDictionary(f => f.Path, f => values.GetValueOrDefault(f.Path));

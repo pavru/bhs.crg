@@ -3,6 +3,7 @@ using BHS.CRG.Tests.Support;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Infrastructure.Recognition;
 
 namespace BHS.CRG.Tests.Recognition;
@@ -65,9 +66,9 @@ public class RecognitionProfileMigrationTests
     {
         // Счёт — ОДИН вызов и ОДИН профиль: шапка в Fields, товары в RowColumns.
         Assert.Equal(
-            RecognitionShared.BuildInvoicePrompt(InvoiceFields.All),
+            RecognitionShared.BuildInvoicePrompt(TestRecognition.InvoiceCall),
             RecognitionShared.BuildInvoicePrompt(
-                RecognitionKinds.ComposeCallFields(ThroughDb(CoreRecognitionProfiles.InvoiceCode))));
+                RecognitionKinds.ComposeCallFields(ThroughDb(CostsRecognitionProfiles.InvoiceCode))));
     }
 
     [Fact]

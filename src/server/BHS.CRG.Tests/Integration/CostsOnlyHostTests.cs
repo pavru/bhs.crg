@@ -31,7 +31,8 @@ namespace BHS.CRG.Tests.Integration;
 /// <c>id.*</c>, и соседние классы падали бы на правах, которых им никто не отбирал. Искали бы
 /// причину у них.</para>
 /// </summary>
-public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHost>
+[Collection(CostsOnlyCollection.Name)]
+public class CostsOnlyHostTests(CostsOnlyHost host)
 {
     /// <summary>
     /// Приложение поднимается без <c>id</c>, а его адреса отвечают отказом, который называет причину
@@ -202,6 +203,22 @@ public class CostsOnlyHostTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHos
         if (role == "Supplier")
             Assert.DoesNotContain("costs.invoice.pay", granted);
     }
+}
+
+/// <summary>
+/// Один хост «только счета» на все классы, которым он нужен (issue #1077).
+///
+/// <para>Прежде каждый класс поднимал свой хост на ОДНОЙ базе «…_costs», и поднимались они
+/// одновременно: классы xUnit идут параллельно. Старт пишет в базу — проекция типов модуля, сидер
+/// профилей, — и два старта на одной базе сталкивались (<c>DbUpdateConcurrencyException</c> в
+/// <c>ProjectModuleTypesAsync</c>). С двумя классами это проходило, с третьим — перестало. В
+/// приложении такого не бывает: экземпляр на базу один. Коллекция даёт то же тестам — один хост, и
+/// классы внутри неё идут по очереди.</para>
+/// </summary>
+[CollectionDefinition(Name)]
+public sealed class CostsOnlyCollection : ICollectionFixture<CostsOnlyHost>
+{
+    public const string Name = "Хост «только счета»";
 }
 
 /// <summary>

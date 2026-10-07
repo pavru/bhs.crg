@@ -11,6 +11,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
@@ -34,7 +35,8 @@ namespace BHS.CRG.Tests.Integration;
 /// <para>Хост — настоящее приложение с <c>Modules__Enabled=costs</c> на своей базе: поддельный каталог
 /// проверил бы механизм, а не то, что ядро не опирается на модуль, которого может не быть.</para>
 /// </summary>
-public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture<CostsOnlyHost>
+[Collection(CostsOnlyCollection.Name)]
+public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
 {
     private static readonly string[] IdCodes =
     [
@@ -59,7 +61,7 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
 
         var profiles = await client.GetFromJsonAsync<JsonElement>("/api/recognition-profiles");
         var codes = profiles.EnumerateArray().Select(p => p.GetProperty("code").GetString()).ToList();
-        Assert.Contains(CoreRecognitionProfiles.InvoiceCode, codes);
+        Assert.Contains(CostsRecognitionProfiles.InvoiceCode, codes);
         Assert.Empty(codes.Intersect(IdCodes));
 
         var kinds = await client.GetFromJsonAsync<JsonElement>("/api/recognition-profiles/kinds");
@@ -119,8 +121,7 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
         var stored = await db.RecognitionProfiles.AsNoTracking().Where(p => p.Code != null).ToListAsync();
 
         Assert.All(IdCodes, code => Assert.Equal("id", stored.Single(p => p.Code == code).Module));
-        Assert.Equal(RecognitionProfileCatalog.CoreOwner,
-            stored.Single(p => p.Code == CoreRecognitionProfiles.InvoiceCode).Module);
+        Assert.Equal("costs", stored.Single(p => p.Code == CostsRecognitionProfiles.InvoiceCode).Module);
     }
 
     /// <summary>

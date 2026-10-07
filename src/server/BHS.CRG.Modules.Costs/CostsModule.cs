@@ -181,6 +181,10 @@ public sealed class CostsModule : IAppModule
 
     public IReadOnlyList<ModuleReference> References => CostsReferences.All;
 
+    /// <summary>«Счёт на оплату» (issue #1077): что читать в скане — <see cref="CostsRecognitionProfiles" />.</summary>
+    public IReadOnlyList<BHS.CRG.Modules.Recognition.ModuleRecognitionProfile> RecognitionProfiles =>
+        CostsRecognitionProfiles.All;
+
     /// <summary>
     /// Единственная служба каркаса — свой контекст базы. Строку подключения модуль берёт из настроек,
     /// которые ему передали: своего источника у него нет, а спрашивать её у ядра портом незачем —

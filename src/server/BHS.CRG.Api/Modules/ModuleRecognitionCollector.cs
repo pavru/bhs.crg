@@ -33,7 +33,9 @@ public static class ModuleRecognitionCollector
     public static RecognitionProfileCatalog Build(ModuleRegistry registry)
     {
         var faults = new List<string>();
-        var declarations = new List<RecognitionProfileDeclaration>(CoreRecognitionProfiles.All);
+        // Своих заводских профилей у ядра нет (issue #1077): последний, «Счёт на оплату», уехал к
+        // модулю счетов. Владелец «Общие» остаётся — им подписаны строки прежних копий.
+        var declarations = new List<RecognitionProfileDeclaration>();
         var owners = new List<RecognitionProfileOwner>
         {
             new(RecognitionProfileCatalog.CoreOwner, "Общие", Enabled: true),

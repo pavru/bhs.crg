@@ -54,16 +54,16 @@ public class RecognitionProfileCatalogTests
     }
 
     /// <summary>
-    /// Кто чем владеет. «Счёт на оплату» — у ядра: отступление от ТЗ до задачи B1b, принятое
-    /// владельцем 07.10.2026. Тест покраснеет, когда профиль переедет в модуль счетов, — и это тот
-    /// случай, когда его надо переписать вместе с переездом, а не чинить.
+    /// Кто чем владеет. «Счёт на оплату» — у модуля счетов (ТЗ CORE-Q6; переехал от ядра задачей
+    /// B1b, issue #1077, решением владельца 08.10.2026). Своих заводских профилей у ядра нет.
     /// </summary>
     [Fact]
     public void Owners_of_the_delivered_profiles()
     {
         var catalog = Build([new IdModule(), new CostsModule()]);
 
-        Assert.Equal(RecognitionProfileCatalog.CoreOwner, catalog.Find(CoreRecognitionProfiles.InvoiceCode)!.Owner);
+        Assert.Equal("costs", catalog.Find(CostsRecognitionProfiles.InvoiceCode)!.Owner);
+        Assert.DoesNotContain(catalog.All, d => d.Owner == RecognitionProfileCatalog.CoreOwner);
         Assert.All(
             new[]
             {
@@ -74,7 +74,7 @@ public class RecognitionProfileCatalogTests
     }
 
     /// <summary>Модуль выключен: его объявления в каталоге есть, но вид недоступен, и ворота
-    /// отвечают отказом с названием модуля. Вид ядра доступен при любом составе.</summary>
+    /// отвечают отказом с названием модуля. Вид включённого модуля при этом доступен.</summary>
     [Fact]
     public void Disabled_module_keeps_declarations_and_refuses_by_name()
     {
@@ -179,7 +179,8 @@ public class RecognitionProfileCatalogTests
         var second = new ModuleRecognitionProfile("waybill", "Расходная накладная", "Invoice",
             [new ModuleRecognitionField("Номер", "Номер накладной")]);
 
-        var error = Assert.Throws<InvalidOperationException>(() => Build([new Declaring("plan", "Планирование", second)]));
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            Build([new CostsModule(), new Declaring("plan", "Планирование", second)]));
 
         Assert.Contains("«Invoice»", error.Message);
         Assert.Contains("«waybill»", error.Message);

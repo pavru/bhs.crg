@@ -36,7 +36,11 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         using var scope = await SeededScopeAsync();
         var list = await M(scope).Send(new ListRecognitionProfilesQuery());
 
-        Assert.Equal(TestRecognition.Catalog.All.Count, list.Count(p => p.IsBuiltIn));
+        // Хост — установка по умолчанию, включён только модуль ИД: профиль выключенного модуля
+        // счетов объявлен, но в списке его нет (issue #1077).
+        var catalog = scope.ServiceProvider.GetRequiredService<RecognitionProfileCatalog>();
+        Assert.Equal(catalog.All.Count(d => catalog.IsAvailable(d.Kind)), list.Count(p => p.IsBuiltIn));
+        Assert.DoesNotContain(list, p => p.Kind == RecognitionProfileKind.Invoice.ToString());
 
         // UI не должен знать частных случаев вида — всё нужное приходит в KindInfo.
         var stamp = list.Single(p => p.Code == IdRecognitionProfiles.TitleBlockCode);
@@ -152,7 +156,10 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
     {
         using var scope = await SeededScopeAsync();
         var kinds = await M(scope).Send(new ListRecognitionKindsQuery());
-        Assert.Equal(Enum.GetValues<RecognitionProfileKind>().Length, kinds.Count);
+        // Вид выключенного модуля в перечне не предлагается: остаются виды модуля ИД.
+        var catalog = scope.ServiceProvider.GetRequiredService<RecognitionProfileCatalog>();
+        Assert.Equal(Enum.GetValues<RecognitionProfileKind>().Count(catalog.IsAvailable), kinds.Count);
+        Assert.DoesNotContain(kinds, k => k.Kind == RecognitionProfileKind.Invoice.ToString());
         Assert.All(kinds, k => Assert.False(string.IsNullOrWhiteSpace(k.Label)));
     }
 }
