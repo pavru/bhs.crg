@@ -45,7 +45,10 @@ public static class ModuleRecognitionCollector
             owners.Add(new RecognitionProfileOwner(module.Code, module.Title, enabled));
             foreach (var profile in module.RecognitionProfiles)
             {
-                if (!Enum.TryParse<RecognitionProfileKind>(profile.Kind, out var kind))
+                // IsDefined и отказ числу — не перестраховка (ревью PR #1252): TryParse принимает «7»
+                // и «1», и вид, которого нет, доехал бы до базы, а упал бы список профилей.
+                if (int.TryParse(profile.Kind, out _)
+                    || !Enum.TryParse<RecognitionProfileKind>(profile.Kind, out var kind) || !Enum.IsDefined(kind))
                 {
                     faults.Add($"профиль «{profile.Code}» модуля «{module.Title}» называет вид «{profile.Kind}», " +
                                "которого ядро не знает");

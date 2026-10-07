@@ -245,7 +245,7 @@ public record UpdateSourceInput(
 /// прежде всё, что не «счёт», молча становилось ГОСТом, и набор получал профиль, которого не
 /// выбирал никто.
 /// </summary>
-public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile = null);
+public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile);
 
 /// <summary>План распознавания: Background=true — операция долгая (GOST-набор), её ставят в
 /// фоновую задачу; false — короткая (счёт/legacy), выполняется синхронно. Title — заголовок для

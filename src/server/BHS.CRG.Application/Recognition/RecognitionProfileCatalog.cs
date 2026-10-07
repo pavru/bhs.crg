@@ -66,8 +66,14 @@ public sealed class RecognitionProfileCatalog
         IEnumerable<string>? faults = null)
     {
         All = [.. declarations];
-        _owners = owners.ToDictionary(o => o.Code, StringComparer.Ordinal);
         var problems = (faults ?? []).ToList();
+        // Владельцы — без ToDictionary «в лоб»: повтор кода (модуль, назвавшийся «core», или один
+        // модуль в двух списках) дал бы «An item with the same key…» без названия, мимо общего
+        // отказа (ревью PR #1252).
+        _owners = new Dictionary<string, RecognitionProfileOwner>(StringComparer.Ordinal);
+        foreach (var owner in owners)
+            if (!_owners.TryAdd(owner.Code, owner))
+                problems.Add($"код владельца «{owner.Code}» занят дважды: «{_owners[owner.Code].Title}» и «{owner.Title}»");
 
         foreach (var g in All.GroupBy(d => d.Code, StringComparer.Ordinal).Where(g => g.Count() > 1))
             problems.Add($"код «{g.Key}» объявлен {g.Count()} раза: {Owners(g)}");
@@ -128,11 +134,22 @@ public sealed class RecognitionProfileCatalog
         ForKind(kind) is { } d ? Owner(d.Owner) : null;
 
     /// <summary>
-    /// Владелец строки профиля. Пустой владелец бывает у строки из копии, снятой до появления
-    /// колонки, — тогда он выводится из вида; сидер проставит его при ближайшем старте.
+    /// Владелец строки профиля.
+    ///
+    /// <para>СВОЙ профиль принадлежит владельцу своего вида — всегда, что бы ни лежало в колонке
+    /// (ревью PR #1252). Колонка у него — проекция, которую сидер приводит к каталогу при старте.
+    /// Иначе она становилась второй правдой: вид переехал к другому модулю — а свои профили этого
+    /// вида остались бы у прежнего, видимые и рабочие при выключенном новом владельце. И строка из
+    /// копии экземпляра с другим составом модулей оставалась бы невидимой и неудаляемой навсегда.</para>
+    ///
+    /// <para>ВСТРОЕННЫЙ профиль принадлежит тому, кто записан в колонке: её ставит сидер из
+    /// объявления. Строка с кодом, которого больше никто не объявляет, остаётся у прежнего владельца —
+    /// скрытой, если его нет. Пустая колонка (копия, снятая до её появления) — владелец вида.</para>
     /// </summary>
     public RecognitionProfileOwner? OwnerOf(RecognitionProfile profile) =>
-        profile.Module.Length > 0 ? Owner(profile.Module) : OwnerOfKind(profile.Kind);
+        profile.IsBuiltIn && profile.Module.Length > 0
+            ? Owner(profile.Module)
+            : OwnerOfKind(profile.Kind) ?? (profile.Module.Length > 0 ? Owner(profile.Module) : null);
 
     /// <summary>Доступен ли вид: объявлен и владелец включён.</summary>
     public bool IsAvailable(RecognitionProfileKind kind) => OwnerOfKind(kind) is { Enabled: true };

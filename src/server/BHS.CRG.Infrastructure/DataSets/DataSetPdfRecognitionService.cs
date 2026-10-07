@@ -45,16 +45,26 @@ public partial class DataSetPdfRecognitionService(
         // Профиль называют явно (issue #1075). Прежде всё, что не «счёт», молча становилось ГОСТом —
         // и опечатка в названии, и профиль выключенного модуля давали набор, который потом нечем
         // прочитать.
+        var known = string.Join(", ", PdfProfileRegistry.All.Select(p => p.ProfileMarker));
+        if (string.IsNullOrWhiteSpace(input.Profile))
+            throw new InvalidRequestException($"Не указан профиль распознавания PDF (поле profile). Известные: {known}.");
         var descriptor = PdfProfileRegistry.ByProfileMarker(input.Profile)
             ?? throw new InvalidRequestException(
-                $"Неизвестный профиль распознавания PDF «{input.Profile}». Известные: " +
-                string.Join(", ", PdfProfileRegistry.All.Select(p => p.ProfileMarker)) + ".");
+                $"Неизвестный профиль распознавания PDF «{input.Profile}». Известные: {known}.");
         profiles.RequireKind(descriptor.RequiredKind);
 
         file.SetPreprocessingProfile(descriptor.ProfileMarker);
         await db.SaveChangesAsync(ct);
         return null;
     }
+
+    /// <summary>
+    /// Ворота операций, которые есть только у альбома по ГОСТ: правка разбиения, таблица документа,
+    /// старый постраничный реестр (issue #1075). Ядро модуль не называет — оно требует вида, без
+    /// которого профиль PDF «ГОСТ» не читает ничего.
+    /// </summary>
+    private void RequireGost() => profiles.RequireKind(
+        PdfProfileRegistry.ByProfileMarker(PdfProfiles.GostTitleBlock)!.RequiredKind);
 
     /// <summary>
     /// ВСЕ источники-проекции с этим маркером — их бывает больше одного (issue #1149).

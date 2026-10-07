@@ -75,22 +75,58 @@ public class RecognitionProfileCatalogTests
     }
 
     /// <summary>
-    /// Строка без владельца — из копии, снятой до появления колонки, — принадлежит владельцу своего
-    /// вида. Строка с владельцем, которого в сборке нет, недоступна и названа его кодом.
+    /// Свой профиль принадлежит владельцу своего вида, что бы ни лежало в колонке: пусто (копия,
+    /// снятая до её появления) или чужой код (копия экземпляра с другим составом модулей). Иначе
+    /// такая строка была бы невидимой и неудаляемой навсегда.
+    ///
+    /// Встроенный — тому, кто записан в колонке: строка с кодом, которого никто не объявляет, и с
+    /// владельцем, которого в сборке нет, недоступна и названа его кодом.
     /// </summary>
     [Fact]
-    public void Row_owner_falls_back_to_the_kind_and_unknown_owner_is_unavailable()
+    public void Own_profile_follows_the_kind_and_built_in_follows_the_column()
     {
         var catalog = TestRecognition.Catalog;
         var fields = RecognitionProfileJson.WriteFields([new RecognitionProfileField("Шифр")]);
 
-        var fromOldCopy = RecognitionProfile.Create("Свой", RecognitionProfileKind.TitleBlock, module: "", fields);
-        Assert.Equal("id", catalog.OwnerOf(fromOldCopy)!.Code);
-        Assert.True(catalog.IsAvailable(fromOldCopy));
+        foreach (var column in new[] { "", "plan", RecognitionProfileCatalog.CoreOwner })
+        {
+            var own = RecognitionProfile.Create("Свой", RecognitionProfileKind.TitleBlock, column, fields);
+            Assert.Equal("id", catalog.OwnerOf(own)!.Code);
+            Assert.True(catalog.IsAvailable(own));
+        }
 
-        var foreign = RecognitionProfile.Create("Чужой", RecognitionProfileKind.TitleBlock, module: "plan", fields);
+        var foreign = RecognitionProfile.CreateBuiltIn(
+            "estimate", "Смета", RecognitionProfileKind.TitleBlock, "plan", fields, null, null, "хеш");
         Assert.False(catalog.IsAvailable(foreign));
         Assert.Contains("«plan»", Assert.Throws<InvalidRequestException>(() => catalog.Require(foreign)).Message);
+    }
+
+    /// <summary>
+    /// Вид числом — тоже неизвестный вид. Разбор перечисления принимает «1» и «7», и без отдельной
+    /// проверки профиль с видом, которого нет, доехал бы до базы.
+    /// </summary>
+    [Theory]
+    [InlineData("1")]
+    [InlineData("7")]
+    [InlineData("0")]
+    public void Numeric_kind_stops_the_start(string kind)
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => Build(
+            [new Declaring("plan", "Планирование", new ModuleRecognitionProfile("estimate", "Смета", kind,
+                [new ModuleRecognitionField("Номер", "Номер сметы")]))]));
+
+        Assert.Contains("«estimate»", error.Message);
+    }
+
+    /// <summary>Модуль, назвавшийся кодом ядра, — в общий отказ, а не «An item with the same key».</summary>
+    [Fact]
+    public void Owner_code_taken_twice_stops_the_start_and_names_both()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => Build(
+            [new Declaring(RecognitionProfileCatalog.CoreOwner, "Самозванец")]));
+
+        Assert.Contains("Объявления профилей распознавания негодны", error.Message);
+        Assert.Contains("«Самозванец»", error.Message);
     }
 
     // ── Негодные объявления останавливают старт ──────────────────────────────────────────────────

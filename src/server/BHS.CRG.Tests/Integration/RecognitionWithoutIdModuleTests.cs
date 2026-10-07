@@ -131,6 +131,11 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Contains("Неизвестный профиль", await unknown.Content.ReadAsStringAsync());
 
+        // Поле пропущено: прежде это был ГОСТ по умолчанию. Отказ говорит, чего не хватает.
+        var missing = await client.PostAsJsonAsync($"/api/datasets/files/{fileId}/pdf-sources", new { name = "x" });
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        Assert.Contains("Не указан профиль", await missing.Content.ReadAsStringAsync());
+
         var invoice = await client.PostAsJsonAsync(
             $"/api/datasets/files/{fileId}/pdf-sources", new { name = "x", profile = PdfProfiles.Invoice });
         Assert.Equal(HttpStatusCode.NoContent, invoice.StatusCode);
@@ -151,6 +156,36 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
         using var scope = host.Services.CreateScope();
         Assert.False(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Jobs
             .AnyAsync(j => j.TargetId == fileId));
+    }
+
+    /// <summary>
+    /// Остальные входы альбома по ГОСТ отказывают так же рано (ревью PR #1252). Правка разбиения — до
+    /// того, как под-PDF разрезаны и загружены: иначе каждая попытка оставляла бы в хранилище комплект
+    /// файлов без хозяина. Запуск по источнику — до постановки задачи, а не строкой в её журнале.
+    /// </summary>
+    [Fact]
+    public async Task Regrouping_and_recognition_by_source_refuse_before_any_work()
+    {
+        var client = await AdminAsync();
+        var fileId = await SeedPdfAsync(PdfProfiles.GostTitleBlock, PdfProfiles.GostDocumentsMarker);
+        Guid sourceId;
+        int blobsBefore;
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            sourceId = (await db.DataSetSources.AsNoTracking().SingleAsync(s => s.FileId == fileId)).Id;
+            blobsBefore = scope.ServiceProvider.GetRequiredService<FakeBlobStorage>().Uploads;
+        }
+
+        await AssertNamesModuleAsync(await client.PostAsync($"/api/datasets/sources/{sourceId}/recognize", null));
+        await AssertNamesModuleAsync(await client.PutAsJsonAsync($"/api/datasets/files/{fileId}/grouping", new
+        {
+            groups = new[] { new { kind = "Document", code = "A1", name = "Лист", pageIndices = new[] { 0 } } },
+        }));
+
+        using var after = host.Services.CreateScope();
+        Assert.False(await after.ServiceProvider.GetRequiredService<AppDbContext>().Jobs.AnyAsync(j => j.TargetId == fileId));
+        Assert.Equal(blobsBefore, after.ServiceProvider.GetRequiredService<FakeBlobStorage>().Uploads);
     }
 
     /// <summary>

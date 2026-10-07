@@ -155,6 +155,12 @@ public class RecognitionProfileSeederTests(IntegrationTestFixture fixture)
         db.RecognitionProfiles.Add(custom);
         await db.SaveChangesAsync();
         await db.RecognitionProfiles.ExecuteUpdateAsync(s => s.SetProperty(p => p.Module, ""));
+        // И свой профиль с ЧУЖИМ владельцем — из копии экземпляра с другим составом модулей. Без
+        // приведения при старте он был бы невидим и неудаляем навсегда (ревью PR #1252).
+        var foreign = RecognitionProfile.Create("Чужой штамп", RecognitionProfileKind.TitleBlock, module: "xyz",
+            RecognitionProfileJson.WriteFields([new RecognitionProfileField("Шифр")]));
+        db.RecognitionProfiles.Add(foreign);
+        await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         var stampedAt = (await db.RecognitionProfiles.AsNoTracking().ToListAsync()).ToDictionary(p => p.Id, p => p.UpdatedAt);
 
@@ -165,6 +171,7 @@ public class RecognitionProfileSeederTests(IntegrationTestFixture fixture)
         Assert.Equal("id", after.Single(p => p.Code == IdRecognitionProfiles.TitleBlockCode).Module);
         Assert.Equal(RecognitionProfileCatalog.CoreOwner, after.Single(p => p.Code == CoreRecognitionProfiles.InvoiceCode).Module);
         Assert.Equal(RecognitionProfileCatalog.CoreOwner, after.Single(p => p.Id == custom.Id).Module);
+        Assert.Equal("id", after.Single(p => p.Id == foreign.Id).Module);
         Assert.All(after, p => Assert.Equal(stampedAt[p.Id], p.UpdatedAt));
     }
 }
