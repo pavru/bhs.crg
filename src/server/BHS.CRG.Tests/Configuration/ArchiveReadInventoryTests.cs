@@ -109,13 +109,57 @@ public partial class ArchiveReadInventoryTests
     private static readonly Regex Namespace = new(@"^\s*namespace\s+([\w.]+)", RegexOptions.Compiled | RegexOptions.Multiline);
 
     private static readonly Regex PartialType = new(
-        @"\bpartial\s+(?:class|struct|interface|record(?:\s+(?:class|struct))?)\s+(\w+)", RegexOptions.Compiled);
+        @"\bpartial\s+(?:class|struct|record(?:\s+(?:class|struct))?)\s+(\w+)(<[^>]*>)?", RegexOptions.Compiled);
 
-    /// <summary>Partial-типы, части которых лежат в файле: «проект|пространство имён|имя».</summary>
-    private static List<string> PartialTypes(Source source)
+    /// <summary>
+    /// Часть partial-типа в файле: тип («проект|пространство имён|имя`арность») и её текст — от
+    /// объявления до закрывающей скобки. Текст нужен, чтобы соседним частям уходили имена, объявленные
+    /// В САМОМ типе, а не в постороннем классе того же файла.
+    /// </summary>
+    private sealed record TypePart(string Type, string Text);
+
+    private static bool IsComment(string line)
     {
-        var ns = Namespace.Match(source.Text).Groups[1].Value;
-        return PartialType.Matches(source.Text).Select(m => $"{source.Project}|{ns}|{m.Groups[1].Value}").Distinct().ToList();
+        var trimmed = line.TrimStart();
+        return trimmed.StartsWith("//", StringComparison.Ordinal) || trimmed.StartsWith('*');
+    }
+
+    private static List<TypePart> Parts(Source source)
+    {
+        var namespaces = Namespace.Matches(source.Text);
+        var parts = new List<TypePart>();
+        foreach (Match type in PartialType.Matches(source.Text))
+        {
+            // Тип, названный в комментарии, файл частью не делает.
+            if (IsComment(SourceTree.LineAt(source.Text, type.Index))) continue;
+            // Пространство имён — ближайшее выше, а не первое в файле: блочных в файле бывает несколько.
+            var ns = namespaces.LastOrDefault(n => n.Index < type.Index)?.Groups[1].Value;
+            var arity = type.Groups[2].Success ? type.Groups[2].Value.Count(c => c == ',') + 1 : 0;
+            parts.Add(new($"{source.Project}|{ns}|{type.Groups[1].Value}`{arity}",
+                source.Text[type.Index..TypeEnd(source.Text, type.Index)]));
+        }
+        return parts;
+    }
+
+    /// <summary>
+    /// Конец объявления типа: парная скобка тела либо «;» у записи без тела. Скобки считаются по
+    /// тексту, без разбора строк и комментариев. Не сошлись — тип тянется до конца файла: лишнее имя
+    /// перепись переживёт (спросит о вызове, который чтением не был), пропущенное — нет.
+    /// </summary>
+    private static int TypeEnd(string text, int from)
+    {
+        int curly = 0, round = 0;
+        for (var i = from; i < text.Length; i++)
+            switch (text[i])
+            {
+                case '(': round++; break;
+                case ')': round--; break;
+                case '{': curly++; break;
+                case '}' when curly == 1: return i + 1;
+                case '}': curly--; break;
+                case ';' when curly == 0 && round == 0: return i;
+            }
+        return text.Length;
     }
 
     /// <summary>
@@ -128,23 +172,25 @@ public partial class ArchiveReadInventoryTests
     /// <para>По всему проекту имена не собираем нарочно: «catalog» и «repository» зовут и порты других
     /// типов, и перепись утонула бы в чужих вызовах.</para>
     /// </summary>
-    private static Dictionary<string, HashSet<string>> Visible(IReadOnlyList<Source> sources, Regex declared)
+    private static Dictionary<string, HashSet<string>> Visible(
+        IReadOnlyList<Source> sources, IReadOnlyDictionary<string, List<TypePart>> parts, Regex declared)
     {
-        var own = sources.ToDictionary(s => s.Path,
-            s => declared.Matches(s.Text).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.Ordinal));
+        HashSet<string> Names(string text) =>
+            declared.Matches(text).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.Ordinal);
 
         var byType = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        foreach (var source in sources)
-            foreach (var type in PartialTypes(source))
-            {
-                if (!byType.TryGetValue(type, out var names)) byType[type] = names = new(StringComparer.Ordinal);
-                names.UnionWith(own[source.Path]);
-            }
+        foreach (var part in parts.Values.SelectMany(p => p))
+        {
+            if (!byType.TryGetValue(part.Type, out var names)) byType[part.Type] = names = new(StringComparer.Ordinal);
+            names.UnionWith(Names(part.Text));
+        }
 
-        foreach (var source in sources)
-            foreach (var type in PartialTypes(source))
-                own[source.Path].UnionWith(byType[type]);
-        return own;
+        return sources.ToDictionary(s => s.Path, s =>
+        {
+            var names = Names(s.Text);
+            foreach (var part in parts[s.Path]) names.UnionWith(byType[part.Type]);
+            return names;
+        });
     }
 
     private static Regex? Calls(HashSet<string> names, string methods) =>
@@ -159,8 +205,9 @@ public partial class ArchiveReadInventoryTests
     /// <summary>Место чтения → сколько раз такая строка стоит в файле.</summary>
     private static Dictionary<string, int> FindReads(IReadOnlyList<Source> sources)
     {
-        var repositories = Visible(sources, Declared);
-        var catalogs = Visible(sources, DeclaredCatalog);
+        var parts = sources.ToDictionary(s => s.Path, Parts);
+        var repositories = Visible(sources, parts, Declared);
+        var catalogs = Visible(sources, parts, DeclaredCatalog);
 
         var found = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var source in sources)
@@ -171,7 +218,7 @@ public partial class ArchiveReadInventoryTests
             foreach (var raw in source.Text.Split('\n'))
             {
                 var line = raw.Trim();
-                if (line.StartsWith("//", StringComparison.Ordinal) || line.StartsWith('*')) continue;
+                if (IsComment(line)) continue;
                 if (!Direct.IsMatch(line) && !Query.IsMatch(line) && !States.IsMatch(line)
                     && repository?.IsMatch(line) != true && catalog?.IsMatch(line) != true) continue;
                 var key = $"{source.Path}|{line}";
