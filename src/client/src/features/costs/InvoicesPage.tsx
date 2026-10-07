@@ -1,8 +1,6 @@
-import { MISSING } from './lostReferences';
-import { ArchivedMark } from '@/shared/ui/ArchivedMark';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { FileText, ListChecks, Plus, Sparkles, Tags, TriangleAlert } from 'lucide-react';
+import { FileText, Plus, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -12,13 +10,16 @@ import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
-  type InvoiceListItem,
+  type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
+import { useInvoiceQueueCounts, useLostReferences } from '@/shared/api/invoiceQueues';
 import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
+import { InvoiceListRow } from './InvoiceListRow';
+import { InvoiceQueueChips } from './InvoiceQueueChips';
+import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, scanFitsBeside } from './invoiceFields';
-import { formatDate, formatMoney } from '@/shared/format/format';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -42,18 +43,33 @@ export function InvoicesPage() {
     return next;
   }, { replace: true });
   const [query, setQuery] = useState('');
-  const [needsParsing, setNeedsParsing] = useState(false);
+  const [queue, setQueue] = useState<InvoiceQueue | null>(null);
   const wide = useWideEnoughForScan();
   const { data: access = NO_ACCESS } = useAccess();
   const [articlesOpen, setArticlesOpen] = useState(false);
 
-  const invoices = useInvoices(needsParsing);
+  const invoices = useInvoices(queue);
+  // Числа чипов «наведите порядок» и, под отбором удалённых, — счета закрытого периода: в отбор они
+  // не входят, и список обязан сказать о них сам.
+  const counts = useInvoiceQueueCounts();
+  const lostReferences = useLostReferences(queue === 'lost');
+  const locked = lostReferences.data?.locked.invoices ?? null;
+  const doubt = queue === 'lost' || queue === 'archived'
+    ? counts.data?.find(s => s.code === queue)?.unchecked ?? null
+    : null;
   const organizations = useCostsOrganizations('choice');
   const create = useCreateInvoice();
   const toast = useToast();
 
   const view = useInvoice(selected ?? undefined);
-  const items = (invoices.data ?? []).filter(i => matches(i, query));
+
+  // Открытый счёт под отбором запоминается: после замены значения сервер его под отбором уже не
+  // отдаёт, а строка обязана остаться, пока счёт открыт. Запись при отрисовке, а не в эффекте: так
+  // список не рисуется кадр без строки.
+  const [held, setHeld] = useState<HeldRow | null>(null);
+  const nextHeld = heldRow(held, queue, selected, invoices.data);
+  if (nextHeld !== held) setHeld(nextHeld);
+  const rows = queueRows(invoices.data ?? [], nextHeld).filter(r => matches(r.item, query));
 
   async function addDraft() {
     try {
@@ -92,35 +108,39 @@ export function InvoicesPage() {
       nav={
         <>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
-          {/* Отбор «Разобрать» (ТЗ COST-6.2) — рабочая очередь снабженца: счета, у которых строки ждут
-              позиции номенклатуры. Отбирает СЕРВЕР: считать «ждут позиции» по загруженному списку
-              можно, а вот утверждать по нему, что других таких счетов нет, — нельзя. */}
-          <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg3 cursor-pointer">
-            <input type="checkbox" checked={needsParsing}
-              onChange={e => setNeedsParsing(e.target.checked)} />
-            <ListChecks size={13} />
-            Только «Разобрать»
-          </label>
+          <InvoiceQueueChips queue={queue} onChange={setQueue} counts={counts.data} failed={counts.isError}
+            onRetry={() => void counts.refetch()} locked={locked} />
           <div className="flex-1 overflow-y-auto">
+            {doubt && (
+              <p className="px-3 py-1.5 text-xs text-warning" role="status">
+                {doubt[0].toUpperCase() + doubt.slice(1)}. Список может быть неполным.
+              </p>
+            )}
             {invoices.isPending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
             {invoices.isError && (
               <p className="px-3 py-2 text-xs text-danger">
                 Список не пришёл. Это отказ чтения, а не пустой список: счета могут быть.
               </p>
             )}
-            {!invoices.isPending && !invoices.isError && items.length === 0 && (
-              <p className="px-3 py-2 text-xs text-fg3">
-                {query ? 'Ничего не найдено.'
-                  : needsParsing
-                    ? 'Разбирать нечего: строк, ждущих позиции номенклатуры, нет ни у одного счёта. '
-                      + 'Счета без строк вовсе в этот отбор не входят — это другая работа.'
-                    : 'Счетов пока нет.'}
-              </p>
+            {!invoices.isPending && !invoices.isError && rows.length === 0 && (
+              <div className="px-3 py-2 text-xs text-fg3 space-y-1">
+                <p>{emptyText(queue, query, doubt, locked ?? 0)}</p>
+                {queue && !query.trim() && (
+                  <button type="button" className="underline hover:text-fg1" onClick={() => setQueue(null)}>
+                    Показать все счета
+                  </button>
+                )}
+              </div>
             )}
-            {items.map(item => (
-              <ListRow key={item.id} item={item} active={item.id === selected}
+            {rows.map(({ item, left }) => (
+              <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue} left={left}
                 onClick={() => setSelected(item.id)} />
             ))}
+            {/* Запертые — строкой, а не кнопкой: открыть их можно, исправить нельзя. Под пустым списком
+                о них уже сказано словами пустого состояния. */}
+            {queue === 'lost' && !!locked && rows.length > 0 && (
+              <p className="px-3 py-2 text-xs text-fg3">{lockedNote(locked)}</p>
+            )}
           </div>
         </>
       }
@@ -174,71 +194,6 @@ export function InvoicesPage() {
       }
     />
   );
-}
-
-function ListRow({ item, active, onClick }: {
-  item: InvoiceListItem; active: boolean; onClick: () => void;
-}) {
-  // Открытый счёт — на виду: сюда приходят и по ссылке из реестра, а там счёт мог стоять сотым.
-  // `nearest` — строка, которая и так видна, с места не сдвигается.
-  const row = useRef<HTMLButtonElement>(null);
-  useEffect(() => { if (active) row.current?.scrollIntoView({ block: 'nearest' }); }, [active]);
-
-  return (
-    <button ref={row} type="button" onClick={onClick}
-      className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
-        `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
-        {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
-        <div className="flex-1" />
-        {item.total != null && <span className="text-xs text-fg2 shrink-0">{formatMoney(item.total)}</span>}
-      </div>
-      <div className="flex items-center gap-2 mt-0.5">
-        <SupplierName item={item} />
-        {item.unconfirmedCount > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
-            title="Распознано, не подтверждено">
-            <Sparkles size={11} />{item.unconfirmedCount}
-          </span>
-        )}
-        {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
-            Строки БЕЗ ожидающих не показываем вовсе: число «0» у каждой строки читается как шум. */}
-        {item.linesWithoutNomenclature > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
-            title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
-            <ListChecks size={11} />{item.linesWithoutNomenclature}
-          </span>
-        )}
-      </div>
-    </button>
-  );
-}
-
-/**
- * Название поставщика — или прямое указание на потерю.
- *
- * ⚠️ Ссылка без названия и «поставщик не выбран» — РАЗНЫЕ вещи, и одним прочерком их путать нельзя:
- * первое означает, что запись справочника удалили, и счёт остался со ссылкой в пустоту.
- */
-function SupplierName({ item }: { item: InvoiceListItem }) {
-  if (item.supplierName) {
-    return (
-      <span className="inline-flex items-center gap-1 min-w-0 text-xs text-fg3">
-        <span className="truncate">{item.supplierName}</span>
-        {item.supplierArchived && <ArchivedMark words={false} />}
-      </span>
-    );
-  }
-  if (item.supplierId) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-danger truncate"
-        title="Ссылка на организацию есть, а в справочнике организаций её нет: запись удалили либо перевели в другой вид. Что именно — скажет открытый счёт">
-        <TriangleAlert size={11} /> {MISSING.organization}
-      </span>
-    );
-  }
-  return <span className="text-xs text-fg4 truncate">поставщик не выбран</span>;
 }
 
 function matches(item: InvoiceListItem, query: string): boolean {

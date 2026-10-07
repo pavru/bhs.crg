@@ -100,6 +100,7 @@ public sealed record InvoiceReferencesView(
 /// «Разобрать» (ТЗ COST-6.2). В реестре он нужен затем, чтобы не открывать счёт ради ответа на вопрос
 /// «а с этим что делать».</param>
 /// <param name="SupplierArchived">Поставщик в архиве (issue #1185) — реестр ставит значок у названия.</param>
+/// <param name="References">Что со ссылками счёта на записи ядра (issue #1186): пометки строки.</param>
 public sealed record InvoiceListItem(
     Guid Id,
     string? Number,
@@ -115,7 +116,8 @@ public sealed record InvoiceListItem(
     int UnconfirmedCount,
     bool HasScan,
     int LinesCount,
-    int LinesWithoutNomenclature);
+    int LinesWithoutNomenclature,
+    InvoiceListReferences? References = null);
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
 public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);
