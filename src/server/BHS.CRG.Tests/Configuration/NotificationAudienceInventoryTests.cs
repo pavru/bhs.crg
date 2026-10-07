@@ -72,7 +72,8 @@ public class NotificationAudienceInventoryTests
         Assert.True(nameless.Count == 0,
             "Уведомление опубликовано без адресата — значит, придёт всем вошедшим, включая тех, кого " +
             "оно не касается:\n" + string.Join("\n", nameless) + "\n\n" +
-            "Назовите право (audience: NotificationAudiences.…) или человека (userId:). " +
+            "Назовите право (audience: NotificationAudiences.…; у модуля — код его права или код модуля) " +
+            "или человека (userId:). " +
             "Если оно и правда для всех — впишите файл в EveryoneSignedIn с причиной.");
     }
 
