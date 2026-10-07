@@ -91,7 +91,7 @@ public static class DocumentSetEndpoints
         });
 
         // issue #283 (фаза C): скопировать документ в ДРУГОЙ комплект (+ dry-run превью предупреждений).
-        g.MapPost("/{setId:guid}/documents/{id:guid}/copy/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
+        gEdit.MapPost("/{setId:guid}/documents/{id:guid}/copy/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new PreviewCopyDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
             catch (NotFoundException) { return Results.NotFound(); }
@@ -108,7 +108,7 @@ public static class DocumentSetEndpoints
         });
 
         // issue #283 (фаза D): перенести документ в ДРУГОЙ комплект (+ dry-run превью: warnings + чем заблокирован).
-        g.MapPost("/{setId:guid}/documents/{id:guid}/move/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
+        gEdit.MapPost("/{setId:guid}/documents/{id:guid}/move/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new PreviewMoveDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
             catch (NotFoundException) { return Results.NotFound(); }

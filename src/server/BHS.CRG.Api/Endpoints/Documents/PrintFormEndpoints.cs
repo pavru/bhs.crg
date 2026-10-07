@@ -9,6 +9,7 @@ using BHS.CRG.Domain.Schema;
 using Microsoft.EntityFrameworkCore;
 
 using BHS.CRG.Api.Endpoints.Common;
+using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
 
@@ -118,6 +119,8 @@ public static class PrintFormEndpoints
 
                 return Results.Ok(new { updatedFields });
             })
+            // Загрузка формы меняет документ (задача A3, issue #1074) — см. PlanEndpoints.
+            .RequireAuthorization(AppPolicies.Permission("id.document.edit"))
             .DisableAntiforgery();
     }
 }

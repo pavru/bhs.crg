@@ -92,6 +92,21 @@ public static class AppModuleExtensions
         // модуля обязан узнаваться при восстановлении копии.
         services.AddSingleton(new Settings.ModuleSettingCatalog(available));
 
+        // Пометка «входит в „читать всё"» — у каждого права каждого модуля СБОРКИ, а не включённых
+        // (задача A3, issue #1074): право без пометки выпало бы из составного молча, и обнаружилось
+        // бы это на экземпляре, где модуль включили, — отсутствием раздела у «Руководителя».
+        var unmarked = available
+            .SelectMany(m => m.Permissions)
+            .Where(p => p.ReadAll is null)
+            .Select(p => p.Code)
+            .ToList();
+        if (unmarked.Count > 0)
+            throw new InvalidOperationException(
+                "У права модуля не сказано, входит ли оно в «читать всё»: " + string.Join(", ", unmarked) + ".\n" +
+                "Поставьте пометку в объявлении: ReadAllMark.In — право только читает, " +
+                "ReadAllMark.Out(\"причина\") — меняет данные или открывает лишнее. По коду права это " +
+                "не выводится, а без пометки владелец составного права молча не получит ничего.");
+
         var registry = new ModuleRegistry(enabled, disabled);
         services.AddSingleton(registry);
         // Узкий взгляд на состав поставки — для модулей (ТЗ AUTH-19). Тем же объектом, а не второй

@@ -303,7 +303,8 @@ public sealed class RoleEditor(
             .Select(g => new PermissionGroupView(
                 g.Key,
                 GroupTitle(g.Key, modules),
-                [.. g.Select(p => new PermissionView(p.Code, p.Gives, p.Opens, p.UsuallyWith))]))
+                [.. g.Select(p => new PermissionView(
+                    p.Code, p.Gives, p.Opens, p.UsuallyWith, p.ReadAll is { Included: true }))]))
             .OrderBy(g => g.Module switch
             {
                 "core" => 0,   // ядро первым: его прав больше всего и раздают их чаще прочих
@@ -438,8 +439,13 @@ public sealed class RoleEditor(
 }
 
 /// <summary>Право с объяснением — то, что редактор показывает рядом с галкой (ТЗ AUTH-5).</summary>
+/// <param name="ReadAll">
+/// Входит ли право в составное «читать всё» (AUTH-5.2). Экрану это нужно затем, что галка у
+/// составного права иначе не говорит, ЧТО она выдаёт: состав объявляют модули, и меняется он с
+/// каждым включённым модулем.
+/// </param>
 public sealed record PermissionView(
-    string Code, string Gives, string Opens, IReadOnlyList<string> UsuallyWith);
+    string Code, string Gives, string Opens, IReadOnlyList<string> UsuallyWith, bool ReadAll = false);
 
 /// <summary>Права одного модуля (или ядра) под его названием.</summary>
 public sealed record PermissionGroupView(

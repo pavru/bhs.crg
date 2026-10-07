@@ -1,6 +1,7 @@
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
@@ -34,7 +35,10 @@ public static class PlanEndpoints
             }
             catch (NotFoundException) { return Results.NotFound(); }
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
-        });
+        })
+        // Замена плана — правка комплекта (задача A3, issue #1074): ворота модуля проходит и тот, у
+        // кого в модуле одно чтение, в том числе владелец составного «читать всё».
+        .RequireAuthorization(AppPolicies.Permission("id.document.edit"));
 
         var plans = app.MapGroup("/api/plans").RequireAuthorization();
 

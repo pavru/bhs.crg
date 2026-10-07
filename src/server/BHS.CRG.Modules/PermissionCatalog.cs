@@ -9,6 +9,12 @@ namespace BHS.CRG.Modules;
 /// </summary>
 public sealed class PermissionCatalog
 {
+    /// <summary>
+    /// Составное право «читать всё» (ТЗ AUTH-5.2). Само оно не стоит ни на одной двери: владельцу
+    /// достаются права, помеченные <see cref="ReadAllMark.In" />, — см. <see cref="Expand" />.
+    /// </summary>
+    public const string ReadAllCode = "*.read.all";
+
     public PermissionCatalog(IReadOnlyList<AppPermission> permissions)
     {
         // Отказ собирается по всем правам разом: чинить объявления по одному на перезапуск —
@@ -32,9 +38,35 @@ public sealed class PermissionCatalog
 
         All = permissions;
         _codes = new HashSet<string>(permissions.Select(p => p.Code), StringComparer.OrdinalIgnoreCase);
+        ReadAll = [.. permissions.Where(p => p.ReadAll is { Included: true }).Select(p => p.Code)];
     }
 
     private readonly HashSet<string> _codes;
+
+    /// <summary>
+    /// Права, входящие в «читать всё». Только включённых модулей: справочник собран из них, поэтому
+    /// модуль, включённый позже, дойдёт до владельца составного права сам, а выключенный — уйдёт.
+    /// </summary>
+    public IReadOnlyList<string> ReadAll { get; }
+
+    /// <summary>
+    /// Раскрывает составное право: к выданным правам добавляются входящие в «читать всё» — если
+    /// составное среди выданных есть. Само составное право в наборе остаётся: по нему страница «Мои
+    /// права» объясняет, откуда взялись остальные.
+    ///
+    /// <para>⚠️ Звать обязан тот, кто СЧИТАЕТ права из ролей, а не тот, кто их проверяет. Доступ к
+    /// модулю судят по началу кода права (<see cref="ModuleAccess" />), и нераскрытый набор модуль не
+    /// открывает вовсе: проверка права на адресе прошла бы, а ворота модуля перед ней — нет.</para>
+    /// </summary>
+    public IReadOnlyCollection<string> Expand(IReadOnlyCollection<string> granted)
+    {
+        if (ReadAll.Count == 0 || !granted.Contains(ReadAllCode, StringComparer.OrdinalIgnoreCase))
+            return granted;
+
+        var result = new HashSet<string>(granted, StringComparer.OrdinalIgnoreCase);
+        result.UnionWith(ReadAll);
+        return result;
+    }
 
     public IReadOnlyList<AppPermission> All { get; }
 

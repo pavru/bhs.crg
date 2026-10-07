@@ -7,6 +7,7 @@ using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Recognition;
+using BHS.CRG.Modules;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.QualityDocs;
@@ -16,6 +17,18 @@ public static class QualityDocEndpoints
     public static void MapQualityDocEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/quality-docs").RequireAuthorization();
+
+        // Всё, что меняет библиотеку и связи или тратит внешний движок, — под правом (задача A3,
+        // issue #1074). До раскрытия «читать всё» эти адреса закрывали одни ворота модуля, и право
+        // id.quality.edit значилось в редакторе ролей, не открывая ни одной двери. С раскрытием
+        // ворота модуля проходит и «Руководитель», у которого в модуле одно чтение, — правка
+        // библиотеки досталась бы ему даром.
+        //
+        // Группой, а не пометкой на каждом адресе: адресов двенадцать, и тринадцатый забудут.
+        // Сюда же — подбор связей и веб-поиск: тело у них запрос, но нужны они только тому, кто
+        // ведёт библиотеку, а поиск ещё и ходит во внешнюю службу.
+        var edit = app.MapGroup("/api/quality-docs")
+            .RequireAuthorization(AppPolicies.Permission("id.quality.edit"));
 
         // ── Библиотека ──────────────────────────────────────────────────────────
         g.MapGet("/", async (string? scope, Guid? scopeId, string? search, IMediator m) =>
@@ -33,7 +46,7 @@ public static class QualityDocEndpoints
 
         // 409 на занятое имя (issue #588): в области имена документов различаются, иначе выбор из
         // списка становится выбором вслепую.
-        g.MapPost("/", async (CreateReq req, IMediator m) =>
+        edit.MapPost("/", async (CreateReq req, IMediator m) =>
         {
             try
             {
@@ -46,7 +59,7 @@ public static class QualityDocEndpoints
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m) =>
+        edit.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m) =>
         {
             try
             {
@@ -56,10 +69,10 @@ public static class QualityDocEndpoints
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
-        g.MapPut("/{id:guid}/scan", async (Guid id, ScanReq req, IMediator m)
+        edit.MapPut("/{id:guid}/scan", async (Guid id, ScanReq req, IMediator m)
             => Results.Ok(ToDto(await m.Send(new SetQualityDocScanCommand(id, req.ScanBlobPath, req.ScanFileName, req.ScanMimeType)))));
 
-        g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        edit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new DeleteQualityDocumentCommand(id));
             return Results.NoContent();
@@ -71,7 +84,7 @@ public static class QualityDocEndpoints
         // CancellationToken принимаем и прокидываем в MediatR НЕ для порядка: без него токен в
         // обработчике равен default, и любая проверка «пользователь ушёл» там мертва — а
         // распознавание идёт минутами, то есть уйти успевают (issue #797).
-        g.MapPost("/recognize", async (RecognizeReq req, IMediator m, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+        edit.MapPost("/recognize", async (RecognizeReq req, IMediator m, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
         {
             var fields = (req.Fields ?? []).Select(f => new RecognitionField(f.Path, f.Title, f.Type, f.Options)).ToList();
             var uidStr = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.FindFirst("sub")?.Value;
@@ -118,7 +131,7 @@ public static class QualityDocEndpoints
         // Запуск — ФОНОВОЙ задачей (issue #628): прогон резолвит каждый документ комплекта с чтением
         // наборов данных, и на тридцати-пятидесяти документах это минуты. Синхронного вызова у сверки
         // нет намеренно: он упирался бы в таймаут ровно на тех комплектах, ради которых сверку и делали.
-        g.MapPost("/audit/{setId:guid}", async (
+        edit.MapPost("/audit/{setId:guid}", async (
             Guid setId, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
             var set = await m.Send(new GetDocumentSetQuery(setId), ct);
@@ -146,7 +159,7 @@ public static class QualityDocEndpoints
                 : Results.Ok(report);
         });
 
-        g.MapPost("/links", async (SetLinksReq req, IMediator m) =>
+        edit.MapPost("/links", async (SetLinksReq req, IMediator m) =>
         {
             // Материалы приходят парами «ключ + имя»; имя необязательно (перепривязка идёт без него).
             // Пустой список — ОШИБКА, а не «привязали ноль»: контракт сменился с materialKeys на
@@ -161,7 +174,7 @@ public static class QualityDocEndpoints
         });
 
         // POST, а не DELETE с телом: тело у DELETE в клиентах и прокси ненадёжно. Симметрично POST /links.
-        g.MapPost("/links/delete", async (RemoveLinksReq req, IMediator m) =>
+        edit.MapPost("/links/delete", async (RemoveLinksReq req, IMediator m) =>
         {
             if (req.Ids is not { Length: > 0 })
                 return Results.BadRequest(new { error = "Не переданы связи для разрыва (поле ids)." });
@@ -169,14 +182,14 @@ public static class QualityDocEndpoints
             return Results.Ok(new { removed = n });
         });
 
-        g.MapDelete("/links/{id:guid}", async (Guid id, IMediator m) =>
+        edit.MapDelete("/links/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new RemoveMaterialLinkCommand(id));
             return Results.NoContent();
         });
 
         // ── Веб-поиск документов (ФГИС → производитель → веб) ─────────────────────
-        g.MapPost("/search", async (SearchReq req, IMediator m, CancellationToken ct) =>
+        edit.MapPost("/search", async (SearchReq req, IMediator m, CancellationToken ct) =>
         {
             // Токен нужен по существу: поиск раскрывает найденные страницы по одной, и без него
             // брошенный запрос дочитывал бы их все впустую.
@@ -184,7 +197,7 @@ public static class QualityDocEndpoints
             catch (SearchUnavailableException ex) { return Results.Json(new { error = EngineRefusal.TextOf(ex) }, statusCode: 503); }
         });
 
-        g.MapPost("/import-url", async (ImportUrlReq req, IMediator m) =>
+        edit.MapPost("/import-url", async (ImportUrlReq req, IMediator m) =>
         {
             try
             {
@@ -195,7 +208,7 @@ public static class QualityDocEndpoints
         });
 
         // ── Предложение связей по сходству наименований ──────────────────────────
-        g.MapPost("/suggest", async (SuggestReq req, IMediator m) =>
+        edit.MapPost("/suggest", async (SuggestReq req, IMediator m) =>
         {
             var mats = (req.Materials ?? []).Select(x => new SuggestMaterial(x.Key, x.Name)).ToList();
             var s = await m.Send(new SuggestLinksQuery(req.SetId, mats));
