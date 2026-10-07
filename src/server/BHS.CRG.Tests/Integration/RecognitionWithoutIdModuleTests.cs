@@ -69,13 +69,20 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host) : IClassFixture
     /// <summary>
     /// Профили выключенного модуля лежат в базе и подписаны его кодом: выключение их не удаляет, и
     /// включённый обратно модуль найдёт их там же — вместе с правками администратора.
+    ///
+    /// <para>Строки сначала удаляются, и заводит их сидер ЭТОГО хоста: база у хоста своя и живёт
+    /// между прогонами, поэтому «строки на месте» само по себе не говорит ничего — они могли остаться
+    /// от прошлого раза (поймано поломкой: сидер, обходящий выключенных владельцев, проходил).</para>
     /// </summary>
     [Fact]
-    public async Task Profiles_of_the_disabled_module_stay_in_the_database()
+    public async Task Profiles_of_the_disabled_module_are_seeded_and_stay_in_the_database()
     {
         _ = host.CreateClient();
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.RecognitionProfiles.Where(p => p.Code == IdRecognitionProfiles.CableJournalCode).ExecuteDeleteAsync();
+
+        await scope.ServiceProvider.GetRequiredService<IRecognitionProfileProvider>().ReseedBuiltInAsync();
 
         var stored = await db.RecognitionProfiles.AsNoTracking().Where(p => p.Code != null).ToListAsync();
 
