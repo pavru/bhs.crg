@@ -2,6 +2,7 @@ using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Ports;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Costs;
 
@@ -27,6 +28,9 @@ public class InvoicePartiesTests
     [InlineData("7701234560/770101001", "7701234560")]
     [InlineData("ИНН 770123456703", "770123456703")]
     [InlineData("0105001234", "0105001234")]
+    // Групп подходящей длины две: один и тот же ИНН дважды; ИНН и телефон — верна та, где сошлась сумма.
+    [InlineData("7701234560 (ИНН 7701234560)", "7701234560")]
+    [InlineData("ИНН 7701234560, тел. 4951234567", "7701234560")]
     public void ИНН_из_скана_читается_цифрами(string text, string expected)
     {
         Assert.Equal(expected, TaxId.FromScan(text, out var problem));
@@ -42,6 +46,7 @@ public class InvoicePartiesTests
     [InlineData("770123456", "10 цифр")]
     [InlineData("77012345601", "10 цифр")]
     [InlineData("нет данных", "10 цифр")]
+    [InlineData("7701234560 / 7802345676", "несколько разных ИНН")]
     public void ИНН_прочитанный_с_ошибкой_даёт_причину(string text, string why)
     {
         Assert.Null(TaxId.FromScan(text, out var problem));
@@ -60,6 +65,10 @@ public class InvoicePartiesTests
     [InlineData("105001234", "0105001234")]       // число в JSON потеряло ведущий ноль
     [InlineData("77012345670", "077012345670")]
     [InlineData("77 01 234560", "7701234560")]
+    // Сторож: ИНН и КПП в одном поле справочника — та же организация, а не «такой нет».
+    [InlineData("7701234560/770101001", "7701234560")]
+    [InlineData("7701234560 КПП 770101001", "7701234560")]
+    [InlineData("7701234560.0", "7701234560")]
     [InlineData("", null)]
     [InlineData("б/н", null)]
     public void ИНН_записи_справочника_приводится_к_цифрам(string value, string? expected) =>
@@ -128,17 +137,49 @@ public class InvoicePartiesTests
         Assert.Contains("несколько", view.Why);
     }
 
-    /// <summary>Основа в архиве, роли живы: архивную не ставим, а между ролями выбирает человек.</summary>
-    [Fact]
-    public async Task Роли_архивной_организации_остаются_выбором_человека()
+    /// <summary>
+    /// Сторож: организация в архиве, а её роли живы. Роль поставщиком счёта не становится — ни одна,
+    /// ни из нескольких: единственная живая роль иначе подставилась бы в счёт сама.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Роли_архивной_организации_не_подставляются_сколько_бы_их_ни_было(int roles)
     {
         var org = Record("ООО «Кабель-Торг»", Valid, archived: true);
-        var view = await SupplierAsync(
-            Catalog(org, Record("Подрядчик", Valid, inheritedFrom: org.Record.Id),
-                Record("Субподрядчик", Valid, inheritedFrom: org.Record.Id)),
-            "Кабель-Торг", Valid);
+        var records = Enumerable.Range(1, roles)
+            .Select(n => Record($"Подрядчик {n}", Valid, inheritedFrom: org.Record.Id))
+            .Append(org).ToArray();
 
-        Assert.Equal("several", view.State);
+        var view = await SupplierAsync(Catalog(records), "Кабель-Торг", Valid);
+
+        Assert.Equal("archived", view.State);
+        Assert.Null(view.Match);
+        Assert.Equal(roles + 1, view.Candidates.Count);
+    }
+
+    /// <summary>Роль, чья основа — не организация (другого вида), остаётся обычной записью.</summary>
+    [Fact]
+    public async Task Единственная_роль_с_основой_вне_справочника_организаций_совпадает()
+    {
+        var role = Record("Подрядчик", Valid, inheritedFrom: Guid.NewGuid());
+        var view = await SupplierAsync(Catalog(role), "Кабель-Торг", Valid);
+
+        Assert.Equal("matched", view.State);
+        Assert.Equal(role.Record.Id, view.Match);
+    }
+
+    /// <summary>
+    /// Сторож: справочник не ответил — это состояние стороны, а не исключение. Иначе отказ
+    /// необязательной помощи ронял бы раскладку прочитанного скана и ответ формы.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_справочника_даёт_состояние_а_не_исключение()
+    {
+        var view = await SupplierAsync(new FakeCatalog(null, crash: true), "Поставщик", Valid);
+
+        Assert.Equal("unavailable", view.State);
+        Assert.Contains("не удалось", view.Why);
         Assert.Null(view.Match);
     }
 
@@ -159,7 +200,7 @@ public class InvoicePartiesTests
 
         Assert.Equal("absent", view.State);
         Assert.Empty(view.Candidates);
-        Assert.Equal(0, view.Unreadable);
+        Assert.Empty(view.Unreadable);
     }
 
     /// <summary>
@@ -173,7 +214,9 @@ public class InvoicePartiesTests
             Catalog(Record("Другая", Other), Record("Роль без основы", null, unreadable: true)), "Поставщик", Valid);
 
         Assert.Equal("unknown", view.State);
-        Assert.Equal(1, view.Unreadable);
+        // Записи названы — и в перечне, и в тексте: «проверьте справочник» без них было бы советом без пути.
+        Assert.Equal("Роль без основы", Assert.Single(view.Unreadable).Name);
+        Assert.Contains("«Роль без основы»", view.Why);
         Assert.Contains("прочитать не удалось", view.Why);
     }
 
@@ -185,7 +228,7 @@ public class InvoicePartiesTests
             Catalog(Record("Наша", Valid), Record("Роль без основы", null, unreadable: true)), "Поставщик", Valid);
 
         Assert.Equal("matched", view.State);
-        Assert.Equal(1, view.Unreadable);
+        Assert.Single(view.Unreadable);
     }
 
     [Fact]
@@ -238,7 +281,7 @@ public class InvoicePartiesTests
     public async Task Плательщик_сопоставляется_сам_по_себе_а_непрочитанной_стороны_в_ответе_нет()
     {
         var us = Record("ИП Иванов", Person);
-        var parties = await new InvoiceParties(Catalog(us)).MatchAsync(new Dictionary<string, string?>
+        var parties = await new InvoiceParties(Catalog(us), NullLoggerFactory.Instance).MatchAsync(new Dictionary<string, string?>
         {
             [CostsRecognitionProfiles.Supplier] = null,
             [CostsRecognitionProfiles.SupplierTaxId] = " ",
@@ -252,7 +295,7 @@ public class InvoicePartiesTests
     }
 
     private static async Task<InvoicePartyView> SupplierAsync(FakeCatalog catalog, string? name, string? taxId) =>
-        (await new InvoiceParties(catalog).MatchAsync(new Dictionary<string, string?>
+        (await new InvoiceParties(catalog, NullLoggerFactory.Instance).MatchAsync(new Dictionary<string, string?>
         {
             [CostsRecognitionProfiles.Supplier] = name,
             [CostsRecognitionProfiles.SupplierTaxId] = taxId,
@@ -266,7 +309,7 @@ public class InvoicePartiesTests
     private static FakeCatalog Catalog(params ModuleCatalogFieldValue[] records) =>
         new(new ModuleCatalogFieldValues(true, records));
 
-    private sealed class FakeCatalog(ModuleCatalogFieldValues? answer) : IModuleCatalog
+    private sealed class FakeCatalog(ModuleCatalogFieldValues? answer, bool crash = false) : IModuleCatalog
     {
         public int Asked { get; private set; }
 
@@ -278,6 +321,7 @@ public class InvoicePartiesTests
             // Сопоставление обязано видеть архив: иначе «в архиве» выглядело бы как «нет».
             Assert.Equal(RecordsFor.Display, purpose);
             Asked++;
+            if (crash) throw new TimeoutException("справочник не ответил");
             return Task.FromResult(answer);
         }
 

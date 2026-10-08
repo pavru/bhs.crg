@@ -50,7 +50,11 @@ public partial class DomainObjectRepository
         var result = new List<CommonDataFieldValue>(records.Count);
         foreach (var record in records)
         {
-            if (!chains.TryGetValue((record.ScopeLevel, record.ScopeId), out var chain))
+            // Цепочка области нужна только тому, кто пойдёт к основе: у записи со своим полем сверять
+            // нечего, а цепочка — это запросы к базе (для комплекта два).
+            ScopeChain chain = default;
+            if (!record.HasOwn && !string.IsNullOrWhiteSpace(record.BaseRef)
+                && !chains.TryGetValue((record.ScopeLevel, record.ScopeId), out chain))
                 chains[(record.ScopeLevel, record.ScopeId)] =
                     chain = await ScopeChains.LoadForScopeAsync(Db, record.ScopeLevel, record.ScopeId, ct);
 

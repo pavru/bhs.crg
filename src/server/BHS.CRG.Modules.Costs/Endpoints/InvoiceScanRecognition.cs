@@ -20,7 +20,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// «Ключ реквизита → текст из скана».</param>
 /// <param name="Lines">Распознанные строки, которые в счёт не легли: у него уже были свои.</param>
 /// <param name="Parties">Поставщик и плательщик из скана и что о них говорит справочник — считается
-/// при каждом чтении (<see cref="InvoiceParties" />); есть только у <c>done</c>.</param>
+/// при каждом чтении (<see cref="InvoiceParties" />); есть только у <c>done</c> и только пока счёт —
+/// черновик.</param>
 /// <param name="CanStart">Можно ли запустить сейчас — словами сервера, чтобы кнопка и отказ не
 /// расходились; причина — в <paramref name="WhyNot" />.</param>
 public sealed record InvoiceRecognitionView(
@@ -93,8 +94,11 @@ public sealed class InvoiceScanRecognition(
             stored.Values?.RootElement, stored.Offers?.RootElement, stored.Lines?.RootElement, stored.Notes,
             stored.StartedAt, stored.FinishedAt, whyNot is null, whyNot,
             // Стороны сопоставляются СЕЙЧАС, а не хранятся: организацию могли завести или отправить в
-            // архив уже после распознавания.
-            done && stored.Values is { } values ? await parties.MatchAsync(Read(values.RootElement), ct) : null);
+            // архив уже после распознавания. Только у черновика: разобранному счёту выбирать сторону
+            // поздно, а обход справочника на каждое его открытие никому не нужен.
+            done && invoice.State == InvoiceState.Draft && stored.Values is { } values
+                ? await parties.MatchAsync(Read(values.RootElement), ct)
+                : null);
     }
 
     /// <summary>Сохранённое «ключ профиля → текст» — тем же видом, каким его отдал порт.</summary>

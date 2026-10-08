@@ -69,7 +69,12 @@ public sealed class InvoiceScanReading(
 
             read = await recognition.RecognizeAsync(
                 CostsRecognitionProfiles.InvoiceCode, content, invoice.ScanMimeType!, ct);
-            merged = await MergeAsync(invoiceId, scanBlobPath, read, ct);
+            // Стороны сопоставляются ДО слияния и один раз: обход справочника под замком счёта держал бы
+            // замок зря и повторялся бы с каждой попыткой слияния. Отказом он не отвечает — справочник,
+            // который не ответил, даёт состояние «сопоставить не удалось», и шапка со строками ложатся
+            // в счёт без сторон.
+            var matched = await parties.MatchAsync(read.Fields, ct);
+            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, ct);
         }
         catch (DomainException refusal)
         {
@@ -109,7 +114,8 @@ public sealed class InvoiceScanReading(
     /// только что заполнил. Выбросить прочитанное значило бы платить движку второй раз за тот же файл.
     /// </summary>
     private async Task<(string Label, int Filled, int Lines)> MergeAsync(
-        Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, CancellationToken ct)
+        Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
+        CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -121,7 +127,7 @@ public sealed class InvoiceScanReading(
                     // заменить ему скан. Условие проверяется заново — и против того же файла.
                     EnsureSameScan(write.Invoice, scanBlobPath);
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
-                    var applied = await ApplyAsync(write.Invoice, stored, read, ct);
+                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, ct);
                     await db.SaveChangesAsync(ct);
                     return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines);
                 }, ct);
@@ -157,7 +163,8 @@ public sealed class InvoiceScanReading(
 
     /// <summary>Шапка — в пустые поля, строки — в счёт без строк; остальное — предложением.</summary>
     private async Task<(int Filled, int Lines)> ApplyAsync(
-        Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, CancellationToken ct)
+        Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
+        CancellationToken ct)
     {
         var before = InvoiceRequisites.Merge(invoice);
         var after = before.DeepClone().AsObject();
@@ -206,10 +213,9 @@ public sealed class InvoiceScanReading(
         // организация среди своих ролей), и только в пустое: между разными записями выбирает
         // человек, а архивную в новый счёт не ставят. Прочие
         // исходы не хранятся — их считает вид при каждом чтении (см. InvoiceParties).
-        var matched = await parties.MatchAsync(read.Fields, ct);
         void PutParty(InvoicePartyView? party, string requisiteKey)
         {
-            if (party is not { State: "matched", Match: { } match }) return;
+            if (party?.Match is not { } match) return;
             if (!IsBlank(before.TryGetPropertyValue(requisiteKey, out var was) ? was : null)) return;
 
             after[requisiteKey] = InvoiceRequisites.ReferenceNode(match);

@@ -5,6 +5,8 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Data;
+using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using static BHS.CRG.Tests.Integration.InvoiceFromScanTests;
@@ -135,6 +137,37 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         var view = await ReadAsync(client, id);
         Assert.Equal(version, view.GetProperty("version").GetString());
         Assert.Equal(JsonValueKind.Null, view.GetProperty("requisites").GetProperty("Поставщик").ValueKind);
+    }
+
+    /// <summary>
+    /// Стороны нужны, пока счёт — черновик. Разобранный счёт справочник на каждое открытие не обходит.
+    /// </summary>
+    [Fact]
+    public async Task У_разобранного_счёта_стороны_не_сопоставляются()
+    {
+        var type = await OrganizationsAsync();
+        var (_, sellerTaxId) = await OrganizationAsync(type, "ООО «Продавец»");
+        var (_, buyerTaxId) = await OrganizationAsync(type, "ООО «Покупатель»");
+
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(Header(
+            number: "СЧ-77", date: "01.04.2026", total: "100,00",
+            supplier: "Продавец", supplierTaxId: sellerTaxId, payer: "Покупатель", payerTaxId: buyerTaxId))));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        Assert.Equal(JsonValueKind.Object, (await OutcomeAsync(client, id)).GetProperty("parties").ValueKind);
+
+        // Состояние ставим в базе: переход «разобран» требует строк и разноски, а они здесь ни при чём.
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database
+                .ExecuteSqlAsync($"UPDATE costs.invoices SET state = 'Parsed' WHERE id = {id}");
+
+        var recognition = await RecognitionAsync(client, id);
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+        Assert.Equal(JsonValueKind.Null, recognition.GetProperty("parties").ValueKind);
+        // Сохранённое прочитанное на месте: пропали только стороны.
+        Assert.Equal("СЧ-77", recognition.GetProperty("values").GetProperty("НомерСчёта").GetString());
     }
 
     /// <summary>Архивная организация в новый счёт не подставляется — и названа архивной.</summary>
