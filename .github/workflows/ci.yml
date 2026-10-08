@@ -167,8 +167,13 @@ jobs:
           # больше нет), но упомянута, чтобы её не удалили как ненужную.
           exit $rc
 
+      # Ключ лицензии Six Labors: ImageSharp 4.x проверяет его при сборке. В Debug его отсутствие —
+      # предупреждение, в Release — отказ; называем и здесь, чтобы сборка была без предупреждения.
+      # У PR из форка секрета нет — там эта сборка пройдёт с предупреждением.
       - name: Сборка
         working-directory: src/server
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build BHS.CRG.slnx -c Debug
 
       # Двумя потоками — двумя процессами `dotnet test` на своих базах (issue #1164): интеграционные
@@ -442,16 +447,29 @@ jobs:
       # - Общий у ветвей только кеш npm — он рассчитан на одновременную работу.
       #
       # Срок — десять минут при обычной минуте: зависшая ветвь иначе держала бы работу шесть часов.
+      #
+      # ⚠️ Ключ лицензии Six Labors — этой сборке ОБЯЗАТЕЛЕН: она Release, а ImageSharp 4.x без ключа
+      # в Release не собирается («No Six Labors license found»). MSBuild читает свойство из
+      # переменной окружения. У PR из форка секрета нет, и живые прогоны там краснеют на сборке.
+      #
+      # ⚠️ Краснеет ЗДЕСЬ словами про лицензию при зелёном «Backend» — у ключа истёк срок (он вшит в
+      # ключ): обновите секрет SIXLABORS_LICENSE_KEY в хранилищах Actions И Dependabot.
+      #
+      # ⚠️ Окружение шага достаётся всем ветвям, а две из них ставят пакеты npm, чьи установочные
+      # скрипты — чужой код (в том числе из PR Dependabot). Поэтому ветви npm ключ с себя СНИМАЮТ
+      # (`unset`). Новая ветвь, запускающая чужой код, обязана начинаться так же.
       - name: Сборка сервера, клиента и установка браузера
         timeout-minutes: 10
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
           bash scripts/in-parallel.sh \
             'Сборка сервера' \
               'dotnet publish src/server/BHS.CRG.Api -c Release -o "$RUNNER_TEMP/api"' \
             'Сборка клиента' \
-              'cd src/client && npm ci && npm run build:bundle' \
+              'unset SixLaborsLicenseKey; cd src/client && npm ci && npm run build:bundle' \
             'Браузер' \
-              'npm i --prefix "$RUNNER_TEMP/playwright" playwright@1.62.1 && "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium'
+              'unset SixLaborsLicenseKey; npm i --prefix "$RUNNER_TEMP/playwright" playwright@1.62.1 && "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium'
 
       # Запускаем ИЗ каталога публикации. Запуск по полному пути к dll оставляет корнем содержимого
       # текущий каталог — приложение не находит свой appsettings.json, поднимается на умолчаниях и

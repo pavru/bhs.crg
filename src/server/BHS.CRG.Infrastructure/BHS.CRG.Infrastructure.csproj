@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Файл лицензии Six Labors — в корне репозитория. Сама проверка ищет sixlabors.lic только ВНУТРИ
+       каталога проекта, куда его никто не догадается положить; и оттуда он уехал бы в слой образа
+       вместе с исходниками. Корень в контекст сборки образа не копируется. Файла нет — свойство не
+       задаётся, и проверка идёт своим путём (ключ из окружения). -->
+  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)../../../sixlabors.lic')">
+    <SixLaborsLicenseFile>$(MSBuildThisFileDirectory)../../../sixlabors.lic</SixLaborsLicenseFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Application\BHS.CRG.Application.csproj" />
     <ProjectReference Include="..\BHS.CRG.Domain\BHS.CRG.Domain.csproj" />
@@ -30,7 +38,16 @@
     <PackageReference Include="Jint" Version="4.0.0" />
     <PackageReference Include="PdfSharpCore" Version="1.3.67" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- Кодом не используется: его тянут NPOI и PdfSharpCore, а версии из их зависимостей (2.1.9 и
+         1.0.4) и вся ветка 3.x — с уведомлениями об уязвимостях, которые проверка пакетов переводит
+         в отказ сборки (NU1903). Исправление есть только в 4.x, поэтому версия прибита здесь.
+         ⚠️ Прямая ссылка включает ПРОВЕРКУ ЛИЦЕНЗИИ Six Labors при сборке (targets лежат в build/,
+         транзитивной зависимости они не достаются): Debug без ключа — предупреждение, Release — отказ.
+         Ключ: секрет SIXLABORS_LICENSE_KEY в CI, локально — файл sixlabors.lic в КОРНЕ репозитория
+         (см. ниже) или переменная SixLaborsLicenseKey. Подробности — docs/DEV_NOTES.md, «Поставка».
+         Убрать строку можно, когда NPOI и PdfSharpCore сами перейдут на исправленную версию.
+         Совместимость библиотек с этой версией стережёт ImageSharpCompatibilityTests. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.5" />
 
     <!-- Кодом не используется: NPOI тянет этот пакет за собой, а версия из его зависимостей (8.0.2)

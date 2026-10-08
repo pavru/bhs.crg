@@ -7,13 +7,29 @@
 #
 # APP_VERSION при этом всё равно нужен — под ним соберётся локальный образ с тем же именем, так что
 # `docker compose pull` потом честно заменит его на опубликованный.
+#
+# ⚠️ Образу api нужен ключ лицензии Six Labors (ImageSharp 4.x без него в Release не собирается).
+# Он берётся из переменной окружения SIXLABORS_LICENSE_KEY той оболочки, где запущена сборка:
+#
+#   SIXLABORS_LICENSE_KEY=… docker compose -f … -f deploy/docker-compose.build.yml up -d --build
+#
+# Через sudo переменная до compose НЕ доходит (sudo сбрасывает окружение) — тогда так:
+#   sudo --preserve-env=SIXLABORS_LICENSE_KEY docker compose …
+#
+# В .env его класть не нужно: готовым образам из GHCR ключ не требуется вовсе.
 services:
   api:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
+      secrets:
+        - sixlabors_license
 
   web:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
+
+secrets:
+  sixlabors_license:
+    environment: SIXLABORS_LICENSE_KEY
