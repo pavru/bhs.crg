@@ -9,7 +9,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
+  scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
@@ -21,6 +21,7 @@ import { InvoiceQueueChips } from './InvoiceQueueChips';
 import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
+import { useQueuesFollowScans } from './recognitionWatch';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -55,6 +56,7 @@ export function InvoicesPage() {
   // сказать о них сам) и оговорка «проверено не всё».
   const counts = useInvoiceQueues(hasPermission(access, 'costs.invoice.edit'));
   const queues = counts.data;
+  useQueuesFollowScans(scansRunning(invoices.data), () => { if (counts.isEnabled) void counts.refetch(); });
   const fixing = queue === 'lost' || queue === 'archived';
   const doubt = fixing ? queues?.doubt ?? null : null;
   const organizations = useCostsOrganizations('choice');
@@ -89,9 +91,10 @@ export function InvoicesPage() {
   async function addFromScan(file: File) {
     try {
       const created = await fromScan.mutateAsync(file);
-      // Отбор снимается: новый черновик под «Разобрать» или «В архиве» не стоит, и открылся бы счёт,
-      // которого нет в списке.
+      // Отбор и поиск снимаются: новый черновик под «Разобрать» не стоит, а у счёта без номера и
+      // поставщика поиску не за что зацепиться — открылся бы счёт, которого нет в списке.
       setQueue(null);
+      setQuery('');
       setSelected(created.invoice.id);
     } catch (e) { toast.apiError(e, 'Счёт из скана не заведён'); }
   }
@@ -240,7 +243,8 @@ export function InvoicesPage() {
 function matches(item: InvoiceListItem, query: string): boolean {
   const text = query.trim().toLowerCase();
   if (!text) return true;
-  return [item.number, item.supplierName, item.purpose]
+  // И по имени файла скана: у счёта без номера оно стоит заголовком строки.
+  return [item.number, item.supplierName, item.purpose, item.scanFileName]
     .some(value => (value ?? '').toLowerCase().includes(text));
 }
 

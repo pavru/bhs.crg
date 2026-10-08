@@ -31,6 +31,7 @@ import { ScanUploadButton } from './InvoiceScanPanel';
 import { InvoiceFieldScan } from './InvoiceFieldScan';
 import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart } from './InvoiceRecognitionNote';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
+import { explainedByRecognition } from './recognition';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -91,8 +92,14 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   // Распознавание скана (issue #1077). Вид, пришедший перечитыванием после исхода, — правка
   // распознавания, а не чужая: набранное остаётся и переносится на него без полосы «устарело»,
   // прочитанное для этих полей предлагается под ними.
+  //
+  // ⚠️ Принимается не «всё, что пришло этим перечитыванием», а только объяснимое распознаванием: поле
+  // было пустым и легло с меткой. Скан читается десятки секунд, и сохранённое за это время соседом
+  // приходит тем же перечитыванием — его правка по-прежнему даёт «устарело».
   const watch = useRecognitionWatch(view.id, scan !== null);
-  if (base.stale && watch.accepted === view.version) base.rebase();
+  const byScan = base.stale && watch.accepted === view.version
+    && explainedByRecognition(edits, base.signature, view);
+  if (byScan) base.rebase();
 
   // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
   const closed = view.payment.lockedBy !== null;
@@ -145,7 +152,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
-        {base.stale && !watch.settling && watch.accepted !== view.version
+        {base.stale && !watch.settling && !byScan
           && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
         <div className="flex items-center gap-2 flex-wrap">
           <StateChip text={asInput(view.requisites[K.state])} />

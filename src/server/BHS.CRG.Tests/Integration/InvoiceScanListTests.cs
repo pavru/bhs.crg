@@ -151,6 +151,12 @@ public sealed class InvoiceScanListTests(InvoiceScanHost host)
             await db.SaveChangesAsync();
         }
 
+        // Только что поставлено, номера задачи ещё нет — «читается», а не «прервано»: под отбор и в
+        // число чипа такой счёт не попадает (ревью PR #1259).
+        Assert.Equal("running", State(await RowAsync(client, id)));
+        Assert.DoesNotContain(id, await UnrecognizedAsync(client));
+
+        await AgeAsync(host, id);
         var row = await RowAsync(client, id);
         Assert.Equal("failed", State(row));
         Assert.Equal("Interrupted", row.GetProperty("recognition").GetProperty("reason").GetString());

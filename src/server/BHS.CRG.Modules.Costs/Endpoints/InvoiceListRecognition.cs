@@ -52,6 +52,7 @@ public sealed class InvoiceListRecognition(CostsDbContext db, IModuleJobs jobs)
                 Outcome = r != null ? r.Outcome : (InvoiceRecognitionOutcome?)null,
                 JobId = r != null ? r.JobId : null,
                 Reason = r != null ? r.Reason : null,
+                StartedAt = r != null ? r.StartedAt : (DateTimeOffset?)null,
             }).ToListAsync(ct);
 
         // И те, что читаются, какими бы они ни были: у счёта со строками повтор тоже идёт.
@@ -59,15 +60,18 @@ public sealed class InvoiceListRecognition(CostsDbContext db, IModuleJobs jobs)
             .Where(r => r.Outcome == InvoiceRecognitionOutcome.Pending)
             .Join(db.Invoices.AsNoTracking(), r => r.InvoiceId, i => i.Id, (r, i) => new { r, i })
             .Where(x => x.r.ScanBlobPath == x.i.ScanBlobPath)
-            .Select(x => new { x.i.Id, x.r.JobId })
+            .Select(x => new { x.i.Id, x.r.JobId, x.r.StartedAt })
             .ToListAsync(ct);
 
         // Идёт ли на самом деле, знает только задача: запись «ждёт исхода» остаётся и у той, что упала
-        // мимо нас. Таких записей столько, сколько сканов читается прямо сейчас.
-        var alive = new HashSet<Guid>();
-        foreach (var row in pending)
-            if (row.JobId is { } job && InvoiceScanRecognition.IsAlive(await jobs.GetAsync(job, ct)))
-                alive.Add(row.Id);
+        // мимо нас. Задачи спрашиваются ПАЧКОЙ: список опрашивается, пока хоть один скан читается, и
+        // обращение на каждую запись при загруженной пачке сканов шло бы десятками на каждый опрос.
+        var jobStates = await jobs.GetManyAsync([.. pending.Select(p => p.JobId).OfType<Guid>()], ct);
+        var alive = pending
+            .Where(p => InvoiceScanRecognition.IsStarting(InvoiceRecognitionOutcome.Pending, p.JobId, p.StartedAt)
+                || (p.JobId is { } job && InvoiceScanRecognition.IsAlive(jobStates.GetValueOrDefault(job))))
+            .Select(p => p.Id)
+            .ToHashSet();
 
         var states = alive.ToDictionary(id => id, _ => new InvoiceListScan(Running, null));
         foreach (var row in bare.Where(b => !alive.Contains(b.Id)))

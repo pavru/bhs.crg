@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { INVOICES_KEY, QK, type InvoiceView } from './invoices';
+import { QK, type InvoiceView } from './invoices';
 
 /**
  * Распознавание скана счёта (ТЗ COST-8, задача B1b, issue #1077): состояние, запуск, счёт из скана и
@@ -166,10 +166,4 @@ export function useCreatePartyOrganization() {
       qc.invalidateQueries({ queryKey: ['costs-organizations'] }),
     ]),
   });
-}
-
-/** Сбросить всё о счетах — после того, как распознавание записало прочитанное в счёт. */
-export function useRefreshAfterRecognition() {
-  const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: INVOICES_KEY });
 }

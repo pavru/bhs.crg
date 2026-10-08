@@ -2,8 +2,9 @@ import type { InvoiceListItem, InvoiceView } from '@/shared/api/invoices';
 import type {
   InvoiceParty, InvoicePartyCandidate, InvoicePartyOffer, InvoicePartySide, InvoiceRecognition,
 } from '@/shared/api/invoiceRecognition';
+import { formatDate, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { K, refEntryId } from './invoiceFields';
+import { K, catalogRef, refEntryId } from './invoiceFields';
 
 /**
  * Распознавание скана на экране счетов (issue #1077) — чистая логика: что написать в строке списка,
@@ -36,10 +37,6 @@ export function rowScan(item: InvoiceListItem): { text: string; tone: 'quiet' | 
     default: return { text: 'скан требует внимания', tone: 'warning', running: false };
   }
 }
-
-/** Есть ли в списке счёт, чей скан читается, — пока есть, список опрашивается. */
-export const anyRunning = (items: InvoiceListItem[] | undefined) =>
-  (items ?? []).some(i => i.recognition?.state === 'running');
 
 /** Полоса отказа в форме: слова и тон. */
 export function failureNote(recognition: InvoiceRecognition): { text: string; quiet: boolean } {
@@ -89,12 +86,21 @@ const TEXT_FIELDS: readonly string[] = [K.number, K.basis, K.purpose];
  * счёт, а на экране стоит набранное. Набранное побеждает, прочитанное предлагается.</li>
  * </ul>
  *
+ * <p>⚠️ Только при `done`: подпись «В скане» — про НЫНЕШНИЙ скан. Метка «не подтверждено» переживает
+ * и замену скана, и неудачный повтор, а прочитанное с прежней бумаги «сканом» уже не назвать.</p>
+ *
+ * <p>⚠️ Предложение сервера по стороне (`offers` с `entryId`) берётся, только когда сторон в ответе
+ * нет. Оно сохранено на момент распознавания, а стороны сопоставляются при каждом чтении: организацию
+ * могли с тех пор убрать в архив и завести заново — тогда «Взять» положило бы в черновик архивную
+ * запись, заслонив нынешнюю (ревью PR #1259). Есть стороны — найденную предлагает `partyLine`.</p>
+ *
  * @param names название организации по id — для предложения по стороне.
  */
 export function fieldOffer(
   key: string, view: InvoiceView, edits: Readonly<Record<string, unknown>>,
   recognition: InvoiceRecognition | undefined, names: (id: string) => string | null,
 ): FieldOffer | null {
+  if (recognition?.state !== 'done') return null;
   const shown = key in edits ? edits[key] : view.requisites[key];
   const party = key === K.supplier || key === K.payer;
 
@@ -105,17 +111,18 @@ export function fieldOffer(
       const id = refEntryId(stored);
       return id ? { text: names(id) ?? 'организация из справочника', take: stored } : null;
     }
-    return stored == null ? null : { text: `«${String(stored)}»`, take: stored };
+    const text = storedText(key, stored);
+    return text === null ? null : { text, take: stored };
   }
 
-  const offer = recognition?.state === 'done' ? recognition.offers?.[key] : undefined;
+  const offer = recognition.offers?.[key];
   if (offer == null) return null;
 
   if (isPartyOffer(offer)) {
-    if (refEntryId(shown) === offer.entryId) return null;
+    if (recognition.parties || refEntryId(shown) === offer.entryId) return null;
     return {
       text: names(offer.entryId) ?? offer.text,
-      take: { $ref: 'catalog', entryId: offer.entryId },
+      take: catalogRef(offer.entryId),
       title: `В скане: ${offer.text}`,
     };
   }
@@ -126,6 +133,34 @@ export function fieldOffer(
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/** Значение счёта — тем видом, каким его показывает форма; `null` — показать нечем. */
+function storedText(key: string, stored: unknown): string | null {
+  if (stored == null || stored === '') return null;
+  if (typeof stored === 'number') return key === K.total || key === K.vat ? formatMoney(stored) : String(stored);
+  if (typeof stored !== 'string') return null;
+  return key === K.date || key === K.shippedOn || key === K.dueDate ? formatDate(stored) : `«${stored}»`;
+}
+
+const blank = (value: unknown) => value == null || value === '';
+
+/**
+ * Объясняется ли распознаванием всё, что изменилось под несохранёнными правками.
+ *
+ * <p>Распознавание пишет только в ПУСТЫЕ поля и каждое помечает «не подтверждено». Значит, его правка
+ * узнаётся по самому счёту: поле было пустым, теперь заполнено и помечено. Всё остальное — чужая
+ * правка: сосед сохранил своё значение, и метки на нём нет. Одного «этот вид пришёл перечитыванием
+ * после исхода» мало: скан читается десятки секунд, и в то же перечитывание попадает всё, что соседи
+ * сохранили за это время, — их правку форма приняла бы молча и затёрла (ревью PR #1259).</p>
+ *
+ * @param before реквизиты, по которым собраны правки.
+ */
+export function explainedByRecognition(
+  edits: Readonly<Record<string, unknown>>, before: Readonly<Record<string, unknown>>, view: InvoiceView,
+): boolean {
+  return Object.keys(edits).every(key =>
+    same(before[key], view.requisites[key]) || (blank(before[key]) && view.unconfirmed.includes(key)));
+}
 
 export const SIDE_OF: Record<string, InvoicePartySide> = { [K.supplier]: 'supplier', [K.payer]: 'payer' };
 

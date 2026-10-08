@@ -33,7 +33,9 @@ export function InvoiceFieldScan({ fieldKey, view, edits, set, organizations }: 
     <>
       {offer && <OfferLine offer={offer} onTake={value => set(fieldKey, value)} />}
       {side && party && (
-        <InvoicePartyNote invoiceId={view.id} side={side} party={party} chosen={chosen} offered={offer !== null}
+        <InvoicePartyNote invoiceId={view.id} side={side} party={party} chosen={chosen}
+          // «Взять» найденную не повторяется, только когда под полем уже предложена ОНА ЖЕ.
+          offered={offer !== null && refEntryId(offer.take) === party.match}
           onChoose={id => set(fieldKey, catalogRef(id))}
           onRetry={() => void qc.invalidateQueries({ queryKey: recognitionKey(view.id) })} />
       )}

@@ -3,7 +3,7 @@ import type { InvoiceListItem, InvoiceView } from '@/shared/api/invoices';
 import type { InvoiceParty, InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import { K } from './invoiceFields';
 import {
-  failureNote, fieldOffer, inheritsFrom, partyLine, partyWhy, pickOrder, rowScan, unusedLinesNote,
+  explainedByRecognition, failureNote, fieldOffer, inheritsFrom, partyLine, partyWhy, pickOrder, rowScan, unusedLinesNote,
 } from './recognition';
 
 /** Распознавание скана на экране счетов (issue #1077): отказ назван, «не знаем» не выглядит как «нет». */
@@ -88,9 +88,53 @@ describe('предложение под полем', () => {
     expect(fieldOffer(K.number, stored, {}, recognition(), noNames)).toBeNull();
   });
 
+  it('предложение сервера по стороне уступает нынешнему сопоставлению', () => {
+    // Запись из offers сохранена на момент распознавания; с тех пор её могли убрать в архив. Когда
+    // стороны в ответе есть, найденную предлагает строка стороны, а не сохранённое предложение.
+    const offers = { [K.supplier]: { text: 'ООО «Ромашка», ИНН 7701234567', entryId: 'старая' } };
+    const stored = view({ [K.supplier]: { $ref: 'catalog', entryId: 'a' } });
+    expect(fieldOffer(K.supplier, stored, {}, recognition({ offers, parties: { supplier: null, payer: null } }), noNames))
+      .toBeNull();
+  });
+
+  it('набранное поверх даты и суммы показано видом формы, а не хранения', () => {
+    const stored = view({ [K.date]: '2026-10-01', [K.total]: 1234.5 }, [K.date, K.total]);
+    expect(fieldOffer(K.date, stored, { [K.date]: '2026-10-02' }, recognition(), noNames)?.text).toBe('01.10.2026');
+    expect(fieldOffer(K.total, stored, { [K.total]: '1' }, recognition(), noNames)?.text).not.toContain('1234.5');
+  });
+
+  it('«в скане» — только про нынешний скан: без исхода «прочитано» предложений нет', () => {
+    const stored = view({ [K.number]: 'СЧ-417' }, [K.number]);
+    for (const state of ['none', 'failed', 'running'] as const)
+      expect(fieldOffer(K.number, stored, { [K.number]: 'моё' }, recognition({ state }), noNames)).toBeNull();
+    expect(fieldOffer(K.number, stored, { [K.number]: 'моё' }, undefined, noNames)).toBeNull();
+  });
+
   it('пока распознавание не кончилось, предложений сервера нет', () => {
     expect(fieldOffer(K.number, view({ [K.number]: 'СЧ-1' }), {}, recognition({ state: 'running', offers: { [K.number]: 'x' } }), noNames))
       .toBeNull();
+  });
+});
+
+describe('что изменилось под правками — распознавание или сосед', () => {
+  it('поле было пустым и легло с меткой — распознавание', () => {
+    const now = view({ [K.number]: 'СЧ-417', [K.purpose]: 'x' }, [K.number]);
+    expect(explainedByRecognition({ [K.number]: 'моё' }, { [K.purpose]: 'x' }, now)).toBe(true);
+  });
+
+  it('поле изменилось без метки — правка соседа, даже если пришла тем же перечитыванием', () => {
+    const now = view({ [K.purpose]: 'соседское' }, []);
+    expect(explainedByRecognition({ [K.purpose]: 'моё' }, { [K.purpose]: null }, now)).toBe(false);
+  });
+
+  it('поле было занято и изменилось — не распознавание: оно пишет только в пустые', () => {
+    const now = view({ [K.number]: 'СЧ-2' }, [K.number]);
+    expect(explainedByRecognition({ [K.number]: 'моё' }, { [K.number]: 'СЧ-1' }, now)).toBe(false);
+  });
+
+  it('изменилось то, что человек не правит, — его правок это не касается', () => {
+    const now = view({ [K.number]: 'моё-прежнее', [K.purpose]: 'соседское' }, []);
+    expect(explainedByRecognition({ [K.number]: 'моё' }, { [K.number]: 'моё-прежнее', [K.purpose]: null }, now)).toBe(true);
   });
 });
 

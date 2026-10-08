@@ -34,10 +34,13 @@ export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: 
         title="Счета, у которых строки ждут позиции номенклатуры" tone="quiet" onClick={() => toggle('parsing')} />
       {/* «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Ноль не рисуем,
           нажатый чип остаётся — иначе отбор нечем снять. */}
-      {(queue === 'unrecognized' || (queues?.unrecognized ?? 0) > 0) && (
+      {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,
+          к распознаванию не относящимся, а сам отбор при этом работает. */}
+      {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
         <Chip active={queue === 'unrecognized'} icon={ScanLine} label={QUEUE_LABEL.unrecognized}
           count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
-          title="Черновики со сканом, в которых нет строк: скан не распознан, прочитан без строк или не распознавался"
+          title={'Черновики со сканом, в которых нет строк: скан не распознан, прочитан без строк или не распознавался.'
+            + (queues ? '' : ' Сколько их — не посчитано.')}
           tone="doubt" onClick={() => toggle('unrecognized')}
           ariaLabel={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`} />
       )}

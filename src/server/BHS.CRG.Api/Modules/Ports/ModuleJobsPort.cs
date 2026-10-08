@@ -50,8 +50,15 @@ public sealed class ModuleJobsPort(
     public async Task<ModuleJobState?> GetAsync(Guid jobId, CancellationToken ct = default)
     {
         var job = await jobs.GetModuleWorkAsync(jobId, ct);
-        if (job is null) return null;
+        return job is null ? null : State(job);
+    }
 
+    public async Task<IReadOnlyDictionary<Guid, ModuleJobState>> GetManyAsync(
+        IReadOnlyCollection<Guid> jobIds, CancellationToken ct = default) =>
+        (await jobs.GetModuleWorksAsync(jobIds, ct)).ToDictionary(j => j.Id, State);
+
+    private static ModuleJobState State(JobDto job)
+    {
         if (!Enum.TryParse<ModuleJobStatus>(job.Status, out var status))
             throw new InvalidOperationException(
                 $"Статус задачи «{job.Status}» не выражен в контрактах модулей. Зеркало ModuleJobStatus " +

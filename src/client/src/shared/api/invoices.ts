@@ -320,8 +320,7 @@ export const INVOICES_KEY = [QK] as const;
 export function useInvoices(queue: InvoiceQueue | null = null) {
   return useQuery({
     // Пока чей-то скан читается, список опрашивается: иначе «распознаётся…» стояло бы в строке вечно.
-    refetchInterval: query =>
-      (query.state.data ?? []).some(i => i.recognition?.state === 'running') ? 5000 : false,
+    refetchInterval: query => (scansRunning(query.state.data).length > 0 ? 5000 : false),
     queryKey: [QK, 'list', queue] as const,
     queryFn: () => apiClient
       .get<InvoiceListItem[]>('/costs/invoices', {
@@ -336,6 +335,11 @@ export function useInvoices(queue: InvoiceQueue | null = null) {
     staleTime: 0,
   });
 }
+
+/** Счета списка, чей скан читается сейчас. Одно место: по нему список опрашивается и перечитываются
+ *  числа чипов, когда чтение кончилось. */
+export const scansRunning = (items: InvoiceListItem[] | undefined): string[] =>
+  (items ?? []).filter(i => i.recognition?.state === 'running').map(i => i.id);
 
 /** Чтение счёта — одно на обычный запрос и на перечитывание после отказа: ключ и адрес не разойдутся. */
 function invoiceQuery(id: string | undefined) {

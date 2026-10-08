@@ -76,6 +76,16 @@ public class JobService(AppDbContext db, JobQueue queue) : IJobService
         return job is null ? null : Dto(job);
     }
 
+    public async Task<IReadOnlyList<JobDto>> GetModuleWorksAsync(IReadOnlyCollection<Guid> jobIds, CancellationToken ct)
+    {
+        if (jobIds.Count == 0) return [];
+        var ids = jobIds.ToArray();
+        var jobs = await db.Jobs.AsNoTracking()
+            .Where(j => ids.Contains(j.Id) && j.Kind == JobKind.ModuleWork)
+            .ToListAsync(ct);
+        return [.. jobs.Select(Dto)];
+    }
+
     private static JobDto Dto(Job j) => new(
         j.Id, j.Kind.ToString(), j.TargetId, j.Status.ToString(), j.Title, j.Progress, j.CreatedAt,
         j.StartedAt, j.FinishedAt, j.Error);

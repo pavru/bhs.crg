@@ -88,4 +88,11 @@ public interface IJobService
     /// есть получил бы окно, которого у него нет ни одним другим способом.</para>
     /// </summary>
     Task<JobDto?> GetModuleWorkAsync(Guid jobId, CancellationToken ct);
+
+    /// <summary>
+    /// То же для многих задач одним запросом — список, который показывает ход у каждой своей строки,
+    /// иначе ходил бы за каждой отдельно. Правила те же: без владельца, только работы модулей; задач,
+    /// которых нет или которые не работа модуля, в ответе нет.
+    /// </summary>
+    Task<IReadOnlyList<JobDto>> GetModuleWorksAsync(IReadOnlyCollection<Guid> jobIds, CancellationToken ct);
 }

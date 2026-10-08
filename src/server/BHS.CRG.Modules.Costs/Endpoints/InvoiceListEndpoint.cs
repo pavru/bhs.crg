@@ -104,8 +104,10 @@ public static class InvoiceListEndpoint
             // список, а не массивом их ключей: массив база сверяла бы перебором (ревью PR #1241).
             counted = counted.Where(l => selected.Select(i => i.Id).Contains(l.InvoiceId));
         }
-        else if (needsParsing)
+        else if (needsParsing || unrecognized)
         {
+            // Под «Не распознано» строк нет по определению — и группировать ради этого всю таблицу
+            // незачем (ревью PR #1259).
             var queued = invoices.Select(i => i.Id).ToList();
             counted = counted.Where(l => queued.Contains(l.InvoiceId));
         }
