@@ -221,9 +221,17 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
             gate.SetResult();
         }
 
-        var party = (await OutcomeAsync(client, id)).GetProperty("parties").GetProperty("supplier");
+        var recognition = await OutcomeAsync(client, id);
+        var party = recognition.GetProperty("parties").GetProperty("supplier");
         Assert.Equal("matched", party.GetProperty("state").GetString());
         Assert.Equal(found, Assert.Single(party.GetProperty("candidates").EnumerateArray()).GetProperty("id").GetGuid());
+        // Скан назвал другую организацию — это сохранено предложением, как у номера и суммы: после
+        // разбора счёта стороны уже не пересчитываются, и иначе о расхождении не узнать.
+        // У ссылочного поля предложение — текст скана и найденная запись: одним текстом его нечем
+        // было бы применить.
+        var offer = recognition.GetProperty("offers").GetProperty("Поставщик");
+        Assert.Equal($"Из скана, ИНН {taxId}", offer.GetProperty("text").GetString());
+        Assert.Equal(found, offer.GetProperty("entryId").GetGuid());
 
         var view = await ReadAsync(client, id);
         Assert.Equal(supplier, view.GetProperty("requisites").GetProperty("Поставщик").GetProperty("entryId").GetGuid());
@@ -235,7 +243,7 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
     private static int taxIdSeed = 770100000;
 
     /// <summary>Свой ИНН на каждую организацию — с верной контрольной суммой: справочник у класса общий.</summary>
-    private static string NextTaxId()
+    internal static string NextTaxId()
     {
         var head = Interlocked.Increment(ref taxIdSeed).ToString();
         int[] weights = [2, 4, 10, 3, 5, 9, 4, 6, 8];
@@ -252,17 +260,22 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         (await SendAsync(new CreateCommonDataEntryCommand(name, type, JsonDocument.Parse(data), CatalogScope.System, null))).Id;
 
     /// <summary>
-    /// Тип «Организация» с полем ИНН. Посев класса заводит его без полей — как на чистой базе, где тип
-    /// ещё не настроен; у заказчика поле есть, и ведёт его человек.
+    /// Тип «Организация» с полями названия и ИНН. Посев класса заводит его без полей — как на чистой
+    /// базе, где тип ещё не настроен; у заказчика поля есть, и ведёт их человек.
     /// </summary>
-    private async Task<Guid> OrganizationsAsync()
+    private Task<Guid> OrganizationsAsync() => OrganizationsAsync(host);
+
+    /// <summary>Общий с <c>InvoicePartyOrganizationTests</c>: база у классов этого хоста одна, и схема
+    /// типа обязана быть одной и той же, кто бы из них ни пришёл первым.</summary>
+    internal static async Task<Guid> OrganizationsAsync(InvoiceScanHost host)
     {
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
         var type = (await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Single();
         if (!type.Schema.RootElement.GetRawText().Contains("\"ИНН\""))
         {
-            type.UpdateSchema(JsonDocument.Parse("""{"fields":[{"key":"ИНН","type":"string","title":"ИНН"}]}"""));
+            type.UpdateSchema(JsonDocument.Parse(
+                """{"fields":[{"key":"Наименование","type":"string","title":"Наименование","required":true,"tags":["identity"]},{"key":"ИНН","type":"string","title":"ИНН","required":true}]}"""));
             types.Update(type);
             await types.SaveChangesAsync();
         }

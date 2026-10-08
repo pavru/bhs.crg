@@ -89,6 +89,10 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
     /// состояние <c>unavailable</c> с названием поля, а не «организаций нет».</summary>
     public const string TaxIdField = "ИНН";
 
+    /// <summary>Ключ поля названия в типе «Организация» — в него ложится название при заведении
+    /// организации из скана. Строение поля (строка или «Полное / Сокращённое») знает ядро.</summary>
+    public const string NameField = "Наименование";
+
     public async Task<InvoicePartiesView> MatchAsync(IReadOnlyDictionary<string, string?> read, CancellationToken ct)
     {
         var supplier = Side(read, CostsRecognitionProfiles.Supplier, CostsRecognitionProfiles.SupplierTaxId);
@@ -170,7 +174,15 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
 
         return live.Count switch
         {
-            1 => new(InvoicePartyStates.Matched, side.Name, taxId, null, found, unreadable, live[0].Id),
+            // Единственная запись — найдена, если ИНН у неё СВОЙ. Запись, которая его наследует, а
+            // сама организация среди организаций не нашлась (основа другого вида), — роль чьей-то
+            // стройки: в счёт она сама не идёт, как не идёт и при двух таких (ревью PR #1256).
+            1 when live[0].InheritedFrom is null =>
+                new(InvoicePartyStates.Matched, side.Name, taxId, null, found, unreadable, live[0].Id),
+            1 => new(InvoicePartyStates.Several, side.Name, taxId,
+                $"С ИНН {taxId} в справочнике нашлась только запись «{live[0].Name}», а ИНН она наследует от " +
+                "записи, которой среди организаций нет. Это может быть роль организации на одной из строек — " +
+                "выберите её сами, если поставщик именно она.", found, unreadable),
             > 1 when Principal(live) is { } principal =>
                 new(InvoicePartyStates.Matched, side.Name, taxId, null, found, unreadable, principal),
             > 1 => new(InvoicePartyStates.Several, side.Name, taxId,

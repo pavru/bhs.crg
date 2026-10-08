@@ -11,16 +11,15 @@ namespace BHS.CRG.Infrastructure.Persistence;
 public partial class DomainObjectRepository
 {
     /// <summary>
-    /// Глубже цепочка основ не читается — запись уходит в «прочитать не удалось». Настоящие цепочки —
-    /// одно-два звена (роль → организация); предел нужен, чтобы запрос на список не превращался в
-    /// обход всей таблицы по чьей-то ошибке в данных.
+    /// Глубже цепочка основ не читается — запись уходит в «прочитать не удалось». Предел общий с
+    /// таблицей объектов и печатью: у одной записи они обязаны видеть одно.
     /// </summary>
-    private const int BaseDepth = 8;
+    private const int BaseDepth = BaseRefReader.MaxDepth;
 
     /// <summary>Одна запись в том объёме, который нужен разрешению поля: без остальных данных.</summary>
     private sealed record FieldProbe(
         Guid Id, Guid CompositeTypeId, string? DisplayName, bool Archived, CatalogScope ScopeLevel, Guid? ScopeId,
-        bool HasOwn, string? Kind, string? Value, string? BaseRef);
+        bool HasOwn, string? Kind, string? Value, string? BaseRef, bool IsDocument);
 
     public async Task<IReadOnlyList<CommonDataFieldValue>> FieldValuesAsync(
         IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default)
@@ -46,19 +45,20 @@ public partial class DomainObjectRepository
             wanted = Missing(bases, known);
         }
 
-        var chains = new Dictionary<(CatalogScope, Guid?), ScopeChain>();
+        // Цепочки областей — всем, кто участвует в наследовании, двумя запросами на всех: у записи со
+        // своим полем сверять нечего, а по запросу на область выходили десятки обращений — роли лежат
+        // по комплектам и разделам (ревью PR #1256).
+        // Области — всех известных записей, а не только наследников и их прямых основ: цепочка
+        // основ бывает длиннее звена, и сверяется каждое.
+        var scopes = known.Values.Any(p => !p.HasOwn && BaseOf(p) is not null)
+            ? known.Values.Select(p => (p.ScopeLevel, p.ScopeId)).Distinct().ToList()
+            : [];
+        var chains = scopes.Count == 0 ? [] : await ScopeChainBatch.LoadAsync(Db, scopes, ct);
+
         var result = new List<CommonDataFieldValue>(records.Count);
         foreach (var record in records)
         {
-            // Цепочка области нужна только тому, кто пойдёт к основе: у записи со своим полем сверять
-            // нечего, а цепочка — это запросы к базе (для комплекта два).
-            ScopeChain chain = default;
-            if (!record.HasOwn && !string.IsNullOrWhiteSpace(record.BaseRef)
-                && !chains.TryGetValue((record.ScopeLevel, record.ScopeId), out chain))
-                chains[(record.ScopeLevel, record.ScopeId)] =
-                    chain = await ScopeChains.LoadForScopeAsync(Db, record.ScopeLevel, record.ScopeId, ct);
-
-            var (value, from, unreadable) = Resolve(record, known, chain);
+            var (value, from, unreadable) = Resolve(record, known, chains);
             result.Add(new CommonDataFieldValue(
                 new CommonDataRef(record.Id, record.CompositeTypeId, record.DisplayName, record.Archived),
                 value, from, unreadable));
@@ -77,7 +77,8 @@ public partial class DomainObjectRepository
             EF.Functions.JsonExists(o.Data, fieldKey),
             EF.Functions.JsonTypeof(o.Data.RootElement.GetProperty(fieldKey)),
             o.Data.RootElement.GetProperty(fieldKey).GetString(),
-            o.Data.RootElement.GetProperty("_baseRef").GetString()));
+            o.Data.RootElement.GetProperty("_baseRef").GetString(),
+            o.Facet != null));
 
     /// <summary>Основы, за которыми ещё не ходили: нужны только тем, у кого своего поля нет.</summary>
     private static List<Guid> Missing(IEnumerable<FieldProbe> probes, Dictionary<Guid, FieldProbe> known) =>
@@ -104,11 +105,48 @@ public partial class DomainObjectRepository
         }
     }
 
+    /// <summary>
+    /// Лежит ли очередная основа на одной ветке со ВСЕМ пройденным путём; если да — самая глубокая
+    /// запись пути (она может смениться), иначе <c>null</c>.
+    ///
+    /// <para>Печать сверяет основу с цепочкой КОМПЛЕКТА, в котором выпускается документ. У списка
+    /// записей комплекта нет, поэтому правило здесь — «одна ветка»: основа лежит в области наследника
+    /// или выше (её увидит любой документ, видящий наследника) либо ниже него, в его же поддереве
+    /// (её увидит документ из того комплекта). Запись системы, наследующая от записи стройки, печатается
+    /// на этой стройке со значением — и «не прочитана» про неё было бы ложью, из-за которой любой не
+    /// найденный ИНН получал бы «неизвестно» вместо «нет» (ревью PR #1256).</para>
+    ///
+    /// <para>Чужая ветка (роль одной стройки наследует от записи другой) остаётся недостижимой: такую
+    /// основу не подмешивает ни один документ. Основа-документ — только из комплекта наследника, как у
+    /// печати.</para>
+    ///
+    /// <para>⚠️ Сверяется с САМОЙ ГЛУБОКОЙ записью пути, а не с исходным наследником. Записи лежат на
+    /// одной ветке, когда все они — предки самой глубокой; сверка каждого звена только с наследником
+    /// пропускала запись системы, наследующую от роли стройки X, которая наследует от записи стройки
+    /// Y: система «выше» обеих, а вместе их не видит ни один комплект (ревью PR #1258).</para>
+    /// </summary>
+    private static FieldProbe? OnBranch(
+        FieldProbe deepest, FieldProbe source, Dictionary<(CatalogScope, Guid?), ScopeChain> chains)
+    {
+        if (!chains.TryGetValue((deepest.ScopeLevel, deepest.ScopeId), out var low)) return null;
+        if (source.IsDocument)
+            return source.ScopeLevel == CatalogScope.Set && low.SetId != Guid.Empty && source.ScopeId == low.SetId
+                ? deepest : null;
+
+        // Основа — на пути вверх от самой глубокой: глубина не меняется.
+        if (low.Contains(source.ScopeLevel, source.ScopeId)) return deepest;
+        // Основа глубже всех пройденных и в том же поддереве: теперь самая глубокая — она.
+        return chains.TryGetValue((source.ScopeLevel, source.ScopeId), out var theirs)
+               && theirs.Contains(deepest.ScopeLevel, deepest.ScopeId)
+            ? source : null;
+    }
+
     private static (string? Value, Guid? From, bool Unreadable) Resolve(
-        FieldProbe record, Dictionary<Guid, FieldProbe> known, ScopeChain chain)
+        FieldProbe record, Dictionary<Guid, FieldProbe> known, Dictionary<(CatalogScope, Guid?), ScopeChain> chains)
     {
         var visited = new HashSet<Guid> { record.Id };
         var current = record;
+        var deepest = record;
         while (true)
         {
             // Своё поле перекрывает основу — и пустое тоже: так слияние считает при генерации, и
@@ -128,9 +166,10 @@ public partial class DomainObjectRepository
             // замкнулась либо основа лежит не в области наследника (чужая стройка) — генерация такую
             // тоже не подмешивает.
             if (BaseOf(current) is not { } baseId || !visited.Add(baseId) || !known.TryGetValue(baseId, out var next)
-                || !chain.Contains(next.ScopeLevel, next.ScopeId))
+                || OnBranch(deepest, next, chains) is not { } low)
                 return (null, null, true);
 
+            deepest = low;
             current = next;
         }
     }

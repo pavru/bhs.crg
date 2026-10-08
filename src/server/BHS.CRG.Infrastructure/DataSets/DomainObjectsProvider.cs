@@ -172,8 +172,8 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
         return new DataSetParseResult(ColumnsOf(columns, rows), rows);
     }
 
-    /// <summary>Предел длины цепочки наследования — от патологических данных, не от нормы.</summary>
-    private const int MaxBaseDepth = 8;
+    /// <summary>Предел длины цепочки наследования — общий, см. <see cref="BaseRefReader.MaxDepth" />.</summary>
+    private const int MaxBaseDepth = BaseRefReader.MaxDepth;
 
     /// <summary>
     /// Базы наследования для выборки — ВСЯ цепочка, пакетами: A наследует B, B наследует C, и в

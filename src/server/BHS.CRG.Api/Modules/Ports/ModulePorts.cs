@@ -45,6 +45,8 @@ public static class ModulePorts
         services.AddScoped<IModuleUser, ModuleUserPort>();
         services.AddScoped<IModuleCatalog, ModuleCatalogPort>();
         services.AddScoped<IModuleOwnCatalog, ModuleOwnCatalogPort>();
+        // Заведение записи справочника ЯДРА модулем (issue #1077): только создание, только объявленные типы.
+        services.AddScoped<IModuleCatalogIntake, ModuleCatalogIntakePort>();
         services.AddScoped<IModuleConstructions, ModuleConstructionsPort>();
         services.AddScoped<IModuleReferenceTargets, ModuleReferenceTargetsPort>();
         services.AddScoped<IModuleTypes, ModuleTypesPort>();

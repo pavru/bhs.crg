@@ -33,6 +33,9 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         ["POST /api/costs/invoices/{id:guid}/recognition"] =
             "постановка распознавания: в счёт не пишет — только запись о распознавании, версия счёта прежняя. " +
             "Прочитанное потом ложится слиянием в пустые поля, и устаревшая форма при этом ничего не теряет (issue #1077)",
+        ["POST /api/costs/invoices/{id:guid}/recognition/parties/{side}/organization"] =
+            "заведение организации из скана: пишет в справочник ядра, а не в счёт — версия счёта прежняя. " +
+            "В поле счёта организацию ставит человек обычной правкой шапки, с версией (issue #1077)",
     };
 
     /// <summary>

@@ -132,8 +132,15 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
 
         // Распознавание скана (issue #1077) читает со счёта именно суммы — и событие о нём обязано
         // назвать только счётные «полей, строк», а не прочитанное.
+        await InvoiceScanPartiesTests.OrganizationsAsync(host);
         host.Recognition.On("%PDF-1.4 скан", () => Task.FromResult(new ModuleRecognitionResult(
-            [CostsRecognitionProfiles.Total], new Dictionary<string, string?> { [CostsRecognitionProfiles.Total] = "12 418,75 руб." },
+            [CostsRecognitionProfiles.Total, CostsRecognitionProfiles.Supplier, CostsRecognitionProfiles.SupplierTaxId],
+            new Dictionary<string, string?>
+            {
+                [CostsRecognitionProfiles.Total] = "12 418,75 руб.",
+                [CostsRecognitionProfiles.Supplier] = "ООО «Журнал»",
+                [CostsRecognitionProfiles.SupplierTaxId] = InvoiceScanPartiesTests.NextTaxId(),
+            },
             [CostsRecognitionProfiles.LineAmount],
             [new Dictionary<string, string?> { [CostsRecognitionProfiles.LineAmount] = "8 641,50" }], null, "сценарий")));
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/recognition", null));
@@ -144,6 +151,12 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             if (state == "done") break;
             Assert.True(state == "running" && DateTime.UtcNow < deadline, $"Распознавание не дошло до исхода: {state}.");
         }
+
+        // Организация из скана: событие называет ИНН и счёт — не сумму.
+        var intake = await client.PostAsJsonAsync(
+            $"/api/costs/invoices/{invoice}/recognition/parties/supplier/organization", new { });
+        await OkAsync(intake);
+        var organization = (await intake.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("created").GetGuid();
 
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null));
@@ -158,7 +171,7 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/paid", new { document = "п/п № 8" }));
         await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "не тот счёт" }));
 
-        var records = await RecordsOfAsync(invoice, article, spare);
+        var records = await RecordsOfAsync(invoice, article, spare, organization);
 
         // Сценарий обязан пройти через каждое объявленное действие: непройденное — вне присмотра.
         var declared = new InvoiceActions().Actions.Select(action => action.Code).Order().ToList();

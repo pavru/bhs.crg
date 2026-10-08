@@ -97,16 +97,66 @@ public class ModuleCatalogFieldValuesTests(IntegrationTestFixture host)
         var upwards = await EntryAsync(type, "Основа в системе снизу", $$"""{"_baseRef":"{{foreign}}"}""");
         var near = await EntryAsync(type, "Основа рядом", $$"""{"_baseRef":"{{local}}"}""", CatalogScope.Construction, here);
         var shaped = await EntryAsync(type, "Не скаляр", """{"ИНН":{"значение":"7701234567"}}""");
+        // «id» числом: ссылка негодна, но чтение всего списка она ронять не вправе.
+        var numeric = await EntryAsync(type, "Ссылка с числом", """{"_baseRef":{"kind":"catalog","id":5}}""");
 
         var values = await ValuesAsync(type);
 
         Assert.Equal((null, null, true), Of(values, lost));
         Assert.Equal((null, null, true), Of(values, garbage));
         Assert.Equal((null, null, true), Of(values, sideways));
-        // Запись уровня системы от записи стройки не наследует: её область — вся система.
-        Assert.Equal((null, null, true), Of(values, upwards));
+        Assert.Equal((null, null, true), Of(values, numeric));
+        // Основа ниже наследника, в его же ветке: документ этой стройки печатает значение, и «не
+        // прочитано» было бы ложью. Чужая ветка (sideways) по-прежнему недостижима.
+        Assert.Equal(("7701234567", foreign, false), Of(values, upwards));
         Assert.Equal((null, null, true), Of(values, shaped));
         Assert.Equal(("7802345678", local, false), Of(values, near));
+    }
+
+    /// <summary>
+    /// Настоящее дерево: стройка → раздел → комплект. Роль комплекта наследует от записи раздела и
+    /// от записи стройки (вверх по своей ветке), запись стройки — от записи комплекта (вниз по своей).
+    /// Комплект соседней стройки — чужая ветка. Цепочки областей на всех грузятся разом.
+    /// </summary>
+    [Fact]
+    public async Task Основа_достижима_вверх_и_вниз_по_своей_ветке_и_недостижима_в_чужой()
+    {
+        var type = await TypeAsync();
+        var (construction, section, set) = await TreeAsync();
+        var (_, _, otherSet) = await TreeAsync();
+
+        var atSection = await EntryAsync(type, "Раздел", """{"ИНН":"7701234567"}""", CatalogScope.Section, section);
+        var atConstruction = await EntryAsync(type, "Стройка", """{"ИНН":"7802345678"}""", CatalogScope.Construction, construction);
+        var atSet = await EntryAsync(type, "Комплект", """{"ИНН":"7705000001"}""", CatalogScope.Set, set);
+
+        var up = await EntryAsync(type, "Вверх на раздел", $$"""{"_baseRef":"{{atSection}}"}""", CatalogScope.Set, set);
+        var upTwice = await EntryAsync(type, "Вверх на стройку", $$"""{"_baseRef":"{{atConstruction}}"}""", CatalogScope.Set, set);
+        var down = await EntryAsync(type, "Вниз на комплект", $$"""{"_baseRef":"{{atSet}}"}""", CatalogScope.Construction, construction);
+        var across = await EntryAsync(type, "В чужой комплект", $$"""{"_baseRef":"{{atSet}}"}""", CatalogScope.Set, otherSet);
+        // Цепочка через ДВЕ ветки: запись системы → роль чужого комплекта → запись нашего комплекта.
+        // Система «выше» обеих, но вместе их не видит ни один комплект — и печать так не наследует.
+        var hop = await EntryAsync(type, "Посредник в чужом комплекте", $$"""{"_baseRef":"{{atSet}}"}""", CatalogScope.Set, otherSet);
+        var zigzag = await EntryAsync(type, "Через две ветки", $$"""{"_baseRef":"{{hop}}"}""");
+        // А по одной ветке через два звена — можно: система → раздел → стройка.
+        var middle = await EntryAsync(type, "Посредник в разделе", $$"""{"_baseRef":"{{atConstruction}}"}""", CatalogScope.Section, section);
+        var straight = await EntryAsync(type, "По одной ветке", $$"""{"_baseRef":"{{middle}}"}""");
+
+        var values = await ValuesAsync(type);
+
+        Assert.Equal(("7701234567", atSection, false), Of(values, up));
+        Assert.Equal(("7802345678", atConstruction, false), Of(values, upTwice));
+        Assert.Equal(("7705000001", atSet, false), Of(values, down));
+        Assert.Equal((null, null, true), Of(values, across));
+        Assert.Equal((null, null, true), Of(values, zigzag));
+        Assert.Equal(("7802345678", atConstruction, false), Of(values, straight));
+    }
+
+    private async Task<(Guid Construction, Guid Section, Guid Set)> TreeAsync()
+    {
+        var construction = await SendAsync(new CreateConstructionCommand($"Объект {Guid.NewGuid():N}", Guid.NewGuid()));
+        var section = await SendAsync(new CreateSectionCommand(construction.Id, "Раздел"));
+        var set = await SendAsync(new CreateDocumentSetCommand(section.Id, "Комплект"));
+        return (construction.Id, section.Id, set.Id);
     }
 
     [Fact]

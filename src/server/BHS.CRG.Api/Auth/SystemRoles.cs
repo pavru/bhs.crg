@@ -95,6 +95,8 @@ public static class SystemRoles
             [
                 "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.edit", "costs.waybill.read", "costs.waybill.edit",
+                // Организация из скана счёта (issue #1077): кто вводит счета, тот встречает новых поставщиков.
+                "costs.organization.create",
                 "costs.allocation.edit", "costs.request.read", "costs.request.edit", "plan.estimate.materials",
             ]),
 
