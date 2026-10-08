@@ -224,6 +224,7 @@ public sealed class CostsModule : IAppModule
 
         // Путь «скан → черновик» (B1b, issue #1077): служба и её фоновая операция. Обработчик
         // регистрируется по интерфейсу порта — постановка операции без исполнителя есть отказ сразу.
+        services.AddScoped<InvoiceParties>();
         services.AddScoped<InvoiceScanRecognition>();
         services.AddScoped<InvoiceScanReading>();
         services.AddScoped<IModuleJobHandler, InvoiceRecognitionJob>();

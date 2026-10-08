@@ -278,7 +278,7 @@ public static class InvoiceRequisites
     private static JsonNode? DateNode(DateOnly? date) =>
         date is { } value ? JsonValue.Create(value.ToString(CostsValues.DateFormat, CultureInfo.InvariantCulture)) : null;
 
-    private static JsonNode? ReferenceNode(Guid? id) => id is { } value
+    internal static JsonNode? ReferenceNode(Guid? id) => id is { } value
         ? new JsonObject { ["$ref"] = "catalog", ["entryId"] = value.ToString() }
         : null;
 

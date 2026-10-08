@@ -26,7 +26,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, IModuleBlobs blobs,
-    IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs)
+    IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties)
 {
     /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
     private const int MergeAttempts = 3;
@@ -201,6 +201,22 @@ public sealed class InvoiceScanReading(
             text => RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null);
         Put(CostsRecognitionProfiles.VatTotal, InvoiceRequisites.VatTotalKey, "В том числе НДС",
             text => RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null);
+
+        // Стороны — по ИНН. В поле ложится только ЕДИНСТВЕННАЯ действующая организация, и только в
+        // пустое: несколько совпадений выбирает человек, а архивную в новый счёт не ставят. Прочие
+        // исходы не хранятся — их считает вид при каждом чтении (см. InvoiceParties).
+        var matched = await parties.MatchAsync(read.Fields, ct);
+        void PutParty(InvoicePartyView? party, string requisiteKey)
+        {
+            if (party is not { State: "matched" }) return;
+            if (!IsBlank(before.TryGetPropertyValue(requisiteKey, out var was) ? was : null)) return;
+
+            after[requisiteKey] = InvoiceRequisites.ReferenceNode(party.Candidates.Single(c => !c.Archived).Id);
+            filled.Add(requisiteKey);
+        }
+
+        PutParty(matched.Supplier, InvoiceRequisites.SupplierKey);
+        PutParty(matched.Payer, InvoiceRequisites.PayerKey);
 
         if (filled.Count > 0)
         {

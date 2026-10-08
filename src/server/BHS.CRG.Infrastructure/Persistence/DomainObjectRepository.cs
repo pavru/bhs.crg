@@ -11,7 +11,7 @@ namespace BHS.CRG.Infrastructure.Persistence;
 /// Репозиторий единого <see cref="DomainObject"/> (issue #84). Грузит документную фасету и её
 /// сгенерированные файлы — для общих данных фасета просто отсутствует (null).
 /// </summary>
-public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(db), IDomainObjectRepository
+public partial class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(db), IDomainObjectRepository
 {
     public override Task<DomainObject?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => Db.Set<DomainObject>()
