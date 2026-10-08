@@ -101,6 +101,19 @@ public sealed class InvoiceScanRecognition(
                 : null);
     }
 
+    /// <summary>
+    /// Что прочитано в НЫНЕШНЕМ скане счёта; <c>null</c> — распознавание не закончено, не удалось
+    /// или относится к файлу, который с тех пор заменили.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string?>?> ReadValuesAsync(Invoice invoice, CancellationToken ct)
+    {
+        var stored = await db.InvoiceRecognitions.AsNoTracking().FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
+        return stored is { Outcome: InvoiceRecognitionOutcome.Done, Values: { } values }
+               && stored.ScanBlobPath == invoice.ScanBlobPath
+            ? Read(values.RootElement)
+            : null;
+    }
+
     /// <summary>Сохранённое «ключ профиля → текст» — тем же видом, каким его отдал порт.</summary>
     private static Dictionary<string, string?> Read(JsonElement values) =>
         values.ValueKind != JsonValueKind.Object

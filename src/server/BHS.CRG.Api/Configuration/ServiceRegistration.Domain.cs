@@ -194,6 +194,9 @@ internal static class DomainRegistration
     // Признак архива записи справочника (issue #1185): единственный писатель колонки.
     builder.Services.AddScoped<BHS.CRG.Application.Objects.IRecordArchive,
         BHS.CRG.Infrastructure.Persistence.RecordArchive>();
+    // Заведение записи справочника по названию и одному значению (issue #1077) — для порта модулей.
+    builder.Services.AddScoped<BHS.CRG.Application.Documents.ICatalogIntake,
+        BHS.CRG.Infrastructure.Documents.CatalogIntakeService>();
     // Держатели записей ядра в данных модулей (issue #1094). Регистрируются всегда, а не модулем:
     // спрашивать надо и о выключенном модуле, и о схеме, чьего модуля в сборке нет.
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Persistence.ModuleReferenceScan>();

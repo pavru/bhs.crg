@@ -235,7 +235,7 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
     private static int taxIdSeed = 770100000;
 
     /// <summary>Свой ИНН на каждую организацию — с верной контрольной суммой: справочник у класса общий.</summary>
-    private static string NextTaxId()
+    internal static string NextTaxId()
     {
         var head = Interlocked.Increment(ref taxIdSeed).ToString();
         int[] weights = [2, 4, 10, 3, 5, 9, 4, 6, 8];
@@ -252,17 +252,22 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         (await SendAsync(new CreateCommonDataEntryCommand(name, type, JsonDocument.Parse(data), CatalogScope.System, null))).Id;
 
     /// <summary>
-    /// Тип «Организация» с полем ИНН. Посев класса заводит его без полей — как на чистой базе, где тип
-    /// ещё не настроен; у заказчика поле есть, и ведёт его человек.
+    /// Тип «Организация» с полями названия и ИНН. Посев класса заводит его без полей — как на чистой
+    /// базе, где тип ещё не настроен; у заказчика поля есть, и ведёт их человек.
     /// </summary>
-    private async Task<Guid> OrganizationsAsync()
+    private Task<Guid> OrganizationsAsync() => OrganizationsAsync(host);
+
+    /// <summary>Общий с <c>InvoicePartyOrganizationTests</c>: база у классов этого хоста одна, и схема
+    /// типа обязана быть одной и той же, кто бы из них ни пришёл первым.</summary>
+    internal static async Task<Guid> OrganizationsAsync(InvoiceScanHost host)
     {
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
         var type = (await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Single();
         if (!type.Schema.RootElement.GetRawText().Contains("\"ИНН\""))
         {
-            type.UpdateSchema(JsonDocument.Parse("""{"fields":[{"key":"ИНН","type":"string","title":"ИНН"}]}"""));
+            type.UpdateSchema(JsonDocument.Parse(
+                """{"fields":[{"key":"Наименование","type":"string","title":"Наименование","required":true},{"key":"ИНН","type":"string","title":"ИНН","required":true}]}"""));
             types.Update(type);
             await types.SaveChangesAsync();
         }

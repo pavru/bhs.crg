@@ -90,11 +90,13 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
         var costs = catalog.All.Where(p => p.Code.StartsWith("costs.", StringComparison.Ordinal)).ToList();
 
-        // Восемь, а не одиннадцать по перечню ТЗ: согласование (C6), заявки на закупку (этап 3) и
+        // Девятое — costs.organization.create (issue #1077): завести организацию из скана счёта, своим
+        // правом, а не частью правки счёта, — запись ложится в справочник ядра.
+        // Остальных восемь, а не одиннадцать по перечню ТЗ: согласование (C6), заявки на закупку (этап 3) и
         // costs.materials.read (контракт «Материалы на объекте», G6) вынесены — см. причины в
         // CostsModule. Число названо здесь нарочно: право, добавленное без причины, обязано
         // столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(8, costs.Count);
+        Assert.Equal(9, costs.Count);
         Assert.All(costs, p => Assert.Null(p.Validate()));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
 

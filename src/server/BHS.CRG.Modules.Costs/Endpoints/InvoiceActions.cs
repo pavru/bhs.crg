@@ -113,8 +113,14 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction Recognized =
         new("costs.invoice.recognized", "Счёт заполнен из скана", InvoiceRead);
 
+    // Организация заведена из скана (issue #1077). Запись — справочника ЯДРА, а создание записи ядро
+    // само не журналирует: без этой строки не узнать ни кто её завёл, ни по какому счёту. Закрыта
+    // правом чтения счетов: запись называет счёт и поставщика — это уже данные счёта.
+    public static readonly ModuleActivityAction OrganizationCreated =
+        new("costs.organization.created", "Организация заведена из скана счёта", InvoiceRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, LinesChanged, Parsed, Draft, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, Parsed, Draft, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

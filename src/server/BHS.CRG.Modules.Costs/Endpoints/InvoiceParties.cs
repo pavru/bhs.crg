@@ -89,6 +89,10 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
     /// состояние <c>unavailable</c> с названием поля, а не «организаций нет».</summary>
     public const string TaxIdField = "ИНН";
 
+    /// <summary>Ключ поля названия в типе «Организация» — в него ложится название при заведении
+    /// организации из скана. Строение поля (строка или «Полное / Сокращённое») знает ядро.</summary>
+    public const string NameField = "Наименование";
+
     public async Task<InvoicePartiesView> MatchAsync(IReadOnlyDictionary<string, string?> read, CancellationToken ct)
     {
         var supplier = Side(read, CostsRecognitionProfiles.Supplier, CostsRecognitionProfiles.SupplierTaxId);

@@ -40,6 +40,16 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public const string InvoiceEdit = "costs.invoice.edit";
 
+    /// <summary>
+    /// Завести организацию, прочитанную в скане счёта (issue #1077). Своё право, а не часть правки
+    /// счёта: запись ложится в справочник ЯДРА, который иначе ведут под <c>core.catalog.edit</c>.
+    /// Выдаётся обычно вместе с <see cref="InvoiceEdit" /> — кто вводит счета, тому оно нужно, и у
+    /// системной роли «Снабженец» оно есть, — но администратор видит эту способность отдельной
+    /// галкой и может собрать роль без неё. ⚠️ Права не вкладываются друг в друга: роль, собранная
+    /// заказчиком, получит его, только когда галку поставят.
+    /// </summary>
+    public const string OrganizationCreate = "costs.organization.create";
+
     public string Code => ModuleCode;
 
     public string Title => "Счета и накладные";
@@ -97,8 +107,15 @@ public sealed class CostsModule : IAppModule
             "заводить и править счета, их строки и сопоставление наименований поставщиков с номенклатурой",
             "то же, что чтение, плюс изменение — включая исправление счёта закрытого периода новой " +
             "версией с причиной",
-            ["costs.invoice.read", "costs.allocation.edit", "core.nomenclature.edit"],
+            ["costs.invoice.read", "costs.allocation.edit", "core.nomenclature.edit", OrganizationCreate],
             ReadAllMark.Out("заводит и правит счета")),
+
+        new(OrganizationCreate,
+            "заводить в справочнике организацию, прочитанную в скане счёта, если её там ещё нет",
+            "запись в общий справочник организаций — только новую, только с названием и ИНН из скана " +
+            "этого счёта; править, архивировать и удалять организации это право не даёт",
+            ["costs.invoice.read"],
+            ReadAllMark.Out("заводит запись в справочнике организаций")),
 
         // Оплата — своё право, а не часть правки счёта (ТЗ COST-28, COST-9). Отметка оплаты меняет
         // цифры отчётов и учётный период, то есть закрытые данные бухгалтерии; сложи мы её в
@@ -164,6 +181,13 @@ public sealed class CostsModule : IAppModule
     /// задачей D1 (issue #1083), строки счёта — C2 (issue #1078) своей таблицей.
     /// </summary>
     public IReadOnlyList<ModuleRecordType> RecordTypes => CostsRecordTypes.All;
+
+    /// <summary>
+    /// В справочники ядра модуль заводит одно — организацию из скана счёта (issue #1077): название и
+    /// ИНН. Ключи полей типа ведёт человек; переименует — заведение откажет названной причиной.
+    /// </summary>
+    public IReadOnlyList<ModuleIntakeType> IntakeTypes =>
+        [new(CostsRecordTypes.OrganizationCode, Endpoints.InvoiceParties.NameField, Endpoints.InvoiceParties.TaxIdField)];
 
     /// <summary>
     /// Тэги модуля (ТЗ TYPE-21): контрагент, плательщик, итог и НДС документа. Подробнее — в
@@ -269,6 +293,7 @@ public sealed class CostsModule : IAppModule
     {
         InvoiceEndpoints.MapInvoices(endpoints);
         InvoiceRecognitionEndpoints.Map(endpoints);
+        InvoicePartyIntakeEndpoints.Map(endpoints);
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
         AllocationEndpoints.MapAllocation(endpoints);
         AllocationMatrixEndpoints.Map(endpoints);

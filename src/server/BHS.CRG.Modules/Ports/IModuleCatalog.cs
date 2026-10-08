@@ -122,7 +122,7 @@ public sealed record ModuleCatalogFieldValues(bool Declared, IReadOnlyList<Modul
 /// справочнике нет, issue #1077), и решение по нему такое: дубли предотвращает сопоставление по ИНН
 /// (<see cref="FieldValuesAsync" />) — «нет в справочнике» говорится, только когда прочитаны все
 /// записи; а заводит организацию человек, кнопкой в счёте (решение владельца продукта от 08.10.2026)
-/// — отдельным пишущим портом, не методом здесь.</para>
+/// — отдельным пишущим портом <see cref="IModuleCatalogIntake" />, не методом здесь.</para>
 /// </summary>
 public interface IModuleCatalog
 {
