@@ -7,7 +7,7 @@
        К InformationalVersion SDK добавляет +<git-sha> (см. target ниже) для трассировки сборок
        на внутреннем тестировании. -->
   <PropertyGroup>
-        <Version>1.27.36</Version>
+        <Version>1.27.37</Version>
   </PropertyGroup>
 
   <!-- Доменные отказы (BHS.CRG.Domain.Common) доступны без using во всех проектах, кроме
