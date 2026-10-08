@@ -48,10 +48,6 @@ public sealed class InvoiceScanListTests(InvoiceScanHost host)
     }
 
     /// <summary>
-    /// Шапка прочитана, строк нет — счёт со сканом всё ещё пуст, и работа та же: он под отбором, а строка
-    /// говорит, что это не отказ (решение владельца 08.10.2026).
-    /// </summary>
-    /// <summary>
     /// Пакет сканов (задача D4, issue #1093): десять файлов — десять черновиков, и тот, что не
     /// распознался, остаётся черновиком с названной причиной, а не исчезает.
     ///
@@ -113,6 +109,10 @@ public sealed class InvoiceScanListTests(InvoiceScanHost host)
         Assert.DoesNotContain(list.EnumerateArray(), r => r.GetProperty("scanFileName").GetString() == "Большой.pdf");
     }
 
+    /// <summary>
+    /// Шапка прочитана, строк нет — счёт со сканом всё ещё пуст, и работа та же: он под отбором, а строка
+    /// говорит, что это не отказ (решение владельца 08.10.2026).
+    /// </summary>
     [Fact]
     public async Task Прочитанный_без_строк_под_отбором_и_назван_не_отказом()
     {

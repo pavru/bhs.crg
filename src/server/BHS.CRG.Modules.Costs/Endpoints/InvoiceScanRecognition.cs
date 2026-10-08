@@ -40,8 +40,8 @@ public sealed class InvoiceScanRecognition(
     public const string Operation = "costs.invoice.recognize";
 
     /// <summary>Что движки читают наверняка. Остальное приложить можно, распознать — нет.</summary>
-    private static readonly HashSet<string> Readable =
-        new(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/png", "image/jpeg" };
+    public static readonly IReadOnlySet<string> Readable =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/png", "image/jpeg" };
 
     internal static bool IsReadable(string? mimeType) => mimeType is not null && Readable.Contains(mimeType);
 
@@ -68,16 +68,10 @@ public sealed class InvoiceScanRecognition(
     private static readonly TimeSpan StartGrace = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// Распознавание СТАВИТСЯ: запись уже сохранена, номер задачи — ещё нет.
-    ///
-    /// <para>Постановка пишет запись ДО очереди (иначе обработчик стартовал бы без записи об исходе), и
-    /// между двумя сохранениями она выглядит ровно как оборванная: ждёт исхода, задачи нет. Прочитанная
-    /// в этот миг — другим человеком или опросом списка — она называлась бы «прервано», стояла бы под
-    /// «Не распознано» и входила бы в число чипа, хотя распознавание только начинается (ревью PR #1259).
-    /// Свежая такая запись — «идёт»; постаревшая — прервано: до очереди она так и не дошла.</para>
+    /// Наибольший скан, из которого заводится счёт. То же число называет экран и предел вложения ядра —
+    /// совпадение сверяет <c>ScanLimitsAgreeTests</c>.
     /// </summary>
-    /// <summary>Наибольший скан, из которого заводится счёт. То же число называет экран.</summary>
-    internal const long MaxScanBytes = 50L * 1024 * 1024;
+    public const long MaxScanBytes = 50L * 1024 * 1024;
 
     /// <summary>
     /// Заголовок задачи в общем индикаторе. У счёта без номера — имя файла: сканы грузят пачкой
@@ -87,6 +81,15 @@ public sealed class InvoiceScanRecognition(
         "Распознавание скана: " +
         (invoice.Number is null && invoice.ScanFileName is { } file ? file : InvoiceEndpoints.Label(invoice));
 
+    /// <summary>
+    /// Распознавание СТАВИТСЯ: запись уже сохранена, номер задачи — ещё нет.
+    ///
+    /// <para>Постановка пишет запись ДО очереди (иначе обработчик стартовал бы без записи об исходе), и
+    /// между двумя сохранениями она выглядит ровно как оборванная: ждёт исхода, задачи нет. Прочитанная
+    /// в этот миг — другим человеком или опросом списка — она называлась бы «прервано», стояла бы под
+    /// «Не распознано» и входила бы в число чипа, хотя распознавание только начинается (ревью PR #1259).
+    /// Свежая такая запись — «идёт»; постаревшая — прервано: до очереди она так и не дошла.</para>
+    /// </summary>
     internal static bool IsStarting(InvoiceRecognitionOutcome? outcome, Guid? jobId, DateTimeOffset startedAt) =>
         outcome == InvoiceRecognitionOutcome.Pending && jobId is null
         && DateTimeOffset.UtcNow - startedAt < StartGrace;

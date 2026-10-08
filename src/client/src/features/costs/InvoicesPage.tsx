@@ -14,7 +14,8 @@ import {
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
-import { sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
+import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
+import { useAuth } from '@/shared/hooks/useAuth';
 import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
@@ -24,7 +25,7 @@ import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
-import { retryRejected, startBatch, useScanBatch } from './scanBatch';
+import { SCAN_ACCEPT, retryRejected, startBatch, useScanBatch, type BatchPort } from './scanBatch';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -108,12 +109,17 @@ export function InvoicesPage() {
    * полоса над списком. Решает число выбранных файлов, а не принятых: один — открывает свой черновик.
    */
   const qc = useQueryClient();
-  const batch = useScanBatch();
+  const me = useAuth().user?.sub;
+  const batch = useScanBatch(me);
   const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
-  const sendOne = (file: File) => sendScan(qc, file).then(created => created.invoice.id);
+  const port: BatchPort = {
+    owner: me ?? '',
+    send: file => sendScan(qc, file).then(created => created.invoice.id),
+    refresh: () => refreshInvoiceLists(qc),
+  };
   function addScans(files: File[], folders: string[] = []) {
     if (files.length === 1 && folders.length === 0) void addFromScan(files[0]);
-    else startBatch(files, folders, sendOne);
+    else startBatch(files, folders, port);
   }
 
   const scan = view.data ? view.data.requisites[K.scan] : null;
@@ -147,7 +153,7 @@ export function InvoicesPage() {
               </Button>
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
-              <input ref={scanInput} type="file" multiple className="hidden" accept="application/pdf,image/png,image/jpeg"
+              <input ref={scanInput} type="file" multiple className="hidden" accept={SCAN_ACCEPT}
                 onChange={e => {
                   const files = [...e.target.files ?? []];
                   e.target.value = '';
@@ -163,8 +169,8 @@ export function InvoicesPage() {
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} failed={counts.isError}
             onRetry={() => void counts.refetch()} />
-          <InvoiceScanBatchBar narrowed={queue !== null || query.trim() !== ''}
-            onShowAll={() => { setQueue(null); setQuery(''); }} onRetry={() => retryRejected(sendOne)} />
+          <InvoiceScanBatchBar batch={batch} narrowed={queue !== null || query.trim() !== ''}
+            onShowAll={() => { setQueue(null); setQuery(''); }} onRetry={() => retryRejected(port)} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-xs text-warning" role="status">

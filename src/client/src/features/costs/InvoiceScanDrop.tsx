@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { carriesFiles, droppedFiles, useFileDragActive } from '@/shared/ui/fileDrop';
 import { ruCount } from '@/shared/utils/pluralize';
-import { batchTitle, dismissBatch, retryable, stopBatch, useScanBatch } from './scanBatch';
+import { batchTitle, dismissBatch, retryable, stopBatch, type ScanBatch } from './scanBatch';
 
 /**
  * Колонка списка счетов как цель перетаскивания сканов (задача D4, issue #1093).
@@ -68,13 +68,14 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
  * <p>Тостов у пакета нет: непринятые файлы с причинами обязаны дожить до того, как человек на них
  * посмотрит, а тост уходит через восемь секунд. Закрывает полосу крестик или следующий пакет.</p>
  */
-export function InvoiceScanBatchBar({ narrowed, onShowAll, onRetry }: {
+export function InvoiceScanBatchBar({ batch, narrowed, onShowAll, onRetry }: {
+  /** Пакет вошедшего; чужой сюда не приходит. */
+  batch: ScanBatch | null;
   /** Список сужен отбором или поиском — новые черновики под ним могут быть не видны. */
   narrowed: boolean;
   onShowAll: () => void;
   onRetry: () => void;
 }) {
-  const batch = useScanBatch();
   if (!batch) return null;
 
   const done = batch.phase === 'done';

@@ -108,13 +108,19 @@ export interface InvoiceFromScan {
  */
 export function useInvoiceFromScan() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (file: File) => sendScan(qc, file) });
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const created = await sendScan(qc, file);
+      refreshInvoiceLists(qc);
+      return created;
+    },
+  });
 }
 
 /**
  * Тот же запрос вне хука — для пакета сканов (issue #1093): пакет живёт дольше страницы, с которой
  * его начали, и шлёт файлы по одному сам. Клиент запросов у приложения один, поэтому кэш обновляется
- * и тогда, когда страницы уже нет на экране.
+ * и тогда, когда страницы уже нет на экране. Списки НЕ перечитывает — см. `refreshInvoiceLists`.
  */
 export async function sendScan(qc: QueryClient, file: File): Promise<InvoiceFromScan> {
   const form = new FormData();
@@ -122,9 +128,17 @@ export async function sendScan(qc: QueryClient, file: File): Promise<InvoiceFrom
   const created = (await apiClient.post<InvoiceFromScan>('/costs/invoices/from-scan', form)).data;
   qc.setQueryData([QK, created.invoice.id], created.invoice);
   qc.setQueryData(recognitionKey(created.invoice.id), created.recognition);
+  return created;
+}
+
+/**
+ * Список счетов и числа отборов — перечитать. Отдельно от отправки: пакет из пятидесяти файлов иначе
+ * перечитывал бы весь список пятьдесят раз подряд (ревью PR #1260); он зовёт это раз в несколько
+ * файлов и в конце.
+ */
+export function refreshInvoiceLists(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: [QK, 'list'] });
   void qc.invalidateQueries({ queryKey: [QK, 'queues'] });
-  return created;
 }
 
 /**
