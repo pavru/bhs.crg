@@ -40,8 +40,8 @@ public sealed class InvoiceScanRecognition(
     public const string Operation = "costs.invoice.recognize";
 
     /// <summary>Что движки читают наверняка. Остальное приложить можно, распознать — нет.</summary>
-    private static readonly HashSet<string> Readable =
-        new(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/png", "image/jpeg" };
+    public static readonly IReadOnlySet<string> Readable =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/png", "image/jpeg" };
 
     internal static bool IsReadable(string? mimeType) => mimeType is not null && Readable.Contains(mimeType);
 
@@ -66,6 +66,20 @@ public sealed class InvoiceScanRecognition(
 
     /// <summary>Сколько запись без номера задачи считается «ставится», а не «прервано».</summary>
     private static readonly TimeSpan StartGrace = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Наибольший скан, из которого заводится счёт. То же число называет экран и предел вложения ядра —
+    /// совпадение сверяет <c>ScanLimitsAgreeTests</c>.
+    /// </summary>
+    public const long MaxScanBytes = 50L * 1024 * 1024;
+
+    /// <summary>
+    /// Заголовок задачи в общем индикаторе. У счёта без номера — имя файла: сканы грузят пачкой
+    /// (issue #1093), и десять задач «Счёт без номера» не сказали бы, какая из них о каком файле.
+    /// </summary>
+    internal static string Title(Invoice invoice) =>
+        "Распознавание скана: " +
+        (invoice.Number is null && invoice.ScanFileName is { } file ? file : InvoiceEndpoints.Label(invoice));
 
     /// <summary>
     /// Распознавание СТАВИТСЯ: запись уже сохранена, номер задачи — ещё нет.
@@ -191,7 +205,7 @@ public sealed class InvoiceScanRecognition(
         try
         {
             stored.Queued(await jobs.EnqueueAsync(
-                Operation, invoice.Id, $"Распознавание скана: {InvoiceEndpoints.Label(invoice)}", invoice.ScanBlobPath, ct));
+                Operation, invoice.Id, Title(invoice), invoice.ScanBlobPath, ct));
         }
         catch (ConflictException busy)
         {

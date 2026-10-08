@@ -13,6 +13,7 @@ import { useRecognitionJobs, useCancelJob, type ActiveJob } from '@/shared/api/j
 import type { CatalogScope, DataSetFile } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { ruCount } from '@/shared/utils/pluralize';
+import { carriesFiles } from '@/shared/ui/fileDrop';
 import { SourcesPanel, FileRecognizeActions } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 
@@ -293,7 +294,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
 
   // Drag-drop загрузка — вся панель drop-target с dashed-оверлеем при dragover.
   function onDragOver(e: React.DragEvent) {
-    if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragOver(true); }
+    if (carriesFiles(e.dataTransfer)) { e.preventDefault(); setDragOver(true); }
   }
   function onDragLeave(e: React.DragEvent) {
     if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);

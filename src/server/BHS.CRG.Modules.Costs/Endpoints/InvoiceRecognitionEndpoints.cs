@@ -52,6 +52,11 @@ public static class InvoiceRecognitionEndpoints
     {
         if (file.Length == 0)
             throw new InvalidRequestException("Файл пуст — распознавать и прикладывать нечего.");
+        // Предел назван словами и здесь, а не только на клиенте: без него файл между этим числом и
+        // пределом тела запроса проходил бы мимо экрана, который его отвергает (issue #1093).
+        if (file.Length > InvoiceScanRecognition.MaxScanBytes)
+            throw new InvalidRequestException(
+                $"Файл больше {InvoiceScanRecognition.MaxScanBytes / (1024 * 1024)} МБ — счёт из такого скана не заводится.");
         if (!InvoiceScanRecognition.IsReadable(file.ContentType))
             throw new InvalidRequestException(
                 "Из скана счёт заводится по PDF, PNG или JPEG. Файл другого вида можно приложить к счёту, " +
