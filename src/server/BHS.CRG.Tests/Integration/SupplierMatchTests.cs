@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Security.Claims;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Endpoints;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -228,7 +231,11 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
 
     /// <summary>
     /// Сторож задачи: сопоставление — под <c>costs.invoice.edit</c>, а не под правом номенклатуры.
-    /// У сметчика <c>core.nomenclature.edit</c> есть, права на счета нет — и адрес ему закрыт.
+    ///
+    /// <para>⚠️ Роль собрана нарочно: право номенклатуры и ЧТЕНИЕ счетов, без правки. Системной роли с
+    /// таким составом нет, а сметчик (у него право номенклатуры есть) сторожем не годится — его отсекает
+    /// политика модуля раньше, чем дело доходит до права: адрес, отданный под право номенклатуры,
+    /// отвечал бы ему тем же 403 (проверено поломкой).</para>
     /// </summary>
     [Fact]
     public async Task Право_номенклатуры_сопоставление_не_открывает()
@@ -236,9 +243,21 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var vendor = await VendorAsync();
         var body = new { supplierId = vendor, lines = new[] { new { supplierText = "Кабель" } } };
 
-        var (estimator, _) = await SignInAsync("Estimator");
+        var role = $"Справочник-{Guid.NewGuid():N}"[..24];
+        using (var scope = host.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var created = new IdentityRole<Guid>(role);
+            Assert.True((await roles.CreateAsync(created)).Succeeded);
+            foreach (var code in new[] { "core.nomenclature.edit", "core.catalog.read", "costs.invoice.read" })
+                Assert.True((await roles.AddClaimAsync(created, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
+        }
+
+        var (keeper, _) = await SignInAsync(role);
+        // Модуль ему открыт — иначе 403 ниже был бы про модуль, а не про право.
+        Assert.Equal(HttpStatusCode.OK, (await keeper.GetAsync("/api/costs/nomenclature?query=")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
-            (await estimator.PostAsJsonAsync("/api/costs/supplier-matches/suggestions", body)).StatusCode);
+            (await keeper.PostAsJsonAsync("/api/costs/supplier-matches/suggestions", body)).StatusCode);
 
         // Читающему счета — тоже: подставить ему некуда.
         var (accountant, _) = await SignInAsync("Accountant");
