@@ -1,6 +1,8 @@
 using System.IO.Compression;
+using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Modules.Costs.Data;
 using Microsoft.Extensions.Configuration;
@@ -61,6 +63,63 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         var read = await ReadAsync(client, invoice);
         Assert.Equal(1, read.GetProperty("lines").GetArrayLength());
         Assert.True(read.GetProperty("allocation").GetProperty("allocated").GetBoolean());
+    }
+
+    /// <summary>
+    /// Скан счёта уезжает в копию ФАЙЛОМ и открывается после восстановления.
+    ///
+    /// <para>Строка счёта со ссылкой на скан в копию попадает (секция модуля), и без файла рядом она —
+    /// обещание, которое не исполнится: счёт восстановлен, скан «приложен», а открыть нечего. Потеря
+    /// здесь двойная, как в жизни: нет ни данных модуля, ни файла в хранилище.</para>
+    /// </summary>
+    [Fact]
+    public async Task Скан_счёта_уезжает_в_копию_файлом_и_открывается_после_восстановления()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client);
+        var path = await AttachScanAsync(client, invoice, "Счёт 31.pdf", "%PDF-1.4 скан для копии");
+
+        var (archive, manifest) = await ExportAsync();
+
+        // Ссылка в копии есть — иначе отсутствие файла было бы следствием отсутствия строки.
+        var rows = Assert.Single(manifest.ModuleData!).Tables.Single(t => t.Table == "invoices").Rows;
+        Assert.Contains(rows, r => r.GetProperty("scan_blob_path").GetString() == path);
+
+        using (var zip = new ZipArchive(archive, ZipArchiveMode.Read, leaveOpen: true))
+            Assert.True(zip.GetEntry($"blobs/{path}") is not null,
+                $"файла скана нет в архиве; файлы в архиве: [{string.Join(", ",
+                    zip.Entries.Where(e => e.FullName.StartsWith("blobs/", StringComparison.Ordinal)).Select(e => e.FullName))}]");
+        archive.Position = 0;
+
+        await ExecuteAsync($"TRUNCATE {CostsDbContext.SchemaName}.\"invoices\" CASCADE");
+        using (var scope = _host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<IBlobStorage>().DeleteAsync(path);
+
+        RestoreReport report;
+        using (var scope = _host.Services.CreateScope())
+            report = await scope.ServiceProvider.GetRequiredService<BackupService>().ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+
+        var content = await client.GetAsync($"/api/costs/invoices/{invoice}/scan");
+        Assert.True(content.IsSuccessStatusCode, $"скан после восстановления не открылся: {(int)content.StatusCode}");
+        Assert.Contains("скан для копии", await content.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>Приложить скан и вернуть путь, по которому он лёг в хранилище.</summary>
+    private static async Task<string> AttachScanAsync(HttpClient client, Guid id, string fileName, string body)
+    {
+        var version = (await ReadAsync(client, id)).GetProperty("version").GetString()!;
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(body));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", fileName);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/costs/invoices/{id}/scan") { Content = form };
+        request.Headers.TryAddWithoutValidation("If-Match", version);
+
+        var response = await client.SendAsync(request);
+        await OkAsync(response);
+        var view = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return view.GetProperty("requisites").GetProperty("Скан").GetProperty("blobPath").GetString()!;
     }
 
     private async Task<(MemoryStream Archive, BackupManifest Manifest)> ExportAsync()
