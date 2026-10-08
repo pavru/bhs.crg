@@ -202,16 +202,17 @@ public sealed class InvoiceScanReading(
         Put(CostsRecognitionProfiles.VatTotal, InvoiceRequisites.VatTotalKey, "В том числе НДС",
             text => RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null);
 
-        // Стороны — по ИНН. В поле ложится только ЕДИНСТВЕННАЯ действующая организация, и только в
-        // пустое: несколько совпадений выбирает человек, а архивную в новый счёт не ставят. Прочие
+        // Стороны — по ИНН. В поле ложится только НАЙДЕННАЯ организация (одна действующая либо
+        // организация среди своих ролей), и только в пустое: между разными записями выбирает
+        // человек, а архивную в новый счёт не ставят. Прочие
         // исходы не хранятся — их считает вид при каждом чтении (см. InvoiceParties).
         var matched = await parties.MatchAsync(read.Fields, ct);
         void PutParty(InvoicePartyView? party, string requisiteKey)
         {
-            if (party is not { State: "matched" }) return;
+            if (party is not { State: "matched", Match: { } match }) return;
             if (!IsBlank(before.TryGetPropertyValue(requisiteKey, out var was) ? was : null)) return;
 
-            after[requisiteKey] = InvoiceRequisites.ReferenceNode(party.Candidates.Single(c => !c.Archived).Id);
+            after[requisiteKey] = InvoiceRequisites.ReferenceNode(match);
             filled.Add(requisiteKey);
         }
 

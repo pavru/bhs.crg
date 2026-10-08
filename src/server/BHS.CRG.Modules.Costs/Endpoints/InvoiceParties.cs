@@ -14,8 +14,10 @@ public sealed record InvoicePartyCandidate(Guid Id, string? Name, string Type, b
 /// Сторона счёта, как она прочитана в скане, и что о ней говорит справочник (issue #1077).
 /// </summary>
 /// <param name="State">
-/// <c>matched</c> — одна действующая организация с таким ИНН;
-/// <c>several</c> — действующих несколько, выбирает человек;
+/// <c>matched</c> — организация найдена: она названа в <paramref name="Match" />. Это либо
+/// единственная действующая запись с таким ИНН, либо организация вместе со своими ролями;
+/// <c>several</c> — действующих несколько, и это разные записи, а не организация и её роли —
+/// выбирает человек;
 /// <c>archived</c> — совпали только архивные;
 /// <c>absent</c> — в справочнике такой нет, и прочитаны ВСЕ записи;
 /// <c>unknown</c> — совпадений нет, но часть записей прочитать не удалось: «нет» утверждать нельзя;
@@ -27,9 +29,11 @@ public sealed record InvoicePartyCandidate(Guid Id, string? Name, string Type, b
 /// <param name="TaxId">ИНН: проверенный — цифрами, непрочитанный — текстом из скана.</param>
 /// <param name="Why">Почему состояние такое — словами для человека; у <c>matched</c> пусто.</param>
 /// <param name="Unreadable">Сколько записей справочника прочитать не удалось.</param>
+/// <param name="Match">Найденная организация — есть только у <c>matched</c>. Отдельным полем, а не
+/// «первым кандидатом»: в <paramref name="Candidates" /> лежат и её роли, и архивные двойники.</param>
 public sealed record InvoicePartyView(
     string State, string? Name, string? TaxId, string? Why,
-    IReadOnlyList<InvoicePartyCandidate> Candidates, int Unreadable);
+    IReadOnlyList<InvoicePartyCandidate> Candidates, int Unreadable, Guid? Match = null);
 
 /// <summary>Обе стороны; <c>null</c> — про сторону в скане не прочитано ничего.</summary>
 public sealed record InvoicePartiesView(InvoicePartyView? Supplier, InvoicePartyView? Payer);
@@ -107,11 +111,13 @@ public sealed class InvoiceParties(IModuleCatalog catalog)
             .Select(r => new InvoicePartyCandidate(
                 r.Record.Id, r.Record.DisplayName, r.Record.EntityType, r.Record.Archived, r.InheritedFrom))
             .ToList();
-        var live = found.Count(c => !c.Archived);
+        var live = found.Where(c => !c.Archived).ToList();
 
-        return live switch
+        return live.Count switch
         {
-            1 => new("matched", side.Name, taxId, null, found, unreadable),
+            1 => new("matched", side.Name, taxId, null, found, unreadable, live[0].Id),
+            > 1 when Principal(live) is { } principal =>
+                new("matched", side.Name, taxId, null, found, unreadable, principal),
             > 1 => new("several", side.Name, taxId,
                 $"С ИНН {taxId} в справочнике несколько действующих записей — выберите нужную.", found, unreadable),
             _ when found.Count > 0 => new("archived", side.Name, taxId,
@@ -124,6 +130,24 @@ public sealed class InvoiceParties(IModuleCatalog catalog)
                 [], unreadable),
             _ => new("absent", side.Name, taxId, $"Организации с ИНН {taxId} в справочнике нет.", [], 0),
         };
+    }
+
+    /// <summary>
+    /// Организация среди своих ролей; <c>null</c> — совпавшие записи не одна организация.
+    ///
+    /// <para>Роль («Подрядчик», «Заказчик») — запись стройки, которая реквизиты наследует; для документов
+    /// стройки она и нужна, а поставщик счёта — сама организация. На живых данных роль есть почти у
+    /// каждой организации, и без этого правила сопоставление всегда отвечало бы «несколько» (решение
+    /// владельца продукта от 08.10.2026, по итогам проверки на стенде).</para>
+    ///
+    /// <para>⚠️ Узко нарочно: ИНН у всех совпавших взят у ОДНОЙ записи, и она сама среди действующих.
+    /// Две записи со своим ИНН каждая — дубли, между ними выбирает человек. Основа в архиве при живых
+    /// ролях — тоже не этот случай: архивную в новый счёт не ставят.</para>
+    /// </summary>
+    private static Guid? Principal(List<InvoicePartyCandidate> live)
+    {
+        var sources = live.Select(c => c.InheritedFrom ?? c.Id).Distinct().ToList();
+        return sources.Count == 1 && live.Any(c => c.Id == sources[0] && c.InheritedFrom is null) ? sources[0] : null;
     }
 
     private static string? Text(IReadOnlyDictionary<string, string?> read, string key) =>

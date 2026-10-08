@@ -54,12 +54,11 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
     }
 
     /// <summary>
-    /// Роль наследует ИНН от организации — в её собственных данных его нет. Без разрешения
-    /// наследования сопоставление видело бы одну запись и подставило бы её; с ним — две, и выбирает
-    /// человек. Поле остаётся пустым.
+    /// Роль наследует ИНН от организации — в её собственных данных его нет. Сопоставление видит обе
+    /// записи и узнаёт в них одну организацию: в счёт ложится она сама, а не роль.
     /// </summary>
     [Fact]
-    public async Task Организация_и_её_роль_не_подставляются_а_предлагаются_списком()
+    public async Task Организация_со_своей_ролью_подставляется_сама()
     {
         var type = await OrganizationsAsync();
         var (org, taxId) = await OrganizationAsync(type, "ООО «Кабель-Сервис»");
@@ -72,10 +71,35 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
         var supplier = (await OutcomeAsync(client, id)).GetProperty("parties").GetProperty("supplier");
 
-        Assert.Equal("several", supplier.GetProperty("state").GetString());
+        Assert.Equal("matched", supplier.GetProperty("state").GetString());
+        Assert.Equal(org, supplier.GetProperty("match").GetGuid());
         var candidates = supplier.GetProperty("candidates").EnumerateArray().ToList();
         Assert.Equal(new[] { org, role }.Order(), candidates.Select(c => c.GetProperty("id").GetGuid()).Order());
         Assert.Equal(org, candidates.Single(c => c.GetProperty("id").GetGuid() == role).GetProperty("inheritedFrom").GetGuid());
+
+        var view = await ReadAsync(client, id);
+        Assert.Equal(org, view.GetProperty("requisites").GetProperty("Поставщик").GetProperty("entryId").GetGuid());
+        Assert.Contains("Поставщик", Unconfirmed(view));
+    }
+
+    /// <summary>Две разные записи с одним ИНН не подставляются: поле пусто, выбирает человек.</summary>
+    [Fact]
+    public async Task Дубли_с_одним_ИНН_не_подставляются_а_предлагаются_списком()
+    {
+        var type = await OrganizationsAsync();
+        var (first, taxId) = await OrganizationAsync(type, "ООО «Дубль»");
+        var second = await EntryAsync(type, "Дубль, ООО", $$"""{"ИНН":"{{taxId}}"}""");
+
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(Header(supplier: "Дубль", supplierTaxId: taxId))));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        var supplier = (await OutcomeAsync(client, id)).GetProperty("parties").GetProperty("supplier");
+
+        Assert.Equal("several", supplier.GetProperty("state").GetString());
+        Assert.Equal(new[] { first, second }.Order(),
+            supplier.GetProperty("candidates").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).Order());
 
         var view = await ReadAsync(client, id);
         Assert.Equal(JsonValueKind.Null, view.GetProperty("requisites").GetProperty("Поставщик").ValueKind);

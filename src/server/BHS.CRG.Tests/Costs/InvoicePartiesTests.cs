@@ -74,6 +74,7 @@ public class InvoicePartiesTests
         Assert.Equal("matched", view.State);
         Assert.Null(view.Why);
         Assert.Equal(org.Record.Id, Assert.Single(view.Candidates).Id);
+        Assert.Equal(org.Record.Id, view.Match);
         Assert.Equal("Кабель-Торг ООО", view.Name);
         Assert.Equal(Valid, view.TaxId);
     }
@@ -91,21 +92,54 @@ public class InvoicePartiesTests
     }
 
     /// <summary>
-    /// Организация и её роли — несколько записей с одним ИНН. «Главную» не назначаем (решение
-    /// владельца продукта от 08.10.2026): отдаём все, с основой у каждой роли.
+    /// Организация и её роли — одна организация: найдена она сама, а не роль (решение владельца
+    /// продукта от 08.10.2026). Роли остаются в ответе, с основой у каждой.
     /// </summary>
     [Fact]
-    public async Task Организация_и_её_роли_дают_список_на_выбор()
+    public async Task Организация_среди_своих_ролей_найдена_и_это_она_а_не_роль()
     {
         var org = Record("ООО «Кабель-Торг»", Valid);
-        var role = Record("Кабель-Торг (подрядчик)", Valid, inheritedFrom: org.Record.Id);
+        var role = Record("Подрядчик", Valid, inheritedFrom: org.Record.Id);
+        var another = Record("Субподрядчик", Valid, inheritedFrom: org.Record.Id);
 
-        var view = await SupplierAsync(Catalog(org, role), "Кабель-Торг", Valid);
+        var view = await SupplierAsync(Catalog(role, org, another), "Кабель-Торг", Valid);
+
+        Assert.Equal("matched", view.State);
+        Assert.Equal(org.Record.Id, view.Match);
+        Assert.Equal(3, view.Candidates.Count);
+        Assert.Equal(org.Record.Id, view.Candidates.Single(c => c.Id == role.Record.Id).InheritedFrom);
+    }
+
+    /// <summary>
+    /// Сторож: правило «организация и её роли» не должно глотать настоящие дубли. Две записи со своим
+    /// ИНН каждая — разные записи, даже если у одной из них есть роль.
+    /// </summary>
+    [Fact]
+    public async Task Две_записи_со_своим_ИНН_остаются_выбором_человека()
+    {
+        var org = Record("ООО «Кабель-Торг»", Valid);
+        var twin = Record("Кабель-Торг (дубль)", Valid);
+        var role = Record("Подрядчик", Valid, inheritedFrom: org.Record.Id);
+
+        var view = await SupplierAsync(Catalog(org, twin, role), "Кабель-Торг", Valid);
 
         Assert.Equal("several", view.State);
-        Assert.Equal(2, view.Candidates.Count);
-        Assert.Equal(org.Record.Id, view.Candidates.Single(c => c.Id == role.Record.Id).InheritedFrom);
+        Assert.Null(view.Match);
         Assert.Contains("несколько", view.Why);
+    }
+
+    /// <summary>Основа в архиве, роли живы: архивную не ставим, а между ролями выбирает человек.</summary>
+    [Fact]
+    public async Task Роли_архивной_организации_остаются_выбором_человека()
+    {
+        var org = Record("ООО «Кабель-Торг»", Valid, archived: true);
+        var view = await SupplierAsync(
+            Catalog(org, Record("Подрядчик", Valid, inheritedFrom: org.Record.Id),
+                Record("Субподрядчик", Valid, inheritedFrom: org.Record.Id)),
+            "Кабель-Торг", Valid);
+
+        Assert.Equal("several", view.State);
+        Assert.Null(view.Match);
     }
 
     [Fact]
