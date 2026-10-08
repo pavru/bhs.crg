@@ -133,6 +133,13 @@ public class ModuleCatalogFieldValuesTests(IntegrationTestFixture host)
         var upTwice = await EntryAsync(type, "Вверх на стройку", $$"""{"_baseRef":"{{atConstruction}}"}""", CatalogScope.Set, set);
         var down = await EntryAsync(type, "Вниз на комплект", $$"""{"_baseRef":"{{atSet}}"}""", CatalogScope.Construction, construction);
         var across = await EntryAsync(type, "В чужой комплект", $$"""{"_baseRef":"{{atSet}}"}""", CatalogScope.Set, otherSet);
+        // Цепочка через ДВЕ ветки: запись системы → роль чужого комплекта → запись нашего комплекта.
+        // Система «выше» обеих, но вместе их не видит ни один комплект — и печать так не наследует.
+        var hop = await EntryAsync(type, "Посредник в чужом комплекте", $$"""{"_baseRef":"{{atSet}}"}""", CatalogScope.Set, otherSet);
+        var zigzag = await EntryAsync(type, "Через две ветки", $$"""{"_baseRef":"{{hop}}"}""");
+        // А по одной ветке через два звена — можно: система → раздел → стройка.
+        var middle = await EntryAsync(type, "Посредник в разделе", $$"""{"_baseRef":"{{atConstruction}}"}""", CatalogScope.Section, section);
+        var straight = await EntryAsync(type, "По одной ветке", $$"""{"_baseRef":"{{middle}}"}""");
 
         var values = await ValuesAsync(type);
 
@@ -140,6 +147,8 @@ public class ModuleCatalogFieldValuesTests(IntegrationTestFixture host)
         Assert.Equal(("7802345678", atConstruction, false), Of(values, upTwice));
         Assert.Equal(("7705000001", atSet, false), Of(values, down));
         Assert.Equal((null, null, true), Of(values, across));
+        Assert.Equal((null, null, true), Of(values, zigzag));
+        Assert.Equal(("7802345678", atConstruction, false), Of(values, straight));
     }
 
     private async Task<(Guid Construction, Guid Section, Guid Set)> TreeAsync()

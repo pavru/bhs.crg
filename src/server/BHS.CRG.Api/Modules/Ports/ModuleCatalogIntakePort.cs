@@ -25,10 +25,12 @@ public sealed class ModuleCatalogIntakePort(
                 $"Тип «{typeCode}» ни один включённый модуль не объявил в IntakeTypes — записи этого типа " +
                 "портом заведения не создаются.");
 
-        var found = await types.FindAsync(t => t.Code == typeCode, ct);
-        if (found.Count == 0) return null;
+        // Без учёта регистра — как читающий порт: иначе сопоставление находило бы тип и отвечало
+        // «организации нет», а заведение тут же отвечало бы «типа нет».
+        var all = await types.GetAllAsync(ct);
+        var type = all.FirstOrDefault(t => string.Equals(t.Code, typeCode, StringComparison.OrdinalIgnoreCase));
+        if (type is null) return null;
 
-        var type = found[0];
         if (!TypeStorageRules.KeptInCommonTable(type))
             throw new InvalidOperationException(
                 $"Тип «{typeCode}» лежит не в общей таблице (носитель «{type.Storage}») — портом заведения " +
@@ -38,7 +40,7 @@ public sealed class ModuleCatalogIntakePort(
             new CatalogIntakeRequest(type.Id, declared.NameField, declared.UniqueField, name, uniqueValue), ct);
 
         // Код вида у найденных — код ИХ типа: совпасть мог и подтип.
-        var codes = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id, t => t.Code);
+        var codes = all.ToDictionary(t => t.Id, t => t.Code);
         return new ModuleIntakeResult(
             outcome.Created is { } created
                 ? new ModuleCatalogRef(created.Id, type.Code, created.DisplayName, created.IsArchived)

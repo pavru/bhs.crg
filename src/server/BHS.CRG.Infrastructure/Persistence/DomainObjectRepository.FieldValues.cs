@@ -48,10 +48,11 @@ public partial class DomainObjectRepository
         // Цепочки областей — всем, кто участвует в наследовании, двумя запросами на всех: у записи со
         // своим полем сверять нечего, а по запросу на область выходили десятки обращений — роли лежат
         // по комплектам и разделам (ревью PR #1256).
-        var heirs = known.Values.Where(p => !p.HasOwn && BaseOf(p) is not null).ToList();
-        var scopes = heirs
-            .Concat(heirs.Select(h => known.GetValueOrDefault(BaseOf(h)!.Value)).OfType<FieldProbe>())
-            .Select(p => (p.ScopeLevel, p.ScopeId)).Distinct().ToList();
+        // Области — всех известных записей, а не только наследников и их прямых основ: цепочка
+        // основ бывает длиннее звена, и сверяется каждое.
+        var scopes = known.Values.Any(p => !p.HasOwn && BaseOf(p) is not null)
+            ? known.Values.Select(p => (p.ScopeLevel, p.ScopeId)).Distinct().ToList()
+            : [];
         var chains = scopes.Count == 0 ? [] : await ScopeChainBatch.LoadAsync(Db, scopes, ct);
 
         var result = new List<CommonDataFieldValue>(records.Count);
@@ -105,7 +106,8 @@ public partial class DomainObjectRepository
     }
 
     /// <summary>
-    /// Доходит ли наследник до основы.
+    /// Лежит ли очередная основа на одной ветке со ВСЕМ пройденным путём; если да — самая глубокая
+    /// запись пути (она может смениться), иначе <c>null</c>.
     ///
     /// <para>Печать сверяет основу с цепочкой КОМПЛЕКТА, в котором выпускается документ. У списка
     /// записей комплекта нет, поэтому правило здесь — «одна ветка»: основа лежит в области наследника
@@ -117,17 +119,26 @@ public partial class DomainObjectRepository
     /// <para>Чужая ветка (роль одной стройки наследует от записи другой) остаётся недостижимой: такую
     /// основу не подмешивает ни один документ. Основа-документ — только из комплекта наследника, как у
     /// печати.</para>
+    ///
+    /// <para>⚠️ Сверяется с САМОЙ ГЛУБОКОЙ записью пути, а не с исходным наследником. Записи лежат на
+    /// одной ветке, когда все они — предки самой глубокой; сверка каждого звена только с наследником
+    /// пропускала запись системы, наследующую от роли стройки X, которая наследует от записи стройки
+    /// Y: система «выше» обеих, а вместе их не видит ни один комплект (ревью PR #1258).</para>
     /// </summary>
-    private static bool Reaches(
-        FieldProbe heir, FieldProbe source, Dictionary<(CatalogScope, Guid?), ScopeChain> chains)
+    private static FieldProbe? OnBranch(
+        FieldProbe deepest, FieldProbe source, Dictionary<(CatalogScope, Guid?), ScopeChain> chains)
     {
-        if (!chains.TryGetValue((heir.ScopeLevel, heir.ScopeId), out var own)) return false;
+        if (!chains.TryGetValue((deepest.ScopeLevel, deepest.ScopeId), out var low)) return null;
         if (source.IsDocument)
-            return source.ScopeLevel == CatalogScope.Set && own.SetId != Guid.Empty && source.ScopeId == own.SetId;
+            return source.ScopeLevel == CatalogScope.Set && low.SetId != Guid.Empty && source.ScopeId == low.SetId
+                ? deepest : null;
 
-        return own.Contains(source.ScopeLevel, source.ScopeId)
-            || (chains.TryGetValue((source.ScopeLevel, source.ScopeId), out var theirs)
-                && theirs.Contains(heir.ScopeLevel, heir.ScopeId));
+        // Основа — на пути вверх от самой глубокой: глубина не меняется.
+        if (low.Contains(source.ScopeLevel, source.ScopeId)) return deepest;
+        // Основа глубже всех пройденных и в том же поддереве: теперь самая глубокая — она.
+        return chains.TryGetValue((source.ScopeLevel, source.ScopeId), out var theirs)
+               && theirs.Contains(deepest.ScopeLevel, deepest.ScopeId)
+            ? source : null;
     }
 
     private static (string? Value, Guid? From, bool Unreadable) Resolve(
@@ -135,6 +146,7 @@ public partial class DomainObjectRepository
     {
         var visited = new HashSet<Guid> { record.Id };
         var current = record;
+        var deepest = record;
         while (true)
         {
             // Своё поле перекрывает основу — и пустое тоже: так слияние считает при генерации, и
@@ -154,9 +166,10 @@ public partial class DomainObjectRepository
             // замкнулась либо основа лежит не в области наследника (чужая стройка) — генерация такую
             // тоже не подмешивает.
             if (BaseOf(current) is not { } baseId || !visited.Add(baseId) || !known.TryGetValue(baseId, out var next)
-                || !Reaches(record, next, chains))
+                || OnBranch(deepest, next, chains) is not { } low)
                 return (null, null, true);
 
+            deepest = low;
             current = next;
         }
     }

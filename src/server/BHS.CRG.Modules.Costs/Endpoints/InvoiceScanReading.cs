@@ -223,9 +223,16 @@ public sealed class InvoiceScanReading(
                 // Занято: выбор человека побеждает. Но скан назвал ДРУГУЮ организацию — это остаётся
                 // предложением, как у номера и суммы: иначе расхождение видно, только пока счёт
                 // черновик, а после разбора о нём не узнать ниоткуда (ревью PR #1256).
+                //
+                // У ссылочного поля предложение — объект: текст скана И найденная запись. Одним текстом
+                // его было бы нечем применить, а после разбора найденную пришлось бы искать по ИНН руками.
                 if (!JsonNode.DeepEquals(was, found))
-                    offers[requisiteKey] = string.Join(", ",
-                        new[] { party.Name, party.TaxId is { } taxId ? $"ИНН {taxId}" : null }.OfType<string>());
+                    offers[requisiteKey] = new JsonObject
+                    {
+                        ["text"] = string.Join(", ",
+                            new[] { party.Name, party.TaxId is { } taxId ? $"ИНН {taxId}" : null }.OfType<string>()),
+                        ["entryId"] = match,
+                    };
                 return;
             }
 

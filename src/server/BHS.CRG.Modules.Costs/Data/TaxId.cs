@@ -24,6 +24,9 @@ public static partial class TaxId
     private static readonly int[] TwelveFirst = [7, 2, 4, 10, 3, 5, 9, 4, 6, 8];
     private static readonly int[] TwelveSecond = [3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8];
 
+    /// <summary>Начало, которого у ИНН не бывает: кода региона «00» нет.</summary>
+    private const string NoRegion = "00";
+
     [GeneratedRegex(@"\d+")]
     private static partial Regex Digits();
 
@@ -57,6 +60,15 @@ public static partial class TaxId
         if (digits.Length is not (10 or 12))
         {
             problem = $"«{text.Trim()}» — не ИНН: в нём должно быть 10 цифр (организация) или 12 (предприниматель)";
+            return null;
+        }
+
+        // Своя причина, а не «контрольная сумма»: у нулей она как раз сходится, и человек сверял бы
+        // цифры со сканом по подсказке не про то.
+        if (digits.StartsWith(NoRegion, StringComparison.Ordinal))
+        {
+            problem = $"«{digits}» — не ИНН: он не начинается с «00» (первые две цифры — код региона). " +
+                      "Похоже, на месте нечитаемого ИНН стоит заглушка";
             return null;
         }
 
@@ -110,7 +122,7 @@ public static partial class TaxId
     /// региона, и нулевого нет. А у «0000000000» сумма сходится — заглушка модели на месте нечитаемого
     /// ИНН прошла бы как верно прочитанный и получила бы ответ «такой организации нет» (ревью PR #1256).
     /// </summary>
-    private static bool ChecksOut(string digits) => !digits.StartsWith("00", StringComparison.Ordinal)
+    private static bool ChecksOut(string digits) => !digits.StartsWith(NoRegion, StringComparison.Ordinal)
         && (digits.Length == 10
             ? Control(digits, Ten) == digits[9] - '0'
             : Control(digits, TwelveFirst) == digits[10] - '0' && Control(digits, TwelveSecond) == digits[11] - '0');

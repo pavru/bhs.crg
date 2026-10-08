@@ -34,10 +34,22 @@ public sealed record PartyOrganizationView(Guid? Created, InvoicePartyView Party
 /// </summary>
 public static class InvoicePartyIntakeEndpoints
 {
+    /// <summary>Предел названия записи справочника ядра. Длиннее база не примет — и ответила бы
+    /// сбоем сохранения вместо причины.</summary>
+    private const int NameLength = 512;
+
+    /// <summary>
+    /// ⚠️ Прав ДВА, и оба обязательны. Адрес читает счёт и отвечает его данными — названием и ИНН
+    /// сторон, кандидатами, в отказах — состоянием счёта. Права не вкладываются друг в друга, и роль с
+    /// одной галкой «заводить организации» иначе читала бы стороны любого счёта перебором id.
+    /// </summary>
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapPost("/api/costs/invoices/{id:guid}/recognition/parties/{side}/organization", CreateAsync)
             .RequireAuthorization(AppPolicies.Permission(CostsModule.OrganizationCreate))
+            .RequireAuthorization(AppPolicies.Permission(InvoiceRead))
             .WithTags("Счета на оплату");
+
+    private const string InvoiceRead = "costs.invoice.read";
 
     private static async Task<Ok<PartyOrganizationView>> CreateAsync(
         Guid id, string side, PartyOrganizationRequest? body, CostsDbContext db, InvoiceScanRecognition scan,
@@ -71,6 +83,10 @@ public static class InvoicePartyIntakeEndpoints
         var name = string.IsNullOrWhiteSpace(body?.Name) ? party.Name?.Trim() : body.Name.Trim();
         if (string.IsNullOrEmpty(name))
             throw new InvalidRequestException("Название организации в скане не прочитано — введите его.");
+        if (name.Length > NameLength)
+            throw new InvalidRequestException(
+                $"Название организации длиннее {NameLength} знаков ({name.Length}) — похоже, в поле прочитан не " +
+                "только он. Сократите название до самого названия организации.");
 
         var result = await intake.CreateAsync(CostsRecordTypes.OrganizationCode, name, taxId, ct)
             ?? throw new ConflictException(
@@ -81,12 +97,32 @@ public static class InvoicePartyIntakeEndpoints
                 string.Join("; ", result.Refusals) + ". Заведите организацию в справочнике.");
 
         if (result.Created is { } created)
+        {
             await log.RecordAsync(InvoiceActions.OrganizationCreated, created.Id.ToString(), name,
                 after: $"ИНН {taxId}; {InvoiceEndpoints.Label(invoice)}", ct: CancellationToken.None);
 
-        // Сторона — заново: теперь она «найдена», и форма узнаёт об этом тем же видом, что при чтении.
+            // Сторона «найдена» — собираем её из ответа порта, без третьего обхода справочника: под
+            // замком только что проверено, что другой записи с этим ИНН нет.
+            return TypedResults.Ok(new PartyOrganizationView(created.Id, new InvoicePartyView(
+                InvoicePartyStates.Matched, party.Name, taxId, null,
+                [new InvoicePartyCandidate(created.Id, created.DisplayName, created.EntityType, created.Archived, null)],
+                [], created.Id)));
+        }
+
+        // Не заведена: запись уже есть. Обычно её тем временем завёл кто-то ещё — тогда сторона,
+        // сопоставленная заново, её и покажет.
         var now = Pick(await parties.MatchAsync(read, ct), side) ?? party;
-        return TypedResults.Ok(new PartyOrganizationView(result.Created?.Id, now));
+        if (now.State != InvoicePartyStates.Absent)
+            return TypedResults.Ok(new PartyOrganizationView(null, now));
+
+        // ⚠️ А по ИНН её по-прежнему нет: ядро узнало двойника иначе — по ключу идентичности, и он в
+        // архиве (ИНН у него другой или пуст). Ответить стороной «нет» значило бы выдать отказ за
+        // результат: запись не заведена, причина не названа, повторное нажатие даёт то же самое.
+        throw new ConflictException(
+            "Организацию не завели: в справочнике уже есть такая запись — " +
+            string.Join(", ", result.Existing.Select(r => $"«{r.DisplayName}»" + (r.Archived ? " (в архиве)" : string.Empty))) +
+            $" — но ИНН {taxId} у неё не стоит. Верните её из архива и впишите ИНН — или заведите организацию " +
+            "в справочнике под другим названием.");
     }
 
     private static InvoicePartyView? Pick(InvoicePartiesView view, string side) =>

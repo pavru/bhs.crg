@@ -148,6 +148,76 @@ public sealed class InvoicePartyOrganizationTests(InvoiceScanHost host)
         Assert.Empty(await RecordsAsync(type, taxId));
     }
 
+    /// <summary>
+    /// Сторож: отказ не выглядит результатом. В архиве лежит организация с тем же названием (ключ
+    /// идентичности), а ИНН у неё другой — по ИНН сторона «нет», но ядро вторую такую молча не заводит.
+    /// Ответ «заведена: нет, сторона: нет» оставил бы человека нажимать кнопку снова и снова.
+    /// </summary>
+    [Fact]
+    public async Task Архивный_двойник_с_другим_ИНН_отказ_с_его_названием_а_не_сторона_нет()
+    {
+        var type = await InvoiceScanPartiesTests.OrganizationsAsync(host);
+        var taxId = InvoiceScanPartiesTests.NextTaxId();
+        var name = $"ООО «Двойник {Guid.NewGuid():N}»";
+        Guid twin;
+        using (var scope = host.Services.CreateScope())
+        {
+            var mediator = scope.ServiceProvider.GetRequiredService<MediatR.IMediator>();
+            twin = (await mediator.Send(new BHS.CRG.Application.Documents.CreateCommonDataEntryCommand(
+                name, type, JsonDocument.Parse($$"""{"Наименование":"{{name}}","ИНН":"{{InvoiceScanPartiesTests.NextTaxId()}}"}"""),
+                CatalogScope.System, null))).Id;
+            await mediator.Send(new BHS.CRG.Application.Documents.SetRecordArchiveCommand(twin, true));
+        }
+
+        var (client, _) = await SignInAsync("Supplier");
+        var id = await DraftAsync(client, Header(supplier: name, supplierTaxId: taxId));
+
+        var refusal = await PostAsync(client, id, "supplier", new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, refusal.StatusCode);
+        var why = (await refusal.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString();
+        Assert.Contains(name, why);
+        Assert.Contains("в архиве", why);
+        Assert.Empty(await RecordsAsync(type, taxId));
+    }
+
+    /// <summary>Абзац текста на месте названия — причина, а не сбой сохранения.</summary>
+    [Fact]
+    public async Task Слишком_длинное_название_отказ_с_причиной()
+    {
+        var type = await InvoiceScanPartiesTests.OrganizationsAsync(host);
+        var taxId = InvoiceScanPartiesTests.NextTaxId();
+        var (client, _) = await SignInAsync("Supplier");
+        var id = await DraftAsync(client, Header(supplier: "ООО «Длинное»", supplierTaxId: taxId));
+
+        var refusal = await PostAsync(client, id, "supplier", new { name = new string('я', 513) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refusal.StatusCode);
+        Assert.Empty(await RecordsAsync(type, taxId));
+    }
+
+    /// <summary>
+    /// Права не вкладываются друг в друга: роль с одной галкой «заводить организации» иначе читала бы
+    /// стороны любого счёта перебором id — адрес отвечает названием и ИНН поставщика.
+    /// </summary>
+    [Fact]
+    public async Task Одного_права_заведения_мало_нужно_и_чтение_счетов()
+    {
+        var type = await InvoiceScanPartiesTests.OrganizationsAsync(host);
+        var taxId = InvoiceScanPartiesTests.NextTaxId();
+        var (client, _) = await SignInAsync("Supplier");
+        var id = await DraftAsync(client, Header(supplier: "ООО «Закрытый счёт»", supplierTaxId: taxId));
+
+        var onlyCreate = await Support.GrantedSignIn.WithPermissionsAsync(host, CostsModule.OrganizationCreate);
+        var onlyRead = await Support.GrantedSignIn.WithPermissionsAsync(host, "costs.invoice.read");
+        var both = await Support.GrantedSignIn.WithPermissionsAsync(host, CostsModule.OrganizationCreate, "costs.invoice.read");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(onlyCreate, id, "supplier", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(onlyRead, id, "supplier", new { })).StatusCode);
+        Assert.Empty(await RecordsAsync(type, taxId));
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(both, id, "supplier", new { })).StatusCode);
+    }
+
     /// <summary>Чтения счетов для этого мало: запись ложится в справочник ядра.</summary>
     [Fact]
     public async Task Без_права_заведения_отказ()

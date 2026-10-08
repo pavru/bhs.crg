@@ -227,7 +227,11 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         Assert.Equal(found, Assert.Single(party.GetProperty("candidates").EnumerateArray()).GetProperty("id").GetGuid());
         // Скан назвал другую организацию — это сохранено предложением, как у номера и суммы: после
         // разбора счёта стороны уже не пересчитываются, и иначе о расхождении не узнать.
-        Assert.Equal($"Из скана, ИНН {taxId}", recognition.GetProperty("offers").GetProperty("Поставщик").GetString());
+        // У ссылочного поля предложение — текст скана и найденная запись: одним текстом его нечем
+        // было бы применить.
+        var offer = recognition.GetProperty("offers").GetProperty("Поставщик");
+        Assert.Equal($"Из скана, ИНН {taxId}", offer.GetProperty("text").GetString());
+        Assert.Equal(found, offer.GetProperty("entryId").GetGuid());
 
         var view = await ReadAsync(client, id);
         Assert.Equal(supplier, view.GetProperty("requisites").GetProperty("Поставщик").GetProperty("entryId").GetGuid());
@@ -271,7 +275,7 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         if (!type.Schema.RootElement.GetRawText().Contains("\"ИНН\""))
         {
             type.UpdateSchema(JsonDocument.Parse(
-                """{"fields":[{"key":"Наименование","type":"string","title":"Наименование","required":true},{"key":"ИНН","type":"string","title":"ИНН","required":true}]}"""));
+                """{"fields":[{"key":"Наименование","type":"string","title":"Наименование","required":true,"tags":["identity"]},{"key":"ИНН","type":"string","title":"ИНН","required":true}]}"""));
             types.Update(type);
             await types.SaveChangesAsync();
         }
