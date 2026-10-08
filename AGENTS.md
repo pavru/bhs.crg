@@ -276,6 +276,9 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:
   `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d`;
   сборка из исходников — с оверлеем `-f deploy/docker-compose.build.yml`.
+  ⚠️ Сборка сервера в **Release** требует ключ лицензии Six Labors (ImageSharp 4.x): в CI — секрет
+  `SIXLABORS_LICENSE_KEY`, локально — файл `sixlabors.lic` в корне репозитория; Debug собирается без
+  него, с предупреждением. Подробности — DEV_NOTES, «Поставка».
   Образ `api` включает **Typst CLI**.
 
 **Установка — `deploy/install.sh`** (issue #890), обновление — `deploy/update.sh`. Оба едут

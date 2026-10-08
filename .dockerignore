@@ -6,6 +6,8 @@
 **/coverage/
 **/TestResults/
 .git/
+# Ключ лицензии Six Labors: в образ и в кеш слоёв сборки он попадать не должен, где бы ни лежал.
+**/sixlabors.lic
 .vs/
 .idea/
 docs/pdf/

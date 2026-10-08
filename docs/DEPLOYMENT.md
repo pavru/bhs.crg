@@ -180,7 +180,10 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml u
 > («No Six Labors license found»): библиотека ImageSharp 4.x проверяет ключ при сборке. Ключ задаётся
 > переменной окружения оболочки, не файлом `.env`:
 > `SIXLABORS_LICENSE_KEY=… docker compose -f … -f deploy/docker-compose.build.yml up -d --build`.
-> Установке готовыми образами ключ не нужен.
+> Через `sudo` переменная не доходит (он сбрасывает окружение) — тогда
+> `sudo --preserve-env=SIXLABORS_LICENSE_KEY docker compose …`, задав переменную заранее (`export`).
+> Ключ — свой: его выдаёт Six Labors (<https://sixlabors.com/pricing/>, там же условия бесплатной
+> лицензии). Установке готовыми образами ключ не нужен — это и есть штатный путь.
 
 > Образы публичные — `docker login ghcr.io` для установки не нужен: пакеты наследуют видимость
 > репозитория, и проверено это на первом же выпуске (анонимный pull обоих образов работает).
@@ -656,7 +659,8 @@ chmod +x update.sh
 > сервисов и данные те же; достаточно задать `APP_VERSION` в `.env` и выполнить
 > `docker compose pull && docker compose up -d`. Локально собранные образы после этого можно
 > удалить (`docker image prune`). Обратный путь — сборка из исходников — остаётся:
-> `-f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build`.
+> `-f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build`
+> (нужен ключ лицензии Six Labors — см. «Сборка из исходников» выше).
 
 > **Разово при обновлении с версии ниже 0.91.0.** Контейнеры перестали работать от `root`.
 > Том `dp_keys` (ключи шифрования одноразовых ссылок) создавался от `root`, и владелец у

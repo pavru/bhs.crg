@@ -13,6 +13,9 @@
 #
 #   SIXLABORS_LICENSE_KEY=… docker compose -f … -f deploy/docker-compose.build.yml up -d --build
 #
+# Через sudo переменная до compose НЕ доходит (sudo сбрасывает окружение) — тогда так:
+#   sudo --preserve-env=SIXLABORS_LICENSE_KEY docker compose …
+#
 # В .env его класть не нужно: готовым образам из GHCR ключ не требуется вовсе.
 services:
   api:

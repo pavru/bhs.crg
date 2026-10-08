@@ -49,7 +49,13 @@ RUN dotnet restore server/BHS.CRG.Api/BHS.CRG.Api.csproj -r "$(cat /tmp/rid)" \
 # license found». Приходит СЕКРЕТОМ сборки (--secret id=sixlabors_license), а не ARG: аргумент
 # остаётся в истории слоёв, а образ публикуется. Секрет не передан — переменная пуста, и отказывает
 # сама проверка лицензии, своими словами.
+#
+# LICENSE_CHECK — метка запуска от того, кто собирает (выпуск передаёт номер прогона): слой ниже
+# от неё зависит и из кеша не берётся, иначе проверка лицензии не запускалась бы, пока не менялись
+# исходники, — и истёкший ключ обнаружился бы на первом выпуске с правкой кода.
+ARG LICENSE_CHECK=""
 RUN --mount=type=secret,id=sixlabors_license \
+    LICENSE_CHECK="$LICENSE_CHECK" \
     SixLaborsLicenseKey="$(cat /run/secrets/sixlabors_license 2>/dev/null || true)" \
     dotnet publish server/BHS.CRG.Api/BHS.CRG.Api.csproj -c Release -o /app --no-restore \
         -r "$(cat /tmp/rid)" --self-contained false -p:UseAppHost=false \
