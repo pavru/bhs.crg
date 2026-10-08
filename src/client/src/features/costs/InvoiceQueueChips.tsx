@@ -1,4 +1,4 @@
-import { Archive, Check, ListChecks, TriangleAlert } from 'lucide-react';
+import { Archive, Check, ListChecks, ScanLine, TriangleAlert } from 'lucide-react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { QUEUE_LABEL, queueChip } from './invoiceQueues';
@@ -32,6 +32,18 @@ export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: 
           утверждать по нему, что других таких счетов нет, — нельзя. */}
       <Chip active={queue === 'parsing'} icon={ListChecks} label={QUEUE_LABEL.parsing}
         title="Счета, у которых строки ждут позиции номенклатуры" tone="quiet" onClick={() => toggle('parsing')} />
+      {/* «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Ноль не рисуем,
+          нажатый чип остаётся — иначе отбор нечем снять. */}
+      {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,
+          к распознаванию не относящимся, а сам отбор при этом работает. */}
+      {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
+        <Chip active={queue === 'unrecognized'} icon={ScanLine} label={QUEUE_LABEL.unrecognized}
+          count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
+          title={'Черновики со сканом, в которых нет строк: скан не распознан, прочитан без строк или не распознавался.'
+            + (queues ? '' : ' Сколько их — не посчитано.')}
+          tone="doubt" onClick={() => toggle('unrecognized')}
+          ariaLabel={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`} />
+      )}
       {lost && (
         <Chip active={queue === 'lost'} icon={TriangleAlert} label={QUEUE_LABEL.lost} count={lost.count}
           title={lost.title} tone={lost.doubt ? 'doubt' : 'danger'} onClick={() => toggle('lost')}
@@ -44,8 +56,8 @@ export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: 
       )}
       {failed && (
         <button type="button" onClick={onRetry} className="text-fg3 underline hover:text-fg1"
-          title="Сколько счетов с удалёнными и архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
-          {QUEUE_LABEL.lost} — не посчитано
+          title="Сколько счетов не распознано, с удалёнными и с архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
+          Отборы не посчитаны
         </button>
       )}
     </div>

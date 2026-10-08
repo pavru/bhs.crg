@@ -237,6 +237,14 @@ export interface InvoiceListItem {
   linesWithoutNomenclature: number;
   /** Что со ссылками счёта на записи справочников (issue #1186). Старый сервер поля не присылает. */
   references?: InvoiceListReferences | null;
+  /** Имя файла скана: до распознавания у счёта из скана нет ни номера, ни поставщика. */
+  scanFileName?: string | null;
+  /**
+   * Что со сканом (issue #1077): `running` — читается; остальное — у черновика со сканом без строк:
+   * `failed` — распознавание отказало (вид отказа — `reason`), `done` — прочитано, но строк нет,
+   * `none` — не распознавался. Пусто — сказать нечего.
+   */
+  recognition?: { state: 'running' | 'failed' | 'done' | 'none'; reason: string | null } | null;
 }
 
 /** Где в счёте стоят ссылки не на месте. `count` — ссылок, а не мест формы. */
@@ -260,7 +268,7 @@ export interface InvoiceListReferences {
 }
 
 /** Очередь списка счетов — отбор, который считает сервер. Выбор один: пересечений он не считает. */
-export type InvoiceQueue = 'parsing' | 'lost' | 'archived';
+export type InvoiceQueue = 'parsing' | 'unrecognized' | 'lost' | 'archived';
 
 export interface CostsOrganization {
   id: string;
@@ -311,10 +319,14 @@ export const INVOICES_KEY = [QK] as const;
  */
 export function useInvoices(queue: InvoiceQueue | null = null) {
   return useQuery({
+    // Пока чей-то скан читается, список опрашивается: иначе «распознаётся…» стояло бы в строке вечно.
+    refetchInterval: query => (scansRunning(query.state.data).length > 0 ? 5000 : false),
     queryKey: [QK, 'list', queue] as const,
     queryFn: () => apiClient
       .get<InvoiceListItem[]>('/costs/invoices', {
-        params: queue === 'parsing' ? { needsParsing: true } : queue ? { fix: queue } : {},
+        params: queue === 'parsing' ? { needsParsing: true }
+          : queue === 'unrecognized' ? { unrecognized: true }
+          : queue ? { fix: queue } : {},
       })
       .then(r => r.data),
     // Свежесть — как у чисел над списком (`useInvoiceQueues`): запись в общих данных удаляют и
@@ -323,6 +335,11 @@ export function useInvoices(queue: InvoiceQueue | null = null) {
     staleTime: 0,
   });
 }
+
+/** Счета списка, чей скан читается сейчас. Одно место: по нему список опрашивается и перечитываются
+ *  числа чипов, когда чтение кончилось. */
+export const scansRunning = (items: InvoiceListItem[] | undefined): string[] =>
+  (items ?? []).filter(i => i.recognition?.state === 'running').map(i => i.id);
 
 /** Чтение счёта — одно на обычный запрос и на перечитывание после отказа: ключ и адрес не разойдутся. */
 function invoiceQuery(id: string | undefined) {

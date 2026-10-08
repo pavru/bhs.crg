@@ -250,6 +250,7 @@ public sealed class CostsModule : IAppModule
         // регистрируется по интерфейсу порта — постановка операции без исполнителя есть отказ сразу.
         services.AddScoped<InvoiceParties>();
         services.AddScoped<InvoiceScanRecognition>();
+        services.AddScoped<InvoiceListRecognition>();
         services.AddScoped<InvoiceScanReading>();
         services.AddScoped<IModuleJobHandler, InvoiceRecognitionJob>();
 

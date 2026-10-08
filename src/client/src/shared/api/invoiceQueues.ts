@@ -12,6 +12,8 @@ export interface InvoiceQueues {
   locked: number;
   /** Почему числам нельзя верить как полным. ⚠️ Ноль с этой причиной — не «счетов нет». */
   doubt: string | null;
+  /** Черновиков со сканом без строк, чей скан сейчас не читается (issue #1077). */
+  unrecognized: number;
 }
 
 /**

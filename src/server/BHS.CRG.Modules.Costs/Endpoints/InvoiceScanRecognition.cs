@@ -60,8 +60,25 @@ public sealed class InvoiceScanRecognition(
     public async Task<bool> IsRunningAsync(Guid invoiceId, CancellationToken ct)
     {
         var stored = await db.InvoiceRecognitions.AsNoTracking().FirstOrDefaultAsync(r => r.InvoiceId == invoiceId, ct);
-        return stored is not null && await AliveAsync(stored, ct) is not null;
+        return stored is not null && (IsStarting(stored.Outcome, stored.JobId, stored.StartedAt)
+            || await AliveAsync(stored, ct) is not null);
     }
+
+    /// <summary>Сколько запись без номера задачи считается «ставится», а не «прервано».</summary>
+    private static readonly TimeSpan StartGrace = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Распознавание СТАВИТСЯ: запись уже сохранена, номер задачи — ещё нет.
+    ///
+    /// <para>Постановка пишет запись ДО очереди (иначе обработчик стартовал бы без записи об исходе), и
+    /// между двумя сохранениями она выглядит ровно как оборванная: ждёт исхода, задачи нет. Прочитанная
+    /// в этот миг — другим человеком или опросом списка — она называлась бы «прервано», стояла бы под
+    /// «Не распознано» и входила бы в число чипа, хотя распознавание только начинается (ревью PR #1259).
+    /// Свежая такая запись — «идёт»; постаревшая — прервано: до очереди она так и не дошла.</para>
+    /// </summary>
+    internal static bool IsStarting(InvoiceRecognitionOutcome? outcome, Guid? jobId, DateTimeOffset startedAt) =>
+        outcome == InvoiceRecognitionOutcome.Pending && jobId is null
+        && DateTimeOffset.UtcNow - startedAt < StartGrace;
 
     public async Task<InvoiceRecognitionView> ViewAsync(Invoice invoice, CancellationToken ct)
     {
@@ -75,6 +92,10 @@ public sealed class InvoiceScanRecognition(
 
         if (stored.Outcome == InvoiceRecognitionOutcome.Pending)
         {
+            if (IsStarting(stored.Outcome, stored.JobId, stored.StartedAt))
+                return new("running", null, null, null, null, null, null, null, [], stored.StartedAt, null,
+                    false, "распознавание уже идёт");
+
             if (await AliveAsync(stored, ct) is { } job)
                 return new("running", null, null, null, job.Progress, null, null, null, [], stored.StartedAt, null,
                     false, "распознавание уже идёт");
@@ -124,8 +145,12 @@ public sealed class InvoiceScanRecognition(
     private async Task<ModuleJobState?> AliveAsync(InvoiceRecognition stored, CancellationToken ct)
     {
         if (stored.Outcome != InvoiceRecognitionOutcome.Pending || stored.JobId is not { } id) return null;
-        return await jobs.GetAsync(id, ct) is { Status: ModuleJobStatus.Queued or ModuleJobStatus.Running } job ? job : null;
+        return await jobs.GetAsync(id, ct) is { } job && IsAlive(job) ? job : null;
     }
+
+    /// <summary>Жива ли задача: в очереди или идёт. Одно место — для формы и для списка счетов.</summary>
+    internal static bool IsAlive(ModuleJobState? job) =>
+        job is { Status: ModuleJobStatus.Queued or ModuleJobStatus.Running };
 
     /// <summary>
     /// Поставить распознавание в фон. Счёт при этом НЕ меняется — пишется только запись о
@@ -141,7 +166,8 @@ public sealed class InvoiceScanRecognition(
             throw new ConflictException($"{InvoiceEndpoints.Label(invoice)}: распознать нельзя — {whyNot}.");
 
         var stored = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
-        if (stored is not null && await AliveAsync(stored, ct) is not null)
+        if (stored is not null && (IsStarting(stored.Outcome, stored.JobId, stored.StartedAt)
+                || await AliveAsync(stored, ct) is not null))
             throw AlreadyRunning(invoice);
 
         var first = stored is null;

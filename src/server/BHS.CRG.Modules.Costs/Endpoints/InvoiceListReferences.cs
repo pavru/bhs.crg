@@ -52,7 +52,9 @@ public sealed record InvoiceListReferences(
 /// входят, исправить их нельзя — и промолчать о них значило бы сказать «больше нет».</param>
 /// <param name="Doubt">Почему числам нельзя верить как полным; <c>null</c> — проверено всё.
 /// ⚠️ Ноль с этой причиной — не «счетов нет».</param>
-public sealed record InvoiceQueuesView(int Lost, int Archived, int Locked, string? Doubt);
+/// <param name="Unrecognized">Черновиков со сканом без строк, чей скан сейчас не читается, —
+/// столько строк отдаёт список под <c>unrecognized=true</c>.</param>
+public sealed record InvoiceQueuesView(int Lost, int Archived, int Locked, string? Doubt, int Unrecognized = 0);
 
 /// <summary>
 /// Пометки строк списка счетов из ответа обратного опроса ядра.
@@ -100,7 +102,7 @@ public sealed class InvoiceListMarks
     /// Отдельным адресом, а не в ответе списка: список отдаётся массивом, и на нём стоят прогоны и посев.
     /// </summary>
     public static async Task<Ok<InvoiceQueuesView>> QueuesAsync(
-        CostsDbContext db, InvoiceReferenceTrouble trouble, CancellationToken ct)
+        CostsDbContext db, InvoiceReferenceTrouble trouble, InvoiceListRecognition recognition, CancellationToken ct)
     {
         var troubles = await trouble.ReadAsync(withArchive: true, ct);
         var archived = troubles.Archived.ToArray();
@@ -110,7 +112,8 @@ public sealed class InvoiceListMarks
             archived.Length == 0 ? 0 : await db.Invoices.AsNoTracking()
                 .CountAsync(i => keys.Contains(i.Id) && i.Payment != InvoicePaymentState.Paid, ct),
             troubles.With(LostMark.Locked).Length,
-            troubles.Doubt));
+            troubles.Doubt,
+            InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length));
     }
 
     /// <summary>Счета под отбором «удалённые записи»: только те, что можно исправить.</summary>

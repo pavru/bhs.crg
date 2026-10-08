@@ -643,6 +643,28 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     }
 
     /// <summary>
+    /// Пачкой — по тем же правилам, что по одной: работа модуля читается без владельца, операция ядра и
+    /// несуществующая задача в ответ не попадают. Второй путь к тем же данным обязан стоять за теми же
+    /// воротами — иначе окно, закрытое у одиночного чтения, открылось бы здесь.
+    /// </summary>
+    [Fact]
+    public async Task Пачкой_читаются_только_работы_модулей()
+    {
+        var mine = await SeedJobAsync(JobKind.ModuleWork, Guid.Empty, "Разбор выгрузки");
+        var core = await SeedJobAsync(JobKind.CreateBackup, Guid.NewGuid(), "Резервная копия");
+
+        using var scope = host.Services.CreateScope();
+        var jobs = scope.ServiceProvider.GetRequiredService<IModuleJobs>();
+
+        var states = await jobs.GetManyAsync([mine, core, Guid.NewGuid()]);
+
+        var state = Assert.Single(states);
+        Assert.Equal(mine, state.Key);
+        Assert.Equal(ModuleJobStatus.Queued, state.Value.Status);
+        Assert.Empty(await jobs.GetManyAsync([]));
+    }
+
+    /// <summary>
     /// Код операции обязан начинаться с кода включённого модуля.
     ///
     /// Без префикса два модуля, назвавшие операцию «import», столкнулись бы — и отказ при постановке

@@ -117,7 +117,13 @@ public sealed record InvoiceListItem(
     bool HasScan,
     int LinesCount,
     int LinesWithoutNomenclature,
-    InvoiceListReferences? References = null);
+    InvoiceListReferences? References = null,
+    // Имя файла скана: у счёта из скана до распознавания нет ни номера, ни поставщика, и без имени
+    // файла три таких строки подряд были бы неразличимы.
+    string? ScanFileName = null,
+    // Что со сканом: читается либо счёт стоит под «Не распознано» (определение — в
+    // InvoiceListRecognition); пусто — сказать нечего.
+    InvoiceListScan? Recognition = null);
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
 public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);
@@ -207,7 +213,8 @@ public static class InvoiceViews
         invoice.Unconfirmed.Count,
         invoice.ScanBlobPath is not null,
         lines,
-        withoutNomenclature);
+        withoutNomenclature,
+        ScanFileName: invoice.ScanFileName);
 
     public static InvoiceDuplicate Duplicate(Invoice invoice) =>
         new(invoice.Id, invoice.Number, invoice.IssuedOn, invoice.Total);

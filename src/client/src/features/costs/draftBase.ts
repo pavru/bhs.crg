@@ -106,5 +106,7 @@ export function useDraftBase<S = string>(
     stale: step.kind === 'stale',
     rebuild: step.kind === 'rebuild',
     rebase: () => setBase({ version, signature }),
+    /** Подпись, по которой собран черновик, — чтобы форма могла сказать, ЧТО изменилось под правками. */
+    signature: step.base.signature,
   };
 }

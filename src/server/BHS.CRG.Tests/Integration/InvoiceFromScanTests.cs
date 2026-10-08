@@ -515,6 +515,12 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
             await db.SaveChangesAsync();
         }
 
+        // Свежая запись без номера задачи — «ставится», а не «прервано»: так она выглядит между двумя
+        // сохранениями постановки, и назвать её отказом значило бы пометить счёт, который только начали
+        // читать (ревью PR #1259).
+        Assert.Equal("running", (await RecognitionAsync(client, id)).GetProperty("state").GetString());
+
+        await AgeAsync(host, id);
         var recognition = await RecognitionAsync(client, id);
         Assert.Equal("failed", recognition.GetProperty("state").GetString());
         Assert.Equal("Interrupted", recognition.GetProperty("reason").GetString());
@@ -565,6 +571,15 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>Содержимое «скана» — у каждого теста своё: по нему подменный порт выбирает ответ.</summary>
+    /// <summary>Состарить запись распознавания: постановка, не дошедшая до очереди, давно в прошлом.</summary>
+    internal static async Task AgeAsync(InvoiceScanHost host, Guid invoice)
+    {
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+        await db.Database.ExecuteSqlAsync(
+            $"UPDATE costs.invoice_recognitions SET started_at = now() - interval '5 minutes' WHERE invoice_id = {invoice}");
+    }
+
     internal static string Scan() => $"%PDF-скан {Guid.NewGuid():N}";
 
     /// <summary>

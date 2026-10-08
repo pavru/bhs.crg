@@ -67,4 +67,11 @@ public interface IModuleJobs
     /// неотличим от отказа для того, кто не видит колокольчика.
     /// </summary>
     Task<ModuleJobState?> GetAsync(Guid jobId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Состояния многих задач одним обращением: «задача → состояние». Задачи, которой нет (или которая
+    /// не работа модуля), в ответе нет — как <c>null</c> у <see cref="GetAsync" />.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, ModuleJobState>> GetManyAsync(
+        IReadOnlyCollection<Guid> jobIds, CancellationToken ct = default);
 }

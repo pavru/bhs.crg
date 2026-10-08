@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { FileText, Plus, Tags } from 'lucide-react';
+import { FileText, Plus, ScanLine, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -9,10 +9,11 @@ import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
+  scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
+import { useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
@@ -20,6 +21,7 @@ import { InvoiceQueueChips } from './InvoiceQueueChips';
 import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
+import { useQueuesFollowScans } from './recognitionWatch';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -54,10 +56,13 @@ export function InvoicesPage() {
   // сказать о них сам) и оговорка «проверено не всё».
   const counts = useInvoiceQueues(hasPermission(access, 'costs.invoice.edit'));
   const queues = counts.data;
+  useQueuesFollowScans(scansRunning(invoices.data), () => { if (counts.isEnabled) void counts.refetch(); });
   const fixing = queue === 'lost' || queue === 'archived';
   const doubt = fixing ? queues?.doubt ?? null : null;
   const organizations = useCostsOrganizations('choice');
   const create = useCreateInvoice();
+  const fromScan = useInvoiceFromScan();
+  const scanInput = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   const view = useInvoice(selected ?? undefined);
@@ -79,6 +84,21 @@ export function InvoicesPage() {
     } catch (e) { toast.apiError(e, 'Черновик не заведён'); }
   }
 
+  /**
+   * Счёт из скана (issue #1077): черновик заводится всегда, когда файл годен, распознавание идёт в
+   * фоне. Отказ распознавания — не отказ этого действия: о нём говорит полоса в открытом счёте.
+   */
+  async function addFromScan(file: File) {
+    try {
+      const created = await fromScan.mutateAsync(file);
+      // Отбор и поиск снимаются: новый черновик под «Разобрать» не стоит, а у счёта без номера и
+      // поставщика поиску не за что зацепиться — открылся бы счёт, которого нет в списке.
+      setQueue(null);
+      setQuery('');
+      setSelected(created.invoice.id);
+    } catch (e) { toast.apiError(e, 'Счёт из скана не заведён'); }
+  }
+
   const scan = view.data ? view.data.requisites[K.scan] : null;
   const hasScan = scan != null && typeof scan === 'object';
 
@@ -96,10 +116,26 @@ export function InvoicesPage() {
             </Button>
           )}
           {/* Заводит счета тот, кто их вводит: бухгалтеру кнопка была бы дверью в отказ (N1, #1102). */}
+          {/* Главная — «Счёт из скана» (решение владельца 08.10.2026): счёт приезжает бумагой, и
+              основной путь — от неё. */}
           {hasPermission(access, 'costs.invoice.edit') && (
-            <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
-              Новый счёт
-            </Button>
+            <>
+              <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
+                Новый счёт
+              </Button>
+              <Button variant="filled" icon={<ScanLine size={16} />} loading={fromScan.isPending}
+                onClick={() => scanInput.current?.click()}>
+                Счёт из скана
+              </Button>
+              {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
+                  был бы дверью в отказ. */}
+              <input ref={scanInput} type="file" className="hidden" accept="application/pdf,image/png,image/jpeg"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void addFromScan(file);
+                }} />
+            </>
           )}
           {articlesOpen && <ArticlesDialog onClose={() => setArticlesOpen(false)} />}
         </div>
@@ -207,7 +243,8 @@ export function InvoicesPage() {
 function matches(item: InvoiceListItem, query: string): boolean {
   const text = query.trim().toLowerCase();
   if (!text) return true;
-  return [item.number, item.supplierName, item.purpose]
+  // И по имени файла скана: у счёта без номера оно стоит заголовком строки.
+  return [item.number, item.supplierName, item.purpose, item.scanFileName]
     .some(value => (value ?? '').toLowerCase().includes(text));
 }
 
