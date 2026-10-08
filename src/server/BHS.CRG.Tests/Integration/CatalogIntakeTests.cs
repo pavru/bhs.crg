@@ -2,6 +2,9 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
@@ -154,6 +157,39 @@ public class CatalogIntakeTests(IntegrationTestFixture host)
         var created = Assert.Single(outcomes, o => o.Created is not null).Created!;
         Assert.All(outcomes.Where(o => o.Created is null), o => Assert.Equal(created.Id, Assert.Single(o.Existing).Id));
         Assert.Equal(created.Id, Assert.Single(await RecordsAsync(type)).Id);
+    }
+
+    /// <summary>
+    /// То же — без надежды на случай: параллельные заведения выше на быстрой машине проходят и без
+    /// замка через раз (проверено поломкой). Здесь тест сам держит замок, пока в справочнике появляется запись с
+    /// этим ИНН: заведение обязано ДОЖДАТЬСЯ замка и только потом смотреть, есть ли такая. Проверь оно
+    /// раньше — записи ещё не было бы, и оно завело бы вторую.
+    /// </summary>
+    [Fact]
+    public async Task Проверка_такой_ещё_нет_идёт_под_замком()
+    {
+        var type = await CustomerLikeAsync();
+
+        using var holder = host.Services.CreateScope();
+        var db = holder.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.OpenConnectionAsync();
+        await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_lock({AdvisoryLockKeys.CatalogIntake})");
+        Task<CatalogIntakeOutcome> waiting;
+        Guid other;
+        try
+        {
+            waiting = Task.Run(() => IntakeAsync(type, "ООО «Под замком»", "7701234560"));
+            Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(700))));
+            other = await EntryAsync(type, "Под замком, ООО", """{"ИНН":"7701234560"}""");
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_unlock({AdvisoryLockKeys.CatalogIntake})");
+        }
+
+        var outcome = await waiting;
+        Assert.Null(outcome.Created);
+        Assert.Equal(other, Assert.Single(outcome.Existing).Id);
     }
 
     /// <summary>Тип, которого модуль не объявил, порт не заводит — что бы ни стояло в базе.</summary>
