@@ -47,6 +47,9 @@ public class InvoicePartiesTests
     [InlineData("77012345601", "10 цифр")]
     [InlineData("нет данных", "10 цифр")]
     [InlineData("7701234560 / 7802345676", "несколько разных ИНН")]
+    // Заглушка модели на месте нечитаемого ИНН: сумма у нулей сходится, а кода региона «00» нет.
+    [InlineData("0000000000", "контрольная сумма")]
+    [InlineData("000000000000", "контрольная сумма")]
     public void ИНН_прочитанный_с_ошибкой_даёт_причину(string text, string why)
     {
         Assert.Null(TaxId.FromScan(text, out var problem));
@@ -69,6 +72,10 @@ public class InvoicePartiesTests
     [InlineData("7701234560/770101001", "7701234560")]
     [InlineData("7701234560 КПП 770101001", "7701234560")]
     [InlineData("7701234560.0", "7701234560")]
+    // Сторож: число с потерянным ведущим нулём И дробным хвостом. Хвост не вправе склеиться с
+    // девятью цифрами в чужой десятизначный номер.
+    [InlineData("105001234.0", "0105001234")]
+    [InlineData("105001234,00", "0105001234")]
     [InlineData("", null)]
     [InlineData("б/н", null)]
     public void ИНН_записи_справочника_приводится_к_цифрам(string value, string? expected) =>
@@ -158,15 +165,24 @@ public class InvoicePartiesTests
         Assert.Equal(roles + 1, view.Candidates.Count);
     }
 
-    /// <summary>Роль, чья основа — не организация (другого вида), остаётся обычной записью.</summary>
-    [Fact]
-    public async Task Единственная_роль_с_основой_вне_справочника_организаций_совпадает()
+    /// <summary>
+    /// Роль, чья основа — не организация (запись другого вида): самой организации среди организаций
+    /// нет. Роль в счёт сама не идёт — ни одна, ни из двух: её предлагают на выбор.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Роль_с_основой_вне_справочника_организаций_сама_не_подставляется(int roles)
     {
-        var role = Record("Подрядчик", Valid, inheritedFrom: Guid.NewGuid());
-        var view = await SupplierAsync(Catalog(role), "Кабель-Торг", Valid);
+        var source = Guid.NewGuid();
+        var records = Enumerable.Range(1, roles)
+            .Select(n => Record($"Подрядчик {n}", Valid, inheritedFrom: source)).ToArray();
 
-        Assert.Equal("matched", view.State);
-        Assert.Equal(role.Record.Id, view.Match);
+        var view = await SupplierAsync(Catalog(records), "Кабель-Торг", Valid);
+
+        Assert.Equal("several", view.State);
+        Assert.Null(view.Match);
+        Assert.Equal(roles, view.Candidates.Count);
     }
 
     /// <summary>

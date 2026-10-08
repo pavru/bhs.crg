@@ -70,6 +70,45 @@ public static class ScopeChains
 /// не трогаем: ему нужны прямые дети уровня для дерева сводки, а не всё поддерево; сведи их вместе —
 /// и в сводке стройки комплекты посчитались бы дважды (сами и через разделы).
 /// </summary>
+/// <summary>
+/// Цепочки сразу для многих областей — двумя запросами на все (issue #1077, ревью PR #1256).
+/// <see cref="ScopeChains.LoadForScopeAsync" /> в цикле по областям — это запрос-два на каждую, а у
+/// списка записей областей десятки: роли лежат по комплектам и разделам.
+/// </summary>
+public static class ScopeChainBatch
+{
+    public static async Task<Dictionary<(CatalogScope, Guid?), ScopeChain>> LoadAsync(
+        AppDbContext db, IReadOnlyCollection<(CatalogScope Level, Guid? Id)> scopes, CancellationToken ct)
+    {
+        var setIds = scopes.Where(s => s.Level == CatalogScope.Set && s.Id is not null).Select(s => s.Id!.Value).Distinct().ToList();
+        var sectionOfSet = setIds.Count == 0
+            ? []
+            : await db.DocumentSets.AsNoTracking().Where(s => setIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.SectionId, ct);
+
+        var sectionIds = scopes.Where(s => s.Level == CatalogScope.Section && s.Id is not null).Select(s => s.Id!.Value)
+            .Concat(sectionOfSet.Values).Distinct().ToList();
+        var constructionOfSection = sectionIds.Count == 0
+            ? []
+            : await db.Sections.AsNoTracking().Where(s => sectionIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.ConstructionId, ct);
+
+        Guid Construction(Guid section) => constructionOfSection.GetValueOrDefault(section);
+
+        var chains = new Dictionary<(CatalogScope, Guid?), ScopeChain>();
+        foreach (var (level, id) in scopes.Distinct())
+            chains[(level, id)] = (level, id) switch
+            {
+                (CatalogScope.Set, { } set) when sectionOfSet.GetValueOrDefault(set) is var section =>
+                    new ScopeChain(set, section, section == Guid.Empty ? Guid.Empty : Construction(section)),
+                (CatalogScope.Section, { } section) => new ScopeChain(Guid.Empty, section, Construction(section)),
+                (CatalogScope.Construction, { } construction) => new ScopeChain(Guid.Empty, Guid.Empty, construction),
+                _ => new ScopeChain(Guid.Empty, Guid.Empty, Guid.Empty),
+            };
+        return chains;
+    }
+}
+
 public static class ScopeSubtree
 {
     /// <inheritdoc cref="Application.Common.IScopeSubtree.SetIdsUnderAsync" />

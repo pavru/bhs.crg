@@ -12,13 +12,25 @@ namespace BHS.CRG.Application.Objects;
 /// </summary>
 public static class BaseRefReader
 {
-    /// <summary>id из значения «_baseRef» ({kind,id} или голая строка), либо null.</summary>
+    /// <summary>
+    /// Предел длины цепочки наследования — от патологических данных, не от нормы (настоящие цепочки —
+    /// одно-два звена). Один на всех, кто по цепочке ходит: разойдись пределы — таблица, печать и
+    /// сопоставление по реквизиту увидели бы у одной записи разное.
+    /// </summary>
+    public const int MaxDepth = 8;
+
+    /// <summary>
+    /// id из значения «_baseRef» ({kind,id} или голая строка), либо null. Не бросает: «id» числом или
+    /// объектом — негодная ссылка, а не исключение (иначе одна такая запись роняла бы чтение списка,
+    /// ревью PR #1256).
+    /// </summary>
     public static Guid? ParseRef(JsonElement el)
     {
         if (el.ValueKind == JsonValueKind.String)
             return Guid.TryParse(el.GetString(), out var g) ? g : null;
         if (el.ValueKind == JsonValueKind.Object
-            && el.TryGetProperty("id", out var idEl) && Guid.TryParse(idEl.GetString(), out var gid))
+            && el.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
+            && Guid.TryParse(idEl.GetString(), out var gid))
             return gid;
         return null;
     }

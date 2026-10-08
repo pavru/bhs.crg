@@ -216,9 +216,20 @@ public sealed class InvoiceScanReading(
         void PutParty(InvoicePartyView? party, string requisiteKey)
         {
             if (party?.Match is not { } match) return;
-            if (!IsBlank(before.TryGetPropertyValue(requisiteKey, out var was) ? was : null)) return;
 
-            after[requisiteKey] = InvoiceRequisites.ReferenceNode(match);
+            var found = InvoiceRequisites.ReferenceNode(match);
+            if (!IsBlank(before.TryGetPropertyValue(requisiteKey, out var was) ? was : null))
+            {
+                // Занято: выбор человека побеждает. Но скан назвал ДРУГУЮ организацию — это остаётся
+                // предложением, как у номера и суммы: иначе расхождение видно, только пока счёт
+                // черновик, а после разбора о нём не узнать ниоткуда (ревью PR #1256).
+                if (!JsonNode.DeepEquals(was, found))
+                    offers[requisiteKey] = string.Join(", ",
+                        new[] { party.Name, party.TaxId is { } taxId ? $"ИНН {taxId}" : null }.OfType<string>());
+                return;
+            }
+
+            after[requisiteKey] = found;
             filled.Add(requisiteKey);
         }
 

@@ -221,9 +221,13 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
             gate.SetResult();
         }
 
-        var party = (await OutcomeAsync(client, id)).GetProperty("parties").GetProperty("supplier");
+        var recognition = await OutcomeAsync(client, id);
+        var party = recognition.GetProperty("parties").GetProperty("supplier");
         Assert.Equal("matched", party.GetProperty("state").GetString());
         Assert.Equal(found, Assert.Single(party.GetProperty("candidates").EnumerateArray()).GetProperty("id").GetGuid());
+        // Скан назвал другую организацию — это сохранено предложением, как у номера и суммы: после
+        // разбора счёта стороны уже не пересчитываются, и иначе о расхождении не узнать.
+        Assert.Equal($"Из скана, ИНН {taxId}", recognition.GetProperty("offers").GetProperty("Поставщик").GetString());
 
         var view = await ReadAsync(client, id);
         Assert.Equal(supplier, view.GetProperty("requisites").GetProperty("Поставщик").GetProperty("entryId").GetGuid());
