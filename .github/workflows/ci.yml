@@ -167,8 +167,13 @@ jobs:
           # больше нет), но упомянута, чтобы её не удалили как ненужную.
           exit $rc
 
+      # Ключ лицензии Six Labors: ImageSharp 4.x проверяет его при сборке. В Debug его отсутствие —
+      # предупреждение, в Release — отказ; называем и здесь, чтобы сборка была без предупреждения.
+      # У PR из форка секрета нет — там эта сборка пройдёт с предупреждением.
       - name: Сборка
         working-directory: src/server
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build BHS.CRG.slnx -c Debug
 
       # Двумя потоками — двумя процессами `dotnet test` на своих базах (issue #1164): интеграционные
@@ -442,8 +447,14 @@ jobs:
       # - Общий у ветвей только кеш npm — он рассчитан на одновременную работу.
       #
       # Срок — десять минут при обычной минуте: зависшая ветвь иначе держала бы работу шесть часов.
+      #
+      # ⚠️ Ключ лицензии Six Labors — этой сборке ОБЯЗАТЕЛЕН: она Release, а ImageSharp 4.x без ключа
+      # в Release не собирается («No Six Labors license found»). MSBuild читает свойство из
+      # переменной окружения. У PR из форка секрета нет, и живые прогоны там краснеют на сборке.
       - name: Сборка сервера, клиента и установка браузера
         timeout-minutes: 10
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
           bash scripts/in-parallel.sh \
             'Сборка сервера' \

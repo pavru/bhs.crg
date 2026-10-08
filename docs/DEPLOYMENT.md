@@ -176,6 +176,12 @@ cp deploy/.env.example deploy/.env && nano deploy/.env
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
 ```
 
+> ⚠️ **Сборке из исходников нужен ключ лицензии Six Labors** — без него образ `api` не соберётся
+> («No Six Labors license found»): библиотека ImageSharp 4.x проверяет ключ при сборке. Ключ задаётся
+> переменной окружения оболочки, не файлом `.env`:
+> `SIXLABORS_LICENSE_KEY=… docker compose -f … -f deploy/docker-compose.build.yml up -d --build`.
+> Установке готовыми образами ключ не нужен.
+
 > Образы публичные — `docker login ghcr.io` для установки не нужен: пакеты наследуют видимость
 > репозитория, и проверено это на первом же выпуске (анонимный pull обоих образов работает).
 > Если однажды `pull` всё же потребует авторизации, значит видимость пакета изменили вручную —

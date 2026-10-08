@@ -172,6 +172,10 @@ jobs:
           # образ пометить не может.
           build-args: |
             SOURCE_REVISION=${{ github.sha }}
+          # Ключ лицензии Six Labors — секретом сборки, а не аргументом: аргумент остался бы в
+          # истории слоёв образа, который мы публикуем.
+          secrets: |
+            sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/bhs.crg-api:${{ steps.ver.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/bhs.crg-api:latest
