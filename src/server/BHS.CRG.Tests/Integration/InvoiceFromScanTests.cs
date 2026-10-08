@@ -613,7 +613,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
             [CostsRecognitionProfiles.VatTotal] = vat,
         };
 
-    private static IReadOnlyDictionary<string, string?> Row(
+    internal static IReadOnlyDictionary<string, string?> Row(
         string name, string unit, string quantity, string price, string amount) =>
         new Dictionary<string, string?>
         {

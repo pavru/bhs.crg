@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { FileText, Plus, ScanLine, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -13,15 +14,17 @@ import {
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
-import { useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
+import { sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { ArticlesDialog } from './ArticlesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
 import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
+import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
+import { retryRejected, startBatch, useScanBatch } from './scanBatch';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -99,6 +102,20 @@ export function InvoicesPage() {
     } catch (e) { toast.apiError(e, 'Счёт из скана не заведён'); }
   }
 
+  /**
+   * Несколько файлов разом (issue #1093) — по черновику на файл, и экран при этом НЕ двигается
+   * (решение владельца 09.10.2026): открытый счёт, отбор и поиск остаются, о заведённых говорит
+   * полоса над списком. Решает число выбранных файлов, а не принятых: один — открывает свой черновик.
+   */
+  const qc = useQueryClient();
+  const batch = useScanBatch();
+  const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
+  const sendOne = (file: File) => sendScan(qc, file).then(created => created.invoice.id);
+  function addScans(files: File[], folders: string[] = []) {
+    if (files.length === 1 && folders.length === 0) void addFromScan(files[0]);
+    else startBatch(files, folders, sendOne);
+  }
+
   const scan = view.data ? view.data.requisites[K.scan] : null;
   const hasScan = scan != null && typeof scan === 'object';
 
@@ -123,17 +140,18 @@ export function InvoicesPage() {
               <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
                 Новый счёт
               </Button>
-              <Button variant="filled" icon={<ScanLine size={16} />} loading={fromScan.isPending}
+              <Button variant="filled" icon={<ScanLine size={16} />} loading={loading}
+                title="Один или несколько файлов: PDF, PNG, JPEG. Файлы можно перетащить на список счетов."
                 onClick={() => scanInput.current?.click()}>
                 Счёт из скана
               </Button>
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
-              <input ref={scanInput} type="file" className="hidden" accept="application/pdf,image/png,image/jpeg"
+              <input ref={scanInput} type="file" multiple className="hidden" accept="application/pdf,image/png,image/jpeg"
                 onChange={e => {
-                  const file = e.target.files?.[0];
+                  const files = [...e.target.files ?? []];
                   e.target.value = '';
-                  if (file) void addFromScan(file);
+                  if (files.length > 0) addScans(files);
                 }} />
             </>
           )}
@@ -141,10 +159,12 @@ export function InvoicesPage() {
         </div>
       }
       nav={
-        <>
+        <InvoiceScanDrop enabled={hasPermission(access, 'costs.invoice.edit') && !loading} onFiles={addScans}>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} failed={counts.isError}
             onRetry={() => void counts.refetch()} />
+          <InvoiceScanBatchBar narrowed={queue !== null || query.trim() !== ''}
+            onShowAll={() => { setQueue(null); setQuery(''); }} onRetry={() => retryRejected(sendOne)} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-xs text-warning" role="status">
@@ -186,7 +206,7 @@ export function InvoicesPage() {
                 </p>
               ))}
           </div>
-        </>
+        </InvoiceScanDrop>
       }
       detail={
         // ⚠️ Три состояния, а не одно. «Ничего не выбрано», «счёт грузится» и «счёт не пришёл» —

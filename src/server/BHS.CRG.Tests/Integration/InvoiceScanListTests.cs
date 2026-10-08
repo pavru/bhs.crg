@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +51,68 @@ public sealed class InvoiceScanListTests(InvoiceScanHost host)
     /// Шапка прочитана, строк нет — счёт со сканом всё ещё пуст, и работа та же: он под отбором, а строка
     /// говорит, что это не отказ (решение владельца 08.10.2026).
     /// </summary>
+    /// <summary>
+    /// Пакет сканов (задача D4, issue #1093): десять файлов — десять черновиков, и тот, что не
+    /// распознался, остаётся черновиком с названной причиной, а не исчезает.
+    ///
+    /// <para>Пакет — это десять запросов подряд; серверного «пакета» нет, и сторож стоит на том, что
+    /// обещано человеку: сколько файлов принято, столько строк в списке, и отказ одного не уносит ни
+    /// его самого, ни соседей.</para>
+    /// </summary>
+    [Fact]
+    public async Task Десять_файлов_дают_десять_черновиков_и_нераспознанный_остаётся_с_причиной()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scans = Enumerable.Range(1, 10).Select(_ => Scan()).ToArray();
+        foreach (var (scan, i) in scans[..9].Select((s, i) => (s, i)))
+            host.Recognition.On(scan, () => Task.FromResult(Read(
+                Header(number: $"П-{i + 1}"), Row("Кабель ВВГнг-LS 3х2,5", "м", "100", "100,00", "10 000,00"))));
+        host.Recognition.On(scans[9], () => Task.FromException<ModuleRecognitionResult>(new RecognitionRefusedException(
+            RecognitionRefusal.Unavailable, "Движок распознавания не ответил.")));
+
+        var ids = new List<Guid>();
+        foreach (var (scan, i) in scans.Select((s, i) => (s, i)))
+            ids.Add((await FromScanAsync(client, scan, $"Скан {i + 1}.pdf")).GetProperty("invoice").GetProperty("id").GetGuid());
+        foreach (var id in ids) await OutcomeAsync(client, id);
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices");
+        var rows = ids.Select(id => list.EnumerateArray().Single(r => r.GetProperty("id").GetGuid() == id)).ToArray();
+        Assert.Equal(10, rows.Length);
+        Assert.All(rows, r => Assert.Equal("Черновик", r.GetProperty("state").GetString()));
+        Assert.Equal(Enumerable.Range(1, 10).Select(i => $"Скан {i}.pdf"), rows.Select(r => r.GetProperty("scanFileName").GetString()));
+
+        // Нераспознанный — на месте, с причиной, и под отбором «Не распознано»; прочитанные туда не попали.
+        Assert.Equal("failed", State(rows[9]));
+        Assert.Equal("Unavailable", rows[9].GetProperty("recognition").GetProperty("reason").GetString());
+        var unrecognized = await UnrecognizedAsync(client);
+        Assert.Contains(ids[9], unrecognized);
+        Assert.Empty(unrecognized.Intersect(ids[..9]));
+
+        // В общем индикаторе у каждого файла своя задача — названная файлом, а не десять «без номера».
+        using var scope = host.Services.CreateScope();
+        var titles = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Jobs.AsNoTracking()
+            .Where(j => ids.Contains(j.TargetId)).Select(j => j.Title).ToListAsync();
+        Assert.Equal(Enumerable.Range(1, 10).Select(i => $"Распознавание скана: Скан {i}.pdf").Order(), titles.Order());
+    }
+
+    /// <summary>Файл больше предела — отказ словами, и черновика нет.</summary>
+    [Fact]
+    public async Task Скан_больше_предела_отказ_словами()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(new byte[50 * 1024 * 1024 + 1]);
+        file.Headers.ContentType = new("application/pdf");
+        form.Add(file, "file", "Большой.pdf");
+
+        var response = await client.PostAsync("/api/costs/invoices/from-scan", form);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("больше 50 МБ", await response.Content.ReadAsStringAsync());
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices");
+        Assert.DoesNotContain(list.EnumerateArray(), r => r.GetProperty("scanFileName").GetString() == "Большой.pdf");
+    }
+
     [Fact]
     public async Task Прочитанный_без_строк_под_отбором_и_назван_не_отказом()
     {

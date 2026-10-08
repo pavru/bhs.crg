@@ -327,6 +327,31 @@ try {
     await named('под отбором «Не распознано» счёта нет', () => row.waitFor({ timeout: 10_000 }));
     await page.getByRole('button', { name: /^Не распознано/ }).click();
   });
+
+  // ── 8. Несколько сканов разом: по черновику на файл, непринятый НАЗВАН (issue #1093) ────────────
+  //
+  // Сторож задачи D4. Три файла: два годных по виду и один не того вида. Экран при этом не двигается
+  // (открыт остаётся счёт из проверки 7), а о результате говорит полоса над списком — и она не
+  // исчезает сама: непринятый файл с причиной обязан дожить до взгляда человека.
+  await check('пакет сканов: по черновику на файл, непринятый назван, экран не сдвинулся', async () => {
+    const opened = new URL(page.url()).searchParams.get('invoice');
+    const names = [`Пакет-${stamp}-2.pdf`, `Пакет-${stamp}-10.pdf`];
+    await page.locator('input[type=file][accept="application/pdf,image/png,image/jpeg"]').setInputFiles([
+      ...names.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`не PDF ${name}`) })),
+      { name: `Заметки-${stamp}.txt`, mimeType: 'text/plain', buffer: Buffer.from('не скан') },
+    ]);
+
+    const bar = page.getByRole('navigation', { name: 'Счета на оплату' }).getByRole('status')
+      .filter({ hasText: 'Заведено 2 из 3' });
+    await named('итог пакета не показан', () => bar.waitFor({ timeout: 30_000 }));
+    await named('непринятый файл не назван с причиной',
+      () => bar.locator('li', { hasText: `Заметки-${stamp}.txt` }).getByText('не PDF, PNG или JPEG').waitFor({ timeout: 5_000 }));
+    for (const name of names)
+      await named(`черновика «${name}» в списке нет`,
+        () => page.locator('button', { hasText: name }).waitFor({ timeout: 15_000 }));
+    if (new URL(page.url()).searchParams.get('invoice') !== opened)
+      throw new Error('пакет из нескольких файлов сменил открытый счёт');
+  });
 } finally {
   await browser.close();
 }

@@ -37,6 +37,7 @@ import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
 import { ConfirmEmailPage } from '@/features/auth/ConfirmEmailPage';
 import { ConfirmEmailChangePage } from '@/features/auth/ConfirmEmailChangePage';
+import { useDropMissGuard } from '@/shared/ui/fileDrop';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -82,6 +83,8 @@ export default function App() {
  * перерисовывает всё дерево страниц разом — без перемонтирования, то есть набранное в формах цело.
  */
 function AppRoutes() {
+  // Файл, отпущенный мимо цели, не открывается вместо страницы (issue #1093).
+  useDropMissGuard();
   useLocale();
   return (
     <Routes>

@@ -76,6 +76,17 @@ public sealed class InvoiceScanRecognition(
     /// «Не распознано» и входила бы в число чипа, хотя распознавание только начинается (ревью PR #1259).
     /// Свежая такая запись — «идёт»; постаревшая — прервано: до очереди она так и не дошла.</para>
     /// </summary>
+    /// <summary>Наибольший скан, из которого заводится счёт. То же число называет экран.</summary>
+    internal const long MaxScanBytes = 50L * 1024 * 1024;
+
+    /// <summary>
+    /// Заголовок задачи в общем индикаторе. У счёта без номера — имя файла: сканы грузят пачкой
+    /// (issue #1093), и десять задач «Счёт без номера» не сказали бы, какая из них о каком файле.
+    /// </summary>
+    internal static string Title(Invoice invoice) =>
+        "Распознавание скана: " +
+        (invoice.Number is null && invoice.ScanFileName is { } file ? file : InvoiceEndpoints.Label(invoice));
+
     internal static bool IsStarting(InvoiceRecognitionOutcome? outcome, Guid? jobId, DateTimeOffset startedAt) =>
         outcome == InvoiceRecognitionOutcome.Pending && jobId is null
         && DateTimeOffset.UtcNow - startedAt < StartGrace;
@@ -191,7 +202,7 @@ public sealed class InvoiceScanRecognition(
         try
         {
             stored.Queued(await jobs.EnqueueAsync(
-                Operation, invoice.Id, $"Распознавание скана: {InvoiceEndpoints.Label(invoice)}", invoice.ScanBlobPath, ct));
+                Operation, invoice.Id, Title(invoice), invoice.ScanBlobPath, ct));
         }
         catch (ConflictException busy)
         {
