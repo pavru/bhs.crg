@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { Archive, Check, ListChecks, Sparkles, TriangleAlert } from 'lucide-react';
+import { Archive, Check, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { lostTitle, placesCount, placesText } from './invoiceQueues';
 import { LOST, MISSING } from './lostReferences';
+import { rowScan } from './recognition';
 
 /**
  * Строка списка счетов.
@@ -26,13 +27,24 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   const where = queue === 'lost' ? placesText(item.references?.lost)
     : queue === 'archived' ? placesText(item.references?.archived)
     : null;
+  // Что со сканом — под любым отбором: основной носитель состояния распознавания — строка списка
+  // (issue #1077). Человек завёл счёт из скана и ушёл; узнать об отказе он обязан, не открывая счёт.
+  const scan = rowScan(item);
 
   return (
     <button ref={row} type="button" onClick={onClick}
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
         `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
       <div className="flex items-center gap-2">
-        <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
+        {/* Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. */}
+        {item.number || !item.scanFileName
+          ? <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
+          : (
+            <span className="inline-flex items-center gap-1 min-w-0 text-sm text-fg2" title="Номера ещё нет — это имя файла скана">
+              <ScanLine size={12} className="shrink-0 text-fg3" aria-hidden />
+              <span className="truncate">{item.scanFileName}</span>
+            </span>
+          )}
         {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
         {item.total != null && <span className="text-xs text-fg2 shrink-0">{formatMoney(item.total)}</span>}
@@ -71,9 +83,17 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
       {where && (
         <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-danger' : 'text-fg3'}`}>{where}</div>
       )}
+      {scan && (
+        <div className={`mt-0.5 flex items-center gap-1 text-xs ${SCAN_TONE[scan.tone]}`}>
+          {scan.running && <Loader2 size={11} className="animate-spin shrink-0" aria-hidden />}
+          <span className="truncate">{scan.text}</span>
+        </div>
+      )}
     </button>
   );
 }
+
+const SCAN_TONE = { quiet: 'text-fg3', danger: 'text-danger', warning: 'text-warning' } as const;
 
 /**
  * Строка открытого счёта, который под отбор больше не попадает: держится, пока с него не ушли, —

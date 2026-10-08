@@ -28,6 +28,9 @@ import { LostReferencesNote } from './LostReferencesNote';
 import { LOST } from './lostReferences';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { ScanUploadButton } from './InvoiceScanPanel';
+import { InvoiceFieldScan } from './InvoiceFieldScan';
+import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart } from './InvoiceRecognitionNote';
+import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -84,6 +87,13 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
     base.rebase();
   }
 
+  const scan = useMemo(() => scanOf(view), [view]);
+  // Распознавание скана (issue #1077). Вид, пришедший перечитыванием после исхода, — правка
+  // распознавания, а не чужая: набранное остаётся и переносится на него без полосы «устарело»,
+  // прочитанное для этих полей предлагается под ними.
+  const watch = useRecognitionWatch(view.id, scan !== null);
+  if (base.stale && watch.accepted === view.version) base.rebase();
+
   // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
   const closed = view.payment.lockedBy !== null;
   // Без права вводить счета (бухгалтер) форма читается так же, как запертая: действий записи нет вовсе,
@@ -92,7 +102,6 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const canEdit = useCan().permission('costs.invoice.edit');
   const locked = closed || !canEdit;
 
-  const scan = useMemo(() => scanOf(view), [view]);
   const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
 
   // Уход из раздела с несохранёнными правками спрашивает (G4, issue #1097). Открытый счёт назван в
@@ -128,6 +137,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   }
 
   return (
+    <RecognitionContext.Provider value={locked ? undefined : watch.recognition}>
     <div className="flex-1 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={update.isPending}
         onCancel={() => setLeave(null)}
@@ -135,12 +145,14 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
-        {base.stale && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
+        {base.stale && !watch.settling && watch.accepted !== view.version
+          && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
         <div className="flex items-center gap-2 flex-wrap">
           <StateChip text={asInput(view.requisites[K.state])} />
           <StateChip text={view.payment.paid && view.payment.paidOn
             ? `Оплачен ${formatDate(view.payment.paidOn)}` : asInput(view.requisites[K.payment])} />
           {closed && <StateChip text="Заперт" />}
+          <RecognitionChip recognition={watch.recognition} />
           {view.unconfirmed.length > 0 && (
             <span className="inline-flex items-center gap-1 text-xs text-warning">
               <Sparkles size={12} /> распознано, не подтверждено: {view.unconfirmed.length}
@@ -153,7 +165,13 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           {canEdit && closed && scan !== null && (
             <span className="text-xs text-fg3">Скан заменить нельзя: документ закрытого периода</span>
           )}
-          {canEdit && !(closed && scan !== null) && (
+          {/* Пока скан читается, заменить его нельзя (сервер откажет): прочитанное легло бы в счёт с
+              другой бумагой. Кнопки нет, причина названа. */}
+          {canEdit && watch.running && (
+            <span className="text-xs text-fg3">Скан распознаётся — заменить можно после исхода</span>
+          )}
+          {!locked && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
+          {canEdit && !watch.running && !(closed && scan !== null) && (
             <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
               onPick={file => {
                 attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
@@ -182,6 +200,10 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </div>
         )}
 
+        {!closed && (
+          <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
+            onRetryRead={watch.retry} canEdit={canEdit} />
+        )}
         <LostReferencesNote view={view} locked={closed} />
         {view.duplicates.length > 0 && <DuplicateNote view={view} onOpenInvoice={onOpenInvoice} />}
         {scanSlot}
@@ -198,6 +220,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-6">
+        {!locked && <RecognitionNotes recognition={watch.recognition} />}
         {BLOCKS.slice(1).map(block => (
           <section key={block.id} className="space-y-3">
             <BlockFields block={block} columns="sm:grid-cols-2" titled
@@ -222,6 +245,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         </p>
       </div>
     </div>
+    </RecognitionContext.Provider>
   );
 }
 
@@ -255,8 +279,13 @@ function BlockFields({
       )}
       <div className={`grid grid-cols-1 ${columns} gap-3`}>
         {block.fields.map(key => (
-          <Field key={key} fieldKey={key} view={view} edits={edits} organizations={organizations}
-            organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
+          <div key={key} className="min-w-0">
+            <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
+              organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
+            {!locked && (
+              <InvoiceFieldScan fieldKey={key} view={view} edits={edits} set={set} organizations={organizations} />
+            )}
+          </div>
         ))}
       </div>
     </>

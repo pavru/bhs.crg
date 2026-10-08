@@ -9,6 +9,7 @@ import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 /** Подписи чипов. Короче, чем у готовых отборов реестра: рейл — 320 пикселей. */
 export const QUEUE_LABEL: Record<InvoiceQueue, string> = {
   parsing: 'Разобрать',
+  unrecognized: 'Не распознано',
   lost: 'Удалённые записи',
   archived: 'В архиве',
 };
@@ -156,6 +157,10 @@ export function emptyText(queue: InvoiceQueue | null, query: string, queues: Inv
     case 'parsing':
       return 'Разбирать нечего: строк, ждущих позиции номенклатуры, нет ни у одного счёта. '
         + 'Счета без строк вовсе в этот отбор не входят — это другая работа.';
+    case 'unrecognized':
+      return queues
+        ? 'Нераспознанных черновиков нет: у каждого счёта со сканом есть строки либо распознавание ещё идёт.'
+        : 'Нераспознанных черновиков не найдено. Сколько их всего — не посчитано.';
     case 'lost':
       if (!queues)
         return 'Счетов с удалёнными записями, которые можно исправить, не найдено. '

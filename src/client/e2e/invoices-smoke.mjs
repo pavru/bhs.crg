@@ -299,6 +299,34 @@ try {
     if ((await page.getByLabel('Назначение').inputValue()) !== 'Счёт первый')
       throw new Error('после перехода по ссылке в форме не тот счёт');
   });
+
+  // ── 7. Счёт из скана: неудача НАЗВАНА, а не выглядит пустым черновиком (issue #1077) ────────────
+  //
+  // Сторож задачи. Файл заведомо не читается (это не PDF), так что исход один на любом стенде: отказ.
+  // Какой именно — зависит от стенда (движок не настроен либо не справился), поэтому сверяются слова,
+  // общие для любого отказа. Черновик при этом обязан завестись и открыться: распознавание — помощь,
+  // а не условие. И о неудаче говорят все три места — форма, строка списка и отбор.
+  await check('счёт из скана: отказ распознавания назван в форме, в строке и стоит под отбором', async () => {
+    const fileName = `Скан-${stamp}.pdf`;
+    await page.locator('input[type=file][accept="application/pdf,image/png,image/jpeg"]').setInputFiles({
+      name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`не PDF ${stamp}`),
+    });
+
+    // Черновик открылся сам: в адресе назван счёт, скан приложен.
+    await named('черновик из скана не открылся', () => page.waitForURL(/[?&]invoice=/, { timeout: 15_000 }));
+    await named('в форме отказ распознавания не назван',
+      () => page.getByText(/Скан не распознан: /).waitFor({ timeout: 30_000 }));
+
+    // Строка списка: номера нет — стоит имя файла, под ним причина.
+    const row = page.locator('button', { hasText: fileName });
+    await named('в строке списка отказ не назван',
+      () => row.getByText(/не распознан — /).waitFor({ timeout: 15_000 }));
+
+    // Отбор «Не распознано» — тот же счёт стоит под ним.
+    await page.getByRole('button', { name: /^Не распознано/ }).click();
+    await named('под отбором «Не распознано» счёта нет', () => row.waitFor({ timeout: 10_000 }));
+    await page.getByRole('button', { name: /^Не распознано/ }).click();
+  });
 } finally {
   await browser.close();
 }

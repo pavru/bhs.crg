@@ -124,8 +124,12 @@ public sealed class InvoiceScanRecognition(
     private async Task<ModuleJobState?> AliveAsync(InvoiceRecognition stored, CancellationToken ct)
     {
         if (stored.Outcome != InvoiceRecognitionOutcome.Pending || stored.JobId is not { } id) return null;
-        return await jobs.GetAsync(id, ct) is { Status: ModuleJobStatus.Queued or ModuleJobStatus.Running } job ? job : null;
+        return await jobs.GetAsync(id, ct) is { } job && IsAlive(job) ? job : null;
     }
+
+    /// <summary>Жива ли задача: в очереди или идёт. Одно место — для формы и для списка счетов.</summary>
+    internal static bool IsAlive(ModuleJobState? job) =>
+        job is { Status: ModuleJobStatus.Queued or ModuleJobStatus.Running };
 
     /// <summary>
     /// Поставить распознавание в фон. Счёт при этом НЕ меняется — пишется только запись о

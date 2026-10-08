@@ -6,7 +6,7 @@ import { emptyText, heldRow, lostTitle, placesCount, placesText, queueChip, queu
 /** Очереди списка счетов — чипы «наведите порядок» в рейле (issue #1186). */
 
 const numbers = (patch: Partial<InvoiceQueues> = {}): InvoiceQueues => ({
-  lost: 3, archived: 5, locked: 0, doubt: null, ...patch,
+  lost: 3, archived: 5, locked: 0, doubt: null, unrecognized: 0, ...patch,
 });
 
 const invoice = (id: string, patch: Partial<InvoiceListItem> = {}): InvoiceListItem => ({

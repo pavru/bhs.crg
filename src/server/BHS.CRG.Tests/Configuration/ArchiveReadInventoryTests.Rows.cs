@@ -291,7 +291,7 @@ public partial class ArchiveReadInventoryTests
             Shown("состояние ссылок счёта: «в архиве» у сторон, строк и частей разноски"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);"] =
             Seen("названия сторон счёта — уже стоящих; признак рядом, из состояния ссылок"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceListEndpoint.cs|var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);"] =
             Shown("реестр счетов: названия поставщиков уже заведённых счетов, признак значком"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);"] =
             Seen("названия позиций в стоящих строках счёта; признак строке даёт состояние ссылок"),
