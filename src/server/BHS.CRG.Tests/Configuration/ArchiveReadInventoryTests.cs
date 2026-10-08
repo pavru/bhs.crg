@@ -263,7 +263,8 @@ public partial class ArchiveReadInventoryTests
     {
         // Живой тест стоит там, где для него готова обстановка: профиль уровня проверяется на чистой
         // базе своего класса — на общей базе хоста счетов профиль-тип достался бы всем его стройкам.
-        var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests), typeof(InvoiceArchiveTests) }
+        var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests), typeof(InvoiceArchiveTests),
+                typeof(SupplierMatchTests) }
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())
             .Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
@@ -276,7 +277,7 @@ public partial class ArchiveReadInventoryTests
                 wrong.Add($"{key}\n    выбор без живого теста: решение принято, но ничем не проверено");
             foreach (var probe in row.Probes.Where(p => !probes.Contains(p)))
                 wrong.Add($"{key}\n    живого теста «{probe}» нет ни в ArchiveReadPurposeTests, ни в LevelProfileTests, " +
-                    "ни в InvoiceArchiveTests");
+                    "ни в InvoiceArchiveTests, ни в SupplierMatchTests");
         }
 
         Assert.True(wrong.Count == 0, "Перепись мест чтения неполна:\n" + string.Join("\n", wrong));

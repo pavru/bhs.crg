@@ -6,7 +6,14 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
 } from '@/shared/api/invoices';
-import { K } from './invoiceFields';
+import { K, refEntryId } from './invoiceFields';
+import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
+import { apiError } from '@/shared/utils/apiError';
+import { LineMatchChip } from './LineMatchChip';
+import { SupplierMatchNote } from './SupplierMatchNote';
+import {
+  applyOffer, cancelMatch, lineKey, memoryFate, memoryToast, pending, pickByHand, usable, type MatchOffer,
+} from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { formatInputAmount, formatMoney } from '@/shared/format/format';
@@ -21,6 +28,13 @@ import { AllocationSummary, LineAllocationCell } from './LineAllocation';
 
 /** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
 const NO_MARKS = { nomenclatureLost: false, nomenclatureMoved: false, nomenclatureArchived: false } as const;
+
+const blank = (value: string) => value.trim() || null;
+
+/** Тот же ли у двух строк ключ соответствия. */
+function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): boolean {
+  return a?.by === b?.by && a?.value === b?.value;
+}
 
 /**
  * Строки счёта (задача C2, issue #1078, ТЗ COST-7, COST-7.2, COST-6.2).
@@ -76,6 +90,64 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   const state = useInvoiceState();
   const toast = useToast();
 
+  // Запомненное (C3, issue #1079). Поставщик — тот, что СОХРАНЁН в шапке: строки пишутся отдельно от
+  // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
+  const supplierId = refEntryId(view.requisites[K.supplier]);
+  const [askFailed, setAskFailed] = useState<string | null>(null);
+  const laid = useLaidMatchSuggestions(supplierId,
+    view.lines.filter(line => line.nomenclatureId === null && lineKey(line.supplierCode, line.supplierText) !== null)
+      .map(line => ({ id: line.id, supplierCode: line.supplierCode, supplierText: line.supplierText })),
+    !still);
+
+  /** Запомненное для строки: спрошенное для неё самой либо, у лежащей строки, — ответ общего вопроса. */
+  function offerFor(draft: LineDraft): MatchOffer | null {
+    if (draft.offer !== undefined) return draft.offer;
+    return (draft.id && laid.data?.get(draft.id)) || null;
+  }
+
+  const ready = still ? [] : pending(drafts, offerFor);
+  const blockedOffers = still ? 0
+    : drafts.filter(d => d.nomenclatureId === null && offerFor(d) !== null && !usable(offerFor(d))).length;
+
+  function applyReady() {
+    const keys = new Set(ready.map(draft => draft.key));
+    setDrafts(prev => prev.map(draft => {
+      const offer = offerFor(draft);
+      return keys.has(draft.key) && usable(offer) ? { ...draft, ...applyOffer(offer) } : draft;
+    }));
+    setDirty(true);
+  }
+
+  /**
+   * Строка РОДИЛАСЬ (вставка, набор) — запомненное подставляется само (ТЗ COST-7.1). Вопрос идёт на
+   * сервер, а пока он идёт, строку могли разобрать руками, отменить или переписать — такую не трогаем:
+   * ответ был про прежний текст.
+   */
+  async function suggest(born: readonly LineDraft[]) {
+    if (!supplierId) return;
+    const asked = born.filter(d => d.nomenclatureId === null && !d.declined && lineKey(d.supplierCode, d.supplierText));
+    if (asked.length === 0) return;
+
+    try {
+      const found = await askMatchSuggestions(supplierId,
+        asked.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
+      setAskFailed(null);
+      const answers = new Map(found.map(item => [asked[item.index].key, { offer: item, asked: asked[item.index] }]));
+      if (answers.size === 0) return;
+
+      setDrafts(prev => prev.map(draft => {
+        const answer = answers.get(draft.key);
+        if (!answer || draft.nomenclatureId !== null || draft.declined) return draft;
+        if (!sameKey(lineKey(draft.supplierCode, draft.supplierText),
+          lineKey(answer.asked.supplierCode, answer.asked.supplierText))) return draft;
+        return usable(answer.offer) ? { ...draft, ...applyOffer(answer.offer) } : { ...draft, offer: answer.offer };
+      }));
+      if (found.some(usable)) setDirty(true);
+    } catch (e) {
+      setAskFailed(apiError(e));
+    }
+  }
+
   const sums = totals(drafts);
   const paper = view.requisites[K.total];
   const difference = mismatch(paper, sums.amount, sums.count);
@@ -89,6 +161,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   function add(added: LineDraft[]) {
     setDrafts(prev => [...prev, ...added]);
     setDirty(true);
+    void suggest(added);
   }
 
   function remove(key: string) {
@@ -103,6 +176,10 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
       // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
       setDrafts(toDrafts(saved.lines));
       setDirty(false);
+      // Один тост на сохранение, и только когда есть что сказать: запомненное меняет поведение
+      // следующих счетов этого поставщика — молча это делать нельзя.
+      const remembered = memoryToast(saved.memory);
+      if (remembered) toast.success(remembered);
     } catch (e) {
       toast.apiError(e, 'Строки не сохранены');
     }
@@ -135,6 +212,14 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
 
       {base.stale && dirty && <StaleInvoiceNotice what="строки" onReread={reread} />}
 
+      {!still && drafts.length > 0 && (
+        <SupplierMatchNote hasSupplier={supplierId !== null}
+          waiting={drafts.filter(d => d.nomenclatureId === null).length}
+          ready={ready.length} blocked={blockedOffers}
+          failed={askFailed ?? (laid.isError ? apiError(laid.error) : null)}
+          onApply={applyReady} />
+      )}
+
       {drafts.length === 0
         ? (
           <p className="text-xs text-fg4">
@@ -144,11 +229,11 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
         )
         : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[68rem] text-xs">
+            <table className="w-full min-w-[70rem] text-xs">
               <thead className="text-fg4">
                 <tr className="text-left">
                   <th className="w-8 font-normal py-1">№</th>
-                  <th className="w-56 font-normal py-1">Позиция номенклатуры</th>
+                  <th className="w-64 font-normal py-1">Позиция номенклатуры</th>
                   <th className="w-56 font-normal py-1">Наименование в счёте</th>
                   <th className="w-24 font-normal py-1">Артикул</th>
                   <th className="w-16 font-normal py-1">Ед.</th>
@@ -168,6 +253,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
                     line={view.lines.find(line => line.id === draft.id)} onAllocating={setAllocating}
                     blocked={dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null}
                     locked={still} allocationLocked={locked}
+                    offer={offerFor(draft)} hasSupplier={supplierId !== null} onBorn={() => void suggest([draft])}
                     onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
                 ))}
               </tbody>
@@ -175,7 +261,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
           </div>
         )}
 
-      <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty} />
+      <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty}
+        matched={drafts.filter(d => d.matchedBy !== null).length} />
 
       <div className="flex items-center gap-2 flex-wrap">
         {still ? null : parsed
@@ -216,7 +303,9 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
  * возвращает сервер, и они могут разойтись с нашими на копейку округления. Молчаливое «сумма 4850»,
  * которое после сохранения стало «4850,01», читалось бы как ошибка ввода.</p>
  */
-function Reconciliation({ sums, paper, difference, unsaved }: {
+function Reconciliation({ sums, paper, difference, unsaved, matched }: {
+  /** Сколько позиций подставлено из запомненного — их человек не выбирал, и это видно числом. */
+  matched: number;
   sums: { count: number; withoutNomenclature: number; amount: number; vat: number };
   paper: unknown;
   difference: number | null;
@@ -230,6 +319,8 @@ function Reconciliation({ sums, paper, difference, unsaved }: {
       {sums.withoutNomenclature > 0 && (
         <span className="text-warning">ждут позиции: <b>{sums.withoutNomenclature}</b></span>
       )}
+
+      {matched > 0 && <span className="text-fg4">подставлено из запомненного: {matched}</span>}
 
       <span className="text-fg2">Сумма строк: <b>{formatMoney(sums.amount)}</b></span>
       <span className="text-fg4">в том числе НДС: {formatMoney(sums.vat)}</span>
@@ -254,7 +345,16 @@ function linesSignature(view: InvoiceView): string {
   return JSON.stringify(toPayload(toDrafts(view.lines)));
 }
 
-function Row({ draft, number, view, line, blocked, locked, allocationLocked, onAllocating, onEdit, onRemove }: {
+function Row({
+  draft, number, view, line, blocked, locked, allocationLocked, offer, hasSupplier, onBorn, onAllocating, onEdit,
+  onRemove,
+}: {
+  /** Запомненное для этой строки, известное форме (C3, issue #1079). */
+  offer: MatchOffer | null;
+  /** У счёта сохранён поставщик: без него ни подставить, ни запомнить. */
+  hasSupplier: boolean;
+  /** У строки появился новый ключ (наименование или артикул) — спросить запомненное. */
+  onBorn: () => void;
   draft: LineDraft;
   number: number;
   /** Счёт целиком: разноска строки называет его версию (issue #1176). */
@@ -278,6 +378,25 @@ function Row({ draft, number, view, line, blocked, locked, allocationLocked, onA
         allocationLocked={allocationLocked} onAllocating={onAllocating} />
     );
 
+  /**
+   * Правка наименования или артикула меняет КЛЮЧ строки: запомненное для прежнего ключа к ней больше не
+   * относится. Несохранённая подстановка снимается вместе с позицией — сервер такую пометку всё равно
+   * отверг бы («соответствие эту строку не узнаёт»). Сохранённую не трогаем: она уже часть счёта.
+   */
+  function editKey(patch: Partial<LineDraft>) {
+    const unsavedMark = draft.matchedBy !== null && line?.match?.id !== draft.matchedBy;
+    onEdit({
+      ...patch, offer: null, declined: false,
+      ...(unsavedMark ? { nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null } : {}),
+    });
+  }
+
+  /** Строка «родилась» — новая либо с ключом, которого в сохранённой не было: лежащие ждут кнопки. */
+  function keyLeft() {
+    const saved = line ? lineKey(line.supplierCode, line.supplierText) : null;
+    if (!line || !sameKey(saved, lineKey(draft.supplierCode, draft.supplierText))) onBorn();
+  }
+
   return (
     <tr className="border-t border-stroke align-top">
       <td className="py-1 text-fg4">{number}</td>
@@ -288,17 +407,22 @@ function Row({ draft, number, view, line, blocked, locked, allocationLocked, onA
         <NomenclaturePicker chosen={draft.nomenclatureId !== null} name={draft.nomenclatureName}
           lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
           archived={draft.nomenclatureArchived}
-          onPick={(id, name) => onEdit({
-            nomenclatureId: id, nomenclatureName: name, ...NO_MARKS,
-          })}
+          clearable={draft.matchedBy === null}
+          mark={(
+            <LineMatchChip draft={draft} offer={offer} fate={memoryFate(draft, line, hasSupplier, offer)}
+              onCancel={() => onEdit(cancelMatch(draft))}
+              onRestore={restored => onEdit(applyOffer(restored))}
+              onRemember={remember => onEdit({ remember })} />
+          )}
+          onPick={(id, name) => onEdit(pickByHand(id, name))}
           onClear={() => onEdit({
-            nomenclatureId: null, nomenclatureName: null, ...NO_MARKS,
+            nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null, ...NO_MARKS,
           })} />
       </td>
       <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${number}`}
-        onChange={value => onEdit({ supplierText: value })} />
+        onChange={value => editKey({ supplierText: value })} onBlur={keyLeft} />
       <Cell value={draft.supplierCode} label={`Артикул, строка ${number}`}
-        onChange={value => onEdit({ supplierCode: value })} />
+        onChange={value => editKey({ supplierCode: value })} onBlur={keyLeft} />
       <Cell value={draft.unit} label={`Единица, строка ${number}`}
         onChange={value => onEdit({ unit: value })} />
       <Cell value={draft.quantity} label={`Количество, строка ${number}`} numeric
@@ -347,6 +471,8 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
         {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)
           : draft.nomenclatureName === null ? '—'
           : withArchiveWord(draft.nomenclatureName, !!draft.nomenclatureArchived)}
+        {/* У запертой строки пометка — словом в тексте: отменять здесь нечего. */}
+        {draft.matchedBy !== null && !draft.nomenclatureLost && <span className="text-fg4"> (запомнено)</span>}
       </td>
       {text(draft.supplierText)}
       {text(draft.supplierCode)}
@@ -375,12 +501,14 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
  * что сумму можно не набирать: её досчитают по количеству и цене. Набранное значение подсказку
  * перекрывает, и досчитанного тогда нет — присланное не пересчитывается.</p>
  */
-function Cell({ value, label, numeric, placeholder, onChange }: {
+function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
   value: string;
   label: string;
   numeric?: boolean;
   placeholder?: string;
   onChange: (value: string) => void;
+  /** Поле покинули — у текстовых клеток ключа строки (наименование, артикул). */
+  onBlur?: () => void;
 }) {
   if (numeric) {
     return (
@@ -392,7 +520,7 @@ function Cell({ value, label, numeric, placeholder, onChange }: {
   return (
     <td className="py-1 pr-2">
       <input value={value} aria-label={label} placeholder={placeholder}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)} onBlur={onBlur}
         className="w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg
           outline-none focus:border-primary placeholder:text-fg4" />
     </td>

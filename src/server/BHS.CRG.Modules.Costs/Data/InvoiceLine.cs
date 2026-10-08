@@ -110,6 +110,20 @@ public sealed class InvoiceLine
     /// <summary>Примечание — единственное место, где свободный текст ничего не подменяет (ТЗ COST-7).</summary>
     public string? Note { get; private set; }
 
+    /// <summary>
+    /// Соответствие, из которого позиция ПОДСТАВЛЕНА (задача C3, issue #1079, ТЗ COST-7.1), — пометка
+    /// «(запомнено)». <c>null</c> — позицию выбрал человек либо её нет.
+    ///
+    /// <para><b>Идентификатором, а не флагом.</b> По нему на чтении видно, что соответствие с тех пор
+    /// направили на другую позицию или забыли вовсе — и строка говорит об этом, а не продолжает
+    /// выглядеть подтверждённой. Флаг «подставлено» этого не знал бы.</para>
+    ///
+    /// <para>Внешнего ключа нет нарочно: забытое соответствие не должно ни держаться строками, ни
+    /// молча снимать с них пометку — «подставлено из того, чего больше нет» и есть то, что человеку
+    /// надо увидеть.</para>
+    /// </summary>
+    public Guid? MatchedBy { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -129,7 +143,7 @@ public sealed class InvoiceLine
     /// </summary>
     public InvoiceLineValues Snapshot() => new(
         NomenclatureId, SupplierText, SupplierCode, Unit, Quantity, Price, VatRate, VatAmount, Amount,
-        Note);
+        Note, MatchedBy);
 
     /// <summary>
     /// Положить значения строки разом. Одним методом, как у счёта: строки приходят таблицей целиком —
@@ -149,6 +163,7 @@ public sealed class InvoiceLine
         VatAmount = values.VatAmount;
         Amount = values.Amount;
         Note = values.Note;
+        MatchedBy = values.MatchedBy;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }
@@ -170,7 +185,8 @@ public sealed record InvoiceLineValues(
     decimal? VatRate,
     decimal? VatAmount,
     decimal? Amount,
-    string? Note)
+    string? Note,
+    Guid? MatchedBy = null)
 {
     /// <summary>
     /// Досчитать то, чего в бумаге нет: сумму строки и сумму НДС.

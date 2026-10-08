@@ -69,6 +69,21 @@ public static class CostsReferences
         ModuleReference.Holding("invoice_lines", "nomenclature_id", ReferenceTarget.Record,
             "строки счетов с этой позицией номенклатуры", Invoice("invoice_id")),
 
+        // Пометка «(запомнено)» (C3, issue #1079) — идентификатор соответствия, записи модуля, а не ядра.
+        ModuleReference.Remembering("invoice_lines", "matched_by", target: null,
+            "соответствие, из которого подставлена позиция строки, — запись самого модуля; записей ядра в ней нет"),
+
+        // Соответствия наименований поставщика (C3, issue #1079). ДЕРЖАТ и поставщика, и позицию —
+        // решение владельца продукта от 09.10.2026: «помнящая» колонка при слиянии дублей номенклатуры
+        // дала бы тихую смерть соответствий. Документа у них нет: соответствие — не счёт, и открыть
+        // его можно только в списке соответствий.
+        ModuleReference.Holding("supplier_matches", "supplier_id", ReferenceTarget.Record,
+            "запомненные соответствия наименований этого поставщика"),
+        ModuleReference.Holding("supplier_matches", "nomenclature_id", ReferenceTarget.Record,
+            "запомненные соответствия наименований поставщиков, ведущие на эту позицию"),
+        ModuleReference.Remembering("supplier_matches", "updated_by", ReferenceTarget.User,
+            "кто запомнил соответствие — справочное поле; удаление учётной записи соответствий не касается"),
+
         ModuleReference.Holding("invoice_allocations", "construction_id", ReferenceTarget.Construction,
             "части разноски счетов на эту стройку", Invoice("invoice_id")),
         ModuleReference.Holding("invoice_allocations", "section_id", ReferenceTarget.Section,

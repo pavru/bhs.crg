@@ -47,7 +47,7 @@ public static class InvoiceLineEndpoints
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, InvoiceLinesRequest body, CostsDbContext db, IModuleCatalog catalog,
         AllocationPlacesSource places, InvoiceDesk desk,
-        IModuleActivityLog log, CancellationToken ct)
+        IModuleActivityLog log, IModuleUser user, CancellationToken ct)
     {
         if (body.Lines is null)
             throw new InvalidRequestException(
@@ -62,8 +62,25 @@ public static class InvoiceLineEndpoints
             parsed.Add((InvoiceLineRequests.Id(incoming[index], index + 1),
                 InvoiceLineRequests.Values(incoming[index], index + 1)));
 
+        // «Не запоминать» — слово человека про ЭТУ строку (ТЗ COST-7.1): «Доставка» у поставщика всякий
+        // раз другая, и запомненная позиция подставлялась бы не туда.
+        var remember = incoming.Select((line, index) => InvoiceLineRequests.Remember(line, index + 1)).ToList();
+
         EnsureIdsDistinct(parsed);
-        var (invoice, changed, reason) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
+        var (invoice, changed, reason, worth) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
+
+        // Запоминание — ПОСЛЕ записи счёта и вне её транзакции: см. SupplierMatching.RememberAsync.
+        var memory = invoice.SupplierId is { } supplier
+            ? await SupplierMatching.RememberAsync(db, supplier, worth, user, ct)
+            : InvoiceMatchMemory.Nothing;
+
+        // Одной записью на сохранение, а не по записи на строку: счёт на сорок строк иначе давал бы сорок
+        // записей, и настоящая правка в журнале потерялась бы. Замена запомненного названа отдельно —
+        // это единственное, что здесь меняет поведение следующих счетов.
+        if (memory.Remembered > 0)
+            await log.RecordAsync(InvoiceActions.MatchesRemembered, invoice.Id.ToString(),
+                InvoiceEndpoints.Label(invoice),
+                after: $"запомнено соответствий: {memory.Remembered}, из них заменено: {memory.Replaced}", ct: ct);
 
         if (changed)
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
@@ -73,10 +90,11 @@ public static class InvoiceLineEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"правка строк: {reason}", ct: ct);
 
-        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct) with { Memory = memory });
 
         // Сама правка — под замком записи, по счёту, прочитанному после него.
-        async Task<(Invoice Invoice, bool Changed, string? Reason)> PlaceAsync(Invoice invoice)
+        async Task<(Invoice Invoice, bool Changed, string? Reason, IReadOnlyList<MatchToRemember> Worth)> PlaceAsync(
+            Invoice invoice)
         {
             var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
 
@@ -94,6 +112,24 @@ public static class InvoiceLineEndpoints
             // настоящая правка в нём потерялась бы.
             var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
             var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
+            var stored = was.ToDictionary(l => l.Id, l => l.Values);
+            InvoiceLineValues? Stored(Guid? lineId) => lineId is { } known ? stored.GetValueOrDefault(known) : null;
+
+            // Пометка «запомнено» проверяется, только когда она НОВАЯ — у новой строки, с другим
+            // соответствием или с другой позицией. Стоявшую не перепроверяем: соответствие с тех пор
+            // могли сменить, и это показывает состояние пометки, а не отказ сохранить счёт.
+            await SupplierMatching.EnsureMarksAsync(db, invoice.SupplierId,
+                [.. parsed.Select((p, index) => (Number: index + 1, p.Id, p.Values))
+                    .Where(p => p.Values.MatchedBy is not null
+                        && (Stored(p.Id) is not { } before
+                            || before.MatchedBy != p.Values.MatchedBy
+                            || before.NomenclatureId != p.Values.NomenclatureId))
+                    .Select(p => (p.Number, p.Values))], ct);
+
+            // Что запомнить — по лежащему ДО правки: после неё «было» и «стало» совпадут.
+            IReadOnlyList<MatchToRemember> worth = invoice.SupplierId is null
+                ? []
+                : SupplierMatching.Worth(parsed.Select((p, index) => (Stored(p.Id), p.Values, remember[index])));
 
             for (var index = 0; index < parsed.Count; index++)
             {
@@ -143,7 +179,7 @@ public static class InvoiceLineEndpoints
             if (changed) invoice.ContentChanged();
 
             await db.SaveChangesAsync(ct);
-            return (invoice, changed, reason);
+            return (invoice, changed, reason, worth);
         }
     }
 

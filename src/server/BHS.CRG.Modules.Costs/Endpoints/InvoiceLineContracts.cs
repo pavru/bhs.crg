@@ -56,7 +56,10 @@ public sealed record InvoiceLineView(
     decimal? Amount,
     string? Note,
     /// <summary>Разноска строки по стройкам и остаток «не разнесено» (F1, issue #1085).</summary>
-    LineAllocationView Allocation);
+    LineAllocationView Allocation,
+    // Пометка «(запомнено)» (issue #1079): позиция подставлена из соответствий поставщика. null —
+    // позицию выбрал человек либо её нет.
+    InvoiceLineMatchView? Match = null);
 
 /// <summary>
 /// Сверка: сумма строк против суммы к оплате (ТЗ COST-6.2 — «всегда на виду, числом и не запретом»).
@@ -149,7 +152,14 @@ public static class InvoiceLineRequests
             VatRate: Rate(line, number),
             VatAmount: CostsValues.Money(line, "vatAmount", $"Сумма НДС, строка {number}"),
             Amount: CostsValues.Money(line, "amount", $"Сумма, строка {number}"),
-            Note: CostsValues.Text(line, "note", $"Примечание, строка {number}"));
+            Note: CostsValues.Text(line, "note", $"Примечание, строка {number}"),
+            MatchedBy: MatchedBy(line, number));
+
+        if (values.MatchedBy is not null && values.NomenclatureId is null)
+            throw new InvalidRequestException(
+                $"Строка {number}: пометка «запомнено» прислана без позиции номенклатуры. Пометка говорит, " +
+                "откуда позиция взялась, — без позиции ей говорить не о чем. Отмена подстановки снимает и " +
+                "позицию, и пометку.");
 
         var completed = values.Completed();
 
@@ -172,6 +182,32 @@ public static class InvoiceLineRequests
     /// отличить её от доли нечем. Видна она человеку суммой НДС, которая посчитается в сто раз меньше и
     /// не сойдётся с «в том числе НДС» из бумаги — та сверка стоит в форме на виду ровно за этим.</para>
     /// </summary>
+    /// <summary>
+    /// Соответствие, из которого позиция подставлена, — пометка «(запомнено)» (issue #1079). Верна ли
+    /// она, проверяет запись строк: здесь только разбор.
+    /// </summary>
+    private static Guid? MatchedBy(JsonElement line, int number) =>
+        CostsValues.Value(line, "matchedBy") switch
+        {
+            null => null,
+            { ValueKind: JsonValueKind.String } value when Guid.TryParse(value.GetString(), out var id) => id,
+            var other => throw CostsValues.Wrong($"Строка {number}: пометка «запомнено»", other,
+                "строку-идентификатор соответствия либо ничего"),
+        };
+
+    /// <summary>
+    /// Запоминать ли выбор позиции в этой строке. Умолчание — да (ТЗ COST-7.1: выбор запоминается);
+    /// <c>false</c> — человек сказал «только в этой строке».
+    /// </summary>
+    public static bool Remember(JsonElement line, int number) =>
+        CostsValues.Value(line, "remember") switch
+        {
+            null => true,
+            { ValueKind: JsonValueKind.True } => true,
+            { ValueKind: JsonValueKind.False } => false,
+            var other => throw CostsValues.Wrong($"Строка {number}: «запоминать»", other, "true либо false"),
+        };
+
     private static decimal? Rate(JsonElement line, int number)
     {
         var label = $"Ставка НДС, строка {number}";

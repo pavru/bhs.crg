@@ -56,6 +56,36 @@ export interface InvoiceLineView {
   note: string | null;
   /** Разноска строки по стройкам и остаток «не разнесено» (F1, issue #1085). */
   allocation: LineAllocationView;
+  /**
+   * Пометка «(запомнено)» (issue #1079): позиция подставлена из соответствий поставщика. `null` —
+   * позицию выбрал человек либо её нет. Старый сервер поля не присылает.
+   */
+  match?: InvoiceLineMatch | null;
+}
+
+/**
+ * Пометка подстановки и то, что стало с соответствием с тех пор. Состояние считает сервер на чтении:
+ * правка соответствия строки чужих счетов не переписывает, и узнать о ней строка может только так.
+ */
+export interface InvoiceLineMatch {
+  id: string;
+  /** По чему строка узнана; `null` — соответствия больше нет, и сказать нечем. */
+  by: 'code' | 'name' | null;
+  /**
+   * `current` — соответствие на месте и ведёт туда же; `changed` — его направили на другую позицию;
+   * `gone` — его забыли; `foreign` — оно другого поставщика (поставщика у счёта сменили).
+   */
+  state: 'current' | 'changed' | 'gone' | 'foreign';
+  source: string | null;
+  rememberedAt: string | null;
+  rememberedBy: string | null;
+}
+
+/** Что запомнилось сохранением строк (issue #1079); есть только в ответе этого сохранения. */
+export interface InvoiceMatchMemory {
+  remembered: number;
+  /** Сколько из запомненного ЗАМЕНИЛО запомненное раньше — другой позицией. */
+  replaced: number;
 }
 
 /**
@@ -200,6 +230,8 @@ export interface InvoiceView {
   references?: InvoiceReferences;
   createdAt: string;
   updatedAt: string;
+  /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */
+  memory?: InvoiceMatchMemory | null;
 }
 
 export type ReferenceState = 'present' | 'archived' | 'lost';

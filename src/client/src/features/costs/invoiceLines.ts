@@ -1,5 +1,6 @@
 import { formatInput } from '@/shared/format/format';
-import type { InvoiceLineView } from '@/shared/api/invoices';
+import type { InvoiceLineMatch, InvoiceLineView } from '@/shared/api/invoices';
+import type { MatchOffer } from './supplierMatches';
 import { catalogRef } from './invoiceFields';
 
 /**
@@ -51,6 +52,22 @@ export interface LineDraft {
   vatAmount: string;
   amount: string;
   note: string;
+  /**
+   * Соответствие, из которого позиция ПОДСТАВЛЕНА, — пометка «запомнено» (C3, issue #1079). Уезжает на
+   * сервер вместе с позицией, и сервер её сверяет. `null` — позицию выбрал человек либо её нет.
+   */
+  matchedBy: string | null;
+  /** Сведения пометки для показа: чем узнана строка, когда и кем запомнено, что стало с тех пор. */
+  match?: InvoiceLineMatch | null;
+  /**
+   * Запомненное для этой строки, известное форме. `undefined` — форма о строке не спрашивала (ответ
+   * берётся из вопроса о лежащих строках); `null` — спрашивать незачем: ключ строки с тех пор правили.
+   */
+  offer?: MatchOffer | null;
+  /** Подстановку отменили: «Подставить запомненное» эту строку не трогает. До сохранения строк. */
+  declined?: boolean;
+  /** `false` — «не запоминать выбор в этой строке». На сервер уезжает только отказ. */
+  remember?: boolean;
 }
 
 let sequence = 0;
@@ -73,6 +90,7 @@ export function emptyDraft(): LineDraft {
     vatAmount: '',
     amount: '',
     note: '',
+    matchedBy: null,
   };
 }
 
@@ -95,6 +113,8 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
     vatAmount: formatInput(line.vatAmount),
     amount: formatInput(line.amount),
     note: line.note ?? '',
+    matchedBy: line.match?.id ?? null,
+    match: line.match ?? null,
   }));
 }
 
@@ -115,6 +135,9 @@ export function toPayload(drafts: readonly LineDraft[]): Record<string, unknown>
     vatAmount: text(draft.vatAmount),
     amount: text(draft.amount),
     note: text(draft.note),
+    matchedBy: draft.matchedBy,
+    // Только отказ: умолчание сервера — «запоминать», и слать его на каждой строке незачем.
+    ...(draft.remember === false ? { remember: false } : {}),
   }));
 }
 
