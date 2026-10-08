@@ -33,6 +33,7 @@ public class CommonDataHandlers(
     IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
     IRequestHandler<SearchCommonDataForChoiceQuery, ChoiceCandidates>,
     IRequestHandler<CommonDataRefsByIdsQuery, IReadOnlyList<CommonDataRef>>,
+    IRequestHandler<CommonDataFieldValuesQuery, IReadOnlyList<CommonDataFieldValue>>,
     IRequestHandler<ArchivedAmongQuery, IReadOnlyList<Guid>>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
@@ -235,6 +236,9 @@ public class CommonDataHandlers(
 
     public async Task<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
+
+    public async Task<IReadOnlyList<CommonDataFieldValue>> Handle(CommonDataFieldValuesQuery q, CancellationToken ct)
+        => await objects.FieldValuesAsync(q.TypeIds, q.FieldKey, q.For, ct);
 
     public async Task<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
         => [.. (await objects.ArchivedAmongAsync(q.Ids, ct)).Select(a => a.Id)];

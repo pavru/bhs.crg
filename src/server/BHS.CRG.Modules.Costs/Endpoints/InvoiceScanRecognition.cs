@@ -19,19 +19,23 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Offers">Прочитано, но в поле не записано: поле было занято или значение не разобрать.
 /// «Ключ реквизита → текст из скана».</param>
 /// <param name="Lines">Распознанные строки, которые в счёт не легли: у него уже были свои.</param>
+/// <param name="Parties">Поставщик и плательщик из скана и что о них говорит справочник — считается
+/// при каждом чтении (<see cref="InvoiceParties" />); есть только у <c>done</c> и только пока счёт —
+/// черновик.</param>
 /// <param name="CanStart">Можно ли запустить сейчас — словами сервера, чтобы кнопка и отказ не
 /// расходились; причина — в <paramref name="WhyNot" />.</param>
 public sealed record InvoiceRecognitionView(
     string State, string? Reason, string? Error, string? Engine, string? Progress,
     JsonElement? Values, JsonElement? Offers, JsonElement? Lines, IReadOnlyList<string> Notes,
-    DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt, bool CanStart, string? WhyNot);
+    DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt, bool CanStart, string? WhyNot,
+    InvoicePartiesView? Parties = null);
 
 /// <summary>
 /// Распознавание скана счёта: постановка и состояние (ТЗ COST-8, задача B1b, issue #1077). Само чтение
 /// и раскладка прочитанного по черновику — в <see cref="InvoiceScanReading" />.
 /// </summary>
 public sealed class InvoiceScanRecognition(
-    CostsDbContext db, IModuleRecognition recognition, IModuleJobs jobs)
+    CostsDbContext db, IModuleRecognition recognition, IModuleJobs jobs, InvoiceParties parties)
 {
     public const string Operation = "costs.invoice.recognize";
 
@@ -83,12 +87,26 @@ public sealed class InvoiceScanRecognition(
                 null, null, null, null, null, [], stored.StartedAt, null, whyNot is null, whyNot);
         }
 
+        var done = stored.Outcome == InvoiceRecognitionOutcome.Done;
         return new(
-            stored.Outcome == InvoiceRecognitionOutcome.Done ? "done" : "failed",
+            done ? "done" : "failed",
             stored.Reason, stored.Error, stored.Engine, null,
             stored.Values?.RootElement, stored.Offers?.RootElement, stored.Lines?.RootElement, stored.Notes,
-            stored.StartedAt, stored.FinishedAt, whyNot is null, whyNot);
+            stored.StartedAt, stored.FinishedAt, whyNot is null, whyNot,
+            // Стороны сопоставляются СЕЙЧАС, а не хранятся: организацию могли завести или отправить в
+            // архив уже после распознавания. Только у черновика: разобранному счёту выбирать сторону
+            // поздно, а обход справочника на каждое его открытие никому не нужен.
+            done && invoice.State == InvoiceState.Draft && stored.Values is { } values
+                ? await parties.MatchAsync(Read(values.RootElement), ct)
+                : null);
     }
+
+    /// <summary>Сохранённое «ключ профиля → текст» — тем же видом, каким его отдал порт.</summary>
+    private static Dictionary<string, string?> Read(JsonElement values) =>
+        values.ValueKind != JsonValueKind.Object
+            ? []
+            : values.EnumerateObject().ToDictionary(
+                p => p.Name, p => p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString() : null);
 
     private async Task<ModuleJobState?> AliveAsync(InvoiceRecognition stored, CancellationToken ct)
     {

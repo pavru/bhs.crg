@@ -49,6 +49,10 @@ public partial class ArchiveReadInventoryTests
             Seen("отказ «есть в архиве» при создании: название архивной записи для текста отказа"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|return await Db.Set<DomainObject>().AsNoTracking()"] =
             Shown("какие из стоящих в форме ссылок — в архиве: ответ и есть признак"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o =>"] =
+            Shown("значения поля у записей вида (сопоставление по ИНН, issue #1077): назначение называет звавший, выбор архивные скрывает, показ отдаёт с признаком"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id)))"] =
+            Seen("основы наследников — по идентификатору из _baseRef: значение архивной основы у живой роли не пропадает"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|ownerId is { } id && await repo.GetByIdAsync(id, ct) is { } owner"] =
             Seen("вынос в общие данные: объект-источник читается ради стоявших в нём ссылок, архив ли он сам — не важно"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);"] =

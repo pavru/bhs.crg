@@ -565,7 +565,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>Содержимое «скана» — у каждого теста своё: по нему подменный порт выбирает ответ.</summary>
-    private static string Scan() => $"%PDF-скан {Guid.NewGuid():N}";
+    internal static string Scan() => $"%PDF-скан {Guid.NewGuid():N}";
 
     /// <summary>
     /// Ответ, который ждёт разрешения теста: распознавание остаётся «идёт», пока тест делает то, что
@@ -582,17 +582,17 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         return gate;
     }
 
-    private static Dictionary<string, string?> Header(
+    internal static Dictionary<string, string?> Header(
         string? number = null, string? date = null, string? total = null, string? vat = null, string? basis = null,
-        string? supplier = null, string? supplierTaxId = null) =>
+        string? supplier = null, string? supplierTaxId = null, string? payer = null, string? payerTaxId = null) =>
         new()
         {
             [CostsRecognitionProfiles.Number] = number,
             [CostsRecognitionProfiles.Date] = date,
             [CostsRecognitionProfiles.Supplier] = supplier,
             [CostsRecognitionProfiles.SupplierTaxId] = supplierTaxId,
-            [CostsRecognitionProfiles.Payer] = null,
-            [CostsRecognitionProfiles.PayerTaxId] = null,
+            [CostsRecognitionProfiles.Payer] = payer,
+            [CostsRecognitionProfiles.PayerTaxId] = payerTaxId,
             [CostsRecognitionProfiles.Basis] = basis,
             [CostsRecognitionProfiles.Total] = total,
             [CostsRecognitionProfiles.VatTotal] = vat,
@@ -609,7 +609,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
             [CostsRecognitionProfiles.LineAmount] = amount,
         };
 
-    private static ModuleRecognitionResult Read(
+    internal static ModuleRecognitionResult Read(
         Dictionary<string, string?> header, params IReadOnlyDictionary<string, string?>[] rows) =>
         new(Fields, header, Columns, rows, null, "сценарий");
 
@@ -622,7 +622,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         return form;
     }
 
-    private static async Task<JsonElement> FromScanAsync(HttpClient client, string scan, string fileName = "Счёт.pdf")
+    internal static async Task<JsonElement> FromScanAsync(HttpClient client, string scan, string fileName = "Счёт.pdf")
     {
         using var form = Form(scan, fileName, "application/pdf");
         var response = await client.PostAsync("/api/costs/invoices/from-scan", form);
@@ -631,13 +631,13 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    private static Task<JsonElement> RecognitionAsync(HttpClient client, Guid id) =>
+    internal static Task<JsonElement> RecognitionAsync(HttpClient client, Guid id) =>
         client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{id}/recognition");
 
     /// <summary>Дождаться исхода — тем же опросом, каким его ждёт форма.</summary>
     /// <param name="wait">Состояние, которое тоже НЕ исход: тест, сам стёрший номер задачи, видит
     /// «failed / прервано», пока задача ещё работает.</param>
-    private static async Task<JsonElement> OutcomeAsync(HttpClient client, Guid id, string? wait = null)
+    internal static async Task<JsonElement> OutcomeAsync(HttpClient client, Guid id, string? wait = null)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
         while (true)
@@ -651,7 +651,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         }
     }
 
-    private static string[] Unconfirmed(JsonElement view) =>
+    internal static string[] Unconfirmed(JsonElement view) =>
         [.. view.GetProperty("unconfirmed").EnumerateArray().Select(k => k.GetString()!).Order(StringComparer.Ordinal)];
 
     private async Task<int> JournalAsync(Guid invoice, string action)

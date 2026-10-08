@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
@@ -30,14 +31,7 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
     public async Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
         string entityType, RecordsFor purpose, CancellationToken ct = default)
     {
-        // Назначение модуля переводится в назначение ядра ПЕРЕБОРОМ, а не приведением числа: у двух
-        // перечислений порядок значений ничем не связан, и приведение пережило бы перестановку молча.
-        var records = purpose switch
-        {
-            RecordsFor.Choice => CoreRecordsFor.Choice,
-            RecordsFor.Display => CoreRecordsFor.Display,
-            _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose, "Неизвестное назначение чтения."),
-        };
+        var records = Core(purpose);
         var all = await types.GetAllAsync(ct);
 
         // Вида нет — ноль, а не пустой список: «типа с таким кодом не заведено» и «записей такого
@@ -54,10 +48,10 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
         foreach (var id in codes.Keys)
             entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));
 
-        // ⚠️ Записи приезжают ЦЕЛИКОМ, с данными: так объявлен контракт порта (`DataJson`), и модулю
-        // они нужны — сопоставление поставщика ищет по ИНН. Цена названа: у вида с картинкой в поле
-        // это мегабайты на список (issue #1015). Поводом сузить будет первый вид, где такое поле
-        // появится; менять придётся запрос ядра, а не порт — проекции по полям у него нет.
+        // ⚠️ Записи приезжают ЦЕЛИКОМ, с данными: так объявлен контракт порта (`DataJson`). Цена
+        // названа: у вида с картинкой в поле это мегабайты на список (issue #1015). Кому нужен один
+        // реквизит (сопоставление поставщика по ИНН), спрашивает `FieldValuesAsync`: там данные не
+        // едут, а наследование реквизитов разрешено — здесь его нет, это СОБСТВЕННЫЕ данные записи.
 
         // Порядок задаёт ПОРТ. Запрос ядра не сортирует вовсе — порядок приходит от Postgres и
         // меняется после правок и уборки, — а список каталога на экране сортирует клиент. Обещание
@@ -87,6 +81,43 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
 
         return Refs(await mediator.Send(new CommonDataRefsByIdsQuery(codes.Keys, ids), ct), codes);
     }
+
+    public async Task<ModuleCatalogFieldValues?> FieldValuesAsync(
+        string entityType, string fieldKey, RecordsFor purpose, CancellationToken ct = default)
+    {
+        var records = Core(purpose);
+        var all = await types.GetAllAsync(ct);
+        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
+        if (root is null) return null;
+
+        // Поле сверяем со СХЕМОЙ, а не с данными: схему ведёт человек, и переименованный «ИНН» в
+        // данных выглядел бы как «ни у одной организации его нет» — то есть как «не совпало ни с кем».
+        var declared = DocumentTypeSchemaReader.EffectiveFields(root.Id, all.ToDictionary(t => t.Id))
+            .Any(f => f.Key == fieldKey && !f.Computed && SchemaFieldKinds.IsScalar(f.Type));
+        if (!declared) return new ModuleCatalogFieldValues(false, []);
+
+        var codes = Family(root, all);
+        var values = await mediator.Send(new CommonDataFieldValuesQuery(codes.Keys, fieldKey, records), ct);
+        return new ModuleCatalogFieldValues(true,
+            [.. values
+                .Select(v => new ModuleCatalogFieldValue(
+                    new ModuleCatalogRef(
+                        v.Record.Id, codes.TryGetValue(v.Record.CompositeTypeId, out var code) ? code : string.Empty,
+                        v.Record.DisplayName, v.Record.Archived),
+                    v.Value, v.InheritedFrom, v.Unreadable))
+                .OrderBy(v => v.Record.DisplayName, StringComparer.CurrentCulture)]);
+    }
+
+    /// <summary>
+    /// Назначение модуля — в назначение ядра ПЕРЕБОРОМ, а не приведением числа: у двух перечислений
+    /// порядок значений ничем не связан, и приведение пережило бы перестановку молча.
+    /// </summary>
+    private static CoreRecordsFor Core(RecordsFor purpose) => purpose switch
+    {
+        RecordsFor.Choice => CoreRecordsFor.Choice,
+        RecordsFor.Display => CoreRecordsFor.Display,
+        _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose, "Неизвестное назначение чтения."),
+    };
 
     /// <summary>
     /// Ссылки ядра — в ссылки порта: код вида вместо идентификатора типа, порядок для человека.

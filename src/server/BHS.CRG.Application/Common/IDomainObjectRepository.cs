@@ -59,6 +59,13 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
         IReadOnlyCollection<Guid> typeIds, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
     /// <summary>
+    /// Значения одного поля у записей общих данных названных типов, с разрешённым наследованием
+    /// (issue #1077) — см. <see cref="CommonDataFieldValuesQuery" />. Данные записи целиком не грузятся.
+    /// </summary>
+    Task<IReadOnlyList<CommonDataFieldValue>> FieldValuesAsync(
+        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default);
+
+    /// <summary>
     /// Какие из названных записей общих данных лежат в архиве (issue #1185). Вид записи не спрашивает:
     /// спрашивает форма, а в ней стоят ссылки на записи разных видов. С названием: отказ правила
     /// записи обязан назвать запись так, как она названа в справочнике.
