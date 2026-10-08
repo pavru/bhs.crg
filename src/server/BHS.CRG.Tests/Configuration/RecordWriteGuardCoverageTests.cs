@@ -55,9 +55,11 @@ public class RecordWriteGuardCoverageTests
     /// Вызов охраны: у ядра — <c>WriteGuard.EnsureAllowedAsync</c>, у модуля — метод порта
     /// <c>RefusalsAsync</c> либо обёртка над ним (отказы порт возвращает, а не бросает, и превращает
     /// их в отказ запросу модуль). По имени метода, а не переменной: порт вправе зваться как угодно.
+    /// Обёртку счёта зовут и из соседнего класса — фоновое распознавание скана (issue #1077).
     /// </summary>
     private static readonly Regex GuardCall = new(
-        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+EnsureAllowedAsync\(|\.RefusalsAsync\(", RegexOptions.Compiled);
+        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.)?EnsureAllowedAsync\(|\.RefusalsAsync\(",
+        RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>
     private const int GuardLookback = 15;
@@ -85,6 +87,8 @@ public class RecordWriteGuardCoverageTests
             (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо MediatR"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));"] =
             (Guarded, "создание счёта: реквизиты пришли из формы или из распознавания, лежащего нет — всё вносится впервые"),
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceScanReading.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: false);"] =
+            (Guarded, "распознанное из скана ложится в пустые поля шапки — фоновой правке правила охраны не уступают"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: true);"] =
             (Guarded, "правка шапки счёта — проверяется против лежащего, дополненного неприсланным состоянием"),
 

@@ -30,6 +30,9 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     {
         ["POST /api/costs/invoices/{id:guid}/paid/preview"] = "предпросмотр оплаты: считает расклад и не сохраняет",
         ["POST /api/costs/invoices/{id:guid}/allocation/preview"] = "предпросмотр матрицы: считает раскладку и не сохраняет",
+        ["POST /api/costs/invoices/{id:guid}/recognition"] =
+            "постановка распознавания: в счёт не пишет — только запись о распознавании, версия счёта прежняя. " +
+            "Прочитанное потом ложится слиянием в пустые поля, и устаревшая форма при этом ничего не теряет (issue #1077)",
     };
 
     /// <summary>

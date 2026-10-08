@@ -30,13 +30,23 @@ public class InvoiceWritePathTests
                 "не нужно; от одновременной правки её защищает версия строки (D1, issue #1083)"),
         ["Endpoints/InvoiceDesk.cs"] =
             (2, "сама связка: учётные даты после правки адреса — оплаченному и снятые у неоплаченного"),
+        ["Endpoints/InvoiceRecognitionEndpoints.cs"] =
+            (1, "черновик из скана — то же создание счёта: новый счёт не оплачен и периоду не принадлежит"),
+        ["Endpoints/InvoiceScanRecognition.cs"] =
+            (3, "запись о распознавании, а не счёт: постановка, отказ очереди и номер задачи пишут только " +
+                "invoice_recognitions — счёт при них не меняется, и версия его остаётся прежней (issue #1077)"),
+        ["Endpoints/InvoiceScanReading.cs"] =
+            (2, "номер задачи и отказ обработчика: пишутся в invoice_recognitions, а в счёт не пишется ничего. " +
+                "Само прочитанное ложится в счёт через связку (issue #1077)"),
     };
 
     /// <summary>Кто вправе считать учётную дату и спрашивать «закрыт ли день».</summary>
     private static readonly string[] MayAskThePeriod = ["Data/PaymentPosting.cs"];
 
     private static readonly Regex Save = new(@"\bSaveChanges(Async)?\(", RegexOptions.Compiled);
-    private static readonly Regex Write = new(@"\bdesk\.WriteAsync\(", RegexOptions.Compiled);
+    // Входов у связки два: WriteAsync — правка из запроса, со сверкой версии формы; MergeAsync —
+    // фоновая правка (issue #1077). Замок периода, отказ запертому счёту и учётные даты у них общие.
+    private static readonly Regex Write = new(@"\bdesk\.(Write|Merge)Async\(", RegexOptions.Compiled);
     private static readonly Regex Bulk = new(@"\.Execute(Update|Delete|Sql\w*)(Async)?\(", RegexOptions.Compiled);
     private static readonly Regex Period = new(@"\.AccountingDate\(|\.IsClosed\(", RegexOptions.Compiled);
 

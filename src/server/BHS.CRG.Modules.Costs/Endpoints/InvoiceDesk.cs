@@ -47,10 +47,29 @@ public sealed class InvoiceDesk(
     /// <see cref="InvoiceWrite.Locked" />. Таких один: приложить скан можно, заменить нельзя.</param>
     public Task<T> WriteAsync<T>(
         Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct, bool evenLocked = false) =>
+        WriteAsync(id, write, seen: true, evenLocked, ct);
+
+    /// <summary>
+    /// Правка счёта ВНЕ запроса — фоновой задачей (распознавание скана, issue #1077). Тот же замок
+    /// против закрытия периода, тот же отказ запертому счёту и те же учётные даты, что у
+    /// <see cref="WriteAsync{T}(Guid, Func{InvoiceWrite, Task{T}}, CancellationToken, bool)" />, — но без
+    /// сверки версии формы: формы у фоновой задачи нет.
+    ///
+    /// <para>⚠️ Версию «на момент постановки» сверять нельзя, и это не упрощение. Пока скан читается,
+    /// человек вправе заполнять черновик руками (ТЗ COST-8) — и любая его правка роняла бы задачу.
+    /// Вместо сверки — СЛИЯНИЕ: звавший читает счёт уже под замком (он приходит свежим) и обязан
+    /// писать только то, что человеку не мешает. От одновременной правки по-прежнему защищает версия
+    /// строки при сохранении: кто записал вторым, получает отказ целиком.</para>
+    /// </summary>
+    public Task<T> MergeAsync<T>(Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct) =>
+        WriteAsync(id, write, seen: false, evenLocked: false, ct);
+
+    private Task<T> WriteAsync<T>(
+        Guid id, Func<InvoiceWrite, Task<T>> write, bool seen, bool evenLocked, CancellationToken ct) =>
         db.InOpenPeriodAsync(periods, async boundaries =>
         {
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
-            EnsureSeen(InvoiceEndpoints.Label(invoice), db.VersionOf(invoice));
+            if (seen) EnsureSeen(InvoiceEndpoints.Label(invoice), db.VersionOf(invoice));
             var paid = invoice.Payment == InvoicePaymentState.Paid;
             var before = PostedBefore.None;
             string? locked = null;
@@ -125,8 +144,8 @@ public sealed class InvoiceDesk(
     {
         var request = http.HttpContext?.Request
             ?? throw new InvalidOperationException(
-                "Счёт правят вне запроса: версию, по которой собрана правка, назвать некому. Связка записи " +
-                "счёта рассчитана на адрес; фоновой правке нужен свой путь с явной версией.");
+                "Счёт правят вне запроса: версию, по которой собрана правка, назвать некому. Этот вход " +
+                "связки рассчитан на адрес; фоновая правка идёт через MergeAsync.");
 
         // Заголовок читает общее место (кавычки и W/ снимаются, «*» — отказ о записи, а не «счёт
         // изменили»): то же правило — у записи общих данных.

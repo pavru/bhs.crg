@@ -107,8 +107,14 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction ArticleUnarchived =
         new("costs.article.unarchived", "Статья вне строек возвращена из архива");
 
+    // Распознавание скана легло в счёт (issue #1077). Отдельным действием, а не «изменён»: правку
+    // сделал не человек, и по журналу это должно быть видно — «кто вписал номер» иначе вело бы к тому,
+    // кто нажал кнопку.
+    public static readonly ModuleActivityAction Recognized =
+        new("costs.invoice.recognized", "Счёт заполнен из скана", InvoiceRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, LinesChanged, Parsed, Draft, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, LinesChanged, Parsed, Draft, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }
