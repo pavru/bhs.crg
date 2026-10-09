@@ -61,6 +61,18 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction MatchesRemembered =
         new("costs.match.remembered", "Соответствия наименований запомнены", InvoiceRead);
 
+    /// <summary>
+    /// Соответствие направлено на другую позицию из списка соответствий — «было → стало». По записи на
+    /// правку, а не сводкой: правка из списка — явное действие человека над одной записью, и найти, кто
+    /// и когда перенаправил строку поставщика, надо уметь.
+    /// </summary>
+    public static readonly ModuleActivityAction MatchPointed =
+        new("costs.match.pointed", "Соответствие наименований направлено на другую позицию", InvoiceRead);
+
+    /// <summary>Соответствие забыто: следующие счета поставщика такую строку не узнают.</summary>
+    public static readonly ModuleActivityAction MatchForgotten =
+        new("costs.match.forgotten", "Соответствие наименований забыто", InvoiceRead);
+
     /// <summary>«Разобран»: человек сверил счёт с бумагой (ТЗ COST-9).</summary>
     public static readonly ModuleActivityAction Parsed = new("costs.invoice.parsed", "Счёт разобран", InvoiceRead);
 
@@ -128,7 +140,7 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.organization.created", "Организация заведена из скана счёта", InvoiceRead);
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, Parsed, Draft, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, Parsed, Draft, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

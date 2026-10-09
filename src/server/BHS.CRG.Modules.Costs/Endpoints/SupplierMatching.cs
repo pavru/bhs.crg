@@ -284,10 +284,12 @@ public static class SupplierMatching
                 await db.SaveChangesAsync(ct);
                 return new(remembered, replaced);
             }
-            catch (DbUpdateException) when (attempt == 0)
+            catch (Exception lost) when (attempt == 0
+                && lost is DbUpdateException or ConflictException { InnerException: DbUpdateConcurrencyException })
             {
-                // Кто-то добавил ту же строку раньше. Свои несохранённые записи убираем из-под
-                // отслеживания — иначе повтор попытался бы вставить их снова.
+                // Кто-то добавил ту же строку раньше — либо сменил её позицию из списка соответствий, пока
+                // мы читали (контекст отдаёт это отказом 409, см. CostsDbContext.SaveChangesAsync). Свои
+                // несохранённые записи убираем из-под отслеживания — иначе повтор записал бы их снова.
                 foreach (var entry in db.ChangeTracker.Entries<SupplierMatch>().ToList())
                     entry.State = EntityState.Detached;
             }
