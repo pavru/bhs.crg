@@ -64,7 +64,10 @@ public sealed record InvoiceView(
     PaymentView Payment,
     InvoiceReferencesView References,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    // Что запомнилось ЭТИМ сохранением строк (issue #1079). Есть только в ответе сохранения строк:
+    // чтение счёта о запоминании не знает, и ноль там читался бы как «ничего не запомнилось».
+    InvoiceMatchMemory? Memory = null);
 
 /// <summary>
 /// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184, #1185): <c>present</c>,
@@ -138,14 +141,16 @@ public static class InvoiceViews
         Invoice invoice, string version, IReadOnlyList<InvoiceDuplicate> duplicates,
         IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment,
-        InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived) => new(
+        InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived,
+        IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
         invoice.Id,
         version,
         invoice.DocumentTypeId,
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,
         duplicates,
-        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost, archived))],
+        [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost, archived)
+            with { Match = InvoiceLineMatchView.Of(l, invoice.SupplierId, matches) })],
         InvoiceLineTotals.Of(lines),
         allocation.Summary,
         payment,

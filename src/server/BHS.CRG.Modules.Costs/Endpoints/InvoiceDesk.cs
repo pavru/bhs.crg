@@ -269,7 +269,8 @@ public sealed class InvoiceDesk(
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
                 Name(invoice.SupplierId), Name(invoice.PayerId)),
             records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet(),
-            records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet());
+            records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet(),
+            await SupplierMatching.MarkedAsync(db, lines, ct));
     }
 
     /// <summary>

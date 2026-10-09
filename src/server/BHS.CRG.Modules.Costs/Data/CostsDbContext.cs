@@ -36,6 +36,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// </summary>
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
 
+    public DbSet<SupplierMatch> SupplierMatches => Set<SupplierMatch>();
+
     public DbSet<InvoiceAllocation> InvoiceAllocations => Set<InvoiceAllocation>();
 
     public DbSet<InvoiceRecognition> InvoiceRecognitions => Set<InvoiceRecognition>();
@@ -212,6 +214,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.HasIndex(i => i.PayerId).HasDatabaseName("ix_invoices_payer").HasFilter("payer_id IS NOT NULL");
 
         MapLines(builder);
+        SupplierMatch.Map(builder);
         MapAllocations(builder);
         MapWaybills(builder);
     }
@@ -319,6 +322,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         line.Property(l => l.Ordinal).HasColumnName("ordinal");
         line.Property(l => l.NomenclatureId).HasColumnName("nomenclature_id");
         line.Property(l => l.SupplierText).HasColumnName("supplier_text");
+        line.Property(l => l.MatchedBy).HasColumnName("matched_by");
         line.Property(l => l.SupplierCode).HasColumnName("supplier_code").HasMaxLength(InvoiceLine.SupplierCodeLength);
         line.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(InvoiceLine.UnitLength);
 

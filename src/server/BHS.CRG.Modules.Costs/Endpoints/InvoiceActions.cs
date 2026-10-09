@@ -53,6 +53,14 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction LinesChanged =
         new("costs.invoice.lines", "Строки счёта изменены", InvoiceRead);
 
+    /// <summary>
+    /// Выбор позиций запомнен как соответствия поставщика (issue #1079, ТЗ COST-7.1). Отдельным действием,
+    /// а не внутри «строки изменены»: запомненное меняет поведение СЛЕДУЮЩИХ счетов этого поставщика, и
+    /// найти в журнале, когда и чьим сохранением строка стала подставляться не туда, надо уметь.
+    /// </summary>
+    public static readonly ModuleActivityAction MatchesRemembered =
+        new("costs.match.remembered", "Соответствия наименований запомнены", InvoiceRead);
+
     /// <summary>«Разобран»: человек сверил счёт с бумагой (ТЗ COST-9).</summary>
     public static readonly ModuleActivityAction Parsed = new("costs.invoice.parsed", "Счёт разобран", InvoiceRead);
 
@@ -120,7 +128,7 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.organization.created", "Организация заведена из скана счёта", InvoiceRead);
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, Parsed, Draft, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, Parsed, Draft, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

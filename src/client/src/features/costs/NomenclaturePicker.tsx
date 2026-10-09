@@ -1,7 +1,7 @@
 import { LOST } from './lostReferences';
 import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Search, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { apiError } from '@/shared/utils/apiError';
@@ -24,7 +24,7 @@ import { useNomenclature } from '@/shared/api/invoices';
  * <c>core.nomenclature.edit</c>, которого у снабженца может не быть. Кнопка «завести», отказывающая
  * правами, обещала бы то, чего нет.</p>
  */
-export function NomenclaturePicker({ chosen, name, lost, lostText, archived, onPick, onClear }: {
+export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mark, clearable = true, onPick, onClear }: {
   /**
    * Ссылка на позицию ЕСТЬ. Отдельно от названия: пустое название бывает и у выбранной позиции —
    * записи справочника без имени законны, и пикер их показывает.
@@ -38,6 +38,13 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, onP
   lostText?: string;
   /** Выбранная позиция в архиве: названа как была, а в поиске её уже нет (issue #1185). */
   archived?: boolean;
+  /** Пометка рядом с позицией — «запомнено», «запомнится» (C3, issue #1079). */
+  mark?: ReactNode;
+  /**
+   * Показывать ли крестик «Снять позицию». У подставленной позиции его нет: её снимает крестик
+   * пометки («Отменить подстановку»), и два крестика рядом с разным смыслом были бы ловушкой.
+   */
+  clearable?: boolean;
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
 }) {
@@ -58,7 +65,8 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, onP
         {/* ⚠️ Снять ссылку можно ВСЕГДА, пока она есть, — и особенно когда позиция потеряна: сервер
             отказывает сохранять строку с битой ссылкой, а спрятанная кнопка не оставляла человеку
             вообще никакого выхода (ревью PR #1117). */}
-        {chosen && (
+        {mark}
+        {chosen && clearable && (
           <button type="button" onClick={onClear} title="Снять позицию"
             className="shrink-0 text-fg4 hover:text-fg p-0.5">
             <X size={12} />

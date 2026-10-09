@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -47,7 +48,7 @@ public static class InvoiceLineEndpoints
     private static async Task<Ok<InvoiceView>> ReplaceAsync(
         Guid id, InvoiceLinesRequest body, CostsDbContext db, IModuleCatalog catalog,
         AllocationPlacesSource places, InvoiceDesk desk,
-        IModuleActivityLog log, CancellationToken ct)
+        IModuleActivityLog log, IModuleUser user, ILoggerFactory logs, CancellationToken ct)
     {
         if (body.Lines is null)
             throw new InvalidRequestException(
@@ -62,9 +63,15 @@ public static class InvoiceLineEndpoints
             parsed.Add((InvoiceLineRequests.Id(incoming[index], index + 1),
                 InvoiceLineRequests.Values(incoming[index], index + 1)));
 
-        EnsureIdsDistinct(parsed);
-        var (invoice, changed, reason) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
+        // «Не запоминать» — слово человека про ЭТУ строку (ТЗ COST-7.1): «Доставка» у поставщика всякий
+        // раз другая, и запомненная позиция подставлялась бы не туда.
+        var remember = incoming.Select((line, index) => InvoiceLineRequests.Remember(line, index + 1)).ToList();
 
+        EnsureIdsDistinct(parsed);
+        var (invoice, changed, reason, worth) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
+
+        // Журнал правки строк — ДО запоминания: строки уже записаны, и запись о них не должна зависеть
+        // от того, чем кончится запоминание (ревью PR #1262).
         if (changed)
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"строк: {parsed.Count}", ct: ct);
@@ -73,10 +80,27 @@ public static class InvoiceLineEndpoints
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), after: $"правка строк: {reason}", ct: ct);
 
-        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+        // Запоминание — ПОСЛЕ записи счёта и вне её транзакции: см. SupplierMatching.RememberAsync. Его
+        // отказ счёт не губит: строки записаны, и ответ обязан это сказать — с версией, иначе следующее
+        // сохранение формы получило бы «счёт тем временем изменили» от собственной же правки.
+        var memory = invoice.SupplierId is { } supplier
+            ? await SupplierMatching.RememberSafelyAsync(db, supplier, worth, user,
+                logs.CreateLogger(typeof(SupplierMatching)), ct)
+            : InvoiceMatchMemory.Nothing;
+
+        // Одной записью на сохранение, а не по записи на строку: счёт на сорок строк иначе давал бы сорок
+        // записей, и настоящая правка в журнале потерялась бы. Замена запомненного названа отдельно —
+        // это единственное, что здесь меняет поведение следующих счетов.
+        if (memory.Remembered > 0)
+            await log.RecordAsync(InvoiceActions.MatchesRemembered, invoice.Id.ToString(),
+                InvoiceEndpoints.Label(invoice),
+                after: $"запомнено соответствий: {memory.Remembered}, из них заменено: {memory.Replaced}", ct: ct);
+
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct) with { Memory = memory });
 
         // Сама правка — под замком записи, по счёту, прочитанному после него.
-        async Task<(Invoice Invoice, bool Changed, string? Reason)> PlaceAsync(Invoice invoice)
+        async Task<(Invoice Invoice, bool Changed, string? Reason, IReadOnlyList<MatchToRemember> Worth)> PlaceAsync(
+            Invoice invoice)
         {
             var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
 
@@ -94,6 +118,28 @@ public static class InvoiceLineEndpoints
             // настоящая правка в нём потерялась бы.
             var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
             var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
+            var stored = was.ToDictionary(l => l.Id, l => l.Values);
+            InvoiceLineValues? Stored(Guid? lineId) => lineId is { } known ? stored.GetValueOrDefault(known) : null;
+
+            // Пометка «запомнено» проверяется, только когда она НОВАЯ — у новой строки, с другим
+            // соответствием, с другой позицией или с другим ключом строки. Стоявшую не перепроверяем:
+            // соответствие с тех пор могли сменить, и это показывает состояние пометки, а не отказ
+            // сохранить счёт. А вот строку, которую ПЕРЕПИСАЛИ («Кабель» → «Доставка»), прежняя пометка
+            // называла бы подставленной из памяти, которой для нового текста не было (ревью PR #1262).
+            await SupplierMatching.EnsureMarksAsync(db, invoice.SupplierId,
+                [.. parsed.Select((p, index) => (Number: index + 1, p.Id, p.Values))
+                    .Where(p => p.Values.MatchedBy is not null
+                        && (Stored(p.Id) is not { } before
+                            || before.MatchedBy != p.Values.MatchedBy
+                            || before.NomenclatureId != p.Values.NomenclatureId
+                            || !SupplierMatching.SameKey(before, p.Values)))
+                    .Select(p => (p.Number, p.Values))], ct);
+
+            // Что запомнить — по лежащему ДО правки: после неё «было» и «стало» совпадут.
+            IReadOnlyList<MatchToRemember> worth = invoice.SupplierId is null
+                ? []
+                : await SupplierMatching.AliveAsync(catalog,
+                    SupplierMatching.Worth(parsed.Select((p, index) => (Stored(p.Id), p.Values, remember[index]))), ct);
 
             for (var index = 0; index < parsed.Count; index++)
             {
@@ -143,7 +189,7 @@ public static class InvoiceLineEndpoints
             if (changed) invoice.ContentChanged();
 
             await db.SaveChangesAsync(ct);
-            return (invoice, changed, reason);
+            return (invoice, changed, reason, worth);
         }
     }
 

@@ -306,6 +306,9 @@ public partial class ArchiveReadInventoryTests
                 nameof(InvoiceArchiveTests.Накладная_стоявшую_архивную_позицию_держит_новую_не_принимает)),
         ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureEndpoints.cs|var found = await catalog.SearchAsync(CostsRecordTypes.NomenclatureCode, query, Limit + 1, ct)"] =
             Choice("выбор позиции в строке счёта и накладной", nameof(ArchiveReadPurposeTests.Выбор_позиции_номенклатуры_в_счёте_архивную_не_предлагает)),
+        ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchEndpoints.cs|var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, positions, ct);"] =
+            Choice("подстановка запомненного в строку счёта: архивная позиция названа с причиной, но не подставляется",
+                nameof(SupplierMatchTests.Архивная_позиция_не_подставляется_и_это_названо)),
         ["BHS.CRG.Modules.Costs/Endpoints/OrganizationEndpoints.cs|var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)"] =
             ByPurpose("организации для формы счёта: выбор скрывает архивные, показ отдаёт с признаком",
                 nameof(InvoiceArchiveTests.Список_организаций_на_выбор_архивную_скрывает_а_на_показ_отдаёт_с_признаком)),
