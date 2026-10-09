@@ -75,7 +75,8 @@ public sealed class InvoiceScanReading(
             // который не ответил, даёт состояние «сопоставить не удалось», и шапка со строками ложатся
             // в счёт без сторон.
             var matched = await parties.MatchAsync(read.Fields, ct);
-            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, ct);
+            var lines = await LinesAsync(invoice, read, matched, ct);
+            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, lines, ct);
         }
         catch (DomainException refusal)
         {
@@ -118,7 +119,7 @@ public sealed class InvoiceScanReading(
     /// </summary>
     private async Task<(string Label, int Filled, int Lines, int Recalled)> MergeAsync(
         Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
-        CancellationToken ct)
+        ScanLines lines, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -130,7 +131,7 @@ public sealed class InvoiceScanReading(
                     // заменить ему скан. Условие проверяется заново — и против того же файла.
                     EnsureSameScan(write.Invoice, scanBlobPath);
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
-                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, ct);
+                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, ct);
                     await db.SaveChangesAsync(ct);
                     return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled);
                 }, ct);
@@ -140,6 +141,48 @@ public sealed class InvoiceScanReading(
                 // Несохранённое уходит целиком: следующая попытка читает счёт и запись заново.
                 db.ChangeTracker.Clear();
             }
+        }
+    }
+
+    /// <summary>Строки скана и запомненное для них — по каждому поставщику, который может встать в счёт.</summary>
+    /// <param name="Recalled">Ответ по поставщику. Пусто — спрашивать было не о ком или нечем.</param>
+    /// <param name="RecallFailed">Спросить запомненное НЕ УДАЛОСЬ — это не «ничего не запомнено».</param>
+    private sealed record ScanLines(
+        List<InvoiceLineValues> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed);
+
+    /// <summary>
+    /// Разобрать строки скана и спросить запомненное для них (задача C3, issue #1079) — ДО слияния и
+    /// один раз, как и стороны: обход справочника под замком счёта держал бы замок зря и повторялся бы
+    /// с каждой попыткой.
+    ///
+    /// <para>Кто встанет поставщиком, до замка неизвестно: поле могут заполнить, пока скан читается.
+    /// Поэтому спрашиваем обоих возможных — стоящего в счёте сейчас и найденного сканом по ИНН; слияние
+    /// возьмёт ответ того, кто в счёте окажется. Третий (человек успел выбрать иного) останется без
+    /// подстановки — его строкам её даст кнопка формы.</para>
+    ///
+    /// <para>⚠️ <b>Отказ здесь не смеет стать отказом распознавания.</b> Запомненное — справка к счёту:
+    /// прочитанное движком оплачено, и терять шапку со строками из-за того, что не ответил справочник,
+    /// нельзя (ревью PR #1263). Отказ записывается в журнал сервера и называется в примечаниях.</para>
+    /// </summary>
+    private async Task<ScanLines> LinesAsync(
+        Invoice invoice, ModuleRecognitionResult read, InvoicePartiesView matched, CancellationToken ct)
+    {
+        var rows = read.Rows.Select(Line).OfType<InvoiceLineValues>().ToList();
+        var recalled = new Dictionary<Guid, RecallAnswer>();
+        if (rows.Count == 0) return new(rows, recalled, false);
+
+        try
+        {
+            foreach (var supplier in new[] { invoice.SupplierId, matched.Supplier?.Match }.OfType<Guid>().Distinct())
+                recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, rows, ct);
+            return new(rows, recalled, false);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException)
+        {
+            logs.CreateLogger<InvoiceScanReading>().LogWarning(failure,
+                "Счёт {InvoiceId}: запомненные позиции для строк скана спросить не удалось — строки лягут без них.",
+                invoice.Id);
+            return new(rows, new Dictionary<Guid, RecallAnswer>(), true);
         }
     }
 
@@ -167,7 +210,7 @@ public sealed class InvoiceScanReading(
     /// <summary>Шапка — в пустые поля, строки — в счёт без строк; остальное — предложением.</summary>
     private async Task<(int Filled, int Lines, int Recalled)> ApplyAsync(
         Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
-        CancellationToken ct)
+        ScanLines lines, CancellationToken ct)
     {
         var before = InvoiceRequisites.Merge(invoice);
         var after = before.DeepClone().AsObject();
@@ -258,7 +301,7 @@ public sealed class InvoiceScanReading(
             invoice.AddUnconfirmed(filled);
         }
 
-        var rows = read.Rows.Select(Line).OfType<InvoiceLineValues>().ToList();
+        var rows = lines.Rows;
         if (read.RowsProblem is { } problem)
             notes.Add($"Строки счёта не прочитаны: {problem}. Введите их вручную или вставьте из буфера.");
 
@@ -280,14 +323,29 @@ public sealed class InvoiceScanReading(
                 // со скана приходит в очередь «Разобрать» уже без строк, которые система знает. Поставщик
                 // — тот, что стоит в счёте ПОСЛЕ слияния шапки: вписанный человеком либо найденный по ИНН
                 // этим же сканом. Строки ложатся с пометкой «запомнено» — той же, что ставит форма.
-                (rows, recalled) = await SupplierMatching.RecallAsync(db, catalog, invoice.SupplierId, rows, ct);
+                // Сам вопрос задан до замка (LinesAsync); здесь — только выбор ответа по поставщику.
+                var answer = invoice.SupplierId is { } supplier ? lines.Recalled.GetValueOrDefault(supplier) : null;
 
                 foreach (var (values, index) in rows.Select((values, index) => (values, index)))
                 {
+                    var known = answer?.Lines[index];
                     var line = InvoiceLine.Create(invoice.Id);
-                    line.Apply(index + 1, values);
+                    line.Apply(index + 1, known is null
+                        ? values
+                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match });
                     db.InvoiceLines.Add(line);
+                    if (known is not null) recalled++;
                 }
+
+                // Молчать нельзя ни о том, ни о другом: строка без позиции выглядела бы незнакомой, и
+                // человек запомнил бы её заново, не узнав, что прежний выбор в архиве, — или что
+                // запомненное просто не спросили.
+                if (lines.RecallFailed && invoice.SupplierId is not null)
+                    notes.Add("Запомненные позиции строкам не подставлены: справочник не ответил. Нажмите " +
+                              "«Подставить запомненное» над строками счёта.");
+                else if (answer is { Unusable: > 0 })
+                    notes.Add($"Строк, для которых запомнена позиция в архиве или удалённая: {answer.Unusable}. " +
+                              "Она не подставлена — выберите действующую, и она заменит запомненное.");
                 invoice.ContentChanged();
                 added = rows.Count;
             }

@@ -18,6 +18,15 @@ public sealed record InvoiceMatchMemory(int Remembered, int Replaced, bool Faile
     public static readonly InvoiceMatchMemory Nothing = new(0, 0);
 }
 
+/// <summary>Запомненное для строки, которую пишет сервер: позиция и соответствие, которое её назвало.</summary>
+public sealed record RecalledPosition(Guid Position, Guid Match);
+
+/// <summary>Запомненное для строк одного поставщика.</summary>
+/// <param name="Lines">По ответу на строку, в порядке строк; <c>null</c> — подставлять нечего.</param>
+/// <param name="Unusable">Сколько строк УЗНАНО, но подставить нельзя: позиция в архиве или удалена
+/// (либо вида «Номенклатура» в системе нет вовсе). Без числа такие строки не отличить от незнакомых.</param>
+public sealed record RecallAnswer(IReadOnlyList<RecalledPosition?> Lines, int Unusable);
+
 /// <summary>
 /// Пометка «(запомнено)» у строки — и что стало с соответствием с тех пор.
 /// </summary>
@@ -131,45 +140,32 @@ public static class SupplierMatching
     }
 
     /// <summary>
-    /// Подставить запомненное строкам, которые пишет САМ СЕРВЕР, — прочитанным со скана.
+    /// Запомненное для строк, которые пишет САМ СЕРВЕР, — прочитанных со скана.
     ///
     /// <para>Правила те же, что у подстановки в форме, и взяты из тех же мест: узнаёт строку
     /// <see cref="FindAsync" />, а архивную и удалённую позицию отсекает правило новой ссылки (ТЗ
-    /// CORE-34.4). Позиция ложится вместе с пометкой — без неё подставленное выглядело бы выбором
-    /// человека, и отменить его было бы нечем, кроме как заметив.</para>
+    /// CORE-34.4). Отсечённое не теряется — оно сосчитано: звавший обязан сказать о нём человеку.</para>
     ///
-    /// <para>Без поставщика подставлять не по чему: соответствия запоминаются по поставщику, и строки
-    /// остаются ждать человека. Позже, когда поставщик появится, их подставит кнопка формы.</para>
+    /// <para>Только спрашивает и в строки ничего не кладёт: вопрос задают до замка счёта, а кладут под
+    /// ним, и поставщик к тому времени может оказаться другим.</para>
     /// </summary>
-    /// <returns>Строки в том же порядке и сколько из них получили позицию.</returns>
-    public static async Task<(List<InvoiceLineValues> Rows, int Placed)> RecallAsync(
-        CostsDbContext db, IModuleCatalog catalog, Guid? supplierId, List<InvoiceLineValues> rows,
+    public static async Task<RecallAnswer> RecallAsync(
+        CostsDbContext db, IModuleCatalog catalog, Guid supplierId, IReadOnlyList<InvoiceLineValues> rows,
         CancellationToken ct)
     {
-        if (supplierId is not { } supplier) return (rows, 0);
-
-        var found = await FindAsync(db, supplier, [.. rows.Select(r => (r.SupplierCode, r.SupplierText))], ct);
+        var found = await FindAsync(db, supplierId, [.. rows.Select(r => (r.SupplierCode, r.SupplierText))], ct);
         var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode,
             [.. found.OfType<SupplierMatch>().Select(m => m.NomenclatureId).Distinct()], ct);
-        if (verdicts is null) return (rows, 0);
 
-        var placed = 0;
-        var result = new List<InvoiceLineValues>(rows.Count);
-        foreach (var (row, index) in rows.Select((row, index) => (row, index)))
-        {
-            if (row.NomenclatureId is null && found[index] is { } match
-                && verdicts.GetValueOrDefault(match.NomenclatureId) == NewReference.Fine)
-            {
-                result.Add(row with { NomenclatureId = match.NomenclatureId, MatchedBy = match.Id });
-                placed++;
-            }
-            else
-            {
-                result.Add(row);
-            }
-        }
+        RecalledPosition?[] lines =
+        [
+            .. found.Select(match => match is not null && verdicts is not null
+                    && verdicts.GetValueOrDefault(match.NomenclatureId) == NewReference.Fine
+                ? new RecalledPosition(match.NomenclatureId, match.Id)
+                : null),
+        ];
 
-        return (result, placed);
+        return new(lines, found.Count(match => match is not null) - lines.Count(line => line is not null));
     }
 
     /// <summary>Тот же ли у строки ключ соответствия, что был: артикул, а без него — наименование.</summary>

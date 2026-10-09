@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
@@ -42,6 +41,7 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
         Assert.Equal("done", (await OutcomeAsync(client, id)).GetProperty("state").GetString());
 
         var view = await ReadAsync(client, id);
+        Assert.Equal(vendor, view.GetProperty("requisites").GetProperty("Поставщик").GetProperty("entryId").GetGuid());
         var lines = view.GetProperty("lines");
         Assert.Equal(position, lines[0].GetProperty("nomenclatureId").GetGuid());
         // Пометка — та же, что ставит форма: подставленное не выдаётся за выбор человека.
@@ -52,7 +52,7 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
         Assert.Equal(JsonValueKind.Null, lines[1].GetProperty("match").ValueKind);
         Assert.Equal(1, view.GetProperty("totals").GetProperty("withoutNomenclature").GetInt32());
 
-        Assert.Contains("из них с позицией из запомненного: 1", await JournalAsync(id));
+        Assert.Contains("из них с позицией из запомненного: 1", await JournalAsync(client, id));
     }
 
     [Fact]
@@ -63,9 +63,11 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
         var (stranger, _) = await VendorAsync();
         var archived = await PositionAsync();
         var foreign = await PositionAsync();
+        var alive = await PositionAsync();
 
         await RememberAsync(client, vendor, archived, "Гофра 20");
         await RememberAsync(client, stranger, foreign, "Кабель чужой");
+        await RememberAsync(client, vendor, alive, "Муфта концевая");
 
         using (var scope = host.Services.CreateScope())
             Assert.Equal(ArchiveOutcome.Changed,
@@ -75,18 +77,66 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
         host.Recognition.On(scan, () => Task.FromResult(Read(
             Header(number: "СЧ-78", supplier: "Поставщик", supplierTaxId: taxId),
             Row("Гофра 20", "м", "4", "5,00", "20,00"),
-            Row("Кабель чужой", "м", "1", "7,00", "7,00"))));
+            Row("Кабель чужой", "м", "1", "7,00", "7,00"),
+            Row("Муфта концевая", "шт", "1", "7,00", "7,00"))));
 
         var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
-        Assert.Equal("done", (await OutcomeAsync(client, id)).GetProperty("state").GetString());
+        var recognition = await OutcomeAsync(client, id);
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
 
         var view = await ReadAsync(client, id);
-        Assert.All(view.GetProperty("lines").EnumerateArray(), line =>
+        var lines = view.GetProperty("lines");
+        // Контроль: поставщик узнан и подстановка РАБОТАЛА — иначе «не подставлено» ниже доказывало бы
+        // лишь то, что не подставлялось ничего (ревью PR #1263).
+        Assert.Equal(vendor, view.GetProperty("requisites").GetProperty("Поставщик").GetProperty("entryId").GetGuid());
+        Assert.Equal(alive, lines[2].GetProperty("nomenclatureId").GetGuid());
+
+        Assert.All(new[] { lines[0], lines[1] }, line =>
         {
             Assert.Equal(JsonValueKind.Null, line.GetProperty("nomenclatureId").ValueKind);
             Assert.Equal(JsonValueKind.Null, line.GetProperty("match").ValueKind);
         });
-        Assert.DoesNotContain("из запомненного", await JournalAsync(id));
+        // Узнанная, но архивная — названа: без слова она выглядела бы незнакомой. Чужая — не узнана вовсе.
+        Assert.Contains(recognition.GetProperty("notes").EnumerateArray(),
+            note => note.GetString()!.Contains("запомнена позиция в архиве или удалённая: 1"));
+        Assert.Contains("из них с позицией из запомненного: 1", await JournalAsync(client, id));
+    }
+
+    /// <summary>
+    /// Справочник не ответил на вопрос о запомненном — распознавание от этого не падает: прочитанное
+    /// оплачено, и шапка со строками ложатся в счёт. Отказ назван, а не выдан за «ничего не запомнено».
+    /// </summary>
+    [Fact]
+    public async Task Отказ_справочника_не_губит_распознавание_и_назван()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (vendor, taxId) = await VendorAsync();
+        await RememberAsync(client, vendor, await PositionAsync(), "Лоток перфорированный");
+
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(
+            Header(number: "СЧ-80", supplier: "Поставщик", supplierTaxId: taxId),
+            Row("Лоток перфорированный", "м", "2", "5,00", "10,00"))));
+
+        host.RefsFailure = new InvalidOperationException("Справочник не ответил (сценарий теста).");
+        JsonElement recognition;
+        Guid id;
+        try
+        {
+            id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+            recognition = await OutcomeAsync(client, id);
+        }
+        finally
+        {
+            host.RefsFailure = null;
+        }
+
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+        var view = await ReadAsync(client, id);
+        Assert.Equal("СЧ-80", view.GetProperty("requisites").GetProperty("Номер").GetString());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("lines")[0].GetProperty("nomenclatureId").ValueKind);
+        Assert.Contains(recognition.GetProperty("notes").EnumerateArray(),
+            note => note.GetString()!.Contains("справочник не ответил"));
     }
 
     /// <summary>Поставщик не узнан — подставлять не по чему: строки ложатся как прочитаны.</summary>
@@ -143,22 +193,8 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
         await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
             $"Позиция {Guid.NewGuid().ToString("N")[..6]}");
 
-    /// <summary>
-    /// Что записал журнал о распознавании этого счёта. Запись ложится ПОСЛЕ исхода — её ждём: «done»
-    /// форма видит на мгновение раньше.
-    /// </summary>
-    private async Task<string> JournalAsync(Guid invoice)
-    {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-        while (true)
-        {
-            using var scope = host.Services.CreateScope();
-            var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()
-                .ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.recognized");
-            if (records.FirstOrDefault(r => r.TargetId == invoice.ToString()) is { } found) return found.After ?? string.Empty;
-
-            Assert.True(DateTime.UtcNow < deadline, $"Запись журнала о распознавании счёта {invoice} не появилась.");
-            await Task.Delay(50);
-        }
-    }
+    /// <summary>Что записал журнал о распознавании этого счёта.</summary>
+    private async Task<string> JournalAsync(HttpClient client, Guid invoice) =>
+        Assert.Single(await host.JournalAsync(client, invoice, "costs.invoice.recognized")).After
+        ?? string.Empty;
 }
