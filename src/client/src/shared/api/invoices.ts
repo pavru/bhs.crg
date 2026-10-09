@@ -86,6 +86,8 @@ export interface InvoiceMatchMemory {
   remembered: number;
   /** Сколько из запомненного ЗАМЕНИЛО запомненное раньше — другой позицией. */
   replaced: number;
+  /** Запомнить не удалось: строки при этом сохранены. */
+  failed?: boolean;
 }
 
 /**

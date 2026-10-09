@@ -149,6 +149,33 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         // Верная пометка проходит — отказы выше не про адрес вообще.
         var placed = await LinesAsync(client, invoice, [Marked(Line(position, 1, 1m, text: "Короб 40х25"), own)]);
         Assert.Equal("current", placed.GetProperty("lines")[0].GetProperty("match").GetProperty("state").GetString());
+
+        // Стоявшая пометка перепроверяется, когда строку ПЕРЕПИСАЛИ: «Короб» стал «Доставкой», и память
+        // о коробе к ней не относится. Та же строка без правки ключа сохраняется как была.
+        var line = LineId(placed, 1);
+        await RefusedAsync(client, invoice, Marked(Line(position, 1, 1m, text: "Доставка", id: line), own), "не узнаёт");
+        await LinesAsync(client, invoice, [Marked(Line(position, 2, 1m, text: "КОРОБ  40х25", id: line), own)]);
+    }
+
+    [Fact]
+    public async Task Архивная_позиция_стоявшая_в_строке_сменой_наименования_не_запоминается()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var vendor = await VendorAsync();
+        var position = await PositionAsync();
+        var invoice = await InvoiceAsync(client, vendor);
+
+        // Выбор без запоминания, затем позиция уходит в архив: стоявшая ссылка законна.
+        var row = Line(position, 1, 1m, text: "Лоток 100х50");
+        row["remember"] = false;
+        var saved = await LinesAsync(client, invoice, [row]);
+        await ArchiveAsync(position);
+
+        // Правка опечатки меняет ключ — но запоминать архивную позицию нельзя: это новая ссылка.
+        var again = await LinesAsync(client, invoice, [Line(position, 1, 1m, text: "Лоток 100х50 мм", id: LineId(saved, 1))]);
+
+        Assert.Equal(0, again.GetProperty("memory").GetProperty("remembered").GetInt32());
+        Assert.Empty(await SuggestAsync(client, vendor, (null, "Лоток 100х50 мм")));
     }
 
     [Fact]
@@ -193,9 +220,7 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var position = await PositionAsync();
         await LinesAsync(client, await InvoiceAsync(client, vendor), [Line(position, 1, 1m, text: "Щит ЩРН-12")]);
 
-        using (var scope = host.Services.CreateScope())
-            Assert.Equal(ArchiveOutcome.Changed,
-                await scope.ServiceProvider.GetRequiredService<IRecordArchive>().SetAsync(position, archived: true));
+        await ArchiveAsync(position);
 
         // Соответствие в ответе ЕСТЬ, с причиной: молчание читалось бы как «строка незнакома».
         var offered = Assert.Single(await SuggestAsync(client, vendor, (null, "Щит ЩРН-12")));
@@ -284,6 +309,13 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
 
         Assert.All(both, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
         Assert.Single(await SuggestAsync(client, vendor, (null, "Гофра 20")));
+    }
+
+    private async Task ArchiveAsync(Guid id)
+    {
+        using var scope = host.Services.CreateScope();
+        Assert.Equal(ArchiveOutcome.Changed,
+            await scope.ServiceProvider.GetRequiredService<IRecordArchive>().SetAsync(id, archived: true));
     }
 
     private static Dictionary<string, object?> Marked(Dictionary<string, object?> line, Guid match)

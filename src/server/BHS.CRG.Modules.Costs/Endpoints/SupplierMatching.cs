@@ -1,6 +1,7 @@
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -10,7 +11,9 @@ public sealed record MatchToRemember(SupplierMatchKey Key, Guid NomenclatureId);
 /// <summary>Что запомнилось сохранением строк — уезжает в ответе, чтобы форма сказала это словами.</summary>
 /// <param name="Remembered">Сколько соответствий записано: новых и заменённых вместе.</param>
 /// <param name="Replaced">Сколько из них ЗАМЕНИЛИ запомненное раньше — другой позицией.</param>
-public sealed record InvoiceMatchMemory(int Remembered, int Replaced)
+/// <param name="Failed">Запомнить НЕ УДАЛОСЬ: строки счёта при этом записаны. Ноль запомненного без этого
+/// признака читался бы как «запоминать было нечего».</param>
+public sealed record InvoiceMatchMemory(int Remembered, int Replaced, bool Failed = false)
 {
     public static readonly InvoiceMatchMemory Nothing = new(0, 0);
 }
@@ -127,6 +130,32 @@ public static class SupplierMatching
         }
     }
 
+    /// <summary>Тот же ли у строки ключ соответствия, что был: артикул, а без него — наименование.</summary>
+    public static bool SameKey(InvoiceLineValues was, InvoiceLineValues now) =>
+        (SupplierMatchKey.Of(was.SupplierCode, was.SupplierText), SupplierMatchKey.Of(now.SupplierCode, now.SupplierText))
+            is var (before, after) && before?.Kind == after?.Kind && before?.Hash == after?.Hash;
+
+    /// <summary>
+    /// Оставить из запоминаемого то, что ведёт на ДЕЙСТВУЮЩУЮ позицию.
+    ///
+    /// <para>Позиция, уже стоявшая в строке, записью строк не перепроверяется (ТЗ CORE-34.4) — она вправе
+    /// быть архивной. Но стоит поправить в такой строке опечатку, и смена ключа делала её «новостью»:
+    /// запоминалось соответствие на архивную позицию, и следующий счёт получал «запомненное в архиве»,
+    /// запомненное уже архивным (ревью PR #1262). Запоминание — новая ссылка, и правило у него то же,
+    /// что у выбора руками.</para>
+    /// </summary>
+    public static async Task<IReadOnlyList<MatchToRemember>> AliveAsync(
+        IModuleCatalog catalog, IReadOnlyList<MatchToRemember> chosen, CancellationToken ct)
+    {
+        if (chosen.Count == 0) return chosen;
+
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode,
+            [.. chosen.Select(c => c.NomenclatureId).Distinct()], ct);
+        return verdicts is null
+            ? []
+            : [.. chosen.Where(c => verdicts.GetValueOrDefault(c.NomenclatureId) == NewReference.Fine)];
+    }
+
     /// <summary>
     /// Что из присланного стоит запомнить: строки, где человек САМ поставил позицию и это новость.
     ///
@@ -224,6 +253,36 @@ public static class SupplierMatching
                 foreach (var entry in db.ChangeTracker.Entries<SupplierMatch>().ToList())
                     entry.State = EntityState.Detached;
             }
+        }
+    }
+
+    /// <summary>
+    /// Запомнить, не дав отказу запоминания стать отказом сохранения строк.
+    ///
+    /// <para>Строки к этому мгновению записаны и зафиксированы. Пробрось мы отказ — человек увидел бы
+    /// «строки не сохранены» при сохранённых строках, а форма осталась бы со старой версией счёта и на
+    /// повторе получила бы «счёт тем временем изменили» от собственной правки (ревью PR #1262). Поэтому
+    /// отказ уезжает в ответе признаком, а причина — в журнал сервера.</para>
+    /// </summary>
+    public static async Task<InvoiceMatchMemory> RememberSafelyAsync(
+        CostsDbContext db, Guid supplierId, IReadOnlyList<MatchToRemember> chosen, IModuleUser user, ILogger log,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await RememberAsync(db, supplierId, chosen, user, ct);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException)
+        {
+            // Несохранённое — из-под отслеживания: дальше тем же контекстом собирается ответ, и ничто
+            // не должно попытаться записать это снова.
+            foreach (var entry in db.ChangeTracker.Entries<SupplierMatch>().ToList())
+                entry.State = EntityState.Detached;
+
+            log.LogWarning(failure,
+                "Соответствия наименований поставщика {SupplierId} не запомнены ({Count}): строки счёта записаны.",
+                supplierId, chosen.Count);
+            return new(0, 0, Failed: true);
         }
     }
 

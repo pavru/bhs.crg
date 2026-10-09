@@ -121,7 +121,10 @@ export function memoryFate(
   if (!news) return 'none';
 
   if (draft.remember === false) return 'off';
-  if (!offer) return 'remember';
+  // Заменится только соответствие ТОГО ЖЕ ключа. Строка с артикулом, узнанная по наименованию, запомнится
+  // новым соответствием по артикулу, а прежнее — по наименованию — останется: обещать здесь «заменится»
+  // значило бы соврать, и человек считал бы исправленным то, что продолжит подставляться (ревью PR #1262).
+  if (!offer || offer.by !== key.by) return 'remember';
   // Выбрали то же, что запомнено: сервер ничего не запишет, и обещать «запомнится» нечего.
   return offer.nomenclatureId === draft.nomenclatureId ? 'none' : 'replace';
 }
@@ -144,6 +147,17 @@ export function matchTrouble(match: InvoiceLineMatch | null | undefined): string
     case 'foreign': return 'соответствие другого поставщика — поставщика у счёта сменили';
     default: return null;
   }
+}
+
+/**
+ * Запомнить не удалось, хотя строки сохранены, — словами; `null` — отказа не было. Молчать нельзя: ноль
+ * запомненного читался бы как «запоминать было нечего».
+ */
+export function memoryFailure(memory: InvoiceMatchMemory | null | undefined): string | null {
+  return memory?.failed
+    ? 'Строки сохранены, но выбор позиций не запомнился — сбой на сервере. Позиции в строках на месте; '
+      + 'следующий счёт этого поставщика их сам не получит.'
+    : null;
 }
 
 /** Слова тоста после сохранения строк; `null` — ничего не запомнилось, и говорить не о чем. */

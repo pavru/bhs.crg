@@ -1,5 +1,5 @@
 import { LOST } from './lostReferences';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
@@ -12,7 +12,8 @@ import { apiError } from '@/shared/utils/apiError';
 import { LineMatchChip } from './LineMatchChip';
 import { SupplierMatchNote } from './SupplierMatchNote';
 import {
-  applyOffer, cancelMatch, lineKey, memoryFate, memoryToast, pending, pickByHand, usable, type MatchOffer,
+  applyOffer, cancelMatch, lineKey, memoryFailure, memoryFate, memoryToast, pending, pickByHand, usable,
+  type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
@@ -94,16 +95,31 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
   const supplierId = refEntryId(view.requisites[K.supplier]);
   const [askFailed, setAskFailed] = useState<string | null>(null);
+  // Спрашиваем обо ВСЕХ лежащих строках без пометки, а не только о ждущих позиции: человек, меняющий
+  // уже стоявшую позицию, обязан увидеть «запомнится вместо прежнего» ДО сохранения, а не узнать о
+  // замене из сообщения после него (ревью PR #1262).
   const laid = useLaidMatchSuggestions(supplierId,
-    view.lines.filter(line => line.nomenclatureId === null && lineKey(line.supplierCode, line.supplierText) !== null)
+    view.lines.filter(line => !line.match && lineKey(line.supplierCode, line.supplierText) !== null)
       .map(line => ({ id: line.id, supplierCode: line.supplierCode, supplierText: line.supplierText })),
     !still);
 
-  /** Запомненное для строки: спрошенное для неё самой либо, у лежащей строки, — ответ общего вопроса. */
+  /**
+   * Запомненное для строки: спрошенное для неё самой либо, у лежащей строки, — ответ общего вопроса.
+   * Ответ общего вопроса годится, только пока ключ строки тот же, что сохранён: он был про тот текст.
+   */
   function offerFor(draft: LineDraft): MatchOffer | null {
-    if (draft.offer !== undefined) return draft.offer;
-    return (draft.id && laid.data?.get(draft.id)) || null;
+    if (draft.offer) return draft.offer;
+    const saved = draft.id ? view.lines.find(line => line.id === draft.id) : undefined;
+    if (!saved || !sameKey(lineKey(saved.supplierCode, saved.supplierText),
+      lineKey(draft.supplierCode, draft.supplierText))) return null;
+    return laid.data?.get(saved.id) ?? null;
   }
+
+  // Строки, как они есть СЕЙЧАС, — для ответа, пришедшего позже вопроса.
+  const latest = useRef(drafts);
+  useEffect(() => { latest.current = drafts; });
+  // О каком ключе строку уже спрашивали: уход с поля без правки вопроса не повторяет.
+  const asked = useRef(new Map<string, string>());
 
   const ready = still ? [] : pending(drafts, offerFor);
   const blockedOffers = still ? 0
@@ -125,25 +141,46 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
    */
   async function suggest(born: readonly LineDraft[]) {
     if (!supplierId) return;
-    const asked = born.filter(d => d.nomenclatureId === null && !d.declined && lineKey(d.supplierCode, d.supplierText));
-    if (asked.length === 0) return;
+    // Строка с позицией, выбранной руками, тоже спрашивается — подставлять ей нечего, но запомненное
+    // знать надо: без него «запомнится» не отличить от «запомнится вместо прежнего».
+    const fresh = born.filter(d => {
+      const key = lineKey(d.supplierCode, d.supplierText);
+      if (!key || d.declined || d.matchedBy !== null) return false;
+      const signature = `${key.by}:${key.value}`;
+      if (asked.current.get(d.key) === signature) return false;
+      asked.current.set(d.key, signature);
+      return true;
+    });
+    if (fresh.length === 0) return;
 
     try {
       const found = await askMatchSuggestions(supplierId,
-        asked.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
+        fresh.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
       setAskFailed(null);
-      const answers = new Map(found.map(item => [asked[item.index].key, { offer: item, asked: asked[item.index] }]));
+      const answers = new Map(found.map(item => [fresh[item.index].key, { offer: item, asked: fresh[item.index] }]));
       if (answers.size === 0) return;
 
-      setDrafts(prev => prev.map(draft => {
+      // Ответ про строку, которую тем временем отменили, пометили или переписали, к ней не относится.
+      const answerFor = (draft: LineDraft) => {
         const answer = answers.get(draft.key);
-        if (!answer || draft.nomenclatureId !== null || draft.declined) return draft;
-        if (!sameKey(lineKey(draft.supplierCode, draft.supplierText),
-          lineKey(answer.asked.supplierCode, answer.asked.supplierText))) return draft;
-        return usable(answer.offer) ? { ...draft, ...applyOffer(answer.offer) } : { ...draft, offer: answer.offer };
+        if (!answer || draft.declined || draft.matchedBy !== null) return null;
+        return sameKey(lineKey(draft.supplierCode, draft.supplierText),
+          lineKey(answer.asked.supplierCode, answer.asked.supplierText)) ? answer.offer : null;
+      };
+      const fills = (draft: LineDraft, offer: MatchOffer | null) => draft.nomenclatureId === null && usable(offer);
+
+      // «Есть несохранённое» — только если позиция действительно легла в строку: ответ, которому
+      // некуда лечь (строку удалили, строки сохранили), правкой не является (ревью PR #1262).
+      const touched = latest.current.some(draft => fills(draft, answerFor(draft)));
+      setDrafts(prev => prev.map(draft => {
+        const offer = answerFor(draft);
+        if (!offer) return draft;
+        return fills(draft, offer) ? { ...draft, ...applyOffer(offer) } : { ...draft, offer };
       }));
-      if (found.some(usable)) setDirty(true);
+      if (touched) setDirty(true);
     } catch (e) {
+      // Вопрос не прошёл — пусть следующий уход с поля задаст его заново.
+      fresh.forEach(d => asked.current.delete(d.key));
       setAskFailed(apiError(e));
     }
   }
@@ -180,6 +217,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
       // следующих счетов этого поставщика — молча это делать нельзя.
       const remembered = memoryToast(saved.memory);
       if (remembered) toast.success(remembered);
+      const forgotten = memoryFailure(saved.memory);
+      if (forgotten) toast.info(forgotten);
     } catch (e) {
       toast.apiError(e, 'Строки не сохранены');
     }
@@ -380,14 +419,17 @@ function Row({
 
   /**
    * Правка наименования или артикула меняет КЛЮЧ строки: запомненное для прежнего ключа к ней больше не
-   * относится. Несохранённая подстановка снимается вместе с позицией — сервер такую пометку всё равно
-   * отверг бы («соответствие эту строку не узнаёт»). Сохранённую не трогаем: она уже часть счёта.
+   * относится. Подстановка снимается вместе с позицией — и у сохранённой строки тоже: «Кабель»,
+   * переписанный в «Доставку», иначе остался бы с позицией кабеля и пометкой «запомнено», а сервер
+   * такую пометку отвергает («соответствие эту строку не узнаёт»). Регистр и пробелы ключа не меняют.
    */
   function editKey(patch: Partial<LineDraft>) {
-    const unsavedMark = draft.matchedBy !== null && line?.match?.id !== draft.matchedBy;
+    const next = { ...draft, ...patch };
+    const moved = !sameKey(lineKey(draft.supplierCode, draft.supplierText), lineKey(next.supplierCode, next.supplierText));
+    if (!moved) { onEdit(patch); return; }
     onEdit({
       ...patch, offer: null, declined: false,
-      ...(unsavedMark ? { nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null } : {}),
+      ...(draft.matchedBy !== null ? { nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null } : {}),
     });
   }
 

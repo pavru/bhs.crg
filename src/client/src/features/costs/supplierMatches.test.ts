@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { emptyDraft, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import {
-  applyOffer, cancelMatch, lineKey, matchTrouble, memoryFate, memoryToast, pending, pickByHand, usable,
+  applyOffer, cancelMatch, lineKey, matchTrouble, memoryFailure, memoryFate, memoryToast, pending, pickByHand, usable,
   type MatchOffer,
 } from './supplierMatches';
 
@@ -105,6 +105,14 @@ describe('что запомнится сохранением', () => {
     expect(memoryFate(draft({ nomenclatureId: 'n-1' }), undefined, true, offer)).toBe('none');
   });
 
+  it('соответствие другого ключа не заменяется: строка с артикулом запомнится по артикулу', () => {
+    const coded = draft({ nomenclatureId: 'n-2', supplierCode: 'A2' });
+
+    // Узнана по наименованию, а запомнится по артикулу — прежнее соответствие останется как было.
+    expect(memoryFate(coded, undefined, true, offer)).toBe('remember');
+    expect(memoryFate(coded, undefined, true, { ...offer, by: 'code' })).toBe('replace');
+  });
+
   it('строка, лежащая без изменений, — не новость', () => {
     expect(memoryFate({ ...chosen, id: 'l-1' }, saved({ nomenclatureId: 'n-2' }), true, null)).toBe('none');
     // Сменился ключ — новость, хотя позиция та же.
@@ -131,6 +139,11 @@ describe('слова', () => {
     expect(memoryToast({ remembered: 3, replaced: 1 })).toBe('Строки сохранены. Запомнено соответствий: 3, из них заменено: 1.');
     expect(memoryToast({ remembered: 0, replaced: 0 })).toBeNull();
     expect(memoryToast(undefined)).toBeNull();
+  });
+
+  it('отказ запоминания назван, а не выдан за «запоминать было нечего»', () => {
+    expect(memoryFailure({ remembered: 0, replaced: 0, failed: true })).toContain('не запомнился');
+    expect(memoryFailure({ remembered: 0, replaced: 0 })).toBeNull();
   });
 
   it('изменённое, забытое и чужое соответствие названы, а действующее — нет', () => {
