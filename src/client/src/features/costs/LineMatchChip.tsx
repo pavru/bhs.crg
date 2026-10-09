@@ -1,9 +1,10 @@
 import * as Popover from '@radix-ui/react-popover';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { formatDate } from '@/shared/format/format';
 import type { LineDraft } from './invoiceLines';
 import { byWord, lineKey, matchTrouble, usable, type MatchOffer, type MemoryFate } from './supplierMatches';
+import { SupplierMatchesDialog } from './SupplierMatchesDialog';
 
 /**
  * Пометка у позиции строки счёта (задача C3, issue #1079, ТЗ COST-7.1): «запомнено» у подставленной,
@@ -17,8 +18,10 @@ import { byWord, lineKey, matchTrouble, usable, type MatchOffer, type MemoryFate
  * <p>⚠️ Крестик отменяет подстановку БЕЗ вопроса: это одно действие по ТЗ, и обратимо оно тут же —
  * «вернуть» стоит на том же месте до сохранения строк.</p>
  */
-export function LineMatchChip({ draft, offer, fate, onCancel, onRestore, onRemember }: {
+export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRestore, onRemember }: {
   draft: LineDraft;
+  /** Поставщик счёта — с ним открывается список соответствий из раскрытия пометки. */
+  supplierId: string | null;
   /** Запомненное для этой строки, известное форме. */
   offer: MatchOffer | null | undefined;
   fate: MemoryFate;
@@ -26,8 +29,12 @@ export function LineMatchChip({ draft, offer, fate, onCancel, onRestore, onRemem
   onRestore: (offer: MatchOffer) => void;
   onRemember: (remember: boolean) => void;
 }) {
+  const [listOpen, setListOpen] = useState(false);
+
   if (draft.matchedBy !== null) {
     const trouble = matchTrouble(draft.match);
+    // Забытое соответствие в списке искать незачем — его там нет.
+    const listed = draft.match != null && draft.match.state !== 'gone';
     return (
       <span className="shrink-0 inline-flex items-center">
         <Explained label="запомнено" warning={trouble !== null}>
@@ -46,7 +53,17 @@ export function LineMatchChip({ draft, offer, fate, onCancel, onRestore, onRemem
             </p>
           )}
           <p className="text-fg4">Крестик отменяет подстановку в этой строке. Само соответствие остаётся.</p>
+          {/* Правило меняют и забывают в списке: там видно, что именно забывается и что из этого следует.
+              У соответствия другого поставщика отбор по поставщику счёта его бы спрятал. */}
+          {listed && <Action onClick={() => setListOpen(true)}>Сменить или забыть соответствие…</Action>}
         </Explained>
+        {listOpen && (
+          <SupplierMatchesDialog onClose={() => setListOpen(false)}
+            initial={{
+              supplierId: draft.match?.state === 'foreign' ? null : supplierId,
+              query: draft.match?.source ?? '',
+            }} />
+        )}
         <button type="button" onClick={onCancel} title="Отменить подстановку"
           className="text-fg4 hover:text-fg p-0.5">
           <X size={12} />

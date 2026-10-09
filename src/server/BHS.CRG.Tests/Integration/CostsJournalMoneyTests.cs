@@ -83,7 +83,9 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             Line(cable, quantity: 7, price: Price),
             new Dictionary<string, object?>
             {
-                ["nomenclature"] = Reference(conduit), ["supplierText"] = "Доставка", ["amount"] = Delivery,
+                // Позиция — кабель, а не труба: её название попадёт в журнал соответствий, а в слове
+                // «Труба» сторож ниже находит «руб».
+                ["nomenclature"] = Reference(cable), ["supplierText"] = "Доставка", ["amount"] = Delivery,
             },
         ]);
         var (first, second) = (LineId(view, 1), LineId(view, 2));
@@ -171,7 +173,25 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/paid", new { document = "п/п № 8" }));
         await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "не тот счёт" }));
 
-        var records = await RecordsOfAsync(invoice, article, spare, organization);
+        // Соответствие, запомненное строкой «Доставка»: направить на другую позицию и забыть (#1079).
+        var matches = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/costs/supplier-matches?supplierId={supplier}&query=Доставка");
+        var match = matches.GetProperty("items").EnumerateArray().First(m => m.GetProperty("source").GetString() == "Доставка");
+        var matchId = match.GetProperty("id").GetGuid();
+        using (var point = new HttpRequestMessage(HttpMethod.Put, $"/api/costs/supplier-matches/{matchId}"))
+        {
+            var other = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"), "Позиция для журнала");
+            point.Content = JsonContent.Create(new { nomenclatureId = other });
+            point.Headers.TryAddWithoutValidation("If-Match", match.GetProperty("version").GetString());
+            var pointed = await client.SendAsync(point);
+            await OkAsync(pointed);
+            using var forget = new HttpRequestMessage(HttpMethod.Delete, $"/api/costs/supplier-matches/{matchId}");
+            forget.Headers.TryAddWithoutValidation("If-Match",
+                (await pointed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetString());
+            await OkAsync(await client.SendAsync(forget));
+        }
+
+        var records = await RecordsOfAsync(invoice, article, spare, organization, matchId);
 
         // Сценарий обязан пройти через каждое объявленное действие: непройденное — вне присмотра.
         var declared = new InvoiceActions().Actions.Select(action => action.Code).Order().ToList();

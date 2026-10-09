@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
-import { FileText, Plus, ScanLine, Tags } from 'lucide-react';
+import { FileText, Link2, Plus, ScanLine, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -17,6 +17,7 @@ import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
 import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ArticlesDialog } from './ArticlesDialog';
+import { SupplierMatchesDialog } from './SupplierMatchesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
@@ -53,6 +54,7 @@ export function InvoicesPage() {
   const wide = useWideEnoughForScan();
   const { data: access = NO_ACCESS } = useAccess();
   const [articlesOpen, setArticlesOpen] = useState(false);
+  const [matchesOpen, setMatchesOpen] = useState(false);
 
   const invoices = useInvoices(queue);
   // Числа чипов «наведите порядок» — тому, кто счёт может исправить: остальным число было бы упрёком
@@ -143,6 +145,10 @@ export function InvoicesPage() {
               основной путь — от неё. */}
           {hasPermission(access, 'costs.invoice.edit') && (
             <>
+              {/* Соответствия наименований (C3, #1079) — у того, кто вводит счета: он их и запоминает. */}
+              <Button variant="outlined" icon={<Link2 size={16} />} onClick={() => setMatchesOpen(true)}>
+                Соответствия
+              </Button>
               <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
                 Новый счёт
               </Button>
@@ -162,6 +168,7 @@ export function InvoicesPage() {
             </>
           )}
           {articlesOpen && <ArticlesDialog onClose={() => setArticlesOpen(false)} />}
+          {matchesOpen && <SupplierMatchesDialog onClose={() => setMatchesOpen(false)} />}
         </div>
       }
       nav={
