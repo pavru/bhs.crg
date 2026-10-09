@@ -130,6 +130,48 @@ public static class SupplierMatching
         }
     }
 
+    /// <summary>
+    /// Подставить запомненное строкам, которые пишет САМ СЕРВЕР, — прочитанным со скана.
+    ///
+    /// <para>Правила те же, что у подстановки в форме, и взяты из тех же мест: узнаёт строку
+    /// <see cref="FindAsync" />, а архивную и удалённую позицию отсекает правило новой ссылки (ТЗ
+    /// CORE-34.4). Позиция ложится вместе с пометкой — без неё подставленное выглядело бы выбором
+    /// человека, и отменить его было бы нечем, кроме как заметив.</para>
+    ///
+    /// <para>Без поставщика подставлять не по чему: соответствия запоминаются по поставщику, и строки
+    /// остаются ждать человека. Позже, когда поставщик появится, их подставит кнопка формы.</para>
+    /// </summary>
+    /// <returns>Строки в том же порядке и сколько из них получили позицию.</returns>
+    public static async Task<(List<InvoiceLineValues> Rows, int Placed)> RecallAsync(
+        CostsDbContext db, IModuleCatalog catalog, Guid? supplierId, List<InvoiceLineValues> rows,
+        CancellationToken ct)
+    {
+        if (supplierId is not { } supplier) return (rows, 0);
+
+        var found = await FindAsync(db, supplier, [.. rows.Select(r => (r.SupplierCode, r.SupplierText))], ct);
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode,
+            [.. found.OfType<SupplierMatch>().Select(m => m.NomenclatureId).Distinct()], ct);
+        if (verdicts is null) return (rows, 0);
+
+        var placed = 0;
+        var result = new List<InvoiceLineValues>(rows.Count);
+        foreach (var (row, index) in rows.Select((row, index) => (row, index)))
+        {
+            if (row.NomenclatureId is null && found[index] is { } match
+                && verdicts.GetValueOrDefault(match.NomenclatureId) == NewReference.Fine)
+            {
+                result.Add(row with { NomenclatureId = match.NomenclatureId, MatchedBy = match.Id });
+                placed++;
+            }
+            else
+            {
+                result.Add(row);
+            }
+        }
+
+        return (result, placed);
+    }
+
     /// <summary>Тот же ли у строки ключ соответствия, что был: артикул, а без него — наименование.</summary>
     public static bool SameKey(InvoiceLineValues was, InvoiceLineValues now) =>
         (SupplierMatchKey.Of(was.SupplierCode, was.SupplierText), SupplierMatchKey.Of(now.SupplierCode, now.SupplierText))

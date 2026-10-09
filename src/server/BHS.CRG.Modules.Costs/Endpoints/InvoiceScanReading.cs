@@ -26,7 +26,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, IModuleBlobs blobs,
-    IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties)
+    IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties,
+    IModuleCatalog catalog)
 {
     /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
     private const int MergeAttempts = 3;
@@ -52,7 +53,7 @@ public sealed class InvoiceScanReading(
         }
 
         ModuleRecognitionResult read;
-        (string Label, int Filled, int Lines) merged;
+        (string Label, int Filled, int Lines, int Recalled) merged;
         try
         {
             var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
@@ -98,7 +99,9 @@ public sealed class InvoiceScanReading(
         try
         {
             await log.RecordAsync(InvoiceActions.Recognized, invoiceId.ToString(), merged.Label,
-                after: $"полей: {merged.Filled}, строк: {merged.Lines}" + (read.Engine is { } engine ? $"; {engine}" : string.Empty),
+                after: $"полей: {merged.Filled}, строк: {merged.Lines}"
+                    + (merged.Recalled > 0 ? $", из них с позицией из запомненного: {merged.Recalled}" : string.Empty)
+                    + (read.Engine is { } engine ? $"; {engine}" : string.Empty),
                 ct: ct);
         }
         catch (Exception lost) when (lost is not OperationCanceledException)
@@ -113,7 +116,7 @@ public sealed class InvoiceScanReading(
     /// перечитывается, и то же прочитанное раскладывается заново — уже мимо поля, которое человек
     /// только что заполнил. Выбросить прочитанное значило бы платить движку второй раз за тот же файл.
     /// </summary>
-    private async Task<(string Label, int Filled, int Lines)> MergeAsync(
+    private async Task<(string Label, int Filled, int Lines, int Recalled)> MergeAsync(
         Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
         CancellationToken ct)
     {
@@ -129,7 +132,7 @@ public sealed class InvoiceScanReading(
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
                     var applied = await ApplyAsync(write.Invoice, stored, read, matched, ct);
                     await db.SaveChangesAsync(ct);
-                    return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines);
+                    return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled);
                 }, ct);
             }
             catch (ConflictException lost) when (lost.InnerException is DbUpdateConcurrencyException && attempt < MergeAttempts)
@@ -162,7 +165,7 @@ public sealed class InvoiceScanReading(
     }
 
     /// <summary>Шапка — в пустые поля, строки — в счёт без строк; остальное — предложением.</summary>
-    private async Task<(int Filled, int Lines)> ApplyAsync(
+    private async Task<(int Filled, int Lines, int Recalled)> ApplyAsync(
         Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
         CancellationToken ct)
     {
@@ -261,6 +264,7 @@ public sealed class InvoiceScanReading(
 
         JsonDocument? offeredLines = null;
         var added = 0;
+        var recalled = 0;
         if (rows.Count > 0)
         {
             if (await db.InvoiceLines.AnyAsync(l => l.InvoiceId == invoice.Id, ct))
@@ -272,6 +276,12 @@ public sealed class InvoiceScanReading(
             }
             else
             {
+                // Запомненное для этого поставщика подставляется сразу (задача C3, issue #1079): счёт
+                // со скана приходит в очередь «Разобрать» уже без строк, которые система знает. Поставщик
+                // — тот, что стоит в счёте ПОСЛЕ слияния шапки: вписанный человеком либо найденный по ИНН
+                // этим же сканом. Строки ложатся с пометкой «запомнено» — той же, что ставит форма.
+                (rows, recalled) = await SupplierMatching.RecallAsync(db, catalog, invoice.SupplierId, rows, ct);
+
                 foreach (var (values, index) in rows.Select((values, index) => (values, index)))
                 {
                     var line = InvoiceLine.Create(invoice.Id);
@@ -288,11 +298,12 @@ public sealed class InvoiceScanReading(
             offers.Count > 0 ? JsonDocument.Parse(offers.ToJsonString()) : null,
             offeredLines, notes);
 
-        return (filled.Count, added);
+        return (filled.Count, added, recalled);
     }
 
     /// <summary>
-    /// Строка скана → строка счёта. Номенклатуры нет: её выбирает человек, строка ждёт в очереди
+    /// Строка скана → строка счёта. Номенклатуры здесь нет: её подставит запомненное для поставщика
+    /// (<see cref="SupplierMatching.RecallAsync" />) либо выберет человек — тогда строка ждёт в очереди
     /// «Разобрать».
     ///
     /// <para>⚠️ Пределы — те же, что у строки из формы (<see cref="InvoiceLineRequests" />): длина,

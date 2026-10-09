@@ -90,7 +90,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         Assert.Equal("7701234567",
             recognition.GetProperty("values").GetProperty(CostsRecognitionProfiles.SupplierTaxId).GetString());
 
-        Assert.Equal(1, await JournalAsync(id, "costs.invoice.recognized"));
+        Assert.Equal(1, await JournalAsync(id, "costs.invoice.recognized", atLeast: 1));
     }
 
     /// <summary>
@@ -669,11 +669,20 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
     internal static string[] Unconfirmed(JsonElement view) =>
         [.. view.GetProperty("unconfirmed").EnumerateArray().Select(k => k.GetString()!).Order(StringComparer.Ordinal)];
 
-    private async Task<int> JournalAsync(Guid invoice, string action)
+    /// <param name="atLeast">Сколько записей ЖДАТЬ. Журнал пишется после исхода и вне его: форма видит
+    /// «done» на мгновение раньше записи, и счёт сразу за исходом через раз давал ноль.</param>
+    private async Task<int> JournalAsync(Guid invoice, string action, int atLeast = 0)
     {
-        using var scope = host.Services.CreateScope();
-        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = await journal.ReadAsync(0, 200, ActivityVisibility.Whole, action);
-        return records.Count(r => r.TargetId == invoice.ToString());
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (true)
+        {
+            using var scope = host.Services.CreateScope();
+            var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
+            var records = await journal.ReadAsync(0, 200, ActivityVisibility.Whole, action);
+            var count = records.Count(r => r.TargetId == invoice.ToString());
+            if (count >= atLeast || DateTime.UtcNow >= deadline) return count;
+
+            await Task.Delay(50);
+        }
     }
 }
