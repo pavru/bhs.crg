@@ -90,7 +90,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         Assert.Equal("7701234567",
             recognition.GetProperty("values").GetProperty(CostsRecognitionProfiles.SupplierTaxId).GetString());
 
-        Assert.Equal(1, await JournalAsync(id, "costs.invoice.recognized"));
+        Assert.Single(await host.JournalAsync(client, id, "costs.invoice.recognized"));
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         Assert.Empty(Unconfirmed(view));
         Assert.Equal(0, view.GetProperty("lines").GetArrayLength());
         Assert.Equal(version, view.GetProperty("version").GetString());
-        Assert.Equal(0, await JournalAsync(id, "costs.invoice.recognized"));
+        Assert.Empty(await host.JournalAsync(client, id, "costs.invoice.recognized"));
     }
 
     /// <summary>«Прочитал, но пусто» — тоже отказ, и порт называет его сам (NoAnswer).</summary>
@@ -668,12 +668,4 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
 
     internal static string[] Unconfirmed(JsonElement view) =>
         [.. view.GetProperty("unconfirmed").EnumerateArray().Select(k => k.GetString()!).Order(StringComparer.Ordinal)];
-
-    private async Task<int> JournalAsync(Guid invoice, string action)
-    {
-        using var scope = host.Services.CreateScope();
-        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = await journal.ReadAsync(0, 200, ActivityVisibility.Whole, action);
-        return records.Count(r => r.TargetId == invoice.ToString());
-    }
 }

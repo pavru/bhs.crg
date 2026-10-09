@@ -18,6 +18,15 @@ public sealed record InvoiceMatchMemory(int Remembered, int Replaced, bool Faile
     public static readonly InvoiceMatchMemory Nothing = new(0, 0);
 }
 
+/// <summary>Запомненное для строки, которую пишет сервер: позиция и соответствие, которое её назвало.</summary>
+public sealed record RecalledPosition(Guid Position, Guid Match);
+
+/// <summary>Запомненное для строк одного поставщика.</summary>
+/// <param name="Lines">По ответу на строку, в порядке строк; <c>null</c> — подставлять нечего.</param>
+/// <param name="Unusable">Сколько строк УЗНАНО, но подставить нельзя: позиция в архиве или удалена
+/// (либо вида «Номенклатура» в системе нет вовсе). Без числа такие строки не отличить от незнакомых.</param>
+public sealed record RecallAnswer(IReadOnlyList<RecalledPosition?> Lines, int Unusable);
+
 /// <summary>
 /// Пометка «(запомнено)» у строки — и что стало с соответствием с тех пор.
 /// </summary>
@@ -128,6 +137,35 @@ public static class SupplierMatching
                     "выберите позицию заново: строка, названная подставленной из запомненного, обязана " +
                     "такой и быть.");
         }
+    }
+
+    /// <summary>
+    /// Запомненное для строк, которые пишет САМ СЕРВЕР, — прочитанных со скана.
+    ///
+    /// <para>Правила те же, что у подстановки в форме, и взяты из тех же мест: узнаёт строку
+    /// <see cref="FindAsync" />, а архивную и удалённую позицию отсекает правило новой ссылки (ТЗ
+    /// CORE-34.4). Отсечённое не теряется — оно сосчитано: звавший обязан сказать о нём человеку.</para>
+    ///
+    /// <para>Только спрашивает и в строки ничего не кладёт: вопрос задают до замка счёта, а кладут под
+    /// ним, и поставщик к тому времени может оказаться другим.</para>
+    /// </summary>
+    public static async Task<RecallAnswer> RecallAsync(
+        CostsDbContext db, IModuleCatalog catalog, Guid supplierId, IReadOnlyList<InvoiceLineValues> rows,
+        CancellationToken ct)
+    {
+        var found = await FindAsync(db, supplierId, [.. rows.Select(r => (r.SupplierCode, r.SupplierText))], ct);
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode,
+            [.. found.OfType<SupplierMatch>().Select(m => m.NomenclatureId).Distinct()], ct);
+
+        RecalledPosition?[] lines =
+        [
+            .. found.Select(match => match is not null && verdicts is not null
+                    && verdicts.GetValueOrDefault(match.NomenclatureId) == NewReference.Fine
+                ? new RecalledPosition(match.NomenclatureId, match.Id)
+                : null),
+        ];
+
+        return new(lines, found.Count(match => match is not null) - lines.Count(line => line is not null));
     }
 
     /// <summary>Тот же ли у строки ключ соответствия, что был: артикул, а без него — наименование.</summary>
