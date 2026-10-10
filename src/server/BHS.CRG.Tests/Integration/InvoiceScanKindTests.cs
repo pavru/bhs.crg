@@ -154,6 +154,33 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
     }
 
     /// <summary>
+    /// Известный реестру вид — ещё не читаемый (issue #1266). Картинку GIF система показывает, таблицу
+    /// Excel знает и хранит, но распознать не может ни ту, ни другую: кнопка называет причину, а
+    /// «счёт из скана» отказывает. Перечень в обоих текстах — из реестра.
+    /// </summary>
+    [Fact]
+    public async Task Известный_но_не_читаемый_вид_прикладывается_а_распознать_его_нельзя()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        byte[] gif = [.. "GIF89a"u8, .. Guid.NewGuid().ToByteArray()];
+
+        foreach (var (body, kind) in new[] { (gif, FileKinds.Gif), (FileKindsTests.Zip("xl/workbook.xml"), FileKinds.Xlsx) })
+        {
+            var id = await CreateAsync(client);
+            Assert.Equal(kind, Stored(await AttachAsync(client, id, body, "Счёт", null)));
+
+            var recognition = await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{id}/recognition");
+            Assert.False(recognition.GetProperty("canStart").GetBoolean());
+            Assert.Contains("распознаются PDF, PNG и JPEG", recognition.GetProperty("whyNot").GetString());
+
+            using var form = Form(body, "Счёт", null);
+            var refused = await client.PostAsync("/api/costs/invoices/from-scan", form);
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            Assert.Contains("PDF, PNG или JPEG", await refused.Content.ReadAsStringAsync());
+        }
+    }
+
+    /// <summary>
     /// Реестр видов — экрану (issue #1266): из него собираются выбор файла и перечень «распознаются …».
     /// Тот, кто вправе работать со счетами, получает его без отдельного права; невошедший — нет.
     /// </summary>
