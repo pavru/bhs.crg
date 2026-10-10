@@ -53,6 +53,52 @@ public sealed class OfficeConverterClient(
         }
     }
 
+    /// <summary>
+    /// Чем строятся образы — «gotenberg 8.37.0» (issue #1269); <c>null</c> — сервис себя не назвал.
+    ///
+    /// <para>Спрашивается у самого сервиса, а не берётся из настройки: настройка знает адрес, а
+    /// что по нему стоит, знает только он. Спрашивается при каждом построении и не запоминается —
+    /// контейнер меняют, не перезапуская приложение, а отметка на образе обязана говорить о том
+    /// конвертере, который его построил.</para>
+    ///
+    /// <para>Любой отказ здесь — «не знаем», а не отказ построения: образ уже готов.</para>
+    /// </summary>
+    public async Task<string?> MarkAsync(CancellationToken ct)
+    {
+        if (!options.Configured) return null;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(MarkBudget);
+        using var http = clients.CreateClient(OfficeConverterOptions.ClientName);
+        http.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+        try
+        {
+            using var response = await http.GetAsync(options.At("version"), HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+            if (response.StatusCode != HttpStatusCode.OK) return null;
+            // Ответ читается с пределом и сверяется с видом номера версии: по адресу может стоять
+            // что угодно, а отметка ложится в базу и показывается человеку.
+            await using var body = await response.Content.ReadAsStreamAsync(deadline.Token);
+            var buffer = new byte[MarkMaxLength + 1];
+            var read = await body.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, deadline.Token);
+            var version = System.Text.Encoding.ASCII.GetString(buffer, 0, read).Trim();
+            return read <= MarkMaxLength && LooksLikeVersion(version) ? "gotenberg " + version : null;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            return null;
+        }
+    }
+
+    private static readonly TimeSpan MarkBudget = TimeSpan.FromSeconds(5);
+    private const int MarkMaxLength = 40;
+
+    private static bool LooksLikeVersion(string text) =>
+        text.Length > 0 && char.IsAsciiDigit(text[0])
+        && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '+');
+
     private async Task<ConverterReply> SendAsync(byte[] file, OfficeFormat format, CancellationToken ct)
     {
         // Срок свой, а не клиента: тот действует только до заголовков ответа, а тело мы читаем сами.

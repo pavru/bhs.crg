@@ -89,9 +89,27 @@ public class RegisteredBlobStorage(
 
         // Токена снова нет, и по той же причине, что при записи: объекта уже нет, а отмена оставила
         // бы реестр обещающим то, чего не существует.
-        await using var scope = scopes.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.BlobRegistry.Where(e => e.Path == blobPath).ExecuteDeleteAsync();
+        string? image;
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.BlobRegistry.Where(e => e.Path == blobPath).ExecuteDeleteAsync();
+
+            // Читаемый образ живёт, пока жив оригинал (issue #1269), и привязка эта — здесь, в
+            // одном месте: удаление файла идёт через этот класс всё, поэтому владельцу оригинала
+            // помнить об образе не нужно — и забыть нельзя.
+            //
+            // Сначала запись, потом сам образ. Упавшее между ними даёт образ без держателя — его
+            // найдёт уборка осиротевших. Обратный порядок дал бы запись, которая держит образ
+            // оригинала, которого уже нет: такую не убрал бы никто.
+            image = await db.Renditions.Where(e => e.OriginalBlobPath == blobPath)
+                .Select(e => e.ImageBlobPath).FirstOrDefaultAsync();
+            await db.Renditions.Where(e => e.OriginalBlobPath == blobPath).ExecuteDeleteAsync();
+        }
+
+        // Тем же путём, что и любой файл: образ — такой же объект с записью в реестре. Своего
+        // образа у него нет, так что глубже одного шага это не уходит.
+        if (image is not null) await DeleteAsync(image, ct);
     }
 
     /// <summary>Значится ли путь за приложением. Единственный вопрос, ради которого заведён реестр.</summary>

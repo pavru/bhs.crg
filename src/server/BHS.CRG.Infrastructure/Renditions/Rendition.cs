@@ -64,7 +64,14 @@ public abstract record Rendition
     /// <param name="Notes">Пометки для человека: что в образе не так, хотя он и годен. Едут вместе
     /// с образом и показываются рядом с ним — образ с пометкой, показанный без неё, выглядел бы
     /// точной копией файла.</param>
-    public sealed record Built(byte[] Pdf, int Pages, IReadOnlyList<string> Notes) : Rendition;
+    public sealed record Built(byte[] Pdf, int Pages, IReadOnlyList<string> Notes) : Rendition
+    {
+        /// <summary>
+        /// Чем построен образ: «gotenberg 8.37.0» (issue #1269). <c>null</c> — конвертер себя не
+        /// назвал; образ от этого хуже не стал, и отказом это не считается.
+        /// </summary>
+        public string? Converter { get; init; }
+    }
 
     /// <summary>Образа нет.</summary>
     /// <param name="Kind">Вид причины — по нему решают, предлагать ли повтор.</param>
@@ -73,6 +80,13 @@ public abstract record Rendition
     public sealed record Refused(RenditionRefusal Kind, string Reason) : Rendition
     {
         public bool RetryHelps => Kind == RenditionRefusal.Unavailable;
+
+        /// <summary>
+        /// Отказ говорит о сервисе, а не о файле: конвертер занят, молчит или не настроен
+        /// (issue #1269). Такой отказ не запоминают — завтра тот же файл получит образ, и запись
+        /// «конвертера нет» пережила бы его настройку.
+        /// </summary>
+        public bool AboutService => Kind is RenditionRefusal.Unavailable or RenditionRefusal.NotSetUp;
     }
 }
 

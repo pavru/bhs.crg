@@ -23,6 +23,31 @@ public class OfficeConverterClientTests
         return Assert.IsType<Rendition.Refused>(reply.Refusal);
     }
 
+    /// <summary>
+    /// Отметка «чем построен образ» ложится в базу и показывается человеку, а по адресу конвертера
+    /// может стоять что угодно. Всё, что не похоже на номер версии, — «неизвестно», а не отметка.
+    /// </summary>
+    [Theory]
+    [InlineData("8.37.0", "gotenberg 8.37.0")]
+    [InlineData("8.37.0\n", "gotenberg 8.37.0")]
+    [InlineData("8.37.0-libreoffice", "gotenberg 8.37.0-libreoffice")]
+    [InlineData("<html>nginx</html>", null)]
+    [InlineData("", null)]
+    [InlineData("8.37.0 and a very long tail that no version number would ever carry", null)]
+    public async Task Отметка_конвертера_это_его_номер_версии_или_ничего(string body, string? mark)
+    {
+        var client = Client(MustNotBeCalled, version: body);
+
+        Assert.Equal(mark, await client.MarkAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Конвертер_не_назвал_себя_отметки_нет_а_не_отказ()
+    {
+        Assert.Null(await Client(MustNotBeCalled, version: null).MarkAsync(CancellationToken.None));
+        Assert.Null(await Client(MustNotBeCalled, baseUrl: null, version: "8.37.0").MarkAsync(CancellationToken.None));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(" ")]

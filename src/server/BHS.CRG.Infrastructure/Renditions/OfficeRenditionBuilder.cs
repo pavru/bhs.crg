@@ -43,9 +43,14 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
 
         var reply = await converter.ConvertAsync(file, format, ct);
         var result = reply.Refusal ?? RenditionPostconditions.Check(reply.Pdf!, cellWords);
-        return result is Rendition.Built built && uncheckedBook
-            ? built with { Notes = [.. built.Notes, UncheckedNote] }
-            : result;
+        if (result is not Rendition.Built built) return result;
+        // Отметка берётся тут же, у того же сервиса: образ и сведения о том, чем он построен,
+        // расходиться не должны.
+        return built with
+        {
+            Notes = uncheckedBook ? [.. built.Notes, UncheckedNote] : built.Notes,
+            Converter = await converter.MarkAsync(ct),
+        };
     }
 
     /// <inheritdoc cref="OfficeFileBudget.MayBeOffice" />

@@ -48,17 +48,21 @@ internal static class RenditionFixtures
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
     }
 
+    /// <param name="version">Что сервис отвечает на вопрос о своей версии; <c>null</c> — не
+    /// отвечает (404). Вопрос этот до <paramref name="converter" /> не доходит: тот видит только
+    /// преобразования, и считать или проверять в нём можно именно их.</param>
     public static OfficeConverterClient Client(
-        Converter converter, string? baseUrl = "http://converter:3000", TimeSpan? timeout = null, TimeSpan? gateWait = null)
-        => new(new Clients(converter), new OfficeConverterOptions { BaseUrl = baseUrl },
+        Converter converter, string? baseUrl = "http://converter:3000", TimeSpan? timeout = null,
+        TimeSpan? gateWait = null, string? version = null)
+        => new(new Clients(converter, version), new OfficeConverterOptions { BaseUrl = baseUrl },
             NullLogger<OfficeConverterClient>.Instance)
         {
             Timeout = timeout ?? OfficeConverterOptions.ClientTimeout,
             GateWait = gateWait ?? RenditionLimits.GateWait,
         };
 
-    public static RenditionService Service(Converter converter) =>
-        new(new OfficeRenditionBuilder(Client(converter), NullLogger<OfficeRenditionBuilder>.Instance));
+    public static RenditionService Service(Converter converter, string? version = null) =>
+        new(new OfficeRenditionBuilder(Client(converter, version: version), NullLogger<OfficeRenditionBuilder>.Instance));
 
     public static Task<Rendition> BuildAsync(this RenditionService service, byte[] file) =>
         service.BuildAsync(new MemoryStream(file), CancellationToken.None);
@@ -166,18 +170,25 @@ internal static class RenditionFixtures
         }
     }
 
-    private sealed class Clients(Converter converter) : IHttpClientFactory
+    private sealed class Clients(Converter converter, string? version) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name)
         {
             Assert.Equal(OfficeConverterOptions.ClientName, name);
-            return new HttpClient(new Handler(converter));
+            return new HttpClient(new Handler(converter, version));
         }
     }
 
-    private sealed class Handler(Converter converter) : HttpMessageHandler
+    private sealed class Handler(Converter converter, string? version) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-            => converter(request, ct);
+        {
+            if (request.Method != HttpMethod.Get) return converter(request, ct);
+            // Читает у сервиса служба одно — его версию. Другой адрес значит, что она спросила не то.
+            Assert.Equal("/version", request.RequestUri!.AbsolutePath);
+            return Task.FromResult(version is null
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(version) });
+        }
     }
 }
