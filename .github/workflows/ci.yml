@@ -312,7 +312,8 @@ jobs:
           if [ -z "$BASE" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           git fetch -q --depth=1 origin "$BASE"
           FILES="docker-compose.yml deploy/docker-compose.yml deploy/dev-nginx.conf"
-          FILES="$FILES deploy/converter.tests.sh deploy/converter-reference.xlsx .github/workflows/ci.yml"
+          FILES="$FILES deploy/converter.tests.sh deploy/converter-reference.xlsx deploy/converter-reference.pdf"
+          FILES="$FILES deploy/converter-protected.xlsx deploy/converter-protected.xls .github/workflows/ci.yml"
           # shellcheck disable=SC2086 # список путей: разбиение по словам и нужно
           touched="$(git diff --name-only "$BASE" HEAD -- $FILES)"
           if [ -n "$touched" ]; then
