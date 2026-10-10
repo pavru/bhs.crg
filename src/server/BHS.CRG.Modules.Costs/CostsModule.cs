@@ -111,8 +111,8 @@ public sealed class CostsModule : IAppModule
             ReadAllMark.Out("заводит и правит счета")),
 
         new(OrganizationCreate,
-            "заводить в справочнике организацию, прочитанную в скане счёта, если её там ещё нет",
-            "запись в общий справочник организаций — только новую, только с названием и ИНН из скана " +
+            "заводить в справочнике организацию, прочитанную в файле счёта, если её там ещё нет",
+            "запись в общий справочник организаций — только новую, только с названием и ИНН из файла счёта " +
             "этого счёта; править, архивировать и удалять организации это право не даёт",
             ["costs.invoice.read"],
             ReadAllMark.Out("заводит запись в справочнике организаций")),
@@ -249,6 +249,7 @@ public sealed class CostsModule : IAppModule
         // Путь «скан → черновик» (B1b, issue #1077): служба и её фоновая операция. Обработчик
         // регистрируется по интерфейсу порта — постановка операции без исполнителя есть отказ сразу.
         services.AddScoped<InvoiceParties>();
+        services.AddScoped<InvoiceScanImage>();
         services.AddScoped<InvoiceScanRecognition>();
         services.AddScoped<InvoiceListRecognition>();
         services.AddScoped<InvoiceScanReading>();
@@ -294,6 +295,7 @@ public sealed class CostsModule : IAppModule
     {
         InvoiceEndpoints.MapInvoices(endpoints);
         InvoiceRecognitionEndpoints.Map(endpoints);
+        InvoiceScanImageEndpoints.Map(endpoints);
         InvoicePartyIntakeEndpoints.Map(endpoints);
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
         SupplierMatchEndpoints.Map(endpoints);

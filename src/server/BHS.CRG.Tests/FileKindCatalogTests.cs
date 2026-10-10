@@ -31,12 +31,15 @@ public class FileKindCatalogTests
     public void Каждый_движок_принимает_всё_что_реестр_читает_как_есть()
     {
         Assert.True(Engines.Length >= 3, "Движков распознавания найдено меньше трёх — перебор сборки сломан.");
-        Assert.NotEmpty(FileKindCatalog.Recognized);
+        // Именно «как есть», а не всё распознаваемое: офисный файл движку не уходит — уходит его
+        // образ, PDF (issue #1270).
+        var asIs = FileKindCatalog.All.Where(kind => kind.Reading == FileReading.AsIs).ToList();
+        Assert.NotEmpty(asIs);
 
         var refused =
             from engine in Engines
             let probe = (IRecognizerEngine)RuntimeHelpers.GetUninitializedObject(engine)
-            from kind in FileKindCatalog.Recognized
+            from kind in asIs
             where !probe.Accepts(kind.Mime)
             select $"{engine.Name} не принимает {kind.Label} ({kind.Mime})";
 
@@ -109,24 +112,25 @@ public class FileKindCatalogTests
             Assert.Equal(FileKindCatalog.Recognized.Contains(kind), FileKindCatalog.IsRecognized(kind.Mime)));
 
     /// <summary>
-    /// Читаемый образ ещё не строится (issue #1268–#1270): офисный файл реестр знает, но читаемым
-    /// не называет. Тест снимается вместе с этим ограничением.
+    /// Офисный файл распознаётся — через образ (issue #1270). Показать сам файл при этом нечем:
+    /// рядом с формой стоит образ, и спрашивают его не у реестра, а у счёта.
     /// </summary>
     [Fact]
-    public void Офисный_файл_известен_но_пока_не_распознаётся()
+    public void Офисный_файл_распознаётся_через_образ_а_сам_не_показывается()
     {
         foreach (var mime in new[] { FileKinds.Xlsx, FileKinds.Xls, FileKinds.Docx })
         {
             Assert.Equal(FileReading.Rendition, FileKindCatalog.Find(mime)!.Reading);
-            Assert.False(FileKindCatalog.IsRecognized(mime));
+            Assert.Equal(FileView.None, FileKindCatalog.Find(mime)!.View);
+            Assert.True(FileKindCatalog.IsRecognized(mime));
         }
     }
 
     [Fact]
     public void Перечень_словами_собирается_из_названий_без_повторов()
     {
-        Assert.Equal("PDF, PNG и JPEG", FileKindCatalog.Words(FileKindCatalog.Recognized));
-        Assert.Equal("PDF, PNG или JPEG", FileKindCatalog.Words(FileKindCatalog.Recognized, "или"));
+        Assert.Equal("PDF, PNG, JPEG, Excel и Word", FileKindCatalog.Words(FileKindCatalog.Recognized));
+        Assert.Equal("PDF, PNG, JPEG, Excel или Word", FileKindCatalog.Words(FileKindCatalog.Recognized, "или"));
         Assert.Equal("Excel и Word", FileKindCatalog.Words(
             FileKindCatalog.All.Where(kind => kind.Reading == FileReading.Rendition)));
         Assert.Equal("PDF", FileKindCatalog.Words([FileKindCatalog.Find(FileKinds.Pdf)!]));

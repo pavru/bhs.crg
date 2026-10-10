@@ -32,7 +32,10 @@ public abstract record ModuleRendition
     /// <param name="Reason">Причина словами, для человека.</param>
     /// <param name="RetryHelps">Отказ временный — сервис занят или молчит; тот же файл позже может
     /// получить образ. Иначе повтор ничего не изменит.</param>
-    public sealed record Refused(string Reason, bool RetryHelps) : ModuleRendition;
+    /// <param name="OtherKind">Файл не того вида: образ ему не положен вовсе — это не Excel и не
+    /// Word. Отличать нужно: про такой файл экран говорит «показать нечем», а не «образ не
+    /// построен», и причину отказа не выдаёт за поломку.</param>
+    public sealed record Refused(string Reason, bool RetryHelps, bool OtherKind = false) : ModuleRendition;
 }
 
 /// <summary>

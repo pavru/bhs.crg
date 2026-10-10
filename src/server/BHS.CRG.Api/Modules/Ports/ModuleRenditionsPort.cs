@@ -29,7 +29,8 @@ public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRen
         RenditionState.AsIs => new ModuleRendition.AsIs(record.OriginalBlobPath, record.Mime!),
         RenditionState.Built => new ModuleRendition.Built(
             record.ImageBlobPath!, record.Pages ?? 0, record.Notes, record.Converter, record.UpdatedAt),
-        _ => new ModuleRendition.Refused(record.RefusalReason!, RetryHelps(record.RefusalKind)),
+        _ => new ModuleRendition.Refused(record.RefusalReason!, RetryHelps(record.RefusalKind),
+            OtherKind: record.RefusalKind == nameof(RenditionRefusal.WrongFormat)),
     };
 
     /// <summary>

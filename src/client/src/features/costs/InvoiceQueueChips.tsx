@@ -39,7 +39,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: 
       {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
         <Chip active={queue === 'unrecognized'} icon={ScanLine} label={QUEUE_LABEL.unrecognized}
           count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
-          title={'Черновики со сканом, в которых нет строк: скан не распознан, прочитан без строк или не распознавался.'
+          title={'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
             + (queues ? '' : ' Сколько их — не посчитано.')}
           tone="doubt" onClick={() => toggle('unrecognized')}
           ariaLabel={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`} />

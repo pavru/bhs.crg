@@ -88,7 +88,7 @@ public sealed class InvoiceScanListTests(InvoiceScanHost host)
         using var scope = host.Services.CreateScope();
         var titles = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Jobs.AsNoTracking()
             .Where(j => ids.Contains(j.TargetId)).Select(j => j.Title).ToListAsync();
-        Assert.Equal(Enumerable.Range(1, 10).Select(i => $"Распознавание скана: Скан {i}.pdf").Order(), titles.Order());
+        Assert.Equal(Enumerable.Range(1, 10).Select(i => $"Распознавание файла счёта: Скан {i}.pdf").Order(), titles.Order());
     }
 
     /// <summary>Файл больше предела — отказ словами, и черновика нет.</summary>

@@ -47,6 +47,19 @@ public sealed class InvoiceRecognition
     /// </summary>
     public string ScanBlobPath { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// По какому читаемому образу прочитано (issue #1270). Пусто — движку ушёл сам файл: PDF и
+    /// изображения читаются как есть.
+    ///
+    /// <para>Образ Excel и Word можно перестроить, и тогда у файла новый вид, а прочитанное — от
+    /// прежнего. Бумага та же, поэтому распознанное не прячется, а помечается: сверять его с тем,
+    /// что сейчас на экране, надо внимательнее.</para>
+    ///
+    /// <para>⚠️ Колонка держит прежний образ живым: уборка осиротевших файлов считает путь в
+    /// таблице модуля держателем. Это осознанно и недолго — до следующего распознавания счёта.</para>
+    /// </summary>
+    public string? ImageBlobPath { get; private set; }
+
     public InvoiceRecognitionOutcome Outcome { get; private set; }
 
     /// <summary>Вид причины отказа — имя <c>RecognitionRefusal</c> либо <see cref="Interrupted" />.</summary>
@@ -101,6 +114,7 @@ public sealed class InvoiceRecognition
     public void Restart(string scanBlobPath)
     {
         ScanBlobPath = scanBlobPath;
+        ImageBlobPath = null;
         JobId = null;
         Outcome = InvoiceRecognitionOutcome.Pending;
         Reason = Error = Engine = null;
@@ -121,9 +135,11 @@ public sealed class InvoiceRecognition
     }
 
     public void Finish(
-        string? engine, JsonDocument values, JsonDocument? offers, JsonDocument? lines, IEnumerable<string> remarks)
+        string? engine, JsonDocument values, JsonDocument? offers, JsonDocument? lines, IEnumerable<string> remarks,
+        string? imageBlobPath = null)
     {
         Outcome = InvoiceRecognitionOutcome.Done;
+        ImageBlobPath = imageBlobPath;
         Engine = engine;
         Values = values;
         Offers = offers;

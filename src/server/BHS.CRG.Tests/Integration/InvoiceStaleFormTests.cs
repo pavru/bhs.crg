@@ -36,6 +36,9 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         ["POST /api/costs/invoices/{id:guid}/recognition/parties/{side}/organization"] =
             "заведение организации из скана: пишет в справочник ядра, а не в счёт — версия счёта прежняя. " +
             "В поле счёта организацию ставит человек обычной правкой шапки, с версией (issue #1077)",
+        ["POST /api/costs/invoices/{id:guid}/scan/image"] =
+            "«Перестроить» читаемый образ файла: образ лежит у ядра, в счёт адрес не пишет — версия счёта " +
+            "прежняя. Положить отметку образа в строку счёта значило бы вернуть 409 открытой форме (issue #1270)",
     };
 
     /// <summary>

@@ -103,7 +103,7 @@ export function InvoicesPage() {
       setQueue(null);
       setQuery('');
       setSelected(created.invoice.id);
-    } catch (e) { toast.apiError(e, 'Счёт из скана не заведён'); }
+    } catch (e) { toast.apiError(e, 'Счёт из файла не заведён'); }
   }
 
   /**
@@ -160,7 +160,7 @@ export function InvoicesPage() {
               <Button variant="filled" icon={<ScanLine size={16} />} loading={loading}
                 title={`Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`}
                 onClick={() => scanInput.current?.click()}>
-                Счёт из скана
+                Счёт из файла
               </Button>
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
@@ -248,7 +248,7 @@ export function InvoicesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-h-0 flex">
+          <div className="flex-1 min-w-0 min-h-0 flex">
             <InvoiceForm
               key={view.data.id}
               view={view.data}
@@ -256,7 +256,8 @@ export function InvoicesPage() {
               organizationsError={organizations.isError ? organizations.error : undefined}
               onOpenInvoice={setSelected}
               scanSlot={hasScan && !wide
-                ? <ScanTooNarrow invoiceId={view.data.id} fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
+                ? <ScanTooNarrow invoiceId={view.data.id} blobPath={fileProp(scan, 'blobPath')}
+                    fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
                 : undefined}
             />
             {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком

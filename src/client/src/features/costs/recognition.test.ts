@@ -12,7 +12,7 @@ const item = (recognition: InvoiceListItem['recognition']) => ({ recognition }) 
 
 const recognition = (patch: Partial<InvoiceRecognition> = {}): InvoiceRecognition => ({
   state: 'done', reason: null, error: null, engine: null, progress: null, values: null, offers: null,
-  lines: null, notes: [], startedAt: null, finishedAt: null, canStart: true, whyNot: null, parties: null, ...patch,
+  lines: null, notes: [], startedAt: null, finishedAt: null, canStart: true, whyNot: null, parties: null, byFormerImage: false, ...patch,
 });
 
 const view = (requisites: Record<string, unknown>, unconfirmed: string[] = []) =>
@@ -36,7 +36,7 @@ describe('строка списка', () => {
 
   it('без пометки строка молчит, а незнакомое состояние — нет', () => {
     expect(rowScan(item(null))).toBeNull();
-    expect(rowScan(item({ state: 'новое' as never, reason: null }))?.text).toBe('скан требует внимания');
+    expect(rowScan(item({ state: 'новое' as never, reason: null }))?.text).toBe('файл требует внимания');
   });
 });
 
@@ -50,7 +50,7 @@ describe('полоса отказа', () => {
 
   it('незнакомая причина всё равно отказ', () => {
     expect(failureNote(recognition({ state: 'failed', reason: 'Новая', error: 'Что-то.' })))
-      .toEqual({ text: 'Скан не распознан. Что-то.', quiet: false });
+      .toEqual({ text: 'Файл не распознан. Что-то.', quiet: false });
   });
 });
 
@@ -103,7 +103,7 @@ describe('предложение под полем', () => {
     expect(fieldOffer(K.total, stored, { [K.total]: '1' }, recognition(), noNames)?.text).not.toContain('1234.5');
   });
 
-  it('«в скане» — только про нынешний скан: без исхода «прочитано» предложений нет', () => {
+  it('«в файле» — только про нынешний скан: без исхода «прочитано» предложений нет', () => {
     const stored = view({ [K.number]: 'СЧ-417' }, [K.number]);
     for (const state of ['none', 'failed', 'running'] as const)
       expect(fieldOffer(K.number, stored, { [K.number]: 'моё' }, recognition({ state }), noNames)).toBeNull();
@@ -152,7 +152,7 @@ describe('сторона', () => {
 
   it('найденная предлагается, пока в поле стоит не она', () => {
     const found = party({ state: 'matched', match: 'a', candidates: [{ id: 'a', name: 'Ромашка', type: 'Организация', archived: false, inheritedFrom: null }] });
-    expect(partyLine(found, null, true)).toMatchObject({ text: 'В скане: Ромашка', action: 'take' });
+    expect(partyLine(found, null, true)).toMatchObject({ text: 'В файле: Ромашка', action: 'take' });
     expect(partyLine(found, 'a', true)).toBeNull();
   });
 
@@ -174,7 +174,7 @@ describe('сторона', () => {
 
 describe('распознанные строки, которые не легли', () => {
   it('названы числом и путём', () => {
-    expect(unusedLinesNote(recognition({ lines: [{}, {}] }))).toContain('В скане прочитаны 2 строки.');
+    expect(unusedLinesNote(recognition({ lines: [{}, {}] }))).toContain('В файле прочитаны 2 строки.');
     expect(unusedLinesNote(recognition({ lines: [] }))).toBeNull();
     expect(unusedLinesNote(undefined)).toBeNull();
   });

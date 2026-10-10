@@ -11,7 +11,7 @@ import { fileExtension, type FileKindsInfo } from '@/shared/api/fileKinds';
 export function scanSaveName(
   fileName: string | null, mimeType: string | null | undefined, kinds: FileKindsInfo | undefined,
 ): string {
-  return fileName || `Скан счёта${fileExtension(kinds, mimeType)}`;
+  return fileName || `Файл счёта${fileExtension(kinds, mimeType)}`;
 }
 
 /** Сохранить файл под его именем. Ссылку не отзывает: она принадлежит тому, кто её получил. */

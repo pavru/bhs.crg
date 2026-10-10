@@ -42,6 +42,14 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     /// </summary>
     public Exception? RefsFailure { get; set; }
 
+    /// <summary>
+    /// Конвертер офисных файлов — подставной (issue #1270): настоящий живёт в контейнере, и его
+    /// проверяет <c>deploy/converter.tests.sh</c>. По умолчанию звать его не должны: счёт с PDF
+    /// или картинкой до конвертера не доходит. Тест ставит и обязан снять.
+    /// </summary>
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> Converter { get; set; } =
+        (request, ct) => Renditions.RenditionFixtures.MustNotBeCalled(request, ct);
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -49,6 +57,10 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         {
             services.RemoveAll<IModuleRecognition>();
             services.AddSingleton<IModuleRecognition>(Recognition);
+
+            services.RemoveAll<BHS.CRG.Infrastructure.Renditions.OfficeConverterClient>();
+            services.AddSingleton(_ => Renditions.RenditionFixtures.Client(
+                (request, ct) => Converter(request, ct), version: "8.37.0"));
 
             services.RemoveAll<IModuleWriteGuard>();
             services.AddScoped<ModuleWriteGuardPort>();

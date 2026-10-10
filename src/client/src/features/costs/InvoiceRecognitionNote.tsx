@@ -46,6 +46,24 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
       </Strip>
     );
   }
+  // Распознанное остаётся в счёте как было — полоса только говорит, что вид на экране уже другой.
+  if (recognition?.state === 'done' && recognition.byFormerImage) {
+    return (
+      <Strip quiet>
+        <span className="flex-1" data-testid="by-former-image">
+          Распознано по прежнему виду файла: вид для чтения с тех пор перестроен. Прочитанное осталось в
+          счёте как было.
+          {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
+        </span>
+        {canEdit && recognition.canStart && (
+          <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} loading={start.isPending}
+            onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
+            Распознать ещё раз
+          </Button>
+        )}
+      </Strip>
+    );
+  }
   if (recognition?.state !== 'failed') return null;
 
   const note = failureNote(recognition);
@@ -85,7 +103,7 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   return (
     <Button size="sm" variant="outlined" icon={<ScanLine size={13} />} loading={start.isPending}
       onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
-      Распознать скан
+      Распознать файл
     </Button>
   );
 }
@@ -109,8 +127,8 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
 /** Строка под полем: «В скане: … · Взять». «Взять» кладёт значение в правки формы и не сохраняет. */
 export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value: unknown) => void }) {
   return (
-    <p className="mt-0.5 flex items-baseline gap-1 text-xs text-fg3 min-w-0" title={offer.title ?? `В скане: ${offer.text}`}>
-      <span className="truncate">В скане: {offer.text}</span>
+    <p className="mt-0.5 flex items-baseline gap-1 text-xs text-fg3 min-w-0" title={offer.title ?? `В файле: ${offer.text}`}>
+      <span className="truncate">В файле: {offer.text}</span>
       {offer.take !== undefined
         ? (
           <button type="button" className="shrink-0 text-brand hover:underline" onClick={() => onTake(offer.take)}>

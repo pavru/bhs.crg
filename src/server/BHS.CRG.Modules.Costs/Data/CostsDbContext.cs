@@ -272,6 +272,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         recognition.Property(r => r.InvoiceId).HasColumnName("invoice_id").ValueGeneratedNever();
         recognition.Property(r => r.JobId).HasColumnName("job_id");
         recognition.Property(r => r.ScanBlobPath).HasColumnName("scan_blob_path");
+        recognition.Property(r => r.ImageBlobPath).HasColumnName("image_blob_path");
         recognition.Property(r => r.Outcome).HasColumnName("outcome").HasConversion<string>().HasMaxLength(32);
         recognition.Property(r => r.Reason).HasColumnName("reason").HasMaxLength(32);
         recognition.Property(r => r.Error).HasColumnName("error").HasMaxLength(InvoiceRecognition.ErrorLength);

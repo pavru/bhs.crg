@@ -54,7 +54,7 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
           <span className="text-sm font-medium text-brand">
             {over > 1
               ? `Отпустите — заведём ${ruCount(over, 'черновик', 'черновика', 'черновиков')}, по одному на файл`
-              : 'Отпустите — заведём черновик из скана'}
+              : 'Отпустите — заведём черновик из файла'}
           </span>
         </div>
       )}

@@ -96,7 +96,7 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
         using var fake = Form("просто текст"u8.ToArray(), name, "application/pdf");
         var refused = await client.PostAsync("/api/costs/invoices/from-scan", fake);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-        Assert.Contains("PDF, PNG или JPEG", await refused.Content.ReadAsStringAsync());
+        Assert.Contains("PDF, PNG, JPEG, Excel или Word", await refused.Content.ReadAsStringAsync());
 
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
@@ -154,9 +154,9 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
     }
 
     /// <summary>
-    /// Известный реестру вид — ещё не читаемый (issue #1266). Картинку GIF система показывает, таблицу
-    /// Excel знает и хранит, но распознать не может ни ту, ни другую: кнопка называет причину, а
-    /// «счёт из скана» отказывает. Перечень в обоих текстах — из реестра.
+    /// Известный реестру вид — ещё не читаемый (issue #1266). Картинку GIF система показывает, но
+    /// распознать не может: кнопка называет причину, а «счёт из файла» отказывает. Перечень в обоих
+    /// текстах — из реестра. Excel и Word читаются через образ — о них <c>InvoiceOfficeFileTests</c>.
     /// </summary>
     [Fact]
     public async Task Известный_но_не_читаемый_вид_прикладывается_а_распознать_его_нельзя()
@@ -164,19 +164,19 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
         var (client, _) = await SignInAsync("Supplier");
         byte[] gif = [.. "GIF89a"u8, .. Guid.NewGuid().ToByteArray()];
 
-        foreach (var (body, kind) in new[] { (gif, FileKinds.Gif), (FileKindsTests.Zip("xl/workbook.xml"), FileKinds.Xlsx) })
+        foreach (var (body, kind) in new[] { (gif, FileKinds.Gif) })
         {
             var id = await CreateAsync(client);
             Assert.Equal(kind, Stored(await AttachAsync(client, id, body, "Счёт", null)));
 
             var recognition = await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{id}/recognition");
             Assert.False(recognition.GetProperty("canStart").GetBoolean());
-            Assert.Contains("распознаются PDF, PNG и JPEG", recognition.GetProperty("whyNot").GetString());
+            Assert.Contains("распознаются PDF, PNG, JPEG, Excel и Word", recognition.GetProperty("whyNot").GetString());
 
             using var form = Form(body, "Счёт", null);
             var refused = await client.PostAsync("/api/costs/invoices/from-scan", form);
             Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-            Assert.Contains("PDF, PNG или JPEG", await refused.Content.ReadAsStringAsync());
+            Assert.Contains("PDF, PNG, JPEG, Excel или Word", await refused.Content.ReadAsStringAsync());
         }
     }
 
@@ -202,7 +202,8 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
         Assert.Equal("image", kinds[FileKinds.WebP].GetProperty("view").GetString());
         Assert.False(kinds[FileKinds.WebP].GetProperty("recognized").GetBoolean());
         Assert.Equal(JsonValueKind.Null, kinds[FileKinds.Xlsx].GetProperty("view").ValueKind);
-        Assert.False(kinds[FileKinds.Xlsx].GetProperty("recognized").GetBoolean());
+        // Показать сам Excel нечем, а распознаётся он — по образу (issue #1270).
+        Assert.True(kinds[FileKinds.Xlsx].GetProperty("recognized").GetBoolean());
         Assert.Equal([".jpg", ".jpeg"],
             kinds[FileKinds.Jpeg].GetProperty("extensions").EnumerateArray().Select(e => e.GetString()));
         // Другие названия вида едут экрану: отсев до отправки сверяет то, как файл назвал браузер.

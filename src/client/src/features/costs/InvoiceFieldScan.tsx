@@ -41,7 +41,7 @@ export function InvoiceFieldScan({ fieldKey, view, edits, set, organizations }: 
       )}
       {/* Распознано, а про сторону в скане ничего: пустое поле иначе неотличимо от «ещё не смотрели». */}
       {side && !party && recognition.state === 'done' && recognition.parties && chosen === null && (
-        <p className="mt-0.5 text-xs text-fg4">в скане не прочитан</p>
+        <p className="mt-0.5 text-xs text-fg4">в файле не прочитан</p>
       )}
     </>
   );
