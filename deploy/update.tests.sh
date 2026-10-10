@@ -70,6 +70,58 @@ printf '%s' "$out" | grep -q 'готовые образы'  && r=да || r=не�
 printf '%s' "$out" | grep -q 'профилю Compose' && r=да || r=нет; check '0.90→0.141: про ollama сказано'   да "$r"
 CURRENT=0.146.0; TARGET=0.147.1
 check 'свежая установка: ни одной оговорки' '' "$(legacy_notes 2>&1)"
+
+# Конвертер офисных файлов (issue #1267): оговорка привязана не к номеру версии, а к тому, что
+# сервис ПРИХОДИТ этим обновлением — в рабочем файле его нет, в файле целевой версии есть.
+printf 'services:
+  api:
+    image: ghcr.io/pavru/bhs.crg-api:1
+' > cv-without.yml
+printf 'services:
+  converter:
+    image: gotenberg/gotenberg:8.37.0-libreoffice
+' > cv-with.yml
+check 'конвертер по образу: есть'        0 "$(has_converter cv-with.yml >/dev/null 2>&1; echo $?)"
+check 'конвертер по образу: нет'         1 "$(has_converter cv-without.yml >/dev/null 2>&1; echo $?)"
+check 'файла нет — конвертера нет'       1 "$(has_converter нет-такого.yml >/dev/null 2>&1; echo $?)"
+mkdir -p "$NEW_DIR"
+cp cv-without.yml docker-compose.yml; cp cv-with.yml "$NEW_DIR/docker-compose.yml"
+check 'приходит этим обновлением'        0 "$(brings_converter >/dev/null 2>&1; echo $?)"
+printf '%s' "$(legacy_notes 2>&1)" | grep -q 'конвертер офисных файлов' && r=да || r=нет
+check 'о новом контейнере сказано'       да "$r"
+cp cv-with.yml docker-compose.yml
+check 'уже стоит — не приходит'          1 "$(brings_converter >/dev/null 2>&1; echo $?)"
+check 'уже стоит — оговорки нет'         '' "$(legacy_notes 2>&1)"
+cp cv-without.yml "$NEW_DIR/docker-compose.yml"
+check 'откат на версию без него — молчим' 1 "$(brings_converter >/dev/null 2>&1; echo $?)"
+# Закрытый контур берёт образ с зеркала: с адресом реестра перед именем сервис обязан узнаваться,
+# иначе оговорка «один раз» печаталась бы на каждом обновлении (ревью PR #1276).
+printf 'services:
+  converter:
+    image: registry.local:5000/gotenberg/gotenberg:8.37.0-libreoffice
+' > cv-mirror.yml
+check 'конвертер по образу с зеркала'    0 "$(has_converter cv-mirror.yml >/dev/null 2>&1; echo $?)"
+
+# Откат на версию без конвертера: прежний compose о сервисе не знает, и контейнер остался бы
+# работать сиротой. Убирается именно он, по меткам, и только когда рабочий файл его не объявляет.
+docker() {
+    case "$1" in
+        inspect) echo проект ;;
+        ps)      echo "$*" > docker.ps; echo c1 ;;
+        rm)      echo "$*" > docker.rm ;;
+    esac
+}
+compose() { echo api-1; }
+cp cv-without.yml docker-compose.yml; rm -f docker.rm docker.ps
+drop_left_converter >/dev/null 2>&1
+check 'откат: оставшийся контейнер убран'  'rm -f c1' "$(cat docker.rm 2>/dev/null)"
+grep -q 'project=проект' docker.ps && grep -q 'service=converter' docker.ps && r=да || r=нет
+check 'откат: ищется по проекту и сервису' да "$r"
+cp cv-with.yml docker-compose.yml; rm -f docker.rm
+drop_left_converter >/dev/null 2>&1
+check 'сервис объявлен — контейнер не трогаем' '' "$(cat docker.rm 2>/dev/null)"
+unset -f docker
+rm -f docker-compose.yml "$NEW_DIR/docker-compose.yml" cv-with.yml cv-without.yml cv-mirror.yml docker.rm docker.ps
 unset -f compose
 
 echo

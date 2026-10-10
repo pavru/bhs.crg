@@ -34,6 +34,7 @@
 | PDF | **Typst** (CLI, env `TYPST_PATH`). DOCX **не поддерживается** |
 | Распознавание/поиск | Ollama / Anthropic / Gemini (распознавание сканов), Serper / Yandex (веб-поиск) — для документов качества |
 | Скриптовой движок | Jint (JavaScript — вычисляемые колонки DataSet) |
+| Офисные файлы → PDF | LibreOffice за HTTP-обёрткой Gotenberg — отдельный контейнер `converter` в сети без выхода наружу |
 | Плагины | .NET AssemblyLoadContext + HTTP-плагины |
 
 ### Структура solution
@@ -149,6 +150,10 @@ cd src/client && npm run lint:ratchet:update   # переписать базов
 
 # Логика скрипта обновления (без Docker и сети; сеть нужна одной проверке — она пропускается)
 bash deploy/update.tests.sh
+
+# Конвертер офисных файлов: живой контейнер из compose поставки — локаль чисел, сеть, согласие
+# стенда с поставкой. Нужны Docker, сеть и pdftotext (или PDFTOTEXT='docker run --rm -i … pdftotext')
+bash deploy/converter.tests.sh
 ```
 
 > Тесты покрывают чистую логику: исполнители фильтра/вычисляемых колонок наборов
@@ -177,7 +182,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 
 `.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master: backend
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
-храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`)
+храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
 и **живые прогоны в браузере** — четырьмя независимыми
 работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`.
 
@@ -293,6 +298,14 @@ Docker и сети), как у `update.sh`.
 идемпотентный `garage-init` (`deploy/garage-init.sh`); свой образ у него потому, что в образе
 Garage нет shell. **Версия Garage записана в трёх местах** — поставка, дев-стенд и `FROM` в
 `Dockerfile.garage-init` (клиент и сервер обязаны совпадать); сверяет их сторож в CI.
+
+**Конвертер офисных файлов — контейнер `converter`** (issue #1267): Gotenberg, сборка только с
+LibreOffice. Что важно помнить: сеть у него **внутренняя**, без выхода наружу, а из такой сети порт
+на хост не публикуется вовсе — поэтому на дев-стенде API ходит к нему через nginx стенда,
+`http://127.0.0.1:3910` (`OfficeConverter:BaseUrl`). Сервис объявлен **дважды** — в поставке и в
+дев-стенде, — и каждая строка его настройки найдена пробой: без русской локали в окружении числа
+выходят «3,834.16», без `--libreoffice-restart-after=1` зависший документ блокирует очередь, и всё
+это с кодом 200. Сверяет оба блока и сами условия `deploy/converter.tests.sh` — на живом контейнере.
 
 📄 Подробности —
 [docs/DEV_NOTES.md](docs/DEV_NOTES.md#поставка-прибитые-версии-переход-на-garage-dependabot):

@@ -151,6 +151,51 @@ services:
       - ./dev-tls:/tls
     restart: "no"
 
+  # Конвертер офисных файлов (issue #1267) — тот же сервис, что в поставке, с теми же настройками:
+  # почему каждая из них стоит, сказано ТАМ (deploy/docker-compose.yml), здесь не повторяется.
+  # Совпадение образа, окружения, команды и ограничений сверяет `deploy/converter.tests.sh` —
+  # стенд, на котором конвертер настроен иначе, проверяет не то, что поедет заказчику.
+  #
+  # ⚠️ Порт на хост НЕ публикуется, и это не забывчивость: сеть у него внутренняя, без выхода
+  # наружу, а из такой сети Docker порты не публикует вовсе. API на стенде запущен на хосте,
+  # поэтому к конвертеру его проводит nginx ниже — http://127.0.0.1:3910.
+  converter:
+    image: gotenberg/gotenberg:8.37.0-libreoffice
+    environment:
+      LANG: ru_RU.UTF-8
+      LC_ALL: ru_RU.UTF-8
+    command:
+      - gotenberg
+      - --api-timeout=30s
+      - --api-body-limit=60MB
+      - --libreoffice-restart-after=1
+      - --libreoffice-auto-start
+      - --webhook-disable
+      - --api-disable-download-from
+      - --pdfengines-disable-routes
+      - --prometheus-disable-collect
+    networks:
+      - converter
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          pids: 256
+
   nginx:
     # Тот же образ, на котором в поставке собирается web: стенд, отставший по версии прокси,
     # проверяет не то, что поедет заказчику. Совпадение сторожит CI.
@@ -164,6 +209,9 @@ services:
       # 443 снаружи — 8443 внутри (непривилегированный nginx не занимает порты ниже 1024). Порт
       # переопределяется переменной: на машине, где 443 уже занят, стенд иначе не поднять.
       - "${DEV_HTTPS_PORT:-443}:8443"
+      # Вход к конвертеру офисных файлов для API, запущенного на хосте (см. сервис converter).
+      # Только с петли: это внутренний сервис без входа по паролю, в локальную сеть ему незачем.
+      - "127.0.0.1:${DEV_CONVERTER_PORT:-3910}:8090"
     volumes:
       - ./deploy/dev-nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./dev-tls:/tls:ro
@@ -171,7 +219,17 @@ services:
     # объявлено явно: на Linux без этой строки его нет вовсе, и стенд там просто не заработает.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Вторая сеть — конвертера: nginx стоит в обеих и проводит к нему запросы с хоста. Названа хоть
+    # одна сеть — общую приходится называть тоже.
+    networks:
+      - default
+      - converter
     restart: unless-stopped
+
+networks:
+  # Сеть конвертера, как в поставке: `internal` — без выхода наружу и без публикации портов.
+  converter:
+    internal: true
 
 volumes:
   postgres_data:

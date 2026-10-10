@@ -19,6 +19,7 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Http;
+using BHS.CRG.Infrastructure.OfficeConversion;
 using BHS.CRG.Infrastructure.Plugins;
 using BHS.CRG.Infrastructure.Storage;
 using Minio;
@@ -54,6 +55,15 @@ internal static class WorkerRegistration
     RouteVia(builder.Services.AddHttpClient(UpdateCheckService.ClientName), OutboundService.UpdateCheck);
     foreach (var service in new[] { OutboundService.Gemini, OutboundService.Ollama })
         RouteVia(builder.Services.AddHttpClient(OutboundProxy.ClientName(HealthMonitorService.ClientPurpose, service)), service);
+    // Конвертер офисных файлов (issue #1267). Клиент внутренний — без RouteVia: сервис стоит в сети
+    // без выхода наружу, и прокси к нему не ведёт.
+    builder.Services.AddSingleton(
+        cfg.GetSection(OfficeConverterOptions.Section).Get<OfficeConverterOptions>() ?? new());
+    // Срок клиента длиннее срока самого сервиса (30 с, см. compose): отказ по времени обязан прийти
+    // от конвертера, с причиной, а не обрывом соединения с нашей стороны.
+    builder.Services.AddHttpClient(OfficeConverterOptions.ClientName)
+        .ConfigureHttpClient(c => c.Timeout = OfficeConverterOptions.ClientTimeout);
+    builder.Services.AddSingleton<OfficeConverterProbe>();
     builder.Services.AddSingleton<HealthMonitorService>();
     builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
     // Расписание проверки обновлений и мониторинга — выключаемое, по той же причине, что и плановое
