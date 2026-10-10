@@ -162,6 +162,20 @@ public class RenditionPostconditionTests
     }
 
     /// <summary>
+    /// Слово, стоящее в тридцати ячейках, весит в доле тридцать, а не один: иначе два потерянных
+    /// редких слова против одного частого давали бы «найдена треть» — и отказ здоровой книге.
+    /// </summary>
+    [Fact]
+    public async Task Повторы_слова_весят_в_доле_столько_сколько_их_в_книге()
+    {
+        string[] cells = [.. Enumerable.Repeat("common", 30), "lostalpha", "lostbravo"];
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf("common"))).BuildAsync(Workbook(cells)));
+
+        Assert.Contains("найдено 93 %", Assert.Single(built.Notes));
+    }
+
+    /// <summary>
     /// В ячейках одни прочерки и галочки: букв нет ни в книге, ни в её PDF. Это пустой файл, а не
     /// «текст потерян по дороге».
     /// </summary>
