@@ -11,6 +11,7 @@ using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Api.Notifications;
+using BHS.CRG.Api.Renditions;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Notifications;
@@ -21,6 +22,7 @@ using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.OfficeConversion;
 using BHS.CRG.Infrastructure.Plugins;
+using BHS.CRG.Infrastructure.Renditions;
 using BHS.CRG.Infrastructure.Storage;
 using Minio;
 using static BHS.CRG.Api.Configuration.OutboundClients;
@@ -64,6 +66,11 @@ internal static class WorkerRegistration
     builder.Services.AddHttpClient(OfficeConverterOptions.ClientName)
         .ConfigureHttpClient(c => c.Timeout = OfficeConverterOptions.ClientTimeout);
     builder.Services.AddSingleton<OfficeConverterProbe>();
+    // Читаемый образ офисного файла (issue #1268). Одиночки: клиент держит ворота «по одному файлу
+    // за раз», и у каждого запроса свои ворота не значили бы ничего.
+    builder.Services.AddSingleton<OfficeConverterClient>();
+    builder.Services.AddSingleton<OfficeRenditionBuilder>();
+    builder.Services.AddSingleton<RenditionService>();
     builder.Services.AddSingleton<HealthMonitorService>();
     builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
     // Расписание проверки обновлений и мониторинга — выключаемое, по той же причине, что и плановое

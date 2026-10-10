@@ -66,6 +66,13 @@ public class FileKindsTests
     /// </summary>
     [Theory]
     [InlineData(new[] { "Workbook" }, 0, FileKinds.Xls)]
+    // Книга старше Excel 97 зовёт свой поток «Book» (issue #1268) — так сохраняют счета учётные
+    // программы. Имя короткое, поэтому считается только записью каталога: на границе в 128 байт.
+    [InlineData(new[] { "Book" }, 120, FileKinds.Xls)]
+    [InlineData(new[] { "Book" }, 81920 - 8, FileKinds.Xls)]
+    [InlineData(new[] { "Book" }, 121, FileKinds.Unknown)]
+    [InlineData(new[] { "Bookmarks" }, 120, FileKinds.Unknown)]
+    [InlineData(new[] { "Book", "WordDocument" }, 120, FileKinds.Unknown)]
     [InlineData(new[] { "Workbook" }, 81920 - 9, FileKinds.Xls)]
     [InlineData(new[] { "WordDocument" }, 0, FileKinds.Unknown)]
     [InlineData(new[] { "Workbook", "WordDocument" }, 200_000, FileKinds.Unknown)]
