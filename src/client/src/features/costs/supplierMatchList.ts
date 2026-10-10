@@ -28,6 +28,17 @@ export function shownOf(shown: number, total: number): string {
     : `Показано ${shown} из ${total}`;
 }
 
+/**
+ * Вопрос перед «Забыть все»: чьи, сколько — и что отбор и поиск тут ни при чём. Забывается всё, что у
+ * поставщика есть, а не то, что сейчас видно в списке.
+ */
+export function forgetAllQuestion(supplier: { name: string | null; lost: boolean; count: number }): string {
+  return `${supplierLabel(supplier)}: ${supplier.count} `
+    + `${ruPlural(supplier.count, 'соответствие', 'соответствия', 'соответствий')} — все, а не только найденные `
+    + 'поиском. В следующих счетах этого поставщика каждая строка будет ждать выбора позиции. В уже '
+    + 'сохранённых счетах позиции останутся. Вернуть забытое нельзя.';
+}
+
 /** Что именно забывают и что из этого следует — текст вопроса перед «Забыть». */
 export function forgetQuestion(item: SupplierMatchItem): string {
   const key = `${item.by === 'code' ? 'артикул' : 'наименование'} «${item.source}»`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SupplierMatchItem } from '@/shared/api/supplierMatches';
-import { forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
+import { forgetAllQuestion, forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
 
 const item = (patch: Partial<SupplierMatchItem> = {}): SupplierMatchItem => ({
   id: 'm-1', version: '7', supplierId: 's-1', supplierName: 'ООО «Свет-Опт»', supplierArchived: false,
@@ -26,6 +26,14 @@ describe('слова списка соответствий', () => {
     expect(shownOf(50, 1240)).toBe('Показано 50 из 1240');
     expect(shownOf(3, 3)).toBe('Всего: 3 соответствия');
     expect(shownOf(1, 1)).toBe('Всего: 1 соответствие');
+  });
+
+  it('вопрос перед «Забыть все» называет поставщика, число и то, что отбор тут ни при чём', () => {
+    const text = forgetAllQuestion({ name: 'ООО «Свет-Опт»', lost: false, count: 300 });
+
+    expect(text).toContain('ООО «Свет-Опт»: 300 соответствий');
+    expect(text).toContain('все, а не только найденные');
+    expect(text).toContain('Вернуть забытое нельзя');
   });
 
   it('вопрос перед «Забыть» называет поставщика, ключ, позицию и последствия', () => {

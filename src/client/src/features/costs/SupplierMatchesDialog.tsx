@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Trash2 } from 'lucide-react';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { Button } from '@/shared/ui/Button';
@@ -8,13 +8,15 @@ import { useToast } from '@/shared/ui/Toast';
 import { formatDate } from '@/shared/format/format';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  useForgetSupplierMatch, usePointSupplierMatch, useSupplierMatches,
+  useForgetSupplierMatch, useForgetSupplierMatches, usePointSupplierMatch, useSupplierMatches,
+  useSupplierMatchSuppliers,
   type SupplierMatchFilter, type SupplierMatchItem,
 } from '@/shared/api/supplierMatches';
 import { NomenclaturePicker } from './NomenclaturePicker';
-import { forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
+import { forgetAllQuestion, forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
 
-const PAGE = 50;
+/** Сколько ждать после последней буквы, прежде чем искать: запрос на каждое нажатие — это десяток запросов на слово. */
+const TYPING_PAUSE = 300;
 
 /**
  * Список соответствий наименований поставщика (задача C3, issue #1079, ТЗ COST-7.1).
@@ -35,21 +37,40 @@ export function SupplierMatchesDialog({ initial, onClose }: {
   onClose: () => void;
 }) {
   const [filter, setFilter] = useState<SupplierMatchFilter>({
-    supplierId: initial?.supplierId ?? null, query: initial?.query ?? '', issue: null, take: PAGE,
+    supplierId: initial?.supplierId ?? null, query: initial?.query ?? '', issue: null,
   });
+  // Набранное — отдельно от того, по чему ищем: ищем, когда человек остановился.
+  const [typed, setTyped] = useState(filter.query);
+  useEffect(() => {
+    const timer = setTimeout(() => setFilter(f => (f.query === typed ? f : { ...f, query: typed })), TYPING_PAUSE);
+    return () => clearTimeout(timer);
+  }, [typed]);
+
   const list = useSupplierMatches(filter);
+  const suppliers = useSupplierMatchSuppliers();
   const point = usePointSupplierMatch();
   const forget = useForgetSupplierMatch();
+  const forgetAll = useForgetSupplierMatches();
+  const [forgettingAll, setForgettingAll] = useState(false);
   const toast = useToast();
-  const [forgetting, setForgetting] = useState<SupplierMatchItem | null>(null);
+  // Идентификатор, а не снимок строки: версию для «Забыть» берём у строки, КАК ОНА ЛЕЖИТ В СПИСКЕ
+  // сейчас, — снимок после смены позиции нёс бы прежнюю и получил бы отказ на собственную правку.
+  const [forgettingId, setForgettingId] = useState<string | null>(null);
 
-  /** Любая смена отбора возвращает к первой порции: «ещё 50» относилось к прежнему отбору. */
-  const narrow = (patch: Partial<SupplierMatchFilter>) => setFilter(f => ({ ...f, ...patch, take: PAGE }));
+  const narrow = (patch: Partial<SupplierMatchFilter>) => setFilter(f => ({ ...f, ...patch }));
+  const reset = () => { setTyped(''); setFilter({ supplierId: null, query: '', issue: null }); };
   const filtered = filter.supplierId !== null || filter.query.trim() !== '' || filter.issue !== null;
-  const data = list.data;
+  const pages = list.data?.pages;
+  const data = pages && { ...pages[pages.length - 1], items: pages.flatMap(page => page.items) };
+  const forgetting = data?.items.find(item => item.id === forgettingId) ?? null;
+  // Отобранный поставщик, которого среди пунктов нет (список не пришёл либо у него забыли последнее
+  // соответствие), всё равно назван: иначе поле показывало бы «Все поставщики» при действующем отборе.
+  const chosen = suppliers.data?.find(s => s.id === filter.supplierId) ?? null;
+  const chosenMissing = filter.supplierId !== null && chosen === null;
 
   async function repoint(item: SupplierMatchItem, nomenclatureId: string) {
-    if (nomenclatureId === item.nomenclatureId) return;
+    // Пока прежняя правка не дочитала список, у строки на экране старая версия — вторая ушла бы с ней.
+    if (nomenclatureId === item.nomenclatureId || point.isPending) return;
     try {
       await point.mutateAsync({ item, nomenclatureId });
       toast.success('Соответствие изменено. В уже сохранённых счетах позиция не меняется.');
@@ -68,15 +89,20 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           onChange={e => narrow({ supplierId: e.target.value || null })}
           className="rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg max-w-[18rem]">
           <option value="">Все поставщики</option>
-          {data?.suppliers.map(s => (
+          {chosenMissing && (
+            <option value={filter.supplierId!}>
+              {suppliers.isSuccess ? 'Выбранный поставщик (соответствий нет)' : 'Выбранный поставщик'}
+            </option>
+          )}
+          {suppliers.data?.map(s => (
             <option key={s.id} value={s.id}>{supplierLabel(s)} ({s.count})</option>
           ))}
         </select>
         <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-stroke bg-surface px-2 py-1">
           <Search size={14} className="text-fg4" />
-          <input value={filter.query} placeholder="Артикул или наименование у поставщика"
+          <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика"
-            onChange={e => narrow({ query: e.target.value })}
+            onChange={e => setTyped(e.target.value)}
             className="flex-1 bg-transparent text-sm text-fg outline-none" />
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
@@ -105,8 +131,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         filtered ? (
           <p className="py-6 text-center text-sm text-fg3">
             По этому отбору соответствий нет.{' '}
-            <button type="button" className="text-brand hover:underline"
-              onClick={() => setFilter({ supplierId: null, query: '', issue: null, take: PAGE })}>
+            <button type="button" className="text-brand hover:underline" onClick={reset}>
               Сбросить отбор
             </button>
           </p>
@@ -158,7 +183,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
                       {formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}
                     </td>
                     <td className="py-1.5">
-                      <button type="button" title="Забыть соответствие" onClick={() => setForgetting(item)}
+                      <button type="button" title="Забыть соответствие" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
                         className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
                     </td>
                   </tr>
@@ -168,20 +193,38 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           </div>
           <div className="mt-2 flex items-center gap-3 text-xs text-fg3">
             <span>{shownOf(data.items.length, data.total)}</span>
-            {data.items.length < data.total && (
-              <Button size="sm" variant="text" loading={list.isFetching}
-                onClick={() => setFilter(f => ({ ...f, take: f.take + PAGE }))}>
+            {list.hasNextPage && (
+              <Button size="sm" variant="text" loading={list.isFetchingNextPage}
+                onClick={() => void list.fetchNextPage()}>
                 Показать ещё
               </Button>
+            )}
+            {/* Разом — только у одного поставщика: его соответствия держат его запись от удаления, и
+                забывать сотню по одному значило бы не забыть никогда. */}
+            {chosen && (
+              <button type="button" className="ml-auto text-danger hover:underline" onClick={() => setForgettingAll(true)}>
+                Забыть все соответствия поставщика ({chosen.count})
+              </button>
             )}
           </div>
         </>
       )}
 
-      <ConfirmDialog open={forgetting !== null} onOpenChange={o => { if (!o) setForgetting(null); }}
+      <ConfirmDialog open={forgettingId !== null} onOpenChange={o => { if (!o) setForgettingId(null); }}
         title="Забыть соответствие?" description={forgetting ? forgetQuestion(forgetting) : undefined}
         confirmLabel="Забыть" errorTitle="Соответствие не забыто"
-        onConfirm={() => forget.mutateAsync(forgetting!)} />
+        onConfirm={() => (forgetting
+          ? forget.mutateAsync(forgetting)
+          : Promise.reject(new Error('Этого соответствия в списке уже нет — его забыли или отбор изменился.')))} />
+
+      <ConfirmDialog open={forgettingAll} onOpenChange={o => { if (!o) setForgettingAll(false); }}
+        title="Забыть все соответствия поставщика?" description={chosen ? forgetAllQuestion(chosen) : undefined}
+        requireCheckbox="Понимаю, что запомненное придётся выбирать заново"
+        confirmLabel="Забыть все" errorTitle="Соответствия не забыты"
+        onConfirm={async () => {
+          const done = await forgetAll.mutateAsync(filter.supplierId!);
+          toast.success(`Забыто соответствий: ${done.forgotten}.`);
+        }} />
     </Modal>
   );
 }

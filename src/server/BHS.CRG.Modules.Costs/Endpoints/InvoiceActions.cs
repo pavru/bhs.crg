@@ -73,6 +73,13 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction MatchForgotten =
         new("costs.match.forgotten", "Соответствие наименований забыто", InvoiceRead);
 
+    /// <summary>
+    /// Все соответствия поставщика забыты разом — одной записью с числом: сотня записей «забыто» о
+    /// одном нажатии засорила бы журнал и ничего бы не добавила.
+    /// </summary>
+    public static readonly ModuleActivityAction MatchesForgotten =
+        new("costs.match.forgotten_all", "Все соответствия наименований поставщика забыты", InvoiceRead);
+
     /// <summary>«Разобран»: человек сверил счёт с бумагой (ТЗ COST-9).</summary>
     public static readonly ModuleActivityAction Parsed = new("costs.invoice.parsed", "Счёт разобран", InvoiceRead);
 
@@ -140,7 +147,7 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.organization.created", "Организация заведена из скана счёта", InvoiceRead);
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, Parsed, Draft, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

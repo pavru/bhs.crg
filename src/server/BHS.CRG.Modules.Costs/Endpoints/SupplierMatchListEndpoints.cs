@@ -41,7 +41,17 @@ public static class SupplierMatchListEndpoints
             .RequireAuthorization(AppPolicies.Permission(CostsModule.InvoiceEdit))
             .WithTags("Счета на оплату");
 
+        endpoints.MapGet("/api/costs/supplier-matches/suppliers", SuppliersAsync)
+            .RequireAuthorization(AppPolicies.Module("costs"))
+            .RequireAuthorization(AppPolicies.Permission(CostsModule.InvoiceEdit))
+            .WithTags("Счета на оплату");
+
         endpoints.MapPut("/api/costs/supplier-matches/{id:guid}", PointAsync)
+            .RequireAuthorization(AppPolicies.Module("costs"))
+            .RequireAuthorization(AppPolicies.Permission(CostsModule.InvoiceEdit))
+            .WithTags("Счета на оплату");
+
+        endpoints.MapDelete("/api/costs/supplier-matches", ForgetAllAsync)
             .RequireAuthorization(AppPolicies.Module("costs"))
             .RequireAuthorization(AppPolicies.Permission(CostsModule.InvoiceEdit))
             .WithTags("Счета на оплату");
@@ -64,55 +74,99 @@ public static class SupplierMatchListEndpoints
             throw new InvalidRequestException(
                 $"Порция списка задана неверно: «skip» не меньше нуля, «take» от 1 до {MaxTake}.");
 
-        // Поставщики для отбора — по ВСЕМ соответствиям, а не по отобранным: выбрав одного, человек
-        // обязан видеть остальных, чтобы перейти к ним.
-        var perSupplier = await db.SupplierMatches.AsNoTracking()
-            .GroupBy(m => m.SupplierId)
-            .Select(g => new { Id = g.Key, Count = g.Count() })
-            .ToListAsync(ct);
-        var supplierRefs = await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [.. perSupplier.Select(s => s.Id)], ct);
-        var organizations = (supplierRefs ?? []).ToDictionary(r => r.Id);
-
-        var selected = db.SupplierMatches.AsQueryable();
+        var selected = db.SupplierMatches.AsNoTracking();
         if (supplierId is { } supplier) selected = selected.Where(m => m.SupplierId == supplier);
         if (!string.IsNullOrWhiteSpace(query))
         {
             // Ищем по словам бумаги — артикулу и наименованию у поставщика. Название позиции живёт в
-            // справочнике ядра, и искать по нему здесь значило бы читать справочник на каждый запрос.
+            // справочнике ядра: искать по нему значило бы читать справочник целиком на каждый запрос.
             var pattern = "%" + query.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
             selected = selected.Where(m => EF.Functions.ILike(m.SourceText, pattern, "\\"));
         }
 
-        // Состояние позиций — по отобранному ДО отбора по состоянию: числа у чипов «удалена» и «в
-        // архиве» обязаны стоять рядом, какой бы из них ни был нажат.
-        var positionIds = await selected.Select(m => m.NomenclatureId).Distinct().ToListAsync(ct);
-        var positionRefs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, positionIds, ct);
-        var positions = (positionRefs ?? []).ToDictionary(r => r.Id);
-        var lost = positionIds.Where(id => !positions.ContainsKey(id)).ToList();
-        var archived = positions.Values.Where(p => p.Archived).Select(p => p.Id).ToList();
-
-        var counts = new SupplierMatchIssueCounts(
-            lost.Count == 0 ? 0 : await selected.CountAsync(m => lost.Contains(m.NomenclatureId), ct),
-            archived.Count == 0 ? 0 : await selected.CountAsync(m => archived.Contains(m.NomenclatureId), ct));
-
-        if (issue == IssueLost) selected = selected.Where(m => lost.Contains(m.NomenclatureId));
-        if (issue == IssueArchived) selected = selected.Where(m => archived.Contains(m.NomenclatureId));
-
-        var total = await selected.CountAsync(ct);
-        // Отслеживаемыми — ради версии строки: она теневое свойство и вне отслеживания не читается.
-        // Порция мала, и контекст живёт один запрос.
-        var page = await selected
-            .OrderBy(m => m.SupplierId).ThenBy(m => m.SourceText).ThenBy(m => m.Id)
-            .Skip(skip).Take(take ?? DefaultTake)
+        // Отобранное читается ЛЁГКИМИ строками целиком, а порядок и порция считаются здесь: порядок —
+        // по НАЗВАНИЮ поставщика, а оно живёт в справочнике ядра, и база упорядочить им не может. По
+        // идентификатору блоки поставщиков шли бы в случайном для человека порядке, и «Показать ещё»
+        // листалось бы вслепую (ревью PR #1272). Соответствий — тысячи, а не миллионы: это выбор людей.
+        var keys = await selected
+            .Select(m => new Key(m.Id, m.SupplierId, m.NomenclatureId, m.SourceText))
             .ToListAsync(ct);
 
+        var positions = await RefsAsync(catalog, CostsRecordTypes.NomenclatureCode, [.. keys.Select(k => k.NomenclatureId).Distinct()], ct);
+        var organizations = await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [.. keys.Select(k => k.SupplierId).Distinct()], ct);
+
+        string? IssueOf(Key key) => !positions.TryGetValue(key.NomenclatureId, out var position) ? IssueLost
+            : position.Archived ? IssueArchived
+            : null;
+
+        // Числа чипов — по отобранному ДО отбора по состоянию: «удалена» и «в архиве» обязаны стоять
+        // рядом, какой бы из них ни был нажат.
+        var counts = new SupplierMatchIssueCounts(
+            keys.Count(k => IssueOf(k) == IssueLost), keys.Count(k => IssueOf(k) == IssueArchived));
+        if (issue is not null) keys = [.. keys.Where(k => IssueOf(k) == issue)];
+
+        var words = StringComparer.CurrentCultureIgnoreCase;
+        var pageIds = keys
+            .OrderBy(k => organizations.GetValueOrDefault(k.SupplierId)?.DisplayName ?? string.Empty, words)
+            .ThenBy(k => k.SupplierId)
+            .ThenBy(k => k.SourceText, words)
+            .ThenBy(k => k.Id)
+            .Skip(skip).Take(take ?? DefaultTake)
+            .Select(k => k.Id)
+            .ToList();
+
+        // Отслеживаемыми — ради версии строки: она теневое свойство и вне отслеживания не читается.
+        var page = await db.SupplierMatches.Where(m => pageIds.Contains(m.Id)).ToDictionaryAsync(m => m.Id, ct);
+
         return TypedResults.Ok(new SupplierMatchListView(
-            [.. page.Select(m => View(db, m, organizations.GetValueOrDefault(m.SupplierId), positions.GetValueOrDefault(m.NomenclatureId)))],
-            total, counts,
-            [.. perSupplier
+            // Соответствие, забытое между двумя чтениями, из порции просто выпадает.
+            [.. pageIds.Where(page.ContainsKey).Select(id => page[id]).Select(m =>
+                View(db, m, organizations.GetValueOrDefault(m.SupplierId), positions.GetValueOrDefault(m.NomenclatureId)))],
+            keys.Count, counts));
+    }
+
+    /// <summary>
+    /// Поставщики, у которых есть соответствия, — пункты отбора. Отдельным адресом: от отбора и поиска
+    /// список не зависит, и считать его на каждое нажатие клавиши в поиске незачем.
+    /// </summary>
+    private static async Task<Ok<IReadOnlyList<SupplierMatchSupplier>>> SuppliersAsync(
+        CostsDbContext db, IModuleCatalog catalog, CancellationToken ct)
+    {
+        var perSupplier = await db.SupplierMatches.AsNoTracking()
+            .GroupBy(m => m.SupplierId)
+            .Select(g => new { Id = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var organizations = await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [.. perSupplier.Select(s => s.Id)], ct);
+
+        return TypedResults.Ok<IReadOnlyList<SupplierMatchSupplier>>(
+        [
+            .. perSupplier
                 .Select(s => (s, Ref: organizations.GetValueOrDefault(s.Id)))
                 .Select(x => new SupplierMatchSupplier(x.s.Id, x.Ref?.DisplayName, x.Ref?.Archived ?? false, x.Ref is null, x.s.Count))
-                .OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)]));
+                .OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase),
+        ]);
+    }
+
+    /// <summary>Лёгкая строка соответствия: то, по чему список упорядочен и отобран.</summary>
+    private sealed record Key(Guid Id, Guid SupplierId, Guid NomenclatureId, string SourceText);
+
+    /// <summary>
+    /// Записи справочника по идентификаторам — словарём. Вида в системе НЕТ — отказ, а не пустой ответ.
+    ///
+    /// <para>⚠️ Пустой словарь на месте «справочник не ответил» объявил бы каждую позицию удалённой, а
+    /// каждого поставщика — удалённым: человек увидел бы красное «не подставляется» у рабочих
+    /// соответствий и забыл бы их (ревью PR #1272). «Ещё не знаем» — не «пусто».</para>
+    /// </summary>
+    private static async Task<Dictionary<Guid, ModuleCatalogRef>> RefsAsync(
+        IModuleCatalog catalog, string typeCode, IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        if (ids.Count == 0) return [];
+
+        var refs = await catalog.RefsAsync(typeCode, ids, ct);
+        return refs?.ToDictionary(r => r.Id)
+            ?? throw new ConflictException(
+                $"Вид «{typeCode}» в системе не заведён, а соответствия на него ссылаются. Сказать, какие записи " +
+                "на месте, нечем — и это не «записи удалены». Обратитесь к администратору.");
     }
 
     private static async Task<Ok<SupplierMatchView>> PointAsync(
@@ -127,21 +181,21 @@ public static class SupplierMatchListEndpoints
 
         if (match.NomenclatureId != position)
         {
-            // Смена позиции — НОВАЯ ссылка, и правило у неё то же, что у выбора в строке (ТЗ CORE-34.4).
-            var verdict = (await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode, [position], ct))
-                ?.GetValueOrDefault(position) ?? NewReference.Missing;
-            if (verdict == NewReference.Archived)
-                throw new InvalidRequestException(
-                    $"Позиция «{names.After?.DisplayName}» в архиве — соответствие на неё не направить: архивная " +
-                    "позиция не подставляется. Выберите действующую.");
-            if (verdict != NewReference.Fine)
+            // Смена позиции — НОВАЯ ссылка, и правило у неё то же, что у выбора в строке (ТЗ CORE-34.4):
+            // архивная и удалённая отвергаются. Судим по той же записи, что прочитана ради названия, —
+            // два ответа справочника, взятые в разные мгновения, могли бы разойтись.
+            if (names.After is null)
                 throw new InvalidRequestException(
                     "Такой позиции номенклатуры нет — её могли удалить, пока список был открыт. Выберите другую.");
+            if (names.After.Archived)
+                throw new InvalidRequestException(
+                    $"Позиция «{names.After.DisplayName}» в архиве — соответствие на неё не направить: архивная " +
+                    "позиция не подставляется. Выберите действующую.");
 
             match.Point(match.SourceText, position, user.Id, user.Name);
             await db.SaveChangesAsync(ct);
             await log.RecordAsync(InvoiceActions.MatchPointed, match.Id.ToString(), names.Label,
-                before: names.Before?.DisplayName ?? "позиция удалена", after: names.After?.DisplayName, ct: ct);
+                before: names.Before?.DisplayName ?? "позиция удалена", after: names.After.DisplayName, ct: ct);
         }
 
         return TypedResults.Ok(View(db, match, names.Supplier, names.After));
@@ -162,6 +216,38 @@ public static class SupplierMatchListEndpoints
             before: names.Before?.DisplayName ?? "позиция удалена", ct: ct);
 
         return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Забыть ВСЕ соответствия поставщика разом (решение владельца продукта от 10.10.2026).
+    ///
+    /// <para>Каждое соответствие держит поставщика от удаления, а забывать по одному — это сотни
+    /// подтверждений: держатель был бы снимаем формально, а на деле нет (ревью PR #1272). Нужно это,
+    /// когда запись поставщика — дубль, который убирают.</para>
+    ///
+    /// <para>Версии здесь нет: забывается не то, что человек видел в списке, а всё, что у поставщика
+    /// есть к этой минуте, — и число забытого возвращается ответом и пишется в журнал. Поставщик
+    /// обязателен: адрес без него стёр бы память системы целиком.</para>
+    /// </summary>
+    private static async Task<Ok<SupplierMatchesForgotten>> ForgetAllAsync(
+        CostsDbContext db, IModuleCatalog catalog, IModuleActivityLog log, CancellationToken ct, Guid? supplierId = null)
+    {
+        if (supplierId is not { } supplier)
+            throw new InvalidRequestException(
+                "Поставщик не назван («supplierId»). Забыть разом можно только соответствия одного поставщика.");
+
+        var matches = await db.SupplierMatches.Where(m => m.SupplierId == supplier).ToListAsync(ct);
+        if (matches.Count == 0) return TypedResults.Ok(new SupplierMatchesForgotten(0));
+
+        var name = (await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [supplier], ct))
+            .GetValueOrDefault(supplier)?.DisplayName ?? "поставщик удалён";
+
+        db.SupplierMatches.RemoveRange(matches);
+        await db.SaveChangesAsync(ct);
+        await log.RecordAsync(InvoiceActions.MatchesForgotten, supplier.ToString(), name,
+            before: $"соответствий: {matches.Count}", ct: ct);
+
+        return TypedResults.Ok(new SupplierMatchesForgotten(matches.Count));
     }
 
     /// <summary>Соответствие — той версии, которую человек видел. Без версии — 400, с устаревшей — 409.</summary>
@@ -188,11 +274,10 @@ public static class SupplierMatchListEndpoints
     private static async Task<(string Label, ModuleCatalogRef? Supplier, ModuleCatalogRef? Before, ModuleCatalogRef? After)>
         NamesAsync(IModuleCatalog catalog, SupplierMatch match, Guid position, CancellationToken ct)
     {
-        Guid[] asked = [.. new[] { match.NomenclatureId, position }.Distinct()];
-        var supplierRefs = await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [match.SupplierId], ct);
-        var positionRefs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, asked, ct);
-        var supplier = supplierRefs?.FirstOrDefault();
-        var positions = (positionRefs ?? []).ToDictionary(r => r.Id);
+        var supplier = (await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [match.SupplierId], ct))
+            .GetValueOrDefault(match.SupplierId);
+        var positions = await RefsAsync(
+            catalog, CostsRecordTypes.NomenclatureCode, [.. new[] { match.NomenclatureId, position }.Distinct()], ct);
 
         var key = match.Kind == SupplierMatchKind.Code ? "артикул" : "наименование";
         return ($"{supplier?.DisplayName ?? "поставщик удалён"}: {key} «{match.SourceText}»",
@@ -207,6 +292,9 @@ public static class SupplierMatchListEndpoints
             position is null ? IssueLost : position.Archived ? IssueArchived : null,
             match.UpdatedAt, match.UpdatedByName);
 }
+
+/// <summary>Сколько соответствий поставщика забыто разом.</summary>
+public sealed record SupplierMatchesForgotten(int Forgotten);
 
 /// <summary>Куда направить соответствие.</summary>
 public sealed record SupplierMatchPointRequest(Guid? NomenclatureId);
@@ -230,7 +318,5 @@ public sealed record SupplierMatchSupplier(Guid Id, string? Name, bool Archived,
 
 /// <summary>Порция списка соответствий.</summary>
 /// <param name="Total">Сколько соответствий под отбором ВСЕГО: без числа порция читалась бы как весь список.</param>
-/// <param name="Suppliers">Все поставщики с соответствиями — независимо от отбора.</param>
 public sealed record SupplierMatchListView(
-    IReadOnlyList<SupplierMatchView> Items, int Total, SupplierMatchIssueCounts Counts,
-    IReadOnlyList<SupplierMatchSupplier> Suppliers);
+    IReadOnlyList<SupplierMatchView> Items, int Total, SupplierMatchIssueCounts Counts);

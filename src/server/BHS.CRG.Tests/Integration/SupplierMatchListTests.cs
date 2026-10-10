@@ -24,7 +24,9 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
     public async Task Список_отбирает_по_поставщику_и_словам_бумаги_и_называет_сколько_всего()
     {
         var (client, _) = await SignInAsync("Supplier");
-        var (vendor, other) = (await VendorAsync(), await VendorAsync());
+        // Заведённый ПЕРВЫМ зовётся на «Я», вторым — на «А»: порядок по названию обязан разойтись с
+        // порядком заведения.
+        var (vendor, other) = (await VendorAsync("Я-поставщик"), await VendorAsync("А-поставщик"));
         var position = await PositionAsync();
         await RememberAsync(client, vendor, position, "Кабель силовой 3х2,5", "Гофра 20", "Муфта 100%");
         await RememberAsync(client, other, position, "Кабель силовой 3х2,5");
@@ -44,8 +46,8 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
         });
 
         // Поставщики отбора — все, у кого есть соответствия, а не только отобранный: иначе к другому не перейти.
-        var suppliers = all.GetProperty("suppliers").EnumerateArray().ToDictionary(
-            s => s.GetProperty("id").GetGuid(), s => s.GetProperty("count").GetInt32());
+        var suppliers = (await client.GetFromJsonAsync<JsonElement>("/api/costs/supplier-matches/suppliers"))
+            .EnumerateArray().ToDictionary(s => s.GetProperty("id").GetGuid(), s => s.GetProperty("count").GetInt32());
         Assert.Equal(3, suppliers[vendor]);
         Assert.Equal(1, suppliers[other]);
 
@@ -54,6 +56,14 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal("Кабель силовой 3х2,5", Assert.Single(found.GetProperty("items").EnumerateArray()).GetProperty("source").GetString());
         Assert.Equal(1, (await ListAsync(client, $"supplierId={vendor}&query=100%25")).GetProperty("total").GetInt32());
         Assert.Equal(1, (await ListAsync(client, $"supplierId={vendor}&query=%25")).GetProperty("total").GetInt32());
+
+        // Без отбора по поставщику блоки идут по НАЗВАНИЮ поставщика — как в выпадающем списке, а не по
+        // идентификатору: иначе не понять, в какой порции искать нужного.
+        var mixed = (await ListAsync(client, "query=" + Uri.EscapeDataString("Кабель силовой 3х2,5") + "&take=200"))
+            .GetProperty("items").EnumerateArray()
+            .Where(i => i.GetProperty("supplierId").GetGuid() is var id && (id == vendor || id == other))
+            .Select(i => i.GetProperty("supplierId").GetGuid()).ToList();
+        Assert.Equal([other, vendor], mixed);
 
         // Порция меньше списка — и число «из» остаётся полным.
         var page = await ListAsync(client, $"supplierId={vendor}&skip=1&take=1");
@@ -202,11 +212,54 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/common-data/{vendor}")).StatusCode);
     }
 
+    /// <summary>
+    /// СТОРОЖ РЕШЕНИЯ (владелец продукта, 10.10.2026). Поставщика держит каждое его соответствие — и
+    /// снять их можно разом: иначе поставщик-дубль с сотней запомненных строк не удалялся бы на деле.
+    /// Чужие соответствия при этом целы, а адрес без поставщика не стирает ничего.
+    /// </summary>
+    [Fact]
+    public async Task Все_соответствия_поставщика_забываются_разом_и_поставщик_удаляется()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var (vendor, other) = (await VendorAsync(), await VendorAsync());
+        var position = await PositionAsync();
+        // Соответствия заводим напрямую: счёт, запомнивший выбор, сам держал бы поставщика.
+        var invoice = await InvoiceAsync(client, vendor);
+        await LinesAsync(client, invoice, [.. new[] { "Хомут 100", "Хомут 200", "Хомут 300" }.Select(t => Line(position, 1, 5m, text: t))]);
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new
+        {
+            requisites = new Dictionary<string, object?>
+            {
+                ["Номер"] = "СЧ-переехал", ["Дата"] = "2026-09-29", ["Поставщик"] = Reference(supplier),
+            },
+        }));
+        await RememberAsync(client, other, position, "Хомут 100");
+
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/common-data/{vendor}")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.DeleteAsync("/api/costs/supplier-matches")).StatusCode);
+
+        var journal = await CountAsync(InvoiceActions.MatchesForgotten);
+        var forgotten = await client.DeleteAsync($"/api/costs/supplier-matches?supplierId={vendor}");
+        await OkAsync(forgotten);
+        Assert.Equal(3, (await forgotten.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("forgotten").GetInt32());
+        // Одной записью с числом, а не тремя.
+        Assert.Equal(journal + 1, await CountAsync(InvoiceActions.MatchesForgotten));
+
+        Assert.Equal(0, (await ListAsync(client, $"supplierId={vendor}")).GetProperty("total").GetInt32());
+        Assert.Equal(1, (await ListAsync(client, $"supplierId={other}")).GetProperty("total").GetInt32());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/common-data/{vendor}")).StatusCode);
+
+        var (accountant, _) = await SignInAsync("Accountant");
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await accountant.DeleteAsync($"/api/costs/supplier-matches?supplierId={other}")).StatusCode);
+    }
+
     [Fact]
     public async Task Список_соответствий_открыт_правом_правки_счёта()
     {
         var (accountant, _) = await SignInAsync("Accountant");
         Assert.Equal(HttpStatusCode.Forbidden, (await accountant.GetAsync("/api/costs/supplier-matches")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await accountant.GetAsync("/api/costs/supplier-matches/suppliers")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await ForgetAsync(accountant, Guid.NewGuid(), "1")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await PointAsync(accountant, Guid.NewGuid(), Guid.NewGuid(), "1")).StatusCode);
 
@@ -283,9 +336,9 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
             await scope.ServiceProvider.GetRequiredService<IRecordArchive>().SetAsync(id, archived: true));
     }
 
-    private async Task<Guid> VendorAsync() =>
+    private async Task<Guid> VendorAsync(string word = "Поставщик") =>
         await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
-            $"ООО «Поставщик {Guid.NewGuid().ToString("N")[..6]}»");
+            $"ООО «{word} {Guid.NewGuid().ToString("N")[..6]}»");
 
     private async Task<Guid> PositionAsync() =>
         await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),

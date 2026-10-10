@@ -191,7 +191,21 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             await OkAsync(await client.SendAsync(forget));
         }
 
-        var records = await RecordsOfAsync(invoice, article, spare, organization, matchId);
+        // «Забыть все соответствия поставщика» — у своего поставщика: общий служит соседним тестам.
+        var vendor = await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"), "ООО «Журнал соответствий»");
+        var extra = await client.PostAsJsonAsync("/api/costs/invoices", new
+        {
+            requisites = new Dictionary<string, object?>
+            {
+                ["Номер"] = "Ж-соответствия", ["Дата"] = "2026-09-29", ["Поставщик"] = Reference(vendor),
+            },
+        });
+        await OkAsync(extra);
+        await LinesAsync(client, (await extra.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid(),
+            [Line(cable, quantity: 1, price: Price, text: "Кабель для журнала")]);
+        await OkAsync(await client.DeleteAsync($"/api/costs/supplier-matches?supplierId={vendor}"));
+
+        var records = await RecordsOfAsync(invoice, article, spare, organization, matchId, vendor);
 
         // Сценарий обязан пройти через каждое объявленное действие: непройденное — вне присмотра.
         var declared = new InvoiceActions().Actions.Select(action => action.Code).Order().ToList();
