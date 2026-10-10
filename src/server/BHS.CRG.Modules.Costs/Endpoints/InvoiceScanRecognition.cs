@@ -41,11 +41,11 @@ public sealed class InvoiceScanRecognition(
 {
     public const string Operation = "costs.invoice.recognize";
 
-    /// <summary>Что движки читают наверняка. Остальное приложить можно, распознать — нет.</summary>
-    public static readonly IReadOnlySet<string> Readable =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { FileKinds.Pdf, FileKinds.Png, FileKinds.Jpeg };
-
-    internal static bool IsReadable(string? kind) => kind is not null && Readable.Contains(kind);
+    /// <summary>
+    /// Распознаётся ли файл такого вида. Решает реестр ядра (issue #1266), своего перечня у модуля
+    /// нет: остальное приложить можно, распознать — нет.
+    /// </summary>
+    internal static bool IsReadable(string? kind) => FileKindCatalog.IsRecognized(kind);
 
     /// <summary>
     /// Вид присланного файла по его содержимому (issue #1265). Одно место на оба адреса, принимающих
@@ -58,7 +58,9 @@ public sealed class InvoiceScanRecognition(
         return await FileKinds.DetectAsync(content, ct);
     }
 
-    internal const string OtherKind = "распознаются PDF, PNG и JPEG, а приложен файл другого вида";
+    /// <summary>Перечень собирается из реестра: новый читаемый вид появляется в тексте сам.</summary>
+    internal static readonly string OtherKind =
+        $"распознаются {FileKindCatalog.Words(FileKindCatalog.Recognized)}, а приложен файл другого вида";
 
     /// <summary>
     /// Почему распознать нельзя; <c>null</c> — можно. Одно место на кнопку, на адрес и на обработчик:
@@ -89,7 +91,7 @@ public sealed class InvoiceScanRecognition(
     /// Наибольший скан, из которого заводится счёт. То же число называет экран и предел вложения ядра —
     /// совпадение сверяет <c>ScanLimitsAgreeTests</c>.
     /// </summary>
-    public const long MaxScanBytes = 50L * 1024 * 1024;
+    public const long MaxScanBytes = FileKindCatalog.MaxBytes;
 
     /// <summary>
     /// Заголовок задачи в общем индикаторе. У счёта без номера — имя файла: сканы грузят пачкой

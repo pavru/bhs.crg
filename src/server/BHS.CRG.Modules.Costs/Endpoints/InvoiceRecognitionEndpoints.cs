@@ -1,4 +1,5 @@
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -62,7 +63,8 @@ public static class InvoiceRecognitionEndpoints
         var kind = await InvoiceScanRecognition.KindAsync(file, ct);
         if (!InvoiceScanRecognition.IsReadable(kind))
             throw new InvalidRequestException(
-                "Из скана счёт заводится по PDF, PNG или JPEG. Файл другого вида можно приложить к счёту, " +
+                $"Из скана счёт заводится по {FileKindCatalog.Words(FileKindCatalog.Recognized, "или")}. " +
+                "Файл другого вида можно приложить к счёту, " +
                 "заведённому вручную, — но распознать его нечем.");
 
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)

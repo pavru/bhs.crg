@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { onTokenChanged } from '@/shared/api/token';
+import { recognizedKinds, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
 import { apiError } from '@/shared/utils/apiError';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 
@@ -25,15 +26,12 @@ import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 export const MAX_FILES = 50;
 /** На файл — тот же предел, что называет сервер (сверяет `ScanLimitsAgreeTests`). */
 export const MAX_BYTES = 50 * 1024 * 1024;
-/** Что распознаётся. Тот же перечень у сервера; из него же собран `accept` у выбора файлов. */
-export const READABLE = ['application/pdf', 'image/png', 'image/jpeg'];
-export const SCAN_ACCEPT = READABLE.join(',');
-/** Так браузер называет файл, вида которого не знает. */
-const UNNAMED = 'application/octet-stream';
 
 export interface BatchPort {
   /** Чей пакет — идентификатор вошедшего. */
   owner: string;
+  /** Реестр видов файлов: что распознаётся. Нет его — вид каждого файла решает сервер. */
+  kinds: FileKindsInfo | undefined;
   /** Отправить файл; ответ — счёт заведённого черновика. Списки при этом НЕ перечитываются. */
   send: (file: File) => Promise<string>;
   /** Перечитать список и числа отборов. Зовётся раз в несколько файлов и в конце, а не на каждый. */
@@ -69,11 +67,14 @@ const MAYBE = 'черновик мог завестись, проверьте с
 const REFRESH_EVERY = 5;
 
 /** Что не так с файлом ещё до отправки. Повтор тут не поможет — причина в самом файле. */
-export function precheck(file: File): string | null {
+export function precheck(file: File, kinds: FileKindsInfo | undefined): string | null {
   // Вид файла определяет сервер, по содержимому (issue #1265). Здесь отсекается только то, что
   // браузер сам НАЗВАЛ другим видом: гнать на сервер пятьдесят мегабайт ради известного отказа
   // незачем. Файл без названного вида (так приходит PDF без расширения) идёт на сервер — решит он.
-  if (file.type && file.type !== UNNAMED && !READABLE.includes(file.type)) return 'не PDF, PNG или JPEG';
+  // Что распознаётся, говорит реестр (issue #1266); без реестра не отсекается ничего.
+  const readable = recognizedKinds(kinds);
+  if (kinds && file.type && file.type !== kinds.unknown && !readable.some(kind => kind.mime === file.type))
+    return `не ${wordsOf(readable, 'или')}`;
   if (file.size === 0) return 'файл пуст';
   if (file.size > MAX_BYTES) return 'больше 50 МБ';
   return null;
@@ -200,7 +201,7 @@ async function run(files: File[], port: BatchPort) {
         settle({ rejected: [...state!.rejected, { name: file.name, reason, retry: retry ? file : null }] });
 
       if (now.phase === 'stopping' || now.halted) { reject(NOT_SENT, true); continue; }
-      const problem = precheck(file);
+      const problem = precheck(file, port.kinds);
       if (problem) { reject(problem, false); continue; }
       try {
         const id = await port.send(file);

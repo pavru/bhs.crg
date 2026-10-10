@@ -16,7 +16,6 @@ public class OllamaRecognizerEngine(
     HttpClient http, IIntegrationSettings settings, OutboundProxyState proxy, ILogger<OllamaRecognizerEngine> logger
 ) : IRecognizerEngine
 {
-    private const string PdfMime = "application/pdf";
 
     /// <summary>
     /// Срок ответа. Он ЗАВЕДОМО больше облачных: модель считается на этой же машине, часто на CPU, и
@@ -83,6 +82,9 @@ public class OllamaRecognizerEngine(
         $"({MaxContextTokens} токенов, листов в вызове — не больше {MaxPagesPerCall}): " +
         "распознавайте документ частями либо облачным движком.");
 
+    public bool Accepts(string mimeType) =>
+        RecognitionShared.IsPdf(mimeType) || RecognitionShared.ImageTypes.Contains(mimeType);
+
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
@@ -91,13 +93,16 @@ public class OllamaRecognizerEngine(
         if (string.IsNullOrWhiteSpace(model))
             throw new RecognitionUnavailableException("Не задана модель Ollama.");
 
+        if (!Accepts(mimeType))
+            throw new RecognitionUnavailableException($"Ollama: неподдерживаемый тип «{mimeType}» (нужны изображения или PDF).");
+
         // PDF → PNG-страницы (Ollama не принимает PDF). Картинки идут как есть.
         string[] images;
         if (RecognitionShared.ImageTypes.Contains(mimeType))
         {
             images = [Convert.ToBase64String(file)];
         }
-        else if (mimeType.Equals(PdfMime, StringComparison.OrdinalIgnoreCase))
+        else
         {
             IReadOnlyList<byte[]> pages;
             try
@@ -128,10 +133,6 @@ public class OllamaRecognizerEngine(
                 throw new RecognitionUnavailableException("Ollama: PDF не содержит страниц для распознавания.");
             logger.LogInformation("Ollama: PDF растеризован в {N} стр. @ {Dpi} DPI", pages.Count, PdfRasterizer.DefaultDpi);
             images = pages.Select(Convert.ToBase64String).ToArray();
-        }
-        else
-        {
-            throw new RecognitionUnavailableException($"Ollama: неподдерживаемый тип «{mimeType}» (нужны изображения или PDF).");
         }
 
         var baseUrl = string.IsNullOrWhiteSpace(cfg.BaseUrl) ? "http://localhost:11434" : cfg.BaseUrl;

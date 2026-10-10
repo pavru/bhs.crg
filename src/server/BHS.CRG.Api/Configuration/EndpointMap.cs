@@ -1,6 +1,7 @@
 using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
+using BHS.CRG.Api.Endpoints.Files;
 using BHS.CRG.Api.Endpoints.Backup;
 using BHS.CRG.Api.Endpoints.Maintenance;
 using BHS.CRG.Api.Endpoints.Support;
@@ -35,6 +36,7 @@ internal static class EndpointMap
     internal static void MapAppEndpoints(this WebApplication app)
     {
     app.MapAttachmentEndpoints();
+    app.MapFileKindEndpoints();
     app.MapAuthEndpoints();
     app.MapAccountEndpoints();
     app.MapUserEndpoints();

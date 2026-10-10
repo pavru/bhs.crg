@@ -153,6 +153,33 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
         Assert.Equal(FileKinds.Jpeg, host.Recognition.Kinds[scan]);
     }
 
+    /// <summary>
+    /// Реестр видов — экрану (issue #1266): из него собираются выбор файла и перечень «распознаются …».
+    /// Тот, кто вправе работать со счетами, получает его без отдельного права; невошедший — нет.
+    /// </summary>
+    [Fact]
+    public async Task Реестр_видов_отдаётся_вошедшему_и_называет_что_показывается_и_что_распознаётся()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await host.CreateClient().GetAsync("/api/files/kinds")).StatusCode);
+
+        var (client, _) = await SignInAsync("Supplier");
+        var registry = await client.GetFromJsonAsync<JsonElement>("/api/files/kinds");
+
+        Assert.Equal(FileKinds.Unknown, registry.GetProperty("unknown").GetString());
+        Assert.Equal(FileKindCatalog.MaxBytes, registry.GetProperty("maxBytes").GetInt64());
+        var kinds = registry.GetProperty("kinds").EnumerateArray().ToDictionary(k => k.GetProperty("mime").GetString()!);
+        Assert.Equal(FileKindCatalog.All.Select(k => k.Mime).Order(), kinds.Keys.Order());
+
+        Assert.Equal("pdf", kinds[FileKinds.Pdf].GetProperty("view").GetString());
+        Assert.True(kinds[FileKinds.Pdf].GetProperty("recognized").GetBoolean());
+        Assert.Equal("image", kinds[FileKinds.WebP].GetProperty("view").GetString());
+        Assert.False(kinds[FileKinds.WebP].GetProperty("recognized").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, kinds[FileKinds.Xlsx].GetProperty("view").ValueKind);
+        Assert.False(kinds[FileKinds.Xlsx].GetProperty("recognized").GetBoolean());
+        Assert.Equal([".jpg", ".jpeg"],
+            kinds[FileKinds.Jpeg].GetProperty("extensions").EnumerateArray().Select(e => e.GetString()));
+    }
+
     private async Task RecordAsync(Guid id, string recorded)
     {
         using var scope = host.Services.CreateScope();

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FileUp, Maximize2, ScanLine } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
-import { SHOWN_ACCEPT, saveScan, scanShownAs } from './scanView';
+import { acceptOf, fileShownAs, shownKinds, useFileKinds } from '@/shared/api/fileKinds';
+import { saveScan } from './scanView';
 
 /**
  * Скан счёта РЯДОМ с формой (ТЗ COST-6.2, задача C1).
@@ -23,6 +24,7 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
   fileName: string | null;
 }) {
   const { url, mimeType, failed } = useScan(invoiceId, blobPath);
+  const kinds = useFileKinds();
 
   if (failed) {
     return (
@@ -33,13 +35,16 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
     );
   }
 
-  if (!url) return <Note>Скан загружается…</Note>;
+  // Реестр видов ещё в пути — ждём и его: без него про любой файл пришлось бы ответить «показать
+  // нечем», и PDF на миг предлагался бы к скачиванию. Не пришёл вовсе — файл остаётся доступен,
+  // только скачиванием.
+  if (!url || kinds.isPending) return <Note>Скан загружается…</Note>;
 
   // Чем показывать, решает вид, с которым файл ОТДАЛ сервер (issue #1265), а не запись в счёте:
-  // сервер определяет его по содержимому и чужой вид наружу не выпускает. Файл, который показать
-  // нечем, не открывается вовсе — только скачивается: открытый «как есть», он выполнился бы
-  // страницей этого же сайта.
-  const shownAs = scanShownAs(mimeType);
+  // сервер определяет его по содержимому и чужой вид наружу не выпускает. Что из этого показывается,
+  // говорит реестр видов (issue #1266). Файл, который показать нечем, не открывается вовсе — только
+  // скачивается: открытый «как есть», он выполнился бы страницей этого же сайта.
+  const shownAs = fileShownAs(kinds.data, mimeType);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -48,7 +53,8 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
         <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Скан счёта'}</span>
         {shownAs === 'download'
           ? (
-            <Button size="sm" icon={<Download size={13} />} onClick={() => saveScan(url, fileName, mimeType)}>
+            <Button size="sm" icon={<Download size={13} />}
+              onClick={() => saveScan(url, fileName, mimeType, kinds.data)}>
               Скачать
             </Button>
           )
@@ -86,6 +92,7 @@ export function ScanTooNarrow({ invoiceId, fileName, width }: {
   invoiceId: string; fileName: string | null; width: number;
 }) {
   const [busy, setBusy] = useState(false);
+  const kinds = useFileKinds();
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-stroke bg-surface2 px-3 py-2">
@@ -95,7 +102,7 @@ export function ScanTooNarrow({ invoiceId, fileName, width }: {
           Скан приложен, но рядом с формой он не показывается: для двух панелей нужна ширина
           не меньше 1280 пикселей, а здесь {width}.
         </p>
-        <Button size="sm" variant="text" loading={busy} icon={<Maximize2 size={13} />}
+        <Button size="sm" variant="text" loading={busy || kinds.isPending} icon={<Maximize2 size={13} />}
           onClick={async () => {
             setBusy(true);
             // Открываем ОТДЕЛЬНЫМ окном — это и есть замена панели: бумага остаётся доступной, просто
@@ -103,7 +110,7 @@ export function ScanTooNarrow({ invoiceId, fileName, width }: {
             try {
               const { url, mimeType } = await loadInvoiceScan(invoiceId);
               // Файл, который показать нечем, окном не открывается — скачивается (issue #1265).
-              if (scanShownAs(mimeType) === 'download') saveScan(url, fileName, mimeType);
+              if (fileShownAs(kinds.data, mimeType) === 'download') saveScan(url, fileName, mimeType, kinds.data);
               else window.open(url, '_blank');
               // Отзываем с отсрочкой: окно уже открыто, но браузеру нужна живая ссылка, пока он
               // читает файл. Не отозвав вовсе, мы держали бы в памяти страницы весь скан — а рядом
@@ -123,6 +130,10 @@ export function ScanUploadButton({ hasScan, busy, onPick }: {
   hasScan: boolean; busy: boolean; onPick: (file: File) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  // Предлагается то, что потом будет чем показать. Пока реестра нет, выбор не сужается: вид всё
+  // равно определит сервер, а пустой `accept` у кнопки — меньшее зло, чем кнопка, которая ждёт.
+  const kinds = useFileKinds();
+  const accept = acceptOf(shownKinds(kinds.data)) || undefined;
 
   return (
     <>
@@ -130,7 +141,7 @@ export function ScanUploadButton({ hasScan, busy, onPick }: {
         onClick={() => input.current?.click()}>
         {hasScan ? 'Заменить скан' : 'Приложить скан'}
       </Button>
-      <input ref={input} type="file" className="hidden" accept={SHOWN_ACCEPT}
+      <input ref={input} type="file" className="hidden" accept={accept}
         onChange={e => {
           const file = e.target.files?.[0];
           // Значение сбрасываем: иначе выбор ТОГО ЖЕ файла второй раз не вызовет события, и повтор
