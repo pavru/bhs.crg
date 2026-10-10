@@ -14,20 +14,30 @@ public static class PdfRasterizer
     /// <summary>DPI рендера. 300 — стандарт качества OCR; PNG lossless сохраняет всю детализацию.</summary>
     public const int DefaultDpi = 300;
 
-    /// <summary>Предел числа страниц, чтобы не перегрузить модель (сертификаты обычно 1–3 стр.).</summary>
-    public const int MaxPages = 10;
-
     /// <summary>DPI миниатюр для ручного редактора разбиения — низкое, страница нужна только
     /// чтобы визуально узнать документ, не для OCR.</summary>
     public const int ThumbnailDpi = 96;
 
-    /// <summary>Конвертирует PDF в список PNG-страниц (по порядку). Операция CPU-bound.</summary>
-    public static IReadOnlyList<byte[]> ToPngPages(byte[] pdf, int dpi = DefaultDpi, int maxPages = MaxPages)
+    /// <summary>
+    /// Конвертирует PDF в список PNG-страниц (по порядку) — ВСЕ страницы либо отказ. Операция
+    /// CPU-bound.
+    ///
+    /// <para>⚠️ Документ длиннее <paramref name="maxPages" /> — <see cref="PdfPageLimitException" />,
+    /// а не первые страницы (issue #1271). Раньше здесь стоял <c>Take(maxPages)</c> с пределом по
+    /// умолчанию: двенадцать страниц «распознавались» по десяти, и результат выглядел полным —
+    /// недочитанное неотличимо от отсутствующего. Умолчания у предела поэтому тоже нет: сколько
+    /// страниц вызывающий готов принять, он обязан сказать сам и сам же ответить человеку отказом.</para>
+    /// </summary>
+    public static IReadOnlyList<byte[]> ToPngPages(byte[] pdf, int dpi, int maxPages)
     {
+        // Считает тот же PDFium, что и рисует: предел сверяется с тем числом страниц, которое он
+        // отдал бы. Второе открытие документа — цена отказа ДО рендера, а не после него.
+        var total = Conversion.GetPageCount(pdf);
+        if (total > maxPages) throw new PdfPageLimitException(total, maxPages);
+
         var pages = new List<byte[]>();
         var options = new RenderOptions(Dpi: dpi);
-        // ToImages ленив (yield) — Take не рендерит лишние страницы.
-        foreach (var bitmap in Conversion.ToImages(pdf, options: options).Take(maxPages))
+        foreach (var bitmap in Conversion.ToImages(pdf, options: options))
         {
             using (bitmap)
             using (var data = bitmap.Encode(SKEncodedImageFormat.Png, 100))
@@ -60,4 +70,16 @@ public static class PdfRasterizer
         using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();
     }
+}
+
+/// <summary>
+/// В документе больше страниц, чем вызывающий готов принять. Свой тип — чтобы отказ не утонул в
+/// общем «файл повреждён или защищён», которым вызывающие отвечают на любой сбой растеризации:
+/// файл цел, и чинить его человеку незачем.
+/// </summary>
+public sealed class PdfPageLimitException(int pages, int limit)
+    : Exception($"В документе {pages} стр., предел — {limit}.")
+{
+    public int Pages { get; } = pages;
+    public int Limit { get; } = limit;
 }

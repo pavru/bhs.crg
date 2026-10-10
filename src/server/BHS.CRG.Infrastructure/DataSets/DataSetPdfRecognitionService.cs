@@ -5,6 +5,7 @@ using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -27,9 +28,57 @@ public partial class DataSetPdfRecognitionService(
     ILogger<DataSetPdfRecognitionService> logger
 )
 {
-    // Комплект чертежей может быть большим (десятки листов) — выше, чем MaxPages=10 у
-    // PdfRasterizer (тот подобран под сертификаты/декларации, не трогаем).
+    // Комплект чертежей может быть большим (десятки листов). Файл длиннее предела — отказ, а не
+    // первые сто листов (issue #1271).
     private const int PdfRecognizeMaxPages = 100;
+
+    /// <summary>
+    /// Страницы файла картинками — ВСЕ либо отказ. Одно место на оба пути (нынешний и прежний
+    /// постраничный реестр): два текста отказа об одном и том же разошлись бы первой же правкой.
+    /// </summary>
+    private static async Task<IReadOnlyList<byte[]>> RasterizeForRecognitionAsync(byte[] bytes, CancellationToken ct)
+    {
+        try
+        {
+            return await Task.Run(
+                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
+        }
+        catch (PdfPageLimitException ex)
+        {
+            throw TooLong(ex.Pages);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).
+            throw new InvalidRequestException(
+                "Не удалось подготовить страницы PDF — файл повреждён или защищён.", ex);
+        }
+    }
+
+    /// <summary>Не первые сто листов молча (issue #1271): недочитанный альбом неотличим от полного.</summary>
+    private static InvalidRequestException TooLong(int pages) => new(
+        $"В файле {RecognitionShared.Sheets(pages)}, а за один прогон распознаётся не больше " +
+        $"{PdfRecognizeMaxPages} — разделите файл на части.");
+
+    /// <summary>
+    /// Тот же отказ — ДО постановки фоновой задачи: иначе нажатие получало 202, а отказ приходил
+    /// строкой в журнале задач (ревью PR #1274). Окончательное слово всё равно за подготовкой страниц:
+    /// здесь листы считает другая библиотека, и на файле, который она не прочла, молчим — причину
+    /// назовёт сама работа.
+    /// </summary>
+    private async Task RefuseTooLongAsync(string blobPath, CancellationToken ct)
+    {
+        int pages;
+        try
+        {
+            pages = await GetPdfPageCountAsync(blobPath, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return;
+        }
+        if (pages > PdfRecognizeMaxPages) throw TooLong(pages);
+    }
 
     /// <summary>Выбор профиля препроцессинга PDF-набора (issue #38/#44). Оба профиля — набор-centric:
     /// ставим PreprocessingProfile на НАБОР, источников НЕ создаём. Распознавание пишет сырьё (Grouping
@@ -111,6 +160,7 @@ public partial class DataSetPdfRecognitionService(
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
                 throw new ConflictException(
                     "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+            await RefuseTooLongAsync(file.BlobPath, ct);
         }
         return new RecognizePlan(descriptor.Background,
             descriptor.Kind == PdfProfileKind.Gost ? "Распознавание листов PDF" : "Распознавание PDF",
