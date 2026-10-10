@@ -251,7 +251,7 @@ export function InvoicesPage() {
               organizationsError={organizations.isError ? organizations.error : undefined}
               onOpenInvoice={setSelected}
               scanSlot={hasScan && !wide
-                ? <ScanTooNarrow invoiceId={view.data.id} width={window.innerWidth} />
+                ? <ScanTooNarrow invoiceId={view.data.id} fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
                 : undefined}
             />
             {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
@@ -262,7 +262,6 @@ export function InvoicesPage() {
                   invoiceId={view.data.id}
                   blobPath={fileProp(scan, 'blobPath')}
                   fileName={fileProp(scan, 'fileName')}
-                  mimeType={fileProp(scan, 'mimeType')}
                 />
               </aside>
             )}

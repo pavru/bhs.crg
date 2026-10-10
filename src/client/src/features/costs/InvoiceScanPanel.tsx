@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileUp, Maximize2, ScanLine } from 'lucide-react';
+import { Download, FileUp, Maximize2, ScanLine } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
+import { saveScan, scanShownAs } from './scanView';
 
 /**
  * Скан счёта РЯДОМ с формой (ТЗ COST-6.2, задача C1).
@@ -13,16 +14,15 @@ import { loadInvoiceScan } from '@/shared/api/invoices';
  * места в первой версии нет — и поэтому же отменена проверка «отдаёт ли профиль координаты полей»:
  * ответ ничего не менял бы.</p>
  */
-export function InvoiceScanPanel({ invoiceId, blobPath, fileName, mimeType }: {
+export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
   invoiceId: string;
   /** Путь файла в хранилище. ⚠️ Нужен ИМЕННО здесь: после «Заменить скан» счёт тот же, а файл
    *  другой — панель, зависящая от одного счёта, показывала бы ПРЕЖНЮЮ бумагу, и человек сверял бы
    *  форму не с тем документом. Хуже того: PDF, заменивший картинку, рисовался бы как картинка. */
   blobPath: string | null;
   fileName: string | null;
-  mimeType: string | null;
 }) {
-  const { url, failed } = useScan(invoiceId, blobPath);
+  const { url, mimeType, failed } = useScan(invoiceId, blobPath);
 
   if (failed) {
     return (
@@ -35,21 +35,42 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName, mimeType }: {
 
   if (!url) return <Note>Скан загружается…</Note>;
 
-  const isPdf = (mimeType ?? '').includes('pdf');
+  // Чем показывать, решает вид, с которым файл ОТДАЛ сервер (issue #1265), а не запись в счёте:
+  // сервер определяет его по содержимому и чужой вид наружу не выпускает. Файл, который показать
+  // нечем, не открывается вовсе — только скачивается: открытый «как есть», он выполнился бы
+  // страницей этого же сайта.
+  const shownAs = scanShownAs(mimeType);
 
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
         <ScanLine size={14} className="text-fg3 shrink-0" />
         <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Скан счёта'}</span>
-        <Button size="sm" icon={<Maximize2 size={13} />} onClick={() => window.open(url, '_blank')}>
-          Во весь экран
-        </Button>
+        {shownAs === 'download'
+          ? (
+            <Button size="sm" icon={<Download size={13} />} onClick={() => saveScan(url, fileName)}>
+              Скачать
+            </Button>
+          )
+          : (
+            <Button size="sm" icon={<Maximize2 size={13} />} onClick={() => window.open(url, '_blank')}>
+              Во весь экран
+            </Button>
+          )}
       </div>
       <div className="flex-1 min-h-0 bg-base">
-        {isPdf
-          ? <iframe src={url} title={fileName ?? 'Скан счёта'} className="w-full h-full border-0 bg-white" />
-          : <img src={url} alt={fileName ?? 'Скан счёта'} className="w-full h-full object-contain" />}
+        {shownAs === 'pdf' && (
+          <iframe src={url} title={fileName ?? 'Скан счёта'} className="w-full h-full border-0 bg-white" />
+        )}
+        {shownAs === 'image' && (
+          <img src={url} alt={fileName ?? 'Скан счёта'} className="w-full h-full object-contain" />
+        )}
+        {shownAs === 'download' && (
+          <Note>
+            Файл приложен, но показать его здесь нечем: рядом с формой открываются PDF и изображения.
+            Скачайте его кнопкой выше.
+          </Note>
+        )}
       </div>
     </div>
   );
@@ -61,7 +82,9 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName, mimeType }: {
  * Молчаливое исчезновение панели читается как «скана нет»: человек видит форму без бумаги и не знает,
  * то ли скан не приложен, то ли система его не показывает.
  */
-export function ScanTooNarrow({ invoiceId, width }: { invoiceId: string; width: number }) {
+export function ScanTooNarrow({ invoiceId, fileName, width }: {
+  invoiceId: string; fileName: string | null; width: number;
+}) {
   const [busy, setBusy] = useState(false);
 
   return (
@@ -78,8 +101,10 @@ export function ScanTooNarrow({ invoiceId, width }: { invoiceId: string; width: 
             // Открываем ОТДЕЛЬНЫМ окном — это и есть замена панели: бумага остаётся доступной, просто
             // не рядом.
             try {
-              const { url } = await loadInvoiceScan(invoiceId);
-              window.open(url, '_blank');
+              const { url, mimeType } = await loadInvoiceScan(invoiceId);
+              // Файл, который показать нечем, окном не открывается — скачивается (issue #1265).
+              if (scanShownAs(mimeType) === 'download') saveScan(url, fileName);
+              else window.open(url, '_blank');
               // Отзываем с отсрочкой: окно уже открыто, но браузеру нужна живая ссылка, пока он
               // читает файл. Не отозвав вовсе, мы держали бы в памяти страницы весь скан — а рядом
               // стоит комментарий, объявляющий отзыв обязательным.
@@ -128,7 +153,9 @@ function Note({ children }: { children: React.ReactNode }) {
  * страницы файл целиком, а замечают такое на сотом счёте у заказчика.
  */
 function useScan(invoiceId: string, blobPath: string | null) {
-  const [loaded, setLoaded] = useState<{ key: string; url: string | null; failed: boolean } | null>(null);
+  const [loaded, setLoaded] = useState<{
+    key: string; url: string | null; mimeType: string | null; failed: boolean;
+  } | null>(null);
   const key = `${invoiceId}|${blobPath ?? ''}`;
 
   useEffect(() => {
@@ -136,12 +163,12 @@ function useScan(invoiceId: string, blobPath: string | null) {
     let objectUrl: string | null = null;
 
     loadInvoiceScan(invoiceId)
-      .then(({ url }) => {
+      .then(({ url, mimeType }) => {
         objectUrl = url;
         if (cancelled) { URL.revokeObjectURL(url); return; }
-        setLoaded({ key, url, failed: false });
+        setLoaded({ key, url, mimeType, failed: false });
       })
-      .catch(() => { if (!cancelled) setLoaded({ key, url: null, failed: true }); });
+      .catch(() => { if (!cancelled) setLoaded({ key, url: null, mimeType: null, failed: true }); });
 
     return () => {
       cancelled = true;
@@ -152,5 +179,5 @@ function useScan(invoiceId: string, blobPath: string | null) {
   // Ответ считается своим только по совпадению счёта И файла. Сбрасывать состояние в эффекте нельзя
   // (лишний кадр), а без сверки при переключении счёта или замене скана на миг показалась бы ЧУЖАЯ
   // бумага — человек решил бы, что приложено не то.
-  return loaded?.key === key ? loaded : { url: null, failed: false };
+  return loaded?.key === key ? loaded : { url: null, mimeType: null, failed: false };
 }

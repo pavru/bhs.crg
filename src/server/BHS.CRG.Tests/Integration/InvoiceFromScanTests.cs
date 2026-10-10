@@ -535,6 +535,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
 
     [Theory]
     [InlineData("text/plain", "содержимое", "PDF, PNG или JPEG")]
+    [InlineData("application/pdf", "содержимое", "PDF, PNG или JPEG")]
     [InlineData("application/pdf", "", "Файл пуст")]
     public async Task Негодный_файл_отказ_и_черновик_не_заведён(string mime, string body, string expected)
     {

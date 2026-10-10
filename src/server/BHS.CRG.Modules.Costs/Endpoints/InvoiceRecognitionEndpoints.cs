@@ -57,7 +57,10 @@ public static class InvoiceRecognitionEndpoints
         if (file.Length > InvoiceScanRecognition.MaxScanBytes)
             throw new InvalidRequestException(
                 $"Файл больше {InvoiceScanRecognition.MaxScanBytes / (1024 * 1024)} МБ — счёт из такого скана не заводится.");
-        if (!InvoiceScanRecognition.IsReadable(file.ContentType))
+        // По содержимому, а не по заголовку (issue #1265): PDF, присланный без типа, годится, а
+        // файл другого вида, назвавшийся PDF, — нет.
+        var kind = await InvoiceScanRecognition.KindAsync(file, ct);
+        if (!InvoiceScanRecognition.IsReadable(kind))
             throw new InvalidRequestException(
                 "Из скана счёт заводится по PDF, PNG или JPEG. Файл другого вида можно приложить к счёту, " +
                 "заведённому вручную, — но распознать его нечем.");
@@ -69,12 +72,12 @@ public static class InvoiceRecognitionEndpoints
 
         string path;
         await using (var content = file.OpenReadStream())
-            path = await blobs.PutAsync(file.FileName, content, file.ContentType, ct);
+            path = await blobs.PutAsync(file.FileName, content, kind, ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         try
         {
-            invoice.AttachScan(path, file.FileName, file.ContentType, file.Length);
+            invoice.AttachScan(path, file.FileName, kind, file.Length);
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync(ct);
         }

@@ -1,7 +1,9 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -41,9 +43,20 @@ public sealed class InvoiceScanRecognition(
 
     /// <summary>Что движки читают наверняка. Остальное приложить можно, распознать — нет.</summary>
     public static readonly IReadOnlySet<string> Readable =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/png", "image/jpeg" };
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { FileKinds.Pdf, FileKinds.Png, FileKinds.Jpeg };
 
     internal static bool IsReadable(string? mimeType) => mimeType is not null && Readable.Contains(mimeType);
+
+    /// <summary>
+    /// Вид присланного файла по его содержимому (issue #1265). Одно место на оба адреса, принимающих
+    /// файл счёта: приложи один из них файл по заголовку, тот же файл получал бы разный вид в
+    /// зависимости от того, какой кнопкой его загрузили.
+    /// </summary>
+    internal static async Task<string> KindAsync(IFormFile file, CancellationToken ct)
+    {
+        await using var content = file.OpenReadStream();
+        return await FileKinds.DetectAsync(content, file.FileName, ct);
+    }
 
     /// <summary>
     /// Почему распознать нельзя; <c>null</c> — можно. Одно место на кнопку, на адрес и на обработчик:

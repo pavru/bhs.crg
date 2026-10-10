@@ -302,14 +302,15 @@ try {
 
   // ── 7. Счёт из скана: неудача НАЗВАНА, а не выглядит пустым черновиком (issue #1077) ────────────
   //
-  // Сторож задачи. Файл заведомо не читается (это не PDF), так что исход один на любом стенде: отказ.
+  // Сторож задачи. Файл заведомо не читается (от PDF в нём одна подпись — без неё сервер его не
+  // принял бы вовсе: вид он определяет по содержимому, issue #1265), так что исход один на любом стенде: отказ.
   // Какой именно — зависит от стенда (движок не настроен либо не справился), поэтому сверяются слова,
   // общие для любого отказа. Черновик при этом обязан завестись и открыться: распознавание — помощь,
   // а не условие. И о неудаче говорят все три места — форма, строка списка и отбор.
   await check('счёт из скана: отказ распознавания назван в форме, в строке и стоит под отбором', async () => {
     const fileName = `Скан-${stamp}.pdf`;
     await page.locator('input[type=file][accept="application/pdf,image/png,image/jpeg"]').setInputFiles({
-      name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`не PDF ${stamp}`),
+      name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-не настоящий ${stamp}`),
     });
 
     // Черновик открылся сам: в адресе назван счёт, скан приложен.
@@ -337,7 +338,7 @@ try {
     const opened = new URL(page.url()).searchParams.get('invoice');
     const names = [`Пакет-${stamp}-2.pdf`, `Пакет-${stamp}-10.pdf`];
     await page.locator('input[type=file][accept="application/pdf,image/png,image/jpeg"]').setInputFiles([
-      ...names.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`не PDF ${name}`) })),
+      ...names.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-не настоящий ${name}`) })),
       { name: `Заметки-${stamp}.txt`, mimeType: 'text/plain', buffer: Buffer.from('не скан') },
     ]);
 
