@@ -20,8 +20,8 @@ namespace BHS.CRG.Modules.Files;
 /// распознается, о чём скажет уже то место, которое его читает.</para>
 ///
 /// <para>Лежит в контрактах: файл счёта принимает модуль, а на ядро он не ссылается. Пока этим
-/// определением пользуется только файл счёта; реестр читаемых видов ядра (issue #1266) опирается
-/// на него же.</para>
+/// определением пользуется только файл счёта. Что о виде известно сверх признака — чем он
+/// показывается, как читается, предел размера, — держит реестр, <see cref="FileKindCatalog" />.</para>
 /// </summary>
 public static class FileKinds
 {
@@ -37,13 +37,6 @@ public static class FileKinds
     public const string Xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     public const string Docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     public const string Xls = "application/vnd.ms-excel";
-
-    /// <summary>
-    /// Что браузер показывает сам, без преобразования. Тот же перечень держит экран
-    /// (<c>scanView.ts</c>) — совпадение сверяет <c>ScanLimitsAgreeTests</c>.
-    /// </summary>
-    public static readonly IReadOnlySet<string> Shown =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Pdf, Png, Jpeg, Gif, WebP, Bmp };
 
     /// <summary>Сколько первых байт нужно, чтобы узнать вид по подписи.</summary>
     public const int HeadBytes = 64;
@@ -104,19 +97,7 @@ public static class FileKinds
     /// по записи счёта): до issue #1265 записывался заголовок клиента, а один и тот же вид браузеры
     /// называли по-разному.
     /// </summary>
-    public static string Recorded(string? stored) => stored?.Trim().ToLowerInvariant() switch
-    {
-        Pdf or "application/x-pdf" => Pdf,
-        Png or "image/x-png" => Png,
-        Jpeg or "image/jpg" or "image/pjpeg" => Jpeg,
-        Gif => Gif,
-        WebP => WebP,
-        Bmp or "image/x-ms-bmp" => Bmp,
-        Xlsx => Xlsx,
-        Docx => Docx,
-        Xls => Xls,
-        _ => Unknown,
-    };
+    public static string Recorded(string? stored) => FileKindCatalog.Named(stored)?.Mime ?? Unknown;
 
     /// <summary>
     /// «%PDF-1.7» в самом начале. Перед подписью допустимы только пробельные байты и метка порядка

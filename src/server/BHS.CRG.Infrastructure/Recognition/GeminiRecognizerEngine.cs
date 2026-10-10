@@ -33,6 +33,8 @@ public class GeminiRecognizerEngine(
 
     public string Name => "Gemini";
 
+    public bool Accepts(string mimeType) => RecognitionShared.AcceptsPdfOrImage(mimeType);
+
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
@@ -42,10 +44,9 @@ public class GeminiRecognizerEngine(
             throw new RecognitionUnavailableException("Не задан ключ Gemini.");
         var model = string.IsNullOrWhiteSpace(cfg.Model) ? RecognitionDefaults.GeminiModel : cfg.Model;
 
-        var mt = string.Equals(mimeType, "application/pdf", StringComparison.OrdinalIgnoreCase)
-            ? "application/pdf"
-            : RecognitionShared.ImageTypes.Contains(mimeType) ? RecognitionShared.NormalizeImageMime(mimeType)
-            : throw new RecognitionUnavailableException($"Gemini: формат не поддерживается: {mimeType}");
+        if (!Accepts(mimeType))
+            throw new RecognitionUnavailableException($"Gemini: формат не поддерживается: {mimeType}");
+        var mt = RecognitionShared.IsPdf(mimeType) ? "application/pdf" : RecognitionShared.NormalizeImageMime(mimeType);
 
         var requestBody = new
         {

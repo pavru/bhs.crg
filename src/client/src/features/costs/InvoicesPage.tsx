@@ -15,6 +15,7 @@ import {
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
 import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
+import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ArticlesDialog } from './ArticlesDialog';
 import { SupplierMatchesDialog } from './SupplierMatchesDialog';
@@ -26,7 +27,7 @@ import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
-import { SCAN_ACCEPT, retryRejected, startBatch, useScanBatch, type BatchPort } from './scanBatch';
+import { retryRejected, startBatch, useScanBatch, type BatchPort } from './scanBatch';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -114,8 +115,12 @@ export function InvoicesPage() {
   const me = useAuth().user?.sub;
   const batch = useScanBatch(me);
   const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
+  // Что распознаётся, говорит реестр видов: из него и выбор файла, и подсказка, и отсев до отправки.
+  const kinds = useFileKinds();
+  const readable = recognizedKinds(kinds.data);
   const port: BatchPort = {
     owner: me ?? '',
+    kinds: kinds.data,
     send: file => sendScan(qc, file).then(created => created.invoice.id),
     refresh: () => refreshInvoiceLists(qc),
   };
@@ -153,13 +158,13 @@ export function InvoicesPage() {
                 Новый счёт
               </Button>
               <Button variant="filled" icon={<ScanLine size={16} />} loading={loading}
-                title="Один или несколько файлов: PDF, PNG, JPEG. Файлы можно перетащить на список счетов."
+                title={`Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`}
                 onClick={() => scanInput.current?.click()}>
                 Счёт из скана
               </Button>
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
-              <input ref={scanInput} type="file" multiple className="hidden" accept={SCAN_ACCEPT}
+              <input ref={scanInput} type="file" multiple className="hidden" accept={acceptOf(readable) || undefined}
                 onChange={e => {
                   const files = [...e.target.files ?? []];
                   e.target.value = '';

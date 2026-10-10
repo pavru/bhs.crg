@@ -153,6 +153,64 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
         Assert.Equal(FileKinds.Jpeg, host.Recognition.Kinds[scan]);
     }
 
+    /// <summary>
+    /// Известный реестру вид — ещё не читаемый (issue #1266). Картинку GIF система показывает, таблицу
+    /// Excel знает и хранит, но распознать не может ни ту, ни другую: кнопка называет причину, а
+    /// «счёт из скана» отказывает. Перечень в обоих текстах — из реестра.
+    /// </summary>
+    [Fact]
+    public async Task Известный_но_не_читаемый_вид_прикладывается_а_распознать_его_нельзя()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        byte[] gif = [.. "GIF89a"u8, .. Guid.NewGuid().ToByteArray()];
+
+        foreach (var (body, kind) in new[] { (gif, FileKinds.Gif), (FileKindsTests.Zip("xl/workbook.xml"), FileKinds.Xlsx) })
+        {
+            var id = await CreateAsync(client);
+            Assert.Equal(kind, Stored(await AttachAsync(client, id, body, "Счёт", null)));
+
+            var recognition = await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{id}/recognition");
+            Assert.False(recognition.GetProperty("canStart").GetBoolean());
+            Assert.Contains("распознаются PDF, PNG и JPEG", recognition.GetProperty("whyNot").GetString());
+
+            using var form = Form(body, "Счёт", null);
+            var refused = await client.PostAsync("/api/costs/invoices/from-scan", form);
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            Assert.Contains("PDF, PNG или JPEG", await refused.Content.ReadAsStringAsync());
+        }
+    }
+
+    /// <summary>
+    /// Реестр видов — экрану (issue #1266): из него собираются выбор файла и перечень «распознаются …».
+    /// Тот, кто вправе работать со счетами, получает его без отдельного права; невошедший — нет.
+    /// </summary>
+    [Fact]
+    public async Task Реестр_видов_отдаётся_вошедшему_и_называет_что_показывается_и_что_распознаётся()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await host.CreateClient().GetAsync("/api/files/kinds")).StatusCode);
+
+        var (client, _) = await SignInAsync("Supplier");
+        var registry = await client.GetFromJsonAsync<JsonElement>("/api/files/kinds");
+
+        Assert.Equal(FileKinds.Unknown, registry.GetProperty("unknown").GetString());
+        Assert.Equal(FileKindCatalog.MaxBytes, registry.GetProperty("maxBytes").GetInt64());
+        var kinds = registry.GetProperty("kinds").EnumerateArray().ToDictionary(k => k.GetProperty("mime").GetString()!);
+        Assert.Equal(FileKindCatalog.All.Select(k => k.Mime).Order(), kinds.Keys.Order());
+
+        Assert.Equal("pdf", kinds[FileKinds.Pdf].GetProperty("view").GetString());
+        Assert.True(kinds[FileKinds.Pdf].GetProperty("recognized").GetBoolean());
+        Assert.Equal("image", kinds[FileKinds.WebP].GetProperty("view").GetString());
+        Assert.False(kinds[FileKinds.WebP].GetProperty("recognized").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, kinds[FileKinds.Xlsx].GetProperty("view").ValueKind);
+        Assert.False(kinds[FileKinds.Xlsx].GetProperty("recognized").GetBoolean());
+        Assert.Equal([".jpg", ".jpeg"],
+            kinds[FileKinds.Jpeg].GetProperty("extensions").EnumerateArray().Select(e => e.GetString()));
+        // Другие названия вида едут экрану: отсев до отправки сверяет то, как файл назвал браузер.
+        Assert.Contains("image/pjpeg",
+            kinds[FileKinds.Jpeg].GetProperty("aliases").EnumerateArray().Select(e => e.GetString()));
+        Assert.Empty(kinds[FileKinds.Xlsx].GetProperty("aliases").EnumerateArray());
+    }
+
     private async Task RecordAsync(Guid id, string recorded)
     {
         using var scope = host.Services.CreateScope();

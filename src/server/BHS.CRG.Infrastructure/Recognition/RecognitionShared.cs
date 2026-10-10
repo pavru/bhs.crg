@@ -11,6 +11,15 @@ public static class RecognitionShared
     public static readonly HashSet<string> ImageTypes = new(StringComparer.OrdinalIgnoreCase)
     { "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif" };
 
+    /// <summary>PDF — по типу, без учёта регистра: одно место вместо сравнения в каждом движке.</summary>
+    public static bool IsPdf(string mime) => string.Equals(mime, "application/pdf", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Что движок готов взять: PDF или растровое изображение. Ответ у всех трёх движков один — и
+    /// записан один раз; движок, который начнёт отличаться, отвечает за себя сам.
+    /// </summary>
+    public static bool AcceptsPdfOrImage(string mime) => IsPdf(mime) || ImageTypes.Contains(mime);
+
     public static string NormalizeImageMime(string mime)
         => string.Equals(mime, "image/jpg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg" : mime.ToLowerInvariant();
 
@@ -326,6 +335,15 @@ public static class RecognitionShared
 public interface IRecognizerEngine
 {
     string Name { get; }
+
+    /// <summary>
+    /// Берётся ли движок за файл такого вида. Тем же ответом движок пользуется сам, отказывая «формат
+    /// не поддерживается», — поэтому по нему и сверяется реестр видов (issue #1266): всё, что реестр
+    /// называет читаемым «как есть», обязан принимать КАЖДЫЙ движок. Умолчания нет нарочно: новый
+    /// движок обязан ответить сам.
+    /// </summary>
+    bool Accepts(string mimeType);
+
     Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default);
 }

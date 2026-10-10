@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect } from 'vitest';
+import type { FileKindsInfo } from '@/shared/api/fileKinds';
 import {
-  MAX_BYTES, MAX_FILES, batchTitle, currentBatch, dismissBatch, endSession, failure, inOrder, interrupted,
+  MAX_FILES, batchTitle, currentBatch, dismissBatch, endSession, failure, inOrder, interrupted,
   precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, type BatchPort,
 } from './scanBatch';
 
@@ -14,8 +15,21 @@ const pdf = (name: string, size = 10) => {
 
 const refusal = (status: number, error: string) => ({ response: { status, data: { error } } });
 
+const MAX_BYTES = 50 * 1024 * 1024;
 let refreshed = 0;
-const port = (send: BatchPort['send'], owner = 'я'): BatchPort => ({ owner, send, refresh: () => { refreshed++; } });
+/** Реестр, каким его отдаёт сервер: что распознаётся, решает он, а не экран. */
+const kinds: FileKindsInfo = {
+  unknown: 'application/octet-stream',
+  maxBytes: MAX_BYTES,
+  kinds: [
+    { mime: 'application/pdf', label: 'PDF', extensions: ['.pdf'], aliases: ['application/x-pdf'], view: 'pdf', recognized: true },
+    { mime: 'image/png', label: 'PNG', extensions: ['.png'], aliases: [], view: 'image', recognized: true },
+    { mime: 'image/jpeg', label: 'JPEG', extensions: ['.jpg', '.jpeg'], aliases: ['image/pjpeg'], view: 'image', recognized: true },
+    { mime: 'image/webp', label: 'WebP', extensions: ['.webp'], aliases: [], view: 'image', recognized: false },
+  ],
+};
+const port = (send: BatchPort['send'], owner = 'я'): BatchPort =>
+  ({ owner, kinds, send, refresh: () => { refreshed++; } });
 
 /** Дождаться конца пакета: отправка идёт своим ходом, вне теста. */
 async function settled() {
@@ -27,13 +41,46 @@ beforeEach(() => { resetBatchForTests(); refreshed = 0; });
 
 describe('файл до отправки', () => {
   it('не тот вид, пустой и слишком большой отсеиваются с причиной', () => {
-    expect(precheck(new File(['x'], 'a.docx', { type: 'application/msword' }))).toBe('не PDF, PNG или JPEG');
+    expect(precheck(new File(['x'], 'a.docx', { type: 'application/msword' }), kinds)).toBe('не PDF, PNG или JPEG');
+    // Вид, который реестр знает, но читаемым не называет, — тоже отказ: показать его можно, распознать нет.
+    expect(precheck(new File(['x'], 'a.webp', { type: 'image/webp' }), kinds)).toBe('не PDF, PNG или JPEG');
     // Вид определяет сервер (issue #1265): файл, который браузер никак не назвал, уходит к нему.
-    expect(precheck(new File(['x'], 'скан'))).toBeNull();
-    expect(precheck(new File(['x'], 'скан.bin', { type: 'application/octet-stream' }))).toBeNull();
-    expect(precheck(pdf('a.pdf', 0))).toBe('файл пуст');
-    expect(precheck(pdf('a.pdf', MAX_BYTES + 1))).toBe('больше 50 МБ');
-    expect(precheck(pdf('a.pdf', MAX_BYTES))).toBeNull();
+    expect(precheck(new File(['x'], 'скан'), kinds)).toBeNull();
+    expect(precheck(new File(['x'], 'скан.bin', { type: 'application/octet-stream' }), kinds)).toBeNull();
+    expect(precheck(pdf('a.pdf', 0), kinds)).toBe('файл пуст');
+    expect(precheck(pdf('a.pdf', MAX_BYTES + 1), kinds)).toBe('больше 50 МБ');
+    expect(precheck(pdf('a.pdf', MAX_BYTES), kinds)).toBeNull();
+  });
+
+  // Перечень читаемого — серверный: что в реестре стало читаемым, то экран и пропускает, и называет.
+  it('что распознаётся, решает реестр, а не экран', () => {
+    const wider: FileKindsInfo = {
+      ...kinds, kinds: kinds.kinds.map(kind => ({ ...kind, recognized: true })),
+    };
+    expect(precheck(new File(['x'], 'a.webp', { type: 'image/webp' }), wider)).toBeNull();
+    expect(precheck(new File(['x'], 'a.gif', { type: 'image/gif' }), wider)).toBe('не PDF, PNG, JPEG или WebP');
+  });
+
+  // Реестр не пришёл — по виду не отсекается ничего: решит сервер, а пустой и огромный файл
+  // отсекаются по-прежнему.
+  it('без реестра вид и размер файла решает сервер', () => {
+    expect(precheck(new File(['x'], 'a.docx', { type: 'application/msword' }), undefined)).toBeNull();
+    expect(precheck(pdf('a.pdf', MAX_BYTES + 1), undefined)).toBeNull();
+    expect(precheck(pdf('a.pdf', 0), undefined)).toBe('файл пуст');
+  });
+
+  // Предел — из реестра, а не число экрана: сменился на сервере — сменился и здесь, вместе с текстом.
+  it('предел размера называет реестр', () => {
+    const tight: FileKindsInfo = { ...kinds, maxBytes: 20 * 1024 * 1024 };
+    expect(precheck(pdf('a.pdf', 20 * 1024 * 1024 + 1), tight)).toBe('больше 20 МБ');
+    expect(precheck(pdf('a.pdf', 20 * 1024 * 1024), tight)).toBeNull();
+  });
+
+  // Браузер зовёт один вид по-разному (зависит от записей типов в системе), а сервер смотрит на
+  // содержимое: файл под другим именем того же вида обязан дойти до него.
+  it('вид под другим названием браузера не отсекается', () => {
+    expect(precheck(new File(['x'], 'a.pdf', { type: 'application/x-pdf' }), kinds)).toBeNull();
+    expect(precheck(new File(['x'], 'a.jpg', { type: 'image/pjpeg' }), kinds)).toBeNull();
   });
 
   it('порядок — по имени, числа числами', () => {
