@@ -257,6 +257,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
                         {canEdit ? (
                           <NomenclaturePicker chosen={line.nomenclatureId !== null} name={line.nomenclatureName}
                             lost={line.nomenclatureLost} archived={line.nomenclatureArchived}
+                            from={{ name: line.sourceText, unit: line.unit }}
                             onPick={(id, name) => posted
                               ? void matchLine(line, id)
                               : editLine(line.key, { nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureArchived: false })}

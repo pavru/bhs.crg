@@ -97,10 +97,18 @@ public static class ActivityActions
     public static readonly ActivityAction ModuleSettingChanged =
         new("core.settings.changed", "Изменена настройка модуля");
 
+    /// <summary>
+    /// Позиция номенклатуры заведена коротким окном — из строки счёта (issue #1079). Обычное создание
+    /// записи справочника в журнал не пишется; это пишется, потому что заводит позицию не тот, кто
+    /// ведёт справочник за его формой, а тот, кто вводит счёт, — и запись ложится неполной.
+    /// </summary>
+    public static readonly ActivityAction NomenclatureCreated =
+        new("core.nomenclature.created", "Заведена позиция номенклатуры");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
-         RecordArchived, RecordUnarchived, RecordPurged, ModuleSettingChanged];
+         RecordArchived, RecordUnarchived, RecordPurged, ModuleSettingChanged, NomenclatureCreated];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

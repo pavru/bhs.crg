@@ -42,6 +42,13 @@ public static class CoreRecordTypes
     public const string UnitCode = "ЕдиницаИзмерения";
 
     /// <summary>
+    /// Справочник номенклатуры. Заводит его не код, а миграция <c>NomenclatureAboveMaterial</c> — из
+    /// «Материала» заказчика; на чистой установке типа нет. Код нужен двери создания позиции
+    /// (issue #1079): она принимает этот тип и его подтипы и ничего больше.
+    /// </summary>
+    public const string NomenclatureCode = "Номенклатура";
+
+    /// <summary>
     /// Справочник сотрудников (ТЗ CORE-7, TYPE-7.1, TYPE-9.1).
     ///
     /// <para><b>Производный от «Персоны», а не заведённый рядом.</b> TYPE-7.1 требует этого прямо:
