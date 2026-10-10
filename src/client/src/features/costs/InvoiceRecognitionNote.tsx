@@ -51,8 +51,8 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
     return (
       <Strip quiet>
         <span className="flex-1" data-testid="by-former-image">
-          Распознано по прежнему виду файла: вид для чтения с тех пор перестроен. Прочитанное осталось в
-          счёте как было.
+          Распознано по прежнему виду файла: вид для чтения с тех пор построен заново. Прочитанное
+          осталось в счёте как было.
           {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
         </span>
         {canEdit && recognition.canStart && (

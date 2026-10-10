@@ -106,12 +106,17 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
  * Вид не построен. Файл при этом ПРИЛОЖЕН и цел — это сказано прямо: отказ построения не отказ
  * загрузки, и человек не должен прикладывать файл второй раз.
  *
- * <p>Два разных отказа выглядят по-разному: «файл такой» (пароль, пуст) — повторять нечего, совет в
- * самой причине; «сервис не ответил» — дело не в файле, и есть «Повторить».</p>
+ * <p>Два разных отказа выглядят по-разному. «Файл такой» (пароль, пуст, конвертер не открыл) —
+ * сервер это запомнил, и сам собой вид не построится; выход — «Построить заново» (отказ конвертера
+ * бывает и разовым) либо заменить файл. «Дело не в файле» (конвертер занят, молчит, не настроен) —
+ * не запомнено, и «Повторить» спрашивает ещё раз.</p>
  */
-export function RefusedImage({ invoiceId, fileName, image, retrying, onRetry }: {
-  invoiceId: string; fileName: string | null; image: InvoiceImage; retrying: boolean; onRetry: () => void;
+export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, retrying, onRetry }: {
+  invoiceId: string; blobPath: string | null; fileName: string | null; image: InvoiceImage;
+  canEdit: boolean; retrying: boolean; onRetry: () => void;
 }) {
+  const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
+  const toast = useToast();
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
@@ -122,22 +127,31 @@ export function RefusedImage({ invoiceId, fileName, image, retrying, onRetry }: 
       <div className="flex-1 min-h-0 bg-base">
         <Centered>
           <div className="flex flex-col items-center gap-2 max-w-sm" data-testid="image-refused">
-            {image.retryHelps
-              ? <CloudOff size={20} className="text-fg3" />
-              : <FileX size={20} className="text-warning" />}
+            {image.aboutFile
+              ? <FileX size={20} className="text-warning" />
+              : <CloudOff size={20} className="text-fg3" />}
             <span className="text-sm font-medium text-fg1">
-              {image.retryHelps ? 'Вид для чтения пока не построен' : 'Вид для чтения не построен'}
+              {image.aboutFile ? 'Вид для чтения не построен' : 'Вид для чтения пока не построен'}
             </span>
             <span>{image.reason}</span>
             <span>
-              {image.retryHelps
-                ? 'Дело не в файле — он приложен и цел.'
-                : 'Показать и распознать его нельзя. Сам файл приложен и цел.'}
+              {image.aboutFile
+                ? 'Показать и распознать его нельзя. Сам файл приложен и цел.'
+                : 'Дело не в файле — он приложен и цел.'}
             </span>
             <div className="flex gap-2 mt-1">
-              {image.retryHelps && (
+              {!image.aboutFile && (
                 <Button size="sm" variant="outlined" loading={retrying} icon={<RotateCw size={13} />} onClick={onRetry}>
                   Повторить
+                </Button>
+              )}
+              {/* Запомненный отказ сам не пройдёт — а конвертер мог споткнуться и разово. */}
+              {image.aboutFile && canEdit && (
+                <Button size="sm" variant="outlined" loading={rebuild.isPending} icon={<RotateCw size={13} />}
+                  onClick={() => rebuild.mutateAsync()
+                    .then(next => { if (next.state === 'refused') toast.info(`Вид снова не построен. ${next.reason ?? ''}`); })
+                    .catch(e => toast.apiError(e, 'Вид не построен'))}>
+                  Построить заново
                 </Button>
               )}
               <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Скачать оригинал" />
@@ -149,6 +163,7 @@ export function RefusedImage({ invoiceId, fileName, image, retrying, onRetry }: 
   );
 }
 
+/** Сообщение посреди панели. Одно на панель файла и на вид для чтения. */
 export function Centered({ children }: { children: React.ReactNode }) {
   return <div className="h-full grid place-items-center p-4 text-xs text-fg3 text-center">{children}</div>;
 }

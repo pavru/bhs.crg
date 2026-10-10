@@ -15,10 +15,19 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// читается сам файл; <see cref="InvoiceScanImage.Built" /> — образ построен;
 /// <see cref="InvoiceScanImage.Refused" /> — построить не удалось, причина в <paramref name="Reason" />.</param>
 /// <param name="Notes">Пометки построителя: чем образ отличается от файла.</param>
-/// <param name="RetryHelps">Отказ не о файле, а о сервисе: тот же файл позже построится.</param>
+/// <param name="AboutFile">Отказ — свойство файла, и он запомнен: сам собой вид не построится.
+/// Иначе дело в сервисе или установке (конвертер занят, молчит, не настроен), и следующий вопрос
+/// строит заново.</param>
 public sealed record InvoiceImageView(
     string State, int? Pages, IReadOnlyList<string> Notes, string? Converter, DateTimeOffset? BuiltAt,
-    string? Reason, bool RetryHelps);
+    string? Reason, bool AboutFile);
+
+/// <summary>
+/// Распознать нельзя, потому что у файла нет читаемого образа. Своим типом — чтобы исход
+/// распознавания назвал это своей причиной (<see cref="InvoiceScanImage.NoImage" />), а не общей
+/// «прочитанное не записалось»: читать здесь никто и не начинал.
+/// </summary>
+public sealed class InvoiceImageRefusedException(string message) : ConflictException(message);
 
 /// <summary>
 /// Читаемый образ файла счёта (эпик #1264, issue #1270): Excel и Word рядом с формой показываются
@@ -37,6 +46,9 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
     public const string Original = "original";
     public const string Built = "built";
     public const string Refused = "refused";
+
+    /// <summary>Вид причины отказа распознавания: образа у файла нет.</summary>
+    public const string NoImage = "NoImage";
 
     private static readonly InvoiceImageView AsOriginal = new(Original, null, [], null, null, null, false);
 
@@ -74,22 +86,22 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
     }
 
     /// <summary>
-    /// Почему файл нельзя распознать из-за образа; <c>null</c> — образ не мешает. Не строит: вопрос
-    /// задаёт каждое чтение состояния распознавания. Образа ещё нет — не мешает: его построит само
-    /// распознавание и причину отказа назовёт исходом. «Файл другого вида» сюда не попадает: ядро
-    /// такой отказ не запоминает.
+    /// Что образ значит для распознавания — одним вопросом к ядру. Не строит: вопрос задаёт каждое
+    /// чтение состояния распознавания.
     /// </summary>
-    public async Task<string?> WhyNotAsync(Invoice invoice, CancellationToken ct) =>
-        Possible(invoice)
-        && await renditions.FindAsync(invoice.ScanBlobPath!, ct) is ModuleRendition.Refused { OtherKind: false } refused
-            ? $"файл не приведён к читаемому виду. {refused.Reason.TrimEnd('.')}"
-            : null;
-
-    /// <summary>Путь построенного образа, как он есть сейчас; <c>null</c> — образа нет.</summary>
-    public async Task<string?> CurrentAsync(Invoice invoice, CancellationToken ct) =>
-        invoice.ScanBlobPath is { } path && await renditions.FindAsync(path, ct) is ModuleRendition.Built built
-            ? built.Path
-            : null;
+    /// <returns><c>WhyNot</c> — почему файл нельзя распознать из-за образа; <c>null</c> — образ не
+    /// мешает (образа ещё нет — тоже не мешает: его построит само распознавание и причину отказа
+    /// назовёт исходом; «файл другого вида» сюда не попадает — ядро такой отказ не запоминает).
+    /// <c>Current</c> — путь построенного образа, как он есть сейчас; <c>null</c> — образа нет.</returns>
+    public async Task<(string? WhyNot, string? Current)> StateAsync(Invoice invoice, CancellationToken ct) =>
+        invoice.ScanBlobPath is not { } path ? (null, null)
+        : await renditions.FindAsync(path, ct) switch
+        {
+            ModuleRendition.Built built => (null, built.Path),
+            ModuleRendition.Refused { OtherKind: false } refused when Possible(invoice) =>
+                ($"файл не приведён к читаемому виду. {refused.Reason.TrimEnd('.')}", null),
+            _ => (null, null),
+        };
 
     /// <summary>
     /// Что отдать движку распознавания: сам файл или его образ.
@@ -103,8 +115,8 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
         {
             ModuleRendition.AsIs asIs => (asIs.Path, asIs.Mime, (string?)null),
             ModuleRendition.Built built => (built.Path, FileKinds.Pdf, built.Path),
-            var other => throw new ConflictException(
-                $"Файл счёта не прочитан. {(other as ModuleRendition.Refused)?.Reason ?? "Читаемого вида у него нет."}"),
+            var other => throw new InvoiceImageRefusedException(
+                (other as ModuleRendition.Refused)?.Reason ?? "Читаемого вида у файла нет."),
         };
 
         await using var stored = await blobs.OpenAsync(path, ct);
@@ -115,7 +127,7 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
 
     /// <summary>Образ потоком; <c>null</c> — образа нет.</summary>
     public async Task<Stream?> OpenAsync(Invoice invoice, CancellationToken ct) =>
-        await CurrentAsync(invoice, ct) is { } path ? await blobs.OpenAsync(path, ct) : null;
+        (await StateAsync(invoice, ct)).Current is { } path ? await blobs.OpenAsync(path, ct) : null;
 
     private static InvoiceImageView View(ModuleRendition rendition) => rendition switch
     {
@@ -123,7 +135,7 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
             new(Built, built.Pages, built.Notes, built.Converter, built.BuiltAt, null, false),
         // Файл другого вида — не отказ, а «образ не положен»: экран покажет его как умеет сам.
         ModuleRendition.Refused { OtherKind: false } refused =>
-            new(Refused, null, [], null, null, refused.Reason, refused.RetryHelps),
+            new(Refused, null, [], null, null, refused.Reason, refused.AboutFile),
         _ => AsOriginal,
     };
 }

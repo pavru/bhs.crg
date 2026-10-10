@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { QK } from './invoices';
 import { recognitionKey } from './invoiceRecognition';
 
 /**
@@ -20,11 +19,17 @@ export interface InvoiceImage {
   builtAt: string | null;
   /** Почему вид не построен — словами сервера. */
   reason: string | null;
-  /** Отказ не о файле, а о сервисе: тот же файл позже построится. */
-  retryHelps: boolean;
+  /**
+   * Отказ — свойство файла (пароль, пуст, повреждён), и сервер его запомнил: сам собой вид не
+   * построится, только «Построить заново». Иначе дело в сервисе или установке — конвертер занят,
+   * молчит, не настроен, — и следующий вопрос строит заново.
+   */
+  aboutFile: boolean;
 }
 
-const imageKey = (id: string, blobPath: string | null) => [QK, id, 'image', blobPath ?? ''] as const;
+// ⚠️ Ключ — НЕ под ключом счетов: каждое сохранение счёта сбрасывает всё под ним, а вопрос о виде
+// при отсутствии записи строит его — конвертер получал бы по преобразованию на каждое «Сохранить».
+const imageKey = (id: string, blobPath: string | null) => ['costs-invoice-image', id, blobPath ?? ''] as const;
 
 /**
  * Состояние вида. Первый вопрос о файле, приложенном до появления видов, СТРОИТ его — поэтому ответ

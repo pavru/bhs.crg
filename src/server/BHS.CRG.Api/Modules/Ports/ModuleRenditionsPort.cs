@@ -30,7 +30,8 @@ public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRen
         RenditionState.Built => new ModuleRendition.Built(
             record.ImageBlobPath!, record.Pages ?? 0, record.Notes, record.Converter, record.UpdatedAt),
         _ => new ModuleRendition.Refused(record.RefusalReason!, RetryHelps(record.RefusalKind),
-            OtherKind: record.RefusalKind == nameof(RenditionRefusal.WrongFormat)),
+            OtherKind: record.RefusalKind == nameof(RenditionRefusal.WrongFormat),
+            AboutFile: Enum.TryParse<RenditionRefusal>(record.RefusalKind, out var kind) && kind.Remembered()),
     };
 
     /// <summary>

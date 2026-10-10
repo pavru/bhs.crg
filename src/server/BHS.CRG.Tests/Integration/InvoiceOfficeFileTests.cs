@@ -127,7 +127,7 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
         var view = await ImageAsync(client, id);
         Assert.Equal("refused", view.GetProperty("state").GetString());
         Assert.Contains("парол", view.GetProperty("reason").GetString());
-        Assert.False(view.GetProperty("retryHelps").GetBoolean());
+        Assert.True(view.GetProperty("aboutFile").GetBoolean());
         Assert.Equal(HttpStatusCode.NotFound,
             (await client.GetAsync($"/api/costs/invoices/{id}/scan/image/content")).StatusCode);
 
@@ -165,6 +165,8 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
         var lockedId = locked.GetProperty("invoice").GetProperty("id").GetGuid();
         var outcome = await InvoiceFromScanTests.OutcomeAsync(client, lockedId);
         Assert.Equal("failed", outcome.GetProperty("state").GetString());
+        // Причина — своя: «образа нет», а не «прочитанное не записалось» — читать не начинали.
+        Assert.Equal("NoImage", outcome.GetProperty("reason").GetString());
         Assert.Contains("парол", outcome.GetProperty("error").GetString());
     }
 
@@ -185,12 +187,69 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
 
         var down = await ImageAsync(client, id);
         Assert.Equal("refused", down.GetProperty("state").GetString());
-        Assert.True(down.GetProperty("retryHelps").GetBoolean());
+        Assert.False(down.GetProperty("aboutFile").GetBoolean());
         // Распознать при этом можно попробовать: отказ не о файле, и запоминать его нечем.
         Assert.True((await InvoiceFromScanTests.RecognitionAsync(client, id)).GetProperty("canStart").GetBoolean());
 
         host.Converter = working;
         Assert.Equal("built", (await ImageAsync(client, id)).GetProperty("state").GetString());
+    }
+
+    /// <summary>
+    /// Конвертер не открыл файл — отказ запомнен, и сам собой он не пройдёт. Выход обязан быть:
+    /// «Построить заново» строит и по отказу, а после него файл снова можно распознать. Без этого
+    /// разовый сбой конвертера запирал бы файл навсегда — в закрытом периоде его и заменить нельзя.
+    /// </summary>
+    [Fact]
+    public async Task Запомненный_отказ_снимается_построением_заново()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (book, _, _) = Office();
+        var working = host.Converter;
+        host.Converter = Answers(HttpStatusCode.InternalServerError).Invoke;
+        var id = await CreateAsync(client);
+        await AttachAsync(client, id, book, "Счёт.xlsx");
+
+        var refused = await ImageAsync(client, id);
+        Assert.Equal("refused", refused.GetProperty("state").GetString());
+        Assert.True(refused.GetProperty("aboutFile").GetBoolean());
+        Assert.False((await InvoiceFromScanTests.RecognitionAsync(client, id)).GetProperty("canStart").GetBoolean());
+
+        host.Converter = working;
+        // Просто спросить ещё раз — мало: отказ запомнен, конвертер не зовут.
+        Assert.Equal("refused", (await ImageAsync(client, id)).GetProperty("state").GetString());
+
+        var rebuilt = await client.PostAsync($"/api/costs/invoices/{id}/scan/image", null);
+        await OkAsync(rebuilt);
+        Assert.Equal("built", (await rebuilt.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("state").GetString());
+        Assert.True((await InvoiceFromScanTests.RecognitionAsync(client, id)).GetProperty("canStart").GetBoolean());
+    }
+
+    /// <summary>
+    /// Образа сейчас нет вовсе (после восстановления копии его ещё не построили) — это не «вид
+    /// построен заново»: сравнивать не с чем, и пометки нет.
+    /// </summary>
+    [Fact]
+    public async Task Пока_образа_нет_распознанное_прежним_видом_не_помечено()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (book, _, seen) = Office();
+        host.Recognition.On(seen,
+            () => Task.FromResult(InvoiceFromScanTests.Read(InvoiceFromScanTests.Header(number: "СЧ-1273"))));
+        var id = await CreateAsync(client);
+        await AttachAsync(client, id, book, "Счёт.xlsx");
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{id}/recognition", null));
+        var outcome = await InvoiceFromScanTests.OutcomeAsync(client, id);
+        Assert.True(outcome.GetProperty("state").GetString() == "done", outcome.ToString());
+
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Persistence.AppDbContext>()
+                .Database.ExecuteSqlRawAsync("DELETE FROM renditions");
+
+        Assert.False((await InvoiceFromScanTests.RecognitionAsync(client, id)).GetProperty("byFormerImage").GetBoolean());
+        // Панель построила вид заново — теперь он другой, и пометка появляется.
+        Assert.Equal("built", (await ImageAsync(client, id)).GetProperty("state").GetString());
+        Assert.True((await InvoiceFromScanTests.RecognitionAsync(client, id)).GetProperty("byFormerImage").GetBoolean());
     }
 
     /// <summary>

@@ -79,7 +79,13 @@ public sealed class InvoiceScanReading(
         catch (DomainException refusal)
         {
             await FailAsync(invoiceId,
-                refusal is RecognitionRefusedException refused ? refused.Reason.ToString() : "Refused", refusal.Message);
+                refusal switch
+                {
+                    RecognitionRefusedException refused => refused.Reason.ToString(),
+                    // Образа нет — читать не начинали. «Прочитанное не записалось» здесь было бы неправдой.
+                    InvoiceImageRefusedException => InvoiceScanImage.NoImage,
+                    _ => "Refused",
+                }, refusal.Message);
             throw;
         }
         catch (Exception crash) when (crash is not OperationCanceledException)

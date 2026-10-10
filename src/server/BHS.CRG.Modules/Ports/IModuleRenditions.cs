@@ -35,7 +35,12 @@ public abstract record ModuleRendition
     /// <param name="OtherKind">Файл не того вида: образ ему не положен вовсе — это не Excel и не
     /// Word. Отличать нужно: про такой файл экран говорит «показать нечем», а не «образ не
     /// построен», и причину отказа не выдаёт за поломку.</param>
-    public sealed record Refused(string Reason, bool RetryHelps, bool OtherKind = false) : ModuleRendition;
+    /// <param name="AboutFile">Отказ — свойство самого файла (пароль, пуст, повреждён, велик,
+    /// конвертер не открыл), и ядро его запомнило: тот же файл сам собой не построится, только
+    /// явным «построить заново». Иначе дело в сервисе или в установке (конвертер занят, молчит, не
+    /// настроен) — и говорить человеку «файл такой» нельзя.</param>
+    public sealed record Refused(string Reason, bool RetryHelps, bool OtherKind = false, bool AboutFile = false)
+        : ModuleRendition;
 }
 
 /// <summary>

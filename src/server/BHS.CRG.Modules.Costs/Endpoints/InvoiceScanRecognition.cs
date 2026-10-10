@@ -16,7 +16,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// и <paramref name="Error" />.</param>
 /// <param name="Reason"><c>NotConfigured</c> — движок не настроен; <c>Unavailable</c> — не справился;
 /// <c>NoAnswer</c> — документ не прочитан; <c>Interrupted</c> — задача прервана; <c>Refused</c> —
-/// прочитанное не записалось.</param>
+/// прочитанное не записалось; <c>NoImage</c> — у Excel или Word нет читаемого образа, читать было
+/// нечего.</param>
 /// <param name="Values">Что прочитано в шапке, как есть: «ключ профиля → текст».</param>
 /// <param name="Offers">Прочитано, но в поле не записано: поле было занято или значение не разобрать.
 /// «Ключ реквизита → текст из скана».</param>
@@ -120,7 +121,8 @@ public sealed class InvoiceScanRecognition(
         // Причина спрашивается ДО записи о распознавании, а не после: между чтением записи и
         // вопросом «жива ли задача» не должно стоять ничего долгого. Задача, успевшая закончиться в
         // этом промежутке, читается как «прервано» — запись уже прочитана ожидающей, а задачи нет.
-        var whyNot = await WhyNotAsync(invoice, ct);
+        var (imageWhyNot, currentImage) = await image.StateAsync(invoice, ct);
+        var whyNot = imageWhyNot ?? WhyNot(invoice);
         var stored = await db.InvoiceRecognitions.AsNoTracking().FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
 
         // Запись о ДРУГОМ файле — не о нынешнем скане: скан заменили после распознавания. Показать её
@@ -158,8 +160,10 @@ public sealed class InvoiceScanRecognition(
             done && invoice.State == InvoiceState.Draft && stored.Values is { } values
                 ? await parties.MatchAsync(Read(values.RootElement), ct)
                 : null,
-            // Прочитано по образу, а образ с тех пор другой — перестроен или не построился вовсе.
-            ByFormerImage: done && stored.ImageBlobPath is { } read && read != await image.CurrentAsync(invoice, ct));
+            // Прочитано по образу, а на экране теперь ДРУГОЙ образ. Образа нет вовсе (его ещё не
+            // построили заново после восстановления копии, либо построение отказало) — не тот случай:
+            // сказать «вид построен заново» было бы не о чем.
+            ByFormerImage: done && stored.ImageBlobPath is { } read && currentImage is { } now && read != now);
     }
 
     /// <summary>
@@ -169,7 +173,7 @@ public sealed class InvoiceScanRecognition(
     /// <para>Образ спрашивается ПЕРВЫМ: у защищённого файла вид не определяется, и правило «файл
     /// другого вида» ответило бы раньше — неправдой.</para>
     private async Task<string?> WhyNotAsync(Invoice invoice, CancellationToken ct) =>
-        await image.WhyNotAsync(invoice, ct) ?? WhyNot(invoice);
+        (await image.StateAsync(invoice, ct)).WhyNot ?? WhyNot(invoice);
 
     /// <summary>
     /// Что прочитано в НЫНЕШНЕМ скане счёта; <c>null</c> — распознавание не закончено, не удалось

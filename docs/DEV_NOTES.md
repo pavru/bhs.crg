@@ -3256,7 +3256,7 @@ GET    /api/costs/invoices/queues   → числа чипов над списк�
 GET    /api/costs/invoices/{id}     → счёт: реквизиты по схеме + метки + дубликаты + строки + сверка сумм
 GET    /api/costs/invoices/{id}/scan → файл счёта потоком — ОРИГИНАЛ (у файла в хранилище прав нет, у адреса есть)
 GET    /api/costs/invoices/{id}/scan/image → читаемый образ файла: { state: original|built|refused,
-                                      pages, notes, converter, builtAt, reason, retryHelps };
+                                      pages, notes, converter, builtAt, reason, aboutFile };
                                       original — образ не нужен (PDF, изображение) или не положен;
                                       ⚠️ нет записи — СТРОИТ (файл приложен раньше или приехал из копии)
 GET    /api/costs/invoices/{id}/scan/image/content → сам образ, PDF; 404 — образа нет

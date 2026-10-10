@@ -6,7 +6,7 @@ import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
 import { acceptOf, fileShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
-import { BuiltImage, IMAGE_CAVEAT, OriginalButton, RefusedImage } from './InvoiceFileImage';
+import { BuiltImage, Centered as Note, IMAGE_CAVEAT, OriginalButton, RefusedImage } from './InvoiceFileImage';
 import { saveScan } from './scanView';
 
 /**
@@ -64,8 +64,8 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
     return <BuiltImage invoiceId={invoiceId} blobPath={blobPath} fileName={fileName} image={image.data} canEdit={canEdit} />;
   if (image.data.state === 'refused')
     // «Повторить» — тот же вопрос ещё раз: отказ сервиса сервер не запоминает и строит заново.
-    return <RefusedImage invoiceId={invoiceId} fileName={fileName} image={image.data}
-      retrying={image.isFetching} onRetry={() => void image.refetch()} />;
+    return <RefusedImage invoiceId={invoiceId} blobPath={blobPath} fileName={fileName} image={image.data}
+      canEdit={canEdit} retrying={image.isFetching} onRetry={() => void image.refetch()} />;
   return <OriginalFile invoiceId={invoiceId} blobPath={blobPath} fileName={fileName} />;
 }
 
@@ -183,7 +183,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
           ? (
             <p className="text-xs text-fg2">
               Файл приложен, но вид для чтения не построен. {refused.reason}
-              {refused.retryHelps ? ' Дело не в файле — откройте счёт позже.' : ' Показать и распознать его нельзя.'}
+              {refused.aboutFile ? ' Показать и распознать его нельзя.' : ' Дело не в файле — откройте счёт позже.'}
             </p>
           )
           : (
@@ -271,10 +271,6 @@ export function ScanUploadButton({ hasScan, busy, onPick }: {
         }} />
     </>
   );
-}
-
-function Note({ children }: { children: React.ReactNode }) {
-  return <div className="h-full grid place-items-center p-4 text-xs text-fg3 text-center">{children}</div>;
 }
 
 /** Ждут дольше трёх секунд — уже не «загружается», и об этом стоит сказать. */

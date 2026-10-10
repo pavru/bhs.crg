@@ -20,6 +20,7 @@ export function shortReason(reason: string | null | undefined): string {
     case 'NoAnswer': return 'документ не прочитан';
     case 'Interrupted': return 'прервано';
     case 'Refused': return 'прочитанное не записалось';
+    case 'NoImage': return 'вид для чтения не построен';
     default: return 'причина — в счёте';
   }
 }
@@ -57,6 +58,9 @@ export function failureNote(recognition: InvoiceRecognition): { text: string; qu
       return { text: `Распознавание прервано и исхода не оставило.${error}`, quiet: false };
     case 'Refused':
       return { text: `Файл прочитан, но прочитанное в счёт не записалось.${error}`, quiet: false };
+    case 'NoImage':
+      // Читать не начинали: из Excel или Word не получился вид для чтения. Причина — словами сервера.
+      return { text: `Файл не распознан: вид для чтения не построен.${error}`, quiet: false };
     default:
       return { text: `Файл не распознан.${error}`, quiet: false };
   }
