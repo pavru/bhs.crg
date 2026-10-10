@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -241,9 +242,13 @@ public static class InvoiceEndpoints
         // ответа «не найден» или «счёт изменили». Решает по-прежнему связка ниже — это её ранний повтор.
         await desk.EnsureSeenAsync(id, ct);
 
+        // Вид — по содержимому (issue #1265): заголовок клиента не читается вовсе. Неизвестный файл
+        // приложить можно — он хранится и скачивается, но не показывается и не распознаётся.
+        var kind = await InvoiceScanRecognition.KindAsync(file, ct);
+
         string path;
         await using (var content = file.OpenReadStream())
-            path = await blobs.PutAsync(file.FileName, content, file.ContentType ?? "application/octet-stream", ct);
+            path = await blobs.PutAsync(file.FileName, content, kind, ct);
 
         Invoice invoice;
         string? replaced;
@@ -257,7 +262,7 @@ public static class InvoiceEndpoints
                         $"{Label(write.Invoice)} заперт: {locked}. Заменить скан нельзя: прежний файл — документ " +
                         "закрытого периода, и замена его удалила бы.");
 
-                write.Invoice.AttachScan(path, file.FileName, file.ContentType ?? "application/octet-stream", file.Length);
+                write.Invoice.AttachScan(path, file.FileName, kind, file.Length);
                 await db.SaveChangesAsync(ct);
                 return (write.Invoice, replaced);
             }, ct, evenLocked: true);
@@ -297,9 +302,30 @@ public static class InvoiceEndpoints
         if (invoice.ScanBlobPath is not { } path)
             throw new NotFoundException($"{Label(invoice)}: скан не приложен.");
 
+        // Вид — по началу самого файла, при каждой отдаче (issue #1265): у файла, приложенного раньше,
+        // в записи стоит заголовок клиента, и верить ей нельзя ни в чём, что узнаётся по подписи.
+        // Начало прочитано — оно же уходит в ответ первым, второй раз файл не открывается.
         var content = await blobs.OpenAsync(path, ct);
-        return Results.File(content, invoice.ScanMimeType ?? "application/octet-stream",
-            invoice.ScanFileName);
+        var head = new byte[FileKinds.HeadBytes];
+        int read;
+        try
+        {
+            read = await content.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct);
+        }
+        catch
+        {
+            await content.DisposeAsync();
+            throw;
+        }
+
+        return Results.Stream(async output =>
+        {
+            await using (content)
+            {
+                await output.WriteAsync(head.AsMemory(0, read), ct);
+                await content.CopyToAsync(output, ct);
+            }
+        }, FileKinds.Served(head.AsSpan(0, read), invoice.ScanMimeType), invoice.ScanFileName);
     }
 
     /// <summary>

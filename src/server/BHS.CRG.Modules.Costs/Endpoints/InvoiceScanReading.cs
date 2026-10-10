@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -68,8 +69,14 @@ public sealed class InvoiceScanReading(
                 content = buffer.ToArray();
             }
 
-            read = await recognition.RecognizeAsync(
-                CostsRecognitionProfiles.InvoiceCode, content, invoice.ScanMimeType!, ct);
+            // Вид — по прочитанному файлу, а не по записи счёта (issue #1265): запись у давно
+            // приложенного файла — заголовок клиента, и картинка, названная PDF, уходила бы движку
+            // как PDF.
+            var kind = FileKinds.Detect(content);
+            if (!InvoiceScanRecognition.IsReadable(kind))
+                throw new ConflictException($"Скан не прочитан: {InvoiceScanRecognition.OtherKind}.");
+
+            read = await recognition.RecognizeAsync(CostsRecognitionProfiles.InvoiceCode, content, kind, ct);
             // Стороны сопоставляются ДО слияния и один раз: обход справочника под замком счёта держал бы
             // замок зря и повторялся бы с каждой попыткой слияния. Отказом он не отвечает — справочник,
             // который не ответил, даёт состояние «сопоставить не удалось», и шапка со строками ложатся

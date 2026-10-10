@@ -28,6 +28,8 @@ export const MAX_BYTES = 50 * 1024 * 1024;
 /** Что распознаётся. Тот же перечень у сервера; из него же собран `accept` у выбора файлов. */
 export const READABLE = ['application/pdf', 'image/png', 'image/jpeg'];
 export const SCAN_ACCEPT = READABLE.join(',');
+/** Так браузер называет файл, вида которого не знает. */
+const UNNAMED = 'application/octet-stream';
 
 export interface BatchPort {
   /** Чей пакет — идентификатор вошедшего. */
@@ -68,7 +70,10 @@ const REFRESH_EVERY = 5;
 
 /** Что не так с файлом ещё до отправки. Повтор тут не поможет — причина в самом файле. */
 export function precheck(file: File): string | null {
-  if (!READABLE.includes(file.type)) return 'не PDF, PNG или JPEG';
+  // Вид файла определяет сервер, по содержимому (issue #1265). Здесь отсекается только то, что
+  // браузер сам НАЗВАЛ другим видом: гнать на сервер пятьдесят мегабайт ради известного отказа
+  // незачем. Файл без названного вида (так приходит PDF без расширения) идёт на сервер — решит он.
+  if (file.type && file.type !== UNNAMED && !READABLE.includes(file.type)) return 'не PDF, PNG или JPEG';
   if (file.size === 0) return 'файл пуст';
   if (file.size > MAX_BYTES) return 'больше 50 МБ';
   return null;

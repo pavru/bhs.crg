@@ -28,6 +28,9 @@ beforeEach(() => { resetBatchForTests(); refreshed = 0; });
 describe('файл до отправки', () => {
   it('не тот вид, пустой и слишком большой отсеиваются с причиной', () => {
     expect(precheck(new File(['x'], 'a.docx', { type: 'application/msword' }))).toBe('не PDF, PNG или JPEG');
+    // Вид определяет сервер (issue #1265): файл, который браузер никак не назвал, уходит к нему.
+    expect(precheck(new File(['x'], 'скан'))).toBeNull();
+    expect(precheck(new File(['x'], 'скан.bin', { type: 'application/octet-stream' }))).toBeNull();
     expect(precheck(pdf('a.pdf', 0))).toBe('файл пуст');
     expect(precheck(pdf('a.pdf', MAX_BYTES + 1))).toBe('больше 50 МБ');
     expect(precheck(pdf('a.pdf', MAX_BYTES))).toBeNull();

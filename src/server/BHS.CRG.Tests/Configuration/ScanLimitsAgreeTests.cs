@@ -1,5 +1,6 @@
 using BHS.CRG.Api.Endpoints.Common;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Files;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -36,6 +37,21 @@ public class ScanLimitsAgreeTests
         var line = Screen.Split('\n').Single(l => l.StartsWith("export const READABLE = ["));
         var listed = line[(line.IndexOf('[') + 1)..line.IndexOf(']')].Split(',').Select(mime => mime.Trim().Trim('\''));
         Assert.Equal(InvoiceScanRecognition.Readable.Order(), listed.Order());
+    }
+
+    /// <summary>
+    /// Что показывается рядом с формой, экран решает своим перечнем (issue #1265, ревью PR #1275).
+    /// Разойдись он с серверным, новый вид молча остался бы на экране «только скачать» — либо экран
+    /// открыл бы то, чего сервер показываемым не называл.
+    /// </summary>
+    [Fact]
+    public void Экран_показывает_те_же_виды_что_называет_сервер()
+    {
+        var view = File.ReadAllText(Path.Combine(
+            RepoRoot(), "src", "client", "src", "features", "costs", "scanView.ts"));
+        var line = view.Split('\n').Single(l => l.StartsWith("export const SHOWN = ["));
+        var listed = line[(line.IndexOf('[') + 1)..line.IndexOf(']')].Split(',').Select(mime => mime.Trim().Trim('\''));
+        Assert.Equal(FileKinds.Shown.Order(), listed.Order());
     }
 
     private static string RepoRoot()

@@ -535,6 +535,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
 
     [Theory]
     [InlineData("text/plain", "содержимое", "PDF, PNG или JPEG")]
+    [InlineData("application/pdf", "содержимое", "PDF, PNG или JPEG")]
     [InlineData("application/pdf", "", "Файл пуст")]
     public async Task Негодный_файл_отказ_и_черновик_не_заведён(string mime, string body, string expected)
     {
@@ -580,7 +581,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
             $"UPDATE costs.invoice_recognitions SET started_at = now() - interval '5 minutes' WHERE invoice_id = {invoice}");
     }
 
-    internal static string Scan() => $"%PDF-скан {Guid.NewGuid():N}";
+    internal static string Scan() => $"%PDF-1.4 скан {Guid.NewGuid():N}";
 
     /// <summary>
     /// Ответ, который ждёт разрешения теста: распознавание остаётся «идёт», пока тест делает то, что

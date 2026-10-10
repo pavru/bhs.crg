@@ -142,6 +142,9 @@ public sealed class InvoiceScanHost : InvoiceLineHost
 
         public void On(string content, Func<Task<ModuleRecognitionResult>> answer) => answers[content] = answer;
 
+        /// <summary>С каким видом файл пришёл движку: «содержимое → вид» (issue #1265).</summary>
+        public System.Collections.Concurrent.ConcurrentDictionary<string, string> Kinds { get; } = new();
+
         public Task EnsureReadyAsync(string profileCode, CancellationToken ct = default) =>
             NotReady is { } refusal ? Task.FromException(refusal) : Task.CompletedTask;
 
@@ -149,6 +152,7 @@ public sealed class InvoiceScanHost : InvoiceLineHost
             string profileCode, byte[] content, string mimeType, CancellationToken ct = default)
         {
             Assert.Equal(CostsRecognitionProfiles.InvoiceCode, profileCode);
+            Kinds[Encoding.UTF8.GetString(content)] = mimeType;
             return answers.TryGetValue(Encoding.UTF8.GetString(content), out var answer)
                 ? answer()
                 : Task.FromException<ModuleRecognitionResult>(new RecognitionRefusedException(
