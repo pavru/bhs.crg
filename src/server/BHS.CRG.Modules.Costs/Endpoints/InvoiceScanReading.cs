@@ -26,7 +26,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// очереди, которая зависит от него, — и приложение не собрало бы ни одного из них.</para>
 /// </summary>
 public sealed class InvoiceScanReading(
-    CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, IModuleBlobs blobs,
+    CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, InvoiceScanImage image,
     IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties,
     IModuleCatalog catalog)
 {
@@ -58,23 +58,14 @@ public sealed class InvoiceScanReading(
         try
         {
             var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
-                ?? throw new ConflictException("Счёт удалён, пока его скан ждал распознавания.");
+                ?? throw new ConflictException("Счёт удалён, пока его файл ждал распознавания.");
             EnsureSameScan(invoice, scanBlobPath);
 
-            byte[] content;
-            await using (var scan = await blobs.OpenAsync(invoice.ScanBlobPath!, ct))
-            using (var buffer = new MemoryStream())
-            {
-                await scan.CopyToAsync(buffer, ct);
-                content = buffer.ToArray();
-            }
-
-            // Вид — по прочитанному файлу, а не по записи счёта (issue #1265): запись у давно
-            // приложенного файла — заголовок клиента, и картинка, названная PDF, уходила бы движку
-            // как PDF.
-            var kind = FileKinds.Detect(content);
-            if (!InvoiceScanRecognition.IsReadable(kind))
-                throw new ConflictException($"Скан не прочитан: {InvoiceScanRecognition.OtherKind}.");
+            // Что читать, говорит ядро — по самому файлу, а не по записи счёта (issue #1265, #1270):
+            // PDF и изображение уходят движку как есть, у Excel и Word — их читаемый образ, а отказ
+            // построить его становится исходом распознавания, со словами службы. Запись счёта здесь
+            // не годится: у давно приложенного файла это заголовок клиента.
+            var (content, kind, readImage) = await image.ReadableAsync(invoice.ScanBlobPath!, ct);
 
             read = await recognition.RecognizeAsync(CostsRecognitionProfiles.InvoiceCode, content, kind, ct);
             // Стороны сопоставляются ДО слияния и один раз: обход справочника под замком счёта держал бы
@@ -83,12 +74,18 @@ public sealed class InvoiceScanReading(
             // в счёт без сторон.
             var matched = await parties.MatchAsync(read.Fields, ct);
             var lines = await LinesAsync(invoice, read, matched, ct);
-            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, lines, ct);
+            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, lines, readImage, ct);
         }
         catch (DomainException refusal)
         {
             await FailAsync(invoiceId,
-                refusal is RecognitionRefusedException refused ? refused.Reason.ToString() : "Refused", refusal.Message);
+                refusal switch
+                {
+                    RecognitionRefusedException refused => refused.Reason.ToString(),
+                    // Образа нет — читать не начинали. «Прочитанное не записалось» здесь было бы неправдой.
+                    InvoiceImageRefusedException => InvoiceScanImage.NoImage,
+                    _ => "Refused",
+                }, refusal.Message);
             throw;
         }
         catch (Exception crash) when (crash is not OperationCanceledException)
@@ -115,7 +112,7 @@ public sealed class InvoiceScanReading(
         catch (Exception lost) when (lost is not OperationCanceledException)
         {
             logs.CreateLogger<InvoiceScanReading>().LogError(lost,
-                "Счёт {InvoiceId} заполнен из скана, но запись об этом в журнал действий не легла.", invoiceId);
+                "Счёт {InvoiceId} заполнен из файла, но запись об этом в журнал действий не легла.", invoiceId);
         }
     }
 
@@ -126,7 +123,7 @@ public sealed class InvoiceScanReading(
     /// </summary>
     private async Task<(string Label, int Filled, int Lines, int Recalled)> MergeAsync(
         Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
-        ScanLines lines, CancellationToken ct)
+        ScanLines lines, string? readImage, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -138,7 +135,7 @@ public sealed class InvoiceScanReading(
                     // заменить ему скан. Условие проверяется заново — и против того же файла.
                     EnsureSameScan(write.Invoice, scanBlobPath);
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
-                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, ct);
+                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, readImage, ct);
                     await db.SaveChangesAsync(ct);
                     return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled);
                 }, ct);
@@ -187,7 +184,7 @@ public sealed class InvoiceScanReading(
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
             logs.CreateLogger<InvoiceScanReading>().LogWarning(failure,
-                "Счёт {InvoiceId}: запомненные позиции для строк скана спросить не удалось — строки лягут без них.",
+                "Счёт {InvoiceId}: запомненные позиции для строк файла спросить не удалось — строки лягут без них.",
                 invoice.Id);
             return new(rows, new Dictionary<Guid, RecallAnswer>(), true);
         }
@@ -207,7 +204,7 @@ public sealed class InvoiceScanReading(
     {
         if (invoice.ScanBlobPath != scanBlobPath)
             throw new ConflictException(
-                $"{InvoiceEndpoints.Label(invoice)}: скан заменили, пока прежний распознавался. Прочитанное " +
+                $"{InvoiceEndpoints.Label(invoice)}: файл заменили, пока прежний распознавался. Прочитанное " +
                 "относится к прежнему файлу и в счёт не записано — запустите распознавание ещё раз.");
         if (InvoiceScanRecognition.WhyNot(invoice) is { } whyNot)
             throw new ConflictException(
@@ -217,7 +214,7 @@ public sealed class InvoiceScanReading(
     /// <summary>Шапка — в пустые поля, строки — в счёт без строк; остальное — предложением.</summary>
     private async Task<(int Filled, int Lines, int Recalled)> ApplyAsync(
         Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
-        ScanLines lines, CancellationToken ct)
+        ScanLines lines, string? readImage, CancellationToken ct)
     {
         var before = InvoiceRequisites.Merge(invoice);
         var after = before.DeepClone().AsObject();
@@ -361,7 +358,7 @@ public sealed class InvoiceScanReading(
         stored.Finish(read.Engine,
             JsonSerializer.SerializeToDocument(read.Fields),
             offers.Count > 0 ? JsonDocument.Parse(offers.ToJsonString()) : null,
-            offeredLines, notes);
+            offeredLines, notes, readImage);
 
         return (filled.Count, added, recalled);
     }
@@ -427,7 +424,7 @@ public sealed class InvoiceScanReading(
             SupplierCode: null,
             Unit: unit,
             Quantity: quantity, Price: price, VatRate: null, VatAmount: null, Amount: amount,
-            Note: unread.Count > 0 ? "В скане не прочитано: " + string.Join(", ", unread) : null);
+            Note: unread.Count > 0 ? "В файле не прочитано: " + string.Join(", ", unread) : null);
 
         // Сумму досчитываем, только когда в скане её НЕТ. Стояла, но не прочиталась — оставляем пустой:
         // посчитанная выглядела бы прочитанной, а на бумаге написано другое.

@@ -40,7 +40,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {item.number || !item.scanFileName
           ? <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
           : (
-            <span className="inline-flex items-center gap-1 min-w-0 text-sm text-fg2" title="Номера ещё нет — это имя файла скана">
+            <span className="inline-flex items-center gap-1 min-w-0 text-sm text-fg2" title="Номера ещё нет — это имя файла счёта">
               <ScanLine size={12} className="shrink-0 text-fg3" aria-hidden />
               <span className="truncate">{item.scanFileName}</span>
             </span>

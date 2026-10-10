@@ -61,15 +61,15 @@ public static class InvoicePartyIntakeEndpoints
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         if (invoice.State != InvoiceState.Draft)
             throw new ConflictException(
-                "Организацию из скана заводят, пока счёт — черновик. У разобранного счёта стороны уже выбраны.");
+                "Организацию из файла счёта заводят, пока счёт — черновик. У разобранного счёта стороны уже выбраны.");
 
         var read = await scan.ReadValuesAsync(invoice, ct)
             ?? throw new ConflictException(
-                "Скан этого счёта не распознан — заводить организацию не по чему. Распознайте скан или " +
+                "Файл этого счёта не распознан — заводить организацию не по чему. Распознайте файл или " +
                 "заведите организацию в справочнике.");
 
         var party = Pick(await parties.MatchAsync(read, ct), side)
-            ?? throw new ConflictException("Про эту сторону в скане ничего не прочитано — заводить нечего.");
+            ?? throw new ConflictException("Про эту сторону в файле ничего не прочитано — заводить нечего.");
 
         // Уже есть (завёл кто-то ещё, пока форма была открыта) — не отказ: форма получает сторону
         // как она есть сейчас и предлагает найденное.
@@ -77,12 +77,12 @@ public static class InvoicePartyIntakeEndpoints
             return TypedResults.Ok(new PartyOrganizationView(null, party));
         if (party.State != InvoicePartyStates.Absent || party.TaxId is not { } taxId)
             throw new ConflictException(
-                "Организацию по этому скану завести нельзя: " + (party.Why ?? "неизвестно, есть ли она в справочнике") +
+                "Организацию по этому файлу завести нельзя: " + (party.Why ?? "неизвестно, есть ли она в справочнике") +
                 " Заведите её в справочнике организаций.");
 
         var name = string.IsNullOrWhiteSpace(body?.Name) ? party.Name?.Trim() : body.Name.Trim();
         if (string.IsNullOrEmpty(name))
-            throw new InvalidRequestException("Название организации в скане не прочитано — введите его.");
+            throw new InvalidRequestException("Название организации в файле не прочитано — введите его.");
         if (name.Length > NameLength)
             throw new InvalidRequestException(
                 $"Название организации длиннее {NameLength} знаков ({name.Length}) — похоже, в поле прочитан не " +
@@ -93,7 +93,7 @@ public static class InvoicePartyIntakeEndpoints
                 $"Типа «{CostsRecordTypes.OrganizationCode}» в системе нет — организацию завести нечем.");
         if (result.Refusals.Count > 0)
             throw new ConflictException(
-                "Организацию из скана завести не удалось — мешает схема типа «Организация»: " +
+                "Организацию из файла счёта завести не удалось — мешает схема типа «Организация»: " +
                 string.Join("; ", result.Refusals) + ". Заведите организацию в справочнике.");
 
         if (result.Created is { } created)

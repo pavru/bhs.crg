@@ -145,7 +145,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
   return (
     <RecognitionContext.Provider value={locked ? undefined : watch.recognition}>
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={update.isPending}
         onCancel={() => setLeave(null)}
         onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
@@ -170,18 +170,18 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
               закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
           {!canEdit && <span className="text-xs text-fg3">Только чтение: права вводить счета нет</span>}
           {canEdit && closed && scan !== null && (
-            <span className="text-xs text-fg3">Скан заменить нельзя: документ закрытого периода</span>
+            <span className="text-xs text-fg3">Файл заменить нельзя: документ закрытого периода</span>
           )}
           {/* Пока скан читается, заменить его нельзя (сервер откажет): прочитанное легло бы в счёт с
               другой бумагой. Кнопки нет, причина названа. */}
           {canEdit && watch.running && (
-            <span className="text-xs text-fg3">Скан распознаётся — заменить можно после исхода</span>
+            <span className="text-xs text-fg3">Файл распознаётся — заменить можно после исхода</span>
           )}
           {!locked && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
           {canEdit && !watch.running && !(closed && scan !== null) && (
             <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
               onPick={file => {
-                attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Скан не приложен'));
+                attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Файл не приложен'));
               }} />
           )}
           {!locked && (

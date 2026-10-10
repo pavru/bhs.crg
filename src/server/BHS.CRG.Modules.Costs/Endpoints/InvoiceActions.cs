@@ -43,7 +43,7 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.invoice.confirmed", "Распознанные поля счёта подтверждены", InvoiceRead);
 
     public static readonly ModuleActivityAction ScanAttached =
-        new("costs.invoice.scanned", "К счёту приложен скан", InvoiceRead);
+        new("costs.invoice.scanned", "К счёту приложен файл", InvoiceRead);
 
     /// <summary>
     /// Правка строк — отдельно от правки счёта (C2, issue #1078): строки меняют вставкой из буфера
@@ -138,13 +138,13 @@ public sealed class InvoiceActions : IModuleActivityActions
     // сделал не человек, и по журналу это должно быть видно — «кто вписал номер» иначе вело бы к тому,
     // кто нажал кнопку.
     public static readonly ModuleActivityAction Recognized =
-        new("costs.invoice.recognized", "Счёт заполнен из скана", InvoiceRead);
+        new("costs.invoice.recognized", "Счёт заполнен из файла", InvoiceRead);
 
     // Организация заведена из скана (issue #1077). Запись — справочника ЯДРА, а создание записи ядро
     // само не журналирует: без этой строки не узнать ни кто её завёл, ни по какому счёту. Закрыта
     // правом чтения счетов: запись называет счёт и поставщика — это уже данные счёта.
     public static readonly ModuleActivityAction OrganizationCreated =
-        new("costs.organization.created", "Организация заведена из скана счёта", InvoiceRead);
+        new("costs.organization.created", "Организация заведена из файла счёта", InvoiceRead);
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
         [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, AllocationChanged,

@@ -19,8 +19,9 @@ public enum FileReading
     AsIs,
 
     /// <summary>
-    /// Через читаемый образ: из файла сначала строится PDF с текстовым слоем (эпик #1264). Пока
-    /// образ не строится (issue #1268–#1270), такой файл распознаванию недоступен.
+    /// Через читаемый образ: из файла сначала строится PDF с текстовым слоем (эпик #1264), и
+    /// движку уходит он. Образ строит и хранит ядро — модуль спрашивает его портом
+    /// <see cref="BHS.CRG.Modules.Ports.IModuleRenditions" />.
     /// </summary>
     Rendition,
 }
@@ -100,12 +101,14 @@ public static class FileKindCatalog
         mime is not null && ByMime.TryGetValue(mime.Trim(), out var kind) ? kind : null;
 
     /// <summary>
-    /// Что распознаётся СЕЙЧАС. Только «как есть»: вид с читаемым образом войдёт сюда, когда образ
-    /// начнёт строиться (issue #1270), а до тех пор назвать его читаемым значило бы обещать
-    /// распознавание, которого нет.
+    /// Что распознаётся: и «как есть», и через читаемый образ (issue #1270).
+    ///
+    /// <para>⚠️ Перечень отвечает на вопрос «можно ли распознать файл такого вида», а не «что
+    /// принимает движок»: офисный файл движку не уходит никогда — уходит его образ. Кто отдаёт
+    /// файл движку, обязан сначала спросить образ (<c>IModuleRenditions.EnsureAsync</c>).</para>
     /// </summary>
     public static readonly IReadOnlyList<FileKind> Recognized =
-        [.. All.Where(kind => kind.Reading == FileReading.AsIs)];
+        [.. All.Where(kind => kind.Reading != FileReading.None)];
 
     /// <summary>Спрашивает перечень выше, а не повторяет его условие: «что распознаётся» сказано один раз.</summary>
     public static bool IsRecognized(string? mime) => Find(mime) is { } kind && Recognized.Contains(kind);

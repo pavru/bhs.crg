@@ -75,6 +75,11 @@ export interface InvoiceRecognition {
   whyNot: string | null;
   /** Стороны из скана; есть только у `done` и только пока счёт — черновик. */
   parties: Record<InvoicePartySide, InvoiceParty | null> | null;
+  /**
+   * Прочитано по виду для чтения, а вид с тех пор перестроен (issue #1270). Файл тот же, поэтому
+   * распознанное не прячется, — но на экране сейчас другая перевёрстка, и сверять надо внимательнее.
+   */
+  byFormerImage: boolean;
 }
 
 export const recognitionKey = (id: string) => [QK, id, 'recognition'] as const;

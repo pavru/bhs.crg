@@ -64,7 +64,7 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
           )}
         </p>
       )}
-      {read && <p className="text-fg4 truncate" title={`В скане: ${read}`}>в скане: {read}</p>}
+      {read && <p className="text-fg4 truncate" title={`В файле: ${read}`}>в файле: {read}</p>}
       {creating && (
         <CreateDialog invoiceId={invoiceId} side={side} party={party} onClose={() => setCreating(false)}
           onDone={id => { setCreated(id); onChoose(id); setCreating(false); }} />
@@ -186,7 +186,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           invalid={tooLong}
           error={tooLong ? `Длиннее ${NAME_LIMIT} знаков (${name.trim().length}) — сократите до названия организации` : undefined} />
-        <p className="text-xs text-fg2">ИНН: <span className="text-fg1">{party.taxId}</span> — из скана, не правится.</p>
+        <p className="text-xs text-fg2">ИНН: <span className="text-fg1">{party.taxId}</span> — из файла, не правится.</p>
         <p className="text-xs text-fg3">
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>

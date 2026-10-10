@@ -223,19 +223,20 @@ public static class InvoiceEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> AttachScanAsync(
         Guid id, IFormFile file, CostsDbContext db, IModuleBlobs blobs, IModuleActivityLog log,
-        InvoiceDesk desk, InvoiceScanRecognition scan, CancellationToken ct)
+        InvoiceDesk desk, InvoiceScanRecognition scan, InvoiceScanImage image, ILoggerFactory logs,
+        CancellationToken ct)
     {
         // Прежний скан сейчас читается (issue #1077): заменить его — значит получить поля от бумаги,
         // которой у счёта уже нет. Обработчик сверяет файл и сам, но отказ на нажатие честнее, чем
         // распознавание, молча выброшенное через минуту.
         if (await scan.IsRunningAsync(id, ct))
             throw new ConflictException(
-                "Скан распознаётся. Заменить его можно, когда распознавание закончится: прочитанное " +
+                "Файл распознаётся. Заменить его можно, когда распознавание закончится: прочитанное " +
                 "относилось бы к прежнему файлу.");
 
         if (file.Length == 0)
             throw new InvalidRequestException(
-                "Файл пуст. Пустой скан прикладывать не к чему: в форме он выглядел бы приложенным, а " +
+                "Файл пуст. Пустой файл прикладывать не к чему: в форме он выглядел бы приложенным, а " +
                 "показать было бы нечего.");
 
         // Счёта нет или форма устарела — отказ до выгрузки: иначе файл ушёл бы в хранилище целиком ради
@@ -259,7 +260,7 @@ public static class InvoiceEndpoints
                 var replaced = write.Invoice.ScanBlobPath;
                 if (write.Locked is { } locked && replaced is not null)
                     throw new ConflictException(
-                        $"{Label(write.Invoice)} заперт: {locked}. Заменить скан нельзя: прежний файл — документ " +
+                        $"{Label(write.Invoice)} заперт: {locked}. Заменить файл нельзя: прежний — документ " +
                         "закрытого периода, и замена его удалила бы.");
 
                 write.Invoice.AttachScan(path, file.FileName, kind, file.Length);
@@ -287,6 +288,20 @@ public static class InvoiceEndpoints
         await log.RecordAsync(InvoiceActions.ScanAttached, invoice.Id.ToString(), Label(invoice),
             after: file.FileName, ct: ct);
 
+        // Читаемый образ Excel и Word строится сразу (issue #1270): человек у формы, и вид ему нужен
+        // сейчас. ⚠️ Отказ построения — НЕ отказ загрузки: файл приложен и записан, а причину назовёт
+        // панель файла. Отказом здесь может ответить и сама служба — база, хранилище; и он тоже не
+        // вправе отнять у человека ответ «приложено»: образ построит первое же открытие панели.
+        try
+        {
+            await image.ViewAsync(invoice, ct);
+        }
+        catch (Exception lost) when (lost is not OperationCanceledException)
+        {
+            logs.CreateLogger(typeof(InvoiceEndpoints)).LogWarning(lost,
+                "Счёт {InvoiceId}: файл приложен, но читаемый вид построить не удалось.", invoice.Id);
+        }
+
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
@@ -300,7 +315,7 @@ public static class InvoiceEndpoints
         var invoice = await FindAsync(db, id, ct);
 
         if (invoice.ScanBlobPath is not { } path)
-            throw new NotFoundException($"{Label(invoice)}: скан не приложен.");
+            throw new NotFoundException($"{Label(invoice)}: файл счёта не приложен.");
 
         // Вид — по началу самого файла, при каждой отдаче (issue #1265): у файла, приложенного раньше,
         // в записи стоит заголовок клиента, и верить ей нельзя ни в чём, что узнаётся по подписи.

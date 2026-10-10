@@ -17,12 +17,12 @@ describe('scanSaveName', () => {
   });
 
   it('файлу без имени расширение даёт вид, а неизвестному виду — ничего', () => {
-    expect(scanSaveName(null, 'application/pdf', kinds)).toBe('Скан счёта.pdf');
-    expect(scanSaveName('', 'application/vnd.ms-excel', kinds)).toBe('Скан счёта.xls');
-    expect(scanSaveName(null, 'application/octet-stream', kinds)).toBe('Скан счёта');
+    expect(scanSaveName(null, 'application/pdf', kinds)).toBe('Файл счёта.pdf');
+    expect(scanSaveName('', 'application/vnd.ms-excel', kinds)).toBe('Файл счёта.xls');
+    expect(scanSaveName(null, 'application/octet-stream', kinds)).toBe('Файл счёта');
   });
 
   it('без реестра имя остаётся без расширения', () => {
-    expect(scanSaveName(null, 'application/pdf', undefined)).toBe('Скан счёта');
+    expect(scanSaveName(null, 'application/pdf', undefined)).toBe('Файл счёта');
   });
 });

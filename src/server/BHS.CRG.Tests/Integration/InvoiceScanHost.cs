@@ -42,6 +42,20 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     /// </summary>
     public Exception? RefsFailure { get; set; }
 
+    /// <summary>
+    /// Конвертер офисных файлов — подставной (issue #1270): настоящий живёт в контейнере, и его
+    /// проверяет <c>deploy/converter.tests.sh</c>. По умолчанию звать его не должны: счёт с PDF
+    /// или картинкой до конвертера не доходит. Тест ставит и обязан снять.
+    /// </summary>
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> Converter { get; set; } =
+        (request, ct) => Renditions.RenditionFixtures.MustNotBeCalled(request, ct);
+
+    /// <summary>
+    /// Сбой самой службы образов — пока стоит: не отказ построить (он приходит ответом), а
+    /// исключение, как от базы или хранилища. Тест ставит и обязан снять.
+    /// </summary>
+    public Exception? RenditionsFailure { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -49,6 +63,14 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         {
             services.RemoveAll<IModuleRecognition>();
             services.AddSingleton<IModuleRecognition>(Recognition);
+
+            services.RemoveAll<BHS.CRG.Infrastructure.Renditions.OfficeConverterClient>();
+            services.AddSingleton(_ => Renditions.RenditionFixtures.Client(
+                (request, ct) => Converter(request, ct), version: "8.37.0"));
+
+            services.RemoveAll<IModuleRenditions>();
+            services.AddScoped<ModuleRenditionsPort>();
+            services.AddScoped<IModuleRenditions>(sp => new FailingRenditions(sp.GetRequiredService<ModuleRenditionsPort>(), this));
 
             services.RemoveAll<IModuleWriteGuard>();
             services.AddScoped<ModuleWriteGuardPort>();
@@ -61,6 +83,18 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     }
 
     /// <summary>Настоящий справочник — с отказом на вопрос о записях по просьбе теста.</summary>
+    private sealed class FailingRenditions(IModuleRenditions inner, InvoiceScanHost host) : IModuleRenditions
+    {
+        public Task<ModuleRendition> EnsureAsync(string originalPath, CancellationToken ct = default) =>
+            host.RenditionsFailure is { } failure ? Task.FromException<ModuleRendition>(failure) : inner.EnsureAsync(originalPath, ct);
+
+        public Task<ModuleRendition?> FindAsync(string originalPath, CancellationToken ct = default) =>
+            inner.FindAsync(originalPath, ct);
+
+        public Task<ModuleRendition> RebuildAsync(string originalPath, CancellationToken ct = default) =>
+            inner.RebuildAsync(originalPath, ct);
+    }
+
     private sealed class FailingCatalog(IModuleCatalog inner, InvoiceScanHost host) : IModuleCatalog
     {
         public Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(

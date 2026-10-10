@@ -16,7 +16,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// и <paramref name="Error" />.</param>
 /// <param name="Reason"><c>NotConfigured</c> — движок не настроен; <c>Unavailable</c> — не справился;
 /// <c>NoAnswer</c> — документ не прочитан; <c>Interrupted</c> — задача прервана; <c>Refused</c> —
-/// прочитанное не записалось.</param>
+/// прочитанное не записалось; <c>NoImage</c> — у Excel или Word нет читаемого образа, читать было
+/// нечего.</param>
 /// <param name="Values">Что прочитано в шапке, как есть: «ключ профиля → текст».</param>
 /// <param name="Offers">Прочитано, но в поле не записано: поле было занято или значение не разобрать.
 /// «Ключ реквизита → текст из скана».</param>
@@ -30,14 +31,15 @@ public sealed record InvoiceRecognitionView(
     string State, string? Reason, string? Error, string? Engine, string? Progress,
     JsonElement? Values, JsonElement? Offers, JsonElement? Lines, IReadOnlyList<string> Notes,
     DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt, bool CanStart, string? WhyNot,
-    InvoicePartiesView? Parties = null);
+    InvoicePartiesView? Parties = null, bool ByFormerImage = false);
 
 /// <summary>
 /// Распознавание скана счёта: постановка и состояние (ТЗ COST-8, задача B1b, issue #1077). Само чтение
 /// и раскладка прочитанного по черновику — в <see cref="InvoiceScanReading" />.
 /// </summary>
 public sealed class InvoiceScanRecognition(
-    CostsDbContext db, IModuleRecognition recognition, IModuleJobs jobs, InvoiceParties parties)
+    CostsDbContext db, IModuleRecognition recognition, IModuleJobs jobs, InvoiceParties parties,
+    InvoiceScanImage image)
 {
     public const string Operation = "costs.invoice.recognize";
 
@@ -67,7 +69,7 @@ public sealed class InvoiceScanRecognition(
     /// условие проверяется при постановке и СНОВА перед записью — между ними счёт могли разобрать.
     /// </summary>
     internal static string? WhyNot(Invoice invoice) =>
-        invoice.ScanBlobPath is null ? "к счёту не приложен скан"
+        invoice.ScanBlobPath is null ? "к счёту не приложен файл"
         // По ЗАПИСИ: файла под рукой нет, а кнопке нужен ответ. У счёта, приложенного до issue #1265,
         // запись — заголовок клиента, поэтому она приводится к известному виду; окончательно вид
         // определяет чтение, по самому файлу (InvoiceScanReading).
@@ -98,7 +100,7 @@ public sealed class InvoiceScanRecognition(
     /// (issue #1093), и десять задач «Счёт без номера» не сказали бы, какая из них о каком файле.
     /// </summary>
     internal static string Title(Invoice invoice) =>
-        "Распознавание скана: " +
+        "Распознавание файла счёта: " +
         (invoice.Number is null && invoice.ScanFileName is { } file ? file : InvoiceEndpoints.Label(invoice));
 
     /// <summary>
@@ -116,8 +118,12 @@ public sealed class InvoiceScanRecognition(
 
     public async Task<InvoiceRecognitionView> ViewAsync(Invoice invoice, CancellationToken ct)
     {
+        // Причина спрашивается ДО записи о распознавании, а не после: между чтением записи и
+        // вопросом «жива ли задача» не должно стоять ничего долгого. Задача, успевшая закончиться в
+        // этом промежутке, читается как «прервано» — запись уже прочитана ожидающей, а задачи нет.
+        var (imageWhyNot, currentImage) = await image.StateAsync(invoice, ct);
+        var whyNot = imageWhyNot ?? WhyNot(invoice);
         var stored = await db.InvoiceRecognitions.AsNoTracking().FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
-        var whyNot = WhyNot(invoice);
 
         // Запись о ДРУГОМ файле — не о нынешнем скане: скан заменили после распознавания. Показать её
         // значило бы предложить под полями нового счёта то, что прочитано со старой бумаги.
@@ -153,8 +159,21 @@ public sealed class InvoiceScanRecognition(
             // поздно, а обход справочника на каждое его открытие никому не нужен.
             done && invoice.State == InvoiceState.Draft && stored.Values is { } values
                 ? await parties.MatchAsync(Read(values.RootElement), ct)
-                : null);
+                : null,
+            // Прочитано по образу, а на экране теперь ДРУГОЙ образ. Образа нет вовсе (его ещё не
+            // построили заново после восстановления копии, либо построение отказало) — не тот случай:
+            // сказать «вид построен заново» было бы не о чем.
+            ByFormerImage: done && stored.ImageBlobPath is { } read && currentImage is { } now && read != now);
     }
+
+    /// <summary>
+    /// Почему распознать нельзя — вместе с тем, что знает образ: Excel или Word, который не удалось
+    /// привести к читаемому виду, приложен и скачивается, но читать у него нечего (issue #1270).
+    /// </summary>
+    /// <para>Образ спрашивается ПЕРВЫМ: у защищённого файла вид не определяется, и правило «файл
+    /// другого вида» ответило бы раньше — неправдой.</para>
+    private async Task<string?> WhyNotAsync(Invoice invoice, CancellationToken ct) =>
+        (await image.StateAsync(invoice, ct)).WhyNot ?? WhyNot(invoice);
 
     /// <summary>
     /// Что прочитано в НЫНЕШНЕМ скане счёта; <c>null</c> — распознавание не закончено, не удалось
@@ -196,7 +215,7 @@ public sealed class InvoiceScanRecognition(
     /// </summary>
     public async Task StartAsync(Invoice invoice, CancellationToken ct)
     {
-        if (WhyNot(invoice) is { } whyNot)
+        if (await WhyNotAsync(invoice, ct) is { } whyNot)
             throw new ConflictException($"{InvoiceEndpoints.Label(invoice)}: распознать нельзя — {whyNot}.");
 
         var stored = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoice.Id, ct);
@@ -260,6 +279,6 @@ public sealed class InvoiceScanRecognition(
     }
 
     private static ConflictException AlreadyRunning(Invoice invoice, Exception? inner = null) =>
-        new($"{InvoiceEndpoints.Label(invoice)}: скан уже распознаётся. Дождитесь исхода — второй запуск " +
+        new($"{InvoiceEndpoints.Label(invoice)}: файл уже распознаётся. Дождитесь исхода — второй запуск " +
             "прочитал бы тот же файл и ничего не добавил.", inner);
 }

@@ -308,7 +308,7 @@ async function accountantPart() {
 
     await openInvoice(accountant, invoiceId, 'счёт: чтение');
     await accountant.page.getByText('Только чтение: права вводить счета нет').waitFor({ timeout: 10_000 });
-    await absent(accountant, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить скан', 'Заменить скан']);
+    await absent(accountant, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить файл', 'Заменить файл']);
     if (await accountant.page.getByLabel('Объект счёта', { exact: true }).count())
       throw new Error('бухгалтеру виден выбор «Объект счёта» — права на разноску у роли нет');
 

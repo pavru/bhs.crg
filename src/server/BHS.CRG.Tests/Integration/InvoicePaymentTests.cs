@@ -229,7 +229,7 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
         await OkAsync(await ScanAsync(admin, invoice, "первый.pdf"));
         var replace = await ScanAsync(admin, invoice, "второй.pdf");
         Assert.Equal(HttpStatusCode.Conflict, replace.StatusCode);
-        Assert.Contains("Заменить скан нельзя", await ErrorAsync(replace));
+        Assert.Contains("Заменить файл нельзя", await ErrorAsync(replace));
 
         // Закрытие отменили — счёт снова правится, и оплату можно отменить.
         await ReopenAsync(a, today.AddDays(-10));

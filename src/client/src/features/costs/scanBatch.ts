@@ -117,7 +117,7 @@ export const retryable = (batch: ScanBatch): File[] =>
 export function batchTitle(batch: ScanBatch): string {
   if (batch.refused) return batch.refused;
   if (batch.phase === 'stopping') return 'Останавливаем — догружается текущий файл…';
-  if (batch.phase === 'running') return `Загружаем сканы: ${batch.settled} из ${batch.total}`;
+  if (batch.phase === 'running') return `Загружаем файлы: ${batch.settled} из ${batch.total}`;
   const made = batch.created.length;
   if (batch.halted) return `Загрузка остановлена: ${sentence(batch.halted)} Заведено ${made} из ${batch.total}.`;
   if (batch.rejected.length === 0)

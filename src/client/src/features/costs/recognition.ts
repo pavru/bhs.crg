@@ -20,6 +20,7 @@ export function shortReason(reason: string | null | undefined): string {
     case 'NoAnswer': return 'документ не прочитан';
     case 'Interrupted': return 'прервано';
     case 'Refused': return 'прочитанное не записалось';
+    case 'NoImage': return 'вид для чтения не построен';
     default: return 'причина — в счёте';
   }
 }
@@ -34,7 +35,7 @@ export function rowScan(item: InvoiceListItem): { text: string; tone: 'quiet' | 
     case 'done': return { text: 'строки не прочитаны', tone: 'warning', running: false };
     case 'none': return { text: 'не распознавался', tone: 'quiet', running: false };
     // Слово, которого клиент не знает, — не молчание: строка стоит под отбором, и причина обязана быть.
-    default: return { text: 'скан требует внимания', tone: 'warning', running: false };
+    default: return { text: 'файл требует внимания', tone: 'warning', running: false };
   }
 }
 
@@ -46,19 +47,22 @@ export function failureNote(recognition: InvoiceRecognition): { text: string; qu
       // Тихо нарочно: это состояние установки, а не этого счёта, — красная полоса на каждом черновике
       // научила бы красное не читать.
       return {
-        text: 'Скан не распознан: распознавание не настроено. Счёт заполняется вручную; движок настраивает администратор.',
+        text: 'Файл не распознан: распознавание не настроено. Счёт заполняется вручную; движок настраивает администратор.',
         quiet: true,
       };
     case 'Unavailable':
-      return { text: `Скан не распознан: движок не справился.${error} Поля пусты не потому, что в скане их нет.`, quiet: false };
+      return { text: `Файл не распознан: движок не справился.${error} Поля пусты не потому, что в файле их нет.`, quiet: false };
     case 'NoAnswer':
-      return { text: `Скан не распознан: в документе не прочитано ничего.${error} Проверьте, тот ли файл приложен.`, quiet: false };
+      return { text: `Файл не распознан: в документе не прочитано ничего.${error} Проверьте, тот ли файл приложен.`, quiet: false };
     case 'Interrupted':
       return { text: `Распознавание прервано и исхода не оставило.${error}`, quiet: false };
     case 'Refused':
-      return { text: `Скан прочитан, но прочитанное в счёт не записалось.${error}`, quiet: false };
+      return { text: `Файл прочитан, но прочитанное в счёт не записалось.${error}`, quiet: false };
+    case 'NoImage':
+      // Читать не начинали: из Excel или Word не получился вид для чтения. Причина — словами сервера.
+      return { text: `Файл не распознан: вид для чтения не построен.${error}`, quiet: false };
     default:
-      return { text: `Скан не распознан.${error}`, quiet: false };
+      return { text: `Файл не распознан.${error}`, quiet: false };
   }
 }
 
@@ -123,7 +127,7 @@ export function fieldOffer(
     return {
       text: names(offer.entryId) ?? offer.text,
       take: catalogRef(offer.entryId),
-      title: `В скане: ${offer.text}`,
+      title: `В файле: ${offer.text}`,
     };
   }
 
@@ -184,7 +188,7 @@ export function partyLine(party: InvoiceParty, chosen: string | null, canCreate:
       // Стоит найденная — о ней говорит обычная метка «не подтверждено». Стоит другая или поле пусто —
       // найденная предлагается.
       return party.match && party.match !== chosen
-        ? { text: `В скане: ${nameOf(party, party.match)}`, tone: 'quiet', action: 'take' }
+        ? { text: `В файле: ${nameOf(party, party.match)}`, tone: 'quiet', action: 'take' }
         : null;
     case 'several':
       // Человек уже выбрал одну из них — решение принято.
@@ -197,7 +201,7 @@ export function partyLine(party: InvoiceParty, chosen: string | null, canCreate:
     case 'unknown':
       return { text: 'Не найдена; справочник прочитан не весь', tone: 'warning', action: 'details' };
     case 'noTaxId':
-      return { text: 'ИНН в скане не прочитан — выберите вручную', tone: 'quiet', action: null };
+      return { text: 'ИНН в файле не прочитан — выберите вручную', tone: 'quiet', action: null };
     case 'badTaxId':
       return { text: `ИНН прочитан с ошибкой: ${party.taxId ?? '—'}`, tone: 'warning', action: 'details' };
     case 'unavailable':
@@ -241,7 +245,7 @@ export function pickOrder(candidates: InvoicePartyCandidate[]): InvoicePartyCand
 export function unusedLinesNote(recognition: InvoiceRecognition | undefined): string | null {
   const count = recognition?.state === 'done' ? recognition.lines?.length ?? 0 : 0;
   if (count === 0) return null;
-  return `В скане ${ruPlural(count, 'прочитана', 'прочитаны', 'прочитано')} ${count} `
+  return `В файле ${ruPlural(count, 'прочитана', 'прочитаны', 'прочитано')} ${count} `
     + `${ruPlural(count, 'строка', 'строки', 'строк')}. У счёта уже есть свои — распознанные не добавлены. `
     + 'Чтобы взять распознанные, удалите свои строки и нажмите «Распознать ещё раз».';
 }
