@@ -79,14 +79,7 @@ public abstract record Rendition
     /// попадает никогда — в нём может оказаться содержимое файла.</param>
     public sealed record Refused(RenditionRefusal Kind, string Reason) : Rendition
     {
-        public bool RetryHelps => Kind == RenditionRefusal.Unavailable;
-
-        /// <summary>
-        /// Отказ говорит о сервисе, а не о файле: конвертер занят, молчит или не настроен
-        /// (issue #1269). Такой отказ не запоминают — завтра тот же файл получит образ, и запись
-        /// «конвертера нет» пережила бы его настройку.
-        /// </summary>
-        public bool AboutService => Kind is RenditionRefusal.Unavailable or RenditionRefusal.NotSetUp;
+        public bool RetryHelps => Kind.RetryHelps();
     }
 }
 
@@ -152,4 +145,31 @@ public static class RenditionLimits
 
     /// <summary>Сколько файл ждёт своей очереди к конвертеру, прежде чем получить «занят».</summary>
     public static readonly TimeSpan GateWait = TimeSpan.FromSeconds(20);
+}
+
+/// <summary>
+/// Что вид отказа значит для того, кто его получил. Функции от вида, а не свойства ответа: вид
+/// хранится в записи образа именем, и правило нужно тому, у кого на руках только оно.
+///
+/// <para>⚠️ Имена <see cref="RenditionRefusal" /> — формат хранения: они лежат в таблице образов.
+/// Переименование члена делает старые записи нечитаемыми; сторож —
+/// <c>Имена_видов_отказа_это_формат_хранения</c>.</para>
+/// </summary>
+public static class RenditionRefusalRules
+{
+    /// <summary>Повтор поможет: сервис занят или молчит, и тот же файл позже получит образ.</summary>
+    public static bool RetryHelps(this RenditionRefusal kind) => kind == RenditionRefusal.Unavailable;
+
+    /// <summary>
+    /// Отказ запоминают (issue #1269) — чтобы не строить заново на каждый вопрос. Не запоминают
+    /// то, что говорит не о файле:
+    /// <list type="bullet">
+    /// <item>о сервисе — занят, молчит, не настроен: запись «конвертера нет» пережила бы его
+    /// настройку;</item>
+    /// <item>о версии приложения — «файл другого вида»: какие виды читаются, решает реестр видов, и
+    /// он растёт. Ответ этот дешёвый — по первым байтам файла, — и хранить его незачем.</item>
+    /// </list>
+    /// </summary>
+    public static bool Remembered(this RenditionRefusal kind) =>
+        kind is not (RenditionRefusal.Unavailable or RenditionRefusal.NotSetUp or RenditionRefusal.WrongFormat);
 }

@@ -166,6 +166,81 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal(RenditionState.Built, built.State);
     }
 
+    /// <summary>
+    /// «Файл другого вида» — ответ версии приложения, а не свойство файла: какие виды читаются,
+    /// решает реестр видов, и он растёт. Запомненный, он пережил бы обновление.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_файл_другого_вида_не_запоминается()
+    {
+        var original = await Blobs.UploadAsync("заметка.txt", new MemoryStream("просто текст"u8.ToArray()), "text/plain");
+
+        var refused = await Store(new StubConverter(MustNotBeCalled)).EnsureAsync(original, CancellationToken.None);
+
+        Assert.Equal("WrongFormat", refused.RefusalKind);
+        Assert.Empty(await RecordsAsync());
+    }
+
+    /// <summary>
+    /// Построение длится секунду, а файл заменяют сразу после загрузки. Запись, сделанная после
+    /// удаления оригинала, держала бы образ файла, которого нет, — и уборка её не убрала бы никогда.
+    /// </summary>
+    [Fact]
+    public async Task Оригинал_удалён_пока_строился_образ_не_остаётся_ни_записи_ни_образа()
+    {
+        var original = await UploadBookAsync();
+        var converter = new StubConverter(async (_, _) =>
+        {
+            await Blobs.DeleteAsync(original);
+            return PdfReply(Pdf(string.Join(" ", Words)));
+        });
+
+        await Assert.ThrowsAsync<NotFoundException>(() => Store(converter).EnsureAsync(original, CancellationToken.None));
+
+        Assert.Empty(await RecordsAsync());
+        using var scope = fixture.Services.CreateScope();
+        Assert.Equal(0, await scope.ServiceProvider.GetRequiredService<AppDbContext>().BlobRegistry.CountAsync());
+    }
+
+    /// <summary>Скану хватает начала: тянуть из хранилища десятки мегабайт ради «читается сам» незачем.</summary>
+    [Fact]
+    public async Task Файл_который_читается_сам_целиком_из_хранилища_не_читают()
+    {
+        var scan = new byte[2 * 1024 * 1024];
+        Pdf("anything").CopyTo(scan, 0);
+        var original = await Blobs.UploadAsync("скан.pdf", new MemoryStream(scan), "application/pdf");
+        var tapped = new TappedBlobs(Blobs);
+        var store = new RenditionStore(
+            fixture.Services.GetRequiredService<IServiceScopeFactory>(), tapped,
+            Service(MustNotBeCalled), NullLogger<RenditionStore>.Instance);
+
+        var record = await store.EnsureAsync(original, CancellationToken.None);
+
+        Assert.Equal(RenditionState.AsIs, record.State);
+        Assert.InRange(tapped.BytesRead, 1, 64 * 1024);
+    }
+
+    /// <summary>
+    /// Оригинала уже нет — и это успех вызова: владелец по нему снимает ссылку у своей записи.
+    /// Отказ хранилища на образе наверх не уходит; образ остаётся без держателя, для уборки.
+    /// </summary>
+    [Fact]
+    public async Task Не_удалившийся_образ_удаление_оригинала_не_роняет()
+    {
+        var original = await UploadBookAsync();
+        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var stubborn = new BHS.CRG.Infrastructure.Storage.RegisteredBlobStorage(
+            new TappedBlobs(Storage) { FailDeleteOf = record.ImageBlobPath },
+            fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<BHS.CRG.Infrastructure.Storage.RegisteredBlobStorage>.Instance);
+
+        await stubborn.DeleteAsync(original);
+
+        Assert.False(Storage.Exists(original));
+        Assert.Empty(await RecordsAsync());
+        Assert.True(Storage.Exists(record.ImageBlobPath!));
+    }
+
     [Fact]
     public async Task Чтение_записи_ничего_не_строит()
     {
@@ -220,14 +295,21 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal(after.ImageBlobPath, (await store.EnsureAsync(original, CancellationToken.None)).ImageBlobPath);
     }
 
-    /// <summary>«Конвертер занят» — не причина потерять образ, который был.</summary>
-    [Fact]
-    public async Task Отказ_сервиса_при_перестроении_прежний_образ_не_трогает()
+    /// <summary>
+    /// Файл тот же, что и тогда, когда образ вышел: отказ сейчас говорит о сегодняшнем конвертере —
+    /// занят, упал, не успел. Затри он запись — образ, по которому распознаны значения, остался бы
+    /// без держателя и ушёл бы следующей уборкой.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task Отказ_при_перестроении_построенный_образ_не_затирает(HttpStatusCode status)
     {
         var original = await UploadBookAsync();
         var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
 
-        var refused = await Store(new StubConverter(Answers(HttpStatusCode.BadGateway))).RebuildAsync(original, CancellationToken.None);
+        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, CancellationToken.None);
 
         Assert.Equal(RenditionState.Refused, refused.State);
         var kept = Assert.Single(await RecordsAsync());
@@ -256,7 +338,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     [Fact]
     public async Task Модуль_получает_путь_образа_а_у_читаемого_файла_путь_самого_файла()
     {
-        var port = new ModuleRenditionsPort(Store(StubConverter.Converts(Words)));
+        var port = new ModuleRenditionsPort(Store(StubConverter.Converts(Words)), NullLogger<ModuleRenditionsPort>.Instance);
         var book = await UploadBookAsync();
         var scan = await Blobs.UploadAsync("скан.pdf", new MemoryStream(Pdf("anything")), "application/pdf");
 
@@ -276,12 +358,31 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     [InlineData(HttpStatusCode.NotFound, false)]
     public async Task Модуль_узнаёт_поможет_ли_повтор(HttpStatusCode status, bool retryHelps)
     {
-        var port = new ModuleRenditionsPort(Store(new StubConverter(Answers(status))));
+        var port = new ModuleRenditionsPort(Store(new StubConverter(Answers(status))), NullLogger<ModuleRenditionsPort>.Instance);
 
         var refused = Assert.IsType<ModuleRendition.Refused>(await port.EnsureAsync(await UploadBookAsync()));
 
         Assert.Equal(retryHelps, refused.RetryHelps);
         Assert.NotEmpty(refused.Reason);
+    }
+
+    /// <summary>Запись с видом отказа, которого эта версия не знает, читается: повтор не обещан.</summary>
+    [Fact]
+    public async Task Неизвестный_вид_отказа_в_записи_порт_не_роняет()
+    {
+        var original = await UploadBookAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Renditions.Add(RenditionRecord.Refused(original, "ВидИзДругойВерсии", "Причина словами."));
+            await db.SaveChangesAsync();
+        }
+        var port = new ModuleRenditionsPort(Store(new StubConverter(MustNotBeCalled)), NullLogger<ModuleRenditionsPort>.Instance);
+
+        var refused = Assert.IsType<ModuleRendition.Refused>(await port.EnsureAsync(original));
+
+        Assert.False(refused.RetryHelps);
+        Assert.Equal("Причина словами.", refused.Reason);
     }
 
     /// <summary>Пометки — список, а у записей сравнение списков ссылочное; сверяем по содержимому.</summary>
@@ -294,6 +395,56 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
             && a.Path == b.Path && a.Pages == b.Pages && a.Converter == b.Converter && a.Notes.SequenceEqual(b.Notes);
 
         public int GetHashCode(ModuleRendition? value) => 0;
+    }
+}
+
+/// <summary>Хранилище с подслушиванием: сколько байт из него прочитали и на каком пути удаление отказывает.</summary>
+internal sealed class TappedBlobs(IBlobStorage inner) : IBlobStorage
+{
+    private long _bytesRead;
+
+    public long BytesRead => _bytesRead;
+
+    public string? FailDeleteOf { get; init; }
+
+    public Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default) =>
+        inner.UploadAsync(fileName, content, contentType, ct);
+
+    public Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default) =>
+        inner.PutAsync(blobPath, content, contentType, ct);
+
+    public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default) => inner.GetSizeAsync(blobPath, ct);
+
+    public Task DeleteAsync(string blobPath, CancellationToken ct = default) =>
+        blobPath == FailDeleteOf ? throw new IOException("Хранилище отказало") : inner.DeleteAsync(blobPath, ct);
+
+    public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default) =>
+        new Tap(await inner.DownloadAsync(blobPath, ct), this);
+
+    private sealed class Tap(Stream source, TappedBlobs owner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = source.Read(buffer, offset, count);
+            Interlocked.Add(ref owner._bytesRead, read);
+            return read;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) source.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }
 

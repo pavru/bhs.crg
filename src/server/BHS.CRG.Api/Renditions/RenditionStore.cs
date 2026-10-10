@@ -1,7 +1,9 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Renditions;
+using BHS.CRG.Modules.Files;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Api.Renditions;
@@ -15,10 +17,10 @@ namespace BHS.CRG.Api.Renditions;
 /// (<see cref="RebuildAsync" />), и новый образ ложится под новым путём.</para>
 ///
 /// <para><b>Отказ тоже запись</b> — но только тот, что говорит о ФАЙЛЕ: под паролем, пуст, повреждён,
-/// слишком велик. Он не изменится, сколько ни спрашивай, и строить заново на каждый показ незачем.
-/// Отказ о СЕРВИСЕ (занят, молчит, не настроен) не записывается: завтра тот же файл получит образ, а
-/// запись «конвертера нет» пережила бы его настройку и требовала бы нажать «Перестроить» у каждого
-/// файла по одному.</para>
+/// слишком велик, конвертер его не открыл. Строить заново на каждый вопрос незачем; повтор — явным
+/// действием. Отказ о СЕРВИСЕ (занят, молчит, не настроен) не записывается: запись «конвертера нет»
+/// пережила бы его настройку. Не записывается и «файл другого вида»: это ответ версии приложения.
+/// Правило — <see cref="RenditionRefusalRules.Remembered" />.</para>
 ///
 /// <para><b>Построение не пишет в строку владельца файла</b> — ни в счёт, ни куда-либо ещё, кроме
 /// своей таблицы. Версия счёта — версия строки: запись образа в неё дала бы «счёт тем временем
@@ -68,13 +70,21 @@ public sealed class RenditionStore(
     /// образу читало), служба не знает. Это знает уборка осиротевших: образ, на который не осталось
     /// ссылок, она уберёт, а тот, что ещё назван в чьей-то записи, оставит.</para>
     ///
-    /// <para>Отказ о сервисе прежнюю запись не трогает: «конвертер занят» — не причина потерять образ,
-    /// который был.</para>
+    /// <para>⚠️ Отказ построенный образ не затирает — никакой. Файл тот же, что и тогда, когда образ
+    /// вышел; значит, отказ сейчас говорит о сегодняшнем конвертере (занят, упал, не успел), а не о
+    /// файле. Затри мы запись — образ, по которому распознаны значения, остался бы без держателя и
+    /// ушёл бы следующей уборкой. Человек получает причину отказа, запись остаётся прежней.</para>
     /// </summary>
     public async Task<RenditionRecord> RebuildAsync(string originalPath, CancellationToken ct)
     {
         using var held = await _locks.EnterAsync(originalPath, ct);
         var (fresh, remember) = await BuildAsync(originalPath, ct);
+        if (fresh.State == RenditionState.Refused
+            && await FindAsync(originalPath, ct) is { State: RenditionState.Built })
+        {
+            log.LogWarning("Перестроить образ не удалось ({Kind}): прежний образ оставлен", fresh.RefusalKind);
+            return fresh;
+        }
         return remember ? await SaveAsync(fresh, replace: true) : fresh;
     }
 
@@ -82,15 +92,24 @@ public sealed class RenditionStore(
     private async Task<(RenditionRecord Record, bool Remember)> BuildAsync(string originalPath, CancellationToken ct)
     {
         Rendition result;
-        // Во временный файл, а не в память: оригинал — до 50 МБ, и скану или PDF, которым хватает
-        // первых килобайт, незачем лежать в памяти целиком.
-        await using (var copy = new FileStream(
-            Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()), FileMode.CreateNew, FileAccess.ReadWrite,
-            FileShare.None, 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous))
+        await using (var original = await blobs.DownloadAsync(originalPath, ct))
         {
-            await using (var original = await blobs.DownloadAsync(originalPath, ct))
+            // Сначала — только начало: скану или PDF его хватает, и тянуть из хранилища десятки
+            // мегабайт ради ответа «читается сам» незачем.
+            var head = new byte[FileKinds.HeadBytes];
+            var read = await original.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct);
+            if (await builder.ByHeadAsync(head.AsMemory(0, read), ct) is { } byHead) result = byHead;
+            else
+            {
+                // Целиком — во временный файл, а не в память: оригинал бывает до 50 МБ, а нужен ли
+                // он весь, решит служба (файл больше предела к конвертеру не пойдёт).
+                await using var copy = new FileStream(
+                    Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()), FileMode.CreateNew, FileAccess.ReadWrite,
+                    FileShare.None, 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
+                await copy.WriteAsync(head.AsMemory(0, read), ct);
                 await original.CopyToAsync(copy, ct);
-            result = await builder.BuildAsync(copy, ct);
+                result = await builder.BuildAsync(copy, ct);
+            }
         }
 
         switch (result)
@@ -107,9 +126,9 @@ public sealed class RenditionStore(
                     return (RenditionRecord.Built(originalPath, path, image.Pages, image.Notes, image.Converter), true);
                 }
             case Rendition.Refused refused:
-                if (refused.AboutService)
-                    log.LogWarning("Читаемый образ не построен и не записан: отказ сервиса ({Kind})", refused.Kind);
-                return (RenditionRecord.Refused(originalPath, refused.Kind.ToString(), refused.Reason), !refused.AboutService);
+                if (!refused.Kind.Remembered())
+                    log.LogInformation("Читаемый образ не построен, отказ не записан ({Kind})", refused.Kind);
+                return (RenditionRecord.Refused(originalPath, refused.Kind.ToString(), refused.Reason), refused.Kind.Remembered());
             default:
                 throw new InvalidOperationException($"Неизвестный ответ службы образов: {result.GetType().Name}");
         }
@@ -118,6 +137,14 @@ public sealed class RenditionStore(
     /// <summary>
     /// Записать результат. Токена отмены здесь нет намеренно: образ к этому моменту уже лежит в
     /// хранилище, и отмена оставила бы его без записи — построенным зря.
+    ///
+    /// <para>⚠️ <b>Оригинал могли удалить, пока строился образ</b> — построение длится секунду, а
+    /// файл заменяют сразу после загрузки. Удаление записи образа тогда не нашло (её ещё не было),
+    /// и запись, сделанная после него, держала бы образ оригинала, которого нет: уборка такую не
+    /// убрала бы никогда. Поэтому после записи спрашиваем реестр. Порядок закрывает гонку без общей
+    /// блокировки: удаление сначала снимает путь с реестра, потом убирает запись образа. Сняло до
+    /// нашего вопроса — убираем за собой сами; сняло после — наша запись уже лежит, и удаление её
+    /// найдёт.</para>
     /// </summary>
     private async Task<RenditionRecord> SaveAsync(RenditionRecord fresh, bool replace)
     {
@@ -131,9 +158,14 @@ public sealed class RenditionStore(
             if (existing is null) db.Renditions.Add(fresh);
             else existing.ReplaceWith(fresh);
             await db.SaveChangesAsync();
-            return existing ?? fresh;
+            var saved = existing ?? fresh;
+            if (await db.BlobRegistry.AnyAsync(e => e.Path == saved.OriginalBlobPath)) return saved;
+
+            await db.Renditions.Where(e => e.Id == saved.Id).ExecuteDeleteAsync();
+            if (saved.ImageBlobPath is { } late) await blobs.DeleteAsync(late);
+            throw new NotFoundException("Файл не найден.");
         }
-        catch (DbUpdateException ex) when (IsDuplicateKey(ex))
+        catch (DbUpdateException ex) when (DbFailure.IsUniqueViolation(ex))
         {
             // Запись успел сделать другой процесс. Его образ и остаётся: у пути запись одна, и
             // «как есть» значит — та, что легла первой.
@@ -142,10 +174,6 @@ public sealed class RenditionStore(
             return await db.Renditions.AsNoTracking().FirstAsync(e => e.OriginalBlobPath == fresh.OriginalBlobPath);
         }
     }
-
-    /// <summary>Нарушение уникальности (код 23505 у Postgres).</summary>
-    private static bool IsDuplicateKey(DbUpdateException ex) =>
-        ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation };
 
     /// <summary>
     /// Блокировки по ключу: у каждого пути свои ворота, и ждут в них только те, кто спрашивает об

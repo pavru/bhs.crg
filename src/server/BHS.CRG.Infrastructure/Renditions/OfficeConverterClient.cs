@@ -61,13 +61,14 @@ public sealed class OfficeConverterClient(
     /// контейнер меняют, не перезапуская приложение, а отметка на образе обязана говорить о том
     /// конвертере, который его построил.</para>
     ///
-    /// <para>Любой отказ здесь — «не знаем», а не отказ построения: образ уже готов.</para>
+    /// <para>Любой отказ здесь — «не знаем», а не отказ построения, и вызов не бросает вовсе —
+    /// даже на отмене: спрашивают его рядом с преобразованием, и отмену назовёт оно.</para>
     /// </summary>
     public async Task<string?> MarkAsync(CancellationToken ct)
     {
         if (!options.Configured) return null;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(MarkBudget);
+        deadline.CancelAfter(MarkWait);
         using var http = clients.CreateClient(OfficeConverterOptions.ClientName);
         http.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
         try
@@ -82,17 +83,15 @@ public sealed class OfficeConverterClient(
             var version = System.Text.Encoding.ASCII.GetString(buffer, 0, read).Trim();
             return read <= MarkMaxLength && LooksLikeVersion(version) ? "gotenberg " + version : null;
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return null;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
         {
             return null;
         }
     }
 
-    private static readonly TimeSpan MarkBudget = TimeSpan.FromSeconds(5);
+    /// <summary>Сколько ждём ответа о версии. Коротко: это одна строка, и образ её не ждёт дольше.</summary>
+    public TimeSpan MarkWait { get; init; } = TimeSpan.FromSeconds(2);
+
     private const int MarkMaxLength = 40;
 
     private static bool LooksLikeVersion(string text) =>

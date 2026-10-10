@@ -89,7 +89,7 @@ public class RegisteredBlobStorage(
 
         // Токена снова нет, и по той же причине, что при записи: объекта уже нет, а отмена оставила
         // бы реестр обещающим то, чего не существует.
-        string? image;
+        List<string> images;
         await using (var scope = scopes.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -102,14 +102,34 @@ public class RegisteredBlobStorage(
             // Сначала запись, потом сам образ. Упавшее между ними даёт образ без держателя — его
             // найдёт уборка осиротевших. Обратный порядок дал бы запись, которая держит образ
             // оригинала, которого уже нет: такую не убрал бы никто.
-            image = await db.Renditions.Where(e => e.OriginalBlobPath == blobPath)
-                .Select(e => e.ImageBlobPath).FirstOrDefaultAsync();
-            await db.Renditions.Where(e => e.OriginalBlobPath == blobPath).ExecuteDeleteAsync();
+            //
+            // Одним запросом, а не «прочитать и удалить»: удаление идёт у каждого файла хранилища,
+            // а образ есть у единиц; и между чтением и удалением путь образа мог бы смениться.
+            images = await db.Database
+                .SqlQuery<string>($"""
+                    DELETE FROM renditions WHERE "OriginalBlobPath" = {blobPath}
+                    RETURNING COALESCE("ImageBlobPath", '') AS "Value"
+                    """)
+                .ToListAsync();
         }
 
-        // Тем же путём, что и любой файл: образ — такой же объект с записью в реестре. Своего
-        // образа у него нет, так что глубже одного шага это не уходит.
-        if (image is not null) await DeleteAsync(image, ct);
+        foreach (var image in images.Where(path => path.Length > 0))
+        {
+            // Оригинала уже нет, и это — успех вызова: владелец по нему снимает ссылку у своей
+            // записи. Отказ здесь наверх не уходит и отмене не подчиняется: иначе у владельца
+            // остался бы путь файла, который больше не откроется. Не удалённый образ остался без
+            // держателя — его заберёт уборка осиротевших.
+            try
+            {
+                // Тем же путём, что и любой файл: образ — такой же объект с записью в реестре.
+                // Своего образа у него нет, так что глубже одного шага это не уходит.
+                await DeleteAsync(image, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                log.LogWarning(ex, "Образ удалённого файла не удалён, его заберёт уборка осиротевших ({Path})", image);
+            }
+        }
     }
 
     /// <summary>Значится ли путь за приложением. Единственный вопрос, ради которого заведён реестр.</summary>
@@ -139,7 +159,7 @@ public class RegisteredBlobStorage(
             db.BlobRegistry.Add(BlobRegistryEntry.Create(path, fileName, mimeType));
             await db.SaveChangesAsync();
         }
-        catch (DbUpdateException ex) when (IsDuplicatePath(ex))
+        catch (DbUpdateException ex) when (DbFailure.IsUniqueViolation(ex))
         {
             // Проверка выше и вставка не атомарны: две одновременные записи одного пути (повтор
             // запроса, импорт копии с дублями) обе видят «пути нет». Проигравший получает нарушение
@@ -148,8 +168,4 @@ public class RegisteredBlobStorage(
             log.LogDebug(ex, "Путь уже зарегистрирован параллельной записью ({Path})", path);
         }
     }
-
-    /// <summary>Нарушение уникальности пути (код 23505 у Postgres) — против любого поставщика по коду.</summary>
-    private static bool IsDuplicatePath(DbUpdateException ex)
-        => ex.InnerException?.GetType().GetProperty("SqlState")?.GetValue(ex.InnerException) as string == "23505";
 }
