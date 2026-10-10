@@ -26,7 +26,11 @@ namespace BHS.CRG.Tests.Integration;
 public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
     : InvoiceLineTestBase(host), IClassFixture<InvoiceScanHost>, IDisposable
 {
-    public void Dispose() => host.Converter = (request, ct) => MustNotBeCalled(request, ct);
+    public void Dispose()
+    {
+        host.Converter = (request, ct) => MustNotBeCalled(request, ct);
+        host.RenditionsFailure = null;
+    }
 
     /// <summary>Книга и образ, который из неё «строит» подставной конвертер. Слова — свои у теста.</summary>
     private (byte[] Book, byte[] Image, string Seen) Office()
@@ -189,6 +193,26 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
         Assert.Equal("built", (await ImageAsync(client, id)).GetProperty("state").GetString());
     }
 
+    /// <summary>
+    /// Упала сама служба образов — база, хранилище. Файл к этой минуте уже записан в счёт, и ответом
+    /// обязано быть «приложено»: получив ошибку, человек приложил бы его второй раз.
+    /// </summary>
+    [Fact]
+    public async Task Сбой_службы_образов_не_отнимает_ответ_приложено()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (book, _, _) = Office();
+        var id = await CreateAsync(client);
+        host.RenditionsFailure = new InvalidOperationException("база образов не ответила");
+
+        await AttachAsync(client, id, book, "Счёт.xlsx");
+
+        Assert.Equal(book, await client.GetByteArrayAsync($"/api/costs/invoices/{id}/scan"));
+        host.RenditionsFailure = null;
+        // Образ построит первое же открытие панели.
+        Assert.Equal("built", (await ImageAsync(client, id)).GetProperty("state").GetString());
+    }
+
     /// <summary>PDF и изображения образа не имеют: рядом с формой стоит сам файл, и перестраивать нечего.</summary>
     [Fact]
     public async Task У_PDF_образа_нет_и_перестроить_его_нельзя()
@@ -202,6 +226,15 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
             (await client.GetAsync($"/api/costs/invoices/{id}/scan/image/content")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict,
             (await client.PostAsync($"/api/costs/invoices/{id}/scan/image", null)).StatusCode);
+
+        // И у файла вида, которого система не знает: образ ему не положен, и это не «образ не
+        // построен» — про такой файл панель говорит «показать нечем», а не называет причину поломкой.
+        var other = await CreateAsync(client);
+        await AttachAsync(client, other, "просто текст, не счёт"u8.ToArray(), "Заметки.txt");
+        Assert.Equal("original", (await ImageAsync(client, other)).GetProperty("state").GetString());
+        var refused = await client.PostAsync($"/api/costs/invoices/{other}/scan/image", null);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("перестраивать нечего", await refused.Content.ReadAsStringAsync());
     }
 
     private static Task<JsonElement> ImageAsync(HttpClient client, Guid id) =>
