@@ -297,6 +297,7 @@ public sealed class CostsModule : IAppModule
         InvoicePartyIntakeEndpoints.Map(endpoints);
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
         SupplierMatchEndpoints.Map(endpoints);
+        SupplierMatchListEndpoints.Map(endpoints);
         AllocationEndpoints.MapAllocation(endpoints);
         AllocationMatrixEndpoints.Map(endpoints);
         PaymentEndpoints.Map(endpoints);

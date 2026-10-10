@@ -452,6 +452,7 @@ function Row({
           clearable={draft.matchedBy === null}
           mark={(
             <LineMatchChip draft={draft} offer={offer} fate={memoryFate(draft, line, hasSupplier, offer)}
+              supplierId={refEntryId(view.requisites[K.supplier])}
               onCancel={() => onEdit(cancelMatch(draft))}
               onRestore={restored => onEdit(applyOffer(restored))}
               onRemember={remember => onEdit({ remember })} />

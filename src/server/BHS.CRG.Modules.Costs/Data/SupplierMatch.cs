@@ -129,6 +129,11 @@ public sealed class SupplierMatch
         match.Property(m => m.UpdatedBy).HasColumnName("updated_by");
         match.Property(m => m.UpdatedByName).HasColumnName("updated_by_name").HasMaxLength(ByNameLength);
 
+        // Версия строки — системная колонка xmin, как у счёта: колонки в таблице не прибавляется. Её
+        // называет правка из списка соответствий: список открыт долго, и «сменить позицию» поверх чужой
+        // смены затёрло бы её молча. Она же — токен конкурентности для запоминания при сохранении строк.
+        match.Property<uint>(CostsDbContext.RowVersion).IsRowVersion();
+
         // Единственность — правило таблицы, а не обещание кода: два одновременных сохранения разных
         // счётов одного поставщика иначе дали бы две записи на одну строку бумаги, и подставлялась бы
         // «какая попадётся».

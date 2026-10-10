@@ -309,6 +309,10 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchEndpoints.cs|var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, positions, ct);"] =
             Choice("подстановка запомненного в строку счёта: архивная позиция названа с причиной, но не подставляется",
                 nameof(SupplierMatchTests.Архивная_позиция_не_подставляется_и_это_названо)),
+        ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchListEndpoints.cs|var refs = await catalog.RefsAsync(typeCode, ids, ct);"] =
+            Choice("список соответствий: названия уже стоящих поставщиков и позиций — с признаком архива; по той же " +
+                   "записи судится НОВАЯ позиция соответствия — архивная отвергается",
+                nameof(SupplierMatchListTests.Смена_позиции_требует_виденной_версии_пишет_журнал_и_меняет_подстановку)),
         ["BHS.CRG.Modules.Costs/Endpoints/OrganizationEndpoints.cs|var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)"] =
             ByPurpose("организации для формы счёта: выбор скрывает архивные, показ отдаёт с признаком",
                 nameof(InvoiceArchiveTests.Список_организаций_на_выбор_архивную_скрывает_а_на_показ_отдаёт_с_признаком)),

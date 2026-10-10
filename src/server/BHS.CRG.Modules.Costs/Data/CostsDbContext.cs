@@ -53,7 +53,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// подчёркивание.
     /// </summary>
     /// <summary>Имя теневого свойства с версией строки счёта.</summary>
-    private const string RowVersion = "RowVersion";
+    internal const string RowVersion = "RowVersion";
 
     /// <summary>
     /// Запись, проигравшая одновременной, отвечает отказом 409, а не 500.
@@ -103,6 +103,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     public string VersionOf(Invoice invoice) => Version(invoice);
 
     /// <summary>
+    /// Версия соответствия наименований (issue #1079): её называет правка из списка соответствий. Читается
+    /// только у ОТСЛЕЖИВАЕМОЙ записи — версия живёт теневым свойством.
+    /// </summary>
+    public string VersionOf(SupplierMatch match) => Version(match);
+
+    /// <summary>
     /// Версия счёта, как она лежит в базе, — без чтения самого счёта и без отслеживания; <c>null</c> —
     /// счёта нет. Для проверки ДО связки записи (<c>InvoiceDesk.EnsureSeenAsync</c>).
     /// </summary>
@@ -117,6 +123,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     // «счёт изменили» в ответ на правку накладной отправило бы человека перечитывать не то.
     private static ConflictException Concurrent(DbUpdateConcurrencyException e)
     {
+        if (e.Entries.Any(entry => entry.Entity is SupplierMatch))
+            return new ConflictException(
+                "Соответствие наименований изменили одновременно с этой правкой, и она не записана. " +
+                "Перечитайте список соответствий и повторите: записанная поверх, она затёрла бы чужую правку.",
+                e);
+
         var waybill = e.Entries.Any(entry => entry.Entity is Waybill or WaybillLine);
         var (changed, reread) = waybill ? ("Накладную", "накладную") : ("Счёт", "счёт");
         return new ConflictException(
