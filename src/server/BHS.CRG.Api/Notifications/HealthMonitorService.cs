@@ -2,6 +2,7 @@ using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Http;
+using BHS.CRG.Infrastructure.OfficeConversion;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
 using BHS.CRG.Infrastructure.Updates;
@@ -75,6 +76,18 @@ public class HealthMonitorService(
             await ProbeAsync("db", "База данных", HealthClass.Core, () => CheckPostgresAsync(sp, ct)),
             await ProbeAsync("storage", "Хранилище", HealthClass.Core, () => CheckStorageAsync(ct)),
         };
+
+        // Конвертер офисных файлов (issue #1267) — свой сервис, но не ядро: без него офисный файл
+        // прикладывается и скачивается, не строится только его читаемый образ. Поэтому класс —
+        // «движок»: предупреждение, а не ошибка, и отказ подтверждается серией проб. Не задан адрес —
+        // конвертера у экземпляра нет, и строки о нём тоже.
+        var converter = sp.GetRequiredService<OfficeConverterProbe>();
+        if (converter.Configured)
+            probes.Add(await ProbeAsync(ConverterCode, "Конвертер офисных файлов", HealthClass.Engine, async () =>
+            {
+                if (await converter.WhyNotReadyAsync(ct) is { } why) throw new InvalidOperationException(why);
+                return null;
+            }));
 
         // Прокси — отдельной строкой, когда он задан и им кто-то пользуется (issue #937). Без неё
         // упавший прокси приходил бы пачкой одинаковых уведомлений «поставщик недоступен»: по одному
@@ -354,6 +367,9 @@ public class HealthMonitorService(
     /// <summary>Назначение в имени клиентов проб: у каждой пробы клиент своего сервиса, чтобы проба
     /// шла тем же путём, что и работа, — через прокси, если у сервиса стоит галка (issue #936).</summary>
     public const string ClientPurpose = "health";
+
+    /// <summary>Код компонента «конвертер офисных файлов» в снимке состояния.</summary>
+    public const string ConverterCode = "converter";
 
     private static string Short(string s) => s.Length <= 200 ? s : s[..200];
 }

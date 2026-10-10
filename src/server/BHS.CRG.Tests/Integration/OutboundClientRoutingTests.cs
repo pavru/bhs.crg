@@ -35,6 +35,8 @@ public class OutboundClientRoutingTests(IntegrationTestFixture fixture)
         ["health:Ollama"] = OutboundService.Ollama,
         ["TieredWebSearch"] = OutboundService.ExternalLinks,
         ["IFileUrlFetcher"] = OutboundService.ExternalLinks,
+        // Конвертер офисных файлов — свой сервис в сети без выхода наружу (issue #1267).
+        ["office-converter"] = null,
     };
 
     private IReadOnlyList<string> RegisteredNames() =>

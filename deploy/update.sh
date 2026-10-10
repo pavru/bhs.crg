@@ -189,6 +189,20 @@ storage_kind_of() {
     fi
 }
 
+# Есть ли в compose-файле конвертер офисных файлов (issue #1267). По образу — как и хранилище.
+has_converter() {
+    [ -f "$1" ] || return 1
+    grep -qE '^[[:space:]]*image:[[:space:]]*gotenberg/gotenberg:' "$1"
+}
+
+# Конвертер приходит ЭТИМ обновлением: в рабочем файле его нет, в файле целевой версии — есть.
+# По файлам, а не по номеру версии: номер выдаёт CI уже после слияния, и вписать его сюда заранее
+# значило бы угадывать.
+brings_converter() {
+    if has_converter docker-compose.yml; then return 1; fi
+    has_converter "$NEW_DIR/docker-compose.yml"
+}
+
 # Переход хранилища в этом обновлении: MinIO остаётся позади, Garage приходит на его место.
 crosses_storage() {
     [ "$(storage_kind_of docker-compose.yml)" = "minio" ] || return 1
@@ -390,6 +404,22 @@ wait_for_version() {
 # про то, что вас не касается: рубеж, оставшийся позади, и рубеж, до которого ещё идти, одинаково
 # не ваше дело (crosses).
 legacy_notes() {
+    if brings_converter; then
+        warn "$(cat <<'EOF'
+С этой версией в поставке появляется ещё один контейнер — конвертер офисных файлов (converter):
+счёт в Excel или Word превращается в PDF, по которому работают просмотр и распознавание.
+
+Что это значит для сервера:
+  • образ gotenberg/gotenberg — около 450 МБ загрузки и 1,5 ГБ на диске Docker;
+  • до 1 ГБ памяти в работе (потолок — CONVERTER_MEMORY_LIMIT в .env);
+  • наружу контейнер не ходит и порт на хост не публикует — открывать ничего не нужно.
+
+Если образ не загрузится (закрытый контур, зеркало реестра без него), обновление остановится на
+загрузке образов. Завезите его так же, как остальные сторонние образы: postgres и garage.
+EOF
+)"
+    fi
+
     if crosses "0.139.0" && compose ps --services --status running 2>/dev/null | grep -qx ollama; then
         warn "$(cat <<'EOF'
 У вас работает контейнер ollama, а с 0.139.0 он поднимается только по профилю Compose.

@@ -70,6 +70,31 @@ printf '%s' "$out" | grep -q 'готовые образы'  && r=да || r=не�
 printf '%s' "$out" | grep -q 'профилю Compose' && r=да || r=нет; check '0.90→0.141: про ollama сказано'   да "$r"
 CURRENT=0.146.0; TARGET=0.147.1
 check 'свежая установка: ни одной оговорки' '' "$(legacy_notes 2>&1)"
+
+# Конвертер офисных файлов (issue #1267): оговорка привязана не к номеру версии, а к тому, что
+# сервис ПРИХОДИТ этим обновлением — в рабочем файле его нет, в файле целевой версии есть.
+printf 'services:
+  api:
+    image: ghcr.io/pavru/bhs.crg-api:1
+' > cv-without.yml
+printf 'services:
+  converter:
+    image: gotenberg/gotenberg:8.37.0-libreoffice
+' > cv-with.yml
+check 'конвертер по образу: есть'        0 "$(has_converter cv-with.yml >/dev/null 2>&1; echo $?)"
+check 'конвертер по образу: нет'         1 "$(has_converter cv-without.yml >/dev/null 2>&1; echo $?)"
+check 'файла нет — конвертера нет'       1 "$(has_converter нет-такого.yml >/dev/null 2>&1; echo $?)"
+mkdir -p "$NEW_DIR"
+cp cv-without.yml docker-compose.yml; cp cv-with.yml "$NEW_DIR/docker-compose.yml"
+check 'приходит этим обновлением'        0 "$(brings_converter >/dev/null 2>&1; echo $?)"
+printf '%s' "$(legacy_notes 2>&1)" | grep -q 'конвертер офисных файлов' && r=да || r=нет
+check 'о новом контейнере сказано'       да "$r"
+cp cv-with.yml docker-compose.yml
+check 'уже стоит — не приходит'          1 "$(brings_converter >/dev/null 2>&1; echo $?)"
+check 'уже стоит — оговорки нет'         '' "$(legacy_notes 2>&1)"
+cp cv-without.yml "$NEW_DIR/docker-compose.yml"
+check 'откат на версию без него — молчим' 1 "$(brings_converter >/dev/null 2>&1; echo $?)"
+rm -f docker-compose.yml "$NEW_DIR/docker-compose.yml" cv-with.yml cv-without.yml
 unset -f compose
 
 echo
