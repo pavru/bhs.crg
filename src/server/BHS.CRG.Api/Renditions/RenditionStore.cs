@@ -1,5 +1,4 @@
 using BHS.CRG.Application.Common;
-using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Renditions;
@@ -163,7 +162,12 @@ public sealed class RenditionStore(
 
             await db.Renditions.Where(e => e.Id == saved.Id).ExecuteDeleteAsync();
             if (saved.ImageBlobPath is { } late) await blobs.DeleteAsync(late);
-            throw new NotFoundException("Файл не найден.");
+            // Оригинала больше нет, и отвечает на это хранилище — своим «файл не найден», тем же,
+            // что получил бы вопрос об этом файле, заданный секундой позже. Своего отказа служба
+            // не придумывает. Строка после — для компилятора: сюда доходят, только если путь за
+            // это мгновение вернули на место, а тогда и ответ «записи нет, спросите снова» верен.
+            await using var gone = await blobs.DownloadAsync(saved.OriginalBlobPath);
+            return saved;
         }
         catch (DbUpdateException ex) when (DbFailure.IsUniqueViolation(ex))
         {
