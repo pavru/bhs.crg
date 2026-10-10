@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  useCreateNomenclature, useNomenclatureIntake, useSimilarNomenclature,
+  existingPosition, useCreateNomenclature, useNomenclatureIntake, useSimilarNomenclature,
   type NomenclaturePosition, type SimilarPositions,
 } from '@/shared/api/nomenclatureIntake';
 import {
@@ -33,14 +33,23 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
   onPick: (id: string, name: string | null) => void;
 }) {
   const toast = useToast();
-  const kinds = useNomenclatureIntake(true);
+  const kinds = useNomenclatureIntake();
   const create = useCreateNomenclature();
   const [chosen, setChosen] = useState<string | null>(null);
   const [edited, setEdited] = useState<IntakeDraft | null>(null);
   // Набранное, о котором спрошен сервер: отстаёт от полей на паузу в наборе. `null` — спрашиваем как есть.
   const [asked, setAsked] = useState<Record<string, string> | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  // Позиция из отказа «такая уже есть»: её предлагают выбрать, даже если ответ о похожих не пришёл.
+  const [twin, setTwin] = useState<NomenclaturePosition | null>(null);
   const timer = useRef<number | null>(null);
+
+  function stopTimer() {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  }
+  // Шаг закрыли посреди паузы — отложенный вопрос ставить уже некому.
+  useEffect(() => stopTimer, []);
 
   const all = kinds.data ?? [];
   const kind = chosen ? all.find(k => k.typeId === chosen) ?? null : defaultKind(all);
@@ -56,6 +65,10 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
     const next = all.find(k => k.typeId === typeId) ?? null;
     setChosen(typeId || null);
     setRefused(null);
+    setTwin(null);
+    // ⚠️ Отложенный вопрос гасится: он несёт значения ПРЕЖНЕГО вида, и, сработав после смены, оставил
+    // бы окно на «Ищем похожие…» без кнопки — набранное и спрошенное больше не сошлись бы.
+    stopTimer();
     setAsked(null);
     // Набранное переезжает в поля нового вида с теми же ключами: сменить вид — не начать заново.
     if (next && edited) {
@@ -72,14 +85,16 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
     const next = { ...draft, values: { ...draft.values, [key]: value } };
     setEdited(next);
     setRefused(null);
+    setTwin(null);
     // Задержка в обработчике, а не в эффекте — как у поиска в этом же окне.
-    if (timer.current !== null) window.clearTimeout(timer.current);
+    stopTimer();
     timer.current = window.setTimeout(() => setAsked(next.values), 250);
   }
 
   async function submit() {
     if (!kind) return;
     setRefused(null);
+    setTwin(null);
     try {
       const made = await create.mutateAsync(createBody(kind, draft));
       toast.success(`Позиция заведена: ${made.name ?? 'без названия'}. Остальные поля дополните в справочнике.`);
@@ -87,6 +102,7 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
     } catch (e) {
       // Отказ — в этом же шаге, а не тостом: набранное цело, и причина стоит рядом с ним.
       setRefused(apiError(e, 'сервер отказал'));
+      setTwin(existingPosition(e));
     }
   }
 
@@ -157,6 +173,10 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
             <p className="text-[11px] text-fg4">Не заполнено: {missing.join(', ')}.</p>
           )}
           {refused && <Refusal>{refused}</Refusal>}
+          {/* Лежащую предлагает сам отказ: ответ о похожих мог не прийти, а выбрать её человек обязан мочь. */}
+          {twin && !twin.archived && similar.data?.exact?.id !== twin.id && (
+            <Row position={twin} action="Выбрать" onPick={onPick} />
+          )}
         </>
       )}
     </div>

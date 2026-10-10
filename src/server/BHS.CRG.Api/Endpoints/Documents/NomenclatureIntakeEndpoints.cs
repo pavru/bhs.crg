@@ -1,7 +1,5 @@
 using BHS.CRG.Api.Auth;
-using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
-using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
@@ -33,26 +31,22 @@ public static class NomenclatureIntakeEndpoints
 
         // POST, хотя ничего не пишет: набранное едет телом, а не строкой адреса — наименования
         // длинные, и в журналах прокси им не место.
-        g.MapPost("/similar", async (
-            IntakeBody body, INomenclatureIntake intake, IRepository<DocumentType> types, CancellationToken ct) =>
+        g.MapPost("/similar", async (IntakeBody body, INomenclatureIntake intake, CancellationToken ct) =>
         {
             var found = await intake.SimilarAsync(body.TypeId, body.Values ?? Empty, ct);
-            var names = await TypeNamesAsync(types, ct);
             return Results.Ok(new
             {
-                exact = found.Exact is { } exact ? PositionDto.From(exact, names) : null,
-                similar = found.Similar.Select(h => new { position = PositionDto.From(h.Record, names), why = h.Why }),
+                exact = found.Exact is { } exact ? PositionDto.From(exact) : null,
+                similar = found.Similar.Select(h => new { position = PositionDto.From(h.Record), why = h.Why }),
                 more = found.More,
                 unreadable = found.Unreadable,
             });
         });
 
-        g.MapPost("/", async (
-            IntakeBody body, INomenclatureIntake intake, IRepository<DocumentType> types, CancellationToken ct) =>
+        g.MapPost("/", async (IntakeBody body, INomenclatureIntake intake, CancellationToken ct) =>
         {
             var outcome = await intake.CreateAsync(
                 new(body.TypeId, body.Values ?? Empty, body.Refs ?? new Dictionary<string, Guid>()), ct);
-            var names = await TypeNamesAsync(types, ct);
 
             // «Такая уже есть» — полями, а не словами: окно предлагает ВЫБРАТЬ лежащую кнопкой и
             // разбирать для этого фразу не должно.
@@ -63,19 +57,15 @@ public static class NomenclatureIntakeEndpoints
                         ? "Такая позиция уже есть — в архиве. Заводить вторую не нужно: вернуть её из архива может тот, кто ведёт справочник."
                         : "Такая позиция уже есть. Вторую такую же завести нельзя — выберите лежащую.",
                     code = "exists",
-                    existing = PositionDto.From(twin, names),
+                    existing = PositionDto.From(twin),
                 });
 
             var created = outcome.Created!;
-            return Results.Ok(new PositionDto(
-                created.Id, created.DisplayName, names.GetValueOrDefault(created.CompositeTypeId, ""), false));
+            return Results.Ok(new PositionDto(created.Id, created.DisplayName, outcome.CreatedType ?? "", false));
         });
     }
 
     private static readonly IReadOnlyDictionary<string, string?> Empty = new Dictionary<string, string?>();
-
-    private static async Task<Dictionary<Guid, string>> TypeNamesAsync(IRepository<DocumentType> types, CancellationToken ct) =>
-        (await types.GetAllAsync(ct)).ToDictionary(t => t.Id, t => t.Name);
 
     /// <param name="Values">Тексты по ключам полей описания.</param>
     /// <param name="Refs">Выбранные записи по ключам полей-ссылок; сверке похожих не нужны.</param>
@@ -84,8 +74,8 @@ public static class NomenclatureIntakeEndpoints
 
     public sealed record PositionDto(Guid Id, string? Name, string Type, bool Archived)
     {
-        public static PositionDto From(SimilarRecord record, IReadOnlyDictionary<Guid, string> typeNames) =>
-            new(record.Id, record.Name, typeNames.GetValueOrDefault(record.TypeId, ""), record.Archived);
+        public static PositionDto From(SimilarRecord record) =>
+            new(record.Id, record.Name, record.Type, record.Archived);
     }
 
     public sealed record FieldDto(

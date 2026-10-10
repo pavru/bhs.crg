@@ -180,7 +180,9 @@ public partial class ArchiveReadInventoryTests
             Documents("документы — строки системного набора"),
         ["BHS.CRG.Infrastructure/DataSets/SubtreeDocumentsProvider.cs|var documents = await objects.GetDocumentsInSetsAsync([.. setById.Keys], ct);"] =
             Documents("документы — строки системного набора"),
-        ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|new SearchCommonDataForChoiceQuery(typeIds, null, NomenclatureIntakeLayout.OptionsLimit + 1), ct);"] =
+        ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|await db.DomainObjects.AsNoTracking()"] =
+            Seen("альтернативные имена позиций номенклатуры для сверки похожих: архивная позиция — тоже двойник"),
+        ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|var found = await db.DomainObjects.AsNoTracking()"] =
             Choice("записи на выбор в поле-ссылке новой позиции номенклатуры (единица измерения): архивной в выборе " +
                    "нет, и присланная мимо окна отвергается",
                 nameof(NomenclatureIntakeTests.Архивная_единица_на_выбор_не_предлагается_и_не_принимается)),

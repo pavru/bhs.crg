@@ -34,7 +34,8 @@ public sealed record NomenclatureIntakeRequest(
     Guid TypeId, IReadOnlyDictionary<string, string?> Values, IReadOnlyDictionary<string, Guid> Refs);
 
 /// <summary>Заполнено одно из двух: заведённая позиция либо та, что уже лежит с тем же ключом.</summary>
-public sealed record NomenclatureIntakeOutcome(DomainObject? Created, SimilarRecord? Existing);
+/// <param name="CreatedType">Название вида заведённой позиции — для ответа.</param>
+public sealed record NomenclatureIntakeOutcome(DomainObject? Created, string? CreatedType, SimilarRecord? Existing);
 
 /// <summary>
 /// Создание позиции номенклатуры коротким окном и поиск похожих (задача C3, issue #1079, ТЗ COST-7.1,
@@ -82,8 +83,7 @@ public static class NomenclatureIntakeLayout
 
         var all = types.Values.ToList();
         var identity = SchemaTags.OrderedKeysWithTag(type, all, FunctionalTag.Identity);
-        var schema = DocumentTypeSchemaReader.EffectiveFields(type.Id, types)
-            .Where(f => !f.Computed).ToList();
+        var schema = DocumentTypeSchemaReader.EffectiveFields(type.Id, types);
 
         var asked = new List<IntakeField>();
         var unfillable = new List<string>();
@@ -91,8 +91,14 @@ public static class NomenclatureIntakeLayout
         // Сначала ключ идентичности — в порядке ключа: первым идёт то, чем позицию называют.
         foreach (var key in identity)
         {
-            if (schema.FirstOrDefault(f => f.Key == key) is not { } field) continue;
-            if (IsText(field.Type) && !field.Locked)
+            // Поле ключа, которое человек не заполняет, — отказ, а не пропуск: ключ без него урезан,
+            // сверка двойников шла бы по урезанному, а названием записи стало бы следующее поле.
+            if (schema.FirstOrDefault(f => f.Key == key) is not { } field)
+            {
+                refusals.Add($"поле ключа «{key}» в схеме вида не найдено: сверить новую позицию с лежащими нечем");
+                continue;
+            }
+            if (IsText(field.Type) && !field.Locked && !field.Computed)
                 asked.Add(new(field.Key, Title(field), field.Required, Identity: true, null, []));
             else
                 refusals.Add($"поле ключа «{Title(field)}» — не строка, которую заполняет человек: " +
@@ -102,7 +108,7 @@ public static class NomenclatureIntakeLayout
         if (!asked.Any(f => f.Identity) && refusals.Count == 0)
             refusals.Add("в схеме вида нет поля с тэгом «Идентификатор»: назвать позицию и сверить её с лежащими нечем");
 
-        foreach (var field in schema.Where(f => f.Required && !identity.Contains(f.Key)))
+        foreach (var field in schema.Where(f => f.Required && !f.Computed && !identity.Contains(f.Key)))
         {
             if (field.Locked) unfillable.Add(Title(field));
             else if (IsText(field.Type))
@@ -140,6 +146,15 @@ public static class NomenclatureIntakeLayout
         if (foreign.Count > 0)
             throw new InvalidRequestException(
                 $"Вид «{kind.Name}» не спрашивает: {string.Join(", ", foreign.Select(k => $"«{k}»"))}.");
+
+        // Значение не того рода — тоже отказ: текст, присланный в поле выбора (и запись — в текстовое),
+        // иначе молча отбросился бы, и «завелось без него» человек не заметит.
+        var misplaced = kind.Fields
+            .Where(f => f.TargetTypeId is null ? refs.ContainsKey(f.Key) : values.ContainsKey(f.Key))
+            .ToList();
+        if (misplaced.Count > 0)
+            throw new InvalidRequestException("Значение не того рода: " + string.Join(", ", misplaced.Select(f =>
+                $"«{f.Title}» заполняется {(f.TargetTypeId is null ? "текстом, а не выбором записи" : "выбором записи, а не текстом")}")) + ".");
 
         var data = new JsonObject();
         var missing = new List<string>();

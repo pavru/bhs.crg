@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IntakeKind } from '@/shared/api/nomenclatureIntake';
+import { existingPosition, type IntakeKind } from '@/shared/api/nomenclatureIntake';
 import {
   createBody, defaultKind, missingFields, prefill, prefillHint, similarBody,
 } from './newNomenclature';
@@ -49,6 +49,13 @@ describe('новая позиция номенклатуры из строки �
     expect(similarBody(kind(), { Наименование: ' Кабель ', Артикул: 'RZ-2W', Производитель: ' ' })).toEqual({
       typeId: 't-1', values: { Наименование: 'Кабель', Артикул: 'RZ-2W' },
     });
+  });
+
+  it('отказ «такая уже есть» отдаёт лежащую позицию, а любой другой отказ — нет', () => {
+    const existing = { id: 'n-1', name: 'Кабель', type: 'Номенклатура', archived: false };
+    expect(existingPosition({ response: { data: { code: 'exists', error: 'Такая уже есть', existing } } })).toEqual(existing);
+    expect(existingPosition({ response: { data: { error: 'Не заполнено: «Наименование».' } } })).toBeNull();
+    expect(existingPosition(new Error('сеть'))).toBeNull();
   });
 
   it('до создания названо, чего не хватает; пустые поля в запрос не едут', () => {

@@ -5,6 +5,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +15,15 @@ namespace BHS.CRG.Infrastructure.Documents;
 /// <summary>
 /// Создание позиции номенклатуры коротким окном и поиск похожих (задача C3, issue #1079).
 ///
-/// <para>Своих чтений базы здесь нет: значения полей ключа отдаёт запрос ядра
-/// (<see cref="CommonDataFieldValuesQuery" />), записи на выбор — поиск выбора. Своё здесь одно —
-/// замок: сверка «такой ещё нет» и создание идут в одной транзакции.</para>
+/// <para>Значения полей ключа отдаёт запрос ядра (<see cref="CommonDataFieldValuesQuery" />): он
+/// разрешает наследование от основы. Своих чтений два, оба лёгкой строкой: записи на выбор в
+/// поле-ссылке и альтернативные имена позиций. И замок: сверка «такой ещё нет» и создание идут в
+/// одной транзакции.</para>
 ///
 /// <para>⚠️ <b>Сверяются позиции ВСЕГО семейства «Номенклатуры»</b>, а не только выбранного вида:
-/// «Кабель», заведённый рядом с такой же «Номенклатурой», — тот же дубль. Полями ключа служат поля
-/// выбранного вида; у подтипа с собственными полями ключа лежащие записи сравниваются по ним же.</para>
+/// «Кабель», заведённый рядом с такой же «Номенклатурой», — похожая позиция. Полями ключа служат
+/// поля выбранного вида. Запись подтипа, у которой заполнены СВОИ поля ключа, «той же» не считается
+/// (<see cref="SimilarRecord.OwnKey" />) — только похожей.</para>
 ///
 /// <para>Цена сверки — по запросу на поле ключа, каждый читает все позиции семейства лёгкой строкой.
 /// Позиций — тысячи, а спрашивает окно после паузы в наборе. Вырастет справочник на порядок —
@@ -39,24 +42,7 @@ public sealed class NomenclatureIntakeService(
         // Корень семейства первым, подтипы — по названию: порядок списка «Вид» в окне.
         foreach (var type in family.OrderBy(t => t.ParentId is not null && family.Any(p => p.Id == t.ParentId))
                      .ThenBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase))
-        {
-            var kind = NomenclatureIntakeLayout.Describe(type, all);
-            var fields = new List<IntakeField>();
-            var refusals = kind.Refusals.ToList();
-            foreach (var field in kind.Fields)
-            {
-                if (field.TargetTypeId is not { } target) { fields.Add(field); continue; }
-                if (!options.TryGetValue(target, out var known))
-                    options[target] = known = await OptionsAsync(target, all, ct);
-                if (known is null)
-                    refusals.Add($"поле «{field.Title}» выбирается из справочника длиннее " +
-                        $"{NomenclatureIntakeLayout.OptionsLimit} записей — в этом окне его не заполнить");
-                else if (known.Count == 0 && field.Required)
-                    refusals.Add($"справочник для обязательного поля «{field.Title}» пуст");
-                fields.Add(field with { Options = known ?? [] });
-            }
-            kinds.Add(kind with { Fields = fields, Refusals = refusals });
-        }
+            kinds.Add(await DescribeAsync(type, all, options, ct));
         return kinds;
     }
 
@@ -65,12 +51,16 @@ public sealed class NomenclatureIntakeService(
     {
         var (all, family) = await FamilyAsync(ct);
         var type = family.FirstOrDefault(t => t.Id == typeId) ?? throw NotAKind();
-        return await SimilarAsync(NomenclatureIntakeLayout.Describe(type, all), family, values, ct);
+        // Записи на выбор сверке не нужны — описание берётся без них.
+        return await SimilarAsync(NomenclatureIntakeLayout.Describe(type, all), all, family, values, ct);
     }
 
     public async Task<NomenclatureIntakeOutcome> CreateAsync(NomenclatureIntakeRequest request, CancellationToken ct = default)
     {
-        var kind = (await DescribeAsync(ct)).FirstOrDefault(k => k.TypeId == request.TypeId) ?? throw NotAKind();
+        var (all, family) = await FamilyAsync(ct);
+        var type = family.FirstOrDefault(t => t.Id == request.TypeId) ?? throw NotAKind();
+        // Описывается только запрошенный вид: остальные виды и их справочники созданию ни к чему.
+        var kind = await DescribeAsync(type, all, [], ct);
 
         // Ссылка обязана стоять среди записей НА ВЫБОР: архивная либо чужого вида запись, присланная
         // мимо окна, иначе легла бы в данные как выбранная человеком.
@@ -79,7 +69,7 @@ public sealed class NomenclatureIntakeService(
         {
             var field = kind.Fields.FirstOrDefault(f => f.Key == key && f.TargetTypeId is not null);
             picked[key] = field is null
-                ? new IntakeOption(id, null) // лишний ключ назовёт раскладка — своим отказом
+                ? new IntakeOption(id, null) // лишний ключ и ключ не того рода назовёт раскладка — отказом
                 : field.Options.FirstOrDefault(o => o.Id == id)
                   ?? throw new InvalidRequestException(
                       $"В поле «{field.Title}» выбрана запись, которой нет среди действующих записей справочника.");
@@ -94,27 +84,50 @@ public sealed class NomenclatureIntakeService(
             await db.Database.ExecuteSqlRawAsync(
                 $"SELECT pg_advisory_xact_lock({AdvisoryLockKeys.NomenclatureIntake})", ct);
 
-            var (_, family) = await FamilyAsync(ct);
-            if ((await SimilarAsync(kind, family, request.Values, ct)).Exact is { } twin)
-                return new(null, twin);
+            if ((await SimilarAsync(kind, all, family, request.Values, ct)).Exact is { } twin)
+                return new(null, null, twin);
 
             // CreateAnyway: «есть в архиве» уже сверено выше, и строже, чем это делает создание, —
-            // с пустыми полями ключа. Второй отказ того же рода был бы недостижим.
+            // с пустыми полями ключа. Полон ли ключ, решило описание: вид, у которого поле ключа
+            // человеку не заполнить, сюда не доходит.
             var created = await mediator.Send(new CreateCommonDataEntryCommand(
                 name, request.TypeId, data, CatalogScope.System, null, CreateAnyway: true), ct);
             await journal.RecordAsync(
                 ActivityActions.NomenclatureCreated, created.Id.ToString(), $"{name} ({kind.Name})", ct: ct);
             if (own is not null) await own.CommitAsync(ct);
-            return new(created, null);
+            return new(created, kind.Name, null);
         }
     }
 
+    /// <summary>Описание вида вместе с записями на выбор; справочники одного запроса читаются один раз.</summary>
+    private async Task<IntakeKind> DescribeAsync(
+        DocumentType type, IReadOnlyDictionary<Guid, DocumentType> all,
+        Dictionary<Guid, IReadOnlyList<IntakeOption>?> options, CancellationToken ct)
+    {
+        var kind = NomenclatureIntakeLayout.Describe(type, all);
+        var fields = new List<IntakeField>();
+        var refusals = kind.Refusals.ToList();
+        foreach (var field in kind.Fields)
+        {
+            if (field.TargetTypeId is not { } target) { fields.Add(field); continue; }
+            if (!options.TryGetValue(target, out var known))
+                options[target] = known = await OptionsAsync(target, all, ct);
+            if (known is null)
+                refusals.Add($"поле «{field.Title}» выбирается из справочника длиннее " +
+                    $"{NomenclatureIntakeLayout.OptionsLimit} записей — в этом окне его не заполнить");
+            else if (known.Count == 0 && field.Required)
+                refusals.Add($"в справочнике для обязательного поля «{field.Title}» нет записей уровня всей системы");
+            fields.Add(field with { Options = known ?? [] });
+        }
+        return kind with { Fields = fields, Refusals = refusals };
+    }
+
     private async Task<SimilarAnswer> SimilarAsync(
-        IntakeKind kind, IReadOnlyList<DocumentType> family, IReadOnlyDictionary<string, string?> values,
-        CancellationToken ct)
+        IntakeKind kind, IReadOnlyDictionary<Guid, DocumentType> all, IReadOnlyList<DocumentType> family,
+        IReadOnlyDictionary<string, string?> values, CancellationToken ct)
     {
         var identity = kind.Fields.Where(f => f.Identity).ToList();
-        if (identity.Count == 0)
+        if (identity.Count == 0 || kind.Refusals.Count > 0)
             throw new InvalidRequestException(
                 $"Позиции вида «{kind.Name}» сверить с лежащими нечем: {string.Join("; ", kind.Refusals)}.");
 
@@ -134,24 +147,71 @@ public sealed class NomenclatureIntakeService(
             }
         }
 
+        var ownKey = await OwnKeyAsync(identity, all, family, unreadable, ct);
+        var aliases = await AliasesAsync(typeIds, ct);
+
         return NomenclatureSimilarity.Find(
             [.. identity.Select(f => (f.Title, values.TryGetValue(f.Key, out var typed) ? typed : null))],
             // Нечитаемая запись в сверку не идёт: о ней нельзя сказать ни «совпала», ни «не совпала».
             [.. records.Values.Where(r => !unreadable.Contains(r.Ref.Id))
-                .Select(r => new SimilarRecord(r.Ref.Id, r.Ref.CompositeTypeId, r.Ref.DisplayName, r.Ref.Archived, r.Key))],
+                .Select(r => new SimilarRecord(
+                    r.Ref.Id, r.Ref.CompositeTypeId, all.GetValueOrDefault(r.Ref.CompositeTypeId)?.Name ?? "",
+                    r.Ref.DisplayName, r.Ref.Archived, r.Key,
+                    aliases.GetValueOrDefault(r.Ref.Id) ?? [], ownKey.Contains(r.Ref.Id)))],
             unreadable.Count);
     }
 
-    /// <summary>Записи на выбор; <c>null</c> — их больше, чем окно может показать списком.</summary>
+    /// <summary>
+    /// Записи, у которых заполнены поля ключа их СОБСТВЕННОГО подтипа, не входящие в ключ выбранного
+    /// вида. Обычно таких полей нет вовсе, и запросов здесь ноль.
+    /// </summary>
+    private async Task<HashSet<Guid>> OwnKeyAsync(
+        IReadOnlyList<IntakeField> identity, IReadOnlyDictionary<Guid, DocumentType> all,
+        IReadOnlyList<DocumentType> family, HashSet<Guid> unreadable, CancellationToken ct)
+    {
+        var shared = identity.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
+        var everything = all.Values.ToList();
+        var typesByKey = family
+            .SelectMany(t => SchemaTags.OrderedKeysWithTag(t, everything, FunctionalTag.Identity)
+                .Where(k => !shared.Contains(k)).Select(k => (Key: k, Type: t.Id)))
+            .GroupBy(x => x.Key, x => x.Type);
+
+        var own = new HashSet<Guid>();
+        foreach (var group in typesByKey)
+            foreach (var value in await mediator.Send(
+                         new CommonDataFieldValuesQuery([.. group.Distinct()], group.Key, RecordsFor.Display), ct))
+            {
+                if (value.Unreadable) unreadable.Add(value.Record.Id);
+                else if (!string.IsNullOrWhiteSpace(value.Value)) own.Add(value.Record.Id);
+            }
+        return own;
+    }
+
+    /// <summary>Альтернативные имена позиций семейства — только тех, у кого они есть.</summary>
+    private async Task<Dictionary<Guid, List<string>>> AliasesAsync(IReadOnlyCollection<Guid> typeIds, CancellationToken ct) =>
+        await db.DomainObjects.AsNoTracking()
+            .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId) && o.Aliases.Any())
+            .Select(o => new { o.Id, o.Aliases })
+            .ToDictionaryAsync(o => o.Id, o => o.Aliases, ct);
+
+    /// <summary>
+    /// Записи на выбор; <c>null</c> — их больше, чем окно может показать списком.
+    ///
+    /// <para>⚠️ Только уровня ВСЕЙ СИСТЕМЫ и только действующие. Позиция заводится на уровне системы,
+    /// и ссылка из неё на запись одной стройки в документах другой стройки не разрешилась бы: единица
+    /// в документе оказалась бы пустой, а в справочнике позиция выглядела бы заполненной.</para>
+    /// </summary>
     private async Task<IReadOnlyList<IntakeOption>?> OptionsAsync(
         Guid target, IReadOnlyDictionary<Guid, DocumentType> all, CancellationToken ct)
     {
         var typeIds = all.Keys.Where(id => DocumentTypeSchemaReader.IsSameOrDescendant(id, target, all)).ToList();
-        var found = await mediator.Send(
-            new SearchCommonDataForChoiceQuery(typeIds, null, NomenclatureIntakeLayout.OptionsLimit + 1), ct);
-        return found.Items.Count > NomenclatureIntakeLayout.OptionsLimit
-            ? null
-            : [.. found.Items.Select(r => new IntakeOption(r.Id, r.DisplayName))];
+        var found = await db.DomainObjects.AsNoTracking()
+            .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId) && o.ScopeLevel == CatalogScope.System && o.ArchivedAt == null)
+            .OrderBy(o => o.DisplayName).ThenBy(o => o.Id)
+            .Take(NomenclatureIntakeLayout.OptionsLimit + 1)
+            .Select(o => new IntakeOption(o.Id, o.DisplayName))
+            .ToListAsync(ct);
+        return found.Count > NomenclatureIntakeLayout.OptionsLimit ? null : found;
     }
 
     /// <summary>Все типы и семейство «Номенклатуры». Типа нет — отказ с причиной, а не пустой список.</summary>

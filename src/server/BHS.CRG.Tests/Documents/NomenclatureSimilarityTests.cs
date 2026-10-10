@@ -10,8 +10,9 @@ public class NomenclatureSimilarityTests
 {
     private static readonly string[] Titles = ["Наименование", "Производитель", "Артикул"];
 
-    private static SimilarRecord Lying(string name, string? maker = null, string? article = null, bool archived = false) =>
-        new(Guid.NewGuid(), Guid.Empty, name, archived, [name, maker, article]);
+    private static SimilarRecord Lying(string name, string? maker = null, string? article = null, bool archived = false,
+        string[]? aliases = null, bool ownKey = false) =>
+        new(Guid.NewGuid(), Guid.Empty, "Номенклатура", name, archived, [name, maker, article], aliases ?? [], ownKey);
 
     private static SimilarAnswer Find(IReadOnlyList<SimilarRecord> records, string name, string? maker = null, string? article = null) =>
         NomenclatureSimilarity.Find(
@@ -35,7 +36,7 @@ public class NomenclatureSimilarityTests
     [Fact]
     public void Запись_без_данных_сверяется_по_своему_названию()
     {
-        var empty = new SimilarRecord(Guid.NewGuid(), Guid.Empty, "Реле РП-21", false, [null, null, null]);
+        var empty = new SimilarRecord(Guid.NewGuid(), Guid.Empty, "Номенклатура", "Реле РП-21", false, [null, null, null], []);
 
         Assert.Equal(empty.Id, Find([empty], "реле рп-21").Exact?.Id);
     }
@@ -73,6 +74,57 @@ public class NomenclatureSimilarityTests
         var answer = Find([close, far], "Кабель силовой ВВГнг 3х2,5");
 
         Assert.Equal(close.Id, Assert.Single(answer.Similar).Record.Id);
+    }
+
+    [Fact]
+    public void Число_в_названии_совпадает_целым_словом_а_не_куском_другого_числа()
+    {
+        var right = Lying("Автомат 16А");
+        var wrong = new[] { Lying("Автомат 160А"), Lying("Автомат С116"), Lying("Автомат 3х16") };
+
+        // «16а» — слово с цифрой: в «160а», «с116» и «3х16» его нет, хотя подстрокой «16» есть везде.
+        var answer = Find([right, .. wrong], "Автомат модульный 16А");
+
+        Assert.Equal(right.Id, Assert.Single(answer.Similar).Record.Id);
+        // А слово без цифр совпадает и началом: «ВВГ» — это «ВВГнг».
+        Assert.Single(Find([Lying("Кабель ВВГнг 3х2,5")], "ВВГ 3х2,5").Similar);
+    }
+
+    [Fact]
+    public void Альтернативное_имя_лежащей_позиции_сверка_видит()
+    {
+        var named = Lying("Кабель ВВГнг(А)-LS 3х2,5", aliases: ["ВВГ 3*2.5"]);
+
+        var hit = Assert.Single(Find([named], "ввг 3*2.5").Similar);
+
+        Assert.Contains("альтернативным именем", hit.Why);
+        // И словами: альтернативное имя похоже, хотя название — нет.
+        Assert.Single(Find([named], "ВВГ 3*2.5 медный").Similar);
+    }
+
+    [Fact]
+    public void Запись_подтипа_со_своими_полями_ключа_не_та_же_а_похожая()
+    {
+        // Три «Кабеля» одного названия различаются сечением — полем ключа подтипа. Ни один из них не
+        // «тот же» для позиции без сечения: создание не запрещено, а выбрать предлагают глазами.
+        var cables = Enumerable.Range(0, 3).Select(_ => Lying("Кабель ВВГ", ownKey: true)).ToList();
+
+        var answer = Find(cables, "Кабель ВВГ");
+
+        Assert.Null(answer.Exact);
+        Assert.Equal(3, answer.Similar.Count);
+        Assert.All(answer.Similar, h => Assert.Contains("есть свои", h.Why));
+    }
+
+    [Fact]
+    public void Из_одинаковых_двойников_ответ_один_и_тот_же()
+    {
+        var twins = Enumerable.Range(0, 5).Select(_ => Lying("Гильза ГМЛ 16")).ToList();
+
+        var first = Find(twins, "Гильза ГМЛ 16").Exact?.Id;
+
+        Assert.Equal(twins.Min(t => t.Id), first);
+        Assert.Equal(first, Find([.. twins.AsEnumerable().Reverse()], "Гильза ГМЛ 16").Exact?.Id);
     }
 
     [Fact]

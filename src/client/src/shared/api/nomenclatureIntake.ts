@@ -52,13 +52,29 @@ export interface IntakeBody {
   refs?: Record<string, string>;
 }
 
-/** Виды позиций и что о каждом спросить. Спрашивается, только когда окно создания открыто. */
-export function useNomenclatureIntake(enabled: boolean) {
+/**
+ * Виды позиций и что о каждом спросить.
+ *
+ * ⚠️ Ответ не хранится между открытиями окна (`gcTime: 0`): в нём записи на выбор и приговор «вид
+ * отсюда не завести». Единицу отправили в архив, схему поправили — а окно показало бы вчерашнее:
+ * выбор архивной единицы кончился бы отказом сервера, а новой в списке не было бы вовсе.
+ */
+export function useNomenclatureIntake() {
   return useQuery({
     queryKey: ['nomenclature-intake'] as const,
     queryFn: () => apiClient.get<{ kinds: IntakeKind[] }>('/nomenclature/intake').then(r => r.data.kinds),
-    enabled,
+    staleTime: 0,
+    gcTime: 0,
   });
+}
+
+/**
+ * Позиция, из-за которой сервер отказал создавать: «такая уже есть» (409, `code: "exists"`). Отказ
+ * приходит полями, чтобы окно предложило ВЫБРАТЬ лежащую, а не только пересказало его словами.
+ */
+export function existingPosition(error: unknown): NomenclaturePosition | null {
+  const data = (error as { response?: { data?: { code?: string; existing?: NomenclaturePosition } } })?.response?.data;
+  return data?.code === 'exists' && data.existing ? data.existing : null;
 }
 
 /**

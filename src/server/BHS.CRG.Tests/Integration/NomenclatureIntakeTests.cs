@@ -66,6 +66,18 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
         var bad = kinds.EnumerateArray().Single(k => k.GetProperty("typeId").GetGuid() == counted);
         Assert.Contains("«Количество»", bad.GetProperty("refusals")[0].GetString());
 
+        // Поле ключа расчётное: человек его не заполняет, и ключ без него был бы урезан — вид негоден,
+        // а не «заводится по остатку ключа».
+        var computedKey = await SubtypeAsync("ПозицияСРасчётнымКлючом", "Позиция с расчётным ключом", """
+            {"fields":[
+              {"key":"Код","type":"string","title":"Код","computed":true,"expression":"1","tags":["identity:1"]},
+              {"key":"Наименование","type":"string","title":"Наименование","required":true,"tags":["identity:2"]}
+            ]}
+            """);
+        kinds = (await client.GetFromJsonAsync<JsonElement>("/api/nomenclature/intake")).GetProperty("kinds");
+        var urezan = kinds.EnumerateArray().Single(k => k.GetProperty("typeId").GetGuid() == computedKey);
+        Assert.Contains("«Код»", urezan.GetProperty("refusals")[0].GetString());
+
         // Корень семейства у этого хоста — без схемы: сверить позицию не с чем.
         var root = kinds.EnumerateArray().Single(k => k.GetProperty("code").GetString() == CostsRecordTypes.NomenclatureCode);
         Assert.Contains("Идентификатор", root.GetProperty("refusals")[0].GetString());
@@ -196,6 +208,13 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
         Assert.Equal(wordy, Assert.Single(words.GetProperty("similar").EnumerateArray())
             .GetProperty("position").GetProperty("id").GetGuid());
 
+        // Альтернативное имя: поиск в этом же окне по нему находит, значит и сверка обязана.
+        var aliased = await EntryAsync(kind.Type, $"Кабель {mark} ВВГнг(А)-LS 3х2,5", $"ВВГ {mark} 3*2.5");
+        var byAlias = await SimilarAsync(client, kind, new() { ["Наименование"] = $"ввг {mark} 3*2.5" });
+        var named = Assert.Single(byAlias.GetProperty("similar").EnumerateArray());
+        Assert.Equal(aliased, named.GetProperty("position").GetProperty("id").GetGuid());
+        Assert.Contains("альтернативным именем", named.GetProperty("why").GetString());
+
         // Тот же ключ целиком — «такая уже есть», и в похожих она не повторяется.
         var same = await SimilarAsync(client, kind, new()
         {
@@ -236,6 +255,17 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
             typeId = kind.Type, refs = unit,
             values = new Dictionary<string, string> { ["Наименование"] = name, ["Группа"] = "Кабель" },
         }));
+        // Запись, присланная в ТЕКСТОВОЕ поле, и текст — в поле выбора: отказ, а не молчаливый пропуск.
+        Assert.Contains("не того рода", await RefusedAsync(HttpStatusCode.BadRequest, new
+        {
+            typeId = kind.Type, values = new Dictionary<string, string> { ["Наименование"] = name },
+            refs = new Dictionary<string, Guid> { ["ЕдиницаИзмерения"] = kind.Unit, ["Артикул"] = kind.Unit },
+        }));
+        Assert.Contains("не того рода", await RefusedAsync(HttpStatusCode.BadRequest, new
+        {
+            typeId = kind.Type, refs = unit,
+            values = new Dictionary<string, string> { ["Наименование"] = name, ["ЕдиницаИзмерения"] = "шт" },
+        }));
         // Единицей названа запись не из выбора — позиция номенклатуры.
         Assert.Contains("нет среди действующих", await RefusedAsync(HttpStatusCode.BadRequest, new
         {
@@ -264,12 +294,18 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
         var kind = await KindAsync();
         var retired = await EntryAsync(await TypeAsync(CoreRecordTypes.UnitCode, "Единица измерения"), Unique("ед"));
         await SqlAsync("""UPDATE domain_objects SET "ArchivedAt" = now() WHERE "Id" = {0}""", retired);
+        var local = await EntryAsync(await TypeAsync(CoreRecordTypes.UnitCode, "Единица измерения"), Unique("ед"));
+        await SqlAsync("""UPDATE domain_objects SET "ScopeLevel" = 'Construction', "ScopeId" = {1} WHERE "Id" = {0}""",
+            local, Guid.NewGuid());
 
         var kinds = (await client.GetFromJsonAsync<JsonElement>("/api/nomenclature/intake")).GetProperty("kinds");
         var options = kinds.EnumerateArray().Single(k => k.GetProperty("typeId").GetGuid() == kind.Type)
             .GetProperty("fields").EnumerateArray().Last().GetProperty("options");
         Assert.Contains(options.EnumerateArray(), o => o.GetProperty("id").GetGuid() == kind.Unit);
         Assert.DoesNotContain(options.EnumerateArray(), o => o.GetProperty("id").GetGuid() == retired);
+        // Единица одной стройки: позиция уровня системы сослалась бы на запись, которой в документах
+        // другой стройки нет.
+        Assert.DoesNotContain(options.EnumerateArray(), o => o.GetProperty("id").GetGuid() == local);
 
         // Присланная мимо окна — отказ: новая ссылка на архивную запись не ставится (CORE-34.4).
         var name = Unique("Муфта");
@@ -279,6 +315,13 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
             refs = new Dictionary<string, Guid> { ["ЕдиницаИзмерения"] = retired },
         });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var foreign = await client.PostAsJsonAsync("/api/nomenclature", new
+        {
+            typeId = kind.Type, values = new Dictionary<string, string> { ["Наименование"] = name },
+            refs = new Dictionary<string, Guid> { ["ЕдиницаИзмерения"] = local },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, foreign.StatusCode);
+        Assert.Contains("нет среди действующих", await foreign.Content.ReadAsStringAsync());
         Assert.Equal(0, await CountAsync(name));
     }
 
