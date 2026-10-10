@@ -40,7 +40,7 @@ public sealed class OfficeConverterClient(
     public async Task<ConverterReply> ConvertAsync(byte[] file, OfficeFormat format, CancellationToken ct)
     {
         if (!options.Configured)
-            return Unavailable("у этого экземпляра он не настроен");
+            return NotSetUp("у этого экземпляра он не настроен");
         if (!await _gate.WaitAsync(GateWait, ct))
             return Unavailable("он занят другими файлами");
         try
@@ -69,8 +69,10 @@ public sealed class OfficeConverterClient(
 
         try
         {
-            using var response = await http.PostAsync(
-                options.At("forms/libreoffice/convert"), form, deadline.Token);
+            // Только до заголовков: иначе клиент сам сложил бы весь ответ в память раньше, чем мы
+            // успели бы спросить о его размере, — и предел ниже проверял бы уже лежащий там PDF.
+            using var request = new HttpRequestMessage(HttpMethod.Post, options.At("forms/libreoffice/convert")) { Content = form };
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
             if (response.StatusCode == HttpStatusCode.OK)
                 return await ReadPdfAsync(response, deadline.Token);
 
@@ -86,6 +88,10 @@ public sealed class OfficeConverterClient(
                 // Срок самого сервиса: очереди перед ним нет, значит время ушло на этот файл.
                 HttpStatusCode.ServiceUnavailable =>
                     Refused(RenditionRefusal.TooLarge, "Файл слишком велик для читаемого вида: конвертер не успел его обработать."),
+                // По адресу стоит не конвертер или не тот его путь: повтор тут ничего не изменит.
+                HttpStatusCode.NotFound or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                    or HttpStatusCode.MethodNotAllowed =>
+                    NotSetUp($"по настроенному адресу он не отвечает как конвертер (код {(int)response.StatusCode})"),
                 _ => Unavailable($"он ответил {(int)response.StatusCode}"),
             };
         }
@@ -122,6 +128,10 @@ public sealed class OfficeConverterClient(
         (await response.Content.ReadAsStringAsync(ct)).Contains("password", StringComparison.OrdinalIgnoreCase);
 
     private static ConverterReply Refused(RenditionRefusal kind, string reason) => new(null, new(kind, reason));
+
+    private static ConverterReply NotSetUp(string why) =>
+        Refused(RenditionRefusal.NotSetUp,
+            $"Офисные файлы здесь к читаемому виду не приводятся: конвертер недоступен — {why}. Обратитесь к администратору.");
 
     private static ConverterReply Unavailable(string why) =>
         Refused(RenditionRefusal.Unavailable, $"Конвертер офисных файлов недоступен: {why}. Повторите позже.");

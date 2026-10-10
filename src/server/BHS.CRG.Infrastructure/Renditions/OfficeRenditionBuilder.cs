@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace BHS.CRG.Infrastructure.Renditions;
 
 /// <summary>
@@ -12,28 +14,43 @@ namespace BHS.CRG.Infrastructure.Renditions;
 /// <para>Ничего не хранит и состояния не держит: хранит образ и отдаёт его модулям отдельная часть
 /// (issue #1269).</para>
 /// </summary>
-public sealed class OfficeRenditionBuilder(OfficeConverterClient converter)
+public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILogger<OfficeRenditionBuilder> log)
 {
+    /// <summary>Пометка образа книги, ячейки которой прочесть не удалось: сверки не было.</summary>
+    public const string UncheckedNote =
+        "Сверить образ с ячейками книги не удалось: книга читается не полностью. Сверяйте с исходным файлом.";
+
     /// <returns><see cref="Rendition.Built" /> или <see cref="Rendition.Refused" />.</returns>
     public async Task<Rendition> BuildAsync(byte[] file, OfficeFormat format, CancellationToken ct)
     {
         if (OfficeFileBudget.Check(format, file) is { } overBudget) return overBudget;
 
         IReadOnlyList<string>? cellWords = null;
+        var uncheckedBook = false;
         if (format is OfficeFormat.Xlsx or OfficeFormat.Xls)
         {
-            var cells = ExcelCellTexts.From(file);
+            var cells = ExcelCellTexts.From(file, format, ct);
             if (cells.Refusal is not null) return cells.Refusal;
-            cellWords = cells.Words;
+            if (cells.Unreadable is null) cellWords = cells.Words;
+            else
+            {
+                // Наш разборщик книгу не прочёл — это ещё не «повреждена»: LibreOffice понимает
+                // больше. Книга идёт к нему без сверки слов, и образ об этом скажет.
+                log.LogWarning("Книга {Format} не прочитана для сверки ({Error}): образ строится без неё", format, cells.Unreadable);
+                uncheckedBook = true;
+            }
         }
 
         var reply = await converter.ConvertAsync(file, format, ct);
-        return reply.Refusal ?? RenditionPostconditions.Check(reply.Pdf!, cellWords);
+        var result = reply.Refusal ?? RenditionPostconditions.Check(reply.Pdf!, cellWords);
+        return result is Rendition.Built built && uncheckedBook
+            ? built with { Notes = [.. built.Notes, UncheckedNote] }
+            : result;
     }
 
-    /// <summary>
-    /// Что сказать о файле, вид которого не определился, если причина в нём самом: защищён паролем
-    /// или повреждён. <c>null</c> — файл просто другого вида.
-    /// </summary>
-    public static Rendition.Refused? WhyNotOffice(ReadOnlySpan<byte> file) => OfficeFileBudget.WhyUnknown(file);
+    /// <inheritdoc cref="OfficeFileBudget.MayBeOffice" />
+    public static bool MayBeOffice(ReadOnlySpan<byte> head) => OfficeFileBudget.MayBeOffice(head);
+
+    /// <inheritdoc cref="OfficeFileBudget.WhyUnknown" />
+    public static RenditionRefusal? WhyNotOffice(byte[] file) => OfficeFileBudget.WhyUnknown(file);
 }

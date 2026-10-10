@@ -38,16 +38,40 @@ public sealed class RenditionService(OfficeRenditionBuilder office)
                     $"Файл слишком велик для читаемого вида: он больше {RenditionLimits.OfficeMaxBytes / (1024 * 1024)} МБ.")
                 : WrongFormat();
 
+        if (reading == FileReading.Rendition) return await office.BuildAsync(await WholeAsync(content, ct), FormatOf(kind), ct);
+
+        // Вид не определился — но причина может быть в самом файле: под паролем он уже не архив,
+        // а обрезанный — архив без оглавления. Человеку это не «файл другого вида». Целиком ради
+        // этого читается только то, что начинается как архив или контейнер: остальным хватает начала.
+        var head = new byte[FileKinds.HeadBytes];
+        content.Position = 0;
+        var read = await content.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct);
+        if (!OfficeRenditionBuilder.MayBeOffice(head.AsSpan(0, read))) return WrongFormat();
+
+        return OfficeRenditionBuilder.WhyNotOffice(await WholeAsync(content, ct)) switch
+        {
+            // Что под паролем, не видно — может быть, и не то, что мы читаем. Поэтому совет снять
+            // пароль идёт вместе с перечнем: иначе человек снял бы его с презентации и получил
+            // второй отказ, уже другой.
+            RenditionRefusal.Protected => new(RenditionRefusal.Protected,
+                "Файл защищён паролем, и что в нём, не видно. Снимите пароль и приложите файл заново — " +
+                $"если это {FileKindCatalog.Words(ReadViaRendition, "или")}, он будет прочитан."),
+            RenditionRefusal.Corrupted => new(RenditionRefusal.Corrupted,
+                "Файл повреждён: он начинается как офисный, но прочитать его нельзя."),
+            _ => WrongFormat(),
+        };
+    }
+
+    private static async Task<byte[]> WholeAsync(Stream content, CancellationToken ct)
+    {
         var file = new byte[content.Length];
         content.Position = 0;
         await content.ReadExactlyAsync(file, ct);
-
-        // Вид не определился — но причина может быть в самом файле: под паролем он уже не архив,
-        // а обрезанный — архив без оглавления. Человеку это не «файл другого вида».
-        if (reading != FileReading.Rendition) return OfficeRenditionBuilder.WhyNotOffice(file) ?? WrongFormat();
-
-        return await office.BuildAsync(file, FormatOf(kind), ct);
+        return file;
     }
+
+    private static IEnumerable<FileKind> ReadViaRendition =>
+        FileKindCatalog.All.Where(known => known.Reading == FileReading.Rendition);
 
     /// <summary>
     /// Вид реестра — в формат строителя. Вид «через образ», которого здесь нет, — ошибка программы,

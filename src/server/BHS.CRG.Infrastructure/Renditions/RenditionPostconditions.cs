@@ -38,9 +38,10 @@ internal static class RenditionPostconditions
 
         var text = string.Concat(pages);
         if (text.Length == 0)
-            // У книги заполненные ячейки ЕСТЬ (иначе до конвертера она не дошла бы), значит текст
-            // потерян по дороге. У документа Word знать этого нельзя: он мог быть пуст и сам.
-            return cellWords is not null
+            // У книги со словами в ячейках текст потерян по дороге. А если слов не было — одни
+            // прочерки и галочки, — букв нет и в исходном файле, и это не сбой, а пустой файл.
+            // У документа Word знать этого нельзя вовсе: он мог быть пуст и сам.
+            return cellWords is { Count: > 0 }
                 ? Failed("в полученном PDF нет текста, хотя в ячейках книги он есть")
                 : new Rendition.Refused(RenditionRefusal.Empty,
                     "В файле нет текста — читаемый вид получился бы пустым. Если в документ вставлен скан, приложите сам скан.");
@@ -53,15 +54,42 @@ internal static class RenditionPostconditions
 
         if (cellWords is { Count: > 0 })
         {
-            var found = (double)cellWords.Count(text.Contains) / cellWords.Count;
+            var found = Coverage(cellWords, text);
             if (found < RenditionLimits.CoverageRefuseBelow)
                 return Failed("в полученный PDF попало меньше половины текста ячеек");
             if (found < RenditionLimits.CoverageNoteBelow)
-                notes.Add($"Часть текста не попала на страницу: из слов в ячейках найдено {found:P0}. " +
+                // Доля — вниз до целого: округлённая как обычно, 97,96 % стала бы «98 %» — числом
+                // порога, под которым пометки быть не должно.
+                notes.Add($"Часть текста не попала на страницу: из слов в ячейках найдено {(int)Math.Floor(found * 100)} %. " +
                           "Сверяйте с исходным файлом.");
         }
 
         return new Rendition.Built(pdf, pages.Count, notes);
+    }
+
+    /// <summary>
+    /// Доля слов ячеек, найденных в тексте страниц, с учётом повторов.
+    ///
+    /// <para>Каждое РАЗНОЕ слово ищется один раз, и разных берётся не больше предела — через равные
+    /// промежутки по всей книге. Поиск слова — проход по всему тексту, и прайс-лист на сотни тысяч
+    /// слов против сотни страниц давал бы сотни миллиардов сравнений на потоке запроса. Вопрос
+    /// «образ ли это этого файла» две тысячи слов решают не хуже двухсот тысяч.</para>
+    /// </summary>
+    private static double Coverage(IReadOnlyList<string> cellWords, string text)
+    {
+        var repeats = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var word in cellWords) repeats[word] = repeats.GetValueOrDefault(word) + 1;
+
+        var step = Math.Max(1, repeats.Count / RenditionLimits.MaxCheckedWords);
+        long asked = 0, found = 0;
+        var index = 0;
+        foreach (var (word, count) in repeats)
+        {
+            if (index++ % step != 0) continue;
+            asked += count;
+            if (text.Contains(word, StringComparison.Ordinal)) found += count;
+        }
+        return (double)found / asked;
     }
 
     /// <summary>

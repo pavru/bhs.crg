@@ -33,17 +33,21 @@ internal static class OfficeFileBudget
     }
 
     /// <summary>
-    /// Что сказать о файле, вид которого не определился: защищён, повреждён или просто чужой.
-    /// Разница человеку важна — с первым и вторым он знает, что делать.
+    /// Может ли причина неопределённого вида быть в самом файле: так начинаются и архив, и
+    /// контейнер. Остальным файл целиком читать незачем — хватает его начала.
     /// </summary>
-    public static Rendition.Refused? WhyUnknown(ReadOnlySpan<byte> file)
+    public static bool MayBeOffice(ReadOnlySpan<byte> head) => head.StartsWith(OleSign) || head.StartsWith(ZipSign);
+
+    /// <summary>
+    /// Что не так с файлом, вид которого не определился: защищён, повреждён — или ничего
+    /// (<c>null</c>), и он просто чужой. Разница человеку важна — с первым и вторым он знает, что
+    /// делать.
+    /// </summary>
+    public static RenditionRefusal? WhyUnknown(byte[] file)
     {
-        if (file.StartsWith(OleSign) && file.IndexOf(EncryptedPackage) >= 0)
-            return new(RenditionRefusal.Protected,
-                "Файл защищён паролем — привести его к читаемому виду нельзя. Снимите пароль и приложите файл заново.");
-        if (file.StartsWith(ZipSign) && !OpensAsArchive(file))
-            return new(RenditionRefusal.Corrupted,
-                "Файл повреждён: он начинается как офисный, но прочитать его нельзя.");
+        if (file.AsSpan().StartsWith(OleSign) && file.AsSpan().IndexOf(EncryptedPackage) >= 0)
+            return RenditionRefusal.Protected;
+        if (file.AsSpan().StartsWith(ZipSign) && !OpensAsArchive(file)) return RenditionRefusal.Corrupted;
         return null;
     }
 
@@ -78,11 +82,11 @@ internal static class OfficeFileBudget
         }
     }
 
-    private static bool OpensAsArchive(ReadOnlySpan<byte> file)
+    private static bool OpensAsArchive(byte[] file)
     {
         try
         {
-            using var zip = new ZipArchive(new MemoryStream(file.ToArray(), writable: false), ZipArchiveMode.Read);
+            using var zip = new ZipArchive(new MemoryStream(file, writable: false), ZipArchiveMode.Read);
             return zip.Entries.Count >= 0;
         }
         catch (InvalidDataException)

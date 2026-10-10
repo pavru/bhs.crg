@@ -130,6 +130,51 @@ public class RenditionPostconditionTests
     }
 
     /// <summary>
+    /// Доля в пометке — вниз до целого: 48 слов из 49 — это 97,96 %, и «найдено 98 %» рядом с
+    /// предупреждением о потере читалось бы как здоровое число.
+    /// </summary>
+    [Fact]
+    public async Task Доля_в_пометке_не_округляется_до_порога()
+    {
+        var words = Enumerable.Range(0, 49).Select(index => $"token{index:00}end").ToArray();
+        var service = Service(Returns(Pdf(string.Join(" ", words.Take(48)))));
+
+        var built = Assert.IsType<Rendition.Built>(await service.BuildAsync(Workbook(words)));
+
+        Assert.Contains("найдено 97 %", Assert.Single(built.Notes));
+    }
+
+    /// <summary>
+    /// Прайс-лист на десятки тысяч разных слов: каждое ищется проходом по всему тексту, и без
+    /// предела на число искомых слов сверка шла бы минутами на потоке запроса.
+    /// </summary>
+    [Fact]
+    public async Task Большая_книга_сверяется_быстро_и_повторы_слов_считаются()
+    {
+        var cells = Enumerable.Range(0, 30_000).Select(index => $"item{index:00000}name repeated").ToArray();
+        var service = Service(Returns(Pdf(string.Join(" ", cells.Select(cell => cell.Split(' ')[0])) + " repeated")));
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var built = Assert.IsType<Rendition.Built>(await service.BuildAsync(Workbook(cells)));
+
+        Assert.Empty(built.Notes);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(30), $"сверка шла {clock.Elapsed}");
+    }
+
+    /// <summary>
+    /// В ячейках одни прочерки и галочки: букв нет ни в книге, ни в её PDF. Это пустой файл, а не
+    /// «текст потерян по дороге».
+    /// </summary>
+    [Fact]
+    public async Task Книга_из_одних_знаков_пуста_а_не_испорчена_конвертером()
+    {
+        var refused = Assert.IsType<Rendition.Refused>(
+            await Service(Returns(Pdf(""))).BuildAsync(Workbook("—", "***", "✓")));
+
+        Assert.Equal(RenditionRefusal.Empty, refused.Kind);
+    }
+
+    /// <summary>
     /// Буква, записанная в PDF, ещё не напечатана. Ячейку, не поместившуюся внизу листа, LibreOffice
     /// дописывает НИЖЕ края страницы: в файле текст есть, на листе его нет. Сверка обязана считать
     /// его потерянным — иначе она находит то, чего не видит никто.

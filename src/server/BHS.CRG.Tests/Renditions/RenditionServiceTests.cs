@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using BHS.CRG.Api.Renditions;
 using BHS.CRG.Infrastructure.Renditions;
@@ -158,15 +159,104 @@ public class RenditionServiceTests
         Assert.StartsWith("Файл повреждён", refused.Reason);
     }
 
-    /// <summary>Оглавление архива на месте, а книги внутри нет: вид определился, читать нечего.</summary>
+    /// <summary>
+    /// Наш разборщик книгу не прочёл — это ещё не «повреждена»: он помощник сверки, а не ворота
+    /// перед конвертером, и LibreOffice понимает больше (ревью PR #1280). Что с книгой на самом
+    /// деле, говорит конвертер; а образ, построенный без сверки, обязан об этом сказать.
+    /// </summary>
     [Fact]
-    public async Task Книга_с_негодным_содержимым_повреждена()
+    public async Task Книга_которую_не_прочёл_наш_разборщик_идёт_к_конвертеру_без_сверки()
     {
-        var broken = Archive(("xl/workbook.xml", Encoding.UTF8.GetBytes("<not a workbook")));
+        var odd = Archive(("xl/workbook.xml", Encoding.UTF8.GetBytes("<not a workbook")));
 
-        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(broken));
+        var refused = Assert.IsType<Rendition.Refused>(
+            await Service(Answers(HttpStatusCode.InternalServerError)).BuildAsync(odd));
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(InvoiceText))).BuildAsync(odd));
 
-        Assert.Equal(RenditionRefusal.Corrupted, refused.Kind);
+        Assert.Equal(RenditionRefusal.Failed, refused.Kind);
+        Assert.Equal(OfficeRenditionBuilder.UncheckedNote, Assert.Single(built.Notes));
+    }
+
+    /// <summary>
+    /// Две ячейки по углам листа: файл в несколько килобайт, а между ячейками — миллион строк на
+    /// шестнадцать тысяч колонок, и разборщик отдаёт их все. Счётчик заполненных ячеек тут равен
+    /// двум — считать надо пройденные.
+    /// </summary>
+    [Fact]
+    public async Task Книга_с_ячейками_по_углам_листа_слишком_велика_и_отказ_приходит_быстро()
+    {
+        var corners = Workbook(book =>
+        {
+            var sheet = book.CreateSheet("Sheet");
+            sheet.CreateRow(0).CreateCell(0).SetCellValue("first");
+            sheet.CreateRow(1_048_575).CreateCell(16_383).SetCellValue("last");
+        });
+        Assert.True(corners.Length < 100 * 1024);
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(corners));
+
+        Assert.Equal(RenditionRefusal.TooLarge, refused.Kind);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"отказ шёл {clock.Elapsed}");
+    }
+
+    /// <summary>
+    /// Счёт в области печати, рядом на листе — справочные колонки. На страницу идёт только область,
+    /// и остальное потерей не считается: иначе здоровая книга получала бы отказ навсегда.
+    /// </summary>
+    [Fact]
+    public async Task Текст_вне_области_печати_с_образом_не_сверяется()
+    {
+        var book = Workbook(workbook =>
+        {
+            var sheet = workbook.CreateSheet("Invoice sheet");
+            sheet.CreateRow(0).CreateCell(0).SetCellValue(InvoiceText);
+            for (var row = 0; row < 40; row++)
+                (sheet.GetRow(row) ?? sheet.CreateRow(row)).CreateCell(8).SetCellValue($"reference{row} lookup{row} never{row} printed{row}");
+            workbook.SetPrintArea(0, 0, 3, 0, 5);
+        });
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(InvoiceText))).BuildAsync(book));
+
+        Assert.Empty(built.Notes);
+    }
+
+    /// <summary>Файл чужого вида целиком не читается: чтобы назвать его чужим, хватает начала.</summary>
+    [Fact]
+    public async Task Файл_чужого_вида_целиком_в_память_не_берётся()
+    {
+        var gif = new ReadCounting([.. Encoding.ASCII.GetBytes("GIF89a"), .. new byte[5 * 1024 * 1024]]);
+
+        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(gif, CancellationToken.None));
+
+        Assert.Equal(RenditionRefusal.WrongFormat, refused.Kind);
+        Assert.True(gif.ReadSoFar < 64 * 1024, $"прочитано {gif.ReadSoFar} байт");
+    }
+
+    private sealed class ReadCounting(byte[] content) : MemoryStream(content)
+    {
+        public long ReadSoFar { get; private set; }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var read = base.Read(buffer);
+            ReadSoFar += read;
+            return read;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = base.Read(buffer, offset, count);
+            ReadSoFar += read;
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            ReadSoFar += read;
+            return read;
+        }
     }
 
     /// <summary>
@@ -184,6 +274,9 @@ public class RenditionServiceTests
 
         Assert.Equal(RenditionRefusal.Protected, refused.Kind);
         Assert.Contains("защищён паролем", refused.Reason);
+        // Что под паролем, не видно — так же зашифрована и презентация. Совет снять пароль идёт с
+        // оговоркой, что именно будет прочитано: иначе он вёл бы ко второму отказу.
+        Assert.Contains("если это Excel или Word", refused.Reason);
     }
 
     /// <summary>

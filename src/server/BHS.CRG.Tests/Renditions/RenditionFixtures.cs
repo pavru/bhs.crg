@@ -58,7 +58,7 @@ internal static class RenditionFixtures
         };
 
     public static RenditionService Service(Converter converter) =>
-        new(new OfficeRenditionBuilder(Client(converter)));
+        new(new OfficeRenditionBuilder(Client(converter), NullLogger<OfficeRenditionBuilder>.Instance));
 
     public static Task<Rendition> BuildAsync(this RenditionService service, byte[] file) =>
         service.BuildAsync(new MemoryStream(file), CancellationToken.None);
@@ -119,7 +119,14 @@ internal static class RenditionFixtures
             var y = 800;
             foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                if (line.Length + word.Length > 90) { page.AddText(line.ToString(), 8, new PdfPoint(20, y), font); line.Clear(); y -= 12; }
+                if (line.Length + word.Length > 90)
+                {
+                    page.AddText(line.ToString(), 8, new PdfPoint(20, y), font);
+                    line.Clear();
+                    y -= 12;
+                    // Лист кончился — длинный текст продолжается на следующем, как у настоящего PDF.
+                    if (y < 20) { page = builder.AddPage(PageSize.A4); y = 800; }
+                }
                 line.Append(word).Append(' ');
             }
             if (line.Length > 0) page.AddText(line.ToString(), 8, new PdfPoint(20, y), font);
@@ -134,6 +141,29 @@ internal static class RenditionFixtures
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "CLAUDE.md"))) dir = dir.Parent;
         if (dir is null) throw new InvalidOperationException("Не найден корень репозитория выше " + AppContext.BaseDirectory);
         return File.ReadAllBytes(Path.Combine([dir.FullName, .. path]));
+    }
+
+    /// <summary>Поток заданной длины из нулей, который считает, сколько из него прочли.</summary>
+    public sealed class Counted(long length) : Stream
+    {
+        public long ReadSoFar { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => length;
+        public override long Position { get => ReadSoFar; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var take = (int)Math.Min(count, length - ReadSoFar);
+            Array.Clear(buffer, offset, take);
+            ReadSoFar += take;
+            return take;
+        }
     }
 
     private sealed class Clients(Converter converter) : IHttpClientFactory

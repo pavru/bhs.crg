@@ -26,13 +26,32 @@ public class OfficeConverterClientTests
     [Theory]
     [InlineData(null)]
     [InlineData(" ")]
-    public async Task Без_адреса_конвертер_недоступен_и_никого_не_зовут(string? baseUrl)
+    public async Task Без_адреса_конвертера_нет_и_повтор_этого_не_лечит(string? baseUrl)
     {
         var refused = await RefusalOf(Client(MustNotBeCalled, baseUrl));
 
-        Assert.Equal(RenditionRefusal.Unavailable, refused.Kind);
-        Assert.True(refused.RetryHelps);
+        // Не «недоступен»: тот зовёт повторить, а здесь повторять можно без конца (ревью PR #1280).
+        Assert.Equal(RenditionRefusal.NotSetUp, refused.Kind);
+        Assert.False(refused.RetryHelps);
         Assert.Contains("не настроен", refused.Reason);
+        Assert.DoesNotContain("Повторите", refused.Reason);
+    }
+
+    /// <summary>
+    /// Размер PDF конвертер не ограничивает ничем, и ответ читается с пределом — НЕ ПОСЛЕ того, как
+    /// клиент сложил его в память целиком: восемьдесят мегабайт ответа, а прочитано чуть больше
+    /// предела.
+    /// </summary>
+    [Fact]
+    public async Task Ответ_больше_предела_обрывается_на_пределе_а_не_читается_целиком()
+    {
+        var body = new Counted(80L * 1024 * 1024);
+        var client = Client((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) }));
+
+        var refused = await RefusalOf(client);
+
+        Assert.Equal(RenditionRefusal.TooLarge, refused.Kind);
+        Assert.InRange(body.ReadSoFar, RenditionLimits.MaxPdfBytes, RenditionLimits.MaxPdfBytes + 1024 * 1024);
     }
 
     [Fact]
@@ -56,7 +75,9 @@ public class OfficeConverterClientTests
     [InlineData(HttpStatusCode.ServiceUnavailable, "Service Unavailable", RenditionRefusal.TooLarge)]
     [InlineData(HttpStatusCode.BadGateway, "", RenditionRefusal.Unavailable)]
     [InlineData(HttpStatusCode.GatewayTimeout, "", RenditionRefusal.Unavailable)]
-    [InlineData(HttpStatusCode.NotFound, "", RenditionRefusal.Unavailable)]
+    // По адресу стоит не конвертер: повтор ничего не изменит.
+    [InlineData(HttpStatusCode.NotFound, "", RenditionRefusal.NotSetUp)]
+    [InlineData(HttpStatusCode.Unauthorized, "", RenditionRefusal.NotSetUp)]
     public async Task Отказ_сервиса_назван_своим_видом(HttpStatusCode status, string body, RenditionRefusal expected)
     {
         var refused = await RefusalOf(Client(Answers(status, body)));
