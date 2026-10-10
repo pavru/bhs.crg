@@ -312,6 +312,14 @@ public static class RecognitionShared
     }
 
     public static string Truncate(string s, int n) => s.Length <= n ? s : s[..n];
+
+    /// <summary>«1 лист», «4 листа», «12 листов» — число с согласованным словом, для текстов отказа.</summary>
+    public static string Sheets(int n)
+    {
+        var (tens, ones) = (n % 100, n % 10);
+        var word = tens is >= 11 and <= 14 ? "листов" : ones == 1 ? "лист" : ones is >= 2 and <= 4 ? "листа" : "листов";
+        return $"{n} {word}";
+    }
 }
 
 /// <summary>Один движок распознавания (Anthropic/Gemini/Ollama). Возвращает СЫРОЙ текст модели.</summary>

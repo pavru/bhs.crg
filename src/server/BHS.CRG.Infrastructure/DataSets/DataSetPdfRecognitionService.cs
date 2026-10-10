@@ -27,8 +27,8 @@ public partial class DataSetPdfRecognitionService(
     ILogger<DataSetPdfRecognitionService> logger
 )
 {
-    // Комплект чертежей может быть большим (десятки листов) — выше, чем MaxPages=10 у
-    // PdfRasterizer (тот подобран под сертификаты/декларации, не трогаем).
+    // Комплект чертежей может быть большим (десятки листов). Файл длиннее предела — отказ, а не
+    // первые сто листов (issue #1271).
     private const int PdfRecognizeMaxPages = 100;
 
     /// <summary>Выбор профиля препроцессинга PDF-набора (issue #38/#44). Оба профиля — набор-centric:

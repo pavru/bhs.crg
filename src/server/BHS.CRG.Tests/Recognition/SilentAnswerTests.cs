@@ -97,16 +97,38 @@ public class OllamaContextLimitTests
             new StubSettings("qwen2.5vl:7b"), new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(() =>
-            engine.RecognizeRawAsync(FivePagePdf(), "application/pdf", [], null, CancellationToken.None));
+            engine.RecognizeRawAsync(Pdf(5), "application/pdf", [], null, CancellationToken.None));
 
         Assert.Contains("не помещаются в отведённый контекст", ex.Message);
     }
 
-    /// <summary>Пять страниц А4 — самый маленький настоящий PDF, который даёт нужное число картинок.</summary>
-    private static byte[] FivePagePdf()
+    /// <summary>
+    /// Отказ называет страницы ДОКУМЕНТА (issue #1271). Растеризатор брал первые десять, и документ
+    /// на двенадцать страниц отказывался словами «10 листов»: число было числом обрезанных страниц.
+    /// А поднимись отведённый контекст выше десяти листов — те же десять ушли бы модели без отказа.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_называет_число_листов_документа_а_не_обрезанное()
+    {
+        var engine = new OllamaRecognizerEngine(new HttpClient(new ThrowingHandler()),
+            new StubSettings("qwen2.5vl:7b"), new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance);
+
+        var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(() =>
+            engine.RecognizeRawAsync(Pdf(12), "application/pdf", [], null, CancellationToken.None));
+
+        Assert.Contains("12 листов", ex.Message);
+        Assert.Contains($"не больше {OllamaRecognizerEngine.MaxPagesPerCall} листов", ex.Message);
+    }
+
+    /// <summary>Предел листов — следствие отведённого контекста: четыре, и это число из замеров.</summary>
+    [Fact]
+    public void В_один_вызов_помещается_четыре_листа() => Assert.Equal(4, OllamaRecognizerEngine.MaxPagesPerCall);
+
+    /// <summary>Пустые страницы А4 — самый маленький настоящий PDF, который даёт нужное число картинок.</summary>
+    private static byte[] Pdf(int pages)
     {
         using var doc = new PdfSharpCore.Pdf.PdfDocument();
-        for (var i = 0; i < 5; i++) doc.AddPage();
+        for (var i = 0; i < pages; i++) doc.AddPage();
         using var ms = new MemoryStream();
         doc.Save(ms, false);
         return ms.ToArray();

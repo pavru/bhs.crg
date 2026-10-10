@@ -159,6 +159,41 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
         });
     }
 
+    /// <summary>
+    /// Файл длиннее предела прогона — отказ с числом листов, а не первые сто (issue #1271): раньше
+    /// альбом на сто один лист распознавался по ста, и недочитанный лист был неотличим от
+    /// отсутствующего. Оба пути — нынешний и прежний постраничный реестр.
+    /// </summary>
+    [Theory]
+    [InlineData(PdfProfiles.GostDocumentsMarker)]
+    [InlineData(PdfProfiles.LegacyTitleBlockRegistryMarker)]
+    public async Task Файл_длиннее_предела_прогона_не_распознаётся_по_первым_листам(string marker)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+
+        using var uploadStream = new MemoryStream(MakePdf(101));
+        var blobPath = await blob.UploadAsync("long.pdf", uploadStream, "application/pdf");
+        var file = DataSetFile.Create("Длинный альбом", DataSetFormat.Pdf, blobPath, CatalogScope.System, null);
+        var source = file.AddSource("Источник", marker, "[]", 0);
+        db.DataSetFiles.Add(file);
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync();
+
+        // Сценарий пуст: дойди хоть один лист до модели — тест упадёт выходом за границу, а не отказом.
+        var svc = new DataSetPdfRecognitionService(
+            db, blob, new ScriptedRecognizer([]), new RecordingNotificationService(),
+            new RecognitionProfileProvider(db, TestRecognition.Catalog), NullLogger<DataSetPdfRecognitionService>.Instance);
+
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
+            () => svc.RecognizePdfSourceAsync(source.Id, confirm: true, default));
+
+        Assert.Contains("101 лист", ex.Message);
+        Assert.Contains("не больше 100", ex.Message);
+        Assert.Null(source.CachedData);
+    }
+
     [Fact]
     public async Task RecognizeGostSet_Form6ContinuationDoesNotSplitDespiteDifferentShifr()
     {

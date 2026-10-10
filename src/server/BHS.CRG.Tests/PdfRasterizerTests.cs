@@ -24,7 +24,7 @@ public class PdfRasterizerTests
     {
         var pdf = BuildPdf(2);
 
-        var images = PdfRasterizer.ToPngPages(pdf, dpi: 150);
+        var images = PdfRasterizer.ToPngPages(pdf, dpi: 150, maxPages: 10);
 
         Assert.Equal(2, images.Count);
         byte[] pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -35,13 +35,37 @@ public class PdfRasterizerTests
         }
     }
 
+    /// <summary>
+    /// Документ длиннее предела — отказ с обоими числами, а не первые страницы (issue #1271): раньше
+    /// одиннадцать страниц молча возвращались десятью, и недочитанное было неотличимо от полного.
+    /// </summary>
     [Fact]
-    public void ToPngPages_respects_max_pages()
+    public void Документ_длиннее_предела_не_возвращается_обрезанным()
     {
-        var pdf = BuildPdf(5);
+        var pdf = BuildPdf(11);
 
-        var images = PdfRasterizer.ToPngPages(pdf, dpi: 96, maxPages: 3);
+        var ex = Assert.Throws<PdfPageLimitException>(() => PdfRasterizer.ToPngPages(pdf, dpi: 96, maxPages: 10));
 
-        Assert.Equal(3, images.Count);
+        Assert.Equal(11, ex.Pages);
+        Assert.Equal(10, ex.Limit);
     }
+
+    [Fact]
+    public void Документ_ровно_в_предел_возвращается_целиком()
+    {
+        var pdf = BuildPdf(3);
+
+        Assert.Equal(3, PdfRasterizer.ToPngPages(pdf, dpi: 96, maxPages: 3).Count);
+        Assert.Equal(3, PdfRasterizer.PageCount(pdf));
+    }
+
+    [Theory]
+    [InlineData(1, "1 лист")]
+    [InlineData(4, "4 листа")]
+    [InlineData(12, "12 листов")]
+    [InlineData(22, "22 листа")]
+    [InlineData(101, "101 лист")]
+    [InlineData(111, "111 листов")]
+    public void Число_листов_согласовано_со_словом(int n, string expected)
+        => Assert.Equal(expected, RecognitionShared.Sheets(n));
 }

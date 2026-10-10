@@ -135,6 +135,13 @@ public partial class DataSetPdfRecognitionService
             pages = await Task.Run(
                 () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
         }
+        catch (PdfPageLimitException ex)
+        {
+            // Не первые сто листов молча (issue #1271): недочитанный альбом неотличим от полного.
+            throw new InvalidRequestException(
+                $"В файле {RecognitionShared.Sheets(ex.Pages)}, а за один прогон распознаётся не больше " +
+                $"{ex.Limit} — разделите файл на части.");
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).

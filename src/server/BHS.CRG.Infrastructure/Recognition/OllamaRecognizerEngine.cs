@@ -37,6 +37,9 @@ public class OllamaRecognizerEngine(
     /// </summary>
     private const int MaxContextTokens = 32768;
 
+    /// <summary>Оценка входа: промпт и одна страница-картинка (vision-модель, 300 DPI).</summary>
+    private const int PromptTokens = 2048, PageTokens = 4608;
+
     /// <summary>
     /// Потолок ответа (<c>num_predict</c>). Задан явно по той же причине, что у облачных, и с
     /// дополнительной: умолчание Ollama исторически бывало равно 128 токенам — на таком ответе не
@@ -66,6 +69,12 @@ public class OllamaRecognizerEngine(
     /// </summary>
     public const int MaxOutputTokens = 8192;
 
+    /// <summary>
+    /// Сколько листов помещается в один вызов — следствие отведённого контекста, а не отдельное
+    /// число: вход плюс резерв под ответ обязаны уложиться в <see cref="MaxContextTokens" />.
+    /// </summary>
+    public const int MaxPagesPerCall = (MaxContextTokens - MaxOutputTokens - PromptTokens) / PageTokens;
+
     public string Name => "Ollama";
 
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
@@ -87,7 +96,23 @@ public class OllamaRecognizerEngine(
             IReadOnlyList<byte[]> pages;
             try
             {
-                pages = await Task.Run(() => PdfRasterizer.ToPngPages(file), ct);
+                pages = await Task.Run(
+                    () => PdfRasterizer.ToPngPages(file, PdfRasterizer.DefaultDpi, MaxPagesPerCall), ct);
+            }
+            catch (PdfPageLimitException ex)
+            {
+                // Вход, который не помещается, раньше молча обрезался — дважды. Растеризатор брал
+                // первые десять страниц (issue #1271), а до issue #802 и они уходили модели не
+                // целиком: она получала неполный документ и отвечала по нему, ничем не выдавая потери.
+                // Отказ считается по ДОКУМЕНТУ и до рендера: десять листов в 300 DPI ради отказа —
+                // десятки секунд, а число в нём было бы числом обрезанных страниц, а не настоящим.
+                // «В отведённый», а не «в контекст модели»: предел ЗДЕСЬ наш, а не модельный — qwen3-vl
+                // держит кратно больше. Сказав «модель не может», мы отправили бы человека искать другую,
+                // а та упёрлась бы в то же самое число, потому что число наше.
+                throw new RecognitionUnavailableException(
+                    $"Ollama: {RecognitionShared.Sheets(ex.Pages)} в один вызов не помещаются в отведённый контекст " +
+                    $"({MaxContextTokens} токенов — это не больше {ex.Limit} листов): " +
+                    "распознавайте документ частями либо облачным движком.");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -117,18 +142,8 @@ public class OllamaRecognizerEngine(
         // входа, а не внутрь него: сложив их до клампа, мы бы отдавали резерв обратно ровно на
         // многостраничных вызовах — а это счёт целиком и таблица документа, то есть те самые, кому
         // нужен самый длинный ответ.
-        var inputTokens = 2048 + images.Length * 4608;
-        if (inputTokens + MaxOutputTokens > MaxContextTokens)
-            // Вход, который не помещается, раньше молча обрезался: модель получала неполный документ
-            // и отвечала по нему, ничем не выдавая потери. Отказ вместо этого — тот же принцип, что
-            // и у обрезанного ответа (issue #802).
-            // «В отведённый», а не «в контекст модели»: предел ЗДЕСЬ наш, а не модельный — qwen3-vl
-            // держит кратно больше. Сказав «модель не может», мы отправили бы человека искать другую,
-            // а та упёрлась бы в то же самое число, потому что число наше.
-            throw new RecognitionUnavailableException(
-                $"Ollama: {images.Length} листов в один вызов не помещаются в отведённый контекст " +
-                $"({MaxContextTokens} токенов) — распознавайте документ частями либо облачным движком.");
-        var numCtx = Math.Max(8192, inputTokens + MaxOutputTokens);
+        // Сюда приходит не больше MaxPagesPerCall картинок: длинный PDF отказан выше, до рендера.
+        var numCtx = Math.Max(8192, PromptTokens + images.Length * PageTokens + MaxOutputTokens);
 
         // НЕ используем format:"json" (issue #318): у thinking-моделей (qwen3-vl) JSON-грамматика
         // глушит основной вывод — размышления уходят в отдельное поле `thinking`, а `response`
