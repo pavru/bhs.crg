@@ -302,10 +302,30 @@ public static class InvoiceEndpoints
         if (invoice.ScanBlobPath is not { } path)
             throw new NotFoundException($"{Label(invoice)}: скан не приложен.");
 
-        // Вид — только из известных серверу (issue #1265). У файла, приложенного раньше, записан
-        // заголовок клиента: что бы в нём ни стояло, наружу уходит либо известный вид, либо «скачать».
+        // Вид — по началу самого файла, при каждой отдаче (issue #1265): у файла, приложенного раньше,
+        // в записи стоит заголовок клиента, и верить ей нельзя ни в чём, что узнаётся по подписи.
+        // Начало прочитано — оно же уходит в ответ первым, второй раз файл не открывается.
         var content = await blobs.OpenAsync(path, ct);
-        return Results.File(content, FileKinds.Served(invoice.ScanMimeType), invoice.ScanFileName);
+        var head = new byte[FileKinds.HeadBytes];
+        int read;
+        try
+        {
+            read = await content.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct);
+        }
+        catch
+        {
+            await content.DisposeAsync();
+            throw;
+        }
+
+        return Results.Stream(async output =>
+        {
+            await using (content)
+            {
+                await output.WriteAsync(head.AsMemory(0, read), ct);
+                await content.CopyToAsync(output, ct);
+            }
+        }, FileKinds.Served(head.AsSpan(0, read), invoice.ScanMimeType), invoice.ScanFileName);
     }
 
     /// <summary>

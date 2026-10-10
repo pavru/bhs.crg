@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FileUp, Maximize2, ScanLine } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
-import { saveScan, scanShownAs } from './scanView';
+import { SHOWN_ACCEPT, saveScan, scanShownAs } from './scanView';
 
 /**
  * Скан счёта РЯДОМ с формой (ТЗ COST-6.2, задача C1).
@@ -48,7 +48,7 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
         <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Скан счёта'}</span>
         {shownAs === 'download'
           ? (
-            <Button size="sm" icon={<Download size={13} />} onClick={() => saveScan(url, fileName)}>
+            <Button size="sm" icon={<Download size={13} />} onClick={() => saveScan(url, fileName, mimeType)}>
               Скачать
             </Button>
           )
@@ -103,7 +103,7 @@ export function ScanTooNarrow({ invoiceId, fileName, width }: {
             try {
               const { url, mimeType } = await loadInvoiceScan(invoiceId);
               // Файл, который показать нечем, окном не открывается — скачивается (issue #1265).
-              if (scanShownAs(mimeType) === 'download') saveScan(url, fileName);
+              if (scanShownAs(mimeType) === 'download') saveScan(url, fileName, mimeType);
               else window.open(url, '_blank');
               // Отзываем с отсрочкой: окно уже открыто, но браузеру нужна живая ссылка, пока он
               // читает файл. Не отозвав вовсе, мы держали бы в памяти страницы весь скан — а рядом
@@ -130,7 +130,7 @@ export function ScanUploadButton({ hasScan, busy, onPick }: {
         onClick={() => input.current?.click()}>
         {hasScan ? 'Заменить скан' : 'Приложить скан'}
       </Button>
-      <input ref={input} type="file" className="hidden" accept="application/pdf,image/*"
+      <input ref={input} type="file" className="hidden" accept={SHOWN_ACCEPT}
         onChange={e => {
           const file = e.target.files?.[0];
           // Значение сбрасываем: иначе выбор ТОГО ЖЕ файла второй раз не вызовет события, и повтор

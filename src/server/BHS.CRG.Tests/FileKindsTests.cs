@@ -1,88 +1,143 @@
+using System.IO.Compression;
 using System.Text;
 using BHS.CRG.Modules.Files;
 
 namespace BHS.CRG.Tests;
 
-/// <summary>Вид файла по содержимому (issue #1265): подписи, расширение как уточнение, закрытый перечень.</summary>
+/// <summary>Вид файла по содержимому (issue #1265): подписи, оглавление офисного файла, закрытый перечень.</summary>
 public class FileKindsTests
 {
-    private static readonly byte[] Zip = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
-    private static readonly byte[] Ole = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0x00];
-
     [Fact]
-    public void Подписи_изображений_и_PDF_узнаются_без_имени()
+    public void Подписи_изображений_и_PDF_узнаются()
     {
-        Assert.Equal(FileKinds.Png, FileKinds.Detect([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], null));
-        Assert.Equal(FileKinds.Jpeg, FileKinds.Detect([0xFF, 0xD8, 0xFF, 0xE0], null));
-        Assert.Equal(FileKinds.Gif, FileKinds.Detect("GIF89a..."u8, null));
-        Assert.Equal(FileKinds.WebP, FileKinds.Detect("RIFF\0\0\0\0WEBPVP8 "u8, null));
-        Assert.Equal(FileKinds.Pdf, FileKinds.Detect("%PDF-1.7"u8, null));
+        Assert.Equal(FileKinds.Png, FileKinds.Detect([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
+        Assert.Equal(FileKinds.Jpeg, FileKinds.Detect([0xFF, 0xD8, 0xFF, 0xE0]));
+        Assert.Equal(FileKinds.Gif, FileKinds.Detect("GIF89a..."u8));
+        Assert.Equal(FileKinds.WebP, FileKinds.Detect("RIFF\0\0\0\0WEBPVP8 "u8));
+        Assert.Equal(FileKinds.Bmp, FileKinds.Detect([(byte)'B', (byte)'M', 70, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0]));
+        Assert.Equal(FileKinds.Pdf, FileKinds.Detect("%PDF-1.7\n"u8));
     }
 
-    /// <summary>Сканеры пишут перед подписью PDF свой мусор — читающие программы ищут её в первом килобайте.</summary>
-    [Fact]
-    public void Подпись_PDF_ищется_в_первом_килобайте_и_не_дальше()
-    {
-        var near = Encoding.ASCII.GetBytes(new string(' ', 300) + "%PDF-1.4");
-        var far = Encoding.ASCII.GetBytes(new string(' ', FileKinds.HeadBytes) + "%PDF-1.4");
-
-        Assert.Equal(FileKinds.Pdf, FileKinds.Detect(near, "скан.pdf"));
-        Assert.Equal(FileKinds.Unknown, FileKinds.Detect(far, "скан.pdf"));
-    }
-
+    /// <summary>
+    /// Подпись PDF — в начале и с версией. «Где-то в первом килобайте» делало PDF из любой страницы,
+    /// в тексте которой встретились эти пять букв (ревью PR #1275).
+    /// </summary>
     [Theory]
-    [InlineData("счёт.xlsx", FileKinds.Xlsx)]
-    [InlineData("счёт.XLSX", FileKinds.Xlsx)]
-    [InlineData("счёт.docx", FileKinds.Docx)]
-    [InlineData("счёт.pdf", FileKinds.Unknown)]
-    [InlineData("счёт", FileKinds.Unknown)]
-    [InlineData(null, FileKinds.Unknown)]
-    public void Архив_становится_офисным_файлом_только_с_расширением(string? name, string expected)
-        => Assert.Equal(expected, FileKinds.Detect(Zip, name));
+    [InlineData("%PDF-1.4 и дальше", true)]
+    [InlineData("﻿%PDF-2.0", true)]
+    [InlineData("\r\n  %PDF-1.7", true)]
+    [InlineData("<html>%PDF-1.4</html>", false)]
+    [InlineData("заметка про %PDF-1.4", false)]
+    [InlineData("%PDF-не настоящий", false)]
+    [InlineData("%PDF-", false)]
+    [InlineData("BM — так начинается и обычный текст", false)]
+    [InlineData("", false)]
+    public void PDF_узнаётся_по_подписи_с_версией_в_самом_начале(string text, bool pdf)
+        => Assert.Equal(pdf ? FileKinds.Pdf : FileKinds.Unknown, FileKinds.Detect(Encoding.UTF8.GetBytes(text)));
 
+    /// <summary>
+    /// Офисный файл узнаётся по оглавлению архива, а не по расширению: имя в определении не
+    /// участвует вовсе, так что переименованный архив таблицей не становится.
+    /// </summary>
     [Theory]
-    [InlineData("счёт.xls", FileKinds.Xls)]
-    [InlineData("счёт.doc", FileKinds.Unknown)]
-    public void Контейнер_OLE_читается_только_как_старый_Excel(string name, string expected)
-        => Assert.Equal(expected, FileKinds.Detect(Ole, name));
-
-    /// <summary>Содержимое главнее имени: расширение уточняет, но не назначает.</summary>
-    [Fact]
-    public void Расширение_не_назначает_вид()
+    [InlineData("xl/workbook.xml", FileKinds.Xlsx)]
+    [InlineData("word/document.xml", FileKinds.Docx)]
+    [InlineData("readme.txt", FileKinds.Unknown)]
+    [InlineData("xl/workbook.bin", FileKinds.Unknown)]
+    public async Task Архив_офисный_только_с_главной_частью_в_оглавлении(string entry, string expected)
     {
-        Assert.Equal(FileKinds.Pdf, FileKinds.Detect("%PDF-1.7"u8, "счёт.xlsx"));
-        Assert.Equal(FileKinds.Unknown, FileKinds.Detect("просто текст"u8, "счёт.pdf"));
-        Assert.Equal(FileKinds.Unknown, FileKinds.Detect("<svg xmlns='http://www.w3.org/2000/svg'/>"u8, "знак.png"));
-        Assert.Equal(FileKinds.Unknown, FileKinds.Detect([], "пусто.pdf"));
-    }
+        using var zip = new MemoryStream(Zip("[Content_Types].xml", entry));
 
-    /// <summary>Архив, в котором пять байт подписи PDF встретились случайно, PDF не становится.</summary>
-    [Fact]
-    public void Архив_с_подписью_PDF_внутри_остаётся_архивом()
-    {
-        byte[] zipWithPdf = [.. Zip, .. "%PDF-1.7"u8];
-
-        Assert.Equal(FileKinds.Unknown, FileKinds.Detect(zipWithPdf, "вложение.zip"));
-        Assert.Equal(FileKinds.Xlsx, FileKinds.Detect(zipWithPdf, "счёт.xlsx"));
+        Assert.Equal(expected, await FileKinds.DetectAsync(zip));
     }
 
     [Fact]
-    public async Task По_потоку_ответ_тот_же_и_короткий_файл_не_отказ()
+    public async Task Обрезанный_архив_не_отказ_а_неизвестный_файл()
     {
-        using var pdf = new MemoryStream("%PDF-1.7 и дальше"u8.ToArray());
-        using var tiny = new MemoryStream([0xFF]);
+        using var cut = new MemoryStream(Zip("xl/workbook.xml")[..40]);
 
-        Assert.Equal(FileKinds.Pdf, await FileKinds.DetectAsync(pdf, null));
-        Assert.Equal(FileKinds.Unknown, await FileKinds.DetectAsync(tiny, "x.jpg"));
+        Assert.Equal(FileKinds.Unknown, await FileKinds.DetectAsync(cut));
+    }
+
+    /// <summary>
+    /// Старый Excel — контейнер с потоком «Workbook». Документ Word со вставленной таблицей несёт и
+    /// его, и «WordDocument» — таблицей он не считается. Имя потока на границе кусков чтения не
+    /// теряется.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { "Workbook" }, 0, FileKinds.Xls)]
+    [InlineData(new[] { "Workbook" }, 81920 - 9, FileKinds.Xls)]
+    [InlineData(new[] { "WordDocument" }, 0, FileKinds.Unknown)]
+    [InlineData(new[] { "Workbook", "WordDocument" }, 200_000, FileKinds.Unknown)]
+    [InlineData(new string[0], 1000, FileKinds.Unknown)]
+    public async Task Контейнер_OLE_старый_Excel_только_с_потоком_книги(string[] streams, int padding, string expected)
+    {
+        using var ole = new MemoryStream(Ole(padding, streams));
+
+        Assert.Equal(expected, await FileKinds.DetectAsync(ole));
+    }
+
+    /// <summary>По одному началу офисный файл не узнать — и догадки здесь нет.</summary>
+    [Fact]
+    public void По_началу_офисный_файл_не_определяется()
+    {
+        Assert.Equal(FileKinds.Unknown, FileKinds.Detect(Zip("xl/workbook.xml").AsSpan(0, FileKinds.HeadBytes)));
+        Assert.Equal(FileKinds.Unknown, FileKinds.Detect(Ole(0, "Workbook").AsSpan(0, FileKinds.HeadBytes)));
+    }
+
+    /// <summary>
+    /// Отдача: что узнаётся по подписи — узнаётся заново, запись не читается. Офисному файлу
+    /// верим записи, только если начало файла ей не противоречит.
+    /// </summary>
+    [Fact]
+    public void При_отдаче_запись_вида_не_перекрывает_содержимое()
+    {
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        var zip = Zip("xl/workbook.xml");
+        var html = "<html></html>"u8;
+
+        Assert.Equal(FileKinds.Png, FileKinds.Served(png, "application/pdf"));
+        Assert.Equal(FileKinds.Png, FileKinds.Served(png, "text/html"));
+        Assert.Equal(FileKinds.Unknown, FileKinds.Served(html, "application/pdf"));
+        Assert.Equal(FileKinds.Unknown, FileKinds.Served(html, FileKinds.Xlsx));
+        Assert.Equal(FileKinds.Xlsx, FileKinds.Served(zip, FileKinds.Xlsx));
+        Assert.Equal(FileKinds.Docx, FileKinds.Served(zip, FileKinds.Docx));
+        Assert.Equal(FileKinds.Unknown, FileKinds.Served(zip, "application/zip"));
+        Assert.Equal(FileKinds.Unknown, FileKinds.Served(zip, FileKinds.Xls));
+        Assert.Equal(FileKinds.Xls, FileKinds.Served(Ole(0, "Workbook"), FileKinds.Xls));
+        Assert.Equal(FileKinds.Unknown, FileKinds.Served(Ole(0, "Workbook"), null));
     }
 
     [Theory]
     [InlineData("application/pdf", FileKinds.Pdf)]
+    [InlineData("application/x-pdf", FileKinds.Pdf)]
     [InlineData("Image/JPEG", FileKinds.Jpeg)]
+    [InlineData("image/jpg", FileKinds.Jpeg)]
+    [InlineData("image/pjpeg", FileKinds.Jpeg)]
+    [InlineData("image/x-png", FileKinds.Png)]
     [InlineData("text/html", FileKinds.Unknown)]
     [InlineData("image/svg+xml", FileKinds.Unknown)]
     [InlineData("", FileKinds.Unknown)]
     [InlineData(null, FileKinds.Unknown)]
-    public void Записанный_вид_отдаётся_только_из_перечня(string? stored, string expected)
-        => Assert.Equal(expected, FileKinds.Served(stored));
+    public void Записанный_вид_приводится_к_известному(string? stored, string expected)
+        => Assert.Equal(expected, FileKinds.Recorded(stored));
+
+    internal static byte[] Zip(params string[] entries)
+    {
+        using var buffer = new MemoryStream();
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+            foreach (var entry in entries)
+                using (var writer = new StreamWriter(zip.CreateEntry(entry).Open()))
+                    writer.Write("<x/>");
+        return buffer.ToArray();
+    }
+
+    /// <summary>Подпись контейнера, заполнитель и имена потоков в UTF-16 — как в его каталоге.</summary>
+    internal static byte[] Ole(int padding, params string[] streams) =>
+    [
+        0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1,
+        .. new byte[padding],
+        .. streams.SelectMany(name => Encoding.Unicode.GetBytes(name).Concat(new byte[64])),
+        .. new byte[128],
+    ];
 }
