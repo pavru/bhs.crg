@@ -77,6 +77,12 @@ public class OllamaRecognizerEngine(
 
     public string Name => "Ollama";
 
+    /// <summary>Слова подобраны так, чтобы согласовываться с любым числом: «документ на N листов».</summary>
+    private static RecognitionUnavailableException TooManyPages(int pages) => new(
+        $"Ollama: документ на {RecognitionShared.Sheets(pages)} в один вызов не помещается в отведённый контекст " +
+        $"({MaxContextTokens} токенов, листов в вызове — не больше {MaxPagesPerCall}): " +
+        "распознавайте документ частями либо облачным движком.");
+
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
@@ -109,10 +115,7 @@ public class OllamaRecognizerEngine(
                 // «В отведённый», а не «в контекст модели»: предел ЗДЕСЬ наш, а не модельный — qwen3-vl
                 // держит кратно больше. Сказав «модель не может», мы отправили бы человека искать другую,
                 // а та упёрлась бы в то же самое число, потому что число наше.
-                throw new RecognitionUnavailableException(
-                    $"Ollama: {RecognitionShared.Sheets(ex.Pages)} в один вызов не помещаются в отведённый контекст " +
-                    $"({MaxContextTokens} токенов — это не больше {ex.Limit} листов): " +
-                    "распознавайте документ частями либо облачным движком.");
+                throw TooManyPages(ex.Pages);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -142,7 +145,10 @@ public class OllamaRecognizerEngine(
         // входа, а не внутрь него: сложив их до клампа, мы бы отдавали резерв обратно ровно на
         // многостраничных вызовах — а это счёт целиком и таблица документа, то есть те самые, кому
         // нужен самый длинный ответ.
-        // Сюда приходит не больше MaxPagesPerCall картинок: длинный PDF отказан выше, до рендера.
+        // Длинный PDF отказан выше, до рендера. Сторож стоит и здесь, на общем месте: появись у
+        // картинок второй источник (многостраничный TIFF, несколько файлов разом), он не должен
+        // зависеть от того, вспомнили ли о пределе в его ветке, — иначе вход снова обрежется молча.
+        if (images.Length > MaxPagesPerCall) throw TooManyPages(images.Length);
         var numCtx = Math.Max(8192, PromptTokens + images.Length * PageTokens + MaxOutputTokens);
 
         // НЕ используем format:"json" (issue #318): у thinking-моделей (qwen3-vl) JSON-грамматика

@@ -50,6 +50,7 @@ public partial class DataSetPdfRecognitionService
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
                 throw new ConflictException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+            await RefuseTooLongAsync(source.File.BlobPath, ct);
             return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF", source.File.Id);
         }
         // Таблица документа — один vision-вызов на под-PDF; счёт/legacy тоже короткие. Синхронно.
@@ -129,25 +130,7 @@ public partial class DataSetPdfRecognitionService
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
 
-        IReadOnlyList<byte[]> pages;
-        try
-        {
-            pages = await Task.Run(
-                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
-        }
-        catch (PdfPageLimitException ex)
-        {
-            // Не первые сто листов молча (issue #1271): недочитанный альбом неотличим от полного.
-            throw new InvalidRequestException(
-                $"В файле {RecognitionShared.Sheets(ex.Pages)}, а за один прогон распознаётся не больше " +
-                $"{ex.Limit} — разделите файл на части.");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).
-            throw new InvalidRequestException(
-                "Не удалось подготовить страницы PDF — файл повреждён или защищён.", ex);
-        }
+        var pages = await RasterizeForRecognitionAsync(bytes, ct);
 
         var fields = (await ProfileForFileAsync(source.File, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();

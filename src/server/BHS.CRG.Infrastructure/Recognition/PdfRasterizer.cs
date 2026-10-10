@@ -18,9 +18,6 @@ public static class PdfRasterizer
     /// чтобы визуально узнать документ, не для OCR.</summary>
     public const int ThumbnailDpi = 96;
 
-    /// <summary>Сколько страниц в документе — без рендера.</summary>
-    public static int PageCount(byte[] pdf) => Conversion.GetPageCount(pdf);
-
     /// <summary>
     /// Конвертирует PDF в список PNG-страниц (по порядку) — ВСЕ страницы либо отказ. Операция
     /// CPU-bound.
@@ -33,7 +30,9 @@ public static class PdfRasterizer
     /// </summary>
     public static IReadOnlyList<byte[]> ToPngPages(byte[] pdf, int dpi, int maxPages)
     {
-        var total = PageCount(pdf);
+        // Считает тот же PDFium, что и рисует: предел сверяется с тем числом страниц, которое он
+        // отдал бы. Второе открытие документа — цена отказа ДО рендера, а не после него.
+        var total = Conversion.GetPageCount(pdf);
         if (total > maxPages) throw new PdfPageLimitException(total, maxPages);
 
         var pages = new List<byte[]>();

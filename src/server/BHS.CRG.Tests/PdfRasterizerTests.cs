@@ -56,7 +56,6 @@ public class PdfRasterizerTests
         var pdf = BuildPdf(3);
 
         Assert.Equal(3, PdfRasterizer.ToPngPages(pdf, dpi: 96, maxPages: 3).Count);
-        Assert.Equal(3, PdfRasterizer.PageCount(pdf));
     }
 
     [Theory]

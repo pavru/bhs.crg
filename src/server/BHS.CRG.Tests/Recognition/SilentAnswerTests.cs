@@ -99,7 +99,7 @@ public class OllamaContextLimitTests
         var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(() =>
             engine.RecognizeRawAsync(Pdf(5), "application/pdf", [], null, CancellationToken.None));
 
-        Assert.Contains("не помещаются в отведённый контекст", ex.Message);
+        Assert.Contains("документ на 5 листов в один вызов не помещается в отведённый контекст", ex.Message);
     }
 
     /// <summary>
@@ -116,8 +116,8 @@ public class OllamaContextLimitTests
         var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(() =>
             engine.RecognizeRawAsync(Pdf(12), "application/pdf", [], null, CancellationToken.None));
 
-        Assert.Contains("12 листов", ex.Message);
-        Assert.Contains($"не больше {OllamaRecognizerEngine.MaxPagesPerCall} листов", ex.Message);
+        Assert.Contains("документ на 12 листов в один вызов", ex.Message);
+        Assert.Contains($"не больше {OllamaRecognizerEngine.MaxPagesPerCall})", ex.Message);
     }
 
     /// <summary>Предел листов — следствие отведённого контекста: четыре, и это число из замеров.</summary>

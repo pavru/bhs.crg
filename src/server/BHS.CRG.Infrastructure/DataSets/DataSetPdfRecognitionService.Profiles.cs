@@ -98,25 +98,7 @@ public partial class DataSetPdfRecognitionService
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
 
-        IReadOnlyList<byte[]> pngPages;
-        try
-        {
-            pngPages = await Task.Run(
-                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
-        }
-        catch (PdfPageLimitException ex)
-        {
-            // Не первые сто листов молча (issue #1271): недочитанный альбом неотличим от полного.
-            throw new InvalidRequestException(
-                $"В файле {RecognitionShared.Sheets(ex.Pages)}, а за один прогон распознаётся не больше " +
-                $"{ex.Limit} — разделите файл на части.");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Сообщение растеризатора — в inner: оно чужое, а тип отказа наш (issue #1050).
-            throw new InvalidRequestException(
-                "Не удалось подготовить страницы PDF — файл повреждён или защищён.", ex);
-        }
+        var pngPages = await RasterizeForRecognitionAsync(bytes, ct);
 
         // Постраничная проверка текстового слоя (бесплатно, PdfPig) — гейт для второго прохода
         // распознавания: страницы форма 3 (чертёж) обычно НЕ имеют текстового слоя (CAD-экспорт

@@ -189,9 +189,43 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
         var ex = await Assert.ThrowsAsync<InvalidRequestException>(
             () => svc.RecognizePdfSourceAsync(source.Id, confirm: true, default));
 
-        Assert.Contains("101 лист", ex.Message);
-        Assert.Contains("не больше 100", ex.Message);
+        Assert.Equal(TooLong101, ex.Message);
         Assert.Null(source.CachedData);
+    }
+
+    private const string TooLong101 =
+        "В файле 101 лист, а за один прогон распознаётся не больше 100 — разделите файл на части.";
+
+    /// <summary>
+    /// Тот же отказ приходит ответом на нажатие, а не строкой в журнале задач (ревью PR #1274):
+    /// планирование стоит до постановки фоновой работы. Оба адреса — по набору и по источнику.
+    /// </summary>
+    [Fact]
+    public async Task Длинный_файл_отказан_до_постановки_фоновой_задачи()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+
+        using var uploadStream = new MemoryStream(MakePdf(101));
+        var blobPath = await blob.UploadAsync("long.pdf", uploadStream, "application/pdf");
+        var file = DataSetFile.Create("Длинный альбом", DataSetFormat.Pdf, blobPath, CatalogScope.System, null);
+        var source = file.AddSource("Документы", PdfProfiles.GostDocumentsMarker, "[]", 0);
+        db.DataSetFiles.Add(file);
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync();
+
+        var svc = new DataSetPdfRecognitionService(
+            db, blob, new ScriptedRecognizer([]), new RecordingNotificationService(),
+            new RecognitionProfileProvider(db, TestRecognition.Catalog), NullLogger<DataSetPdfRecognitionService>.Instance);
+
+        var bySource = await Assert.ThrowsAsync<InvalidRequestException>(
+            () => svc.PlanRecognitionAsync(source.Id, confirm: true, default));
+        var byFile = await Assert.ThrowsAsync<InvalidRequestException>(
+            () => svc.PlanFileRecognitionAsync(file.Id, confirm: true, default));
+
+        Assert.Equal(TooLong101, bySource.Message);
+        Assert.Equal(TooLong101, byFile.Message);
     }
 
     [Fact]
