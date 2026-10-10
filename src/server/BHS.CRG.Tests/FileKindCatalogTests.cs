@@ -82,6 +82,33 @@ public class FileKindCatalogTests
     }
 
     /// <summary>
+    /// Другое название вида — строчными, не совпадает ни с чьим основным и ни с чьим другим: иначе
+    /// один и тот же файл оказывался бы то одним видом, то другим, смотря кого спросили.
+    /// </summary>
+    [Fact]
+    public void Другие_названия_видов_не_пересекаются()
+    {
+        var names = FileKindCatalog.All.SelectMany(kind => kind.Aliases.Prepend(kind.Mime)).ToList();
+
+        Assert.All(names, name => Assert.Equal(name.ToLowerInvariant(), name));
+        Assert.Equal(names.Count, names.Distinct().Count());
+        Assert.Equal(FileKinds.Jpeg, FileKindCatalog.Named(" Image/PJPEG ")!.Mime);
+        // Синоним — только для названия, пришедшего снаружи: о виде, который отдал сервер, спрашивают
+        // точным именем.
+        Assert.Null(FileKindCatalog.Find("image/pjpeg"));
+        Assert.Null(FileKindCatalog.Named(FileKinds.Unknown));
+    }
+
+    /// <summary>
+    /// «Что распознаётся» сказано один раз — перечнем. Ответ на вопрос о виде и текст отказа обязаны
+    /// сходиться на любом виде, иначе сервер отвергал бы файл словами «распознаются … Excel».
+    /// </summary>
+    [Fact]
+    public void Ответ_о_читаемости_совпадает_с_перечнем_на_каждом_виде() =>
+        Assert.All(FileKindCatalog.All, kind =>
+            Assert.Equal(FileKindCatalog.Recognized.Contains(kind), FileKindCatalog.IsRecognized(kind.Mime)));
+
+    /// <summary>
     /// Читаемый образ ещё не строится (issue #1268–#1270): офисный файл реестр знает, но читаемым
     /// не называет. Тест снимается вместе с этим ограничением.
     /// </summary>

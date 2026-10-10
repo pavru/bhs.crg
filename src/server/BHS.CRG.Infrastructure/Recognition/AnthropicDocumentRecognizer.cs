@@ -33,8 +33,7 @@ public class AnthropicRecognizerEngine(
 
     public string Name => "Anthropic";
 
-    public bool Accepts(string mimeType) =>
-        RecognitionShared.IsPdf(mimeType) || RecognitionShared.ImageTypes.Contains(mimeType);
+    public bool Accepts(string mimeType) => RecognitionShared.AcceptsPdfOrImage(mimeType);
 
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)

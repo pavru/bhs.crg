@@ -6,8 +6,8 @@ const kinds: FileKindsInfo = {
   unknown: 'application/octet-stream',
   maxBytes: 1,
   kinds: [
-    { mime: 'application/pdf', label: 'PDF', extensions: ['.pdf'], view: 'pdf', recognized: true },
-    { mime: 'application/vnd.ms-excel', label: 'Excel', extensions: ['.xls'], view: null, recognized: false },
+    { mime: 'application/pdf', label: 'PDF', extensions: ['.pdf'], aliases: [], view: 'pdf', recognized: true },
+    { mime: 'application/vnd.ms-excel', label: 'Excel', extensions: ['.xls'], aliases: [], view: null, recognized: false },
   ],
 };
 

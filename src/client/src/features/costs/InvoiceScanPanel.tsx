@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, FileUp, Maximize2, ScanLine } from 'lucide-react';
+import { Download, FileUp, Maximize2, RotateCw, ScanLine } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
-import { acceptOf, fileShownAs, shownKinds, useFileKinds } from '@/shared/api/fileKinds';
+import { acceptOf, fileShownAs, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { useToast } from '@/shared/ui/Toast';
 import { saveScan } from './scanView';
 
 /**
@@ -36,31 +37,36 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
   }
 
   // Реестр видов ещё в пути — ждём и его: без него про любой файл пришлось бы ответить «показать
-  // нечем», и PDF на миг предлагался бы к скачиванию. Не пришёл вовсе — файл остаётся доступен,
-  // только скачиванием.
-  if (!url || kinds.isPending) return <Note>Скан загружается…</Note>;
+  // нечем», и PDF на миг предлагался бы к скачиванию. Ждём, только пока запрос ИДЁТ (`isLoading`):
+  // вставший на паузу без сети остаётся «ожидающим» бессрочно, и панель держала бы «загружается»
+  // над файлом, который уже здесь (ревью PR #1279).
+  if (!url || kinds.isLoading) return <Note>Скан загружается…</Note>;
 
   // Чем показывать, решает вид, с которым файл ОТДАЛ сервер (issue #1265), а не запись в счёте:
   // сервер определяет его по содержимому и чужой вид наружу не выпускает. Что из этого показывается,
   // говорит реестр видов (issue #1266). Файл, который показать нечем, не открывается вовсе — только
   // скачивается: открытый «как есть», он выполнился бы страницей этого же сайта.
-  const shownAs = fileShownAs(kinds.data, mimeType);
+  //
+  // ⚠️ Реестр не пришёл — это НЕ «показать нечем»: про файл мы тогда не знаем ничего, и сказать
+  // «открываются PDF и изображения» над PDF значило бы выдать свой отказ за свойство файла.
+  const shownAs = kinds.data ? fileShownAs(kinds.data, mimeType) : 'unknown';
+  const canOpen = shownAs === 'pdf' || shownAs === 'image';
 
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
         <ScanLine size={14} className="text-fg3 shrink-0" />
         <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Скан счёта'}</span>
-        {shownAs === 'download'
+        {canOpen
           ? (
-            <Button size="sm" icon={<Download size={13} />}
-              onClick={() => saveScan(url, fileName, mimeType, kinds.data)}>
-              Скачать
+            <Button size="sm" icon={<Maximize2 size={13} />} onClick={() => window.open(url, '_blank')}>
+              Во весь экран
             </Button>
           )
           : (
-            <Button size="sm" icon={<Maximize2 size={13} />} onClick={() => window.open(url, '_blank')}>
-              Во весь экран
+            <Button size="sm" icon={<Download size={13} />}
+              onClick={() => saveScan(url, fileName, mimeType, kinds.data)}>
+              Скачать
             </Button>
           )}
       </div>
@@ -73,8 +79,22 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
         )}
         {shownAs === 'download' && (
           <Note>
-            Файл приложен, но показать его здесь нечем: рядом с формой открываются PDF и изображения.
-            Скачайте его кнопкой выше.
+            Файл приложен, но показать его здесь нечем: рядом с формой
+            открываются {wordsOf(shownKinds(kinds.data))}. Скачайте его кнопкой выше.
+          </Note>
+        )}
+        {shownAs === 'unknown' && (
+          <Note>
+            <div className="flex flex-col items-center">
+              <span>
+                Скан загружен, но чем его показать, выяснить не удалось: список видов файлов с сервера
+                не пришёл. Дело в связи, а не в файле — повторите или скачайте его кнопкой выше.
+              </span>
+              <Button size="sm" variant="text" className="mt-2" loading={kinds.isFetching}
+                icon={<RotateCw size={13} />} onClick={() => void kinds.refetch()}>
+                Повторить
+              </Button>
+            </div>
           </Note>
         )}
       </div>
@@ -93,6 +113,7 @@ export function ScanTooNarrow({ invoiceId, fileName, width }: {
 }) {
   const [busy, setBusy] = useState(false);
   const kinds = useFileKinds();
+  const toast = useToast();
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-stroke bg-surface2 px-3 py-2">
@@ -102,15 +123,22 @@ export function ScanTooNarrow({ invoiceId, fileName, width }: {
           Скан приложен, но рядом с формой он не показывается: для двух панелей нужна ширина
           не меньше 1280 пикселей, а здесь {width}.
         </p>
-        <Button size="sm" variant="text" loading={busy || kinds.isPending} icon={<Maximize2 size={13} />}
+        <Button size="sm" variant="text" loading={busy || kinds.isLoading} icon={<Maximize2 size={13} />}
           onClick={async () => {
             setBusy(true);
             // Открываем ОТДЕЛЬНЫМ окном — это и есть замена панели: бумага остаётся доступной, просто
             // не рядом.
             try {
               const { url, mimeType } = await loadInvoiceScan(invoiceId);
+              // Реестра нет (не пришёл или запрос встал) — спрашиваем ещё раз, прямо сейчас.
+              const info = kinds.data ?? (await kinds.refetch()).data;
               // Файл, который показать нечем, окном не открывается — скачивается (issue #1265).
-              if (fileShownAs(kinds.data, mimeType) === 'download') saveScan(url, fileName, mimeType, kinds.data);
+              // Так же и файл, про который узнать не удалось, — но тогда причина названа: иначе PDF,
+              // вдруг ушедший в загрузки вместо окна, выглядел бы как поломка кнопки.
+              if (!info) {
+                saveScan(url, fileName, mimeType, info);
+                toast.info('Скан скачан, а не открыт: список видов файлов с сервера не пришёл, и чем его показать, неизвестно.');
+              } else if (fileShownAs(info, mimeType) === 'download') saveScan(url, fileName, mimeType, info);
               else window.open(url, '_blank');
               // Отзываем с отсрочкой: окно уже открыто, но браузеру нужна живая ссылка, пока он
               // читает файл. Не отозвав вовсе, мы держали бы в памяти страницы весь скан — а рядом

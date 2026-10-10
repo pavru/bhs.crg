@@ -14,6 +14,12 @@ public static class RecognitionShared
     /// <summary>PDF — по типу, без учёта регистра: одно место вместо сравнения в каждом движке.</summary>
     public static bool IsPdf(string mime) => string.Equals(mime, "application/pdf", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Что движок готов взять: PDF или растровое изображение. Ответ у всех трёх движков один — и
+    /// записан один раз; движок, который начнёт отличаться, отвечает за себя сам.
+    /// </summary>
+    public static bool AcceptsPdfOrImage(string mime) => IsPdf(mime) || ImageTypes.Contains(mime);
+
     public static string NormalizeImageMime(string mime)
         => string.Equals(mime, "image/jpg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg" : mime.ToLowerInvariant();
 

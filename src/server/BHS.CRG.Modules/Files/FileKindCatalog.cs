@@ -30,9 +30,12 @@ public enum FileReading
 /// <param name="Label">Как вид называется человеку: в перечне «распознаются …» и в отказе.</param>
 /// <param name="Extensions">Расширения с точкой — для выбора файла. В определении вида НЕ участвуют:
 /// вид даёт содержимое (<see cref="FileKinds.DetectAsync" />).</param>
-/// <param name="MaxBytes">Наибольший размер файла этого вида.</param>
+/// <param name="Aliases">Как ещё этот вид называют браузеры и системы («image/pjpeg» у JPEG). Нужны
+/// там, где о файле известно только название типа, а самого файла под рукой нет: запись в счёте,
+/// сделанная до issue #1265, и отсев на экране до отправки.</param>
 public sealed record FileKind(
-    string Mime, string Label, IReadOnlyList<string> Extensions, FileView View, FileReading Reading, long MaxBytes);
+    string Mime, string Label, IReadOnlyList<string> Extensions, FileView View, FileReading Reading,
+    IReadOnlyList<string> Aliases);
 
 /// <summary>
 /// Реестр видов файлов (issue #1266) — один источник для ядра, модулей и экрана.
@@ -57,27 +60,40 @@ public static class FileKindCatalog
     /// <summary>
     /// Предел размера — один на все виды и равен пределу вложения ядра: от него считается предел
     /// тела запроса, и файл больше до проверки не дошёл бы вовсе (сверяет <c>ScanLimitsAgreeTests</c>).
+    /// Своего предела у вида нет нарочно: поле, которое никто не проверяет, обещало бы настройку.
     /// </summary>
     public const long MaxBytes = 50L * 1024 * 1024;
 
     public static readonly IReadOnlyList<FileKind> All =
     [
-        new(FileKinds.Pdf, "PDF", [".pdf"], FileView.Pdf, FileReading.AsIs, MaxBytes),
-        new(FileKinds.Png, "PNG", [".png"], FileView.Image, FileReading.AsIs, MaxBytes),
-        new(FileKinds.Jpeg, "JPEG", [".jpg", ".jpeg"], FileView.Image, FileReading.AsIs, MaxBytes),
-        new(FileKinds.Gif, "GIF", [".gif"], FileView.Image, FileReading.None, MaxBytes),
-        new(FileKinds.WebP, "WebP", [".webp"], FileView.Image, FileReading.None, MaxBytes),
-        new(FileKinds.Bmp, "BMP", [".bmp"], FileView.Image, FileReading.None, MaxBytes),
+        new(FileKinds.Pdf, "PDF", [".pdf"], FileView.Pdf, FileReading.AsIs, ["application/x-pdf"]),
+        new(FileKinds.Png, "PNG", [".png"], FileView.Image, FileReading.AsIs, ["image/x-png"]),
+        new(FileKinds.Jpeg, "JPEG", [".jpg", ".jpeg"], FileView.Image, FileReading.AsIs, ["image/jpg", "image/pjpeg"]),
+        new(FileKinds.Gif, "GIF", [".gif"], FileView.Image, FileReading.None, []),
+        new(FileKinds.WebP, "WebP", [".webp"], FileView.Image, FileReading.None, []),
+        new(FileKinds.Bmp, "BMP", [".bmp"], FileView.Image, FileReading.None, ["image/x-ms-bmp"]),
         // Офисные виды первой версии — те, что проверены пробой на настоящих счетах. Старый Word,
         // RTF и таблицы OpenDocument сюда не входят, пока не проверены так же: до тех пор они
         // «файл другого вида».
-        new(FileKinds.Xlsx, "Excel", [".xlsx"], FileView.None, FileReading.Rendition, MaxBytes),
-        new(FileKinds.Xls, "Excel", [".xls"], FileView.None, FileReading.Rendition, MaxBytes),
-        new(FileKinds.Docx, "Word", [".docx"], FileView.None, FileReading.Rendition, MaxBytes),
+        new(FileKinds.Xlsx, "Excel", [".xlsx"], FileView.None, FileReading.Rendition, []),
+        new(FileKinds.Xls, "Excel", [".xls"], FileView.None, FileReading.Rendition, []),
+        new(FileKinds.Docx, "Word", [".docx"], FileView.None, FileReading.Rendition, []),
     ];
 
     private static readonly Dictionary<string, FileKind> ByMime =
         All.ToDictionary(kind => kind.Mime, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Dictionary<string, FileKind> ByName = All
+        .SelectMany(kind => kind.Aliases.Prepend(kind.Mime), (kind, name) => (name, kind))
+        .ToDictionary(pair => pair.name, pair => pair.kind, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Вид по названию типа, каким бы из известных имён его ни назвали. Для названий, пришедших
+    /// СНАРУЖИ (запись заголовка клиента); о виде, который отдал сам сервер, спрашивают
+    /// <see cref="Find" /> — он синонимов не принимает.
+    /// </summary>
+    public static FileKind? Named(string? name) =>
+        name is not null && ByName.TryGetValue(name.Trim(), out var kind) ? kind : null;
 
     /// <summary>Вид по его типу; <c>null</c> — реестр такого не знает (в том числе <see cref="FileKinds.Unknown" />).</summary>
     public static FileKind? Find(string? mime) =>
@@ -91,7 +107,8 @@ public static class FileKindCatalog
     public static readonly IReadOnlyList<FileKind> Recognized =
         [.. All.Where(kind => kind.Reading == FileReading.AsIs)];
 
-    public static bool IsRecognized(string? mime) => Find(mime) is { Reading: FileReading.AsIs };
+    /// <summary>Спрашивает перечень выше, а не повторяет его условие: «что распознаётся» сказано один раз.</summary>
+    public static bool IsRecognized(string? mime) => Find(mime) is { } kind && Recognized.Contains(kind);
 
     /// <summary>
     /// Перечень словами: «PDF, PNG и JPEG» или «PDF, PNG или JPEG». Одинаково названные виды

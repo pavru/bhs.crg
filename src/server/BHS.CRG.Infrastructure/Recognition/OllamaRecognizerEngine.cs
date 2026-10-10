@@ -82,8 +82,7 @@ public class OllamaRecognizerEngine(
         $"({MaxContextTokens} токенов, листов в вызове — не больше {MaxPagesPerCall}): " +
         "распознавайте документ частями либо облачным движком.");
 
-    public bool Accepts(string mimeType) =>
-        RecognitionShared.IsPdf(mimeType) || RecognitionShared.ImageTypes.Contains(mimeType);
+    public bool Accepts(string mimeType) => RecognitionShared.AcceptsPdfOrImage(mimeType);
 
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)

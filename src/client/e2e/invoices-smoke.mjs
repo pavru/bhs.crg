@@ -309,7 +309,10 @@ try {
   // а не условие. И о неудаче говорят все три места — форма, строка списка и отбор.
   await check('счёт из скана: отказ распознавания назван в форме, в строке и стоит под отбором', async () => {
     const fileName = `Скан-${stamp}.pdf`;
-    await page.locator('input[type=file][multiple]').setInputFiles({
+    // Выбор файла сужен реестром видов (issue #1266): пустой `accept` — реестр не дошёл до экрана,
+    // и тогда выбор предлагает что угодно. Перечень сверяется по признаку, а не слово в слово: его
+    // состав — дело сервера.
+    await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles({
       name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${stamp}`),
     });
 
@@ -337,7 +340,7 @@ try {
   await check('пакет сканов: по черновику на файл, непринятый назван, экран не сдвинулся', async () => {
     const opened = new URL(page.url()).searchParams.get('invoice');
     const names = [`Пакет-${stamp}-2.pdf`, `Пакет-${stamp}-10.pdf`];
-    await page.locator('input[type=file][multiple]').setInputFiles([
+    await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles([
       ...names.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${name}`) })),
       { name: `Заметки-${stamp}.txt`, mimeType: 'text/plain', buffer: Buffer.from('не скан') },
     ]);

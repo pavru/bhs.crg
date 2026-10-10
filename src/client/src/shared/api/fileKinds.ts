@@ -17,6 +17,8 @@ export interface FileKind {
   label: string;
   /** Расширения с точкой — для выбора файла. */
   extensions: string[];
+  /** Как ещё этот вид называет браузер: «image/pjpeg» у JPEG. Сервер таких названий не отдаёт. */
+  aliases: string[];
   /** Чем файл показывается рядом с формой; `null` — показать нечем, только скачать. */
   view: 'pdf' | 'image' | null;
   /** Распознаётся ли файл этого вида. */
@@ -26,20 +28,39 @@ export interface FileKind {
 export interface FileKindsInfo {
   /** Так сервер называет файл, вида которого не знает; так же его называет и браузер. */
   unknown: string;
+  /** Наибольший размер файла — один на все виды. */
   maxBytes: number;
   kinds: FileKind[];
 }
 
 export type FileShownAs = 'pdf' | 'image' | 'download';
 
-/** Реестр не меняется, пока работает сервер: читается один раз на вкладку. */
+/**
+ * Реестр меняется только с версией сервера — но вкладка обновление сервера переживает. Поэтому срок
+ * у ответа есть: прочитанный «навсегда», он после обновления отсекал бы вид, который сервер уже
+ * читает, до перезагрузки страницы (ревью PR #1279). Пять минут — и перечитывание при возврате во
+ * вкладку: обновление ставят не под рукой у того, кто в эту минуту бросает файлы.
+ */
 export function useFileKinds() {
   return useQuery({
     queryKey: ['files', 'kinds'],
     queryFn: () => apiClient.get<FileKindsInfo>('/files/kinds').then(r => r.data),
-    staleTime: Infinity,
+    staleTime: 5 * 60_000,
   });
 }
+
+/**
+ * Вид по названию, которое дал БРАУЗЕР (`File.type`): он называет один и тот же вид по-разному, и
+ * сверка с одним основным именем отвергала бы файл, который сервер принял бы по содержимому.
+ * Для типа, с которым файл отдал сервер, синонимы не нужны — там сверка точная (`fileShownAs`).
+ */
+export function kindNamed(info: FileKindsInfo | undefined, name: string | null | undefined): FileKind | undefined {
+  const asked = name?.trim().toLowerCase();
+  return asked ? info?.kinds.find(kind => kind.mime === asked || kind.aliases.includes(asked)) : undefined;
+}
+
+/** Предел размера словами: «50 МБ». */
+export const sizeLimitWords = (info: FileKindsInfo) => `${Math.floor(info.maxBytes / (1024 * 1024))} МБ`;
 
 const find = (info: FileKindsInfo | undefined, mime: string | null | undefined) =>
   mime ? info?.kinds.find(kind => kind.mime === mime) : undefined;

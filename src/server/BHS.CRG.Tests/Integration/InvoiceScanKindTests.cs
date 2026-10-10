@@ -205,6 +205,10 @@ public sealed class InvoiceScanKindTests(InvoiceScanHost host)
         Assert.False(kinds[FileKinds.Xlsx].GetProperty("recognized").GetBoolean());
         Assert.Equal([".jpg", ".jpeg"],
             kinds[FileKinds.Jpeg].GetProperty("extensions").EnumerateArray().Select(e => e.GetString()));
+        // Другие названия вида едут экрану: отсев до отправки сверяет то, как файл назвал браузер.
+        Assert.Contains("image/pjpeg",
+            kinds[FileKinds.Jpeg].GetProperty("aliases").EnumerateArray().Select(e => e.GetString()));
+        Assert.Empty(kinds[FileKinds.Xlsx].GetProperty("aliases").EnumerateArray());
     }
 
     private async Task RecordAsync(Guid id, string recorded)

@@ -4,10 +4,10 @@ using BHS.CRG.Modules.Costs.Endpoints;
 namespace BHS.CRG.Tests.Configuration;
 
 /// <summary>
-/// Предел размера скана записан в трёх местах — модуль, ядро и экран (issue #1093, ревью PR #1260).
-/// Свести их в одно нельзя: модуль не ссылается на проект API, а клиент — другой язык. Поэтому
-/// совпадение сверяется: разойдись числа, экран начал бы отвергать то, что сервер принимает, или
-/// пропускать то, что сервер отвергнет, — и ни одна сторона об этом не сказала бы.
+/// Предел размера скана записан в двух местах — реестр видов файлов и ядро (issue #1093, ревью
+/// PR #1260). Свести их в одно нельзя: контракты модулей не ссылаются на проект API. Поэтому
+/// совпадение сверяется. Экран своего числа не держит вовсе: предел приходит ему с реестром
+/// (ревью PR #1279), и сторож ниже следит, чтобы число не завелось там снова.
 ///
 /// <para>Перечни видов файла здесь больше не сверяются: их источник один — реестр ядра
 /// (issue #1266), а что рядом с ним не завелось второго перечня, сторожит <c>FileKindCatalogTests</c>.</para>
@@ -26,11 +26,11 @@ public class ScanLimitsAgreeTests
         Assert.Equal(UploadLimits.Attachment, InvoiceScanRecognition.MaxScanBytes);
 
     [Fact]
-    public void Экран_называет_тот_же_предел_размера()
+    public void Экран_берёт_предел_размера_из_реестра_а_не_держит_своё_число()
     {
-        var megabytes = InvoiceScanRecognition.MaxScanBytes / (1024 * 1024);
-        Assert.Contains($"export const MAX_BYTES = {megabytes} * 1024 * 1024;", Screen);
-        Assert.Contains($"'больше {megabytes} МБ'", Screen);
+        Assert.Contains("kinds.maxBytes", Screen);
+        Assert.DoesNotContain("1024 * 1024", Screen);
+        Assert.DoesNotMatch(@"\d+ МБ", Screen);
     }
 
     private static string RepoRoot()

@@ -97,19 +97,7 @@ public static class FileKinds
     /// по записи счёта): до issue #1265 записывался заголовок клиента, а один и тот же вид браузеры
     /// называли по-разному.
     /// </summary>
-    public static string Recorded(string? stored) => stored?.Trim().ToLowerInvariant() switch
-    {
-        Pdf or "application/x-pdf" => Pdf,
-        Png or "image/x-png" => Png,
-        Jpeg or "image/jpg" or "image/pjpeg" => Jpeg,
-        Gif => Gif,
-        WebP => WebP,
-        Bmp or "image/x-ms-bmp" => Bmp,
-        Xlsx => Xlsx,
-        Docx => Docx,
-        Xls => Xls,
-        _ => Unknown,
-    };
+    public static string Recorded(string? stored) => FileKindCatalog.Named(stored)?.Mime ?? Unknown;
 
     /// <summary>
     /// «%PDF-1.7» в самом начале. Перед подписью допустимы только пробельные байты и метка порядка

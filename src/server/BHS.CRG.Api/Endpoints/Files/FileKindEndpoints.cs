@@ -25,6 +25,8 @@ public static class FileKindEndpoints
                 mime = kind.Mime,
                 label = kind.Label,
                 extensions = kind.Extensions,
+                // Как ещё вид называет браузер: отсев до отправки сверяет название, а не содержимое.
+                aliases = kind.Aliases,
                 view = kind.View switch { FileView.Pdf => "pdf", FileView.Image => "image", _ => null },
                 recognized = FileKindCatalog.IsRecognized(kind.Mime),
             }),

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { onTokenChanged } from '@/shared/api/token';
-import { recognizedKinds, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
+import { kindNamed, recognizedKinds, sizeLimitWords, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
 import { apiError } from '@/shared/utils/apiError';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 
@@ -24,8 +24,6 @@ import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 
 /** За раз. Предел стоит от «бросил не ту папку» (решение владельца 09.10.2026). */
 export const MAX_FILES = 50;
-/** На файл — тот же предел, что называет сервер (сверяет `ScanLimitsAgreeTests`). */
-export const MAX_BYTES = 50 * 1024 * 1024;
 
 export interface BatchPort {
   /** Чей пакет — идентификатор вошедшего. */
@@ -71,12 +69,13 @@ export function precheck(file: File, kinds: FileKindsInfo | undefined): string |
   // Вид файла определяет сервер, по содержимому (issue #1265). Здесь отсекается только то, что
   // браузер сам НАЗВАЛ другим видом: гнать на сервер пятьдесят мегабайт ради известного отказа
   // незачем. Файл без названного вида (так приходит PDF без расширения) идёт на сервер — решит он.
-  // Что распознаётся, говорит реестр (issue #1266); без реестра не отсекается ничего.
-  const readable = recognizedKinds(kinds);
-  if (kinds && file.type && file.type !== kinds.unknown && !readable.some(kind => kind.mime === file.type))
-    return `не ${wordsOf(readable, 'или')}`;
+  // Что распознаётся и какого размера, говорит реестр (issue #1266); без реестра не отсекается
+  // ничего, кроме пустого файла. Название сверяется вместе с синонимами: браузер зовёт один и тот
+  // же вид по-разному, а сервер всё равно смотрит на содержимое.
+  if (kinds && file.type && file.type !== kinds.unknown && !kindNamed(kinds, file.type)?.recognized)
+    return `не ${wordsOf(recognizedKinds(kinds), 'или')}`;
   if (file.size === 0) return 'файл пуст';
-  if (file.size > MAX_BYTES) return 'больше 50 МБ';
+  if (kinds && file.size > kinds.maxBytes) return `больше ${sizeLimitWords(kinds)}`;
   return null;
 }
 

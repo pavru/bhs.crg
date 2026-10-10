@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOf, fileExtension, fileShownAs, recognizedKinds, shownKinds, wordsOf, type FileKindsInfo,
+  acceptOf, fileExtension, fileShownAs, kindNamed, recognizedKinds, shownKinds, sizeLimitWords, wordsOf,
+  type FileKindsInfo,
 } from './fileKinds';
 
 /** Реестр в том виде, в каком его отдаёт сервер. */
@@ -8,15 +9,15 @@ const info: FileKindsInfo = {
   unknown: 'application/octet-stream',
   maxBytes: 50 * 1024 * 1024,
   kinds: [
-    { mime: 'application/pdf', label: 'PDF', extensions: ['.pdf'], view: 'pdf', recognized: true },
-    { mime: 'image/png', label: 'PNG', extensions: ['.png'], view: 'image', recognized: true },
-    { mime: 'image/jpeg', label: 'JPEG', extensions: ['.jpg', '.jpeg'], view: 'image', recognized: true },
-    { mime: 'image/webp', label: 'WebP', extensions: ['.webp'], view: 'image', recognized: false },
+    { mime: 'application/pdf', label: 'PDF', extensions: ['.pdf'], aliases: ['application/x-pdf'], view: 'pdf', recognized: true },
+    { mime: 'image/png', label: 'PNG', extensions: ['.png'], aliases: [], view: 'image', recognized: true },
+    { mime: 'image/jpeg', label: 'JPEG', extensions: ['.jpg', '.jpeg'], aliases: ['image/jpg', 'image/pjpeg'], view: 'image', recognized: true },
+    { mime: 'image/webp', label: 'WebP', extensions: ['.webp'], aliases: [], view: 'image', recognized: false },
     {
       mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      label: 'Excel', extensions: ['.xlsx'], view: null, recognized: false,
+      label: 'Excel', extensions: ['.xlsx'], aliases: [], view: null, recognized: false,
     },
-    { mime: 'application/vnd.ms-excel', label: 'Excel', extensions: ['.xls'], view: null, recognized: false },
+    { mime: 'application/vnd.ms-excel', label: 'Excel', extensions: ['.xls'], aliases: [], view: null, recognized: false },
   ],
 };
 
@@ -44,6 +45,25 @@ describe('fileShownAs', () => {
 
   it('без реестра показать нечем', () => {
     expect(fileShownAs(undefined, 'application/pdf')).toBe('download');
+  });
+});
+
+describe('название браузера', () => {
+  it('вид находится и по основному имени, и по синониму', () => {
+    expect(kindNamed(info, 'image/pjpeg')?.label).toBe('JPEG');
+    expect(kindNamed(info, ' Application/PDF ')?.label).toBe('PDF');
+    expect(kindNamed(info, 'image/tiff')).toBeUndefined();
+    expect(kindNamed(info, '')).toBeUndefined();
+    expect(kindNamed(undefined, 'application/pdf')).toBeUndefined();
+  });
+
+  // Синоним — только для названия браузера: тип, с которым файл ОТДАЛ сервер, сверяется точно.
+  it('показ по синониму не решается', () => {
+    expect(fileShownAs(info, 'application/x-pdf')).toBe('download');
+  });
+
+  it('предел размера словами', () => {
+    expect(sizeLimitWords(info)).toBe('50 МБ');
   });
 });
 
