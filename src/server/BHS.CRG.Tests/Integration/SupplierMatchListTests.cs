@@ -24,9 +24,12 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
     public async Task Список_отбирает_по_поставщику_и_словам_бумаги_и_называет_сколько_всего()
     {
         var (client, _) = await SignInAsync("Supplier");
-        // Заведённый ПЕРВЫМ зовётся на «Я», вторым — на «А»: порядок по названию обязан разойтись с
-        // порядком заведения.
-        var (vendor, other) = (await VendorAsync("Я-поставщик"), await VendorAsync("А-поставщик"));
+        // Порядок по названию обязан РАЗОЙТИСЬ с порядком по идентификатору, иначе проверка ниже
+        // проходила бы и при сортировке по идентификатору (проверено поломкой: так и было). Идентификаторы
+        // случайны, поэтому «А» заводим, пока его идентификатор не окажется БОЛЬШЕ, чем у «Я».
+        var vendor = await VendorAsync("Я-поставщик");
+        var other = await VendorAsync("А-поставщик");
+        while (other.CompareTo(vendor) < 0) other = await VendorAsync("А-поставщик");
         var position = await PositionAsync();
         await RememberAsync(client, vendor, position, "Кабель силовой 3х2,5", "Гофра 20", "Муфта 100%");
         await RememberAsync(client, other, position, "Кабель силовой 3х2,5");
