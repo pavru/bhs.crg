@@ -94,7 +94,34 @@ check 'уже стоит — не приходит'          1 "$(brings_convert
 check 'уже стоит — оговорки нет'         '' "$(legacy_notes 2>&1)"
 cp cv-without.yml "$NEW_DIR/docker-compose.yml"
 check 'откат на версию без него — молчим' 1 "$(brings_converter >/dev/null 2>&1; echo $?)"
-rm -f docker-compose.yml "$NEW_DIR/docker-compose.yml" cv-with.yml cv-without.yml
+# Закрытый контур берёт образ с зеркала: с адресом реестра перед именем сервис обязан узнаваться,
+# иначе оговорка «один раз» печаталась бы на каждом обновлении (ревью PR #1276).
+printf 'services:
+  converter:
+    image: registry.local:5000/gotenberg/gotenberg:8.37.0-libreoffice
+' > cv-mirror.yml
+check 'конвертер по образу с зеркала'    0 "$(has_converter cv-mirror.yml >/dev/null 2>&1; echo $?)"
+
+# Откат на версию без конвертера: прежний compose о сервисе не знает, и контейнер остался бы
+# работать сиротой. Убирается именно он, по меткам, и только когда рабочий файл его не объявляет.
+docker() {
+    case "$1" in
+        inspect) echo проект ;;
+        ps)      echo "$*" > docker.ps; echo c1 ;;
+        rm)      echo "$*" > docker.rm ;;
+    esac
+}
+compose() { echo api-1; }
+cp cv-without.yml docker-compose.yml; rm -f docker.rm docker.ps
+drop_left_converter >/dev/null 2>&1
+check 'откат: оставшийся контейнер убран'  'rm -f c1' "$(cat docker.rm 2>/dev/null)"
+grep -q 'project=проект' docker.ps && grep -q 'service=converter' docker.ps && r=да || r=нет
+check 'откат: ищется по проекту и сервису' да "$r"
+cp cv-with.yml docker-compose.yml; rm -f docker.rm
+drop_left_converter >/dev/null 2>&1
+check 'сервис объявлен — контейнер не трогаем' '' "$(cat docker.rm 2>/dev/null)"
+unset -f docker
+rm -f docker-compose.yml "$NEW_DIR/docker-compose.yml" cv-with.yml cv-without.yml cv-mirror.yml docker.rm docker.ps
 unset -f compose
 
 echo

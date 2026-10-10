@@ -63,7 +63,8 @@ cat > "$SB/pick.py" <<'PY'
 import json, sys
 config = json.load(sys.stdin)
 service = config["services"]["converter"]
-keep = ["image", "environment", "command", "read_only", "tmpfs", "cap_drop", "security_opt", "deploy", "ports"]
+keep = ["image", "environment", "command", "read_only", "tmpfs", "cap_drop", "security_opt", "deploy", "ports",
+        "healthcheck", "restart"]
 picked = {key: service.get(key) for key in keep}
 picked["networks"] = {name: config["networks"][name].get("internal", False) for name in service.get("networks", {})}
 print(json.dumps(picked, sort_keys=True, ensure_ascii=False))
@@ -75,7 +76,7 @@ deploy_service="$(service_of "$DEPLOY")"
 check 'сервис в поставке найден' да "$(has "$deploy_service" '"image": "gotenberg/gotenberg:')"
 # «Не нашлось» у стенда печатается словами: два пустых ответа иначе сошлись бы как равные.
 dev_service="$(service_of "$DEV")"
-check 'образ, окружение, команда, ограничения и сеть совпадают' "$deploy_service" "${dev_service:-в дев-стенде сервис не найден}"
+check 'образ, окружение, команда, ограничения, проверка здоровья и сеть совпадают' "$deploy_service" "${dev_service:-в дев-стенде сервис не найден}"
 check 'порт на хост не опубликован' да "$(has "$deploy_service" '"ports": null')"
 check 'сеть сервиса одна, и она внутренняя' да "$(has "$deploy_service" '"networks": {"converter": true}')"
 # Снятие зависшего процесса живьём не проверить: для этого нужен документ, на котором LibreOffice
@@ -115,6 +116,16 @@ check 'из сети конвертера — нет (по имени)'         
 check 'из сети конвертера — нет (по адресу)'             нет "$(yes_no inside curl -sS -m 5 -o /dev/null http://1.1.1.1)"
 # Так к сервису приходит `api`: по имени, из той же внутренней сети.
 check 'сосед по сети видит сервис по имени'              да  "$(yes_no docker run --rm --network "${PROJECT}_converter" --entrypoint curl "$image" -fsS -m 10 http://converter:3000/health)"
+
+# `api` стоит сразу в двух сетях — обычной и этой. Контейнер в таком положении обязан сохранить
+# и выход наружу, и разрешение внешних имён: потеряй он их, приложение перестало бы видеть
+# облачные движки и проверку обновлений, а база и хранилище работали бы как ни в чём не бывало.
+docker network create "${PROJECT}_plain" >/dev/null
+reach='curl -sS -m 20 -o /dev/null https://github.com && curl -fsS -m 10 -o /dev/null http://converter:3000/health'
+both="$(docker create --network "${PROJECT}_plain" --entrypoint sh "$image" -c "$reach")"
+docker network connect "${PROJECT}_converter" "$both"
+check 'в двух сетях сразу: и наружу, и к сервису'        да  "$(yes_no docker start -a "$both")"
+docker rm -f "$both" >/dev/null; docker network rm "${PROJECT}_plain" >/dev/null
 
 echo '── лишние двери закрыты ──'
 code() { inside curl -s -o /dev/null -w '%{http_code}' "$@"; }

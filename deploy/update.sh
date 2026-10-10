@@ -192,7 +192,8 @@ storage_kind_of() {
 # Есть ли в compose-файле конвертер офисных файлов (issue #1267). По образу — как и хранилище.
 has_converter() {
     [ -f "$1" ] || return 1
-    grep -qE '^[[:space:]]*image:[[:space:]]*gotenberg/gotenberg:' "$1"
+    # Перед именем допустим адрес своего реестра: в закрытом контуре образ берут с зеркала.
+    grep -qE '^[[:space:]]*image:[[:space:]]*([^[:space:]]*/)?gotenberg/gotenberg:' "$1"
 }
 
 # Конвертер приходит ЭТИМ обновлением: в рабочем файле его нет, в файле целевой версии — есть.
@@ -201,6 +202,24 @@ has_converter() {
 brings_converter() {
     if has_converter docker-compose.yml; then return 1; fi
     has_converter "$NEW_DIR/docker-compose.yml"
+}
+
+# После отката на версию без конвертера его контейнер остаётся: прежний compose о сервисе не
+# знает и не трогает его, а `restart: unless-stopped` переживает перезагрузки. Убираем именно его,
+# по меткам Compose, а не `--remove-orphans`: тот снёс бы и то, что оставлено нарочно.
+drop_left_converter() {
+    local left project
+    if has_converter docker-compose.yml; then return 0; fi
+    # Имя проекта спрашиваем у работающего контейнера, а не собираем: его можно переопределить.
+    project="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' \
+        "$(compose ps -q api 2>/dev/null | head -1)" 2>/dev/null || true)"
+    [ -n "$project" ] || return 0
+    left="$(docker ps -aq --filter "label=com.docker.compose.project=$project" \
+        --filter "label=com.docker.compose.service=converter" 2>/dev/null || true)"
+    [ -n "$left" ] || return 0
+    # shellcheck disable=SC2086 # список идентификаторов: разбиение по словам и нужно
+    docker rm -f $left >/dev/null 2>&1 || true
+    say "Контейнер конвертера офисных файлов убран: прежняя версия им не пользуется."
 }
 
 # Переход хранилища в этом обновлении: MinIO остаётся позади, Garage приходит на его место.
@@ -376,6 +395,7 @@ EOF
     # скрипт просто скачает compose текущей версии заново (проверено откатом на стенде).
     rm -f "$RELEASE_REF"
     compose up -d
+    drop_left_converter
     wait_for_version "$prev_version" || stop \
         "Прежняя версия не ответила за отведённое время. Журнал: docker compose logs --tail=50 api"
     say ""

@@ -22,6 +22,7 @@ public class HealthMonitorService(
     IMinioClient minio,
     BlobStorageOptions blobOptions,
     IHttpClientFactory httpFactory,
+    OfficeConverterProbe converter,
     ILogger<HealthMonitorService> logger
 ) : BackgroundService, IHealthState
 {
@@ -53,7 +54,10 @@ public class HealthMonitorService(
         do
         {
             try { await TickAsync(ct); }
-            catch (OperationCanceledException) { break; }
+            // Только остановка приложения. Истёкший срок HTTP-запроса приходит тем же типом, и без
+            // условия одна не ответившая в срок проба останавливала бы мониторинг до перезапуска:
+            // снимок замирал, а об упавшей базе уже никто не сообщал (ревью PR #1276).
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex) { logger.LogWarning(ex, "Сбой цикла health-мониторинга"); }
         }
         while (await SafeWait(timer, ct));
@@ -73,17 +77,16 @@ public class HealthMonitorService(
 
         var probes = new List<Probe>
         {
-            await ProbeAsync("db", "База данных", HealthClass.Core, () => CheckPostgresAsync(sp, ct)),
-            await ProbeAsync("storage", "Хранилище", HealthClass.Core, () => CheckStorageAsync(ct)),
+            await ProbeAsync(ct, "db", "База данных", HealthClass.Core, () => CheckPostgresAsync(sp, ct)),
+            await ProbeAsync(ct, "storage", "Хранилище", HealthClass.Core, () => CheckStorageAsync(ct)),
         };
 
         // Конвертер офисных файлов (issue #1267) — свой сервис, но не ядро: без него офисный файл
         // прикладывается и скачивается, не строится только его читаемый образ. Поэтому класс —
         // «движок»: предупреждение, а не ошибка, и отказ подтверждается серией проб. Не задан адрес —
         // конвертера у экземпляра нет, и строки о нём тоже.
-        var converter = sp.GetRequiredService<OfficeConverterProbe>();
         if (converter.Configured)
-            probes.Add(await ProbeAsync(ConverterCode, "Конвертер офисных файлов", HealthClass.Engine, async () =>
+            probes.Add(await ProbeAsync(ct, ConverterCode, "Конвертер офисных файлов", HealthClass.Engine, async () =>
             {
                 if (await converter.WhyNotReadyAsync(ct) is { } why) throw new InvalidOperationException(why);
                 return null;
@@ -97,7 +100,7 @@ public class HealthMonitorService(
         Probe? proxyProbe = null;
         if (viaProxy.Count > 0)
         {
-            proxyProbe = await ProbeAsync("proxy", "Прокси", HealthClass.Engine, () => CheckProxyAsync(settings.Proxy, ct));
+            proxyProbe = await ProbeAsync(ct, "proxy", "Прокси", HealthClass.Engine, () => CheckProxyAsync(settings.Proxy, ct));
             probes.Add(proxyProbe);
         }
 
@@ -118,7 +121,7 @@ public class HealthMonitorService(
         var ollama = settings.Rec("Ollama");
         if (EngineReadiness.IsUsableForRecognition("Ollama", ollama)
             && !Skip(OutboundService.Ollama, "recognition.ollama", "Ollama (распознавание)"))
-            probes.Add(await ProbeAsync("recognition.ollama", "Ollama (распознавание)", HealthClass.Engine, async () =>
+            probes.Add(await ProbeAsync(ct, "recognition.ollama", "Ollama (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckOllamaAsync(ollama.BaseUrl, ct);
                 return await ModelDetailAsync(sp, "recognition.ollama", "Ollama", ollama, ct);
@@ -130,7 +133,7 @@ public class HealthMonitorService(
         var gemini = settings.Rec("Gemini");
         if (EngineReadiness.IsUsableForRecognition("Gemini", gemini)
             && !Skip(OutboundService.Gemini, "recognition.gemini", "Gemini (распознавание)"))
-            probes.Add(await ProbeAsync("recognition.gemini", "Gemini (распознавание)", HealthClass.Engine, async () =>
+            probes.Add(await ProbeAsync(ct, "recognition.gemini", "Gemini (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct);
                 return await ModelDetailAsync(sp, "recognition.gemini", "Gemini", gemini, ct);
@@ -250,7 +253,7 @@ public class HealthMonitorService(
 
     /// <param name="service">Чей путь наружу проверяем — чтобы отказ разбирал общий классификатор
     /// (issue #937): за прокси «движок недоступен» чаще всего означает беду не с движком.</param>
-    private static async Task<Probe> ProbeAsync(string code, string name, HealthClass @class, Func<Task<string?>> probe,
+    private static async Task<Probe> ProbeAsync(CancellationToken ct, string code, string name, HealthClass @class, Func<Task<string?>> probe,
         OutboundService? service = null, OutboundProxyState? proxy = null)
     {
         try
@@ -259,8 +262,14 @@ public class HealthMonitorService(
         }
         // Остановка приложения — не отказ компонента: иначе последний тик объявлял бы недоступным
         // то, что просто не успело ответить перед выключением.
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        //
+        // А вот истёкший срок запроса — отказ, хотя приходит тем же типом, что и отмена: различает
+        // их токен (HttpFailure). Раньше не ответившая в срок проба проходила сквозь этот фильтр и
+        // роняла весь круг вместе с пробами базы и хранилища.
+        catch (Exception ex) when (!HttpFailure.IsUserCancellation(ex, ct))
         {
+            if (HttpFailure.IsTimeout(ex, ct))
+                return new Probe(code, name, @class, false, "Не ответил в отведённый срок.", service);
             var detail = service is { } s && proxy is not null
                 ? OutboundDiagnosis.Describe(ex, s, proxy)
                 : OutboundDiagnosis.Mask(ex.Message);
