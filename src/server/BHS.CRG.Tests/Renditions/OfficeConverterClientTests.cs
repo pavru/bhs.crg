@@ -23,6 +23,90 @@ public class OfficeConverterClientTests
         return Assert.IsType<Rendition.Refused>(reply.Refusal);
     }
 
+    /// <summary>
+    /// Отметка «чем построен образ» ложится в базу и показывается человеку, а по адресу конвертера
+    /// может стоять что угодно. Всё, что не похоже на номер версии, — «неизвестно», а не отметка.
+    /// </summary>
+    [Theory]
+    [InlineData("8.37.0", "gotenberg 8.37.0")]
+    [InlineData("8.37.0\n", "gotenberg 8.37.0")]
+    [InlineData("8.37.0-libreoffice", "gotenberg 8.37.0-libreoffice")]
+    [InlineData("<html>nginx</html>", null)]
+    [InlineData("", null)]
+    [InlineData("8.37.0 and a very long tail that no version number would ever carry", null)]
+    public async Task Отметка_конвертера_это_его_номер_версии_или_ничего(string body, string? mark)
+    {
+        var client = Client(MustNotBeCalled, version: body);
+
+        Assert.Equal(mark, await client.MarkAsync(CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Отметка необязательна, и готовый образ её не ждёт: вопрос о версии уходит одновременно с
+    /// преобразованием. Здесь преобразование не кончится, пока о версии не спросили, — задай служба
+    /// вопрос после него, тест не дождался бы.
+    /// </summary>
+    [Fact]
+    public async Task Версию_спрашивают_одновременно_с_преобразованием()
+    {
+        var asked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = Client(
+            async (_, ct) =>
+            {
+                await asked.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+                return PdfReply(Pdf("invoice supplier total"));
+            },
+            onVersion: (_, _) =>
+            {
+                asked.TrySetResult();
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("8.37.0") });
+            });
+        var builder = new OfficeRenditionBuilder(client, Microsoft.Extensions.Logging.Abstractions.NullLogger<OfficeRenditionBuilder>.Instance);
+
+        var built = Assert.IsType<Rendition.Built>(
+            await builder.BuildAsync(Workbook("invoice", "supplier", "total"), OfficeFormat.Xlsx, CancellationToken.None));
+
+        Assert.Equal("gotenberg 8.37.0", built.Converter);
+    }
+
+    /// <summary>Сервис о версии молчит — образ всё равно есть, и ждали его недолго.</summary>
+    [Fact]
+    public async Task Молчание_о_версии_образ_не_отменяет()
+    {
+        var client = Client(
+            Returns(Pdf("invoice supplier total")), markWait: TimeSpan.FromMilliseconds(100),
+            onVersion: async (_, ct) =>
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+                throw new InvalidOperationException();
+            });
+        var builder = new OfficeRenditionBuilder(client, Microsoft.Extensions.Logging.Abstractions.NullLogger<OfficeRenditionBuilder>.Instance);
+
+        var built = Assert.IsType<Rendition.Built>(
+            await builder.BuildAsync(Workbook("invoice", "supplier", "total"), OfficeFormat.Xlsx, CancellationToken.None));
+
+        Assert.Null(built.Converter);
+    }
+
+    /// <summary>
+    /// Вид отказа лежит в таблице образов ИМЕНЕМ. Переименовали или убрали член — старые записи
+    /// перестали читаться. Список меняют вместе с миграцией данных, а не одной правкой перечня.
+    /// </summary>
+    [Fact]
+    public void Имена_видов_отказа_это_формат_хранения()
+    {
+        Assert.Equal(
+            ["Protected", "WrongFormat", "Corrupted", "Empty", "TooLarge", "Failed", "Unavailable", "NotSetUp"],
+            Enum.GetNames<RenditionRefusal>());
+    }
+
+    [Fact]
+    public async Task Конвертер_не_назвал_себя_отметки_нет_а_не_отказ()
+    {
+        Assert.Null(await Client(MustNotBeCalled, version: null).MarkAsync(CancellationToken.None));
+        Assert.Null(await Client(MustNotBeCalled, baseUrl: null, version: "8.37.0").MarkAsync(CancellationToken.None));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(" ")]

@@ -41,11 +41,18 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
             }
         }
 
+        // Версию спрашиваем одновременно с преобразованием, а не после: отметка необязательна, и
+        // ждать её отдельно — значит держать готовый образ ради строки «чем построен». Вызов не
+        // бросает, поэтому брошенный без ответа (образа не вышло) он ничего не оставляет.
+        var mark = converter.MarkAsync(ct);
         var reply = await converter.ConvertAsync(file, format, ct);
         var result = reply.Refusal ?? RenditionPostconditions.Check(reply.Pdf!, cellWords);
-        return result is Rendition.Built built && uncheckedBook
-            ? built with { Notes = [.. built.Notes, UncheckedNote] }
-            : result;
+        if (result is not Rendition.Built built) return result;
+        return built with
+        {
+            Notes = uncheckedBook ? [.. built.Notes, UncheckedNote] : built.Notes,
+            Converter = await mark,
+        };
     }
 
     /// <inheritdoc cref="OfficeFileBudget.MayBeOffice" />

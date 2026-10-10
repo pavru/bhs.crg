@@ -1,4 +1,5 @@
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Persistence.Configurations;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -121,6 +122,8 @@ public class BlobRegistryBackfill(AppDbContext db, ILogger<BlobRegistryBackfill>
                   AND c.data_type IN ('text', 'character varying')
                   AND c.column_name ILIKE '%BlobPath%'
                   AND c.table_name <> 'blob_registry'
+                  AND NOT (c.table_name = '{{RenditionConfiguration.Table}}'
+                           AND c.column_name = '{{RenditionConfiguration.OriginalColumn}}')
             LOOP
                 EXECUTE format(
                     'INSERT INTO blob_registry ("Id", "Path", "CreatedAt", "UpdatedAt")

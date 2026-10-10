@@ -22,6 +22,22 @@ public sealed class RenditionService(OfficeRenditionBuilder office)
 {
     /// <param name="content">Файл целиком. Поток обязан уметь перемотку: у офисного файла читается
     /// оглавление, а оно в конце.</param>
+    /// <summary>
+    /// Ответ по одному началу файла (<see cref="FileKinds.HeadBytes" /> байт), если его хватает;
+    /// <c>null</c> — нужен файл целиком (issue #1269).
+    ///
+    /// <para>Хватает его двум ответам из трёх: «читается сам» (PDF, изображение) и «файл другого
+    /// вида». Скан на десятки мегабайт ради них из хранилища целиком не тянут. Офисный файл и всё,
+    /// что на него похоже, — архив или контейнер, и о них начало не говорит ничего.</para>
+    /// </summary>
+    public async Task<Rendition?> ByHeadAsync(ReadOnlyMemory<byte> head, CancellationToken ct)
+    {
+        var kind = await FileKinds.DetectAsync(new MemoryStream(head.ToArray(), writable: false), ct);
+        var reading = FileKindCatalog.Find(kind)?.Reading ?? FileReading.None;
+        if (reading == FileReading.AsIs) return new Rendition.AsIs(kind);
+        return reading == FileReading.None && !OfficeRenditionBuilder.MayBeOffice(head.Span) ? WrongFormat() : null;
+    }
+
     public async Task<Rendition> BuildAsync(Stream content, CancellationToken ct)
     {
         if (!content.CanSeek) throw new ArgumentException("Нужен поток с перемоткой.", nameof(content));

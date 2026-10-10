@@ -64,7 +64,14 @@ public abstract record Rendition
     /// <param name="Notes">Пометки для человека: что в образе не так, хотя он и годен. Едут вместе
     /// с образом и показываются рядом с ним — образ с пометкой, показанный без неё, выглядел бы
     /// точной копией файла.</param>
-    public sealed record Built(byte[] Pdf, int Pages, IReadOnlyList<string> Notes) : Rendition;
+    public sealed record Built(byte[] Pdf, int Pages, IReadOnlyList<string> Notes) : Rendition
+    {
+        /// <summary>
+        /// Чем построен образ: «gotenberg 8.37.0» (issue #1269). <c>null</c> — конвертер себя не
+        /// назвал; образ от этого хуже не стал, и отказом это не считается.
+        /// </summary>
+        public string? Converter { get; init; }
+    }
 
     /// <summary>Образа нет.</summary>
     /// <param name="Kind">Вид причины — по нему решают, предлагать ли повтор.</param>
@@ -72,7 +79,7 @@ public abstract record Rendition
     /// попадает никогда — в нём может оказаться содержимое файла.</param>
     public sealed record Refused(RenditionRefusal Kind, string Reason) : Rendition
     {
-        public bool RetryHelps => Kind == RenditionRefusal.Unavailable;
+        public bool RetryHelps => Kind.RetryHelps();
     }
 }
 
@@ -138,4 +145,31 @@ public static class RenditionLimits
 
     /// <summary>Сколько файл ждёт своей очереди к конвертеру, прежде чем получить «занят».</summary>
     public static readonly TimeSpan GateWait = TimeSpan.FromSeconds(20);
+}
+
+/// <summary>
+/// Что вид отказа значит для того, кто его получил. Функции от вида, а не свойства ответа: вид
+/// хранится в записи образа именем, и правило нужно тому, у кого на руках только оно.
+///
+/// <para>⚠️ Имена <see cref="RenditionRefusal" /> — формат хранения: они лежат в таблице образов.
+/// Переименование члена делает старые записи нечитаемыми; сторож —
+/// <c>Имена_видов_отказа_это_формат_хранения</c>.</para>
+/// </summary>
+public static class RenditionRefusalRules
+{
+    /// <summary>Повтор поможет: сервис занят или молчит, и тот же файл позже получит образ.</summary>
+    public static bool RetryHelps(this RenditionRefusal kind) => kind == RenditionRefusal.Unavailable;
+
+    /// <summary>
+    /// Отказ запоминают (issue #1269) — чтобы не строить заново на каждый вопрос. Не запоминают
+    /// то, что говорит не о файле:
+    /// <list type="bullet">
+    /// <item>о сервисе — занят, молчит, не настроен: запись «конвертера нет» пережила бы его
+    /// настройку;</item>
+    /// <item>о версии приложения — «файл другого вида»: какие виды читаются, решает реестр видов, и
+    /// он растёт. Ответ этот дешёвый — по первым байтам файла, — и хранить его незачем.</item>
+    /// </list>
+    /// </summary>
+    public static bool Remembered(this RenditionRefusal kind) =>
+        kind is not (RenditionRefusal.Unavailable or RenditionRefusal.NotSetUp or RenditionRefusal.WrongFormat);
 }

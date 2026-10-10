@@ -1,4 +1,5 @@
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Persistence.Configurations;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -68,6 +69,12 @@ public class LiveBlobPathScan(AppDbContext db)
     /// <summary>
     /// Реестр из отбора исключён: он перечисляет то, что создано, а не то, на что ссылаются.
     /// Не исключи мы его — живым оказался бы каждый путь, и уборка не нашла бы ничего никогда.
+    ///
+    /// <para>По той же причине исключена колонка оригинала в таблице читаемых образов
+    /// (issue #1269): запись образа говорит «у этого файла есть образ», а не «этот файл кому-то
+    /// нужен». Сочти её уборка держателем — и ни один оригинал, у которого есть образ, не стал бы
+    /// осиротевшим никогда. Путь самого образа в той же таблице, наоборот, держатель. Имена — из
+    /// <c>RenditionConfiguration</c>; сторож — <c>RenditionCleanupTests</c>.</para>
     /// </summary>
     /// <remarks>
     /// Схемы не перечисляются, а берутся все, кроме служебных: список схем модулей, выписанный здесь,
@@ -75,7 +82,7 @@ public class LiveBlobPathScan(AppDbContext db)
     /// базе живёт что-то постороннее, его колонки тоже читаются — и колонка, которую прочитать
     /// нельзя, останавливает уборку (см. <see cref="BlobScanRefusedException" />).
     /// </remarks>
-    private const string ColumnsSql = """
+    private static readonly string ColumnsSql = $"""
         SELECT c.table_schema, c.table_name, c.column_name,
                CASE WHEN c.table_schema <> 'public' THEN 2
                     WHEN c.data_type = 'jsonb' THEN 0
@@ -87,6 +94,8 @@ public class LiveBlobPathScan(AppDbContext db)
           AND c.table_schema NOT LIKE 'pg\_%'
           AND t.table_type = 'BASE TABLE'
           AND NOT (c.table_schema = 'public' AND c.table_name = 'blob_registry')
+          AND NOT (c.table_schema = 'public' AND c.table_name = '{RenditionConfiguration.Table}'
+                   AND c.column_name = '{RenditionConfiguration.OriginalColumn}')
           AND CASE WHEN c.table_schema = 'public'
                    THEN c.data_type = 'jsonb'
                      OR (c.data_type IN ('text', 'character varying') AND c.column_name ILIKE '%BlobPath%')
