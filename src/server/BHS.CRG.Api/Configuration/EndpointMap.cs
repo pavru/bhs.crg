@@ -53,6 +53,7 @@ internal static class EndpointMap
     app.MapMcp("/mcp").RequireAuthorization();
     app.MapDocumentTypeEndpoints();
     app.MapCommonDataEndpoints();
+    app.MapNomenclatureIntakeEndpoints();
     app.MapTemplateEndpoints();
     app.MapTemplateAssetEndpoints();
     app.MapTypstUserLibEndpoints();

@@ -172,6 +172,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
                           здесь нельзя — соответствие без позиции есть забытое соответствие. */}
                       <NomenclaturePicker chosen name={item.nomenclatureName} clearable={false}
                         lost={item.issue === 'lost'} archived={item.issue === 'archived'}
+                        from={item.by === 'code' ? { code: item.source } : { name: item.source }}
                         onPick={id => void repoint(item, id)} onClear={() => {}} />
                       {issueNote(item.issue) && (
                         <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-danger' : 'text-fg4'}`}>

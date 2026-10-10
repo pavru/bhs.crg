@@ -180,6 +180,12 @@ public partial class ArchiveReadInventoryTests
             Documents("документы — строки системного набора"),
         ["BHS.CRG.Infrastructure/DataSets/SubtreeDocumentsProvider.cs|var documents = await objects.GetDocumentsInSetsAsync([.. setById.Keys], ct);"] =
             Documents("документы — строки системного набора"),
+        ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|await db.DomainObjects.AsNoTracking()"] =
+            Seen("альтернативные имена позиций номенклатуры для сверки похожих: архивная позиция — тоже двойник"),
+        ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|var found = await db.DomainObjects.AsNoTracking()"] =
+            Choice("записи на выбор в поле-ссылке новой позиции номенклатуры (единица измерения): архивной в выборе " +
+                   "нет, и присланная мимо окна отвергается",
+                nameof(NomenclatureIntakeTests.Архивная_единица_на_выбор_не_предлагается_и_не_принимается)),
         ["BHS.CRG.Infrastructure/Documents/DocumentSearchService.cs|FROM domain_objects o"] =
             Documents("поиск документов: соединение с фасетой"),
         ["BHS.CRG.Infrastructure/Email/DocumentSetEmailService.cs|var instance = await instanceRepo.GetByIdAsync(instanceId, ct) ?? throw new NotFoundException(\"Документ не найден.\");"] =

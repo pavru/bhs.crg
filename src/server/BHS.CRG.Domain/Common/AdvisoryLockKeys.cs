@@ -28,4 +28,10 @@ public static class AdvisoryLockKeys
     /// Один ключ на все типы: операция редкая.
     /// </summary>
     public const long CatalogIntake = 1077_2026;
+
+    /// <summary>
+    /// Создание позиции номенклатуры коротким окном (issue #1079): сверка «такой ещё нет» и создание
+    /// идут под ним, иначе два одновременных нажатия дают две одинаковые позиции.
+    /// </summary>
+    public const long NomenclatureIntake = 1079_2026;
 }

@@ -6,6 +6,9 @@ import { Search, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { apiError } from '@/shared/utils/apiError';
 import { useNomenclature } from '@/shared/api/invoices';
+import { useCan } from '@/shared/api/access';
+import { NewNomenclatureStep } from './NewNomenclatureStep';
+import type { LineWords } from './newNomenclature';
 
 /**
  * Выбор позиции номенклатуры для строки счёта (задача C2, issue #1078, ТЗ COST-7).
@@ -19,12 +22,12 @@ import { useNomenclature } from '@/shared/api/invoices';
  * промолчать, отсечение читается как «такой позиции нет» — и человек заведёт вторую такую же, а сводить
  * затраты после этого придётся вручную.</p>
  *
- * <p>⚠️ Создания позиции здесь НЕТ, хотя оно просится. Новая позиция номенклатуры заводится только явным
- * действием и с показом похожих (ТЗ COST-7.1, задача C3) — она требует права
- * <c>core.nomenclature.edit</c>, которого у снабженца может не быть. Кнопка «завести», отказывающая
- * правами, обещала бы то, чего нет.</p>
+ * <p>⚠️ Новая позиция заводится только явным действием и с показом похожих (ТЗ COST-7.1, задача C3,
+ * issue #1079) — вторым шагом этого же окна, см. `NewNomenclatureStep`. Кнопка видна при праве
+ * <c>core.nomenclature.edit</c>: у того, кто вводит счета, его может не быть, и кнопка, отказывающая
+ * правами, обещала бы то, чего нет. Без права на её месте сказано, кто заводит позиции.</p>
  */
-export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mark, clearable = true, onPick, onClear }: {
+export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mark, clearable = true, from, onPick, onClear }: {
   /**
    * Ссылка на позицию ЕСТЬ. Отдельно от названия: пустое название бывает и у выбранной позиции —
    * записи справочника без имени законны, и пикер их показывает.
@@ -45,6 +48,8 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
    * пометки («Отменить подстановку»), и два крестика рядом с разным смыслом были бы ловушкой.
    */
   clearable?: boolean;
+  /** Слова строки, для которой выбирают позицию: ими заполняется окно «Новая позиция». */
+  from?: LineWords;
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
 }) {
@@ -75,7 +80,7 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
       </div>
 
       {open && (
-        <PickerDialog
+        <PickerDialog from={from ?? NO_WORDS}
           onClose={() => setOpen(false)}
           onPick={(id, picked) => { onPick(id, picked); setOpen(false); }} />
       )}
@@ -83,8 +88,11 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
   );
 }
 
+const NO_WORDS: LineWords = {};
+
 /** Тело монтируется по открытию: запрос заводится заново, и эффекта «закрылось — очисти» не нужно. */
-function PickerDialog({ onClose, onPick }: {
+function PickerDialog({ from, onClose, onPick }: {
+  from: LineWords;
   onClose: () => void;
   onPick: (id: string, name: string | null) => void;
 }) {
@@ -92,6 +100,9 @@ function PickerDialog({ onClose, onPick }: {
   const [query, setQuery] = useState('');
   const timer = useRef<number | null>(null);
   const found = useNomenclature(query);
+  // Шаг «Новая позиция» живёт в этом же окне: набранный запрос цел, пока окно открыто.
+  const [creating, setCreating] = useState(false);
+  const canCreate = useCan().permission('core.nomenclature.edit');
 
   // Задержка в обработчике, а не в эффекте: запрос на каждую букву — это двадцать обращений на одно
   // слово, а состояние, поставленное из эффекта, вызывает лишний кадр (правило react-hooks).
@@ -108,9 +119,20 @@ function PickerDialog({ onClose, onPick }: {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed z-50 left-1/2 top-24 -translate-x-1/2 w-[min(40rem,92vw)]
+          max-h-[calc(100vh-7rem)] overflow-y-auto
           rounded-xl border border-stroke bg-surface shadow-xl p-4 space-y-3">
-          <Dialog.Title className="text-sm font-medium text-fg2">Позиция номенклатуры</Dialog.Title>
+          <Dialog.Title className="text-sm font-medium text-fg2">
+            {creating ? 'Новая позиция номенклатуры' : 'Позиция номенклатуры'}
+          </Dialog.Title>
 
+          {creating ? (
+            <>
+              <NewNomenclatureStep from={from} onBack={() => setCreating(false)} onPick={onPick} />
+              <div className="flex justify-end">
+                <Button size="sm" variant="text" onClick={onClose}>Закрыть</Button>
+              </div>
+            </>
+          ) : (<>
           <div className="flex items-center gap-2 border-b border-stroke pb-2">
             <Search size={14} className="text-fg4 shrink-0" />
             {/* Курсор ставим ссылкой на узел, а не атрибутом `autoFocus`: пикер открывают, чтобы
@@ -145,10 +167,11 @@ function PickerDialog({ onClose, onPick }: {
 
             {!found.isError && items.length === 0 && !found.isFetching && (
               <p className="px-3 py-2 text-xs text-fg4">
-                {query
-                  ? 'По этому запросу позиций нет. Заводит их ответственный за справочник — строку можно '
-                    + 'оставить без позиции, счёт будет ждать в отборе «Разобрать».'
-                  : 'Справочник номенклатуры пуст.'}
+                {!query ? 'Справочник номенклатуры пуст.'
+                  : canCreate
+                    ? 'По этому запросу позиций нет. Проверьте другое написание — или заведите новую позицию.'
+                    : 'По этому запросу позиций нет. Заводит их ответственный за справочник — строку можно '
+                      + 'оставить без позиции, счёт будет ждать в отборе «Разобрать».'}
               </p>
             )}
           </div>
@@ -171,9 +194,19 @@ function PickerDialog({ onClose, onPick }: {
             </p>
           )}
 
-          <div className="flex justify-end">
+          {/* Кнопка — всегда, а не только при пустом поиске: двадцать пять неподходящих находок —
+              такой же повод завести позицию, как ни одной. */}
+          <div className="flex items-center justify-between gap-3">
+            {canCreate ? (
+              <Button size="sm" variant="text" onClick={() => setCreating(true)}>Завести новую позицию…</Button>
+            ) : (
+              <p className="text-[11px] text-fg4">
+                Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
+              </p>
+            )}
             <Button size="sm" variant="text" onClick={onClose}>Закрыть</Button>
           </div>
+          </>)}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

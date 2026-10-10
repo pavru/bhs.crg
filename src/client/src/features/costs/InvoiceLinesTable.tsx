@@ -450,6 +450,7 @@ function Row({
           lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
           archived={draft.nomenclatureArchived}
           clearable={draft.matchedBy === null}
+          from={{ name: draft.supplierText, code: draft.supplierCode, unit: draft.unit }}
           mark={(
             <LineMatchChip draft={draft} offer={offer} fate={memoryFate(draft, line, hasSupplier, offer)}
               supplierId={refEntryId(view.requisites[K.supplier])}

@@ -197,6 +197,9 @@ internal static class DomainRegistration
     // Заведение записи справочника по названию и одному значению (issue #1077) — для порта модулей.
     builder.Services.AddScoped<BHS.CRG.Application.Documents.ICatalogIntake,
         BHS.CRG.Infrastructure.Documents.CatalogIntakeService>();
+    // Создание позиции номенклатуры коротким окном и поиск похожих (issue #1079).
+    builder.Services.AddScoped<BHS.CRG.Application.Documents.INomenclatureIntake,
+        BHS.CRG.Infrastructure.Documents.NomenclatureIntakeService>();
     // Держатели записей ядра в данных модулей (issue #1094). Регистрируются всегда, а не модулем:
     // спрашивать надо и о выключенном модуле, и о схеме, чьего модуля в сборке нет.
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Persistence.ModuleReferenceScan>();

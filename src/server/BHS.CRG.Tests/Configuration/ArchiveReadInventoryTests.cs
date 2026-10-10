@@ -264,7 +264,8 @@ public partial class ArchiveReadInventoryTests
         // Живой тест стоит там, где для него готова обстановка: профиль уровня проверяется на чистой
         // базе своего класса — на общей базе хоста счетов профиль-тип достался бы всем его стройкам.
         var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests), typeof(InvoiceArchiveTests),
-                typeof(SupplierMatchTests), typeof(SupplierMatchListTests) }
+                typeof(SupplierMatchTests), typeof(SupplierMatchListTests),
+                typeof(NomenclatureIntakeTests) }
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())
             .Select(m => m.Name).ToHashSet(StringComparer.Ordinal);

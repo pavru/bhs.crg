@@ -233,7 +233,6 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     private static readonly Dictionary<string, string> NotYetUsed = new()
     {
         ["core.worktypes.edit"] = "классификатор видов работ — модуль учёта работ, этап 2",
-        ["core.nomenclature.edit"] = "номенклатура — модуль затрат, этап 2",
         ["core.views.share"] = "общие представления таблиц — отдельной группы адресов пока нет",
         ["*.read.all"] = "составное право: на дверях стоят права, в которые оно раскрывается "
             + "(AUTH-5.2, issue #1074), — само оно воротами не бывает",
