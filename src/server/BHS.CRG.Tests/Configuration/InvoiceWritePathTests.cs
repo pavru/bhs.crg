@@ -26,8 +26,8 @@ public class InvoiceWritePathTests
         ["Endpoints/InvoiceEndpoints.cs"] =
             (1, "создание счёта: новый счёт не оплачен, а неоплаченный не принадлежит ни одному периоду"),
         ["Endpoints/WaybillEndpoints.cs"] =
-            (6, "накладная — не счёт: денег в ней нет, учётных дат и замка против закрытия периода ей " +
-                "не нужно; от одновременной правки её защищает версия строки (D1, issue #1083)"),
+            (1, "создание накладной: новая накладная — черновик, а черновик не принадлежит ни одному " +
+                "периоду. Остальные правки идут через WaybillDesk (issue #1285)"),
         ["Endpoints/InvoiceDesk.cs"] =
             (2, "сама связка: учётные даты после правки адреса — оплаченному и снятые у неоплаченного"),
         ["Endpoints/InvoiceRecognitionEndpoints.cs"] =
@@ -48,7 +48,8 @@ public class InvoiceWritePathTests
     };
 
     /// <summary>Кто вправе считать учётную дату и спрашивать «закрыт ли день».</summary>
-    private static readonly string[] MayAskThePeriod = ["Data/PaymentPosting.cs"];
+    // У накладной своё правило — учётная дата одна, по её стройке (issue #1285), — и тоже в одном месте.
+    private static readonly string[] MayAskThePeriod = ["Data/PaymentPosting.cs", "Data/WaybillLock.cs"];
 
     private static readonly Regex Save = new(@"\bSaveChanges(Async)?\(", RegexOptions.Compiled);
     // Входов у связки два: WriteAsync — правка из запроса, со сверкой версии формы; MergeAsync —

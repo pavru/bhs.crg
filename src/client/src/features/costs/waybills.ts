@@ -132,8 +132,12 @@ export function linesWord(count: number): string {
  * Оговорка о несопоставленных строках — число, которое обязано быть на виду (ТЗ COST-17).
  * `null` — оговаривать нечего.
  */
-export function unmatchedNote(count: number, posted: boolean): string | null {
+export function unmatchedNote(count: number, posted: boolean, closed = false): string | null {
   if (count === 0) return null;
+  // У запертой накладной выбрать позицию нельзя — и предлагать это текст не вправе (issue #1285).
+  if (closed)
+    return `Не сопоставлено: ${count} ${linesWord(count)}. В «материалы на объекте» они не попали, `
+      + 'а выбрать позицию нельзя, пока период закрыт.';
   return `Не сопоставлено: ${count} ${linesWord(count)}. `
     + (posted
       ? 'В «материалы на объекте» они не попали — выберите позицию номенклатуры, проводить заново не нужно.'

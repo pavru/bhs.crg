@@ -74,5 +74,8 @@ describe('оговорка о несопоставленных строках', 
     expect(unmatchedNote(4, false)).toContain('Не сопоставлено: 4 строки');
     expect(unmatchedNote(4, false)).toContain('Провести накладную можно');
     expect(unmatchedNote(1, true)).toContain('проводить заново не нужно');
+    // Запертой закрытым периодом выбор позиции не обещают: сервер на него отвечает отказом.
+    expect(unmatchedNote(1, true, true)).toContain('пока период закрыт');
+    expect(unmatchedNote(1, true, true)).not.toContain('выберите позицию');
   });
 });

@@ -41,7 +41,13 @@ public sealed record WaybillView(
     string State,
     DateTimeOffset? PostedAt,
     IReadOnlyList<WaybillLineView> Lines,
-    WaybillLineTotals Totals);
+    WaybillLineTotals Totals,
+    // Учётная дата (issue #1285): есть только у проведённой. Отличается от даты отпуска, когда
+    // накладную провели после закрытия периода её даты, — тогда она учтена в первом открытом дне.
+    DateOnly? AccountingOn = null,
+    // Чем накладная заперта, словами; null — не заперта. Запертую нельзя ни вернуть в черновик, ни
+    // сопоставить: экран по этому полю убирает оба действия и показывает причину.
+    string? Locked = null);
 
 public sealed record WaybillListItem(
     Guid Id,
@@ -88,12 +94,6 @@ public static class WaybillRequests
     }
 
     /// <summary>Версия, по которой собрана правка; <c>null</c> — не названа.</summary>
-    public static string? IfMatch(JsonElement body)
-    {
-        CostsValues.EnsureObject(body, "Накладная", "правки");
-        return CostsValues.Text(body, "ifMatch", "Версия накладной (ifMatch)");
-    }
-
     /// <summary>
     /// Набор строк из тела; <c>null</c> — поля «lines» нет вовсе. Пустой набор — это «строк нет», и
     /// путать его с отсутствием поля нельзя: первое удаляет строки, второе их не трогает.
@@ -148,7 +148,7 @@ public static class WaybillViews
     /// <param name="names">Названия позиций; <c>null</c> — справочника номенклатуры в системе нет, и
     /// «позиция потеряна» сказать не о чём (см. <c>InvoiceEndpoints.NomenclatureNamesAsync</c>).</param>
     public static WaybillView Full(Waybill waybill, string version, IReadOnlyList<WaybillLine> lines,
-        ModuleConstruction? site, IReadOnlyDictionary<Guid, ModuleCatalogRef>? names) => new(
+        ModuleConstruction? site, IReadOnlyDictionary<Guid, ModuleCatalogRef>? names, string? locked) => new(
         waybill.Id, version, waybill.Number, waybill.IssuedOn, waybill.Warehouse,
         waybill.ConstructionId, site?.Name, ConstructionLost: waybill.ConstructionId is not null && site is null,
         waybill.ReceivedBy, waybill.Note, waybill.State.ToString(), waybill.PostedAt,
@@ -158,5 +158,6 @@ public static class WaybillViews
             NomenclatureLost: l.NomenclatureId is { } position && names is not null && !names.ContainsKey(position),
             NomenclatureArchived: l.NomenclatureId is { } key && names?.GetValueOrDefault(key)?.Archived == true,
             l.SourceText, l.Unit, l.Quantity, l.Note))],
-        new WaybillLineTotals(lines.Count, lines.Count(l => l.NomenclatureId is null)));
+        new WaybillLineTotals(lines.Count, lines.Count(l => l.NomenclatureId is null)),
+        waybill.AccountingOn, locked);
 }

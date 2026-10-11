@@ -501,6 +501,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateOnly?>("AccountingOn")
+                        .HasColumnType("date")
+                        .HasColumnName("accounting_on");
+
                     b.Property<Guid?>("ConstructionId")
                         .HasColumnType("uuid")
                         .HasColumnName("construction_id");
