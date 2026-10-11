@@ -198,6 +198,10 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
         await CloseAsync(a, today.AddDays(-10));
         view = await ReadAsync(admin, invoice);
         Assert.Contains("у стройки", view.GetProperty("payment").GetProperty("lockedBy").GetString());
+        // Запертому переходу откажет замок, каким бы ни был перечень готовности, — и перечня у него нет
+        // (ревью PR #1301): «всё готово» рядом с отказом «заперт» было бы неправдой.
+        Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("readiness").GetProperty("gaps").ValueKind);
 
         var paths = new Dictionary<string, Func<Task<HttpResponseMessage>>>
         {

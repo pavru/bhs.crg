@@ -7,10 +7,12 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Kind">К какому месту формы пункт ведёт: <c>field</c> — обязательное поле шапки,
 /// <c>lines</c> — строк нет, <c>nomenclature</c> — строки ждут позиции, <c>reference</c> — организации
 /// шапки нет в справочнике, <c>position</c> — позиции строки нет в справочнике, <c>catalog</c> —
-/// справочника номенклатуры нет в установке, <c>allocation</c> — разноска.</param>
+/// справочника номенклатуры нет в установке, <c>allocation</c> — разноска, <c>total</c> — сумма строк
+/// расходится с суммой к оплате.</param>
 /// <param name="Label">Пункт словами, как он стоит в строке: «плательщик», «3 строки без позиции».</param>
-/// <param name="Field">Ключ поля шапки — у <c>field</c> и <c>reference</c>.</param>
-/// <param name="Lines">Номера строк — у <c>nomenclature</c> и <c>position</c>.</param>
+/// <param name="Field">Ключ поля шапки — у <c>field</c>, <c>reference</c> и <c>total</c>.</param>
+/// <param name="Lines">Номера строк — у <c>nomenclature</c>, <c>position</c> и у <c>allocation</c>, когда
+/// не разнесены конкретные строки. По ним форма ведёт к строке, а не к таблице целиком.</param>
 public sealed record InvoiceReadinessGap(
     string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null);
 
@@ -38,6 +40,11 @@ public sealed record InvoiceReadinessView(IReadOnlyList<string> Required, IReadO
 ///
 /// <para>Порядок пунктов — порядок прежней цепочки и порядок формы сверху вниз: поля шапки → строки →
 /// позиции → ссылки → разноска.</para>
+///
+/// <para>⚠️ <b>Замок закрытого периода условием готовности НЕ является</b>: он отказывает любой записи
+/// счёта, а не переходу, и чинится не в счёте. Поэтому у запертого счёта перечня нет вовсе
+/// (<see cref="InvoiceViews" /> отдаёт <c>null</c>) — «всё готово» рядом с переходом, которому связка
+/// записи ответит «заперт», было бы неправдой (ревью PR #1301).</para>
 /// </summary>
 public sealed class InvoiceReadiness
 {
@@ -154,21 +161,14 @@ public sealed class InvoiceReadiness
                  })
             if (id is { } organization && lost.Contains(organization))
             {
-                problems.Add($"организации из поля «{field}» нет в справочнике");
-                gaps.Add(new InvoiceReadinessGap("reference", $"{field.ToLowerInvariant()}: записи нет в справочнике", Field: field));
+                // Имя поля — из объявления типа, тем же источником, что у пункта «не заполнено»: ключ и
+                // заголовок сегодня совпадают, и разойдись они, одно поле называлось бы двумя именами.
+                var title = InvoiceRequisites.TitleOf(field);
+                problems.Add($"организации из поля «{title}» нет в справочнике");
+                gaps.Add(new InvoiceReadinessGap("reference", $"{title.ToLowerInvariant()}: записи нет в справочнике", Field: field));
             }
 
-        // Вида «Номенклатура» нет вовсе — спрашивать не у кого, и это не «все позиции потеряны»:
-        // состояние установки, а не счёта. Но и «сверено со справочником» без справочника не скажешь.
-        if (names is null)
-        {
-            if (lines.Any(l => l.NomenclatureId is not null))
-                Add($"{label}: тип «{CostsRecordTypes.NomenclatureCode}» в системе не " +
-                    "заведён, и сверить позиции строк не с чем. «Разобран» означает, что строки сведены со " +
-                    "справочником, — пока его нет, счёт остаётся черновиком.",
-                    conflict: true, new InvoiceReadinessGap("catalog", "справочник номенклатуры не заведён"));
-        }
-        else
+        if (names is not null)
         {
             var gone = lines
                 .Where(l => l.NomenclatureId is { } position && !names.ContainsKey(position))
@@ -186,41 +186,73 @@ public sealed class InvoiceReadiness
                 "удалили или перенесли в другой вид: ссылка осталась, а записи нет. Выберите её заново — " +
                 "«разобран» означает, что счёт сведён со справочником, а ссылка в пустоту не сводится ни с чем.",
                 conflict: false, [.. gaps]);
+
+        // Вида «Номенклатура» нет вовсе — спрашивать не у кого, и это не «все позиции потеряны»:
+        // состояние установки, а не счёта. Но и «сверено со справочником» без справочника не скажешь.
+        // ⚠️ ПОСЛЕ ссылок шапки: потерянного поставщика человек починит сам, а справочник — нет, и
+        // названное первым непочинимое заслоняло бы поле, которое в форме стоит выше (ревью PR #1301).
+        if (names is null && lines.Any(l => l.NomenclatureId is not null))
+            Add($"{label}: тип «{CostsRecordTypes.NomenclatureCode}» в системе не " +
+                "заведён, и сверить позиции строк не с чем. «Разобран» означает, что строки сведены со " +
+                "справочником, — пока его нет, счёт остаётся черновиком.",
+                conflict: true, new InvoiceReadinessGap("catalog", "справочник номенклатуры не заведён"));
     }
 
     /// <summary>
     /// «Разнесён» (ТЗ COST-9, COST-13) — последнее условие. Отказ называет ВСЁ, чего не хватает разноске,
     /// а не первое: иначе человек разносил бы строку, чтобы узнать о расхождении суммы.
+    ///
+    /// <para>У каждой причины — свой пункт (ревью PR #1301): чинятся они в разных местах формы. Один
+    /// пункт «разноска» вёл к выбору объекта и тогда, когда расходилась сумма, — выбор объекта её не
+    /// чинит, а причину человек по-прежнему узнавал нажатием.</para>
     /// </summary>
     private void Allocation(AllocationSummaryView allocation, string label)
     {
         if (allocation.Allocated) return;
 
         var problems = new List<string>();
+        var gaps = new List<InvoiceReadinessGap>();
 
         if (allocation.Unbalanced.Count > 0)
+        {
             problems.Add($"{Subject(allocation.Unbalanced)} " +
                 $"{(allocation.Unbalanced.Count == 1 ? "разнесена" : "разнесены")} по стройкам не полностью — " +
                 "остаток виден строкой «не разнесено»");
+            gaps.Add(new InvoiceReadinessGap("allocation", "разноска", Lines: allocation.Unbalanced));
+        }
 
         if (allocation.Document.Pending)
+        {
             problems.Add("разноска счёта суммой, сделанная до строк, ждёт пересчёта по строкам — пересчитайте её " +
                 "в матрице разноски: пока она ждёт, деньги лежат на стройках суммой, а строки не разнесены никуда");
+            gaps.Add(new InvoiceReadinessGap("allocation", "пересчёт разноски по строкам"));
+        }
 
         if (allocation.Lost > 0)
+        {
             problems.Add($"частей разноски на удалённую стройку или раздел: {allocation.Lost} — выберите цель заново");
+            gaps.Add(new InvoiceReadinessGap("allocation", $"разноска на удалённую цель: {allocation.Lost}"));
+        }
 
         if (!allocation.WithinTolerance && allocation.Discrepancy is { } gap)
+        {
             problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} ₽ при допуске " +
                 $"{allocation.Tolerance:0.00} ₽ — расхождение в пределах допуска уходит в последнюю часть " +
                 "разноски, сверх него нужно разобраться: скидка, доставка или строка, которой нет в таблице");
+            gaps.Add(new InvoiceReadinessGap("total",
+                $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} ₽", Field: InvoiceRequisites.TotalKey));
+        }
 
         // «Не разнесён» без единой названной причины — счёт без строк: разносить ещё нечего.
-        if (problems.Count == 0) problems.Add("счёт не разнесён по стройкам");
+        if (problems.Count == 0)
+        {
+            problems.Add("счёт не разнесён по стройкам");
+            gaps.Add(new InvoiceReadinessGap("allocation", "разноска"));
+        }
 
         Add($"{label}: {string.Join("; ", problems)}. «Разобран» означает, что " +
             "деньги счёта легли на стройки целиком: иначе затраты по стройке не сойдутся со счетами.",
-            conflict: false, new InvoiceReadinessGap("allocation", "разноска"));
+            conflict: false, [.. gaps]);
     }
 
     /// <summary>

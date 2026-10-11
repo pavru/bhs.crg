@@ -155,6 +155,10 @@ public static class InvoiceRequisites
             .Select(f => (f.Key, f.Title))];
     }
 
+    /// <summary>Имя поля для человека — из объявления типа; у незнакомого ключа — сам ключ.</summary>
+    public static string TitleOf(string key) =>
+        CostsRecordTypes.Invoice.Fields.FirstOrDefault(f => f.Key == key)?.Title ?? key;
+
     /// <summary>Пусто ли значение: нет вовсе, пустая строка или пробелы.</summary>
     private static bool IsBlank(JsonNode? value) =>
         value is null || (value is JsonValue text && text.TryGetValue(out string? s)

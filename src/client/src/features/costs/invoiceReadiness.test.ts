@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceReadinessGap, InvoiceView } from '@/shared/api/invoices';
 import { isRequired, readinessAnchor, readinessItems } from './invoiceReadiness';
 
-const view = (gaps: InvoiceReadinessGap[] | null | undefined): InvoiceView => ({
+const view = (gaps: InvoiceReadinessGap[] | null | undefined, lines = 5): InvoiceView => ({
   id: 'i1',
+  lines: Array.from({ length: lines }, (_, i) => ({ ordinal: i + 1 })),
   readiness: gaps === undefined ? undefined : { required: ['Номер', 'Плательщик'], gaps },
 } as unknown as InvoiceView);
 
@@ -34,7 +35,7 @@ describe('readinessItems', () => {
     ]), all)!;
 
     expect(items.map(i => i.target && readinessAnchor(i.target))).toEqual([
-      'field:Плательщик', 'lines', 'lines', 'field:Поставщик', 'lines', 'lines', 'allocation',
+      'field:Плательщик', 'lines', 'line:1', 'field:Поставщик', 'line:2', 'lines', 'allocation',
     ]);
     expect(items.map(i => i.label)[2]).toBe('3 строки без позиции');
   });
@@ -59,6 +60,31 @@ describe('readinessItems', () => {
     ]), { edit: false, allocate: true })!;
 
     expect(items.map(i => i.target === null)).toEqual([true, true, false]);
+  });
+
+  it('разноска: не разнесено ничего — к объекту счёта; не разнесена часть строк — к строке', () => {
+    const target = (lines: number[] | undefined) => {
+      const item = readinessItems(view([{ kind: 'allocation', label: 'разноска', lines }], 3), all)![0];
+      return item.target && readinessAnchor(item.target);
+    };
+
+    expect(target(undefined)).toBe('allocation');
+    expect(target([1, 2, 3])).toBe('allocation');
+    // Объект счёта уже выбран, и две строки он не закрыл: чинится в строке.
+    expect(target([2, 3])).toBe('line:2');
+  });
+
+  it('разноска строки — правом разносить, хотя место её в таблице строк', () => {
+    const gaps = [{ kind: 'allocation', label: 'разноска', lines: [2] }];
+    expect(readinessItems(view(gaps, 3), { edit: true, allocate: false })![0].target).toBeNull();
+    expect(readinessItems(view(gaps, 3), { edit: false, allocate: true })![0].target).not.toBeNull();
+  });
+
+  it('расхождение суммы ведёт к полю суммы, а не к объекту счёта', () => {
+    const items = readinessItems(view([
+      { kind: 'total', label: 'сумма строк расходится с суммой к оплате на 5,00 ₽', field: 'Итого' },
+    ]), all)!;
+    expect(items[0].target && readinessAnchor(items[0].target)).toBe('field:Итого');
   });
 
   it('неизвестный вид пункта не теряется — он ведёт к строкам', () => {

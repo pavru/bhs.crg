@@ -147,6 +147,8 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         var gap = Assert.Single(gaps);
         Assert.Equal("reference", gap.GetProperty("kind").GetString());
         Assert.Equal(field, gap.GetProperty("field").GetString());
+        // Имя поля — из объявления типа, как у пункта «не заполнено», а не из ключа.
+        Assert.Equal($"{field.ToLowerInvariant()}: записи нет в справочнике", gap.GetProperty("label").GetString());
     }
 
     [Fact]
@@ -159,7 +161,32 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         var (gaps, response) = await PressAsync(client, invoice);
 
         Assert.Equal(["allocation"], Kinds(gaps));
+        // Какие строки не разнесены, пункт называет: по ним форма ведёт к строке, а не к таблице целиком.
+        Assert.Equal([1], gaps[0].GetProperty("lines").EnumerateArray().Select(l => l.GetInt32()));
         Assert.Contains("разнесена по стройкам не полностью", await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Расхождение суммы — свой пункт, и ведёт он к полю суммы (ревью PR #1301). Раньше оно пряталось в
+    /// пункте «разноска», который вёл к выбору объекта: выбор объекта расхождение не чинит, а причину
+    /// человек по-прежнему узнавал нажатием.
+    /// </summary>
+    [Fact]
+    public async Task Расхождение_суммы_названо_своим_пунктом_и_ведёт_к_полю_суммы()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(client, invoice, "Итого", 999m) }));
+
+        var (gaps, response) = await PressAsync(client, invoice);
+
+        var gap = Assert.Single(gaps);
+        Assert.Equal("total", gap.GetProperty("kind").GetString());
+        Assert.Equal("Итого", gap.GetProperty("field").GetString());
+        Assert.Contains("расходится с суммой к оплате", gap.GetProperty("label").GetString());
+        Assert.Contains("сумма строк расходится с суммой к оплате", await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>

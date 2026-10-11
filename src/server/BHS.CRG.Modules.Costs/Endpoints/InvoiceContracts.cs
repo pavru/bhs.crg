@@ -159,8 +159,10 @@ public static class InvoiceViews
         payment,
         references,
         // У разобранного и отклонённого вопрос «чего не хватает» не стоит — и перечня нет вовсе.
+        // У запертого закрытым периодом — тоже: переходу откажет замок, каким бы ни был перечень, и
+        // «всё готово» рядом с таким отказом было бы неправдой (ревью PR #1301).
         new InvoiceReadinessView(InvoiceReadiness.Required,
-            invoice.State == InvoiceState.Draft ? readiness.Gaps : null),
+            invoice.State == InvoiceState.Draft && payment.LockedBy is null ? readiness.Gaps : null),
         invoice.CreatedAt,
         invoice.UpdatedAt);
 

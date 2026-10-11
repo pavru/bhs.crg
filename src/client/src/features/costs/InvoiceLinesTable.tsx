@@ -28,7 +28,7 @@ import { withArchiveWord } from '@/shared/ui/archive';
 import { AllocationSummary, LineAllocationCell } from './LineAllocation';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { InvoiceReadinessLine } from './InvoiceReadinessLine';
-import { readinessItems } from './invoiceReadiness';
+import { READINESS_ATTR, lineAnchor, readinessItems } from './invoiceReadiness';
 
 /** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
 const NO_MARKS = { nomenclatureLost: false, nomenclatureMoved: false, nomenclatureArchived: false } as const;
@@ -203,10 +203,14 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const difference = mismatch(paper, sums.amount, sums.count);
   const parsed = view.requisites[K.state] === PARSED;
   const rejected = view.requisites[K.state] === REJECTED;
-  // Запертому счёту вести некуда: ни шапку, ни строки, ни разноску у него не правят.
-  const readiness = readinessItems(view, {
-    edit: !still, allocate: !locked && hasPermission(access, 'costs.allocation.edit'),
+  // Запертому счёту (закрытый период, удалён) строки готовности нет вовсе: «Разобран» ему откажет замок,
+  // каким бы ни был перечень, и «всё готово» было бы неправдой. Права — отдельно: пункт без права виден.
+  const readiness = locked ? null : readinessItems(view, {
+    edit: !readOnly, allocate: hasPermission(access, 'costs.allocation.edit'),
   });
+  // Главной кнопка становится только по СОХРАНЁННОМУ: с несохранённой правкой рядом переход прошёл бы
+  // по прежнему состоянию, а правка осталась бы на экране несохранённой.
+  const settled = readiness?.length === 0 && !dirty && !headerDirty;
 
   function edit(key: string, patch: Partial<LineDraft>) {
     setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -337,7 +341,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           )
           : (
             // Перечень пуст — «Разобран» становится главным действием: условия выполнены, осталось решение.
-            <Button size="sm" variant={readiness?.length === 0 ? 'filled' : 'outlined'} icon={<CircleCheck size={13} />}
+            <Button size="sm" variant={settled ? 'filled' : 'outlined'} icon={<CircleCheck size={13} />}
               loading={state.isPending} onClick={() => move('parsed')}>
               Разобран
             </Button>
@@ -471,7 +475,7 @@ function Row({
   }
 
   return (
-    <tr className="border-t border-stroke align-top">
+    <tr className="border-t border-stroke align-top" {...{ [READINESS_ATTR]: lineAnchor(number) }}>
       <td className="py-1 text-fg4">{number}</td>
       <td className="py-1 pr-2">
         {/* Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
@@ -540,7 +544,7 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
   );
 
   return (
-    <tr className="border-t border-stroke align-top">
+    <tr className="border-t border-stroke align-top" {...{ [READINESS_ATTR]: lineAnchor(number) }}>
       <td className="py-1 text-fg4">{number}</td>
       <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
         {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)

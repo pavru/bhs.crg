@@ -83,7 +83,8 @@ export function TypePickerField({
       ref={triggerRef}
       type="button" disabled={disabled} onClick={() => setOpen(true)}
       aria-haspopup="dialog" aria-expanded={open}
-      aria-label={framed ? undefined : ariaLabel} aria-labelledby={framed ? labelId : undefined}
+      aria-label={framed ? undefined : ariaLabel}
+      aria-labelledby={framed ? (required ? `${labelId} ${labelId}-required` : labelId) : undefined}
       className={`inline-flex items-center gap-2 overflow-hidden ${triggerClass}`}
       data-state={open ? 'open' : 'closed'}
     >
@@ -137,6 +138,9 @@ export function TypePickerField({
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
       {trigger}
       {clear}
+      {/* Звёздочка у подписи — псевдоэлемент и в имя поля не входит (issue #1291), а у кнопки нет
+          `aria-required`: обязательность называем словом, вторым источником имени. */}
+      {framed && required && <span id={`${labelId}-required`} className="sr-only">обязательное</span>}
     </div>
   );
 

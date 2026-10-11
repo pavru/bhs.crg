@@ -96,6 +96,8 @@ export function OutlinedField({
   // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
   // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.
   // Поэтому она рисуется псевдоэлементом: в тексте подписи её нет.
+  // ⚠️ Отсюда долг каждого поля на этой оболочке: донести `required` до своего контрола. У `DateField`
+  // и `TypePickerField` он не доходил, и обязательность для чтения с экрана пропадала (ревью PR #1301).
   const labelContent = label;
   const star = required ? " after:ml-0.5 after:text-danger after:content-['*']" : '';
   const labelClass = `absolute left-3 px-1 pointer-events-none transition-all block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}${star}`;
