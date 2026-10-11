@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { seenBy } from './invoices';
 
 /**
  * Расходные накладные модуля «Счета и накладные» (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
@@ -27,8 +28,9 @@ export interface WaybillLineView {
 export interface WaybillView {
   id: string;
   /**
-   * Версия накладной. Правка шапки и строк называет её (`ifMatch`): форма, открытая давно, иначе
-   * записалась бы поверх чужой правки и молча удалила бы строки, которых на экране не было.
+   * Версия накладной. Её называет КАЖДАЯ правка — заголовком `If-Match`, как у счёта: форма, открытая
+   * давно, иначе записалась бы поверх чужой правки, а «Провести» провело бы строки, которых на экране
+   * не было.
    */
   version: string;
   number: string | null;
@@ -45,6 +47,13 @@ export interface WaybillView {
   lines: WaybillLineView[];
   /** `unmatched` — строки, которые в «материалы на объекте» не попадают. */
   totals: { count: number; unmatched: number };
+  /**
+   * Учётная дата — есть только у проведённой. Отличается от даты отпуска, когда накладную провели
+   * после закрытия периода её даты: тогда она учтена в первом открытом дне.
+   */
+  accountingOn?: string | null;
+  /** Чем накладная заперта, словами сервера; пусто — не заперта. Запертую не возвращают в черновик и не сопоставляют. */
+  locked?: string | null;
 }
 
 export interface WaybillListItem {
@@ -138,14 +147,14 @@ export function useCreateWaybill() {
  * Сохранить черновик: шапка и строки ОДНИМ запросом и одним сохранением на сервере. Двумя запросами
  * шапка записывалась бы и тогда, когда строки отказали, — человек оставался бы с половиной сохранённого.
  *
- * `ifMatch` — версия накладной, по которой собрана форма: устаревшей сервер отвечает 409.
+ * `seen` — версия накладной, по которой собрана форма: устаревшей сервер отвечает 409.
  */
 export function useSaveWaybill() {
   const settle = useSettle();
   return useMutation({
-    mutationFn: ({ id, ifMatch, header, lines }: {
-      id: string; ifMatch: string; header: WaybillHeader; lines: Record<string, unknown>[];
-    }) => apiClient.put<WaybillView>(`/costs/waybills/${id}`, { ...header, lines, ifMatch }).then(r => r.data),
+    mutationFn: ({ id, seen, header, lines }: {
+      id: string; seen: string; header: WaybillHeader; lines: Record<string, unknown>[];
+    }) => apiClient.put<WaybillView>(`/costs/waybills/${id}`, { ...header, lines }, seenBy(seen)).then(r => r.data),
     onSuccess: settle,
   });
 }
@@ -154,20 +163,22 @@ export function useSaveWaybill() {
 export function useWaybillState() {
   const settle = useSettle();
   return useMutation({
-    mutationFn: ({ id, to }: { id: string; to: 'posted' | 'draft' }) =>
-      apiClient.post<WaybillView>(`/costs/waybills/${id}/${to}`).then(r => r.data),
+    mutationFn: ({ id, seen, to }: { id: string; seen: string; to: 'posted' | 'draft' }) =>
+      apiClient.post<WaybillView>(`/costs/waybills/${id}/${to}`, null, seenBy(seen)).then(r => r.data),
     onSuccess: settle,
   });
 }
 
-/** Сопоставить строку с позицией номенклатуры (`null` — снять). Работает и у проведённой накладной. */
+/** Сопоставить строку с позицией номенклатуры (`null` — снять). Работает и у проведённой накладной — пока её не запер закрытый период. */
 export function useMatchWaybillLine() {
   const settle = useSettle();
   return useMutation({
-    mutationFn: ({ id, lineId, nomenclatureId }: { id: string; lineId: string; nomenclatureId: string | null }) =>
+    mutationFn: ({ id, seen, lineId, nomenclatureId }: {
+      id: string; seen: string; lineId: string; nomenclatureId: string | null;
+    }) =>
       apiClient.put<WaybillView>(`/costs/waybills/${id}/lines/${lineId}/nomenclature`, {
         nomenclature: nomenclatureId ? { $ref: 'catalog', entryId: nomenclatureId } : null,
-      }).then(r => r.data),
+      }, seenBy(seen)).then(r => r.data),
     onSuccess: settle,
   });
 }

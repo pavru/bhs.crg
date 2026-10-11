@@ -248,6 +248,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         waybill.Property(w => w.ReceivedBy).HasColumnName("received_by").HasMaxLength(Waybill.NameLength);
         waybill.Property(w => w.Note).HasColumnName("note");
         waybill.Property(w => w.State).HasColumnName("state").HasConversion<string>().HasMaxLength(32);
+        waybill.Property(w => w.AccountingOn).HasColumnName("accounting_on");
         waybill.Property(w => w.PostedAt).HasColumnName("posted_at");
         waybill.Property(w => w.PostedBy).HasColumnName("posted_by");
         waybill.Property(w => w.CreatedBy).HasColumnName("created_by");
@@ -259,6 +260,11 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // проведение; ограничение — на запись мимо него.
         waybill.ToTable(t => t.HasCheckConstraint("ck_waybills_posted",
             "state <> 'Posted' OR (issued_on IS NOT NULL AND construction_id IS NOT NULL)"));
+
+        // Учётная дата есть у проведённой и только у неё (issue #1285): по ней закрытый период запирает
+        // накладную, и проведённая без даты была бы накладной, которую не запирает ничто.
+        waybill.ToTable(t => t.HasCheckConstraint("ck_waybills_accounting",
+            "(state = 'Posted') = (accounting_on IS NOT NULL)"));
 
         // Перечень отпущенного на стройку читается по стройке и только из проведённых.
         waybill.HasIndex(w => new { w.ConstructionId, w.IssuedOn })

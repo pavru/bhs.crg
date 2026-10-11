@@ -63,6 +63,20 @@ public sealed class Waybill
 
     public WaybillState State { get; private set; }
 
+    /// <summary>
+    /// Учётная дата (issue #1285, ТЗ COST-16): к какому дню учёта относится выданное. Ставится при
+    /// проведении — первый открытый день не раньше даты отпуска, — снимается возвратом в черновик.
+    ///
+    /// <para>Хранится, а не выводится из даты отпуска: накладная, проведённая после закрытия датой
+    /// закрытого месяца, относится к открытому периоду, и закрытый её не запирает. Различие дат —
+    /// и есть пометка «введена после закрытия».</para>
+    ///
+    /// <para>⚠️ Читателей у неё пока два: замок закрытого периода (<c>WaybillLock</c>) и диалог закрытия.
+    /// «Материалы на объекте» по периодам не режутся — это нарастающий свод, — так что отчёта «за
+    /// месяц» по этой дате нет, и это не недоделка.</para>
+    /// </summary>
+    public DateOnly? AccountingOn { get; private set; }
+
     public DateTimeOffset? PostedAt { get; private set; }
 
     public Guid? PostedBy { get; private set; }
@@ -95,9 +109,10 @@ public sealed class Waybill
         Touch();
     }
 
-    public void Post(Guid? by)
+    public void Post(Guid? by, DateOnly accountingOn)
     {
         State = WaybillState.Posted;
+        AccountingOn = accountingOn;
         PostedAt = DateTimeOffset.UtcNow;
         PostedBy = by;
         Touch();
@@ -106,6 +121,7 @@ public sealed class Waybill
     public void ReturnToDraft()
     {
         State = WaybillState.Draft;
+        AccountingOn = null;
         PostedAt = null;
         PostedBy = null;
         Touch();

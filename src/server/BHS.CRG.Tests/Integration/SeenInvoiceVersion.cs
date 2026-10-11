@@ -33,7 +33,9 @@ public sealed partial class SeenInvoiceVersion : DelegatingHandler
             new Microsoft.AspNetCore.Mvc.Testing.Handlers.CookieContainerHandler(),
             new SeenInvoiceVersion());
 
-    [GeneratedRegex(@"^/api/costs/invoices/(?<id>[0-9a-fA-F-]{36})(/|$)")]
+    // Накладная называет версию тем же заголовком (issue #1285) — и тем же обработчиком: документ в
+    // адресе другой, правило одно.
+    [GeneratedRegex(@"^/api/costs/(?<kind>invoices|waybills)/(?<id>[0-9a-fA-F-]{36})(/|$)")]
     private static partial Regex InvoicePath();
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -48,7 +50,7 @@ public sealed partial class SeenInvoiceVersion : DelegatingHandler
         if (request.Method == HttpMethod.Get || !match.Success) return await base.SendAsync(request, ct);
 
         using var read = new HttpRequestMessage(HttpMethod.Get,
-            new Uri(request.RequestUri!, $"/api/costs/invoices/{match.Groups["id"].Value}"));
+            new Uri(request.RequestUri!, $"/api/costs/{match.Groups["kind"].Value}/{match.Groups["id"].Value}"));
         read.Headers.Authorization = request.Headers.Authorization;
         using var seen = await base.SendAsync(read, ct);
 

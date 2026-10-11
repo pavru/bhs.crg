@@ -501,6 +501,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateOnly?>("AccountingOn")
+                        .HasColumnType("date")
+                        .HasColumnName("accounting_on");
+
                     b.Property<Guid?>("ConstructionId")
                         .HasColumnType("uuid")
                         .HasColumnName("construction_id");
@@ -568,6 +572,8 @@ namespace BHS.CRG.Modules.Costs.Migrations
 
                     b.ToTable("waybills", "costs", t =>
                         {
+                            t.HasCheckConstraint("ck_waybills_accounting", "(state = 'Posted') = (accounting_on IS NOT NULL)");
+
                             t.HasCheckConstraint("ck_waybills_posted", "state <> 'Posted' OR (issued_on IS NOT NULL AND construction_id IS NOT NULL)");
                         });
                 });

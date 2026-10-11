@@ -16,7 +16,7 @@ namespace BHS.CRG.Tests.Integration;
 /// «выдано только это».</para>
 /// </summary>
 [Collection("Integration")]
-public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
+public partial class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
     [Fact]
     public async Task Строка_без_номенклатуры_в_материалы_не_попадает_и_названа_числом()
@@ -144,9 +144,7 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         Assert.Equal(HttpStatusCode.Conflict, lines.StatusCode);
         Assert.Contains("Верните накладную в черновик", await lines.Content.ReadAsStringAsync());
 
-        var edited = Header(site, "2026-09-01");
-        edited["ifMatch"] = await VersionAsync(client, id);
-        var header = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", edited);
+        var header = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", Header(site, "2026-09-01"));
         Assert.Equal(HttpStatusCode.Conflict, header.StatusCode);
 
         Assert.Equal(10m, Assert.Single((await MaterialsAsync(client, site)).GetProperty("items").EnumerateArray())
@@ -176,16 +174,17 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         await OkAsync(await LinesAsync(second, id, Row(cable, 1m, "м", id: kept), Row(conduit, 7m, "м")));
 
         // Первый сохраняет то, что видел: одну строку и прежнюю шапку — и получает отказ.
-        var stale = await first.PutAsJsonAsync($"/api/costs/waybills/{id}/lines",
-            new { ifMatch = seen, lines = new[] { Row(cable, 5m, "м", id: kept) } });
+        var stale = await SeenAsync(first, HttpMethod.Put, $"/api/costs/waybills/{id}/lines", seen,
+            new { lines = new[] { Row(cable, 5m, "м", id: kept) } });
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         Assert.Contains("тем временем изменили", await stale.Content.ReadAsStringAsync());
         Assert.Equal(2, (await WaybillAsync(first, id)).GetProperty("lines").GetArrayLength());
 
         // Без названной версии — отказ, а не «значит, свежая».
-        var silent = await first.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = Array.Empty<object>() });
+        var silent = await SeenAsync(first, HttpMethod.Put, $"/api/costs/waybills/{id}/lines",
+            SeenInvoiceVersion.Omit, new { lines = Array.Empty<object>() });
         Assert.Equal(HttpStatusCode.BadRequest, silent.StatusCode);
-        Assert.Contains("ifMatch", await silent.Content.ReadAsStringAsync());
+        Assert.Contains("If-Match", await silent.Content.ReadAsStringAsync());
         Assert.Equal(2, (await WaybillAsync(first, id)).GetProperty("lines").GetArrayLength());
     }
 
@@ -201,7 +200,6 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var before = await WaybillAsync(client, id);
 
         var body = Header(site, "2026-09-20");
-        body["ifMatch"] = before.GetProperty("version").GetString();
         body["lines"] = new[] { Row(cable, 2m, "м"), Row(Guid.NewGuid(), 1m, "м") };
         var refused = await client.PutAsJsonAsync($"/api/costs/waybills/{id}", body);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
@@ -369,8 +367,17 @@ public class WaybillTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
     /// <summary>Замена набора строк по СВЕЖЕЙ версии: так шлёт форма, только что прочитавшая накладную.</summary>
     private static async Task<HttpResponseMessage> LinesAsync(
         HttpClient client, Guid id, params Dictionary<string, object?>[] rows) =>
-        await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines",
-            new { ifMatch = await VersionAsync(client, id), lines = rows });
+        await client.PutAsJsonAsync($"/api/costs/waybills/{id}/lines", new { lines = rows });
+
+    /// <summary>Запрос с версией, названной тестом: устаревшей или пропущенной (<see cref="SeenInvoiceVersion.Omit" />).</summary>
+    private static async Task<HttpResponseMessage> SeenAsync(
+        HttpClient client, HttpMethod method, string path, string seen, object? body = null)
+    {
+        using var request = new HttpRequestMessage(method, path);
+        request.Headers.TryAddWithoutValidation(SeenInvoiceVersion.Header, seen);
+        if (body is not null) request.Content = JsonContent.Create(body);
+        return await client.SendAsync(request);
+    }
 
     private static async Task<JsonElement> PostedAsync(
         HttpClient client, Guid site, string issuedOn, params Dictionary<string, object?>[] rows)
