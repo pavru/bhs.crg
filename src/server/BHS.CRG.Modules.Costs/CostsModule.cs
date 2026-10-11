@@ -205,6 +205,8 @@ public sealed class CostsModule : IAppModule
 
     public IReadOnlyList<ModuleReference> References => CostsReferences.All;
 
+    public IReadOnlyList<ModuleFile> Files => CostsFiles.All;
+
     /// <summary>«Счёт на оплату» (issue #1077): что читать в скане — <see cref="CostsRecognitionProfiles" />.</summary>
     public IReadOnlyList<BHS.CRG.Modules.Recognition.ModuleRecognitionProfile> RecognitionProfiles =>
         CostsRecognitionProfiles.All;

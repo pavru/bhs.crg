@@ -198,7 +198,11 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             manifest.SchemaVersion, manifest.AppVersion, manifest.CreatedAt,
             blobCount, sections.Concat(moduleSections).Where(s => s.Count > 0).ToArray(),
             manifest.IncludesProjectData == true,
-            warnings.Count > 0 ? warnings.ToArray() : null);
+            warnings.Count > 0 ? warnings.ToArray() : null,
+            // Число, а не признак: ноль — «файлы модулей копия брала, их не было», null — «не брала».
+            ModuleBlobCount: manifest.ModuleData?.Any(m => m.Files is not null) == true
+                ? manifest.ModuleData.SelectMany(m => m.Files ?? []).Distinct(StringComparer.Ordinal).Count()
+                : null);
     }
 
     // ── Оценка размера ────────────────────────────────────────────────────────

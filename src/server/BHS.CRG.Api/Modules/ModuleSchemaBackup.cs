@@ -56,7 +56,8 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
                     tables.Add(new BackupModuleTable(table.Name, await ReadRowsAsync(transaction, table, ct)));
 
                 sections.Add(new BackupModuleSchema(module.Code, schema.Name, [.. tables],
-                    await ReadSequencesAsync(transaction, schema.Name, ct)));
+                    await ReadSequencesAsync(transaction, schema.Name, ct),
+                    FilesOf(module, tables, warnings)));
             }
             finally
             {
@@ -84,11 +85,12 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
         return [.. sections];
     }
 
-    public async Task<IReadOnlyList<RestoreSectionStat>> RestoreAsync(
+    public async Task<ModuleRestoreOutcome> RestoreAsync(
         BackupModuleSchema[] data, DbTransaction transaction, List<string> warnings,
         CancellationToken ct)
     {
         var stats = new List<RestoreSectionStat>();
+        var restored = new List<BackupModuleSchema>();
 
         foreach (var section in data)
         {
@@ -131,6 +133,8 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
                         $"модуля нет — {string.Join(", ", gone)}. Строки пропущены: куда их класть, " +
                         "знает только миграция модуля.");
 
+                var placed = new List<BackupModuleTable>();
+
                 // Порядок вставки берётся у НЫНЕШНЕЙ модели, а не из копии: в копии он был таким,
                 // каким был состав модуля тогда, а внешние ключи проверяет сегодняшняя база.
                 foreach (var table in tables)
@@ -144,7 +148,10 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
 
                     stats.Add(new RestoreSectionStat(
                         $"Модуль «{module.Code}»: {table.Name}", counts.Created, counts.Updated));
+                    placed.Add(new BackupModuleTable(table.Name, rows));
                 }
+
+                restored.Add(section with { Tables = [.. placed] });
 
                 // ПОСЛЕ таблиц и независимо от того, были ли в них строки: счётчик, из которого
                 // модуль берёт номера сам, ни к одной строке не привязан.
@@ -158,7 +165,7 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
 
         await WarnAboutAbsentAsync(data, transaction, warnings, ct);
 
-        return stats;
+        return new ModuleRestoreOutcome(stats, [.. restored]);
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
@@ -43,6 +44,9 @@ public partial class BackupService
 
         // Restore blobs first (before DB, so references are valid on use)
         var blobEntries = zip.Entries.Where(e => e.FullName.StartsWith("blobs/", StringComparison.OrdinalIgnoreCase)).ToList();
+        // Всё, что лежит в архиве, — положенное и то, что положить не удалось: о втором отчёт говорит
+        // ниже сам, и проверка файлов модулей не должна звать его «в копии нет».
+        var archived = blobEntries.Select(e => e.FullName["blobs/".Length..]).ToHashSet(StringComparer.Ordinal);
         int blobsRestored = 0;
         foreach (var entry in blobEntries)
         {
@@ -142,11 +146,17 @@ public partial class BackupService
             // конфигурационная); пустой массив — знала, а модулей со схемой на том экземпляре не было.
             // Первое молчит. Второе восстановление модулей называет само: данных включённого здесь
             // модуля в копии нет, а на этом экземпляре они есть (issue #1158).
+            BackupModuleSchema[] restoredModules = [];
             if (manifest.ModuleData is { } moduleData)
-                foreach (var section in await modules.RestoreAsync(
-                             moduleData, tx.GetDbTransaction(), warnings, ct))
+            {
+                var outcome = await modules.RestoreAsync(moduleData, tx.GetDbTransaction(), warnings, ct);
+                foreach (var section in outcome.Stats)
                     stats.Count(section.Label, section.Created, section.Updated);
+                restoredModules = outcome.Restored;
+            }
             await tx.CommitAsync(ct);
+
+            await WarnAboutModuleFilesAsync(restoredModules, archived, warnings, ct);
 
             return new RestoreReport(true, conversionNotice, warnings,
                 stats.DocumentTypesCreated, stats.DocumentTypesUpdated,
@@ -205,4 +215,29 @@ public partial class BackupService
     /// ссылок в коде.
     /// </para>
     /// </remarks>
+
+    /// <summary>
+    /// Файлы модулей после удавшегося восстановления (issue #1261).
+    ///
+    /// <para>Отказ самой проверки восстановление не роняет и за откат не выдаётся: база уже
+    /// зафиксирована, и «ошибка восстановления» была бы неправдой. Отчёт говорит, что проверить не
+    /// удалось, — молчание читалось бы как «файлы на месте».</para>
+    /// </summary>
+    private async Task WarnAboutModuleFilesAsync(
+        BackupModuleSchema[] restored, HashSet<string> archived, List<string> warnings, CancellationToken ct)
+    {
+        if (restored.Length == 0) return;
+
+        try
+        {
+            await modules.WarnAboutMissingFilesAsync(restored, archived, warnings, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Не удалось проверить файлы модулей после восстановления");
+            warnings.Add(
+                "Данные восстановлены, но проверить, на месте ли файлы модулей (файлы счетов), не " +
+                $"удалось: {ex.Message}. Откройте файл у нескольких счетов из копии.");
+        }
+    }
 }
