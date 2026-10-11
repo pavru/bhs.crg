@@ -98,6 +98,14 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.invoice.rejected", "Счёт отклонён", InvoiceRead);
 
     /// <summary>
+    /// Счёт удалён (issue #1282) — с тем же <c>targetId</c>, что у прежних записей счёта: по нему
+    /// история удалённого счёта находится целиком. ⚠️ Сумм запись не несёт (issue #1190); названы
+    /// номер, дата, поставщик и имя файла — больше опознать удалённое нечем.
+    /// </summary>
+    public static readonly ModuleActivityAction Deleted =
+        new("costs.invoice.deleted", "Счёт удалён", InvoiceRead);
+
+    /// <summary>
     /// Правка разноски строки (ТЗ COST-15): пишется с ПРЕЖНИМ и НОВЫМ распределением — разноску правят
     /// и после «разобран», и без прежнего распределения запись «разноска изменена» не отвечала бы на
     /// единственный вопрос, ради которого её читают: с какого объекта и на какой перенесли затраты.
@@ -154,7 +162,7 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.organization.created", "Организация заведена из файла счёта", InvoiceRead);
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, Rejected, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, Rejected, Deleted, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

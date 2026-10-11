@@ -2,6 +2,7 @@ import { Loader2, RefreshCw, ScanLine, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoiceRecognition';
+import { useInvoiceDelete } from './invoiceDelete';
 import { failureNote, unusedLinesNote, type FieldOffer } from './recognition';
 
 /**
@@ -37,6 +38,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
 }) {
   const start = useStartRecognition();
   const toast = useToast();
+  const askDelete = useInvoiceDelete();
 
   if (unread) {
     return (
@@ -74,6 +76,13 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
         {/* Кнопки, которая откажет, нет: причину называет сервер, заранее. */}
         {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
       </span>
+      {/* Короткий путь (issue #1282): в файле не прочитано ничего — чаще всего приложили не тот файл,
+          и черновик из него не нужен. Только там, где удалить можно. */}
+      {askDelete && recognition.reason === 'NoAnswer' && (
+        <Button size="sm" variant="text" onClick={() => askDelete('wrong-file')}>
+          Не тот файл — удалить черновик…
+        </Button>
+      )}
       {canEdit && recognition.canStart && (
         <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} loading={start.isPending}
           onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>

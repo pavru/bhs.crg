@@ -25,6 +25,8 @@ import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import { InvoiceMoreMenu } from './InvoiceMoreMenu';
+import { InvoiceDeleteProvider, InvoiceGoneNotice } from './InvoiceDeleteDialog';
+import { useInvoiceDelete } from './invoiceDelete';
 import { LostReferencesNote } from './LostReferencesNote';
 import { LOST } from './lostReferences';
 import { withArchiveWord } from '@/shared/ui/archive';
@@ -53,8 +55,12 @@ import { explainedByRecognition } from './recognition';
  * со сбросом состояния — он рисует лишний кадр с чужими правками, и в этом кадре номер одного счёта
  * стоит в форме другого.
  */
-export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot }: {
+export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose }: {
   view: InvoiceView;
+  /** Счёт удалили, пока он был открыт (issue #1282): набранное остаётся, действий записи нет. */
+  gone?: boolean;
+  /** Закрыть форму: после удаления и по «Закрыть счёт» у счёта, которого больше нет. */
+  onClose: () => void;
   organizations: CostsOrganization[];
   /** Отказ чтения справочника организаций, если он был. ⚠️ Пустой список и «справочник не
    *  прочитан» — разные вещи: сервер их различает нарочно, и терять это различие на клиенте нельзя. */
@@ -72,6 +78,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const value = (key: string): unknown => (key in edits ? edits[key] : view.requisites[key]);
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
+  const [linesDirty, setLinesDirty] = useState(false);
 
   // Правки шапки лежат поверх вида (issue #1176). Вид обновился, а поля, которые человек правит,
   // остались прежними — правки в силе. Изменили именно их — поле на экране показывает набранное, а не
@@ -97,7 +104,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   // ⚠️ Принимается не «всё, что пришло этим перечитыванием», а только объяснимое распознаванием: поле
   // было пустым и легло с меткой. Скан читается десятки секунд, и сохранённое за это время соседом
   // приходит тем же перечитыванием — его правка по-прежнему даёт «устарело».
-  const watch = useRecognitionWatch(view.id, scan !== null);
+  const watch = useRecognitionWatch(view.id, scan !== null && !gone);
   const byScan = base.stale && watch.accepted === view.version
     && explainedByRecognition(edits, base.signature, view);
   if (byScan) base.rebase();
@@ -107,7 +114,9 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   // Без права вводить счета (бухгалтер) форма читается так же, как запертая: действий записи нет вовсе,
   // а не «есть и откажут» — каждое из них ответило бы 403 (N1, issue #1102). Разноска и оплата — свои
   // права, их это не касается.
-  const canEdit = useCan().permission('costs.invoice.edit');
+  // Счёта больше нет — то же чтение: сохранять некуда, и каждое действие ответило бы «не найден».
+  const mayEdit = useCan().permission('costs.invoice.edit');
+  const canEdit = mayEdit && !gone;
   const locked = closed || !canEdit;
 
   const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
@@ -116,7 +125,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   // адресе, и пункт «Счета» в навигации ведёт на адрес БЕЗ счёта: форма закрылась бы вместе с
   // правками — молча. Пока выбор жил в состоянии экрана, тот же щелчок не делал ничего.
   const [leave, setLeave] = useState<(() => void) | null>(null);
-  useLeaveGuard(dirty, proceed => setLeave(() => proceed));
+  useLeaveGuard(dirty && !gone, proceed => setLeave(() => proceed));
 
   /** @returns сохранилось ли: уходить со страницы после отказа нельзя — правки бы пропали. */
   async function save(): Promise<boolean> {
@@ -146,6 +155,8 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
   return (
     <RecognitionContext.Provider value={locked ? undefined : watch.recognition}>
+    <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty || linesDirty} reading={watch.running}
+      organizations={organizations} onDeleted={onClose}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={update.isPending}
         onCancel={() => setLeave(null)}
@@ -153,7 +164,8 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
-        {base.stale && !watch.settling && !byScan
+        {gone && <InvoiceGoneNotice onClose={onClose} />}
+        {!gone && base.stale && !watch.settling && !byScan
           && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
         <div className="flex items-center gap-2 flex-wrap">
           <StateChip text={asInput(view.requisites[K.state])} />
@@ -169,7 +181,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           <div className="flex-1" />
           {/* К запертому счёту скан приложить можно, заменить — нельзя: замена удалила бы документ
               закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
-          {!canEdit && <span className="text-xs text-fg3">Только чтение: права вводить счета нет</span>}
+          {!mayEdit && <span className="text-xs text-fg3">Только чтение: права вводить счета нет</span>}
           {canEdit && closed && scan !== null && (
             <span className="text-xs text-fg3">Файл заменить нельзя: документ закрытого периода</span>
           )}
@@ -195,7 +207,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         </div>
 
         {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
-        <InvoicePayment view={view} dirty={dirty} />
+        {!gone && <InvoicePayment view={view} dirty={dirty} />}
 
         {organizationsError != null && (
           <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-subtle
@@ -209,11 +221,11 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </div>
         )}
 
-        {!closed && (
+        {!closed && !gone && (
           <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
             onRetryRead={watch.retry} canEdit={canEdit} />
         )}
-        <LostReferencesNote view={view} locked={closed} />
+        <LostReferencesNote view={view} locked={closed || gone} />
         {view.duplicates.length > 0 && <DuplicateNote view={view} onOpenInvoice={onOpenInvoice} />}
         {scanSlot}
 
@@ -224,7 +236,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
         {/* Объект — в шапке, без прокрутки (ТЗ COST-6.2): для большинства счетов разноска на нём и
             заканчивается. */}
-        <InvoiceObject view={view} locked={closed} />
+        <InvoiceObject view={view} locked={closed || gone} />
       </div>
 
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
@@ -246,7 +258,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
-        <InvoiceLinesTable view={view} locked={closed} readOnly={!canEdit} />
+        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
@@ -254,6 +266,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         </p>
       </div>
     </div>
+    </InvoiceDeleteProvider>
     </RecognitionContext.Provider>
   );
 }
@@ -449,6 +462,7 @@ const LABELS: Record<string, string> = {
  * Поэтому здесь ссылка «посмотреть тот счёт», а не отказ сохранения.
  */
 function DuplicateNote({ view, onOpenInvoice }: { view: InvoiceView; onOpenInvoice: (id: string) => void }) {
+  const askDelete = useInvoiceDelete();
   return (
     <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2">
       <Copy size={14} className="text-warning shrink-0 mt-0.5" />
@@ -464,6 +478,13 @@ function DuplicateNote({ view, onOpenInvoice }: { view: InvoiceView; onOpenInvoi
           </span>
         ))}
         <span>. Сохранить всё равно можно: одинаковые номера у поставщика бывают.</span>
+        {/* Короткий путь (issue #1282) — только у счёта, который удалить можно. */}
+        {askDelete && (
+          <button type="button" className="ml-1 underline hover:no-underline font-medium"
+            onClick={() => askDelete('duplicate')}>
+            Это дубль — удалить этот счёт…
+          </button>
+        )}
       </div>
     </div>
   );

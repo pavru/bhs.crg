@@ -28,7 +28,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, InvoiceScanImage image,
     IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties,
-    IModuleCatalog catalog)
+    IModuleCatalog catalog, IModuleBlobs blobs)
 {
     /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
     private const int MergeAttempts = 3;
@@ -36,11 +36,24 @@ public sealed class InvoiceScanReading(
     /// <summary>
     /// Работа фоновой задачи: прочитать скан и разложить прочитанное по черновику. Любой отказ
     /// записывается причиной и пробрасывается — задача завершается отказом с тем же текстом.
+    ///
+    /// <para>⚠️ <b>Удалённый счёт — не отказ</b> (issue #1282): черновик удаляют и пока его файл читается,
+    /// и пока задача ждёт в очереди. Прочитанное тогда выбрасывается, а задача завершается БЕЗ ошибки —
+    /// красная задача «распознать нечего» в общем индикаторе говорила бы о сбое там, где человек сам
+    /// убрал счёт. Запись об исходе ушла каскадом вместе со счётом: писать причину некуда и незачем.</para>
     /// </summary>
     public async Task RunAsync(Guid invoiceId, Guid jobId, string? scanBlobPath, CancellationToken ct)
     {
-        var stored = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoiceId, ct)
-            ?? throw new ConflictException("Распознавать нечего: счёт удалён или распознавание по нему не ставили.");
+        var stored = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoiceId, ct);
+        if (stored is null)
+        {
+            if (!await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoiceId, ct))
+            {
+                await DroppedAsync(invoiceId, scanBlobPath);
+                return;
+            }
+            throw new ConflictException("Распознавать нечего: распознавание по этому счёту не ставили.");
+        }
         if (stored.Outcome != InvoiceRecognitionOutcome.Pending)
             throw new ConflictException("Распознавание по этому счёту уже завершено другой попыткой.");
 
@@ -50,15 +63,28 @@ public sealed class InvoiceScanReading(
         if (stored.JobId != jobId)
         {
             stored.Queued(jobId);
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (ConflictException gone) when (gone.InnerException is DbUpdateConcurrencyException)
+            {
+                if (await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoiceId, CancellationToken.None)) throw;
+                await DroppedAsync(invoiceId, scanBlobPath);
+                return;
+            }
         }
 
         ModuleRecognitionResult read;
         (string Label, int Filled, int Lines, int Recalled) merged;
         try
         {
-            var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
-                ?? throw new ConflictException("Счёт удалён, пока его файл ждал распознавания.");
+            var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct);
+            if (invoice is null)
+            {
+                await DroppedAsync(invoiceId, scanBlobPath);
+                return;
+            }
             EnsureSameScan(invoice, scanBlobPath);
 
             // Что читать, говорит ядро — по самому файлу, а не по записи счёта (issue #1265, #1270):
@@ -78,14 +104,18 @@ public sealed class InvoiceScanReading(
         }
         catch (DomainException refusal)
         {
-            await FailAsync(invoiceId,
+            if (!await FailAsync(invoiceId,
                 refusal switch
                 {
                     RecognitionRefusedException refused => refused.Reason.ToString(),
                     // Образа нет — читать не начинали. «Прочитанное не записалось» здесь было бы неправдой.
                     InvoiceImageRefusedException => InvoiceScanImage.NoImage,
                     _ => "Refused",
-                }, refusal.Message);
+                }, refusal.Message))
+            {
+                await DroppedAsync(invoiceId, scanBlobPath, refusal);
+                return;
+            }
             throw;
         }
         catch (Exception crash) when (crash is not OperationCanceledException)
@@ -93,9 +123,13 @@ public sealed class InvoiceScanReading(
             // Не наш отказ — сбой базы или хранилища. Исход всё равно обязан быть записан: иначе запись
             // ждала бы вечно, а форма показывала «прервано» без единого слова о том, что случилось.
             // Чужой текст человеку не отдаём — он в журнале сервера, вместе с самим исключением.
-            await FailAsync(invoiceId, "Refused",
+            if (!await FailAsync(invoiceId, "Refused",
                 "Прочитанное не удалось записать в счёт: внутренняя ошибка. Запустите распознавание ещё раз; " +
-                "если повторится — подробности в журнале сервера.");
+                "если повторится — подробности в журнале сервера."))
+            {
+                await DroppedAsync(invoiceId, scanBlobPath, crash);
+                return;
+            }
             throw;
         }
 
@@ -190,14 +224,59 @@ public sealed class InvoiceScanReading(
         }
     }
 
-    private async Task FailAsync(Guid invoiceId, string reason, string error)
+    /// <summary>
+    /// Записать исход «не удалось». <c>false</c> — записывать некуда: запись ушла каскадом вместе со
+    /// счётом, то есть счёт удалили, пока его файл читался (issue #1282). Раньше здесь стояло
+    /// <c>FirstAsync</c>, и удаление посреди чтения роняло саму запись об отказе — причина терялась под
+    /// «последовательность не содержит элементов».
+    /// </summary>
+    private async Task<bool> FailAsync(Guid invoiceId, string reason, string error)
     {
         // Отказ мог прийти из середины записи — несохранённое в счёт уйти не должно. И без токена
         // отмены: исход пишется и тогда, когда задачу остановили.
         db.ChangeTracker.Clear();
-        var failed = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, CancellationToken.None);
+        var failed = await db.InvoiceRecognitions.FirstOrDefaultAsync(r => r.InvoiceId == invoiceId, CancellationToken.None);
+        if (failed is null) return false;
+
         failed.Fail(reason, error);
-        await db.SaveChangesAsync(CancellationToken.None);
+        try
+        {
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (ConflictException gone) when (gone.InnerException is DbUpdateConcurrencyException)
+        {
+            // Строки не стало между чтением и записью: счёт удалили в эту самую минуту.
+            db.ChangeTracker.Clear();
+            if (await db.InvoiceRecognitions.AsNoTracking().AnyAsync(r => r.InvoiceId == invoiceId, CancellationToken.None))
+                throw;
+            return false;
+        }
+        return true;
+    }
+
+    /// <param name="because">На чём задача остановилась. Пишется в журнал сервера всегда (ревью PR
+    /// #1298): «счёт удалён» объясняет, почему исход некуда записать, но не то, что случилось до того, —
+    /// сбой хранилища, совпавший с удалением, иначе пропал бы без следа.</param>
+    ///
+    /// <para>⚠️ Файл убирается ЕЩЁ РАЗ (ревью PR #1298). Удаление счёта задачу не останавливает — порта
+    /// отмены у очереди нет, — и она могла построить читаемый образ офисного файла уже после того, как
+    /// удаление сняло оригинал вместе с записью об образе. Такой образ держался бы за оригинал, которого
+    /// нет, и не убрался бы никем. Повторное удаление безобидно, а запись и образ снимает само.</para>
+    private async Task DroppedAsync(Guid invoiceId, string? scanBlobPath, Exception? because = null)
+    {
+        var logger = logs.CreateLogger<InvoiceScanReading>();
+        logger.LogInformation(because,
+            "Счёт {InvoiceId} удалён, пока его файл распознавался или ждал очереди: прочитанное выброшено.", invoiceId);
+        if (scanBlobPath is null) return;
+
+        try
+        {
+            await blobs.DeleteAsync(scanBlobPath, CancellationToken.None);
+        }
+        catch (Exception lost)
+        {
+            logger.LogWarning(lost, "Счёт {InvoiceId} удалён, но его файл {Path} убрать не удалось.", invoiceId, scanBlobPath);
+        }
     }
 
     private static void EnsureSameScan(Invoice invoice, string? scanBlobPath)

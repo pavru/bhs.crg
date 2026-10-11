@@ -59,6 +59,8 @@ public static class InvoiceEndpoints
         group.MapPost("/{id:guid}/scan", AttachScanAsync)
             .RequireAuthorization(AppPolicies.Permission(Edit))
             .DisableAntiforgery();
+        // Право — то же, что на правку (issue #1282): отдельного права на удаление нет.
+        group.MapDelete("/{id:guid}", InvoiceDeletion.DeleteAsync).RequireAuthorization(AppPolicies.Permission(Edit));
     }
 
     private static async Task<Ok<InvoiceView>> GetAsync(

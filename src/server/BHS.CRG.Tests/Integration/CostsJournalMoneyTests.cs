@@ -207,6 +207,10 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             [Line(cable, quantity: 1, price: Price, text: "Кабель для журнала")]);
         await OkAsync(await client.DeleteAsync($"/api/costs/supplier-matches?supplierId={vendor}"));
 
+        // Удаление — последним (issue #1282): счёт снова черновик без оплаты. Запись о нём называет
+        // поставщика и файл — и не называет сумму.
+        await OkAsync(await client.DeleteAsync($"/api/costs/invoices/{invoice}"));
+
         var records = await RecordsOfAsync(invoice, article, spare, organization, matchId, vendor);
 
         // Сценарий обязан пройти через каждое объявленное действие: непройденное — вне присмотра.

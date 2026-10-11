@@ -1,19 +1,21 @@
 import { useState } from 'react';
-import { Ban } from 'lucide-react';
+import { Ban, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { useFreshInvoice, useInvoiceState, type InvoiceView } from '@/shared/api/invoices';
 import { K, REJECTED } from './invoiceFields';
 import { rejectInvoice } from './invoiceReject';
+import { useInvoiceDelete } from './invoiceDelete';
 
 /**
  * Меню «Ещё» в шапке формы счёта (issue #1284): редкие действия над счётом целиком.
  *
- * <p>Сегодня действие одно — «Отклонить…», у счёта, по которому ещё можно передумать платить.
- * Действие, которое сервер заведомо откажется выполнить, не показывается вовсе: оплаченный счёт
- * сначала лишают оплаты, и кнопка для этого стоит строкой ниже. Меню без пунктов не рисуется — у
- * оплаченного и у отклонённого его нет.</p>
+ * <p>Действий два. «Отклонить…» — у счёта, по которому ещё можно передумать платить. «Удалить счёт…»
+ * (issue #1282) — под чертой и только у черновика без оплаты: удаление — для заведённого по ошибке и
+ * для дубля, а настоящий счёт, по которому не платим, отклоняют. Действие, которое сервер заведомо
+ * откажется выполнить, не показывается вовсе: оплаченный счёт сначала лишают оплаты, и кнопка для
+ * этого стоит строкой ниже. Меню без пунктов не рисуется — у оплаченного и у отклонённого его нет.</p>
  *
  * <p><b>«Вернуть в черновик» здесь нет</b> (ревью PR #1290): у возврата вход один — кнопка под
  * строками счёта, та же, что возвращает разобранный. Второй вход в меню жил своей мутацией и своими
@@ -31,6 +33,7 @@ export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
   const readFresh = useFreshInvoice();
   const toast = useToast();
   const [asking, setAsking] = useState(false);
+  const askDelete = useInvoiceDelete();
 
   const rejected = view.requisites[K.state] === REJECTED;
   const number = String(view.requisites[K.number] || 'без номера');
@@ -39,6 +42,11 @@ export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
   const actions: RowAction[] = [];
   if (!rejected && !view.payment.paid)
     actions.push({ key: 'reject', label: 'Отклонить…', icon: <Ban size={14} />, onSelect: () => setAsking(true) });
+  if (askDelete)
+    actions.push({
+      key: 'delete', label: 'Удалить счёт…', icon: <Trash2 size={14} />, danger: true,
+      onSelect: () => askDelete('menu'),
+    });
 
   // Диалог остаётся смонтированным и без меню: счёт становится отклонённым, пока диалог ещё закрывается.
   return (

@@ -10,7 +10,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
+  forgetInvoice, isNotFound, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
@@ -73,6 +73,15 @@ export function InvoicesPage() {
   const toast = useToast();
 
   const view = useInvoice(selected ?? undefined);
+  // Счёт удалили, пока он был открыт (issue #1282): чтение отвечает «нет такого», а прежний вид ещё в
+  // руках. Форма остаётся с набранным, а не сменяется отказом чтения.
+  //
+  // ⚠️ Узнанное запоминается (ревью PR #1298): по одной последней ошибке судить нельзя. Следующее
+  // перечитывание — возврат в окно — может кончиться обрывом связи, и «счёта нет» сменилось бы экраном
+  // «счёт не открылся» вместе с набранным, ради переноса которого форма и осталась.
+  const [goneId, setGoneId] = useState<string | null>(null);
+  if (selected && view.data != null && isNotFound(view.error) && goneId !== selected) setGoneId(selected);
+  const gone = selected !== null && goneId === selected && view.data != null;
 
   // Открытый счёт под отбором запоминается: после замены значения сервер его под отбором уже не
   // отдаёт, а строка обязана остаться, пока счёт открыт. Запись при отрисовке, а не в эффекте: так
@@ -112,6 +121,30 @@ export function InvoicesPage() {
    * полоса над списком. Решает число выбранных файлов, а не принятых: один — открывает свой черновик.
    */
   const qc = useQueryClient();
+  /**
+   * Закрыть счёт, которого больше нет, — удалённый здесь или соседом. Сначала адрес, потом кэш: счёт,
+   * выброшенный из кэша при открытой форме, был бы тут же запрошен заново. Следующий счёт сам не
+   * открывается — выбор за человеком.
+   *
+   * <p>Кэш чистится при ЛЮБОМ уходе с такого счёта (ревью PR #1298), а не только по кнопке: щелчок по
+   * другой строке или «назад» иначе оставили бы удалённый счёт строкой списка.</p>
+   */
+  const closing = useRef<string | null>(null);
+  function closeGone() {
+    if (!selected) return;
+    closing.current = selected;
+    setParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete(INVOICE_RECORD.param);
+      return next;
+    }, { replace: true });
+  }
+  useEffect(() => { if (gone && selected) closing.current = selected; }, [gone, selected]);
+  useEffect(() => {
+    if (closing.current === null || closing.current === selected) return;
+    forgetInvoice(qc, closing.current);
+    closing.current = null;
+  }, [selected, qc]);
   const me = useAuth().user?.sub;
   const batch = useScanBatch(me);
   const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
@@ -237,7 +270,12 @@ export function InvoicesPage() {
           </div>
         ) : view.isPending ? (
           <div className="flex-1 grid place-items-center text-xs text-fg3">Счёт загружается…</div>
-        ) : view.isError || !view.data ? (
+        ) : !view.data && isNotFound(view.error) ? (
+          // Мёртвая ссылка. «Повторить» здесь нет: повтор ответит тем же.
+          <div className="flex-1 grid place-items-center p-6">
+            <p className="text-sm text-fg2" data-testid="invoice-missing">Счёта нет: его удалили или ссылка неверна.</p>
+          </div>
+        ) : (view.isError && !gone) || !view.data ? (
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
               <p className="text-sm text-danger">Счёт не открылся: {apiError(view.error, 'сервер отказал')}</p>
@@ -255,14 +293,15 @@ export function InvoicesPage() {
               organizations={organizations.data ?? []}
               organizationsError={organizations.isError ? organizations.error : undefined}
               onOpenInvoice={setSelected}
-              scanSlot={hasScan && !wide
+              gone={gone} onClose={closeGone}
+              scanSlot={hasScan && !wide && !gone
                 ? <ScanTooNarrow invoiceId={view.data.id} blobPath={fileProp(scan, 'blobPath')}
                     fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
                 : undefined}
             />
             {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
                 экране бумага не должна отъедать место у полей, которые правят. */}
-            {hasScan && wide && (
+            {hasScan && wide && !gone && (
               <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
                 <InvoiceScanPanel
                   invoiceId={view.data.id}
