@@ -54,8 +54,10 @@ public sealed record InvoiceListReferences(
 /// ⚠️ Ноль с этой причиной — не «счетов нет».</param>
 /// <param name="Unrecognized">Черновиков со сканом без строк, чей скан сейчас не читается, —
 /// столько строк отдаёт список под <c>unrecognized=true</c>.</param>
-public sealed record InvoiceQueuesView(
-    int Lost, int Archived, int Locked, string? Doubt, int Unrecognized = 0, int Parsing = 0);
+public sealed record InvoiceQueuesView(int Lost, int Archived, int Locked, string? Doubt, int Unrecognized = 0);
+
+/// <summary>Сколько счетов стоит под отбором «Разобрать» — недоведённых, то есть черновиков (issue #1292).</summary>
+public sealed record InvoiceParsingCount(int Count);
 
 /// <summary>
 /// Пометки строк списка счетов из ответа обратного опроса ядра.
@@ -114,10 +116,7 @@ public sealed class InvoiceListMarks
                 .CountAsync(i => keys.Contains(i.Id), ct),
             troubles.With(LostMark.Locked).Length,
             troubles.Doubt,
-            InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length,
-            // Очередь «Разобрать» — черновики (issue #1292). Считает база тем же условием, каким
-            // отбирает список: число на чипе и число строк под ним расходиться не могут.
-            await InvoiceListEndpoint.Queue(db.Invoices.AsNoTracking()).CountAsync(ct)));
+            InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length));
     }
 
     /// <summary>Счета под отбором «удалённые записи»: только те, что можно исправить.</summary>

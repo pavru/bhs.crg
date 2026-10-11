@@ -12,11 +12,13 @@ import { QUEUE_LABEL, queueChip } from './invoiceQueues';
  * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, чипов «наведите
  * порядок» не показывают (числа у него и не спрашивают): число было бы упрёком без выхода.
  */
-export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: {
+export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, onRetry }: {
   queue: InvoiceQueue | null;
   onChange: (queue: InvoiceQueue | null) => void;
   /** Числа; `undefined` — не пришли или их не спрашивали. */
   queues: InvoiceQueues | undefined;
+  /** Сколько счетов под «Разобрать»; `undefined` — не посчитано (идёт запрос, отказ, прежний сервер). */
+  parsing: number | undefined;
   /** Числа не пришли: это не «ноль», и молча убрать чип нельзя. */
   failed: boolean;
   onRetry: () => void;
@@ -31,11 +33,11 @@ export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: 
           черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
           равно нулю, — «не посчитано» нулём не рисуем. */}
       <Chip active={queue === 'parsing'} icon={ListChecks} label={QUEUE_LABEL.parsing}
-        count={queues?.parsing ? String(queues.parsing) : undefined}
+        count={parsing ? String(parsing) : undefined}
         title={'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
-          + (queues?.parsing == null ? '' : ` Сейчас их: ${queues.parsing}.`)}
+          + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`)}
         tone="quiet" onClick={() => toggle('parsing')}
-        ariaLabel={queues?.parsing ? `${QUEUE_LABEL.parsing}, счетов: ${queues.parsing}` : undefined} />
+        ariaLabel={parsing ? `${QUEUE_LABEL.parsing}, счетов: ${parsing}` : undefined} />
       {/* «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Ноль не рисуем,
           нажатый чип остаётся — иначе отбор нечем снять. */}
       {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,

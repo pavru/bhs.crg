@@ -340,12 +340,16 @@ try {
     if (!said.startsWith('осталось:'))
       throw new Error(`строка черновика не называет, чего не хватает: «${said}»`);
 
-    // Число у чипа — число строк под ним: считает сервер тем же условием, каким отбирает.
-    const chip = await page.getByRole('group', { name: 'Отбор списка счетов' })
-      .getByRole('button', { name: /^Разобрать, счетов: \d+$/ }).getAttribute('aria-label');
-    const queued = (await api('GET', '/costs/invoices?needsParsing=true', null)).length;
-    if (!chip?.endsWith(`: ${queued}`))
-      throw new Error(`чип говорит «${chip}», а под отбором счетов: ${queued}`);
+    // Число у чипа — число строк под ним: считает сервер тем же условием, каким отбирает. Ждём
+    // согласия, а не сверяем один раз: стенд общий, и соседний прогон мог завести черновик между
+    // двумя чтениями — экран перечитает оба, и сойтись они обязаны.
+    await page.waitForFunction(() => {
+      const chip = [...document.querySelectorAll('[role="group"][aria-label="Отбор списка счетов"] button')]
+        .map(b => b.getAttribute('aria-label') ?? '').find(l => l.startsWith('Разобрать, счетов: '));
+      return chip?.endsWith(`: ${document.querySelectorAll('[data-testid="invoice-row"]').length}`);
+    }, null, { timeout: 15_000 }).catch(() => {
+      throw new Error('число у чипа «Разобрать» не сошлось с числом счетов под отбором');
+    });
 
     // А разобранный счёт из очереди уходит: иначе очередь перестала бы быть очередью.
     if ((await page.getByRole('button', { name: new RegExp(`СЧ-Н${stamp}`) }).count()) !== 0)

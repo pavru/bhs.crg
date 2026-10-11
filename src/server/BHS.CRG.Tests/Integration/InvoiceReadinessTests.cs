@@ -78,7 +78,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{parsed}/parsed", null));
 
         var listed = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true")).GetArrayLength();
-        var counted = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices/queues")).GetProperty("parsing").GetInt32();
+        var counted = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices/queues/parsing")).GetProperty("count").GetInt32();
 
         Assert.True(listed > 0);
         Assert.Equal(listed, counted);

@@ -83,18 +83,13 @@ public static class InvoiceListEndpoint
         // той же ценой, что уже названа у названий поставщиков. У очереди — только по её счетам:
         // группировать всю таблицу ради десятка счетов незачем.
         var counted = db.InvoiceLines.AsNoTracking();
-        if (fix is not null)
+        if (fix is not null || needsParsing || unrecognized)
         {
-            // Под отбором «наведите порядок» счетов бывают тысячи — тем же подзапросом, каким отобран
-            // список, а не массивом их ключей: массив база сверяла бы перебором (ревью PR #1241).
+            // Под отбором счетов бывают тысячи — «наведите порядок», а с issue #1292 и «Разобрать»: это
+            // все черновики. Поэтому тем же подзапросом, каким отобран список, а не массивом их ключей:
+            // массив база сверяла бы перебором (ревью PR #1241, #1302). Группировать ради отбора всю
+            // таблицу тоже незачем (ревью PR #1259).
             counted = counted.Where(l => selected.Select(i => i.Id).Contains(l.InvoiceId));
-        }
-        else if (needsParsing || unrecognized)
-        {
-            // Под «Не распознано» строк нет по определению — и группировать ради этого всю таблицу
-            // незачем (ревью PR #1259).
-            var queued = invoices.Select(i => i.Id).ToList();
-            counted = counted.Where(l => queued.Contains(l.InvoiceId));
         }
 
         var counters = await counted
@@ -112,7 +107,8 @@ public static class InvoiceListEndpoint
         var lines = counters.ToDictionary(c => c.InvoiceId, c => (Count: c.Count, Unmatched: c.Unmatched));
 
         var names = await SupplierNamesAsync(catalog, invoices, ct);
-        var gaps = await ReadinessAsync(invoices, snapshots, periods, logs.CreateLogger(typeof(InvoiceListEndpoint)), ct);
+        var gaps = await ReadinessAsync(invoices, snapshots, periods, required: needsParsing,
+            logs.CreateLogger(typeof(InvoiceListEndpoint)), ct);
 
         return TypedResults.Ok<IReadOnlyList<InvoiceListItem>>(
             [.. invoices.Select(i => InvoiceViews.Item(
@@ -161,14 +157,25 @@ public static class InvoiceListEndpoint
     /// кодом, что ответ чтения счёта: причина в строке и перечень открытого счёта расходиться не могут.
     /// Снимок берётся пачкой: по одному запросу на список, а не на счёт.</para>
     ///
-    /// <para>⚠️ <b>Список от причин не зависит</b>, как и от пометок ссылок: это вспомогательные
+    /// <para>⚠️ <b>Общий список от причин не зависит</b>, как и от пометок ссылок: это вспомогательные
     /// данные, и отказ опроса ядра не должен отнимать у человека сами счета. Тогда причин нет ни у
-    /// одной строки (<c>null</c>) — «не прочитано», а не «всё готово».</para>
+    /// одной строки (<c>null</c>) — «не прочитано», а не «всё готово». Под отбором «Разобрать» иначе
+    /// (<paramref name="required" />): причина там — то, за чем человек пришёл, и отказ остаётся
+    /// отказом. Так же ошибка в самом расчёте не прячется за пустыми строками навсегда: под очередью
+    /// она видна тем же отказом, каким ответит открытый счёт (ревью PR #1302).</para>
+    ///
+    /// <para>⚠️ Причины читаются не более чем у <see cref="ReadinessLimit" /> черновиков — тех, что
+    /// правили последними. Список не страничный, а снимок поднимает строки и части разноски целиком:
+    /// без предела цена открытия списка росла бы с числом черновиков, на каждое сохранение счёта и
+    /// каждые пять секунд, пока читается чей-то скан. У остальных причин нет (<c>null</c>) — та же
+    /// «не прочитано». В работе черновиков десятки; предел — страховка, а не режим.</para>
     /// </summary>
     private static async Task<Dictionary<Guid, IReadOnlyList<string>>?> ReadinessAsync(
-        List<Invoice> invoices, InvoiceSnapshots snapshots, IModulePeriods periods, ILogger log, CancellationToken ct)
+        List<Invoice> invoices, InvoiceSnapshots snapshots, IModulePeriods periods, bool required, ILogger log,
+        CancellationToken ct)
     {
-        var drafts = invoices.Where(i => i.State == InvoiceState.Draft).ToList();
+        var drafts = invoices.Where(i => i.State == InvoiceState.Draft)
+            .OrderByDescending(i => i.UpdatedAt).Take(ReadinessLimit).ToList();
         if (drafts.Count == 0) return [];
 
         try
@@ -186,12 +193,28 @@ public static class InvoiceListEndpoint
                     || ClosedPeriodGuard.LockOf(i, seen[i.Id].Parts, boundaries) is null)
                 .ToDictionary(i => i.Id, i => (IReadOnlyList<string>)[.. seen[i.Id].Readiness.Gaps.Select(g => g.Label)]);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (!required && e is not OperationCanceledException)
         {
-            log.LogWarning(e, "Список счетов отдан без причин «чего не хватает»: чтение готовности отказало");
+            // Ошибкой, а не предупреждением: за этим может стоять и дефект расчёта, а не только
+            // недоступное ядро, — и на экране его не видно ничем, кроме отсутствия строчки.
+            log.LogError(e, "Список счетов отдан без причин «чего не хватает»: чтение готовности отказало");
             return null;
         }
     }
+
+    /// <summary>У скольких черновиков списка читаются причины — см. <see cref="ReadinessAsync" />.</summary>
+    internal const int ReadinessLimit = 200;
+
+    /// <summary>
+    /// Число у чипа «Разобрать» (<c>GET /api/costs/invoices/queues/parsing</c>) — тем же условием, каким
+    /// отбирает список: число и строки под ним расходиться не могут.
+    ///
+    /// <para>Отдельным адресом, а не полем общего ответа чисел (ревью PR #1302): тот падает вместе с
+    /// обратным опросом ядра и спрашивается только у того, кто счёт может править. А это число — счёт
+    /// по своей таблице: ему нечем отказать, и нужно оно каждому, кто видит очередь.</para>
+    /// </summary>
+    public static async Task<Ok<InvoiceParsingCount>> ParsingCountAsync(CostsDbContext db, CancellationToken ct) =>
+        TypedResults.Ok(new InvoiceParsingCount(await Queue(db.Invoices.AsNoTracking()).CountAsync(ct)));
 
     private static async Task<Dictionary<Guid, ModuleCatalogEntry>> SupplierNamesAsync(
         IModuleCatalog catalog, List<Invoice> invoices, CancellationToken ct)

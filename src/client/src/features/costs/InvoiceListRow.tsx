@@ -36,7 +36,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   const readiness = rowReadiness(item);
 
   return (
-    <button ref={row} type="button" onClick={onClick}
+    <button ref={row} type="button" onClick={onClick} data-testid="invoice-row"
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
         `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
       <div className="flex items-center gap-2">
@@ -83,7 +83,8 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
           </span>
         )}
         {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
-            У отклонённого его нет: разбирать такой счёт незачем, и очередь «Разобрать» его не берёт. */}
+            У отклонённого его нет: разбирать такой счёт незачем. К очереди «Разобрать» счётчик не
+            относится — она с issue #1292 отбирает по состоянию, а не по строкам без позиции. */}
         {!rejected && item.linesWithoutNomenclature > 0 && (
           <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
             title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
