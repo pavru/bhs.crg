@@ -383,8 +383,17 @@ function invoiceQuery(id: string | undefined) {
   };
 }
 
+/** Отказ «такого нет» (404) — по ответу axios. У счёта это значит «удалён»: другого пути исчезнуть у него нет. */
+export const isNotFound = (error: unknown): boolean =>
+  (error as { response?: { status?: number } })?.response?.status === 404;
+
 export function useInvoice(id: string | undefined) {
-  return useQuery({ ...invoiceQuery(id), enabled: !!id });
+  return useQuery({
+    ...invoiceQuery(id),
+    enabled: !!id,
+    // «Счёта нет» повтором не лечится (issue #1282): второй запрос лишь оттянул бы ответ человеку.
+    retry: (failures, error) => !isNotFound(error) && failures < 1,
+  });
 }
 
 /**
@@ -430,8 +439,10 @@ export function seenBy(version: string) {
  */
 function rereadOnConflict(qc: QueryClient) {
   return (error: unknown, input: { id: string }) => {
-    if ((error as { response?: { status?: number } })?.response?.status === 409)
-      void qc.invalidateQueries({ queryKey: [QK, input.id] });
+    // И 404 тоже (issue #1282): счёт удалили, пока он был открыт. Перечитывание ответит тем же 404, и
+    // форма узнает, что счёта больше нет, — а не оставит человека с отказом над живой на вид формой.
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: [QK, input.id] });
   };
 }
 
@@ -450,6 +461,33 @@ export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Pr
     },
     onError: rereadOnConflict(qc),
   });
+}
+
+/**
+ * Удалить счёт (issue #1282): только черновик без оплаты, насовсем. Ответа-вида нет, поэтому не
+ * `useInvoiceWrite`; кэш после успеха чистит `forgetInvoice` — когда форма уже закрыта.
+ */
+export function useDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, seen }: { id: string; seen: string }) =>
+      apiClient.delete(`/costs/invoices/${id}`, seenBy(seen)).then(() => undefined),
+    onError: rereadOnConflict(qc),
+  });
+}
+
+/**
+ * Забыть удалённый счёт: выбросить его из кэша вместе с распознаванием и оплатой и перечитать список
+ * и числа очередей.
+ *
+ * ⚠️ `removeQueries`, а не `invalidateQueries`: помеченный устаревшим счёт был бы запрошен заново и
+ * ответил бы 404. И звать — ПОСЛЕ закрытия формы: у выброшенного при живом наблюдателе запроса
+ * наблюдатель тут же начал бы его заново.
+ */
+export function forgetInvoice(qc: QueryClient, id: string) {
+  qc.removeQueries({ queryKey: [QK, id] });
+  void qc.invalidateQueries({ queryKey: [QK, 'list'] });
+  void qc.invalidateQueries({ queryKey: [QK, 'queues'] });
 }
 
 export function useCreateInvoice() {

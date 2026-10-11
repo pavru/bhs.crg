@@ -493,6 +493,51 @@ try {
       () => page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 }));
     if (!await queued()) throw new Error('возвращённый в черновик счёт не вернулся в очередь «Разобрать»');
   });
+
+  // ── 12. Удаление (issue #1282): черновик уходит из формы и из реестра; сосед видит «счёта больше нет» ──
+  await check('черновик удаляется из меню «Ещё», а открытый у соседа счёт говорит, что его больше нет', async () => {
+    const number = `УДАЛ-${stamp}`;
+    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'заведён по ошибке') });
+
+    await open(number);
+    await page.getByRole('button', { name: 'Ещё', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Удалить счёт…' }).click();
+    const dialog = page.getByRole('dialog');
+    await named('диалог не сказал, что вернуть счёт будет нельзя',
+      () => dialog.getByText('Корзины нет').waitFor({ timeout: 10_000 }));
+    await Promise.all([
+      page.waitForResponse(r => r.request().method() === 'DELETE' && r.url().endsWith(`/costs/invoices/${created.id}`) && r.status() === 204),
+      dialog.getByRole('button', { name: `Удалить счёт № ${number}` }).click(),
+    ]);
+    await named('после удаления форма не закрылась', () => page.getByText('Выберите счёт').waitFor({ timeout: 10_000 }));
+    if (page.url().includes('invoice=')) throw new Error(`удалённый счёт остался в адресе: ${page.url()}`);
+    if ((await api('GET', '/costs/invoices')).some(i => i.id === created.id))
+      throw new Error('удалённый счёт остался в реестре');
+    await named('список слева всё ещё показывает удалённый счёт',
+      () => page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).waitFor({ state: 'detached', timeout: 10_000 }));
+
+    // Сосед: счёт открыт, в поле набрано — и тут счёт удаляют. Узнаёт он об этом на сохранении.
+    const neighbour = `СОСЕД-${stamp}`;
+    const other = await api('POST', '/costs/invoices', { requisites: requisites(neighbour, 'открыт у соседа') });
+    await open(neighbour);
+    await page.getByLabel('Основание').fill('набрано до удаления');
+    await page.evaluate(async ([id, seen]) => {
+      const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+      const res = await fetch(`/api/costs/invoices/${id}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'If-Match': seen },
+      });
+      if (res.status !== 204) throw new Error(`счёт не удалён: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    }, [other.id, other.version]);
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await named('форма не сказала, что счёта больше нет',
+      () => page.getByTestId('invoice-gone').waitFor({ timeout: 10_000 }));
+    if (await page.getByLabel('Основание').inputValue() !== 'набрано до удаления')
+      throw new Error('набранное пропало вместе со счётом — а полоса обещает, что оно на экране');
+    if (await page.getByRole('button', { name: 'Сохранить', exact: true }).count())
+      throw new Error('у счёта, которого больше нет, осталась кнопка «Сохранить»');
+    await page.getByRole('button', { name: 'Закрыть счёт' }).click();
+    await named('«Закрыть счёт» форму не закрыла', () => page.getByText('Выберите счёт').waitFor({ timeout: 10_000 }));
+  });
 } finally {
   await browser.close();
 }
