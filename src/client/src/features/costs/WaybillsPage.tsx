@@ -166,7 +166,7 @@ export function WaybillsPage() {
           <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
             <div className="max-w-md text-center space-y-2">
               <p className="text-sm text-fg2">Накладной нет: её удалили или ссылка неверна.</p>
-              <Button size="sm" variant="outlined" onClick={() => selected && closeGone(selected)}>Закрыть</Button>
+              <Button size="sm" variant="outlined" onClick={() => closeGone(opened.id)}>Закрыть</Button>
             </div>
           </div>
         ) : opened.kind === 'unread' ? (
@@ -184,9 +184,9 @@ export function WaybillsPage() {
               <RereadFailedNotice what="Накладная не перечиталась" error={opened.rereadFailed}
                 retrying={view.isFetching} onRetry={() => void view.refetch()} />
             )}
-            <WaybillForm key={opened.data.id} view={opened.data} sites={sites.data ?? []}
+            <WaybillForm key={opened.id} view={opened.data} sites={sites.data ?? []}
               sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
-              onClose={() => closeGone(opened.data.id)} />
+              onClose={() => closeGone(opened.id)} />
           </div>
         )
       }

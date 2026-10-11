@@ -157,7 +157,9 @@ export function InvoicesPage() {
     else startBatch(files, folders, port);
   }
 
-  const scan = view.data ? view.data.requisites[K.scan] : null;
+  // Тот же счёт, что в форме: панель скана и форма обязаны говорить об одном (ревью PR #1300).
+  const shown = opened.kind === 'open' ? opened.data : null;
+  const scan = shown ? shown.requisites[K.scan] : null;
   const hasScan = scan != null && typeof scan === 'object';
 
   return (
@@ -236,7 +238,7 @@ export function InvoicesPage() {
             {rows.map(({ item, left }) => left ? (
               // Номер — у открытого счёта: строка списка осталась снимком до правки.
               <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
-                number={view.data?.id === item.id ? asInput(view.data.requisites[K.number]) : item.number} />
+                number={shown?.id === item.id ? asInput(shown.requisites[K.number]) : item.number} />
             ) : (
               <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
                 onClick={() => setSelected(item.id)} />
@@ -255,9 +257,10 @@ export function InvoicesPage() {
         </InvoiceScanDrop>
       }
       detail={
-        // ⚠️ Три состояния, а не одно. «Ничего не выбрано», «счёт грузится» и «счёт не пришёл» —
-        // разные вещи: отказ чтения, показанный приглашением выбрать счёт, выглядит как будто человек
-        // никуда не нажимал, и повторное нажатие по той же строке ничего не меняет.
+        // ⚠️ Пять положений, а не одно — см. `openRecord`. «Ничего не выбрано», «счёт грузится», «счёта
+        // нет», «счёт не пришёл» и «счёт открыт» — разные вещи: отказ чтения, показанный приглашением
+        // выбрать счёт, выглядит как будто человек никуда не нажимал, и повторное нажатие по той же
+        // строке ничего не меняет.
         opened.kind === 'none' ? (
           <div className="flex-1 grid place-items-center">
             <EmptyState icon={<FileText size={28} />} title="Выберите счёт"
@@ -283,35 +286,35 @@ export function InvoicesPage() {
           </div>
         ) : (
           <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-          {opened.rereadFailed != null && (
-            <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}
-              retrying={view.isFetching} onRetry={() => void view.refetch()} />
-          )}
-          <div className="flex-1 min-w-0 min-h-0 flex">
-            <InvoiceForm
-              key={opened.data.id}
-              view={opened.data}
-              organizations={organizations.data ?? []}
-              organizationsError={organizations.isError ? organizations.error : undefined}
-              onOpenInvoice={setSelected}
-              gone={gone} onClose={() => closeGone(opened.data.id)}
-              scanSlot={hasScan && !wide && !gone
-                ? <ScanTooNarrow invoiceId={opened.data.id} blobPath={fileProp(scan, 'blobPath')}
-                    fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
-                : undefined}
-            />
-            {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
-                экране бумага не должна отъедать место у полей, которые правят. */}
-            {hasScan && wide && !gone && (
-              <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
-                <InvoiceScanPanel
-                  invoiceId={opened.data.id}
-                  blobPath={fileProp(scan, 'blobPath')}
-                  fileName={fileProp(scan, 'fileName')}
-                />
-              </aside>
+            {opened.rereadFailed != null && (
+              <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}
+                retrying={view.isFetching} onRetry={() => void view.refetch()} />
             )}
-          </div>
+            <div className="flex-1 min-w-0 min-h-0 flex">
+              <InvoiceForm
+                key={opened.id}
+                view={opened.data}
+                organizations={organizations.data ?? []}
+                organizationsError={organizations.isError ? organizations.error : undefined}
+                onOpenInvoice={setSelected}
+                gone={gone} onClose={() => closeGone(opened.id)}
+                scanSlot={hasScan && !wide && !gone
+                  ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
+                      fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
+                  : undefined}
+              />
+              {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
+                  экране бумага не должна отъедать место у полей, которые правят. */}
+              {hasScan && wide && !gone && (
+                <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
+                  <InvoiceScanPanel
+                    invoiceId={opened.id}
+                    blobPath={fileProp(scan, 'blobPath')}
+                    fileName={fileProp(scan, 'fileName')}
+                  />
+                </aside>
+              )}
+            </div>
           </div>
         )
       }
