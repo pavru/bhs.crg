@@ -8,10 +8,12 @@ import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
 import { useToast } from '@/shared/ui/Toast';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
+import { useOpenRecord } from './openRecord';
+import { RereadFailedNotice } from './RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  forgetInvoice, isNotFound, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
+  forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
@@ -80,9 +82,11 @@ export function InvoicesPage() {
   // ⚠️ Узнанное запоминается (ревью PR #1298): по одной последней ошибке судить нельзя. Следующее
   // перечитывание — возврат в окно — может кончиться обрывом связи, и «счёта нет» сменилось бы экраном
   // «счёт не открылся» вместе с набранным, ради переноса которого форма и осталась.
-  const [goneId, setGoneId] = useState<string | null>(null);
-  if (selected && view.data != null && isNotFound(view.error) && goneId !== selected) setGoneId(selected);
-  const gone = selected !== null && goneId === selected && view.data != null;
+  //
+  // Тем же правилом форма переживает и любое другое неудачное перечитывание (issue #1287): решает
+  // `openRecord`, одно место на счёт и накладную.
+  const opened = useOpenRecord(selected, view);
+  const gone = opened.kind === 'open' && opened.gone;
 
   // Открытый счёт под отбором запоминается: после замены значения сервер его под отбором уже не
   // отдаёт, а строка обязана остаться, пока счёт открыт. Запись при отрисовке, а не в эффекте: так
@@ -153,7 +157,9 @@ export function InvoicesPage() {
     else startBatch(files, folders, port);
   }
 
-  const scan = view.data ? view.data.requisites[K.scan] : null;
+  // Тот же счёт, что в форме: панель скана и форма обязаны говорить об одном (ревью PR #1300).
+  const shown = opened.kind === 'open' ? opened.data : null;
+  const scan = shown ? shown.requisites[K.scan] : null;
   const hasScan = scan != null && typeof scan === 'object';
 
   return (
@@ -232,7 +238,7 @@ export function InvoicesPage() {
             {rows.map(({ item, left }) => left ? (
               // Номер — у открытого счёта: строка списка осталась снимком до правки.
               <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
-                number={view.data?.id === item.id ? asInput(view.data.requisites[K.number]) : item.number} />
+                number={shown?.id === item.id ? asInput(shown.requisites[K.number]) : item.number} />
             ) : (
               <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
                 onClick={() => setSelected(item.id)} />
@@ -251,25 +257,27 @@ export function InvoicesPage() {
         </InvoiceScanDrop>
       }
       detail={
-        // ⚠️ Три состояния, а не одно. «Ничего не выбрано», «счёт грузится» и «счёт не пришёл» —
-        // разные вещи: отказ чтения, показанный приглашением выбрать счёт, выглядит как будто человек
-        // никуда не нажимал, и повторное нажатие по той же строке ничего не меняет.
-        !selected ? (
+        // ⚠️ Пять положений, а не одно — см. `openRecord`. «Ничего не выбрано», «счёт грузится», «счёта
+        // нет», «счёт не пришёл» и «счёт открыт» — разные вещи: отказ чтения, показанный приглашением
+        // выбрать счёт, выглядит как будто человек никуда не нажимал, и повторное нажатие по той же
+        // строке ничего не меняет.
+        opened.kind === 'none' ? (
           <div className="flex-1 grid place-items-center">
             <EmptyState icon={<FileText size={28} />} title="Выберите счёт"
               description="Или заведите новый — черновик сохранится пустым." />
           </div>
-        ) : view.isPending ? (
+        ) : opened.kind === 'loading' ? (
           <div className="flex-1 grid place-items-center text-xs text-fg3">Счёт загружается…</div>
-        ) : !view.data && isNotFound(view.error) ? (
+        ) : opened.kind === 'missing' ? (
           // Мёртвая ссылка. «Повторить» здесь нет: повтор ответит тем же.
           <div className="flex-1 grid place-items-center p-6">
             <p className="text-sm text-fg2" data-testid="invoice-missing">Счёта нет: его удалили или ссылка неверна.</p>
           </div>
-        ) : (view.isError && !gone) || !view.data ? (
+        ) : opened.kind === 'unread' ? (
+          // Только для счёта, не прочитанного НИ РАЗУ: неудачное перечитывание открытого форму не снимает.
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-danger">Счёт не открылся: {apiError(view.error, 'сервер отказал')}</p>
+              <p className="text-sm text-danger">Счёт не открылся: {apiError(opened.error, 'сервер отказал')}</p>
               <p className="text-xs text-fg3">
                 Это отказ чтения, а не пустой счёт — сам счёт в списке остался.
               </p>
@@ -277,30 +285,36 @@ export function InvoicesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-w-0 min-h-0 flex">
-            <InvoiceForm
-              key={view.data.id}
-              view={view.data}
-              organizations={organizations.data ?? []}
-              organizationsError={organizations.isError ? organizations.error : undefined}
-              onOpenInvoice={setSelected}
-              gone={gone} onClose={() => closeGone(view.data.id)}
-              scanSlot={hasScan && !wide && !gone
-                ? <ScanTooNarrow invoiceId={view.data.id} blobPath={fileProp(scan, 'blobPath')}
-                    fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
-                : undefined}
-            />
-            {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
-                экране бумага не должна отъедать место у полей, которые правят. */}
-            {hasScan && wide && !gone && (
-              <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
-                <InvoiceScanPanel
-                  invoiceId={view.data.id}
-                  blobPath={fileProp(scan, 'blobPath')}
-                  fileName={fileProp(scan, 'fileName')}
-                />
-              </aside>
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+            {opened.rereadFailed != null && (
+              <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}
+                retrying={view.isFetching} onRetry={() => void view.refetch()} />
             )}
+            <div className="flex-1 min-w-0 min-h-0 flex">
+              <InvoiceForm
+                key={opened.id}
+                view={opened.data}
+                organizations={organizations.data ?? []}
+                organizationsError={organizations.isError ? organizations.error : undefined}
+                onOpenInvoice={setSelected}
+                gone={gone} onClose={() => closeGone(opened.id)}
+                scanSlot={hasScan && !wide && !gone
+                  ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
+                      fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
+                  : undefined}
+              />
+              {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
+                  экране бумага не должна отъедать место у полей, которые правят. */}
+              {hasScan && wide && !gone && (
+                <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
+                  <InvoiceScanPanel
+                    invoiceId={opened.id}
+                    blobPath={fileProp(scan, 'blobPath')}
+                    fileName={fileProp(scan, 'fileName')}
+                  />
+                </aside>
+              )}
+            </div>
           </div>
         )
       }

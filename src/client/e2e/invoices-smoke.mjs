@@ -538,6 +538,32 @@ try {
     await page.getByRole('button', { name: 'Закрыть счёт' }).click();
     await named('«Закрыть счёт» форму не закрыла', () => page.getByText('Выберите счёт').waitFor({ timeout: 10_000 }));
   });
+
+  // ── 13. Неудачное перечитывание (issue #1287): форма остаётся с набранным, отказ — полосой ──
+  await check('неудачное перечитывание открытого счёта форму не снимает: набранное цело, отказ полосой', async () => {
+    const number = `ОБРЫВ-${stamp}`;
+    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'перечитывание') });
+    await open(number);
+    await page.getByLabel('Основание').fill('набрано до обрыва');
+
+    // Сохранение отвечает «изменили» — форма перечитывает счёт, а чтение падает.
+    const address = `**/api/costs/invoices/${created.id}`;
+    await page.route(address, route => route.request().method() === 'GET'
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Сервер недоступен (проба)."}' })
+      : route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Счёт тем временем изменили (проба)."}' }));
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await named('полосы «не перечитался» нет — форма снята или отказ не показан',
+      () => page.getByTestId('reread-failed').waitFor({ timeout: 15_000 }));
+    if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')
+      throw new Error('набранное пропало при неудачном перечитывании');
+
+    await page.unroute(address);
+    await page.getByTestId('reread-failed').getByRole('button', { name: 'Повторить' }).click();
+    await named('после удачного повтора полоса осталась',
+      () => page.getByTestId('reread-failed').waitFor({ state: 'detached', timeout: 10_000 }));
+    if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')
+      throw new Error('набранное пропало после удачного повтора');
+  });
 } finally {
   await browser.close();
 }

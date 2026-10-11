@@ -10,12 +10,14 @@ import { useToast } from '@/shared/ui/Toast';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
-import { isNotFound, useCostsConstructions } from '@/shared/api/invoices';
+import { useCostsConstructions } from '@/shared/api/invoices';
 import {
   forgetWaybill, useCreateWaybill, useWaybill, useWaybills, type WaybillListItem,
 } from '@/shared/api/waybills';
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
+import { useOpenRecord } from './openRecord';
+import { RereadFailedNotice } from './RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
 
 const PARAM = 'waybill';
@@ -64,10 +66,10 @@ export function WaybillsPage() {
   // вид ещё в руках. Форма остаётся с набранным, а не сменяется отказом (ревью PR #1299): фоновое
   // перечитывание иначе стирало бы строки, вписанные с бумаги, в обход вопроса о правках. Узнанное
   // запоминается — следующее перечитывание может кончиться обрывом связи, а не тем же 404.
-  const [goneId, setGoneId] = useState<string | null>(null);
-  if (selected && view.data != null && isNotFound(view.error) && goneId !== selected) setGoneId(selected);
-  const gone = selected !== null && goneId === selected && view.data != null;
-  const missing = selected !== null && (gone || isNotFound(view.error));
+  // Тем же правилом форма переживает и любое другое неудачное перечитывание (issue #1287) — см. `openRecord`.
+  const opened = useOpenRecord(selected, view);
+  const gone = opened.kind === 'open' && opened.gone;
+  const missing = gone || opened.kind === 'missing';
 
   // Вопроса о правках при закрытии нет: сохранять их уже некуда. Следующая накладная сама не открывается.
   const closeGone = useCloseGone(selected, missing, id => {
@@ -151,34 +153,41 @@ export function WaybillsPage() {
         </>
       }
       detail={
-        // Три состояния, как у счёта: «не выбрано», «грузится» и «не пришло» — разные вещи.
-        !selected ? (
+        // «Не выбрано», «грузится», «нет такой», «не пришло» и «открыта» — разные вещи: см. `openRecord`.
+        opened.kind === 'none' ? (
           <div className="flex-1 grid place-items-center">
             <EmptyState icon={<Truck size={28} />} title="Выберите накладную"
               description={canEdit ? 'Или заведите новую — черновик сохранится пустым.' : undefined} />
           </div>
-        ) : view.isPending ? (
+        ) : opened.kind === 'loading' ? (
           <div className="flex-1 grid place-items-center text-xs text-fg3">Накладная загружается…</div>
-        ) : !view.data && isNotFound(view.error) ? (
+        ) : opened.kind === 'missing' ? (
           // «Повторить» здесь нет: накладной нет, и повтор ответит тем же.
           <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
             <div className="max-w-md text-center space-y-2">
               <p className="text-sm text-fg2">Накладной нет: её удалили или ссылка неверна.</p>
-              <Button size="sm" variant="outlined" onClick={() => closeGone(selected)}>Закрыть</Button>
+              <Button size="sm" variant="outlined" onClick={() => closeGone(opened.id)}>Закрыть</Button>
             </div>
           </div>
-        ) : (view.isError && !gone) || !view.data ? (
+        ) : opened.kind === 'unread' ? (
+          // Только для накладной, не прочитанной НИ РАЗУ: неудачное перечитывание открытой форму не снимает.
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-danger">Накладная не открылась: {apiError(view.error, 'сервер отказал')}</p>
+              <p className="text-sm text-danger">Накладная не открылась: {apiError(opened.error, 'сервер отказал')}</p>
               <p className="text-xs text-fg3">Это отказ чтения, а не пустая накладная.</p>
               <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
             </div>
           </div>
         ) : (
-          <WaybillForm key={view.data.id} view={view.data} sites={sites.data ?? []}
-            sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
-            onClose={() => closeGone(view.data.id)} />
+          <div className="flex-1 min-h-0 flex flex-col">
+            {opened.rereadFailed != null && (
+              <RereadFailedNotice what="Накладная не перечиталась" error={opened.rereadFailed}
+                retrying={view.isFetching} onRetry={() => void view.refetch()} />
+            )}
+            <WaybillForm key={opened.id} view={opened.data} sites={sites.data ?? []}
+              sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
+              onClose={() => closeGone(opened.id)} />
+          </div>
         )
       }
     />
