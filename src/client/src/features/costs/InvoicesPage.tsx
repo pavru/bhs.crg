@@ -284,7 +284,7 @@ export function InvoicesPage() {
               organizationsError={organizations.isError ? organizations.error : undefined}
               onOpenInvoice={setSelected}
               gone={gone} onClose={closeGone}
-              scanSlot={hasScan && !wide
+              scanSlot={hasScan && !wide && !gone
                 ? <ScanTooNarrow invoiceId={view.data.id} blobPath={fileProp(scan, 'blobPath')}
                     fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
                 : undefined}

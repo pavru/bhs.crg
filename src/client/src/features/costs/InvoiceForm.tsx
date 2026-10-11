@@ -220,11 +220,11 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </div>
         )}
 
-        {!closed && (
+        {!closed && !gone && (
           <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
             onRetryRead={watch.retry} canEdit={canEdit} />
         )}
-        <LostReferencesNote view={view} locked={closed} />
+        <LostReferencesNote view={view} locked={closed || gone} />
         {view.duplicates.length > 0 && <DuplicateNote view={view} onOpenInvoice={onOpenInvoice} />}
         {scanSlot}
 
@@ -257,7 +257,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
-        <InvoiceLinesTable view={view} locked={closed} readOnly={!canEdit} />
+        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку

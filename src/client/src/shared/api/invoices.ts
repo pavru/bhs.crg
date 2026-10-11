@@ -477,8 +477,8 @@ export function useDeleteInvoice() {
 }
 
 /**
- * Забыть удалённый счёт: выбросить его из кэша вместе с распознаванием и оплатой и перечитать список
- * и числа очередей.
+ * Забыть удалённый счёт: выбросить его из кэша вместе с распознаванием и оплатой и перечитать
+ * остальное под ключом счетов.
  *
  * ⚠️ `removeQueries`, а не `invalidateQueries`: помеченный устаревшим счёт был бы запрошен заново и
  * ответил бы 404. И звать — ПОСЛЕ закрытия формы: у выброшенного при живом наблюдателе запроса
@@ -486,8 +486,10 @@ export function useDeleteInvoice() {
  */
 export function forgetInvoice(qc: QueryClient, id: string) {
   qc.removeQueries({ queryKey: [QK, id] });
-  void qc.invalidateQueries({ queryKey: [QK, 'list'] });
-  void qc.invalidateQueries({ queryKey: [QK, 'queues'] });
+  // Всё остальное под ключом счетов — устарело: список, числа очередей и виды ДРУГИХ счетов. У
+  // оставшегося двойника в кэше лежит оговорка о дубликате со ссылкой на удалённый (ревью PR #1298).
+  // Сам удалённый счёт под ключом уже не стоит, и заново его это не запросит.
+  void qc.invalidateQueries({ queryKey: INVOICES_KEY });
 }
 
 export function useCreateInvoice() {

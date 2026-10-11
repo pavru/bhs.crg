@@ -113,7 +113,7 @@ public sealed class InvoiceScanReading(
                     _ => "Refused",
                 }, refusal.Message))
             {
-                Dropped(invoiceId);
+                Dropped(invoiceId, refusal);
                 return;
             }
             throw;
@@ -127,7 +127,7 @@ public sealed class InvoiceScanReading(
                 "Прочитанное не удалось записать в счёт: внутренняя ошибка. Запустите распознавание ещё раз; " +
                 "если повторится — подробности в журнале сервера."))
             {
-                Dropped(invoiceId);
+                Dropped(invoiceId, crash);
                 return;
             }
             throw;
@@ -254,8 +254,11 @@ public sealed class InvoiceScanReading(
         return true;
     }
 
-    private void Dropped(Guid invoiceId) => logs.CreateLogger<InvoiceScanReading>().LogInformation(
-        "Счёт {InvoiceId} удалён, пока его файл распознавался или ждал очереди: прочитанное выброшено.", invoiceId);
+    /// <param name="because">На чём задача остановилась. Пишется в журнал сервера всегда (ревью PR
+    /// #1298): «счёт удалён» объясняет, почему исход некуда записать, но не то, что случилось до того, —
+    /// сбой хранилища, совпавший с удалением, иначе пропал бы без следа.</param>
+    private void Dropped(Guid invoiceId, Exception? because = null) => logs.CreateLogger<InvoiceScanReading>().LogInformation(
+        because, "Счёт {InvoiceId} удалён, пока его файл распознавался или ждал очереди: прочитанное выброшено.", invoiceId);
 
     private static void EnsureSameScan(Invoice invoice, string? scanBlobPath)
     {

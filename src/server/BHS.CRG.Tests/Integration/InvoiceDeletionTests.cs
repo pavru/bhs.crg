@@ -179,6 +179,34 @@ public sealed class InvoiceDeletionTests(InvoiceScanHost host)
     }
 
     /// <summary>
+    /// Отказ журнала — тоже не отказ удаления (ревью PR #1298): счёт удалён насовсем, и ответ «сбой»
+    /// открыл бы диалог «Счёт не удалён» над счётом, которого нет. Файл при этом убран.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_журнала_не_делает_удаление_сбоем()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client);
+        var path = await AttachAsync(client, invoice, "Журнал молчит.pdf");
+
+        HttpResponseMessage deleted;
+        host.JournalFailureFor = InvoiceActions.Deleted.Code;
+        try
+        {
+            deleted = await DeleteAsync(client, invoice);
+        }
+        finally
+        {
+            host.JournalFailureFor = null;
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Null(await StoredAsync(invoice));
+        using var scope = host.Services.CreateScope();
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IModuleBlobs>().SizeAsync(path));
+    }
+
+    /// <summary>
     /// Удалённый счёт можно завести заново с теми же поставщиком, номером и датой: уникальности по
     /// реквизитам в базе нет, дубликат — предупреждение, а не запрет (ТЗ COST-6.2). И предупреждения у
     /// нового счёта нет: дублем ему быть уже не с кем.

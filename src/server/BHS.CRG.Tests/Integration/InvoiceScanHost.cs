@@ -62,6 +62,12 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     /// </summary>
     public Exception? BlobDeleteFailure { get; set; }
 
+    /// <summary>
+    /// Отказ журнала действий на запись с этим кодом — пока стоит (ревью PR #1298): удаление, которое
+    /// состоялось, не вправе ответить сбоем из-за журнала. Тест ставит и обязан снять.
+    /// </summary>
+    public string? JournalFailureFor { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -81,6 +87,10 @@ public sealed class InvoiceScanHost : InvoiceLineHost
             services.RemoveAll<IModuleBlobs>();
             services.AddScoped<ModuleBlobsPort>();
             services.AddScoped<IModuleBlobs>(sp => new FailingBlobs(sp.GetRequiredService<ModuleBlobsPort>(), this));
+
+            services.RemoveAll<IModuleActivityLog>();
+            services.AddScoped<ModuleActivityLogPort>();
+            services.AddScoped<IModuleActivityLog>(sp => new FailingJournal(sp.GetRequiredService<ModuleActivityLogPort>(), this));
 
             services.RemoveAll<IModuleWriteGuard>();
             services.AddScoped<ModuleWriteGuardPort>();
@@ -103,6 +113,16 @@ public sealed class InvoiceScanHost : InvoiceLineHost
 
         public Task<ModuleRendition> RebuildAsync(string originalPath, CancellationToken ct = default) =>
             inner.RebuildAsync(originalPath, ct);
+    }
+
+    /// <summary>Настоящий журнал — с отказом на одно действие по просьбе теста.</summary>
+    private sealed class FailingJournal(IModuleActivityLog inner, InvoiceScanHost host) : IModuleActivityLog
+    {
+        public Task RecordAsync(ModuleActivityAction action, string? targetId = null, string? targetLabel = null,
+            string? before = null, string? after = null, CancellationToken ct = default) =>
+            host.JournalFailureFor == action.Code
+                ? Task.FromException(new InvalidOperationException("журнал не ответил"))
+                : inner.RecordAsync(action, targetId, targetLabel, before, after, ct);
     }
 
     /// <summary>Настоящее хранилище — с отказом на удаление по просьбе теста.</summary>

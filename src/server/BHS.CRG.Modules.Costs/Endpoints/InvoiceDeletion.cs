@@ -2,6 +2,7 @@ using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -40,28 +41,45 @@ public static class InvoiceDeletion
         Guid id, CostsDbContext db, InvoiceDesk desk, IModuleCatalog catalog, IModuleBlobs blobs,
         IModuleActivityLog log, ILoggerFactory logs, CancellationToken ct)
     {
-        var gone = await desk.WriteAsync(id, async write =>
+        Gone gone;
+        try
         {
-            var invoice = write.Invoice;
-            EnsureDeletable(invoice);
+            gone = await desk.WriteAsync(id, async write =>
+            {
+                var invoice = write.Invoice;
+                EnsureDeletable(invoice);
 
-            var gone = new Gone(InvoiceEndpoints.Label(invoice), invoice.SupplierId, invoice.ScanBlobPath, invoice.ScanFileName);
-            db.Invoices.Remove(invoice);
-            await db.SaveChangesAsync(ct);
-            return gone;
-        }, ct);
+                var gone = new Gone(InvoiceEndpoints.Label(invoice), invoice.SupplierId, invoice.ScanBlobPath, invoice.ScanFileName);
+                db.Invoices.Remove(invoice);
+                await db.SaveChangesAsync(ct);
+                return gone;
+            }, ct);
+        }
+        catch (ConflictException lost) when (lost.InnerException is DbUpdateConcurrencyException)
+        {
+            // Двое удаляли разом (ревью PR #1298): второй прошёл сверку версии и не нашёл строки. Ему
+            // обязано ответить то же «нет такого», что и повтору, — «счёт изменили, действие не
+            // выполнено» про удалённый счёт было бы неправдой. Счёт на месте — отказ остаётся отказом.
+            db.ChangeTracker.Clear();
+            if (await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == id, CancellationToken.None)) throw;
+            throw new NotFoundException("Счёт не найден.");
+        }
 
+        // ⚠️ После связки — без токена отмены и без права на отказ (ревью PR #1298): счёт удалён
+        // насовсем, и оборванный запрос не вправе оставить это без записи в журнале, а отказ журнала —
+        // ответить «сбой» про удаление, которое состоялось. Так же ведёт себя заведение счёта из файла.
         try
         {
             await log.RecordAsync(InvoiceActions.Deleted, id.ToString(), gone.Label,
-                before: await DescribedAsync(catalog, gone, ct), after: "удалён насовсем", ct: ct);
+                before: await DescribedAsync(catalog, gone), after: "удалён насовсем", ct: CancellationToken.None);
         }
-        finally
+        catch (Exception lost)
         {
-            // И при отказе журнала тоже: счёта уже нет, и файл без него не нужен никому.
-            await RemoveFileAsync(blobs, gone, id, logs);
+            logs.CreateLogger(typeof(InvoiceDeletion)).LogError(lost,
+                "{Label} ({InvoiceId}) удалён, но запись об этом в журнал действий не легла.", gone.Label, id);
         }
 
+        await RemoveFileAsync(blobs, gone, id, logs);
         return TypedResults.NoContent();
     }
 
@@ -90,17 +108,17 @@ public static class InvoiceDeletion
     /// без права на счета. Поставщик читается ПОСЛЕ удаления — он запись справочника ядра и от счёта не
     /// зависит; справочник, который не ответил, оставляет запись без поставщика, а не без записи.</para>
     /// </summary>
-    private static async Task<string?> DescribedAsync(IModuleCatalog catalog, Gone gone, CancellationToken ct)
+    private static async Task<string?> DescribedAsync(IModuleCatalog catalog, Gone gone)
     {
         string? supplier = null;
         if (gone.SupplierId is { } id)
         {
             try
             {
-                supplier = (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [id], ct))
+                supplier = (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [id], CancellationToken.None))
                     ?.FirstOrDefault(o => o.Id == id)?.DisplayName;
             }
-            catch (Exception lost) when (lost is not OperationCanceledException)
+            catch (Exception)
             {
                 // Счёт удалён: отказ справочника не вправе отнять у журнала саму запись об этом.
             }
