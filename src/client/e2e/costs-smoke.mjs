@@ -208,6 +208,7 @@ async function supplierPart() {
 
   await check('supplier-enters-and-posts-a-waybill', () => waybillPart(supplier));
   await check('supplier-deletes-a-mistaken-waybill', () => waybillDeletePart(supplier));
+  await check('supplier-keeps-typed-waybill-when-reread-fails', () => waybillRereadPart(supplier));
 
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
 }
@@ -351,6 +352,41 @@ async function waybillDeletePart(seat) {
   await page.getByRole('button', { name: /РН-\d+/ }).first().click();
   await page.getByRole('button', { name: new RegExp(neighbour) }).waitFor({ state: 'detached', timeout: 10_000 })
     .catch(() => { throw new Error('удалённая соседом накладная осталась в списке после ухода с неё'); });
+  await settled(page);
+}
+
+/**
+ * Неудачное перечитывание открытой накладной (issue #1287): форма остаётся с набранным, отказ — полосой
+ * с «Повторить». Сохранение отвечает «изменили», форма перечитывает накладную, а чтение падает.
+ */
+async function waybillRereadPart(seat) {
+  const { page } = seat;
+  seat.screen = 'перечитывание накладной';
+  const waybill = `РН-ОБРЫВ-${Date.now()}`;
+  await page.getByRole('button', { name: 'Новая накладная' }).click();
+  await page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 });
+  await page.getByLabel('Номер', { exact: true }).fill(waybill);
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('heading', { name: new RegExp(waybill) }).waitFor({ timeout: 10_000 });
+  const id = new URL(page.url()).searchParams.get('waybill');
+  await page.getByLabel('Примечание').fill('набрано до обрыва');
+
+  const address = `**/api/costs/waybills/${id}`;
+  await page.route(address, route => route.request().method() === 'GET'
+    ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Сервер недоступен (проба)."}' })
+    : route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Накладную тем временем изменили (проба)."}' }));
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByTestId('reread-failed').waitFor({ timeout: 15_000 })
+    .catch(() => { throw new Error('полосы «не перечиталась» нет — форма снята или отказ не показан'); });
+  if (await page.getByLabel('Примечание').inputValue() !== 'набрано до обрыва')
+    throw new Error('набранное пропало при неудачном перечитывании');
+
+  await page.unroute(address);
+  await page.getByTestId('reread-failed').getByRole('button', { name: 'Повторить' }).click();
+  await page.getByTestId('reread-failed').waitFor({ state: 'detached', timeout: 10_000 })
+    .catch(() => { throw new Error('после удачного повтора полоса осталась'); });
+  if (await page.getByLabel('Примечание').inputValue() !== 'набрано до обрыва')
+    throw new Error('набранное пропало после удачного повтора');
   await settled(page);
 }
 
