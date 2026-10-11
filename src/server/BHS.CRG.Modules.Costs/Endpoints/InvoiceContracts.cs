@@ -49,6 +49,8 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// <param name="Payment">Оплата (C5, issue #1082): оплачен ли, почему оплатить нельзя и чем счёт заперт —
 /// словами сервера, чтобы форма не выводила «заперт» из границ периодов своей формулой.</param>
 /// <param name="References">Что стало с записями ядра, на которые ссылается шапка (issue #1184).</param>
+/// <param name="Readiness">Чего не хватает до «Разобран» и какие поля обязательны (issue #1291). Перечень
+/// строит та же функция, что проверяет переход: считай форма его сама, строка и отказ расходились бы.</param>
 public sealed record InvoiceView(
     Guid Id,
     // Версия счёта (issue #1176): её называет каждая правка заголовком If-Match. Строкой — это отметка,
@@ -63,6 +65,7 @@ public sealed record InvoiceView(
     AllocationSummaryView Allocation,
     PaymentView Payment,
     InvoiceReferencesView References,
+    InvoiceReadinessView Readiness,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     // Что запомнилось ЭТИМ сохранением строк (issue #1079). Есть только в ответе сохранения строк:
@@ -142,7 +145,7 @@ public static class InvoiceViews
         IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment,
         InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived,
-        IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
+        InvoiceReadiness readiness, IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
         invoice.Id,
         version,
         invoice.DocumentTypeId,
@@ -155,6 +158,9 @@ public static class InvoiceViews
         allocation.Summary,
         payment,
         references,
+        // У разобранного и отклонённого вопрос «чего не хватает» не стоит — и перечня нет вовсе.
+        new InvoiceReadinessView(InvoiceReadiness.Required,
+            invoice.State == InvoiceState.Draft ? readiness.Gaps : null),
         invoice.CreatedAt,
         invoice.UpdatedAt);
 

@@ -93,8 +93,12 @@ export function OutlinedField({
       + 'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs'
     : 'top-0 -translate-y-1/2 text-xs';
 
-  const labelContent = <>{label}{required && <span className="ml-0.5 text-danger">*</span>}</>;
-  const labelClass = `absolute left-3 px-1 pointer-events-none transition-all block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}`;
+  // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
+  // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.
+  // Поэтому она рисуется псевдоэлементом: в тексте подписи её нет.
+  const labelContent = label;
+  const star = required ? " after:ml-0.5 after:text-danger after:content-['*']" : '';
+  const labelClass = `absolute left-3 px-1 pointer-events-none transition-all block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}${star}`;
 
   return (
     <div className={containerClassName}>

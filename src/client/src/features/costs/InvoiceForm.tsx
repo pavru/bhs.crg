@@ -20,6 +20,7 @@ import {
 } from './invoiceFields';
 import { formatDate } from '@/shared/format/format';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
+import { READINESS_ATTR, isRequired, readinessAnchor } from './invoiceReadiness';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
@@ -258,7 +259,8 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
-        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty} />
+        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
+          headerDirty={dirty} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
@@ -301,7 +303,7 @@ function BlockFields({
       )}
       <div className={`grid grid-cols-1 ${columns} gap-3`}>
         {block.fields.map(key => (
-          <div key={key} className="min-w-0">
+          <div key={key} className="min-w-0" {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}>
             <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
               organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
             {!locked && (
@@ -324,6 +326,8 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
 }) {
   const marked = isMarked(fieldKey, view.unconfirmed, edits);
   const hint = marked ? UNCONFIRMED_HINT : undefined;
+  // Обязательное для «Разобран» — пометкой у подписи (issue #1291). Перечень присылает сервер.
+  const required = isRequired(view, fieldKey);
   const current = value(fieldKey);
 
   // Рамкой предупреждения, а не ошибки: распознанное значение не ошибка, его просто никто пока не
@@ -376,7 +380,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
 
       return (
         <div className={frame}>
-          <Select label={title}
+          <Select label={title} required={required}
             disabled={organizationsUnread}
             hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
               : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию'
@@ -404,7 +408,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
     case K.dueDate:
       return (
         <div className={frame}>
-          <DateField label={LABELS[fieldKey]} hint={hint} value={asInput(current).slice(0, 10)}
+          <DateField label={LABELS[fieldKey]} hint={hint} required={required} value={asInput(current).slice(0, 10)}
             readOnly={locked}
             onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
         </div>
@@ -426,7 +430,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       const numeric = money || fieldKey === K.deferral;
       return (
         <div className={frame}>
-          <TextField label={LABELS[fieldKey] ?? fieldKey} hint={hint} readOnly={locked}
+          <TextField label={LABELS[fieldKey] ?? fieldKey} hint={hint} readOnly={locked} required={required}
             value={money ? moneyInput(current) : asInput(current)}
             inputMode={numeric ? 'decimal' : undefined}
             onChange={e => set(fieldKey, fromInput(e.target.value))} />

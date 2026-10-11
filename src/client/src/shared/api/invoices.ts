@@ -211,6 +211,27 @@ export interface PaymentView {
   periods: string[];
 }
 
+/**
+ * Одно, чего счёту не хватает до «Разобран». `kind` говорит, к какому месту формы пункт ведёт:
+ * `field`/`reference` — поле шапки (`field`), `lines`/`nomenclature`/`position`/`catalog` — таблица
+ * строк, `allocation` — разноска. Строкой, а не перечислением: новое условие сервера обязано доехать
+ * до экрана пунктом, а не потеряться на незнакомом значении.
+ */
+export interface InvoiceReadinessGap {
+  kind: string;
+  /** Пункт словами сервера: «плательщик», «3 строки без позиции». */
+  label: string;
+  field?: string | null;
+  lines?: number[] | null;
+}
+
+export interface InvoiceReadiness {
+  /** Ключи обязательных полей шапки. */
+  required: string[];
+  /** Чего не хватает; пусто — всё готово; `null` — вопрос не стоит: счёт разобран либо отклонён. */
+  gaps: InvoiceReadinessGap[] | null;
+}
+
 export interface InvoiceView {
   id: string;
   /** Версия счёта: её называет каждая правка (`seen`), и устаревшая получает отказ 409 (issue #1176). */
@@ -230,6 +251,12 @@ export interface InvoiceView {
    * бы потерей. Старый сервер поля не присылает.
    */
   references?: InvoiceReferences;
+  /**
+   * Готовность к «Разобран» (issue #1291): какие поля обязательны и чего счёту не хватает. Перечень
+   * строит сервер той же функцией, что проверяет переход, — форма его не выводит сама. Старый сервер
+   * поля не присылает.
+   */
+  readiness?: InvoiceReadiness;
   createdAt: string;
   updatedAt: string;
   /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */

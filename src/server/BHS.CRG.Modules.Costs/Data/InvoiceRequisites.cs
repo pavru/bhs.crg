@@ -143,13 +143,16 @@ public static class InvoiceRequisites
     /// здесь списком. Перепиши — и добавленное в объявление обязательное поле молча перестало бы
     /// требоваться: тип показывал бы звёздочку, а переход бы её не замечал.</para>
     /// </summary>
-    public static IReadOnlyList<string> Missing(Invoice invoice)
+    public static IReadOnlyList<string> Missing(Invoice invoice) => [.. MissingFields(invoice).Select(f => f.Title)];
+
+    /// <summary>То же с ключом поля: по нему строка готовности ведёт к полю формы (issue #1291).</summary>
+    public static IReadOnlyList<(string Key, string Title)> MissingFields(Invoice invoice)
     {
         var requisites = Merge(invoice);
 
         return [.. CostsRecordTypes.Invoice.Fields
             .Where(f => f.Required && IsBlank(requisites[f.Key]))
-            .Select(f => f.Title)];
+            .Select(f => (f.Key, f.Title))];
     }
 
     /// <summary>Пусто ли значение: нет вовсе, пустая строка или пробелы.</summary>

@@ -66,7 +66,7 @@ export function InvoiceObject({ view, locked }: {
       : current.complete ? 'весь счёт на этот объект' : 'разнесено не полностью';
 
   return (
-    <div className="flex items-center gap-2 flex-wrap text-xs">
+    <div className="flex items-center gap-2 flex-wrap text-xs" data-readiness="allocation">
       <span className="text-fg4">Объект</span>
       {canEdit ? (
         <PlaceSelect label="Объект счёта" places={places} disabled={previewing.isPending || replace.isPending}
