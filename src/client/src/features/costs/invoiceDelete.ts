@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react';
-import { isNotFound, type InvoiceView } from '@/shared/api/invoices';
-import { isConflict } from '@/shared/utils/apiError';
+import type { InvoiceView } from '@/shared/api/invoices';
 import { formatDate } from '@/shared/format/format';
 import { K, asInput } from './invoiceFields';
+import { deleteRecord } from './recordDelete';
 
 /**
  * Удаление счёта — правила экрана (issue #1282; раздел Дизайнера от 11.10.2026).
@@ -58,53 +58,26 @@ export function goingAway(view: InvoiceView): string[] {
   return gone;
 }
 
-/** Чем кончилось удаление: удалили этим запросом — или счёта уже не было. */
-export type DeleteOutcome = 'deleted' | 'already';
+export type { DeleteOutcome } from './recordDelete';
 
 /**
- * Удалить счёт — и перевести отказы на язык экрана.
- *
- * <p><b>404 — не отказ</b>: счёта уже нет (сосед удалил его секундой раньше, либо ответ на первый
- * запрос потерялся). Человек хотел именно этого, и «не удалён» про удалённый счёт было бы неправдой.</p>
- *
- * <p><b>409</b> здесь бывает про два положения, и по самому отказу их не различить — а слова сервера
- * для этого не читаются (ревью PR #1298: признак по подстроке ломается первой же правкой текста).
- * Различает свежепрочитанный счёт. Он по-прежнему черновик без оплаты — значит, отказ был о версии:
- * счёт изменили, либо его файл дочитался между открытием диалога и нажатием. Тихого повтора нет —
- * прочитанное могло заполнить счёт, и удалять его вслепую нельзя; текст так и говорит. Счёт уже не
- * удаляемый — причину назвал сервер, и она уходит его словами.</p>
- *
- * <p><b>Ответа нет</b> — исход неизвестен, и сказать «не удалён» значило бы соврать в половине
- * случаев: запрос мог дойти.</p>
+ * Удалить счёт — и перевести отказы на язык экрана. Разбор общий с накладной: см. `deleteRecord`.
+ * У счёта «изменили» бывает и без человека: его файл дочитался между открытием диалога и нажатием.
  *
  * @param send сам запрос удаления.
  * @param readFresh прочитать счёт заново, мимо кэша.
  */
-export async function deleteInvoice(
-  send: () => Promise<unknown>, readFresh: () => Promise<InvoiceView>,
-): Promise<DeleteOutcome> {
-  try {
-    await send();
-    return 'deleted';
-  } catch (refusal) {
-    if (isNotFound(refusal)) return 'already';
-    if (!(refusal as { response?: unknown })?.response)
-      throw new Error('Удалён ли счёт — неизвестно: ответ не пришёл. Посмотрите список счетов.', { cause: refusal });
-    if (!isConflict(refusal)) throw refusal;
-
-    let fresh: InvoiceView;
-    try { fresh = await readFresh(); }
-    catch (unread) {
-      // Счёта уже нет — его удалил тот, с кем столкнулись. Не прочитался иначе — остаётся исходный отказ.
-      if (isNotFound(unread)) return 'already';
-      throw refusal;
-    }
-    if (!canDelete(fresh, true)) throw refusal;
-    throw new Error(
-      'Счёт тем временем изменили — или дочитали его файл. Он не удалён: закройте это окно, '
-      + 'посмотрите счёт заново и решите ещё раз.', { cause: refusal });
-  }
-}
+export const deleteInvoice = (send: () => Promise<unknown>, readFresh: () => Promise<InvoiceView>) =>
+  deleteRecord(send, readFresh, fresh => canDelete(fresh, true), {
+    unknown: 'Удалён ли счёт — неизвестно: ответ не пришёл. Посмотрите список счетов.',
+    changed: 'Счёт тем временем изменили — или дочитали его файл. Он не удалён: закройте это окно, '
+      + 'посмотрите счёт заново и решите ещё раз.',
+    noLonger: fresh => fresh.payment.paid
+      ? 'Счёт тем временем оплатили. Он не удалён: удаляется только черновик без оплаты — сначала '
+        + 'отмените оплату.'
+      : `Счёт тем временем изменили: теперь он — ${String(fresh.requisites[K.state]).toLowerCase()}. Он не `
+        + 'удалён: удаляется только черновик — верните счёт в черновик.',
+  });
 
 /** Откуда пришли к удалению: от этого зависит первая строка диалога. */
 export type DeleteReason = 'menu' | 'duplicate' | 'wrong-file';

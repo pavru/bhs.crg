@@ -207,6 +207,7 @@ async function supplierPart() {
   });
 
   await check('supplier-enters-and-posts-a-waybill', () => waybillPart(supplier));
+  await check('supplier-deletes-a-mistaken-waybill', () => waybillDeletePart(supplier));
 
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
 }
@@ -279,6 +280,77 @@ async function waybillPart(seat) {
   await pickPosition(seat, page.locator('tbody tr').last());
   await page.getByText(/Не сопоставлено:/).waitFor({ state: 'hidden', timeout: 10_000 });
   await page.getByText('Проведена', { exact: true }).waitFor({ timeout: 10_000 });
+  await settled(page);
+}
+
+/**
+ * Удаление накладной (issue #1283): завёл — удалил — в списке нет. У проведённой действия нет вовсе.
+ * Идёт сразу за вводом: на экране открыта только что проведённая накладная.
+ */
+async function waybillDeletePart(seat) {
+  const { page } = seat;
+  seat.screen = 'удаление накладной';
+  // Невыполнимое действие скрыто, а не показано с отказом: у проведённой меню «Ещё» нет.
+  if (await page.getByRole('button', { name: 'Ещё', exact: true }).count())
+    throw new Error('у проведённой накладной есть меню «Ещё» — а удалить её нельзя');
+
+  const waybill = `РН-ОШИБКА-${Date.now()}`;
+  await page.getByRole('button', { name: 'Новая накладная' }).click();
+  await page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 });
+  await page.getByLabel('Номер', { exact: true }).fill(waybill);
+  await page.getByRole('button', { name: 'Строка', exact: true }).click();
+  await page.locator('tbody tr').last().getByLabel(/Наименование в накладной/).fill('Заведено по ошибке');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('heading', { name: new RegExp(waybill) }).waitFor({ timeout: 10_000 });
+  const id = new URL(page.url()).searchParams.get('waybill');
+
+  await page.getByRole('button', { name: 'Ещё', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Удалить накладную…' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByText('Корзины нет').waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('диалог не сказал, что вернуть накладную будет нельзя'); });
+  await dialog.getByText('строки накладной — 1').waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('диалог не назвал, сколько строк уйдёт'); });
+  await Promise.all([
+    page.waitForResponse(r => r.request().method() === 'DELETE' && r.url().endsWith(`/costs/waybills/${id}`) && r.status() === 204),
+    dialog.getByRole('button', { name: `Удалить накладную № ${waybill}` }).click(),
+  ]);
+  await page.getByText('Выберите накладную').waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('после удаления форма не закрылась'); });
+  if (page.url().includes('waybill=')) throw new Error(`удалённая накладная осталась в адресе: ${page.url()}`);
+  if ((await api(page, 'GET', '/costs/waybills')).items.some(i => i.id === id))
+    throw new Error('удалённая накладная осталась в списке сервера');
+  await page.getByRole('button', { name: new RegExp(waybill) }).waitFor({ state: 'detached', timeout: 10_000 })
+    .catch(() => { throw new Error('список слева всё ещё показывает удалённую накладную'); });
+
+  // Сосед: накладная открыта, в поле набрано — и тут её удаляют. Узнаёт он об этом на сохранении.
+  const neighbour = `РН-СОСЕД-${Date.now()}`;
+  await page.getByRole('button', { name: 'Новая накладная' }).click();
+  await page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 });
+  await page.getByLabel('Номер', { exact: true }).fill(neighbour);
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('heading', { name: new RegExp(neighbour) }).waitFor({ timeout: 10_000 });
+  const other = new URL(page.url()).searchParams.get('waybill');
+  const seen = (await api(page, 'GET', `/costs/waybills/${other}`)).version;
+  await page.getByLabel('Примечание').fill('набрано до удаления');
+  const removed = await page.evaluate(async ([wid, version]) => {
+    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+    return (await fetch(`/api/costs/waybills/${wid}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'If-Match': version },
+    })).status;
+  }, [other, seen]);
+  if (removed !== 204) throw new Error(`накладная не удалена запросом соседа: ${removed}`);
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByTestId('waybill-gone-open').waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('форма не сказала, что накладной больше нет'); });
+  if (await page.getByLabel('Примечание').inputValue() !== 'набрано до удаления')
+    throw new Error('набранное пропало вместе с накладной — а полоса обещает, что оно на экране');
+  if (await page.getByRole('button', { name: 'Сохранить', exact: true }).count())
+    throw new Error('у накладной, которой нет, осталась кнопка «Сохранить»');
+  // Уход щелчком по другой строке, а не кнопкой: удалённая обязана уйти из списка и так.
+  await page.getByRole('button', { name: /РН-\d+/ }).first().click();
+  await page.getByRole('button', { name: new RegExp(neighbour) }).waitFor({ state: 'detached', timeout: 10_000 })
+    .catch(() => { throw new Error('удалённая соседом накладная осталась в списке после ухода с неё'); });
   await settled(page);
 }
 

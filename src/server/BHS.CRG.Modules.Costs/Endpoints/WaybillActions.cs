@@ -33,6 +33,11 @@ public sealed class WaybillActions : IModuleActivityActions
     public static readonly ModuleActivityAction Draft =
         new("costs.waybill.draft", "Накладная возвращена в черновик", WaybillRead);
 
+    /// <summary>Удаление черновика (issue #1283). История удалённой накладной находится по тому же
+    /// <c>targetId</c>: запись называет номер, дату, склад, получателя и число строк.</summary>
+    public static readonly ModuleActivityAction Deleted =
+        new("costs.waybill.deleted", "Накладная удалена", WaybillRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, LinesChanged, Matched, Posted, Draft];
+        [Created, Changed, LinesChanged, Matched, Posted, Draft, Deleted];
 }

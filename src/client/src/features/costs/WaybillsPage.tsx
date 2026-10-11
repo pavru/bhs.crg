@@ -1,15 +1,19 @@
 import { MISSING } from './lostReferences';
 import { useCallback, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
+import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
-import { useCostsConstructions } from '@/shared/api/invoices';
-import { useCreateWaybill, useWaybill, useWaybills, type WaybillListItem } from '@/shared/api/waybills';
+import { isNotFound, useCostsConstructions } from '@/shared/api/invoices';
+import {
+  forgetWaybill, useCreateWaybill, useWaybill, useWaybills, type WaybillListItem,
+} from '@/shared/api/waybills';
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
 import { formatDate } from '@/shared/format/format';
@@ -54,6 +58,27 @@ export function WaybillsPage() {
   const view = useWaybill(selected ?? undefined);
   const create = useCreateWaybill();
   const toast = useToast();
+  const qc = useQueryClient();
+
+  // Накладную удалили, пока она была открыта (issue #1283): чтение отвечает «нет такой», а прежний
+  // вид ещё в руках. Форма остаётся с набранным, а не сменяется отказом (ревью PR #1299): фоновое
+  // перечитывание иначе стирало бы строки, вписанные с бумаги, в обход вопроса о правках. Узнанное
+  // запоминается — следующее перечитывание может кончиться обрывом связи, а не тем же 404.
+  const [goneId, setGoneId] = useState<string | null>(null);
+  if (selected && view.data != null && isNotFound(view.error) && goneId !== selected) setGoneId(selected);
+  const gone = selected !== null && goneId === selected && view.data != null;
+  const missing = selected !== null && (gone || isNotFound(view.error));
+
+  // Вопроса о правках при закрытии нет: сохранять их уже некуда. Следующая накладная сама не открывается.
+  const closeGone = useCloseGone(selected, missing, id => {
+    leaveGuard.current = null;
+    setParams(prev => {
+      if (prev.get(PARAM) !== id) return prev;
+      const next = new URLSearchParams(prev);
+      next.delete(PARAM);
+      return next;
+    }, { replace: true });
+  }, id => forgetWaybill(qc, id));
 
   const items = (waybills.data?.items ?? []).filter(i => matches(i, query));
 
@@ -134,7 +159,15 @@ export function WaybillsPage() {
           </div>
         ) : view.isPending ? (
           <div className="flex-1 grid place-items-center text-xs text-fg3">Накладная загружается…</div>
-        ) : view.isError || !view.data ? (
+        ) : !view.data && isNotFound(view.error) ? (
+          // «Повторить» здесь нет: накладной нет, и повтор ответит тем же.
+          <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
+            <div className="max-w-md text-center space-y-2">
+              <p className="text-sm text-fg2">Накладной нет: её удалили или ссылка неверна.</p>
+              <Button size="sm" variant="outlined" onClick={() => closeGone(selected)}>Закрыть</Button>
+            </div>
+          </div>
+        ) : (view.isError && !gone) || !view.data ? (
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
               <p className="text-sm text-danger">Накладная не открылась: {apiError(view.error, 'сервер отказал')}</p>
@@ -144,7 +177,8 @@ export function WaybillsPage() {
           </div>
         ) : (
           <WaybillForm key={view.data.id} view={view.data} sites={sites.data ?? []}
-            sitesFailed={sites.isError} canEdit={canEdit} onLeaveGuard={onLeaveGuard} />
+            sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
+            onClose={() => closeGone(view.data.id)} />
         )
       }
     />
