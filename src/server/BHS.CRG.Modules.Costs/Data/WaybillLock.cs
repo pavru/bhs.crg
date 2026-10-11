@@ -18,7 +18,11 @@ public static class WaybillLock
 {
     public static PeriodLock? Of(Waybill waybill, PeriodBoundaries boundaries)
     {
-        if (waybill.State != WaybillState.Posted || waybill.AccountingOn is not { } date) return null;
+        // Проведённая без учётной даты — накладная из резервной копии, снятой до появления колонки:
+        // её относили к периоду по дате отпуска, так и остаётся. Без этого запасного правила такую
+        // накладную не запирало бы ничто.
+        if (waybill.State != WaybillState.Posted || (waybill.AccountingOn ?? waybill.IssuedOn) is not { } date)
+            return null;
 
         // Закрытие компании называем раньше закрытия стройки — как у счёта: оно закрывает всё, и «у
         // стройки А» про день, закрытый для всех, отправило бы человека отменять не то закрытие.

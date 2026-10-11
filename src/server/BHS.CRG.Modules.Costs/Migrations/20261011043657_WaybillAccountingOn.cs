@@ -20,26 +20,14 @@ namespace BHS.CRG.Modules.Costs.Migrations
 
             // Уже проведённые накладные получают учётной датой дату отпуска (issue #1285): как их
             // относили к периодам до этой миграции, так и остаётся. Следствие названо в заметках к
-            // выпуску: накладные закрытых месяцев с этого места заперты. Без заполнения ограничение
-            // ниже не встало бы, а проведённая накладная без даты не запиралась бы ничем.
+            // выпуску: накладные закрытых месяцев с этого места заперты.
             migrationBuilder.Sql(
                 "UPDATE costs.waybills SET accounting_on = issued_on WHERE state = 'Posted'");
-
-            migrationBuilder.AddCheckConstraint(
-                name: "ck_waybills_accounting",
-                schema: "costs",
-                table: "waybills",
-                sql: "(state = 'Posted') = (accounting_on IS NOT NULL)");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropCheckConstraint(
-                name: "ck_waybills_accounting",
-                schema: "costs",
-                table: "waybills");
-
             migrationBuilder.DropColumn(
                 name: "accounting_on",
                 schema: "costs",

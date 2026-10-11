@@ -575,8 +575,6 @@ namespace BHS.CRG.Modules.Costs.Migrations
 
                     b.ToTable("waybills", "costs", t =>
                         {
-                            t.HasCheckConstraint("ck_waybills_accounting", "(state = 'Posted') = (accounting_on IS NOT NULL)");
-
                             t.HasCheckConstraint("ck_waybills_posted", "state <> 'Posted' OR (issued_on IS NOT NULL AND construction_id IS NOT NULL)");
                         });
                 });

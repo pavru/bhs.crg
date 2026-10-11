@@ -125,6 +125,29 @@ public partial class WaybillTests : IDisposable
     }
 
     /// <summary>
+    /// Проведённая накладная без учётной даты — так выглядит накладная, восстановленная из резервной
+    /// копии, снятой до появления колонки. Её закрытый период запирает по дате отпуска: без запасного
+    /// правила такую накладную не запирало бы ничто, и прежняя дыра вернулась бы через восстановление.
+    /// </summary>
+    [Fact]
+    public async Task Накладная_без_учётной_даты_запирается_по_дате_отпуска()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (site, _) = await SiteAsync("Накладная: из старой копии");
+        var id = (await PostedAsync(client, site, "2026-06-09", Row(cable, 10m, "м"))).GetProperty("id").GetGuid();
+
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BHS.CRG.Modules.Costs.Data.CostsDbContext>().Database
+                .ExecuteSqlRawAsync("UPDATE costs.waybills SET accounting_on = NULL WHERE id = {0}", id);
+
+        await CloseAsync(Contour.Construction(site), new DateOnly(2026, 6, 30));
+
+        Assert.Contains("период закрыт по 30.06.2026", (await WaybillAsync(client, id)).GetProperty("locked").GetString());
+        var refused = await client.PostAsync($"/api/costs/waybills/{id}/draft", null);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+    }
+
+    /// <summary>
     /// Закрытие компании запирает накладную любой стройки — и называется оно раньше закрытия стройки:
     /// «у стройки А» про день, закрытый для всех, отправило бы отменять не то закрытие.
     /// </summary>
