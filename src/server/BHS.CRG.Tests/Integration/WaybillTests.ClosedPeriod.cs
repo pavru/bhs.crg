@@ -43,7 +43,7 @@ public partial class WaybillTests : IDisposable
                 if (method != "GET") routes.Add((method, pattern));
         }
 
-        Assert.True(routes.Count >= 5, $"Перепись нашла {routes.Count} пишущих адресов накладной — меньше, чем " +
+        Assert.True(routes.Count >= 6, $"Перепись нашла {routes.Count} пишущих адресов накладной — меньше, чем " +
             "их есть: она ослепла, и проверки по ней ничего не доказывают.");
         return routes;
     }

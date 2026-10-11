@@ -10,6 +10,7 @@ import {
   useFreshWaybill, useMatchWaybillLine, useSaveWaybill, useWaybillState, type WaybillView,
 } from '@/shared/api/waybills';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { WaybillDeleteMenu } from './WaybillDeleteDialog';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { formatDate } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
@@ -44,7 +45,7 @@ const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs
  * устаревшей формы сервер отвергает по версии (заголовок <c>If-Match</c>). Уход со страницы и выбор другой
  * накладной спрашивают, что делать с правками.</p>
  */
-export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveGuard }: {
+export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveGuard, onDeleted }: {
   /** Накладная, как её сейчас знает кэш. Форма работает по той, по которой собрана, — см. `view` ниже. */
   view: WaybillView;
   sites: CostsConstruction[];
@@ -56,6 +57,8 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
    * выбором другой накладной. `null` — спрашивать не о чем. Ссылка обязана быть устойчивой.
    */
   onLeaveGuard: (ask: ((proceed: () => void) => void) | null) => void;
+  /** Накладную удалили из этой формы (или её уже не было): страница закрывает форму и чистит кэш. */
+  onDeleted: () => void;
 }) {
   // Накладная, по которой собрана форма: с ней сверяется «изменено ли» и её версию называет сохранение.
   const [view, setView] = useState(fresh);
@@ -199,6 +202,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
               Вернуть в черновик
             </Button>
           )}
+          <WaybillDeleteMenu view={view} canEdit={canEdit} dirty={dirty} onDeleted={onDeleted} />
         </div>
         {outdated && (
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger-border

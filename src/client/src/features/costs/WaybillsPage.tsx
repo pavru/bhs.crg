@@ -1,5 +1,6 @@
 import { MISSING } from './lostReferences';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -8,8 +9,10 @@ import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
-import { useCostsConstructions } from '@/shared/api/invoices';
-import { useCreateWaybill, useWaybill, useWaybills, type WaybillListItem } from '@/shared/api/waybills';
+import { isNotFound, useCostsConstructions } from '@/shared/api/invoices';
+import {
+  forgetWaybill, useCreateWaybill, useWaybill, useWaybills, type WaybillListItem,
+} from '@/shared/api/waybills';
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
 import { formatDate } from '@/shared/format/format';
@@ -54,6 +57,29 @@ export function WaybillsPage() {
   const view = useWaybill(selected ?? undefined);
   const create = useCreateWaybill();
   const toast = useToast();
+  const qc = useQueryClient();
+
+  /**
+   * Закрыть накладную, которой больше нет (issue #1283). Сначала адрес, потом кэш: накладная,
+   * выброшенная из кэша при открытой форме, была бы тут же запрошена заново. Вопроса о правках нет —
+   * сохранять их уже некуда, и диалог удаления о них сказал. Следующая накладная сама не открывается.
+   */
+  const closing = useRef<string | null>(null);
+  function closeGone() {
+    if (!selected) return;
+    closing.current = selected;
+    leaveGuard.current = null;
+    setParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete(PARAM);
+      return next;
+    }, { replace: true });
+  }
+  useEffect(() => {
+    if (closing.current === null || closing.current === selected) return;
+    forgetWaybill(qc, closing.current);
+    closing.current = null;
+  }, [selected, qc]);
 
   const items = (waybills.data?.items ?? []).filter(i => matches(i, query));
 
@@ -134,6 +160,14 @@ export function WaybillsPage() {
           </div>
         ) : view.isPending ? (
           <div className="flex-1 grid place-items-center text-xs text-fg3">Накладная загружается…</div>
+        ) : isNotFound(view.error) ? (
+          // «Повторить» здесь нет: накладной нет, и повтор ответит тем же.
+          <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
+            <div className="max-w-md text-center space-y-2">
+              <p className="text-sm text-fg2">Накладной нет: её удалили или ссылка неверна.</p>
+              <Button size="sm" variant="outlined" onClick={closeGone}>Закрыть</Button>
+            </div>
+          </div>
         ) : view.isError || !view.data ? (
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
@@ -144,7 +178,7 @@ export function WaybillsPage() {
           </div>
         ) : (
           <WaybillForm key={view.data.id} view={view.data} sites={sites.data ?? []}
-            sitesFailed={sites.isError} canEdit={canEdit} onLeaveGuard={onLeaveGuard} />
+            sitesFailed={sites.isError} canEdit={canEdit} onLeaveGuard={onLeaveGuard} onDeleted={closeGone} />
         )
       }
     />

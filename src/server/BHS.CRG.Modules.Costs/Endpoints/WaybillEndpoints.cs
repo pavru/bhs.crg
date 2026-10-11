@@ -62,6 +62,8 @@ public static class WaybillEndpoints
             .RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPost("/{id:guid}/posted", PostAsync).RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPost("/{id:guid}/draft", DraftAsync).RequireAuthorization(AppPolicies.Permission(Edit));
+        // Отдельного права на удаление нет (issue #1283): удаляет тот, кто правит накладные.
+        group.MapDelete("/{id:guid}", WaybillDeletion.DeleteAsync).RequireAuthorization(AppPolicies.Permission(Edit));
 
         // «Материалы на объекте» — чтением накладных: это их свод, и денег в нём нет.
         endpoints.MapGet("/api/costs/materials", MaterialsAsync)
