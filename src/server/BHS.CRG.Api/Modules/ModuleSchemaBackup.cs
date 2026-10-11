@@ -56,7 +56,8 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
                     tables.Add(new BackupModuleTable(table.Name, await ReadRowsAsync(transaction, table, ct)));
 
                 sections.Add(new BackupModuleSchema(module.Code, schema.Name, [.. tables],
-                    await ReadSequencesAsync(transaction, schema.Name, ct)));
+                    await ReadSequencesAsync(transaction, schema.Name, ct),
+                    FilesOf(module, tables, warnings)));
             }
             finally
             {
@@ -149,6 +150,8 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
                 // ПОСЛЕ таблиц и независимо от того, были ли в них строки: счётчик, из которого
                 // модуль берёт номера сам, ни к одной строке не привязан.
                 await RestoreSequencesAsync(transaction, schema.Name, section.Sequences ?? [], ct);
+
+                await WarnAboutMissingFilesAsync(module, section, warnings, ct);
             }
             finally
             {

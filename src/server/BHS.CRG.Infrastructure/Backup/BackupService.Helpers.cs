@@ -122,6 +122,11 @@ public partial class BackupService
         // наборов блоба нет вовсе: их сырьё - данные самой системы, а в BlobPath лежит сентинел.
         foreach (var f in manifest.DataSetFiles ?? [])
             if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") paths.Add(f.BlobPath);
+        // Файлы модулей (issue #1261): сканы счетов. Перечень собран при снятии строк модуля —
+        // IModuleSchemaBackup: колонки модуля ядро не знает, а путь в его строках находит обход. Сюда
+        // он приходит готовым, чтобы архив, оценка веса и паспорт брали пути из одного места.
+        foreach (var m in manifest.ModuleData ?? [])
+            paths.UnionWith(m.Files ?? []);
         return paths;
     }
 

@@ -75,8 +75,14 @@ public record BackupManifest(
 /// </summary>
 /// <param name="Sequences">Состояние последовательностей схемы (issue #1158). Аддитивно: у копии,
 /// снятой раньше, здесь <c>null</c>, и счётчики тогда выводятся только из восстановленных строк.</param>
+/// <param name="Files">Пути файлов хранилища, на которые ссылаются строки модуля (issue #1261): сканы
+/// счетов и всё, что модуль положит рядом. Они лежат в архиве под <c>blobs/</c>, как файлы ядра.
+/// Аддитивно, и <c>null</c> здесь значит не то же, что пустой массив: <c>null</c> — копия снята
+/// версией, которая файлы модулей НЕ БРАЛА (до 1.28.3), и файлов в ней нет, сколько бы строк на них ни
+/// ссылалось; пустой массив — брала, и файлов у модуля не было.</param>
 public record BackupModuleSchema(
-    string Module, string Schema, BackupModuleTable[] Tables, BackupModuleSequence[]? Sequences = null);
+    string Module, string Schema, BackupModuleTable[] Tables, BackupModuleSequence[]? Sequences = null,
+    string[]? Files = null);
 
 /// <summary>
 /// Счётчик схемы модуля: имя последовательности и последнее выданное значение (issue #1158).
