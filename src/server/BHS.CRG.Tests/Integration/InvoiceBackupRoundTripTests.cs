@@ -109,7 +109,7 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
 
         var report = await ImportAsync(archive);
         Assert.True(report.Success, string.Join("; ", report.Warnings));
-        Assert.DoesNotContain(report.Warnings, w => w.Contains("файлов нет"));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains(Missing));
 
         var content = await client.GetAsync($"/api/costs/invoices/{invoice}/scan");
         Assert.True(content.IsSuccessStatusCode, $"файл после восстановления не открылся: {(int)content.StatusCode}");
@@ -154,14 +154,14 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
 
         // Файл на месте — говорить не о чем: предупреждение, звучащее всегда, перестаёт значить что-либо.
         var calm = await ImportAsync(former);
-        Assert.DoesNotContain(calm.Warnings, w => w.Contains("файлов нет"));
+        Assert.DoesNotContain(calm.Warnings, w => w.Contains(Missing));
 
         await LoseAsync(path);
         former.Position = 0;
         var report = await ImportAsync(former);
 
         Assert.True(report.Success, string.Join("; ", report.Warnings));
-        var warning = Assert.Single(report.Warnings, w => w.Contains("файлов нет"));
+        var warning = Assert.Single(report.Warnings, w => w.Contains(Missing));
         // Пропал ровно один: файлы счетов соседних тестов на месте, и в счёт потерь они не идут.
         Assert.Matches(@"файлы счетов — 1 из \d+\.", warning);
         Assert.Contains("файлы модулей не брала", warning);
@@ -170,9 +170,45 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         archive.Position = 0;
         var stripped = WithoutBlobs(archive);
         await LoseAsync(path);
-        var plain = Assert.Single((await ImportAsync(stripped)).Warnings, w => w.Contains("файлов нет"));
+        var plain = Assert.Single((await ImportAsync(stripped)).Warnings, w => w.Contains(Missing));
         Assert.DoesNotContain("не брала", plain);
     }
+
+    /// <summary>
+    /// Файл счёта заменили после распознавания (ревью PR #1289). Прежний файл удалён нарочно, а
+    /// распознавание помнит его путь до следующего прогона — и копия не должна звать это потерей: ни
+    /// при снятии («файлов не оказалось в хранилище»), ни при восстановлении на другой сервер.
+    /// </summary>
+    [Fact]
+    public async Task Заменённый_файл_счёта_копия_потерей_не_зовёт()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var invoice = await CreateAsync(client);
+        var former = await AttachScanAsync(client, invoice, "Счёт 34.pdf", "%PDF-1.4 прежний");
+
+        // Распознавание запомнило прежний файл; строка пишется прямо — движка у теста нет.
+        await ExecuteAsync(
+            $"INSERT INTO {CostsDbContext.SchemaName}.invoice_recognitions " +
+            "(invoice_id, scan_blob_path, outcome, notes, started_at) " +
+            $"VALUES ('{invoice}', '{former.Replace("'", "''")}', 'Failed', '{{}}', now())");
+        var current = await AttachScanAsync(client, invoice, "Счёт 34 (верный).pdf", "%PDF-1.4 нынешний");
+        Assert.NotEqual(former, current);
+
+        var (archive, manifest) = await ExportAsync();
+        var section = Assert.Single(manifest.ModuleData!);
+        Assert.Contains(section.Tables.Single(t => t.Table == "invoice_recognitions").Rows,
+            r => r.GetProperty("scan_blob_path").GetString() == former);
+        Assert.Equal([current], section.Files);
+
+        await LoseAsync(current);
+        var report = await ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains(Missing));
+    }
+
+    /// <summary>Слова отчёта о файлах, которых нет ни в копии, ни в хранилище.</summary>
+    private const string Missing = "в хранилище они не найдены";
 
     /// <summary>
     /// Счета соседних тестов класса — долой: база у класса одна, а счёт, файл которого сосед нарочно
@@ -195,7 +231,7 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         return await scope.ServiceProvider.GetRequiredService<BackupService>().ImportAsync(archive);
     }
 
-    /// <summary>Архив, каким его сняла бы версия до 1.28.3: без файлов модулей и без их перечня.</summary>
+    /// <summary>Архив, каким его сняла бы версия до issue #1261: без файлов модулей и без их перечня.</summary>
     private static MemoryStream FormerCopy(BackupManifest manifest)
     {
         var former = manifest with { ModuleData = [.. manifest.ModuleData!.Select(m => m with { Files = null })] };

@@ -49,8 +49,32 @@ public interface IModuleSchemaBackup
     /// обратное: включённый здесь модуль, секции которого в копии нет, тоже назван — если у него есть
     /// данные (issue #1158).</param>
     /// <param name="warnings">Предупреждения отчёта о восстановлении — пополняется на месте.</param>
-    /// <returns>Что восстановлено, секциями отчёта: по одной на таблицу модуля.</returns>
-    Task<IReadOnlyList<RestoreSectionStat>> RestoreAsync(
+    /// <returns>Что восстановлено: секции отчёта и сами восстановленные строки.</returns>
+    Task<ModuleRestoreOutcome> RestoreAsync(
         BackupModuleSchema[] data, DbTransaction transaction, List<string> warnings,
         CancellationToken ct);
+
+    /// <summary>
+    /// Назвать файлы, на которые ссылаются восстановленные строки модулей и которых нет ни в копии,
+    /// ни в хранилище (issue #1261).
+    ///
+    /// <para>Зовётся ПОСЛЕ фиксации транзакции (ревью PR #1289): проверка ходит в хранилище, а пока
+    /// транзакция открыта, она держит блокировки всех восстановленных таблиц — и отказ хранилища
+    /// откатил бы восстановление, которое удалось.</para>
+    /// </summary>
+    /// <param name="restored">Строки, которые восстановление действительно положило, —
+    /// <see cref="ModuleRestoreOutcome.Restored" />. Не секции копии целиком: про пропущенную таблицу
+    /// нельзя сказать «записи вернулись».</param>
+    /// <param name="inArchive">Пути файлов, лежащих в архиве. О них не спрашивают: положенный файл на
+    /// месте, а про не положенный отчёт уже сказал своими словами — и «в копии его нет» было бы о нём
+    /// неправдой.</param>
+    Task WarnAboutMissingFilesAsync(
+        BackupModuleSchema[] restored, IReadOnlySet<string> inArchive, List<string> warnings,
+        CancellationToken ct);
 }
+
+/// <summary>Итог восстановления схем модулей.</summary>
+/// <param name="Stats">Секции отчёта: по одной на таблицу модуля.</param>
+/// <param name="Restored">Секции копии, в которых оставлены только таблицы, чьи строки положены в базу.</param>
+public sealed record ModuleRestoreOutcome(
+    IReadOnlyList<RestoreSectionStat> Stats, BackupModuleSchema[] Restored);

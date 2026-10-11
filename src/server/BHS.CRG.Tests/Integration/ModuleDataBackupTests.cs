@@ -332,7 +332,8 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
             [new BackupModuleSchema("склад", "склад", [new BackupModuleTable("crates", [])])],
             tx.GetDbTransaction(), warnings, default);
 
-        Assert.Empty(stats);
+        Assert.Empty(stats.Stats);
+        Assert.Empty(stats.Restored);
         var warning = Assert.Single(warnings);
         Assert.Contains("склад", warning);
         Assert.Contains("в копии они остались", warning);
@@ -656,7 +657,11 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
             return await inner.ReadAsync(transaction, warnings, ct);
         }
 
-        public Task<IReadOnlyList<RestoreSectionStat>> RestoreAsync(
+        public Task WarnAboutMissingFilesAsync(
+            BackupModuleSchema[] restored, IReadOnlySet<string> inArchive, List<string> warnings,
+            CancellationToken ct) => inner.WarnAboutMissingFilesAsync(restored, inArchive, warnings, ct);
+
+        public Task<ModuleRestoreOutcome> RestoreAsync(
             BackupModuleSchema[] data, DbTransaction transaction, List<string> warnings,
             CancellationToken ct) => inner.RestoreAsync(data, transaction, warnings, ct);
     }

@@ -131,6 +131,37 @@ public class ModuleFileInventoryTests
         Assert.Equal(2, found.Embedded["exports.note"]);
     }
 
+    /// <summary>
+    /// Текст, который НАЧИНАЕТСЯ не с пути, точным путём не считается (ревью PR #1289): раньше «всё, что
+    /// не слэш» перед датой принималось за имя корзины, и JSON, записанный строкой, уходил в копию
+    /// «путём» целиком — без файла и без предупреждения.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"scan\":\"" + Scan + "\"}")]
+    [InlineData("см. " + Scan)]
+    [InlineData(Scan + "; " + Image)]
+    public void Путь_с_текстом_вокруг_точным_не_считается(string text)
+    {
+        var found = ModuleFileScan.Scan([Table("exports", new { id = 1, note = text })], CostsFiles.All);
+
+        Assert.Empty(found.Paths);
+        Assert.True(found.Embedded["exports.note"] >= 1);
+    }
+
+    /// <summary>
+    /// Распознавание помнит путь файла, который читало, — и после замены файла этот путь указывает на
+    /// удалённый файл. В копию он не едет: файл держит счёт.
+    /// </summary>
+    [Fact]
+    public void Путь_который_помнит_распознавание_в_копию_не_едет()
+    {
+        var found = ModuleFileScan.Scan(
+            [Table("invoice_recognitions", new { invoice_id = 1, scan_blob_path = Scan })], CostsFiles.All);
+
+        Assert.Empty(found.Paths);
+        Assert.Empty(found.Undeclared);
+    }
+
     [Fact]
     public void Обычный_текст_файлом_не_считается()
     {

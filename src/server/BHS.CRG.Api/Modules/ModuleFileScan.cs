@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using BHS.CRG.Application.Backup;
@@ -44,11 +45,19 @@ public sealed record ModuleFilesFound(
 /// кончается имя файла, не понять. О таких копия говорит предупреждением с адресом колонки. Сегодня
 /// таких держателей нет; появится — путь по ключу отдаст реестр блобов.</para>
 ///
+/// <para>Точным путём строка считается, только если до даты в ней стоит одно имя корзины и ничего
+/// больше, а ключ пути в ней ровно один (ревью PR #1289). Общая форма
+/// (<see cref="BlobPathShape.Pattern" />) для этого слишком широка: «всё, что не слэш» перед датой
+/// принимало за корзину и начало JSON, и слова перед путём — текст целиком уходил в копию «путём»,
+/// файла по нему не находилось, а предупреждения о пути внутри текста не было. Хвост после ключа
+/// проверить нечем — имя файла произвольно; второй ключ в строке выдаёт, что это уже не имя.</para>
+///
 /// <para>Чистая функция нарочно: без базы и без хранилища, чтобы правило проверялось прямо.</para>
 /// </summary>
 public static partial class ModuleFileScan
 {
-    [GeneratedRegex(BlobPathShape.Pattern)]
+    /// <summary>Имя корзины S3 — буквы, цифры, точка, дефис — и сразу дата: перед путём нет ничего.</summary>
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]*/[0-9]{4}[./-][0-9]{2}[./-][0-9]{2}/[0-9a-fA-F-]{36}_")]
     private static partial Regex ExactPath();
 
     [GeneratedRegex(BlobPathShape.KeyInText)]
@@ -76,11 +85,12 @@ public static partial class ModuleFileScan
                 if (declaration is { Carried: false }) continue;
 
                 var address = $"{table.Table}.{column.Name}";
-                foreach (var text in Strings(column.Value))
+                Visit(column.Value, text =>
                 {
-                    if (text.Length < ShortestKey) continue;
+                    var keys = KeyInText().Count(text);
+                    if (keys == 0) return;
 
-                    if (ExactPath().IsMatch(text))
+                    if (keys == 1 && ExactPath().IsMatch(text))
                     {
                         if (declaration is null) undeclared.Add(address);
                         var what = declaration?.What ?? address;
@@ -88,11 +98,11 @@ public static partial class ModuleFileScan
                             groups[what] = group = new HashSet<string>(StringComparer.Ordinal);
                         group.Add(text);
                     }
-                    else if (KeyInText().Matches(text) is { Count: > 0 } keys)
+                    else
                     {
-                        embedded[address] = embedded.GetValueOrDefault(address) + keys.Count;
+                        embedded[address] = embedded.GetValueOrDefault(address) + keys;
                     }
-                }
+                });
             }
         }
 
@@ -101,23 +111,28 @@ public static partial class ModuleFileScan
             [.. undeclared], embedded);
     }
 
-    /// <summary>Все строки значения: само значение, элементы массива, поля объекта — на любой глубине.</summary>
-    private static IEnumerable<string> Strings(JsonElement value)
+    /// <summary>
+    /// Строки значения, в которых путь уместился бы: само значение, элементы массива, поля объекта — на
+    /// любой глубине.
+    ///
+    /// <para>Обход идёт по каждой колонке каждой строки модуля — при каждой копии, каждой оценке её веса
+    /// и каждом восстановлении (ревью PR #1289). Поэтому строка НЕ создаётся, пока не ясно, что она
+    /// достаточно длинна: длина меряется по сырым байтам значения, а коротких значений — номеров, дат,
+    /// состояний — в таблицах модуля подавляющее большинство.</para>
+    /// </summary>
+    private static void Visit(JsonElement value, Action<string> found)
     {
         switch (value.ValueKind)
         {
             case JsonValueKind.String:
-                yield return value.GetString()!;
+                // Сырое значение — с кавычками; в байтах оно не короче, чем в символах.
+                if (JsonMarshal.GetRawUtf8Value(value).Length - 2 >= ShortestKey) found(value.GetString()!);
                 break;
             case JsonValueKind.Array:
-                foreach (var item in value.EnumerateArray())
-                foreach (var text in Strings(item))
-                    yield return text;
+                foreach (var item in value.EnumerateArray()) Visit(item, found);
                 break;
             case JsonValueKind.Object:
-                foreach (var property in value.EnumerateObject())
-                foreach (var text in Strings(property.Value))
-                    yield return text;
+                foreach (var property in value.EnumerateObject()) Visit(property.Value, found);
                 break;
         }
     }

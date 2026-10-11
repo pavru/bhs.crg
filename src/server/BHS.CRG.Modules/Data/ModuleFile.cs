@@ -35,4 +35,12 @@ public sealed record ModuleFile(string Table, string Column, bool Carried, strin
     /// </summary>
     public static ModuleFile Derived(string table, string column, string reason) =>
         new(table, column, Carried: false, reason);
+
+    /// <summary>
+    /// Колонка ПОМНИТ путь, но файлом не владеет: настоящий держатель — другая колонка, а здесь путь
+    /// вправе пережить сам файл. Взять такую колонку в копию значило бы звать потерей файл, который
+    /// удалили нарочно. Причина обязательна — и в ней названо, кто держит файл на самом деле.
+    /// </summary>
+    public static ModuleFile Remembering(string table, string column, string reason) =>
+        new(table, column, Carried: false, reason);
 }
