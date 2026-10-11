@@ -155,14 +155,15 @@ await check('closing-dialog-lists-what-it-records', async () => {
 
   // «По» — второе поле дат диалога; первое («С») у первого закрытия стройки правится тоже.
   const [year, month, day] = through.split('-');
+  // Ответ — на запрос именно с этой датой: перечень за промежуточные даты (после дня и месяца) не годится.
+  // Ждём его с ПЕРВОГО поля: дата бывает готова раньше, чем введён год (см. проверку оплаты ниже).
+  const listed = page.waitForResponse(r => r.url().includes('/periods/close/preview') && r.ok()
+    && (r.request().postData() ?? '').includes(`"through":"${through}"`));
   await dialog.getByPlaceholder('ДД').nth(1).fill(day);
   await dialog.getByPlaceholder('ММ').nth(1).fill(month);
-  await Promise.all([
-    // Ответ — на запрос именно с этой датой: перечень за промежуточные даты (после дня и месяца) не годится.
-    page.waitForResponse(r => r.url().includes('/periods/close/preview') && r.ok()
-      && (r.request().postData() ?? '').includes(`"through":"${through}"`)),
-    dialog.getByPlaceholder('ГГГГ').nth(1).fill(year).then(() => dialog.getByPlaceholder('ГГГГ').nth(1).blur()),
-  ]);
+  await dialog.getByPlaceholder('ГГГГ').nth(1).fill(year);
+  await dialog.getByPlaceholder('ГГГГ').nth(1).blur();
+  await listed;
   await dialog.getByText('Счета и накладные').waitFor({ timeout: 10_000 });
   await settled(page);
 
@@ -237,12 +238,17 @@ await check('preview-matches-recorded', async () => {
 
   // Дата — задним числом, в закрытый для стройки день.
   const [year, month, day] = paidOn.split('-');
+  // Ответ ждём С ПЕРВОГО поля и именно на эту дату. Раньше ждали его только с вводом года — а год и
+  // месяц у даты «десять дней назад» с одиннадцатого числа те же, что стоят в поле: дата готова уже
+  // после дня, запрос уходит тогда же, и на вводе года ждать нечего. Прогон краснел таймаутом с 11-го
+  // числа каждого месяца и до его конца.
+  const previewed = page.waitForResponse(r => r.url().includes('/paid/preview') && r.ok()
+    && (r.request().postData() ?? '').includes(`"paidOn":"${paidOn}"`));
   await dialog.getByPlaceholder('ДД').fill(day);
   await dialog.getByPlaceholder('ММ').fill(month);
-  await Promise.all([
-    page.waitForResponse(r => r.url().includes('/paid/preview') && r.ok()),
-    dialog.getByPlaceholder('ГГГГ').fill(year).then(() => dialog.getByPlaceholder('ГГГГ').blur()),
-  ]);
+  await dialog.getByPlaceholder('ГГГГ').fill(year);
+  await dialog.getByPlaceholder('ГГГГ').blur();
+  await previewed;
 
   const button = dialog.getByRole('button', { name: 'Отметить оплату с переносом' });
   await button.waitFor({ timeout: 10_000 });
