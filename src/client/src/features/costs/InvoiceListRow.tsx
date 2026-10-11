@@ -122,14 +122,23 @@ const SCAN_TONE = { quiet: 'text-fg3', danger: 'text-danger', warning: 'text-war
  * ушёл из-под отбора, список не знает (исправили, отклонили, оплатили в закрытый период) — поэтому
  * слова нейтральные, без «исправлено» (ревью PR #1241).
  */
-export function InvoiceLeftRow({ number, onClick }: { number: string | null; onClick: () => void }) {
+export function InvoiceLeftRow({ number, onClick, parsed = false, active = true }: {
+  number: string | null;
+  onClick: () => void;
+  /** След счёта, разобранного отсюда (issue #1293): причина ухода известна, и она названа. */
+  parsed?: boolean;
+  /** След держится и после ухода со счёта — тогда строка не выделена. */
+  active?: boolean;
+}) {
   return (
-    <button type="button" onClick={onClick}
-      className="w-full text-left px-3 py-2 border-b border-stroke/60 bg-brand-subtle"
-      title="Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт">
+    <button type="button" onClick={onClick} data-testid={parsed ? 'row-parsed' : undefined}
+      className={`w-full text-left px-3 py-2 border-b border-stroke/60 ${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}
+      title={parsed
+        ? 'Счёт разобран и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться'
+        : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>
       <div className="text-sm text-fg1 font-medium truncate">{number || 'без номера'}</div>
       <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
-        <Check size={11} aria-hidden /> больше не в отборе
+        <Check size={11} aria-hidden /> {parsed ? 'разобран' : 'больше не в отборе'}
       </div>
     </button>
   );

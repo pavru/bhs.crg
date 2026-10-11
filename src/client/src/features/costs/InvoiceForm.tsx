@@ -56,8 +56,10 @@ import { explainedByRecognition } from './recognition';
  * со сбросом состояния — он рисует лишний кадр с чужими правками, и в этом кадре номер одного счёта
  * стоит в форме другого.
  */
-export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose }: {
+export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onParsed }: {
   view: InvoiceView;
+  /** Счёт разобран: дальше решает страница — она знает отбор и список (issue #1293). */
+  onParsed?: (unsaved: boolean) => void;
   /** Счёт удалили, пока он был открыт (issue #1282): набранное остаётся, действий записи нет. */
   gone?: boolean;
   /** Закрыть форму: после удаления и по «Закрыть счёт» у счёта, которого больше нет. */
@@ -260,7 +262,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         )}
 
         <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-          headerDirty={dirty} />
+          headerDirty={dirty} onParsed={onParsed} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку

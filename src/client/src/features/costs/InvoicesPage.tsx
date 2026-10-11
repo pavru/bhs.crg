@@ -25,7 +25,7 @@ import { SupplierMatchesDialog } from './SupplierMatchesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
-import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
+import { afterParsed, emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
 import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
@@ -95,7 +95,27 @@ export function InvoicesPage() {
   const [held, setHeld] = useState<HeldRow | null>(null);
   const nextHeld = heldRow(held, queue, selected, invoices.data);
   if (nextHeld !== held) setHeld(nextHeld);
-  const rows = queueRows(invoices.data ?? [], nextHeld).filter(r => matches(r.item, query));
+  // След счёта, разобранного под очередью (issue #1293): с него увели к следующему, и строка — путь
+  // назад, когда тост уже погас. Живёт до следующего разобранного либо до смены отбора.
+  const [parsedTrace, setParsedTrace] = useState<HeldRow | null>(null);
+  const trace = parsedTrace?.queue === queue ? parsedTrace : null;
+  const rows = queueRows(invoices.data ?? [], nextHeld, trace).filter(r => matches(r.item, query));
+
+  /**
+   * После «Разобран»: под отбором очереди — к следующему счёту, с тостом и путём назад. Список
+   * берётся тот, что стоял на экране при нажатии: перечитанный разобранного уже не содержит, и
+   * «следующий после него» в нём не найти.
+   */
+  function leadOn(id: string, number: string | null, unsaved: boolean) {
+    const after = afterParsed(queue, rows, id, number, query, unsaved);
+    if (!after) return;
+    if (!after.open) { toast.info(after.message); return; }
+    // Место следа — то, где счёт стоял в ответе сервера: его помнит удержание открытого счёта.
+    setParsedTrace(nextHeld?.item.id === id ? nextHeld : null);
+    setSelected(after.open.id);
+    // Дольше обычного: в сообщении действие, а прочитать надо два номера.
+    toast.success(after.message, { duration: 8000, action: { label: 'Вернуться', onClick: () => setSelected(id) } });
+  }
 
   async function addDraft() {
     try {
@@ -238,9 +258,10 @@ export function InvoicesPage() {
                 )}
               </div>
             )}
-            {rows.map(({ item, left }) => left ? (
+            {rows.map(({ item, left, parsed }) => left ? (
               // Номер — у открытого счёта: строка списка осталась снимком до правки.
               <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
+                parsed={parsed} active={item.id === selected}
                 number={shown?.id === item.id ? asInput(shown.requisites[K.number]) : item.number} />
             ) : (
               <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
@@ -300,6 +321,7 @@ export function InvoicesPage() {
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
                 onOpenInvoice={setSelected}
+                onParsed={unsaved => leadOn(opened.id, asInput(opened.data.requisites[K.number]) || null, unsaved)}
                 gone={gone} onClose={() => closeGone(opened.id)}
                 scanSlot={hasScan && !wide && !gone
                   ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}

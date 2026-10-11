@@ -137,6 +137,12 @@ export interface QueueRow {
    * или оплатить в закрытый период — слова «исправлено» список сказать не вправе (ревью PR #1241).
    */
   left: boolean;
+  /**
+   * След счёта, разобранного отсюда же (issue #1293): с него перешли к следующему, и строка — путь
+   * назад. Здесь причина ухода известна — человек только что нажал «Разобран», — поэтому слово
+   * названо прямо.
+   */
+  parsed?: boolean;
 }
 
 /** Открытый счёт, запомненный под отбором: где стоял и каким был. */
@@ -169,11 +175,66 @@ export function heldRow(
  * уходит из-под человека сразу после сохранения — исчезнувший без его действия счёт читается как сбой.
  * Стоит она там же, где стояла.
  */
-export function queueRows(listed: InvoiceListItem[], held: HeldRow | null): QueueRow[] {
-  const rows = listed.map(item => ({ item, left: false }));
-  if (!held || listed.some(i => i.id === held.item.id)) return rows;
-  rows.splice(Math.min(held.index, rows.length), 0, { item: held.item, left: true });
+export function queueRows(listed: InvoiceListItem[], held: HeldRow | null, trace: HeldRow | null = null): QueueRow[] {
+  const rows: QueueRow[] = listed.map(item => ({ item, left: false }));
+  const absent = (row: HeldRow | null): row is HeldRow => !!row && !listed.some(i => i.id === row.item.id);
+  // След раньше открытого счёта: оба стояли в одном списке, и вставка по возрастанию места сохраняет
+  // их взаимный порядок. Открыли сам след — строка одна, и она остаётся следом.
+  const extra = [
+    ...(absent(trace) ? [{ at: trace.index, row: { item: trace.item, left: true, parsed: true } }] : []),
+    ...(absent(held) && held.item.id !== trace?.item.id ? [{ at: held.index, row: { item: held.item, left: true } }] : []),
+  ].sort((a, b) => a.at - b.at);
+  for (const { at, row } of extra) rows.splice(Math.min(at, rows.length), 0, row);
   return rows;
+}
+
+/** Как счёт называют в сообщении: номером, а без номера — так и сказано. */
+const called = (number: string | null | undefined) => number?.trim() ? `Счёт № ${number.trim()}` : 'Счёт без номера';
+
+/** Что делать после «Разобран» под отбором очереди — и какими словами об этом сказать. */
+export interface AfterParsed {
+  /** Счёт, который открыть следом; `null` — остаться на разобранном. */
+  open: InvoiceListItem | null;
+  message: string;
+}
+
+/**
+ * Куда ведёт «Разобран» (issue #1293). Под отбором «Разобрать» открывается следующая ВИДИМАЯ строка —
+ * та, что стоит под разобранной в списке на момент нажатия, уже с поиском: человек работает с тем,
+ * что видит. С последней строки — на первую. Вне отбора — `null`: счёт остаётся открытым, слов нет.
+ *
+ * <p>Переход не делается, пока в форме есть несохранённое: смена счёта перемонтирует форму, и правки
+ * пропали бы молча. Счёт при этом разобран — об этом и сказано.</p>
+ *
+ * <p>⚠️ «Готовых» вперёд не ставим и запертые не пропускаем: порядок списка предсказуем, прыжки —
+ * нет, а строка без причины значит и «заперт», и «причина не прочитана» — клиент их не различает.</p>
+ *
+ * @param rows строки списка, как они стоят на экране (с удержанными).
+ * @param number номер разобранного счёта — у открытого счёта, строка списка могла устареть.
+ */
+export function afterParsed(
+  queue: InvoiceQueue | null, rows: QueueRow[], id: string, number: string | null, query: string, unsaved: boolean,
+): AfterParsed | null {
+  if (queue !== 'parsing') return null;
+  const done = `${called(number)} разобран.`;
+  if (unsaved) return { open: null, message: `${done} Следующий не открыт: в форме несохранённые правки.` };
+
+  // Очередь — живые строки отбора: удержанные и след уже не черновики.
+  const live = rows.filter(r => !r.left || r.item.id === id);
+  const at = live.findIndex(r => r.item.id === id);
+  const others = [...live.slice(at + 1), ...live.slice(0, Math.max(at, 0))].filter(r => r.item.id !== id);
+  if (others.length === 0) {
+    const text = query.trim();
+    return {
+      open: null,
+      message: text ? `${done} По запросу «${text}» в отборе больше ничего нет.` : `${done} Очередь «Разобрать» пуста.`,
+    };
+  }
+  const next = others[0].item;
+  return {
+    open: next,
+    message: next.number?.trim() ? `${done} Открыт следующий — № ${next.number.trim()}.` : `${done} Открыт следующий.`,
+  };
 }
 
 /**
