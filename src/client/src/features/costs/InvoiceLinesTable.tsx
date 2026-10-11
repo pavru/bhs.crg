@@ -26,6 +26,9 @@ import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { AllocationSummary, LineAllocationCell } from './LineAllocation';
+import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
+import { InvoiceReadinessLine } from './InvoiceReadinessLine';
+import { READINESS_ATTR, lineAnchor, readinessItems } from './invoiceReadiness';
 
 /** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
 const NO_MARKS = { nomenclatureLost: false, nomenclatureMoved: false, nomenclatureArchived: false } as const;
@@ -52,6 +55,8 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  * <p>⚠️ <b>«Разобран» не отключается, даже когда заведомо откажет.</b> Приглушённая кнопка молчит о
  * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска),
  * и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.
+ * С issue #1291 причины видны и ДО нажатия — строкой готовности под кнопкой; перечень пуст — кнопка
+ * становится главной.
  * У отклонённого счёта кнопки нет вовсе — на её месте «Вернуть в черновик»: условие тут одно, оно на
  * экране, и невыполнимое действие не показывают (issue #1284).</p>
  *
@@ -59,7 +64,7 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
+export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false }: {
   view: InvoiceView;
   /** Есть ли несохранённые правки строк: о них обязан сказать диалог удаления счёта (issue #1282). */
   onDirty?: (dirty: boolean) => void;
@@ -68,8 +73,11 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
   locked: boolean;
   /** Права вводить счета нет: строки читаются так же, но разноска остаётся за своим правом. */
   readOnly?: boolean;
+  /** В шапке есть несохранённое: строка готовности — о сохранённом счёте и обязана это сказать. */
+  headerDirty?: boolean;
 }) {
   const still = locked || readOnly;
+  const { data: access = NO_ACCESS } = useAccess();
   const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
   const [dirty, setDirty] = useState(false);
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
@@ -195,6 +203,14 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
   const difference = mismatch(paper, sums.amount, sums.count);
   const parsed = view.requisites[K.state] === PARSED;
   const rejected = view.requisites[K.state] === REJECTED;
+  // Запертому счёту (закрытый период, удалён) строки готовности нет вовсе: «Разобран» ему откажет замок,
+  // каким бы ни был перечень, и «всё готово» было бы неправдой. Права — отдельно: пункт без права виден.
+  const readiness = locked ? null : readinessItems(view, {
+    edit: !readOnly, allocate: hasPermission(access, 'costs.allocation.edit'),
+  });
+  // Главной кнопка становится только по СОХРАНЁННОМУ: с несохранённой правкой рядом переход прошёл бы
+  // по прежнему состоянию, а правка осталась бы на экране несохранённой.
+  const settled = readiness?.length === 0 && !dirty && !headerDirty;
 
   function edit(key: string, patch: Partial<LineDraft>) {
     setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -242,7 +258,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
   }
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" data-readiness="lines">
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
         <div className="flex-1" />
@@ -324,7 +340,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
             </Button>
           )
           : (
-            <Button size="sm" variant="outlined" icon={<CircleCheck size={13} />}
+            // Перечень пуст — «Разобран» становится главным действием: условия выполнены, осталось решение.
+            <Button size="sm" variant={settled ? 'filled' : 'outlined'} icon={<CircleCheck size={13} />}
               loading={state.isPending} onClick={() => move('parsed')}>
               Разобран
             </Button>
@@ -340,10 +357,14 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
             ? view.allocation.allocated
               ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены, разноска сходится.'
               : 'Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.'
+            : readiness !== null
+            ? 'Разобран — это утверждение человека, что счёт сверен с бумагой.'
             : 'Разобран — это утверждение человека, что счёт сверен с бумагой. Условия проверит сервер '
               + 'и назовёт, чего не хватает.'}
         </span>
       </div>
+      {/* Чего не хватает до «Разобран» — не нажимая (issue #1291). У разобранного и отклонённого строки нет. */}
+      {readiness !== null && <InvoiceReadinessLine items={readiness} unsaved={dirty || headerDirty} />}
     </section>
   );
 }
@@ -454,7 +475,7 @@ function Row({
   }
 
   return (
-    <tr className="border-t border-stroke align-top">
+    <tr className="border-t border-stroke align-top" {...{ [READINESS_ATTR]: lineAnchor(number) }}>
       <td className="py-1 text-fg4">{number}</td>
       <td className="py-1 pr-2">
         {/* Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
@@ -523,7 +544,7 @@ function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }
   );
 
   return (
-    <tr className="border-t border-stroke align-top">
+    <tr className="border-t border-stroke align-top" {...{ [READINESS_ATTR]: lineAnchor(number) }}>
       <td className="py-1 text-fg4">{number}</td>
       <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
         {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)

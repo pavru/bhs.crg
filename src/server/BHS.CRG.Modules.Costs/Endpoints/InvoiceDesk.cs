@@ -228,7 +228,33 @@ public sealed class InvoiceDesk(
     /// строками от этого не перестаёт существовать. Но и потерей это не считается — незнание
     /// доезжает до формы незнанием (<c>InvoiceLineView.NomenclatureLost</c>).</para>
     /// </summary>
-    public async Task<InvoiceView> ViewAsync(Invoice invoice, CancellationToken ct)
+    public async Task<InvoiceView> ViewAsync(Invoice invoice, CancellationToken ct) =>
+        (await ReadAsync(invoice, ct)).View;
+
+    /// <summary>
+    /// Чего счёту не хватает до «Разобран» — для перехода (issue #1291). Тот же снимок и та же функция,
+    /// что в ответе чтения: строка готовности в форме и отказ перехода расходиться не могут.
+    ///
+    /// <para>Берёт только снимок, а не ответ целиком (ревью PR #1301): дубликаты, оплата с границами
+    /// периодов и память сопоставления переходу не нужны, а ответ после перехода всё равно собирается
+    /// заново — уже с новым состоянием и версией.</para>
+    /// </summary>
+    public async Task<(InvoiceReadiness Readiness, int Lines)> ReadinessAsync(Invoice invoice, CancellationToken ct)
+    {
+        var seen = await SnapshotAsync(invoice, ct);
+        return (seen.Readiness, seen.Lines.Count);
+    }
+
+    /// <summary>
+    /// То, из чего считается готовность, — и ровно то же, из чего собран ответ чтения: строки, части
+    /// разноски, состояния записей ядра, названия позиций и сводка разноски.
+    /// </summary>
+    private sealed record Snapshot(
+        IReadOnlyList<InvoiceLine> Lines, IReadOnlyList<InvoiceAllocation> Parts, AllocationPlaces Known,
+        IReadOnlyDictionary<Guid, ReferenceState> Records, IReadOnlyDictionary<Guid, string?>? Names,
+        decimal Tolerance, InvoiceAllocationRead Allocation, IReadOnlySet<Guid> Lost, InvoiceReadiness Readiness);
+
+    private async Task<Snapshot> SnapshotAsync(Invoice invoice, CancellationToken ct)
     {
         var lines = await db.InvoiceLines.AsNoTracking()
             .Where(l => l.InvoiceId == invoice.Id)
@@ -246,6 +272,22 @@ public sealed class InvoiceDesk(
             [.. new[] { invoice.SupplierId, invoice.PayerId }.Concat(lines.Select(l => l.NomenclatureId))
                 .Concat(parts.Select(p => p.ArticleId)).OfType<Guid>().Distinct()], ct);
         known = known with { Existing = records.Where(r => r.Value != ReferenceState.Lost).Select(r => r.Key).ToHashSet() };
+
+        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
+        var names = await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct);
+        var allocation = InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known, tolerance);
+        var lost = records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet();
+
+        // ⚠️ Готовность считается из уже прочитанного: ни одного запроса сверх тех, что нужны самому
+        // ответу. Чтение счёта зовётся после каждой записи, и второй опрос ядра удвоил бы его цену.
+        return new Snapshot(lines, parts, known, records, names, tolerance, allocation, lost,
+            InvoiceReadiness.Of(invoice, lines, names, lost, allocation.Summary));
+    }
+
+    private async Task<(InvoiceView View, InvoiceReadiness Readiness)> ReadAsync(Invoice invoice, CancellationToken ct)
+    {
+        var (lines, parts, known, records, names, tolerance, allocation, lost, readiness) =
+            await SnapshotAsync(invoice, ct);
         var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
         string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
 
@@ -259,18 +301,16 @@ public sealed class InvoiceDesk(
             : await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);
         string? Name(Guid? id) => organizations?.FirstOrDefault(o => o.Id == id)?.DisplayName;
 
-        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
-        return InvoiceViews.Of(invoice, db.VersionOf(invoice),
-            await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines,
-            await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct),
-            InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known, tolerance),
+        return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
+            await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines, names, allocation,
             await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
                 Name(invoice.SupplierId), Name(invoice.PayerId)),
-            records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet(),
+            lost,
             records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet(),
-            await SupplierMatching.MarkedAsync(db, lines, ct));
+            readiness,
+            await SupplierMatching.MarkedAsync(db, lines, ct)), readiness);
     }
 
     /// <summary>

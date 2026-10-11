@@ -252,6 +252,21 @@ try {
     await invoice(number, 1_000);
     await open(number);
 
+    // Строка готовности (issue #1291) убывает по мере заполнения: чего не хватает до «Разобран», видно
+    // не нажимая. Ждём, а не читаем сразу: строка рисуется из ответа, который форма перечитывает следом.
+    const readiness = page.getByTestId('invoice-readiness');
+    const remains = async (expected, absent = []) => {
+      await page.waitForFunction(([wanted, gone]) => {
+        const text = document.querySelector('[data-testid="invoice-readiness"]')?.textContent ?? '';
+        return wanted.every(w => text.includes(w)) && gone.every(g => !text.includes(g));
+      }, [expected, absent], { timeout: 10_000 })
+        .catch(async () => {
+          throw new Error(`строка готовности: ждали ${JSON.stringify(expected)} без ${JSON.stringify(absent)}, `
+            + `стоит «${(await readiness.innerText().catch(() => 'строки нет')).replace(/\s+/g, ' ')}»`);
+        });
+    };
+    await remains(['осталось', 'строки', 'разноска']);
+
     await addRow(1);
     await cell('Количество', 1).fill('2');
     await cell('Цена', 1).fill('500');
@@ -259,7 +274,10 @@ try {
     await page.getByRole('button', { name: 'выбрать позицию' }).click();
     await page.getByPlaceholder('часть наименования').fill(stamp);
     await page.getByRole('button', { name: cable }).click();
+    // Набрано, но не сохранено: строка — о сохранённом счёте, и она это говорит.
+    await remains(['сохраните правки']);
     await saveLines();
+    await remains(['осталось', 'разноска'], ['строки', 'сохраните правки']);
 
     // Не разнесено — «Разобран» отказывает, и форма говорит об этом до нажатия.
     // ⚠️ Именно ждём, а не считаем сразу: сохранение строк возвращает управление по ответу PUT, а
@@ -285,10 +303,19 @@ try {
     const answer = await allocated;
     if (!answer.ok()) throw new Error(`разноска не сохранилась: ${answer.status()}`);
     await page.getByText('Разноска сходится', { exact: false }).waitFor({ timeout: 10_000 });
+    // Последний пункт закрыт — перечень пуст, и переход обязан пройти С ПЕРВОГО нажатия.
+    await remains(['Всё готово'], ['осталось']);
 
+    const passed = page.waitForResponse(
+      r => r.request().method() === 'POST' && r.url().endsWith('/parsed'), { timeout: 15_000 });
     await page.getByRole('button', { name: 'Разобран' }).click();
+    if (!(await passed).ok())
+      throw new Error('строка готовности сказала «всё готово», а «Разобран» отказал');
     // Состояние показано человеку словом — оно же и признак перехода.
     await page.getByRole('button', { name: 'Вернуть в черновик' }).waitFor({ timeout: 10_000 });
+    // У разобранного вопрос «чего не хватает» не стоит: строки нет.
+    await readiness.waitFor({ state: 'detached', timeout: 10_000 })
+      .catch(() => { throw new Error('у разобранного счёта осталась строка готовности'); });
     if ((await page.getByText('Счёт разобран', { exact: false }).count()) === 0)
       throw new Error('после перехода на форме не сказано, что счёт разобран');
   });

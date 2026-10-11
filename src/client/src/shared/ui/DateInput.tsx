@@ -24,6 +24,11 @@ interface DateInputProps {
    * которых кладёт не человек: привязка к источнику данных и замок модуля.
    */
   readOnly?: boolean;
+  /**
+   * Поле обязательное — для чтения с экрана. Звёздочка у подписи рисуется псевдоэлементом и в имя поля
+   * не входит (issue #1291), поэтому обязательность обязан назвать сам контрол.
+   */
+  required?: boolean;
   /** Показывать иконку-триггер календаря (docked date picker, issue #338). По умолчанию — да. */
   calendar?: boolean;
   /** Компактный режим (ячейка таблицы): иконка появляется по hover/focus, не занимает место постоянно. */
@@ -32,7 +37,7 @@ interface DateInputProps {
 
 const EMPTY_SEGMENTS = { d: '', m: '', y: '' };
 
-export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false, readOnly = false, calendar = true, compact = false }: DateInputProps) {
+export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false }: DateInputProps) {
   /**
    * Набранное человеком, пока он печатает. Показанные сегменты ВЫЧИСЛЯЮТСЯ (issue #858): пока поле
    * в фокусе — из набранного, иначе прямо из значения.
@@ -186,7 +191,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
             placeholder="ДД" maxLength={2}
             style={{ width: '2.2ch' }}
             value={d}
-            disabled={disabled} readOnly={readOnly}
+            disabled={disabled} readOnly={readOnly} aria-required={required || undefined}
             onChange={e => handleD(e.target.value)}
             onKeyDown={onDayKey}
             onFocus={onFocus}
@@ -203,7 +208,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
             placeholder="ММ" maxLength={2}
             style={{ width: '2.2ch' }}
             value={m}
-            disabled={disabled} readOnly={readOnly}
+            disabled={disabled} readOnly={readOnly} aria-required={required || undefined}
             onChange={e => handleM(e.target.value)}
             onKeyDown={onMonKey}
             onFocus={onFocus}
@@ -218,7 +223,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
         placeholder="ГГГГ" maxLength={4}
         style={{ width: '4ch' }}
         value={y}
-        disabled={disabled} readOnly={readOnly}
+        disabled={disabled} readOnly={readOnly} aria-required={required || undefined}
         onChange={e => handleY(e.target.value)}
         onKeyDown={onYrKey}
         onFocus={onFocus}

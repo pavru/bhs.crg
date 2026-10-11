@@ -206,12 +206,10 @@ public static class InvoiceLineEndpoints
     /// полностью, цели на месте, расхождение суммы строк с суммой к оплате — в пределах допуска.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> ParsedAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, InvoiceDesk desk,
-        IModuleActivityLog log, CancellationToken ct)
+        Guid id, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log, CancellationToken ct)
     {
-        var tolerance = await desk.ToleranceAsync(ct);
         var (invoice, lines) = await desk.WriteAsync(id,
-            write => MarkAsync(write.Invoice, db, catalog, places, tolerance, ct), ct);
+            write => MarkAsync(write.Invoice, db, desk, ct), ct);
 
         // Ноль строк — «уже был разобран»: решения не было, и в журнал писать нечего.
         if (lines > 0)
@@ -222,8 +220,7 @@ public static class InvoiceLineEndpoints
     }
 
     private static async Task<(Invoice Invoice, int Lines)> MarkAsync(
-        Invoice invoice, CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, decimal tolerance,
-        CancellationToken ct)
+        Invoice invoice, CostsDbContext db, InvoiceDesk desk, CancellationToken ct)
     {
         if (invoice.State == InvoiceState.Rejected)
             throw new ConflictException(
@@ -235,41 +232,14 @@ public static class InvoiceLineEndpoints
         // не является. Так же молчит возврат в черновик у черновика.
         if (invoice.State == InvoiceState.Parsed) return (invoice, 0);
 
-        var missing = InvoiceRequisites.Missing(invoice);
-        if (missing.Count > 0)
-            throw new InvalidRequestException(
-                $"{InvoiceEndpoints.Label(invoice)}: не заполнено обязательное — " +
-                string.Join(", ", missing.Select(m => $"«{m}»")) + ". Черновик так живёт, а разобранный " +
-                "счёт — нет: с него считаются затраты, и незаполненное поле там означало бы пропуск в " +
-                "отчёте, а не пустую клетку в форме.");
-
-        var lines = await db.InvoiceLines.AsNoTracking()
-            .Where(l => l.InvoiceId == invoice.Id)
-            .OrderBy(l => l.Ordinal)
-            .ToListAsync(ct);
-
-        if (lines.Count == 0)
-            throw new InvalidRequestException(
-                $"{InvoiceEndpoints.Label(invoice)}: строк нет, а «разобран» означает «строки есть, и у " +
-                "каждой своя позиция номенклатуры». Счёт без строк живёт черновиком сколько нужно — " +
-                "именно для этого черновик и есть.");
-
-        var unmatched = lines.Where(l => l.NomenclatureId is null).Select(l => l.Ordinal).ToList();
-        if (unmatched.Count > 0)
-            throw new InvalidRequestException(
-                $"{InvoiceEndpoints.Label(invoice)}: {Subject(unmatched)} " +
-                $"{(unmatched.Count == 1 ? "ждёт" : "ждут")} позиции номенклатуры. Сопоставьте их со " +
-                "справочником — свободный текст позицию не заменяет: без ссылки нельзя ни свести " +
-                "затраты, ни связать материал с документом качества. Пока они ждут, счёт остаётся " +
-                "черновиком и виден в отборе «Разобрать».");
-
-        await EnsureReferencesAliveAsync(catalog, invoice, lines, ct);
-
-        EnsureAllocated(invoice, (await InvoiceAllocations.ReadAsync(db, places, invoice, lines, tolerance, ct)).Summary);
+        // Условия перехода — в одном месте (issue #1291): тот же перечень ответ чтения несёт форме строкой
+        // «осталось: …». Перечень пуст ⇔ переход проходит — по устройству, а не по совпадению двух проверок.
+        var (readiness, lines) = await desk.ReadinessAsync(invoice, ct);
+        readiness.EnsureReady();
 
         invoice.MarkParsed();
         await db.SaveChangesAsync(ct);
-        return (invoice, lines.Count);
+        return (invoice, lines);
     }
 
     /// <summary>Вернуть счёт в черновик — решением человека (см. <see cref="Invoice.ReturnToDraft" />).</summary>
@@ -336,93 +306,6 @@ public static class InvoiceLineEndpoints
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
-    /// <summary>
-    /// «Разнесён» (ТЗ COST-9, COST-13) — последнее условие перехода «разобран». Отказ называет ВСЁ, чего
-    /// не хватает, а не первое: иначе человек разносил бы строку, чтобы узнать о расхождении суммы.
-    /// </summary>
-    private static void EnsureAllocated(Invoice invoice, AllocationSummaryView allocation)
-    {
-        if (allocation.Allocated) return;
-
-        var problems = new List<string>();
-
-        if (allocation.Unbalanced.Count > 0)
-            problems.Add($"{Subject(allocation.Unbalanced)} " +
-                $"{(allocation.Unbalanced.Count == 1 ? "разнесена" : "разнесены")} по стройкам не полностью — " +
-                "остаток виден строкой «не разнесено»");
-
-        if (allocation.Document.Pending)
-            problems.Add("разноска счёта суммой, сделанная до строк, ждёт пересчёта по строкам — пересчитайте её " +
-                "в матрице разноски: пока она ждёт, деньги лежат на стройках суммой, а строки не разнесены никуда");
-
-        if (allocation.Lost > 0)
-            problems.Add($"частей разноски на удалённую стройку или раздел: {allocation.Lost} — выберите цель заново");
-
-        if (!allocation.WithinTolerance && allocation.Discrepancy is { } gap)
-            problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} ₽ при допуске " +
-                $"{allocation.Tolerance:0.00} ₽ — расхождение в пределах допуска уходит в последнюю часть " +
-                "разноски, сверх него нужно разобраться: скидка, доставка или строка, которой нет в таблице");
-
-        throw new InvalidRequestException(
-            $"{InvoiceEndpoints.Label(invoice)}: {string.Join("; ", problems)}. «Разобран» означает, что " +
-            "деньги счёта легли на стройки целиком: иначе затраты по стройке не сойдутся со счетами.");
-    }
-
-    /// <summary>
-    /// Ссылки счёта на справочник ядра обязаны вести к записям: позиции строк и организации шапки.
-    ///
-    /// <para>⚠️ «Позиция указана» и «позиция есть» — разное, и разводит их не опечатка, а устройство:
-    /// внешнего ключа между схемой модуля и справочником ядра нет, и ядро строк счёта ссылающимися не
-    /// видит — позицию можно удалить. Переход проверял только первое, и счёт становился «разобран» со
-    /// строкой, которую ответ ТЕМ ЖЕ запросом называл потерянной (<c>nomenclatureLost</c>): сверен, а
-    /// свести затраты не с чем (находка ревью, issue #1166). Сохранение строк такую ссылку отвергает —
-    /// переход обязан быть не мягче него.</para>
-    ///
-    /// <para>Организации шапки — та же дверь: обязательность поля отвечает на «заполнено», а не на
-    /// «запись на месте».</para>
-    ///
-    /// <para>Названо ВСЁ разом, как у разноски: иначе человек чинил бы поставщика, чтобы узнать о
-    /// строке.</para>
-    ///
-    /// <para>Чего здесь НЕТ: позицию, удалённую ПОСЛЕ перехода, эта проверка не видит — модуль об
-    /// удалении не узнаёт, и счёт остаётся разобранным с пометкой «позиция не найдена» в форме. Это
-    /// вопрос к удалению в ядре, а не к переходу.</para>
-    /// </summary>
-    private static async Task EnsureReferencesAliveAsync(
-        IModuleCatalog catalog, Invoice invoice, IReadOnlyList<InvoiceLine> lines, CancellationToken ct)
-    {
-        var problems = new List<string>();
-
-        foreach (var (field, id) in new[]
-                 {
-                     (InvoiceRequisites.SupplierKey, invoice.SupplierId),
-                     (InvoiceRequisites.PayerKey, invoice.PayerId),
-                 })
-            if (id is { } organization && await catalog.GetAsync(organization, ct) is null)
-                problems.Add($"организации из поля «{field}» нет в справочнике");
-
-        // Вида «Номенклатура» нет вовсе — спрашивать не у кого, и это не «все позиции потеряны»:
-        // состояние установки, а не счёта. Но и «сверено со справочником» без справочника не скажешь.
-        var names = await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct)
-            ?? throw new ConflictException(
-                $"{InvoiceEndpoints.Label(invoice)}: тип «{CostsRecordTypes.NomenclatureCode}» в системе не " +
-                "заведён, и сверить позиции строк не с чем. «Разобран» означает, что строки сведены со " +
-                "справочником, — пока его нет, счёт остаётся черновиком.");
-
-        var lost = lines
-            .Where(l => l.NomenclatureId is { } position && !names.ContainsKey(position))
-            .Select(l => l.Ordinal)
-            .ToList();
-        if (lost.Count > 0)
-            problems.Add($"позиции номенклатуры нет в справочнике у {Genitive(lost)}");
-
-        if (problems.Count > 0)
-            throw new InvalidRequestException(
-                $"{InvoiceEndpoints.Label(invoice)}: {string.Join("; ", problems)}. Так бывает, когда запись " +
-                "удалили или перенесли в другой вид: ссылка осталась, а записи нет. Выберите её заново — " +
-                "«разобран» означает, что счёт сведён со справочником, а ссылка в пустоту не сводится ни с чем.");
-    }
-
     /// <summary>Строки счёта, как они лежат, — в том виде, в каком их считает разноска.</summary>
     internal static async Task<IReadOnlyList<AllocationLine>> StoredLinesAsync(
         CostsDbContext db, Invoice invoice, CancellationToken ct) =>
@@ -487,28 +370,11 @@ public static class InvoiceLineEndpoints
 
         if (lost.Count > 0)
             throw new InvalidRequestException(
-                $"Позиции номенклатуры нет в справочнике у {Genitive(lost)}" +
+                $"Позиции номенклатуры нет в справочнике у {InvoiceReadiness.Genitive(lost)}" +
                 ". Так бывает, когда позицию удалили или переместили в другой вид: ссылка осталась, а " +
                 "записи нет. Выберите позицию заново — записать ссылку в пустоту значило бы получить " +
                 "строку, которую потом никто не сведёт.");
 
         NewReferences.EnsureNoneArchived(rows, verdicts, "позиция номенклатуры");
     }
-
-    /// <summary>
-    /// Номера строк словами, именительный падеж: «строка 3», «строки 3, 7».
-    ///
-    /// <para>Названы ВСЕ, а не первая: человек правит таблицу, и отказ по одной строке за раз превратил
-    /// бы вставку из буфера в двадцать заходов.</para>
-    ///
-    /// <para>⚠️ Падеж и число — не косметика: сообщение читает человек за формой. Первая версия
-    /// склеивала «ждут строки» с «строка 1» и выдавала «ждут строки строка 1» — поймал живой прогон,
-    /// сторож на живом хосте этого не заметил (он искал подстроку «строка 2», а она в кашице есть).</para>
-    /// </summary>
-    private static string Subject(IReadOnlyList<int> numbers) =>
-        (numbers.Count == 1 ? "строка " : "строки ") + string.Join(", ", numbers);
-
-    /// <summary>То же в родительном: «у строки 3», «у строк 3, 7».</summary>
-    private static string Genitive(IReadOnlyList<int> numbers) =>
-        (numbers.Count == 1 ? "строки " : "строк ") + string.Join(", ", numbers);
 }
