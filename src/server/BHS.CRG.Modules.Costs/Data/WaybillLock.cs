@@ -26,7 +26,7 @@ public static class WaybillLock
         // введённой ПОСЛЕ закрытия, та окажется запертой, хотя лежала в открытом периоде. Обратная
         // ошибка — оставить открытой накладную закрытого месяца — хуже: её правка молча меняла бы
         // закрытое. Поэтому запираем, а форма называет причину: «учётная дата не записана».
-        if (waybill.State != WaybillState.Posted || (waybill.AccountingOn ?? waybill.IssuedOn) is not { } date)
+        if (DayOf(waybill.State, waybill.AccountingOn, waybill.IssuedOn) is not { } date)
             return null;
 
         // Закрытие компании называем раньше закрытия стройки — как у счёта: оно закрывает всё, и «у
@@ -41,6 +41,15 @@ public static class WaybillLock
 
         return null;
     }
+
+    /// <summary>
+    /// День, по которому накладную запирает закрытый период; <c>null</c> — не запирает ничто (черновик).
+    /// Один на замок и на диалог закрытия (<see cref="WaybillClosingLines" />): диалог обязан назвать
+    /// ровно те накладные, что запрутся, а две записи одного правила однажды разошлись бы — и неверное
+    /// число легло бы в неизменяемую запись о закрытии (ревью PR #1297).
+    /// </summary>
+    public static DateOnly? DayOf(WaybillState state, DateOnly? accountingOn, DateOnly? issuedOn) =>
+        state == WaybillState.Posted ? accountingOn ?? issuedOn : null;
 
     /// <summary>Контур, по которому накладная получает учётную дату: её стройка.</summary>
     public static DateOnly AccountedOn(DateOnly issuedOn, Guid site, PeriodBoundaries boundaries) =>

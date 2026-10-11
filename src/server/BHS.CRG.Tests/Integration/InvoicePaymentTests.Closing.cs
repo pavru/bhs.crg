@@ -125,9 +125,15 @@ public partial class InvoicePaymentTests
         // Журнал ядра — из того же перечня: число незавершённых документов есть, рублей нет.
         using var scope = host.Services.CreateScope();
         var closed = await scope.ServiceProvider.GetRequiredService<IActivityLog>().LastAsync(ActivityActions.PeriodClosed);
-        var counted = Assert.Single(seen.GetProperty("sections").EnumerateArray()).GetProperty("unfinished")[0].GetProperty("counted").GetString();
+        // Все строки «не завершено», а не одна: за счетами в перечне идут накладные (issue #1285), и в
+        // общей базе класса у соседних тестов они в этих днях есть. Журнал сверяется ЦЕЛИКОМ.
+        var unfinished = Assert.Single(seen.GetProperty("sections").EnumerateArray()).GetProperty("unfinished").EnumerateArray()
+            .Select(l => (Text: l.GetProperty("text").GetString()!, Counted: l.GetProperty("counted").GetString()))
+            .ToList();
+        Assert.Equal("Оплачены в периоде, но не разнесены или не разобраны", unfinished[0].Text);
         Assert.Equal(
-            $"закрыто по {through:dd.MM.yyyy}. Не завершено: Счета и накладные — оплачены в периоде, но не разнесены или не разобраны: {counted}",
+            $"закрыто по {through:dd.MM.yyyy}. Не завершено: " + string.Join("; ", unfinished.Select(l =>
+                $"Счета и накладные — {char.ToLowerInvariant(l.Text[0])}{l.Text[1..]}: {l.Counted}")),
             closed!.After);
 
         // В базе перечень лежит С СУММАМИ — их режут на выдаче, а не при записи.

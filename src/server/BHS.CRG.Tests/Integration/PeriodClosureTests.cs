@@ -157,7 +157,9 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     [Fact]
     public async Task Журнал_называет_контур_и_даты_без_чисел_модулей()
     {
-        var through = (await TodayAsync()).AddDays(-10);
+        // День, раньше которого в общей базе класса нет ни одного документа модулей: первое закрытие
+        // закрывает всё до него, и накладная соседнего теста дописала бы журналу «Не завершено: …».
+        var through = new DateOnly(2001, 1, 31);
         using var scope = host.Services.CreateScope();
         var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();

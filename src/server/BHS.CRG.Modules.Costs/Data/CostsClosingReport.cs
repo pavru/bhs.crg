@@ -33,11 +33,10 @@ public sealed class CostsClosingReport(
     /// (<c>features/costs/siteCosts.ts</c>, <c>REGISTRY</c>).</summary>
     public const string Registry = "/tables/costs.invoices/registry";
 
-    // Про накладные — правда на сегодня (issue #1285): закрытие их запирает, а числом в перечне их ещё
-    // нет. Прежняя фраза «накладных в системе пока нет» была неправдой с D1 и стояла в диалоге закрытия.
+    // Накладные в перечне есть (issue #1285) — строками <see cref="WaybillClosingLines" />.
     public const string DateRule =
         "Счёт относится к периоду по учётному периоду оплаты. Расходная накладная — по учётной дате, которую " +
-        "получает при проведении; проведённые накладные периода закрытие запирает, в этот перечень они пока не входят.";
+        "получает при проведении; черновик накладной к периоду не относится.";
 
     /// <summary>Суммы счетов открывает право на отчёты по затратам — то же, что у «Затрат по стройке».</summary>
     private const string Amounts = "costs.report.read";
@@ -89,7 +88,9 @@ public sealed class CostsClosingReport(
                 Note: "Вместе со счетами, у которых в периоде есть доля без денег: " +
                       "счёт запирается целиком, если закрыта хоть одна его учётная дата."));
 
-        return new(DateRule, unfinished, frozen);
+        // Накладные — после счетов: деньги периода человек сверяет первыми.
+        var waybills = await WaybillClosingLines.OfAsync(db, scope, ct);
+        return new(DateRule, [.. unfinished, .. waybills.Unfinished], [.. frozen, .. waybills.Frozen]);
     }
 
     /// <summary>
