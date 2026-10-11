@@ -1,28 +1,34 @@
 import { useState } from 'react';
-import { Ban, Undo2 } from 'lucide-react';
+import { Ban } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
-import { useInvoiceState, type InvoiceView } from '@/shared/api/invoices';
+import { useFreshInvoice, useInvoiceState, type InvoiceView } from '@/shared/api/invoices';
 import { K, REJECTED } from './invoiceFields';
+import { rejectInvoice } from './invoiceReject';
 
 /**
  * Меню «Ещё» в шапке формы счёта (issue #1284): редкие действия над счётом целиком.
  *
- * <p>Сегодня их два, и видно всегда не больше одного: «Отклонить…» у счёта, по которому ещё можно
- * передумать платить, и «Вернуть в черновик» у отклонённого. Действие, которое сервер заведомо
- * откажется выполнить, не показывается вовсе — оплаченный счёт сначала лишают оплаты, и кнопка для
- * этого стоит строкой ниже. Меню без пунктов не рисуется.</p>
+ * <p>Сегодня действие одно — «Отклонить…», у счёта, по которому ещё можно передумать платить.
+ * Действие, которое сервер заведомо откажется выполнить, не показывается вовсе: оплаченный счёт
+ * сначала лишают оплаты, и кнопка для этого стоит строкой ниже. Меню без пунктов не рисуется — у
+ * оплаченного и у отклонённого его нет.</p>
+ *
+ * <p><b>«Вернуть в черновик» здесь нет</b> (ревью PR #1290): у возврата вход один — кнопка под
+ * строками счёта, та же, что возвращает разобранный. Второй вход в меню жил своей мутацией и своими
+ * правилами: кнопки не знали о нажатии друг друга, и отказ у них звучал по-разному.</p>
+ *
+ * <p><b>Несохранённые правки шапки отклонению не мешают.</b> Они лежат поверх вида счёта и переход
+ * состояния переживают: «Состояние» человек не правит, и основа черновика переезжает на новую версию
+ * молча (см. `useDraftBase`). Запрет «сначала сохраните» стоял здесь по ошибке — и только здесь.</p>
  *
  * <p>Меню, а не кнопка рядом с «Сохранить»: «Отклонить» — решение о документе, а не шаг его
  * заполнения, и рядом с «Разобран» читалось бы как его пара.</p>
  */
-export function InvoiceMoreMenu({ view, dirty }: {
-  view: InvoiceView;
-  /** В шапке есть несохранённые правки: переход перечитал бы счёт и стёр их молча. */
-  dirty: boolean;
-}) {
+export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
   const state = useInvoiceState();
+  const readFresh = useFreshInvoice();
   const toast = useToast();
   const [asking, setAsking] = useState(false);
 
@@ -31,30 +37,17 @@ export function InvoiceMoreMenu({ view, dirty }: {
   const label = `Счёт № ${number}`;
 
   const actions: RowAction[] = [];
-  if (rejected) {
-    actions.push({
-      key: 'draft', label: 'Вернуть в черновик', icon: <Undo2 size={14} />,
-      onSelect: () => {
-        if (dirty) { toast.info('Сначала сохраните правки счёта — возврат перечитает его.'); return; }
-        state.mutateAsync({ id: view.id, seen: view.version, to: 'draft' })
-          .then(() => toast.success(`${label} возвращён в черновик.`))
-          .catch(e => toast.apiError(e, 'Счёт не возвращён в черновик'));
-      },
-    });
-  } else if (!view.payment.paid) {
+  if (!rejected && !view.payment.paid)
     actions.push({ key: 'reject', label: 'Отклонить…', icon: <Ban size={14} />, onSelect: () => setAsking(true) });
-  }
 
-  if (actions.length === 0) return null;
-
+  // Диалог остаётся смонтированным и без меню: счёт становится отклонённым, пока диалог ещё закрывается.
   return (
     <>
-      <RowActionsMenu actions={actions} ariaLabel="Ещё" />
+      {actions.length > 0 && <RowActionsMenu actions={actions} ariaLabel="Ещё" />}
       <ConfirmDialog open={asking} onOpenChange={setAsking}
         title={`Отклонить счёт № ${number}?`}
         errorTitle="Счёт не отклонён"
         confirmLabel="Отклонить счёт" confirmDanger={false}
-        blocked={dirty ? 'В счёте есть несохранённые правки. Сохраните их — отклонение перечитает счёт.' : undefined}
         description={(
           <div className="space-y-2 text-sm text-fg2">
             <p>По счёту решено не платить. Он <b>останется в реестре</b> с состоянием «Отклонён»:</p>
@@ -63,11 +56,15 @@ export function InvoiceMoreMenu({ view, dirty }: {
               <li>отметить оплату по нему нельзя;</li>
               <li>строки, разноска и файл остаются как есть.</li>
             </ul>
-            <p>Передумали — «Вернуть в черновик» в этом же меню.</p>
+            <p>Передумали — «Вернуть в черновик» под строками счёта.</p>
           </div>
         )}
-        onConfirm={() => state.mutateAsync({ id: view.id, seen: view.version, to: 'rejected' })
-          .then(() => toast.success(`${label} отклонён.`))} />
+        onConfirm={() => rejectInvoice(
+          () => state.mutateAsync({ id: view.id, seen: view.version, to: 'rejected' }),
+          () => readFresh(view.id),
+        ).then(outcome => (outcome === 'rejected'
+          ? toast.success(`${label} отклонён.`)
+          : toast.info(`${label} уже отклонён.`)))} />
     </>
   );
 }

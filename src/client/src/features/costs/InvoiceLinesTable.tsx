@@ -6,7 +6,7 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
 } from '@/shared/api/invoices';
-import { K, REJECTED, refEntryId } from './invoiceFields';
+import { K, PARSED, REJECTED, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import { LineMatchChip } from './LineMatchChip';
@@ -50,8 +50,10 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  * только человек или таблица соответствий (C3).</p>
  *
  * <p>⚠️ <b>«Разобран» не отключается, даже когда заведомо откажет.</b> Приглушённая кнопка молчит о
- * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска,
- * счёт отклонён), и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.</p>
+ * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска),
+ * и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.
+ * У отклонённого счёта кнопки нет вовсе — на её месте «Вернуть в черновик»: условие тут одно, оно на
+ * экране, и невыполнимое действие не показывают (issue #1284).</p>
  *
  * <p>⚠️ Правки строк прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ (`key={view.id}` у формы) — тем же
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
@@ -188,7 +190,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   const sums = totals(drafts);
   const paper = view.requisites[K.total];
   const difference = mismatch(paper, sums.amount, sums.count);
-  const parsed = view.requisites[K.state] === 'Разобран';
+  const parsed = view.requisites[K.state] === PARSED;
   const rejected = view.requisites[K.state] === REJECTED;
 
   function edit(key: string, patch: Partial<LineDraft>) {
@@ -227,7 +229,12 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
 
   async function move(to: 'parsed' | 'draft') {
     // Переход утверждает то, что человек видит: версию называет вид на экране.
-    try { await state.mutateAsync({ id: view.id, seen: view.version, to }); }
+    // Возврат отклонённого — решение о счёте, как и отклонение: о нём говорят вслух. Вход у возврата
+    // один, этот (ревью PR #1290): второй, в меню «Ещё», жил своей мутацией и своими правилами.
+    try {
+      await state.mutateAsync({ id: view.id, seen: view.version, to });
+      if (rejected) toast.success('Счёт возвращён в черновик.');
+    }
     catch (e) { toast.apiError(e, to === 'parsed' ? 'Счёт не разобран' : 'Счёт не возвращён в черновик'); }
   }
 

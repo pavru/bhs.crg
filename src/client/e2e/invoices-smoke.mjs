@@ -441,7 +441,7 @@ try {
       throw new Error('«Скачать оригинал» отдала не приложенный файл');
   });
 
-  // ── 11. «Отклонить»: счёт остаётся в реестре, из очереди разбора уходит, возвращается тем же меню ──
+  // ── 11. «Отклонить»: счёт остаётся в реестре, из очереди разбора уходит, возвращается кнопкой под строками ──
   await check('счёт отклоняется из меню «Ещё», остаётся в реестре и возвращается в черновик', async () => {
     const number = `ОТКЛ-${stamp}`;
     const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'отклонение') });
@@ -481,12 +481,13 @@ try {
     if (await page.getByRole('button', { name: 'Отметить оплату' }).count())
       throw new Error('у отклонённого счёта предложено «Отметить оплату» — сервер на это отвечает отказом');
 
-    await page.getByRole('button', { name: 'Ещё', exact: true }).click();
-    if (await page.getByRole('menuitem', { name: 'Отклонить…' }).count())
-      throw new Error('у отклонённого счёта снова предложено «Отклонить…»');
+    // Меню «Ещё» у отклонённого нет вовсе: единственное его действие здесь невыполнимо, а возврат
+    // живёт одним входом — кнопкой под строками.
+    if (await page.getByRole('button', { name: 'Ещё', exact: true }).count())
+      throw new Error('у отклонённого счёта осталось меню «Ещё» — предложить в нём нечего');
     await Promise.all([
       page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/draft`) && r.ok()),
-      page.getByRole('menuitem', { name: 'Вернуть в черновик' }).click(),
+      page.getByRole('button', { name: 'Вернуть в черновик' }).click(),
     ]);
     await named('чип состояния не вернулся к «Черновик»',
       () => page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 }));

@@ -77,7 +77,7 @@ public static class InvoiceListEndpoint
             var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({named}) AS \"Value\"");
             selected = selected.Where(i => keys.Contains(i.Id));
             if (fix == InvoiceListReferences.FixArchived)
-                selected = selected.Where(i => i.Payment != InvoicePaymentState.Paid);
+                selected = InvoiceReferenceTrouble.InWork(selected);
         }
 
         // Распознавание — на каждое чтение списка: пометку «читается» и «не распознан» несёт строка.

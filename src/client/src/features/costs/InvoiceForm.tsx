@@ -191,7 +191,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
               Сохранить
             </Button>
           )}
-          {!locked && <InvoiceMoreMenu view={view} dirty={dirty} />}
+          {!locked && <InvoiceMoreMenu view={view} />}
         </div>
 
         {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}

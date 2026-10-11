@@ -74,7 +74,8 @@ public static class InvoiceTable
     /// в списке счетов: без колонки оно читается по одному счёту за раз — открывая каждый.
     ///
     /// <para>⚠️ Это ФАКТ о строках, а не очередь «Разобрать»: отклонённый счёт в очередь не входит
-    /// (issue #1166), а строки без позиции у него остаются — и счётчик в списке счетов у него прежний.
+    /// (issue #1166), а строки без позиции у него остаются. Здесь число у него стоит, а в списке счетов
+    /// — нет (issue #1284): там счётчик зовёт разбирать, и у отклонённого звать не к чему.
     /// Очередь в реестре — «не пусто» вместе с «Состояние документа ≠ Отклонён»; что это одно и то же,
     /// держит тест.</para>
     /// </summary>
@@ -175,6 +176,7 @@ public static class InvoiceTable
     {
         [(int)ArchivedMark.Open] = TroubleFixable,
         [(int)ArchivedMark.Paid] = "есть, счёт оплачен",
+        [(int)ArchivedMark.Rejected] = "есть, счёт отклонён",
     };
 
     /// <summary>Код готового представления «Реестр счетов» (ТЗ COST-20.1).</summary>
@@ -548,7 +550,9 @@ public sealed partial class InvoiceTableRows(
                 InvoiceTable.LostWords)
             .Choice(InvoiceTable.ArchivedKey,
                 i => !archived.Contains(i.Id) ? null
-                    : i.Payment == InvoicePaymentState.Paid ? (int?)(int)ArchivedMark.Paid : (int?)(int)ArchivedMark.Open,
+                    : i.Payment == InvoicePaymentState.Paid ? (int?)(int)ArchivedMark.Paid
+                    : i.State == InvoiceState.Rejected ? (int?)(int)ArchivedMark.Rejected
+                    : (int?)(int)ArchivedMark.Open,
                 InvoiceTable.ArchivedWords)
             .Fields(key => i => i.Data.RootElement.GetProperty(key).GetString()));
     }

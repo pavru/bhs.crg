@@ -95,8 +95,33 @@ public class InvoiceRejectedStateTests(InvoiceLineHost host) : InvoiceLineTestBa
     }
 
     /// <summary>
-    /// Повтор запроса — после обрыва связи, двойным нажатием — новым решением не становится: состояние
-    /// то же, и второй записи в журнале нет.
+    /// Разобранный счёт, у которого правка строк сняла условие «разобран», уходит в черновик САМ — и
+    /// запись об этом называет, откуда он ушёл, как и запись ручного возврата (ревью PR #1290): раньше
+    /// под одним действием журнала стояли записи двух видов, с «было» и без.
+    /// </summary>
+    [Fact]
+    public async Task Автоматический_возврат_в_черновик_называет_откуда_ушёл_счёт()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
+        await MoveAsync(client, invoice, "parsed");
+
+        var edited = await LinesAsync(client, invoice, [Line(null, quantity: 1, price: 100m, text: "позицию сняли")]);
+
+        Assert.Equal("Черновик", State(edited));
+        var returned = Assert.Single(await JournalAsync(invoice, "costs.invoice.draft"));
+        Assert.Equal("разобран", returned.Before);
+        Assert.StartsWith("правка строк:", returned.After);
+    }
+
+    /// <summary>
+    /// Отклонение уже отклонённого — тем, кто прочитал его отклонённым, — новым решением не становится:
+    /// состояние то же, и второй записи в журнале нет.
+    ///
+    /// <para>⚠️ Это НЕ повтор после оборванного ответа: тот называет версию до отклонения и получает
+    /// 409 — см. следующий тест. Помощник тестов подставляет свежую версию сам, и на нём этой разницы
+    /// не видно.</para>
     /// </summary>
     [Fact]
     public async Task Повторное_отклонение_журнал_не_пишет()
@@ -107,6 +132,28 @@ public class InvoiceRejectedStateTests(InvoiceLineHost host) : InvoiceLineTestBa
 
         Assert.Equal("Отклонён", State(await MoveAsync(client, invoice, "rejected")));
 
+        Assert.Single(await JournalAsync(invoice, "costs.invoice.rejected"));
+    }
+
+    /// <summary>
+    /// Повтор с версией, которую человек видел ДО отклонения (ответ потерялся), — отказ 409, как у любой
+    /// правки по устаревшему виду. Сверку версии ради повтора не ослабляли: форма на такой отказ
+    /// перечитывает счёт и видит, что он отклонён (ревью PR #1290).
+    /// </summary>
+    [Fact]
+    public async Task Повтор_отклонения_с_прежней_версией_отказ_а_счёт_отклонён()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client);
+        var seen = (await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{invoice}")).GetProperty("version").GetString()!;
+        await MoveAsync(client, invoice, "rejected");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/costs/invoices/{invoice}/rejected");
+        request.Headers.TryAddWithoutValidation(SeenInvoiceVersion.Header, seen);
+        var repeated = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Conflict, repeated.StatusCode);
+        Assert.Equal("Отклонён", State(await client.GetFromJsonAsync<JsonElement>($"/api/costs/invoices/{invoice}")));
         Assert.Single(await JournalAsync(invoice, "costs.invoice.rejected"));
     }
 }
