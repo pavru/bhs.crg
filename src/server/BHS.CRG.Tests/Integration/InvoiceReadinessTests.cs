@@ -34,6 +34,15 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         var gaps = await GapsAsync(client, invoice);
         Assert.NotNull(gaps);
 
+        // Очередь «Разобрать» (issue #1292): черновик в ней стоит при ЛЮБОМ перечне, и строка списка
+        // называет то же, что открытый счёт, — теми же словами. Здесь, а не отдельным тестом: так
+        // согласие проверено на каждом условии готовности по отдельности и на нескольких сразу.
+        var row = await QueueRowAsync(client, invoice);
+        Assert.True(row is not null, "Черновик не стоит в очереди «Разобрать»");
+        Assert.Equal(
+            gaps.Select(g => g.GetProperty("label").GetString()),
+            row.Value.GetProperty("readiness").EnumerateArray().Select(l => l.GetString()));
+
         var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
         var state = (await ReadAsync(client, invoice)).GetProperty("requisites").GetProperty("Состояние").GetString();
 
@@ -41,7 +50,58 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
             $"Перечень готовности ({string.Join(", ", Kinds(gaps))}) и переход ({(int)response.StatusCode}) " +
             $"разошлись: {await response.Content.ReadAsStringAsync()}");
         Assert.Equal(gaps.Count == 0 ? "Разобран" : "Черновик", state);
+        // Разобран — из очереди ушёл; отказано — остался.
+        Assert.Equal(gaps.Count > 0, await QueueRowAsync(client, invoice) is not null);
         return (gaps, response);
+    }
+
+    /// <summary>Строка счёта под отбором «Разобрать»; <c>null</c> — счёт в очереди не стоит.</summary>
+    private static async Task<JsonElement?> QueueRowAsync(HttpClient client, Guid invoice)
+    {
+        var queue = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
+        foreach (var row in queue.EnumerateArray())
+            if (row.GetProperty("id").GetGuid() == invoice) return row;
+        return null;
+    }
+
+    /// <summary>
+    /// Число у чипа «Разобрать» — число строк под ним: считает база тем же условием, каким отбирает
+    /// список. Разойдись они, под чипом «4» стояло бы три счёта.
+    /// </summary>
+    [Fact]
+    public async Task Число_у_очереди_равно_числу_счетов_под_ней()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await CreateAsync(client);
+        var parsed = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, parsed, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{parsed}/parsed", null));
+
+        var listed = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true")).GetArrayLength();
+        var counted = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices/queues")).GetProperty("parsing").GetInt32();
+
+        Assert.True(listed > 0);
+        Assert.Equal(listed, counted);
+    }
+
+    /// <summary>
+    /// Причина в строке — только у черновика: у разобранного и отклонённого вопрос «чего не хватает» не
+    /// стоит. В общем списке (без отбора) черновик причину несёт тоже — видно, за какой счёт браться.
+    /// </summary>
+    [Fact]
+    public async Task В_общем_списке_причину_несёт_только_черновик()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var draft = await CreateAsync(client);
+        var parsed = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, parsed, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{parsed}/parsed", null));
+
+        var rows = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices")).EnumerateArray().ToList();
+        JsonElement Readiness(Guid id) => rows.Single(r => r.GetProperty("id").GetGuid() == id).GetProperty("readiness");
+
+        Assert.Equal(["плательщик", "строки", "разноска"], Readiness(draft).EnumerateArray().Select(l => l.GetString()));
+        Assert.Equal(JsonValueKind.Null, Readiness(parsed).ValueKind);
     }
 
     /// <summary>Готовый счёт: перечень пуст, переход проходит — и у разобранного перечня нет вовсе.</summary>

@@ -58,22 +58,30 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
     }
 
     /// <summary>
-    /// Счёт, у которого все строки разобраны, в очереди «Разобрать» не стоит — иначе очередь перестала
-    /// бы быть очередью и стала бы вторым реестром.
+    /// Очередь «Разобрать» — все недоведённые счета (issue #1292). Раньше она шла от строк без позиции,
+    /// и счёт, у которого позиции подставлены, а плательщика или разноски нет, не стоял ни под одним
+    /// отбором: в работе, где счёт передают из рук в руки, он терялся тихо. Уходит счёт из очереди
+    /// переходом «разобран» — иначе очередь стала бы вторым реестром.
     /// </summary>
     [Fact]
-    public async Task Разобранные_строки_из_отбора_уходят()
+    public async Task Счёт_стоит_в_очереди_пока_не_разобран_а_не_пока_строки_ждут_позиции()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client);
+        var invoice = await CreateAsync(client, complete: true);
+
+        async Task<List<Guid>> QueueAsync() =>
+            [.. (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true"))
+                .EnumerateArray().Select(i => i.GetProperty("id").GetGuid())];
 
         await LinesAsync(client, invoice, [Line(null, quantity: 1, price: 1m, text: "ждёт")]);
-        var before = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
-        Assert.Contains(invoice, before.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+        Assert.Contains(invoice, await QueueAsync());
 
-        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 1m)]);
-        var after = await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true");
-        Assert.DoesNotContain(invoice, after.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+        // Позиции подставлены, разноска сделана — а «Разобран» не нажат: счёт всё ещё не доведён.
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 1m)]);
+        Assert.Contains(invoice, await QueueAsync());
+
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
+        Assert.DoesNotContain(invoice, await QueueAsync());
     }
 
     [Fact]

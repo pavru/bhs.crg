@@ -14,6 +14,8 @@ export interface InvoiceQueues {
   doubt: string | null;
   /** Черновиков со сканом без строк, чей скан сейчас не читается (issue #1077). */
   unrecognized: number;
+  /** Недоведённых счетов — черновиков: столько строк под «Разобрать» (issue #1292). Старый сервер не присылает. */
+  parsing?: number;
 }
 
 /**

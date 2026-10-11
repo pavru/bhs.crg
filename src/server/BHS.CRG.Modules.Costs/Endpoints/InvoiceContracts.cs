@@ -107,6 +107,10 @@ public sealed record InvoiceReferencesView(
 /// «а с этим что делать».</param>
 /// <param name="SupplierArchived">Поставщик в архиве (issue #1185) — реестр ставит значок у названия.</param>
 /// <param name="References">Что со ссылками счёта на записи ядра (issue #1186): пометки строки.</param>
+/// <param name="Readiness">Чего черновику не хватает до «Разобран» — пунктами, теми же словами и той же
+/// функцией, что в открытом счёте (issue #1292). Пусто — всё готово, осталось нажать. <c>null</c> —
+/// сказать нечего: счёт не черновик, заперт закрытым периодом либо причины не прочитаны. ⚠️ «Не
+/// прочитано» — не «всё готово»: это разные значения, и сводить их нельзя.</param>
 public sealed record InvoiceListItem(
     Guid Id,
     string? Number,
@@ -129,7 +133,8 @@ public sealed record InvoiceListItem(
     string? ScanFileName = null,
     // Что со сканом: читается либо счёт стоит под «Не распознано» (определение — в
     // InvoiceListRecognition); пусто — сказать нечего.
-    InvoiceListScan? Recognition = null);
+    InvoiceListScan? Recognition = null,
+    IReadOnlyList<string>? Readiness = null);
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
 public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);

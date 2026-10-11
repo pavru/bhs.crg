@@ -28,7 +28,8 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 /// </summary>
 public sealed class InvoiceDesk(
     CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModulePeriods periods,
-    IHttpContextAccessor http, IModuleReferenceTargets targets, IModuleSettings settings)
+    IHttpContextAccessor http, IModuleReferenceTargets targets, IModuleSettings settings,
+    InvoiceSnapshots snapshots)
 {
     /// <summary>Заголовок, которым правка называет версию счёта, по которой она собрана.</summary>
     public const string SeenHeader = SeenVersion.Header;
@@ -241,53 +242,14 @@ public sealed class InvoiceDesk(
     /// </summary>
     public async Task<(InvoiceReadiness Readiness, int Lines)> ReadinessAsync(Invoice invoice, CancellationToken ct)
     {
-        var seen = await SnapshotAsync(invoice, ct);
+        var seen = await snapshots.OfAsync(invoice, ct);
         return (seen.Readiness, seen.Lines.Count);
-    }
-
-    /// <summary>
-    /// То, из чего считается готовность, — и ровно то же, из чего собран ответ чтения: строки, части
-    /// разноски, состояния записей ядра, названия позиций и сводка разноски.
-    /// </summary>
-    private sealed record Snapshot(
-        IReadOnlyList<InvoiceLine> Lines, IReadOnlyList<InvoiceAllocation> Parts, AllocationPlaces Known,
-        IReadOnlyDictionary<Guid, ReferenceState> Records, IReadOnlyDictionary<Guid, string?>? Names,
-        decimal Tolerance, InvoiceAllocationRead Allocation, IReadOnlySet<Guid> Lost, InvoiceReadiness Readiness);
-
-    private async Task<Snapshot> SnapshotAsync(Invoice invoice, CancellationToken ct)
-    {
-        var lines = await db.InvoiceLines.AsNoTracking()
-            .Where(l => l.InvoiceId == invoice.Id)
-            .OrderBy(l => l.Ordinal)
-            .ToListAsync(ct);
-        var parts = await db.InvoiceAllocations.AsNoTracking()
-            .Where(a => a.InvoiceId == invoice.Id)
-            .ToListAsync(ct);
-        var known = parts.Count == 0 ? AllocationPlaces.None : await places.LoadAsync(ct);
-
-        // Записи справочников, на которые ссылаются шапка и строки, — одним вопросом ядру. Спрашивается
-        // «есть ли запись», а не «есть ли она в списке организаций»: список не различает удалённую
-        // запись, запись другого вида и вид, которого нет в установке (issue #1184).
-        var records = await targets.StatesAsync(ReferenceTarget.Record,
-            [.. new[] { invoice.SupplierId, invoice.PayerId }.Concat(lines.Select(l => l.NomenclatureId))
-                .Concat(parts.Select(p => p.ArticleId)).OfType<Guid>().Distinct()], ct);
-        known = known with { Existing = records.Where(r => r.Value != ReferenceState.Lost).Select(r => r.Key).ToHashSet() };
-
-        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
-        var names = await InvoiceEndpoints.NomenclatureNamesAsync(catalog, lines, ct);
-        var allocation = InvoiceAllocations.Read(invoice, lines.Select(InvoiceAllocations.Line), parts, known, tolerance);
-        var lost = records.Where(r => r.Value == ReferenceState.Lost).Select(r => r.Key).ToHashSet();
-
-        // ⚠️ Готовность считается из уже прочитанного: ни одного запроса сверх тех, что нужны самому
-        // ответу. Чтение счёта зовётся после каждой записи, и второй опрос ядра удвоил бы его цену.
-        return new Snapshot(lines, parts, known, records, names, tolerance, allocation, lost,
-            InvoiceReadiness.Of(invoice, lines, names, lost, allocation.Summary));
     }
 
     private async Task<(InvoiceView View, InvoiceReadiness Readiness)> ReadAsync(Invoice invoice, CancellationToken ct)
     {
         var (lines, parts, known, records, names, tolerance, allocation, lost, readiness) =
-            await SnapshotAsync(invoice, ct);
+            await snapshots.OfAsync(invoice, ct);
         var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
         string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
 

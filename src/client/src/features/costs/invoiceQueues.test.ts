@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { InvoiceListItem } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
-import { emptyText, heldRow, lostTitle, placesCount, placesText, queueChip, queueRows } from './invoiceQueues';
+import {
+  emptyText, heldRow, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
+} from './invoiceQueues';
 
 /** Очереди списка счетов — чипы «наведите порядок» в рейле (issue #1186). */
 
@@ -136,5 +138,28 @@ describe('пустой список', () => {
   it('поиск под отбором называет и отбор, и запрос', () => {
     expect(emptyText('lost', ' ромашка ', numbers())).toBe('В отборе «Удалённые записи» по запросу «ромашка» ничего нет.');
     expect(emptyText(null, 'ромашка', undefined)).toBe('Ничего не найдено.');
+  });
+});
+
+describe('rowReadiness', () => {
+  const row = (readiness: string[] | null | undefined) => ({ id: 'i', readiness }) as unknown as InvoiceListItem;
+
+  it('причин нет — строка молчит: это не «готов»', () => {
+    expect(rowReadiness(row(null))).toBeNull();
+    expect(rowReadiness(row(undefined))).toBeNull();
+  });
+
+  it('пустой перечень — готов, осталось нажать', () => {
+    expect(rowReadiness(row([]))).toMatchObject({ text: 'готов к «Разобран»', ready: true });
+  });
+
+  it('в строку помещаются два пункта, остальные — числом и подсказкой', () => {
+    expect(rowReadiness(row(['плательщик']))?.text).toBe('осталось: плательщик');
+    expect(rowReadiness(row(['плательщик', 'разноска']))?.text).toBe('осталось: плательщик · разноска');
+
+    const many = rowReadiness(row(['номер', 'плательщик', 'строки', 'разноска']))!;
+    expect(many.text).toBe('осталось: номер · плательщик · ещё 2');
+    expect(many.title).toBe('До «Разобран» осталось: номер · плательщик · строки · разноска.');
+    expect(many.ready).toBe(false);
   });
 });

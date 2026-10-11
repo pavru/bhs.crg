@@ -28,18 +28,9 @@ public static class InvoiceListEndpoint
     /// «счёт есть, а в списке его нет» стало бы поведением, на которое кто-нибудь успел бы
     /// опереться.</para>
     /// </summary>
-    /// <param name="needsParsing">Отбор «Разобрать» (ТЗ COST-6.2): только счета, у которых есть строки
-    /// без позиции номенклатуры. Отбором, а не сортировкой: это рабочая очередь снабженца, и счета,
-    /// которые разбирать не надо, в ней мешают.
-    ///
-    /// <para>⚠️ Счёт БЕЗ строк вовсе в этот отбор НЕ попадает, хотя разбирать его тоже надо. Причина:
-    /// «строк нет» и «строки ждут позиции» — разные работы, и вторую делают по скану, который уже
-    /// разобран наполовину. Очередь «строк нет вовсе» — это отбор по состоянию «черновик», он приезжает
-    /// с сеткой реестра (G4, issue #1097) вместе с остальными сохранёнными представлениями.</para>
-    ///
-    /// <para>⚠️ ОТКЛОНЁННЫЙ счёт в отбор тоже не попадает, сколько бы строк у него ни ждало позиции:
-    /// «не платим» — значит и не разбираем, переход «разобран» на нём отвечает отказом. Очередь, в
-    /// которой стоит то, что разобрать нельзя, перестаёт быть очередью (issue #1166).</para></param>
+    /// <param name="needsParsing">Отбор «Разобрать» (ТЗ COST-6.2): все недоведённые счета — черновики
+    /// (<see cref="Queue" />). Отбором, а не сортировкой: это рабочая очередь, и счета, которые
+    /// разбирать не надо, в ней мешают.</param>
     /// <param name="fix">Отбор «наведите порядок» (issue #1186): <c>lost</c> — счета с удалённой
     /// записью, которые можно исправить; <c>archived</c> — неоплаченные счета с записью из архива. Те же
     /// множества, что у готовых отборов таблицы счетов: число на чипе считается там, и разойдись
@@ -48,7 +39,7 @@ public static class InvoiceListEndpoint
     /// чей скан сейчас не читается. Определение — в <see cref="InvoiceListRecognition" />.</param>
     public static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
         CostsDbContext db, IModuleCatalog catalog, InvoiceReferenceTrouble trouble, ILoggerFactory logs,
-        InvoiceListRecognition recognition,
+        InvoiceListRecognition recognition, InvoiceSnapshots snapshots, IModulePeriods periods,
         CancellationToken ct, bool needsParsing = false, string? fix = null, bool unrecognized = false)
     {
         if (fix is not (null or InvoiceListReferences.FixLost or InvoiceListReferences.FixArchived))
@@ -60,14 +51,8 @@ public static class InvoiceListEndpoint
         var marks = await InvoiceListMarks.ReadAsync(
             trouble, required: fix is not null, logs.CreateLogger(typeof(InvoiceEndpoints)), ct);
 
-        // Очередь «Разобрать» отбирает БАЗА (issue #1171), и запрос идёт от строк без позиции, а не от
-        // счетов: так частичный индекс ix_invoice_lines_unmatched — он заведён ровно под этот отбор —
-        // получает работу. Раньше реестр читал все счета и отбирал очередь в памяти: индекс при этом не
-        // читал никто, он только удорожал запись строк.
         var selected = db.Invoices.AsNoTracking();
-        if (needsParsing)
-            selected = selected.Where(i => i.State != InvoiceState.Rejected
-                && db.InvoiceLines.Where(l => l.NomenclatureId == null).Select(l => l.InvoiceId).Contains(i.Id));
+        if (needsParsing) selected = Queue(selected);
 
         if (fix is not null)
         {
@@ -127,6 +112,7 @@ public static class InvoiceListEndpoint
         var lines = counters.ToDictionary(c => c.InvoiceId, c => (Count: c.Count, Unmatched: c.Unmatched));
 
         var names = await SupplierNamesAsync(catalog, invoices, ct);
+        var gaps = await ReadinessAsync(invoices, snapshots, periods, logs.CreateLogger(typeof(InvoiceListEndpoint)), ct);
 
         return TypedResults.Ok<IReadOnlyList<InvoiceListItem>>(
             [.. invoices.Select(i => InvoiceViews.Item(
@@ -138,7 +124,73 @@ public static class InvoiceListEndpoint
                 {
                     References = marks?.Of(i),
                     Recognition = scans.GetValueOrDefault(i.Id),
+                    Readiness = gaps?.GetValueOrDefault(i.Id),
                 })]);
+    }
+
+    /// <summary>
+    /// Очередь «Разобрать»: все недоведённые счета — те, что в состоянии «Черновик» (решение владельца
+    /// 11.10.2026, issue #1292).
+    ///
+    /// <para>Раньше отбор шёл от строк без позиции номенклатуры, и черновик, у которого позиции
+    /// подставлены, но не выбран плательщик или не сделана разноска, не стоял ни под одним отбором: в
+    /// работе, где счёт передают из рук в руки, он терялся тихо.</para>
+    ///
+    /// <para>Отбирает БАЗА, по колонке состояния. Условия готовности в запрос не ложатся — «ссылки
+    /// живы» знает ядро, «разнесён» считается с допуском из настроек, — а запрос, который их повторял
+    /// бы, стал бы второй реализацией условий. Чего счёту не хватает, строка называет отдельно
+    /// (<see cref="ReadinessAsync" />) — той же функцией, что открытый счёт. Индекса под отбор нет
+    /// нарочно: на 21 тысяче счетов последовательный проход — 2,5 мс (замер в issue #1292).</para>
+    ///
+    /// <para>⚠️ «Черновик» и «перечень готовности не пуст» — не одно и то же, и оба расхождения
+    /// оставлены в очереди осознанно. Черновик, у которого всё готово, а «Разобран» не нажат, не
+    /// доведён: исключи его — он снова не стоял бы нигде. Оплаченный черновик, запертый закрытым
+    /// периодом, разобрать нельзя, пока период не откроют, но отобрать замок запросом значило бы
+    /// повторить в SQL правила периодов.</para>
+    ///
+    /// <para>ОТКЛОНЁННЫЙ счёт в очередь не входит по определению: «не платим» — значит и не разбираем
+    /// (issue #1166).</para>
+    /// </summary>
+    internal static IQueryable<Invoice> Queue(IQueryable<Invoice> invoices) =>
+        invoices.Where(i => i.State == InvoiceState.Draft);
+
+    /// <summary>
+    /// Чего не хватает до «Разобран» черновикам списка — пунктами, по счёту (issue #1292).
+    ///
+    /// <para>Считает <see cref="InvoiceReadiness" /> по снимку <see cref="InvoiceSnapshots" /> — тем же
+    /// кодом, что ответ чтения счёта: причина в строке и перечень открытого счёта расходиться не могут.
+    /// Снимок берётся пачкой: по одному запросу на список, а не на счёт.</para>
+    ///
+    /// <para>⚠️ <b>Список от причин не зависит</b>, как и от пометок ссылок: это вспомогательные
+    /// данные, и отказ опроса ядра не должен отнимать у человека сами счета. Тогда причин нет ни у
+    /// одной строки (<c>null</c>) — «не прочитано», а не «всё готово».</para>
+    /// </summary>
+    private static async Task<Dictionary<Guid, IReadOnlyList<string>>?> ReadinessAsync(
+        List<Invoice> invoices, InvoiceSnapshots snapshots, IModulePeriods periods, ILogger log, CancellationToken ct)
+    {
+        var drafts = invoices.Where(i => i.State == InvoiceState.Draft).ToList();
+        if (drafts.Count == 0) return [];
+
+        try
+        {
+            var seen = await snapshots.OfAsync(drafts, ct);
+
+            // Запертому закрытым периодом перечня нет и в открытом счёте (InvoiceViews): «Разобран» ему
+            // откажет замок. Заперт бывает только оплаченный, и границы спрашиваются только ради них.
+            var boundaries = drafts.Any(i => i.Payment == InvoicePaymentState.Paid)
+                ? await periods.BoundariesAsync(ct)
+                : null;
+
+            return drafts
+                .Where(i => boundaries is null || i.Payment != InvoicePaymentState.Paid
+                    || ClosedPeriodGuard.LockOf(i, seen[i.Id].Parts, boundaries) is null)
+                .ToDictionary(i => i.Id, i => (IReadOnlyList<string>)[.. seen[i.Id].Readiness.Gaps.Select(g => g.Label)]);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            log.LogWarning(e, "Список счетов отдан без причин «чего не хватает»: чтение готовности отказало");
+            return null;
+        }
     }
 
     private static async Task<Dictionary<Guid, ModuleCatalogEntry>> SupplierNamesAsync(

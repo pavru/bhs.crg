@@ -3,7 +3,7 @@ import { Archive, Ban, Check, ListChecks, Loader2, ScanLine, Sparkles, TriangleA
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
-import { lostTitle, placesCount, placesText } from './invoiceQueues';
+import { lostTitle, placesCount, placesText, rowReadiness } from './invoiceQueues';
 import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
@@ -32,6 +32,8 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   // Что со сканом — под любым отбором: основной носитель состояния распознавания — строка списка
   // (issue #1077). Человек завёл счёт из скана и ушёл; узнать об отказе он обязан, не открывая счёт.
   const scan = rowScan(item);
+  // Чего не хватает до «Разобран» — под любым отбором (issue #1292): видно, за какой счёт браться.
+  const readiness = rowReadiness(item);
 
   return (
     <button ref={row} type="button" onClick={onClick}
@@ -91,6 +93,12 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
       </div>
       {where && (
         <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-danger' : 'text-fg3'}`}>{where}</div>
+      )}
+      {readiness && (
+        <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-fg3'}`}
+          title={readiness.title} data-testid="row-readiness">
+          {readiness.text}
+        </div>
       )}
       {scan && (
         <div className={`mt-0.5 flex items-center gap-1 text-xs ${SCAN_TONE[scan.tone]}`}>
