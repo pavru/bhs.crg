@@ -520,13 +520,13 @@ export function useReplaceAllocation() {
 }
 
 /**
- * «Разобран» и «вернуть в черновик» — переходы состояния (ТЗ COST-9).
+ * «Разобран», «вернуть в черновик» и «отклонён» — переходы состояния (ТЗ COST-9).
  *
- * Одним хуком на два адреса: действие у них одно и то же по устройству — послать и перечитать, — а
+ * Одним хуком на три адреса: действие у них одно и то же по устройству — послать и перечитать, — а
  * различаются они словом в адресе. Два почти одинаковых хука расходились бы обработкой отказа.
  */
 export function useInvoiceState() {
-  return useInvoiceWrite(({ id, seen, to }: { id: string; seen: string; to: 'parsed' | 'draft' }) =>
+  return useInvoiceWrite(({ id, seen, to }: { id: string; seen: string; to: 'parsed' | 'draft' | 'rejected' }) =>
     apiClient.post<InvoiceView>(`/costs/invoices/${id}/${to}`, null, seenBy(seen)).then(r => r.data));
 }
 

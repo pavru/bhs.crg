@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { Archive, Check, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
+import { Archive, Ban, Check, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { lostTitle, placesCount, placesText } from './invoiceQueues';
+import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
 
@@ -22,6 +23,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
 
   const lost = placesCount(item.references?.lost);
   const archived = placesCount(item.references?.archived);
+  const rejected = item.state === REJECTED;
   // Третья строчка — что чинить: под отбором человек пришёл именно за этим, и открывать каждый счёт
   // ради ответа «а здесь что» незачем.
   const where = queue === 'lost' ? placesText(item.references?.lost)
@@ -72,8 +74,15 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
             <Sparkles size={11} />{item.unconfirmedCount}
           </span>
         )}
-        {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать». */}
-        {item.linesWithoutNomenclature > 0 && (
+        {/* Отклонённый назван словом: в реестре он остаётся, и без пометки выглядел бы счётом в работе. */}
+        {rejected && (
+          <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0" title="По счёту не платим">
+            <Ban size={11} aria-hidden />отклонён
+          </span>
+        )}
+        {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
+            У отклонённого его нет: разбирать такой счёт незачем, и очередь «Разобрать» его не берёт. */}
+        {!rejected && item.linesWithoutNomenclature > 0 && (
           <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
             title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
             <ListChecks size={11} />{item.linesWithoutNomenclature}

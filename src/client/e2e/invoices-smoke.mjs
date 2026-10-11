@@ -440,6 +440,59 @@ try {
     if (readFileSync(await download.path()).toString('base64') !== locked)
       throw new Error('«Скачать оригинал» отдала не приложенный файл');
   });
+
+  // ── 11. «Отклонить»: счёт остаётся в реестре, из очереди разбора уходит, возвращается кнопкой под строками ──
+  await check('счёт отклоняется из меню «Ещё», остаётся в реестре и возвращается в черновик', async () => {
+    const number = `ОТКЛ-${stamp}`;
+    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'отклонение') });
+    const seen = (await api('GET', `/costs/invoices/${created.id}`)).version;
+    // Строка без позиции ставит счёт в очередь «Разобрать» — из неё отклонённый обязан уйти.
+    await page.evaluate(async ([id, seen]) => {
+      const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+      const res = await fetch(`/api/costs/invoices/${id}/lines`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'If-Match': seen },
+        body: JSON.stringify({ lines: [{ id: null, nomenclature: null, supplierText: 'позиции ещё нет', quantity: 1, price: 10, vatRate: null }] }),
+      });
+      if (!res.ok) throw new Error(`строки не записаны: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    }, [created.id, seen]);
+    const queued = async () => (await api('GET', '/costs/invoices?needsParsing=true')).some(i => i.id === created.id);
+    if (!await queued()) throw new Error('черновик со строкой без позиции не встал в очередь «Разобрать»');
+
+    await open(number);
+    await page.getByRole('button', { name: 'Ещё', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Отклонить…' }).click();
+    const dialog = page.getByRole('dialog');
+    await named('диалог не сказал, что счёт останется в реестре',
+      () => dialog.getByText('останется в реестре').waitFor({ timeout: 10_000 }));
+    await Promise.all([
+      page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/rejected`) && r.ok()),
+      dialog.getByRole('button', { name: 'Отклонить счёт' }).click(),
+    ]);
+    await named('чип состояния не стал «Отклонён»',
+      () => page.getByText('Отклонён', { exact: true }).first().waitFor({ timeout: 10_000 }));
+
+    // В реестре счёт есть — с состоянием; из очереди разбора ушёл; «Разобран» под строками не предлагается.
+    const listed = (await api('GET', '/costs/invoices')).find(i => i.id === created.id);
+    if (listed?.state !== 'Отклонён') throw new Error(`в реестре у счёта состояние «${listed?.state}», а не «Отклонён»`);
+    if (await queued()) throw new Error('отклонённый счёт остался в очереди «Разобрать»');
+    if (await page.getByRole('button', { name: 'Разобран', exact: true }).count())
+      throw new Error('у отклонённого счёта предложено «Разобран» — сервер на это отвечает отказом');
+    if (await page.getByRole('button', { name: 'Отметить оплату' }).count())
+      throw new Error('у отклонённого счёта предложено «Отметить оплату» — сервер на это отвечает отказом');
+
+    // Меню «Ещё» у отклонённого нет вовсе: единственное его действие здесь невыполнимо, а возврат
+    // живёт одним входом — кнопкой под строками.
+    if (await page.getByRole('button', { name: 'Ещё', exact: true }).count())
+      throw new Error('у отклонённого счёта осталось меню «Ещё» — предложить в нём нечего');
+    await Promise.all([
+      page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/draft`) && r.ok()),
+      page.getByRole('button', { name: 'Вернуть в черновик' }).click(),
+    ]);
+    await named('чип состояния не вернулся к «Черновик»',
+      () => page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 }));
+    if (!await queued()) throw new Error('возвращённый в черновик счёт не вернулся в очередь «Разобрать»');
+  });
 } finally {
   await browser.close();
 }

@@ -151,14 +151,12 @@ public static class SiteCostsEndpoints
     /// <summary>
     /// Оплаченные счета, у которых в дни периода вошла хоть одна учётная дата; у стройки — дата её доли.
     /// Неотклонённые — те же слова, какими счета отберёт ссылка в реестр: иначе число отчёта и итог
-    /// реестра разойдутся.
+    /// реестра разойдутся. Оплаченного отклонённого счёта не бывает (<see cref="Invoice.Reject" />), и
+    /// условие здесь — согласие с реестром, а не отсев.
     /// </summary>
-    /// <param name="rejectedToo">И отклонённые: в затраты они не входят, но закрытый период запирает и
-    /// их (см. <see cref="ClosedPeriodGuard" />) — так считает диалог закрытия.</param>
-    internal static IQueryable<Invoice> Paid(
-        CostsDbContext db, DateOnly first, DateOnly through, Guid? site, bool rejectedToo = false) =>
+    internal static IQueryable<Invoice> Paid(CostsDbContext db, DateOnly first, DateOnly through, Guid? site) =>
         db.Invoices.AsNoTracking().Where(i =>
-            i.Payment == InvoicePaymentState.Paid && (rejectedToo || i.State != InvoiceState.Rejected)
+            i.Payment == InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
             && (db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.AccountingOn >= first && a.AccountingOn <= through
                                                && (site == null || a.ConstructionId == site))
                 || (site == null && i.RemainderAccountingOn >= first && i.RemainderAccountingOn <= through)));

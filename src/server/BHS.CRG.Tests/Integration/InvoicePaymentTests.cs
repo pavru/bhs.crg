@@ -207,6 +207,7 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
             ["строки"] = () => admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}/lines", new { lines = Array.Empty<object>() }),
             ["разобран"] = () => admin.PostAsync($"/api/costs/invoices/{invoice}/parsed", null),
             ["черновик"] = () => admin.PostAsync($"/api/costs/invoices/{invoice}/draft", null),
+            ["отклонён"] = () => admin.PostAsync($"/api/costs/invoices/{invoice}/rejected", null),
             ["разноска строки"] = () => AllocateRawAsync(admin, invoice, line, []),
             ["матрица"] = () => admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}/allocation",
                 new { stamp, lines = Array.Empty<object>() }),

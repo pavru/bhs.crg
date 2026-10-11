@@ -24,12 +24,17 @@ public enum LostMark
 /// <summary>Что со ссылками счёта на записи ядра В АРХИВЕ.</summary>
 public enum ArchivedMark
 {
-    /// <summary>Счёт ещё не оплачен — он в работе, и архивную запись в нём стоит заметить.</summary>
+    /// <summary>Счёт в работе — не оплачен и не отклонён, — и архивную запись в нём стоит заметить.</summary>
     Open = 1,
 
     /// <summary>Счёт оплачен. Ссылка законна (issue #1185: сохранённые ссылки целы), и звать к правке
     /// незачем: старые счета закрывшегося поставщика верны навсегда (решение владельца 07.10.2026).</summary>
     Paid = 2,
+
+    /// <summary>Счёт отклонён: по нему не платят, и править поставщика ради него незачем — как у
+    /// оплаченного. Без этого значения отклонённый счёт закрывшегося поставщика стоял в очереди
+    /// «В архиве» вечно: убрать его оттуда можно было только правкой отклонённого счёта (ревью PR #1290).</summary>
+    Rejected = 3,
 }
 
 /// <summary>
@@ -131,9 +136,18 @@ public sealed class InvoiceReferenceTrouble(
     /// <summary>Ссылка — тип счёта: поле, которого в форме нет.</summary>
     public static bool IsType(ReferenceFinding finding) => finding is { Table: Invoices, Column: TypeColumn };
 
-    /// <summary>Зовёт ли архивная запись к правке этого счёта: только пока он не оплачен.</summary>
+    /// <summary>Зовёт ли архивная запись к правке этого счёта: только пока он в работе.</summary>
     public static ArchivedMark ArchivedMarkOf(Invoice invoice) =>
-        invoice.Payment == InvoicePaymentState.Paid ? ArchivedMark.Paid : ArchivedMark.Open;
+        invoice.Payment == InvoicePaymentState.Paid ? ArchivedMark.Paid
+        : invoice.State == InvoiceState.Rejected ? ArchivedMark.Rejected
+        : ArchivedMark.Open;
+
+    /// <summary>
+    /// То же суждение «счёт в работе» — отбором для базы. Отбор «В архиве» и его чип обязаны считать
+    /// одно и то же; раньше условие было выписано в каждом месте своё.
+    /// </summary>
+    public static IQueryable<Invoice> InWork(IQueryable<Invoice> invoices) =>
+        invoices.Where(i => i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected);
 
     /// <summary>Счета из названных, запертые закрытым периодом, — тем же правилом, каким правку
     /// запирает форма (<see cref="ClosedPeriodGuard.LockOf" />). Запирается только оплаченный.</summary>

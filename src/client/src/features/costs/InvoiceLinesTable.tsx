@@ -6,7 +6,7 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
 } from '@/shared/api/invoices';
-import { K, refEntryId } from './invoiceFields';
+import { K, PARSED, REJECTED, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import { LineMatchChip } from './LineMatchChip';
@@ -50,8 +50,10 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  * только человек или таблица соответствий (C3).</p>
  *
  * <p>⚠️ <b>«Разобран» не отключается, даже когда заведомо откажет.</b> Приглушённая кнопка молчит о
- * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска,
- * счёт отклонён), и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.</p>
+ * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска),
+ * и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.
+ * У отклонённого счёта кнопки нет вовсе — на её месте «Вернуть в черновик»: условие тут одно, оно на
+ * экране, и невыполнимое действие не показывают (issue #1284).</p>
  *
  * <p>⚠️ Правки строк прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ (`key={view.id}` у формы) — тем же
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
@@ -188,7 +190,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   const sums = totals(drafts);
   const paper = view.requisites[K.total];
   const difference = mismatch(paper, sums.amount, sums.count);
-  const parsed = view.requisites[K.state] === 'Разобран';
+  const parsed = view.requisites[K.state] === PARSED;
+  const rejected = view.requisites[K.state] === REJECTED;
 
   function edit(key: string, patch: Partial<LineDraft>) {
     setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -226,7 +229,12 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
 
   async function move(to: 'parsed' | 'draft') {
     // Переход утверждает то, что человек видит: версию называет вид на экране.
-    try { await state.mutateAsync({ id: view.id, seen: view.version, to }); }
+    // Возврат отклонённого — решение о счёте, как и отклонение: о нём говорят вслух. Вход у возврата
+    // один, этот (ревью PR #1290): второй, в меню «Ещё», жил своей мутацией и своими правилами.
+    try {
+      await state.mutateAsync({ id: view.id, seen: view.version, to });
+      if (rejected) toast.success('Счёт возвращён в черновик.');
+    }
     catch (e) { toast.apiError(e, to === 'parsed' ? 'Счёт не разобран' : 'Счёт не возвращён в черновик'); }
   }
 
@@ -304,7 +312,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
         matched={drafts.filter(d => d.matchedBy !== null).length} />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {still ? null : parsed
+        {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
+        {still ? null : parsed || rejected
           ? (
             <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
               onClick={() => move('draft')}>
@@ -319,10 +328,12 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
           )}
         {/* У разобранного — тоже, если разноска не сходится: счёт, разобранный до F1 (#1085), разноски
             не имеет, и фраза «разноска сходится» ниже была бы про него неправдой. */}
-        {(!parsed || !view.allocation.allocated) && view.lines.length > 0
+        {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
           && <AllocationSummary allocation={view.allocation} />}
         <span className="text-xs text-fg4">
-          {parsed
+          {rejected
+            ? 'Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.'
+            : parsed
             ? view.allocation.allocated
               ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены, разноска сходится.'
               : 'Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.'

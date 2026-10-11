@@ -36,6 +36,14 @@ public static class InvoiceEndpoints
         $"Счёт {invoice.Number ?? "без номера"}" +
         (invoice.IssuedOn is { } date ? $" от {date:dd.MM.yyyy}" : string.Empty);
 
+    /// <summary>
+    /// Откуда счёт ушёл в черновик САМ — словом для журнала. Сам он уходит только из «разобран»
+    /// (правка строк, шапки и разноски сняла условие), и запись обязана это назвать так же, как
+    /// называет ручной возврат: под одним действием журнала иначе стояли записи двух видов —
+    /// «разобран → …» и «пусто → …» (ревью PR #1290).
+    /// </summary>
+    internal static readonly string WasParsed = InvoiceRequisites.Label(InvoiceState.Parsed).ToLowerInvariant();
+
     public static void MapInvoices(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/costs/invoices").WithTags("Счета на оплату");
@@ -170,7 +178,7 @@ public static class InvoiceEndpoints
 
         if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
-                after: $"правка счёта: {reason}", ct: ct);
+                before: WasParsed, after: $"правка счёта: {reason}", ct: ct);
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }

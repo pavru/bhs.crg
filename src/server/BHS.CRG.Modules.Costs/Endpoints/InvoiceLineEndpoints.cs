@@ -31,6 +31,7 @@ public static class InvoiceLineEndpoints
         group.MapPut("/lines", ReplaceAsync).RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPost("/parsed", ParsedAsync).RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPost("/draft", DraftAsync).RequireAuthorization(AppPolicies.Permission(Edit));
+        group.MapPost("/rejected", RejectedAsync).RequireAuthorization(AppPolicies.Permission(Edit));
     }
 
     /// <summary>
@@ -78,7 +79,8 @@ public static class InvoiceLineEndpoints
 
         if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
-                InvoiceEndpoints.Label(invoice), after: $"правка строк: {reason}", ct: ct);
+                InvoiceEndpoints.Label(invoice), before: InvoiceEndpoints.WasParsed,
+                after: $"правка строк: {reason}", ct: ct);
 
         // Запоминание — ПОСЛЕ записи счёта и вне её транзакции: см. SupplierMatching.RememberAsync. Его
         // отказ счёт не губит: строки записаны, и ответ обязан это сказать — с версией, иначе следующее
@@ -274,18 +276,62 @@ public static class InvoiceLineEndpoints
     private static async Task<Ok<InvoiceView>> DraftAsync(
         Guid id, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log, CancellationToken ct)
     {
-        var (invoice, returned) = await desk.WriteAsync(id, async write =>
+        var (invoice, from) = await desk.WriteAsync(id, async write =>
         {
-            if (write.Invoice.State == InvoiceState.Draft) return (write.Invoice, false);
+            var was = write.Invoice.State;
+            if (was == InvoiceState.Draft) return (write.Invoice, (InvoiceState?)null);
 
             write.Invoice.ReturnToDraft();
             await db.SaveChangesAsync(ct);
-            return (write.Invoice, true);
+            return (write.Invoice, was);
         }, ct);
 
-        if (returned)
+        // Откуда вернули — в записи: «разобранный вернули править» и «отклонённый решили всё же
+        // платить» — разные решения, а действие в журнале у них одно.
+        if (from is { } state)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
-                InvoiceEndpoints.Label(invoice), after: "решением человека", ct: ct);
+                InvoiceEndpoints.Label(invoice), before: InvoiceRequisites.Label(state).ToLowerInvariant(),
+                after: "решением человека", ct: ct);
+
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+    }
+
+    /// <summary>
+    /// «Отклонён»: по счёту не платим (ТЗ COST-9, issue #1284).
+    ///
+    /// <para>Отклоняют и черновик, и разобранный: решение «не платим» от того, разобран ли счёт, не
+    /// зависит. <b>Оплаченный не отклоняют</b> — отказывает сама сущность (<see cref="Invoice.Reject" />);
+    /// сначала отменяют оплату, и это отдельное решение со своей записью в журнале. Запертый закрытым
+    /// периодом счёт сюда не доходит: он оплачен, и связка записи отказывает раньше — словами про
+    /// период.</para>
+    ///
+    /// <para>Строки, разноска и файл остаются как были: отклонённый счёт возвращают в черновик, и
+    /// разбирать его с нуля было бы наказанием за передуманное решение.</para>
+    /// </summary>
+    private static async Task<Ok<InvoiceView>> RejectedAsync(
+        Guid id, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log, CancellationToken ct)
+    {
+        var (invoice, from) = await desk.WriteAsync(id, async write =>
+        {
+            var was = write.Invoice.State;
+            // Уже отклонён — решения не было, и второй записи в журнале не будет.
+            //
+            // ⚠️ Повтор после оборванного ответа сюда НЕ доходит (ревью PR #1290): он называет версию,
+            // которую видел до отклонения, и связка записи отказывает ему раньше — 409. Ослаблять ради
+            // него сверку версии незачем: форма на такой отказ перечитывает счёт и, увидев «отклонён»,
+            // говорит это, а не «не отклонён» (InvoiceMoreMenu). Сюда приходит тот, кто прочитал
+            // отклонённый счёт и отклоняет его снова.
+            if (was == InvoiceState.Rejected) return (write.Invoice, (InvoiceState?)null);
+
+            write.Invoice.Reject();
+            await db.SaveChangesAsync(ct);
+            return (write.Invoice, was);
+        }, ct);
+
+        if (from is { } state)
+            await log.RecordAsync(InvoiceActions.Rejected, invoice.Id.ToString(),
+                InvoiceEndpoints.Label(invoice), before: InvoiceRequisites.Label(state).ToLowerInvariant(),
+                after: "не платим", ct: ct);
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
