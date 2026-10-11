@@ -34,3 +34,19 @@ export function useInvoiceQueues(enabled: boolean) {
     staleTime: 0,
   });
 }
+
+/**
+ * Число у чипа «Разобрать» (issue #1292): сколько счетов не доведено — черновиков.
+ *
+ * Отдельным запросом, а не полем `useInvoiceQueues`: те числа спрашивают только у того, кто счёт может
+ * править, и их адрес падает вместе с опросом ссылок ядра. Это число — счёт по одной таблице, и нужно
+ * оно каждому, кто видит очередь. Ключ и свежесть — как у списка: правка счёта сбрасывает оба.
+ */
+export function useParsingCount() {
+  return useQuery({
+    queryKey: [QK, 'queues', 'parsing'] as const,
+    queryFn: () => apiClient.get<{ count: number }>('/costs/invoices/queues/parsing').then(r => r.data.count),
+    retry: false,
+    staleTime: 0,
+  });
+}

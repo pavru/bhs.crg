@@ -12,11 +12,13 @@ import { QUEUE_LABEL, queueChip } from './invoiceQueues';
  * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, чипов «наведите
  * порядок» не показывают (числа у него и не спрашивают): число было бы упрёком без выхода.
  */
-export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: {
+export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, onRetry }: {
   queue: InvoiceQueue | null;
   onChange: (queue: InvoiceQueue | null) => void;
   /** Числа; `undefined` — не пришли или их не спрашивали. */
   queues: InvoiceQueues | undefined;
+  /** Сколько счетов под «Разобрать»; `undefined` — не посчитано (идёт запрос, отказ, прежний сервер). */
+  parsing: number | undefined;
   /** Числа не пришли: это не «ноль», и молча убрать чип нельзя. */
   failed: boolean;
   onRetry: () => void;
@@ -27,11 +29,15 @@ export function InvoiceQueueChips({ queue, onChange, queues, failed, onRetry }: 
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-xs" role="group" aria-label="Отбор списка счетов">
-      {/* «Разобрать» (ТЗ COST-6.2) — рабочая очередь снабженца: счета, у которых строки ждут позиции
-          номенклатуры. Отбирает СЕРВЕР: считать «ждут позиции» по загруженному списку можно, а вот
-          утверждать по нему, что других таких счетов нет, — нельзя. */}
+      {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
+          черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
+          равно нулю, — «не посчитано» нулём не рисуем. */}
       <Chip active={queue === 'parsing'} icon={ListChecks} label={QUEUE_LABEL.parsing}
-        title="Счета, у которых строки ждут позиции номенклатуры" tone="quiet" onClick={() => toggle('parsing')} />
+        count={parsing ? String(parsing) : undefined}
+        title={'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
+          + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`)}
+        tone="quiet" onClick={() => toggle('parsing')}
+        ariaLabel={parsing ? `${QUEUE_LABEL.parsing}, счетов: ${parsing}` : undefined} />
       {/* «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Ноль не рисуем,
           нажатый чип остаётся — иначе отбор нечем снять. */}
       {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,

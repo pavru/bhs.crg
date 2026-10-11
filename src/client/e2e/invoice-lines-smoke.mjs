@@ -230,7 +230,7 @@ try {
     await cell('Цена', 1).fill('100');
     await saveLines();
 
-    await page.getByRole('button', { name: 'Разобран' }).click();
+    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
 
     // Текст отказа читаем ЦЕЛИКОМ и сверяем сами. Ждать его через getByText нельзя строгим режимом:
     // тост живёт в двух узлах — видимом и объявлении для чтения с экрана. А главное, так провал
@@ -289,7 +289,7 @@ try {
 
     const refused = page.waitForResponse(
       r => r.request().method() === 'POST' && r.url().endsWith('/parsed'), { timeout: 15_000 });
-    await page.getByRole('button', { name: 'Разобран' }).click();
+    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
     if ((await refused).status() !== 400)
       throw new Error('«Разобран» прошёл у счёта, строка которого не разнесена по стройкам');
 
@@ -308,7 +308,7 @@ try {
 
     const passed = page.waitForResponse(
       r => r.request().method() === 'POST' && r.url().endsWith('/parsed'), { timeout: 15_000 });
-    await page.getByRole('button', { name: 'Разобран' }).click();
+    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
     if (!(await passed).ok())
       throw new Error('строка готовности сказала «всё готово», а «Разобран» отказал');
     // Состояние показано человеку словом — оно же и признак перехода.
@@ -320,8 +320,8 @@ try {
       throw new Error('после перехода на форме не сказано, что счёт разобран');
   });
 
-  // ── 6. Отбор «Разобрать» показывает счёт со строкой без позиции ──────────────
-  await check('отбор «Разобрать» оставляет счета, у которых строки ждут позиции', async () => {
+  // ── 6. Отбор «Разобрать» показывает недоведённые счета и называет, чего им не хватает ──
+  await check('отбор «Разобрать» показывает черновики и в строке называет, чего не хватает', async () => {
     const waiting = `СЧ-Ж${stamp}`;
     const created = await invoice(waiting);
     await api('PUT', `/costs/invoices/${created.id}/lines`, {
@@ -331,9 +331,25 @@ try {
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     // Чип в ряду отборов списка, а не флажок (issue #1186): три очереди одним приёмом, выбор один.
     await page.getByRole('group', { name: 'Отбор списка счетов' })
-      .getByRole('button', { name: 'Разобрать', exact: true }).click();
-    await page.getByRole('button', { name: new RegExp(waiting) }).first()
-      .waitFor({ timeout: 10_000 });
+      .getByRole('button', { name: /^Разобрать/ }).click();
+    const row = page.getByRole('button', { name: new RegExp(waiting) }).first();
+    await row.waitFor({ timeout: 10_000 });
+
+    // Причина — в строке (issue #1292): за какой счёт браться, видно не открывая его.
+    const said = await row.getByTestId('row-readiness').innerText({ timeout: 10_000 });
+    if (!said.startsWith('осталось:'))
+      throw new Error(`строка черновика не называет, чего не хватает: «${said}»`);
+
+    // Число у чипа — число строк под ним: считает сервер тем же условием, каким отбирает. Ждём
+    // согласия, а не сверяем один раз: стенд общий, и соседний прогон мог завести черновик между
+    // двумя чтениями — экран перечитает оба, и сойтись они обязаны.
+    await page.waitForFunction(() => {
+      const chip = [...document.querySelectorAll('[role="group"][aria-label="Отбор списка счетов"] button')]
+        .map(b => b.getAttribute('aria-label') ?? '').find(l => l.startsWith('Разобрать, счетов: '));
+      return chip?.endsWith(`: ${document.querySelectorAll('[data-testid="invoice-row"]').length}`);
+    }, null, { timeout: 15_000 }).catch(() => {
+      throw new Error('число у чипа «Разобрать» не сошлось с числом счетов под отбором');
+    });
 
     // А разобранный счёт из очереди уходит: иначе очередь перестала бы быть очередью.
     if ((await page.getByRole('button', { name: new RegExp(`СЧ-Н${stamp}`) }).count()) !== 0)

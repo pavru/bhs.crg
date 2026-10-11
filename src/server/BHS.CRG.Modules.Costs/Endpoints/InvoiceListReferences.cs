@@ -56,6 +56,9 @@ public sealed record InvoiceListReferences(
 /// столько строк отдаёт список под <c>unrecognized=true</c>.</param>
 public sealed record InvoiceQueuesView(int Lost, int Archived, int Locked, string? Doubt, int Unrecognized = 0);
 
+/// <summary>Сколько счетов стоит под отбором «Разобрать» — недоведённых, то есть черновиков (issue #1292).</summary>
+public sealed record InvoiceParsingCount(int Count);
+
 /// <summary>
 /// Пометки строк списка счетов из ответа обратного опроса ядра.
 ///

@@ -207,10 +207,11 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
     }
 
     /// <summary>
-    /// Колонка — факт о строках, очередь «Разобрать» — правило поверх него: отклонённый счёт в очередь
-    /// не входит (issue #1166), а строки без позиции у него остаются, и счётчик в списке счетов у него
-    /// прежний. Реестр обязан давать ТУ ЖЕ очередь, что экран счетов, — названным рецептом: «не пусто»
-    /// и «не отклонён». Разойдись они, у снабженца было бы две очереди с одним названием (ревью PR #1177).
+    /// Колонка — факт о строках, очередь «Разобрать» — состояние счёта: все недоведённые, то есть
+    /// черновики (issue #1292). Отклонённый счёт в очередь не входит (issue #1166), а строки без позиции
+    /// у него остаются; черновик, у которого позиции подставлены, в очереди стоит — он не разобран.
+    /// Реестр обязан давать ТУ ЖЕ очередь, что экран счетов, — названным рецептом: «Состояние =
+    /// Черновик». Разойдись они, у снабженца было бы две очереди с одним названием (ревью PR #1177).
     /// </summary>
     [Fact]
     public async Task Очередь_разобрать_в_реестре_та_же_что_на_экране_счетов()
@@ -237,16 +238,15 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
             [($"{tag}-1", 1m), ($"{tag}-2", (decimal?)2m)],
             facts.GetProperty("rows").EnumerateArray().Select(r => (r.GetProperty("Номер").GetString()!, Number(r, Unmatched))));
 
-        // Очередь: то же, без отклонённых.
-        var queue = await ReadAsync(client, "columns=Номер&filter=" + Own(tag, Group(
-            Condition(Unmatched, "is_not_empty"), Condition("Состояние", "neq", "Отклонён"))));
+        // Очередь: черновики. Третий счёт позиции получил, но не разобран — он в очереди.
+        var queue = await ReadAsync(client, "columns=Номер&filter=" + Own(tag, Condition("Состояние", "eq", "Черновик")));
 
         var own = new[] { waiting, rejected, parsed };
         var onScreen = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true"))
-            .EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).Where(own.Contains).ToList();
+            .EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).Where(own.Contains).ToHashSet();
 
-        Assert.Equal([waiting], onScreen);
-        Assert.Equal([$"{tag}-1"], Numbers(queue));
+        Assert.Equal([waiting, parsed], onScreen);
+        Assert.Equal([$"{tag}-1", $"{tag}-3"], Numbers(queue).Order());
     }
 
     // ── Отборы ────────────────────────────────────────────────────────────────

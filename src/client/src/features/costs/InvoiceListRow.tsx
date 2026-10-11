@@ -3,7 +3,7 @@ import { Archive, Ban, Check, ListChecks, Loader2, ScanLine, Sparkles, TriangleA
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
-import { lostTitle, placesCount, placesText } from './invoiceQueues';
+import { lostTitle, placesCount, placesText, rowReadiness } from './invoiceQueues';
 import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
@@ -32,9 +32,11 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   // Что со сканом — под любым отбором: основной носитель состояния распознавания — строка списка
   // (issue #1077). Человек завёл счёт из скана и ушёл; узнать об отказе он обязан, не открывая счёт.
   const scan = rowScan(item);
+  // Чего не хватает до «Разобран» — под любым отбором (issue #1292): видно, за какой счёт браться.
+  const readiness = rowReadiness(item);
 
   return (
-    <button ref={row} type="button" onClick={onClick}
+    <button ref={row} type="button" onClick={onClick} data-testid="invoice-row"
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
         `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
       <div className="flex items-center gap-2">
@@ -81,7 +83,8 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
           </span>
         )}
         {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
-            У отклонённого его нет: разбирать такой счёт незачем, и очередь «Разобрать» его не берёт. */}
+            У отклонённого его нет: разбирать такой счёт незачем. К очереди «Разобрать» счётчик не
+            относится — она с issue #1292 отбирает по состоянию, а не по строкам без позиции. */}
         {!rejected && item.linesWithoutNomenclature > 0 && (
           <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
             title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
@@ -91,6 +94,12 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
       </div>
       {where && (
         <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-danger' : 'text-fg3'}`}>{where}</div>
+      )}
+      {readiness && (
+        <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-fg3'}`}
+          title={readiness.title} data-testid="row-readiness">
+          {readiness.text}
+        </div>
       )}
       {scan && (
         <div className={`mt-0.5 flex items-center gap-1 text-xs ${SCAN_TONE[scan.tone]}`}>

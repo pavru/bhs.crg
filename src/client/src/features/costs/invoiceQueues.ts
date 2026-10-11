@@ -54,6 +54,40 @@ export function queueChip(
   return { count, title: said.join(' '), doubt };
 }
 
+/** Сколько пунктов «чего не хватает» помещается в строку списка: рейл — 320 пикселей. */
+const READINESS_SHOWN = 2;
+
+/** Третья строчка счёта в списке: чего не хватает до «Разобран». */
+export interface RowReadiness {
+  text: string;
+  /** Полный перечень — подсказкой: в строку помещается не всё. */
+  title: string;
+  /** Всё готово, осталось нажать «Разобран». */
+  ready: boolean;
+}
+
+/**
+ * Что строка списка говорит о готовности счёта (issue #1292) — чтобы из списка было видно, за какой
+ * счёт браться, не открывая каждый. Перечень строит СЕРВЕР, той же функцией, что в открытом счёте:
+ * здесь только сколько из него показать.
+ *
+ * `null` — сказать нечего: счёт не черновик, заперт либо причины не пришли. ⚠️ «Не пришли» не
+ * превращается в «готов»: пустой перечень и отсутствующий — разное.
+ */
+export function rowReadiness(item: InvoiceListItem): RowReadiness | null {
+  const gaps = item.readiness;
+  if (gaps == null) return null;
+  if (gaps.length === 0)
+    return { text: 'готов к «Разобран»', title: 'Все условия выполнены — осталось нажать «Разобран».', ready: true };
+
+  const rest = gaps.length - READINESS_SHOWN;
+  return {
+    text: `осталось: ${gaps.slice(0, READINESS_SHOWN).join(' · ')}${rest > 0 ? ` · ещё ${rest}` : ''}`,
+    title: `До «Разобран» осталось: ${gaps.join(' · ')}.`,
+    ready: false,
+  };
+}
+
 /** О счетах закрытого периода: в отбор они не входят, и молчать о них нельзя. */
 export function lockedNote(locked: number): string {
   return `Ещё в счетах закрытого периода (${locked}) стоят удалённые записи. Исправить их нельзя — в отбор они не входят.`;
@@ -155,8 +189,7 @@ export function emptyText(queue: InvoiceQueue | null, query: string, queues: Inv
     return queue ? `В отборе «${QUEUE_LABEL[queue]}» по запросу «${text}» ничего нет.` : 'Ничего не найдено.';
   switch (queue) {
     case 'parsing':
-      return 'Разбирать нечего: строк, ждущих позиции номенклатуры, нет ни у одного счёта. '
-        + 'Счета без строк вовсе в этот отбор не входят — это другая работа.';
+      return 'Разбирать нечего: черновиков нет — все счета разобраны либо отклонены.';
     case 'unrecognized':
       return queues
         ? 'Нераспознанных черновиков нет: у каждого счёта с файлом есть строки либо распознавание ещё идёт.'

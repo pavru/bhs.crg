@@ -202,6 +202,11 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
         // (ревью PR #1301): «всё готово» рядом с отказом «заперт» было бы неправдой.
         Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
         Assert.Equal(JsonValueKind.Null, view.GetProperty("readiness").GetProperty("gaps").ValueKind);
+        // И в строке списка причин у него нет (issue #1292): «осталось: …» звало бы чинить то, что
+        // чинить нельзя, пока период закрыт. В очереди он при этом стоит — он черновик.
+        var row = (await admin.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true"))
+            .EnumerateArray().Single(r => r.GetProperty("id").GetGuid() == invoice);
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("readiness").ValueKind);
 
         var paths = new Dictionary<string, Func<Task<HttpResponseMessage>>>
         {

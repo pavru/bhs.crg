@@ -50,6 +50,7 @@ public static class InvoiceEndpoints
 
         group.MapGet("/", InvoiceListEndpoint.ListAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/queues", InvoiceListMarks.QueuesAsync).RequireAuthorization(AppPolicies.Permission(Read));
+        group.MapGet("/queues/parsing", InvoiceListEndpoint.ParsingCountAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}/scan", ScanAsync).RequireAuthorization(AppPolicies.Permission(Read));
 

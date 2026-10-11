@@ -16,7 +16,7 @@ import {
   forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
-import { useInvoiceQueues } from '@/shared/api/invoiceQueues';
+import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
 import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -66,6 +66,7 @@ export function InvoicesPage() {
   // сказать о них сам) и оговорка «проверено не всё».
   const counts = useInvoiceQueues(hasPermission(access, 'costs.invoice.edit'));
   const queues = counts.data;
+  const parsing = useParsingCount().data;
   useQueuesFollowScans(scansRunning(invoices.data), () => { if (counts.isEnabled) void counts.refetch(); });
   const fixing = queue === 'lost' || queue === 'archived';
   const doubt = fixing ? queues?.doubt ?? null : null;
@@ -112,9 +113,10 @@ export function InvoicesPage() {
   async function addFromScan(file: File) {
     try {
       const created = await fromScan.mutateAsync(file);
-      // Отбор и поиск снимаются: новый черновик под «Разобрать» не стоит, а у счёта без номера и
-      // поставщика поиску не за что зацепиться — открылся бы счёт, которого нет в списке.
-      setQueue(null);
+      // Поиск снимается: у счёта без номера и поставщика ему не за что зацепиться — открылся бы счёт,
+      // которого нет в списке. Отбор снимается тоже — кроме «Разобрать»: новый черновик под ним стоит
+      // (issue #1292), и выбрасывать человека из рабочей очереди незачем.
+      if (queue !== 'parsing') setQueue(null);
       setQuery('');
       setSelected(created.invoice.id);
     } catch (e) { toast.apiError(e, 'Счёт из файла не заведён'); }
@@ -209,7 +211,8 @@ export function InvoicesPage() {
       nav={
         <InvoiceScanDrop enabled={hasPermission(access, 'costs.invoice.edit') && !loading} onFiles={addScans}>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
-          <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} failed={counts.isError}
+          <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
+            failed={counts.isError}
             onRetry={() => void counts.refetch()} />
           <InvoiceScanBatchBar batch={batch} narrowed={queue !== null || query.trim() !== ''}
             onShowAll={() => { setQueue(null); setQuery(''); }} onRetry={() => retryRejected(port)} />

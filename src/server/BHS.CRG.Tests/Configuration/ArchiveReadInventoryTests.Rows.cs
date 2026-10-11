@@ -293,8 +293,8 @@ public partial class ArchiveReadInventoryTests
             Seen("предпросмотр разноски: есть ли запись вовсе; архивная статья — на месте, признак несёт справочник статей"),
         ["BHS.CRG.Modules.Costs/Endpoints/AllocationPlaces.cs|await catalog.ListAsync(CostsRecordTypes.ArticleCode, RecordsFor.Display, ct) is { } entries"] =
             Shown("справочник статей: названия стоящих частей, проверка новой части и экран справочника — признак в ответе"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|var records = await targets.StatesAsync(ReferenceTarget.Record,"] =
-            Shown("состояние ссылок счёта: «в архиве» у сторон, строк и частей разноски"),
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceSnapshots.cs|var records = await targets.StatesAsync(ReferenceTarget.Record,"] =
+            Shown("состояние ссылок счёта и черновиков списка: «в архиве» у сторон, строк и частей разноски"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);"] =
             Seen("названия сторон счёта — уже стоящих; признак рядом, из состояния ссылок"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDeletion.cs|supplier = (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [id], CancellationToken.None))"] =
