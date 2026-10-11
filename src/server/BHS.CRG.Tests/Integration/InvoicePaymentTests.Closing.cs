@@ -126,7 +126,9 @@ public partial class InvoicePaymentTests
         using var scope = host.Services.CreateScope();
         var closed = await scope.ServiceProvider.GetRequiredService<IActivityLog>().LastAsync(ActivityActions.PeriodClosed);
         var counted = Assert.Single(seen.GetProperty("sections").EnumerateArray()).GetProperty("unfinished")[0].GetProperty("counted").GetString();
-        Assert.Equal(
+        // Началом, а не целиком: за счетами в перечне идут накладные (issue #1285), и в общей базе
+        // класса у соседних тестов они в этих днях есть.
+        Assert.StartsWith(
             $"закрыто по {through:dd.MM.yyyy}. Не завершено: Счета и накладные — оплачены в периоде, но не разнесены или не разобраны: {counted}",
             closed!.After);
 

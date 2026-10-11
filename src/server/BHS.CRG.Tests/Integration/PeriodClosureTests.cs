@@ -170,7 +170,10 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.NotNull(closed);
         Assert.Equal("Компания", closed.TargetLabel);
         Assert.Equal("не закрыто ничего", closed.Before);
-        Assert.Equal($"закрыто по {through:dd.MM.yyyy}", closed.After);
+        // Началом: дальше может идти «Не завершено: …» — число документов модуля, если в общей базе
+        // класса они в этих днях есть (накладные соседних тестов, issue #1285). Рублей там нет никогда.
+        Assert.StartsWith($"закрыто по {through:dd.MM.yyyy}", closed.After);
+        Assert.DoesNotContain("₽", closed.After);
 
         // Сколько закрытий — столько и событий: журнал пишется в той же транзакции.
         Assert.Equal(before + 1, await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code));
