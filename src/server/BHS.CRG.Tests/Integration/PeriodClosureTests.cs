@@ -157,7 +157,9 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     [Fact]
     public async Task Журнал_называет_контур_и_даты_без_чисел_модулей()
     {
-        var through = (await TodayAsync()).AddDays(-10);
+        // День, раньше которого в общей базе класса нет ни одного документа модулей: первое закрытие
+        // закрывает всё до него, и накладная соседнего теста дописала бы журналу «Не завершено: …».
+        var through = new DateOnly(2001, 1, 31);
         using var scope = host.Services.CreateScope();
         var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
@@ -170,10 +172,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.NotNull(closed);
         Assert.Equal("Компания", closed.TargetLabel);
         Assert.Equal("не закрыто ничего", closed.Before);
-        // Началом: дальше может идти «Не завершено: …» — число документов модуля, если в общей базе
-        // класса они в этих днях есть (накладные соседних тестов, issue #1285). Рублей там нет никогда.
-        Assert.StartsWith($"закрыто по {through:dd.MM.yyyy}", closed.After);
-        Assert.DoesNotContain("₽", closed.After);
+        Assert.Equal($"закрыто по {through:dd.MM.yyyy}", closed.After);
 
         // Сколько закрытий — столько и событий: журнал пишется в той же транзакции.
         Assert.Equal(before + 1, await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code));

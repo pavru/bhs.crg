@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.Periods;
+using BHS.CRG.Modules.Costs.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using BHS.CRG.Modules.Costs.Data;
 using Contour = BHS.CRG.Domain.Periods.PeriodContour;
 
 namespace BHS.CRG.Tests.Integration;
@@ -25,17 +25,27 @@ public partial class WaybillTests
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>Строка перечня числом; строки нет — ноль: модуль не называет то, чего нет.</summary>
-    private static int Counted(JsonElement preview, string group, string key)
-    {
-        var line = Assert.Single(preview.GetProperty("sections").EnumerateArray()).GetProperty(group).EnumerateArray()
+    private static JsonElement ClosingLine(JsonElement preview, string group, string key) =>
+        Assert.Single(preview.GetProperty("sections").EnumerateArray()).GetProperty(group).EnumerateArray()
             .FirstOrDefault(l => l.GetProperty("key").GetString() == key);
-        return line.ValueKind == JsonValueKind.Undefined ? 0 : line.GetProperty("count").GetInt32();
-    }
+
+    /// <summary>Строка перечня числом; строки нет — ноль: модуль не называет то, чего нет.</summary>
+    private static int Counted(JsonElement preview, string group, string key) =>
+        ClosingLine(preview, group, key) is { ValueKind: not JsonValueKind.Undefined } line ? line.GetProperty("count").GetInt32() : 0;
 
     private static (int Frozen, int Unmatched, int Drafts) Waybills(JsonElement preview) =>
         (Counted(preview, "frozen", "waybills"), Counted(preview, "unfinished", "waybills-unmatched"),
             Counted(preview, "unfinished", "waybills-drafts"));
+
+    private async Task CloseAsync(Contour contour, DateOnly from, DateOnly through, DateOnly? seen)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
+            .CloseAsync(new ClosePeriod(contour, from, through, seen, null));
+    }
+
+    private static async Task<bool> LockedAsync(HttpClient client, Guid id) =>
+        (await WaybillAsync(client, id)).GetProperty("locked").ValueKind != JsonValueKind.Null;
 
     /// <summary>
     /// Диалог закрытия называет накладные периода: сколько проведённых запрётся, у скольких из них
@@ -54,48 +64,98 @@ public partial class WaybillTests
         await PostedAsync(admin, site, "2026-04-09", Row(cable, 10m, "м"));
         await PostedAsync(admin, site, "2026-04-10", Row(cable, 5m, "м"), Row(null, 2m, "шт", "Скоба"));
         await DraftAsync(admin, site, "2026-04-11", Row(cable, 1m, "м"));
-        // Мимо периода и мимо стройки: майская накладная и накладная соседней стройки.
+        // Мимо периода и мимо стройки: майские накладная и черновик, накладная соседней стройки.
         await PostedAsync(admin, site, "2026-05-02", Row(cable, 1m, "м"));
+        await DraftAsync(admin, site, "2026-05-03", Row(cable, 1m, "м"));
         await PostedAsync(admin, other, "2026-04-12", Row(cable, 1m, "м"));
 
-        Assert.Equal((2, 1, 1), Waybills(await ClosingPreviewAsync(admin, from, through, site)));
+        var mine = await ClosingPreviewAsync(admin, from, through, site);
+        Assert.Equal((2, 1, 1), Waybills(mine));
         Assert.Equal((company.Frozen + 3, company.Unmatched + 1, company.Drafts + 1),
             Waybills(await ClosingPreviewAsync(admin, from, through, null)));
         Assert.Equal((1, 0, 0), Waybills(await ClosingPreviewAsync(admin, from, through, other)));
+
+        // Футер диалога и журнал перечисляют незавершённое числами подряд: у черновиков единица своя,
+        // иначе вышло бы «1 накладная, 1 накладная» (ревью PR #1297).
+        Assert.Equal("1 накладная", ClosingLine(mine, "unfinished", "waybills-unmatched").GetProperty("counted").GetString());
+        Assert.Equal("1 черновик накладной", ClosingLine(mine, "unfinished", "waybills-drafts").GetProperty("counted").GetString());
     }
 
     /// <summary>
-    /// «Запрутся» считает то же правило, что запирает: по УЧЁТНОЙ дате. Накладная, проведённая после
-    /// закрытия апреля датой отпуска в апреле, легла в первый открытый день — в мае, — и в перечень
-    /// следующего закрытия попадает она, а не в апрельский. И названное число равно числу запертых.
+    /// Главный сторож: диалог называет РОВНО те накладные, что закрытие запрёт, — число строки равно
+    /// числу накладных, которые были открыты до закрытия и заперты после. В наборе — все случаи, где
+    /// день накладной не равен дате отпуска или читается запасным правилом: проведённая после
+    /// закрытия апреля апрельской датой (учётный день — 1 мая) и накладная без учётной даты, как из
+    /// резервной копии, снятой до колонки. Уже запертая апрельская и июньская в число не идут.
     /// </summary>
     [Fact]
-    public async Task Перечень_накладных_идёт_по_учётной_дате_и_равен_числу_запертых()
+    public async Task Перечень_называет_ровно_те_накладные_что_закрытие_запрёт()
     {
         var (admin, _) = await SignInAsync("Admin");
         var (site, _) = await SiteAsync("Накладная: диалог по учётной дате");
-        var first = (await PostedAsync(admin, site, "2026-04-09", Row(cable, 10m, "м"))).GetProperty("id").GetGuid();
-        await CloseAsync(Contour.Construction(site), new DateOnly(2026, 4, 30));
+        Guid Id(JsonElement waybill) => waybill.GetProperty("id").GetGuid();
 
-        // Датой отпуска — закрытый апрель; учётный день — 1 мая.
+        var april = Id(await PostedAsync(admin, site, "2026-04-09", Row(cable, 10m, "м")));
+        await CloseAsync(Contour.Construction(site), new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30), null);
+
         var late = await PostedAsync(admin, site, "2026-04-20", Row(cable, 3m, "м"));
         Assert.Equal("2026-05-01", late.GetProperty("accountingOn").GetString());
+        var former = Id(await PostedAsync(admin, site, "2026-05-12", Row(cable, 1m, "м")));
+        var june = Id(await PostedAsync(admin, site, "2026-06-02", Row(cable, 1m, "м")));
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database
+                .ExecuteSqlInterpolatedAsync($"UPDATE costs.waybills SET accounting_on = NULL WHERE id = {former}");
 
-        // Уже закрытый апрель второй раз не называется; май называет одну — ту, что с апрельской датой отпуска.
-        var may = await ClosingPreviewAsync(admin, new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), site);
-        Assert.Equal((1, 0, 0), Waybills(may));
+        Guid[] all = [april, Id(late), former, june];
+        var open = new List<Guid>();
+        foreach (var id in all)
+            if (!await LockedAsync(admin, id)) open.Add(id);
+        Assert.Equal(3, open.Count);
 
-        using (var closing = host.Services.CreateScope())
-            await closing.ServiceProvider.GetRequiredService<IPeriodClosures>().CloseAsync(new ClosePeriod(
-                Contour.Construction(site), new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), new DateOnly(2026, 4, 30), null));
+        var named = Waybills(await ClosingPreviewAsync(admin, new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), site)).Frozen;
+        await CloseAsync(Contour.Construction(site), new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), new DateOnly(2026, 4, 30));
+
         var locked = 0;
-        foreach (var id in new[] { first, late.GetProperty("id").GetGuid() })
-            if ((await WaybillAsync(admin, id)).GetProperty("locked").ValueKind != JsonValueKind.Null) locked++;
+        foreach (var id in open)
+            if (await LockedAsync(admin, id)) locked++;
         Assert.Equal(2, locked);
+        Assert.Equal(locked, named);
+    }
 
-        // Сторож от слепоты: накладные стройки в базе именно такие, какими их считал перечень.
-        using var scope = host.Services.CreateScope();
-        Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Waybills
-            .CountAsync(w => w.ConstructionId == site && w.State == WaybillState.Posted));
+    /// <summary>
+    /// Черновик относится к периоду, в который лёг бы при проведении СЕЙЧАС, а не к периоду даты
+    /// отпуска: апрель закрыт, и черновик с апрельской датой, проведённый сегодня, лёг бы в 1 мая.
+    /// Закрывая май, человек обязан о нём узнать — после закрытия он уедет в июнь (ревью PR #1297).
+    /// </summary>
+    [Fact]
+    public async Task Черновик_с_датой_отпуска_в_закрытых_днях_назван_в_следующем_закрытии()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var (site, _) = await SiteAsync("Накладная: черновик закрытого месяца");
+        await DraftAsync(admin, site, "2026-04-15", Row(cable, 1m, "м"));
+        await CloseAsync(Contour.Construction(site), new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30), null);
+
+        Assert.Equal((0, 0, 1), Waybills(await ClosingPreviewAsync(admin, new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), site)));
+    }
+
+    /// <summary>
+    /// Стройка, закрытая своим закрытием дальше компании, свои накладные этих дней уже заперла: закрытие
+    /// компании второй раз их не называет. А её черновик ляжет за её границей — и в мае компании его нет.
+    /// </summary>
+    [Fact]
+    public async Task Закрытие_компании_не_называет_накладные_стройки_закрытой_дальше()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var (site, _) = await SiteAsync("Накладная: стройка закрыта дальше компании");
+        var (from, through) = (new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31));
+        var before = Waybills(await ClosingPreviewAsync(admin, from, through, null));
+
+        await PostedAsync(admin, site, "2026-05-07", Row(null, 2m, "шт", "Скоба"));
+        await DraftAsync(admin, site, "2026-05-08", Row(cable, 1m, "м"));
+        Assert.Equal((before.Frozen + 1, before.Unmatched + 1, before.Drafts + 1),
+            Waybills(await ClosingPreviewAsync(admin, from, through, null)));
+
+        await CloseAsync(Contour.Construction(site), from, through, null);
+        Assert.Equal(before, Waybills(await ClosingPreviewAsync(admin, from, through, null)));
     }
 }
