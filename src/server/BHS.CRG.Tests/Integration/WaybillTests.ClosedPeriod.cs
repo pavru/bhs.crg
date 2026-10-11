@@ -97,6 +97,15 @@ public partial class WaybillTests : IDisposable
         var open = new List<string>();
         foreach (var (method, pattern) in WritingRoutes())
         {
+            // Повторное «Провести» у проведённой — не правка: накладная уже там, куда её ведут, и замок
+            // ей не отказывает (ревью PR #1296). Что запрос ничего не записал, сверяется ниже — видом
+            // накладной вместе с версией.
+            if (pattern.EndsWith("/posted", StringComparison.Ordinal))
+            {
+                await OkAsync(await client.PostAsync(pattern.Replace("{id:guid}", id.ToString()), null));
+                continue;
+            }
+
             var path = pattern.Replace("{id:guid}", id.ToString()).Replace("{lineId:guid}", line.ToString());
             using var request = new HttpRequestMessage(new HttpMethod(method), path)
             {
@@ -104,7 +113,9 @@ public partial class WaybillTests : IDisposable
             };
             var response = await client.SendAsync(request);
             var text = await response.Content.ReadAsStringAsync();
+            // Отказ читают в тосте, без формы под ним: стройку, чьё закрытие отменять, он называет сам.
             if (response.StatusCode != HttpStatusCode.Conflict || !text.Contains("заперта")
+                || !text.Contains("у стройки «Накладная: закрытый период")
                 || !text.Contains("сначала отмените закрытие периода"))
                 open.Add($"{method} {pattern} → {(int)response.StatusCode} {text}");
         }

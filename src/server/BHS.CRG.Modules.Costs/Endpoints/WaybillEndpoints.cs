@@ -318,7 +318,7 @@ public static class WaybillEndpoints
                 WaybillLock.AccountedOn(waybill.IssuedOn!.Value, waybill.ConstructionId!.Value, write.Boundaries));
             await db.SaveChangesAsync(ct);
             return (waybill, (lines.Count, lines.Count(l => l.NomenclatureId is null)));
-        }, ct);
+        }, ct, settled: waybill => waybill.State == WaybillState.Posted);
 
         if (posted is { } counts)
             await log.RecordAsync(WaybillActions.Posted, waybill.Id.ToString(), Label(waybill),

@@ -121,6 +121,40 @@ export function useWaybill(id: string | undefined) {
     queryKey: [QK, 'one', id] as const,
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     enabled: !!id,
+    // Открытая форма читает накладную заново, а не из кэша: «заперта» в её виде зависит от границ
+    // периодов, а те меняют на другом экране. Человек, которому форма сказала «сначала отмените закрытие»,
+    // отменяет его и возвращается — и прежний кэш ещё полминуты показывал бы замок (ревью PR #1296).
+    // Ключ периодов накладные не сбрасывает нарочно: ядро о кэше модуля не знает.
+    refetchOnMount: 'always',
+  });
+}
+
+/** Прочитать накладную заново, мимо кэша: после отказа 409 только свежий вид говорит, что с ней стало. */
+export function useFreshWaybill() {
+  const qc = useQueryClient();
+  return (id: string) => qc.fetchQuery({
+    queryKey: [QK, 'one', id] as const,
+    queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
+    staleTime: 0,
+  });
+}
+
+/**
+ * Правка накладной, возвращающая её вид: ответ кладётся в кэш, списки перечитываются, отказ 409
+ * перечитывает накладную — как у счёта (`useInvoiceWrite`). 409 значит «на экране не то, что в базе»:
+ * накладную изменили либо её запер закрытый период. Без перечитывания форма оставалась прежней — с
+ * кнопкой, которая откажет снова, и без причины замка (ревью PR #1296).
+ */
+function useWaybillWrite<T extends { id: string }>(send: (input: T) => Promise<WaybillView>) {
+  const settle = useSettle();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: send,
+    onSuccess: settle,
+    onError: (error: unknown, input: T) => {
+      if ((error as { response?: { status?: number } })?.response?.status === 409)
+        void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
+    },
   });
 }
 
@@ -150,37 +184,25 @@ export function useCreateWaybill() {
  * `seen` — версия накладной, по которой собрана форма: устаревшей сервер отвечает 409.
  */
 export function useSaveWaybill() {
-  const settle = useSettle();
-  return useMutation({
-    mutationFn: ({ id, seen, header, lines }: {
-      id: string; seen: string; header: WaybillHeader; lines: Record<string, unknown>[];
-    }) => apiClient.put<WaybillView>(`/costs/waybills/${id}`, { ...header, lines }, seenBy(seen)).then(r => r.data),
-    onSuccess: settle,
-  });
+  return useWaybillWrite(({ id, seen, header, lines }: {
+    id: string; seen: string; header: WaybillHeader; lines: Record<string, unknown>[];
+  }) => apiClient.put<WaybillView>(`/costs/waybills/${id}`, { ...header, lines }, seenBy(seen)).then(r => r.data));
 }
 
 /** Провести или вернуть в черновик. */
 export function useWaybillState() {
-  const settle = useSettle();
-  return useMutation({
-    mutationFn: ({ id, seen, to }: { id: string; seen: string; to: 'posted' | 'draft' }) =>
-      apiClient.post<WaybillView>(`/costs/waybills/${id}/${to}`, null, seenBy(seen)).then(r => r.data),
-    onSuccess: settle,
-  });
+  return useWaybillWrite(({ id, seen, to }: { id: string; seen: string; to: 'posted' | 'draft' }) =>
+    apiClient.post<WaybillView>(`/costs/waybills/${id}/${to}`, null, seenBy(seen)).then(r => r.data));
 }
 
 /** Сопоставить строку с позицией номенклатуры (`null` — снять). Работает и у проведённой накладной — пока её не запер закрытый период. */
 export function useMatchWaybillLine() {
-  const settle = useSettle();
-  return useMutation({
-    mutationFn: ({ id, seen, lineId, nomenclatureId }: {
-      id: string; seen: string; lineId: string; nomenclatureId: string | null;
-    }) =>
-      apiClient.put<WaybillView>(`/costs/waybills/${id}/lines/${lineId}/nomenclature`, {
-        nomenclature: nomenclatureId ? { $ref: 'catalog', entryId: nomenclatureId } : null,
-      }, seenBy(seen)).then(r => r.data),
-    onSuccess: settle,
-  });
+  return useWaybillWrite(({ id, seen, lineId, nomenclatureId }: {
+    id: string; seen: string; lineId: string; nomenclatureId: string | null;
+  }) =>
+    apiClient.put<WaybillView>(`/costs/waybills/${id}/lines/${lineId}/nomenclature`, {
+      nomenclature: nomenclatureId ? { $ref: 'catalog', entryId: nomenclatureId } : null,
+    }, seenBy(seen)).then(r => r.data));
 }
 
 export function useIssuedMaterials(constructionId: string | null) {

@@ -1,5 +1,5 @@
 import { LOST, MISSING } from './lostReferences';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CircleCheck, Lock, Plus, RefreshCw, Save, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
@@ -7,7 +7,7 @@ import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useToast } from '@/shared/ui/Toast';
 import type { CostsConstruction } from '@/shared/api/invoices';
 import {
-  useMatchWaybillLine, useSaveWaybill, useWaybillState, type WaybillView,
+  useFreshWaybill, useMatchWaybillLine, useSaveWaybill, useWaybillState, type WaybillView,
 } from '@/shared/api/waybills';
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { withArchiveWord } from '@/shared/ui/archive';
@@ -41,7 +41,7 @@ const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs
  * <p>⚠️ <b>Набранное не пропадает молча</b> (ревью PR #1206). Свежий ответ сервера форма берёт, только
  * пока в ней нет несохранённого: фоновое перечитывание иначе стирало бы строки, вписанные с бумаги.
  * Если накладную тем временем изменили, форма говорит об этом и предлагает перечитать; сохранение
- * устаревшей формы сервер отвергает по версии (<c>ifMatch</c>). Уход со страницы и выбор другой
+ * устаревшей формы сервер отвергает по версии (заголовок <c>If-Match</c>). Уход со страницы и выбор другой
  * накладной спрашивают, что делать с правками.</p>
  */
 export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveGuard }: {
@@ -71,13 +71,18 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
   const save = useSaveWaybill();
   const state = useWaybillState();
   const match = useMatchWaybillLine();
+  const readFresh = useFreshWaybill();
   const toast = useToast();
+  // Очередь сопоставлений: см. matchLine.
+  const matching = useRef<{ tail: Promise<string | null>; waiting: number }>({ tail: Promise.resolve(null), waiting: 0 });
 
   const posted = view.state === 'Posted';
   // Заперта закрытым периодом: ни вернуть в черновик, ни сопоставить строку сервер не даст — и
   // кнопок для этого на экране нет, есть причина.
   const closed = posted ? view.locked ?? null : null;
   const moved = posted && view.accountingOn && view.accountingOn !== view.issuedOn ? view.accountingOn : null;
+  // Проведена, а учётной даты нет — накладная из резервной копии, снятой до появления этой даты.
+  const undated = posted && !view.accountingOn;
   const locked = !editable;
   const dirty = editable && isDirty(draft, view);
 
@@ -116,7 +121,14 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
     const saved = dirty ? await saveDraft() : view;
     if (!saved) return;
     try { await state.mutateAsync({ id: view.id, seen: saved.version, to: 'posted' }); }
-    catch (e) { toast.apiError(e, 'Накладная не проведена'); }
+    catch (e) {
+      // 409 бывает и про накладную, которую уже провели — сосед либо этот же запрос, чей ответ
+      // потерялся. Различает их только свежий вид: «не проведена» про проведённую было бы неправдой.
+      const conflict = (e as { response?: { status?: number } })?.response?.status === 409;
+      const now = conflict ? await readFresh(view.id).catch(() => null) : null;
+      if (now?.state === 'Posted') toast.info('Накладная уже проведена.');
+      else toast.apiError(e, 'Накладная не проведена');
+    }
   }
 
   async function backToDraft() {
@@ -124,10 +136,28 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
     catch (e) { toast.apiError(e, 'Накладная не возвращена в черновик'); }
   }
 
-  async function matchLine(line: WaybillLineDraft, nomenclatureId: string | null) {
+  /**
+   * Сопоставить строку проведённой накладной. Запросы идут ПО ОЧЕРЕДИ, и следующий называет версию из
+   * ответа предыдущего: каждое сопоставление сдвигает версию накладной, и выбранная следом позиция в
+   * соседней строке иначе уходила бы с прежней версией и получала 409 «тем временем изменили» — на
+   * собственное действие человека (ревью PR #1296). Блокировать пикеры на время запроса незачем:
+   * строки сопоставляют подряд, и ждать ответа после каждой значило бы работать вдвое медленнее.
+   */
+  function matchLine(line: WaybillLineDraft, nomenclatureId: string | null) {
     if (!line.id) return;
-    try { await match.mutateAsync({ id: view.id, seen: view.version, lineId: line.id, nomenclatureId }); }
-    catch (e) { toast.apiError(e, 'Позиция не записана'); }
+    const lineId = line.id, mine = view.version, queue = matching.current;
+    // Очередь пуста — версию называет экран; иначе — ответ того, кто стоит впереди (не удался — экран).
+    const queued = queue.waiting > 0;
+    queue.waiting++;
+    queue.tail = queue.tail.then(async prior => {
+      try {
+        const saved = await match.mutateAsync({ id: view.id, seen: (queued ? prior : null) ?? mine, lineId, nomenclatureId });
+        return saved.version;
+      } catch (e) {
+        toast.apiError(e, 'Позиция не записана');
+        return null;
+      } finally { queue.waiting--; }
+    });
   }
 
   // Стройку, которой больше нет, в списке не найти — но показать, что она была названа, надо.
@@ -200,6 +230,12 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
         {moved && (
           <p className="text-xs text-fg3" data-testid="waybill-moved">
             Введена после закрытия периода: учтена {formatDate(moved)}, а не датой отпуска.
+          </p>
+        )}
+        {undated && (
+          <p className="text-xs text-fg3" data-testid="waybill-undated">
+            Учётная дата не записана — накладная восстановлена из прежней резервной копии. Период для неё
+            считается по дате отпуска.
           </p>
         )}
         {posted && canEdit && !closed && (
