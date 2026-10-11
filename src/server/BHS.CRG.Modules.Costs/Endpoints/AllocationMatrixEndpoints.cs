@@ -126,7 +126,8 @@ public static class AllocationMatrixEndpoints
 
         if (returned)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
-                InvoiceEndpoints.Label(invoice), after: "правка разноски: баланс не сходится", ct: ct);
+                InvoiceEndpoints.Label(invoice), before: InvoiceEndpoints.WasParsed,
+                after: "правка разноски: баланс не сходится", ct: ct);
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
 

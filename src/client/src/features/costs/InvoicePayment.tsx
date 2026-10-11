@@ -15,7 +15,7 @@ import {
   usePostedPayment,
   type PaymentPosting,
 } from '@/shared/api/invoicePayment';
-import { K, asInput } from './invoiceFields';
+import { K, REJECTED, asInput } from './invoiceFields';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { changedRows, paidToast, payLabel } from './paymentPosting';
@@ -67,7 +67,9 @@ export function InvoicePayment({ view, dirty }: {
   const locked = payment.lockedBy !== null;
 
   if (!payment.paid) {
-    if (!canPay) return null;
+    // У отклонённого оплаты нет вовсе, а не «кнопка и причина отказа»: действие невыполнимо, пока счёт
+    // не вернули в черновик, и о состоянии уже говорит чип в шапке.
+    if (!canPay || view.requisites[K.state] === REJECTED) return null;
 
     return (
       <div className="flex items-center gap-2 flex-wrap text-xs">

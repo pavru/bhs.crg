@@ -71,6 +71,8 @@ public partial class InvoicePaymentTests
     /// <summary>
     /// Отбор «в архиве» — только счета в работе, как и число на чипе; у оплаченного пометка остаётся,
     /// но к правке не зовёт. Удалённого у обоих нет — и поставщик без записи не объявлен потерянным.
+    /// Отклонённый счёт — тоже не в работе (ревью PR #1290): по нему не платят, и из очереди его иначе
+    /// можно было бы убрать только правкой отклонённого счёта.
     /// </summary>
     [Fact]
     public async Task Список_под_отбором_архива_равен_числу_готового_отбора()
@@ -80,17 +82,23 @@ public partial class InvoicePaymentTests
         var (open, first, _) = await InvoiceWithPositionAsync(admin, "Рейл: архив, счёт в работе");
         var (paid, second, _) = await InvoiceWithPositionAsync(admin, "Рейл: архив, счёт оплачен");
         await PayAsync(admin, paid, today, await PreviewAsync(admin, paid, today), null);
+        var (rejected, third, _) = await InvoiceWithPositionAsync(admin, "Рейл: архив, счёт отклонён");
+        await OkAsync(await admin.PostAsync($"/api/costs/invoices/{rejected}/rejected", null));
         using (var scope = host.Services.CreateScope())
         {
             var archive = scope.ServiceProvider.GetRequiredService<IRecordArchive>();
             await archive.SetAsync(first, archived: true);
             await archive.SetAsync(second, archived: true);
+            await archive.SetAsync(third, archived: true);
         }
 
         var listed = await ListedAsync(admin, "archived");
         Assert.Equal(listed.Count, (await QueuesAsync(admin)).GetProperty("archived").GetInt32());
         Assert.Equal(ShortcutCount(await ShortcutsAsync(admin), "archived"), listed.Count);
         Assert.Null(Listed(listed, paid));
+        Assert.Null(Listed(listed, rejected));
+        Assert.False(Listed(await ListedAsync(admin), rejected)!.Value
+            .GetProperty("references").GetProperty("archivedCalls").GetBoolean());
 
         var mine = Listed(listed, open)!.Value;
         Assert.True(mine.GetProperty("references").GetProperty("archivedCalls").GetBoolean());

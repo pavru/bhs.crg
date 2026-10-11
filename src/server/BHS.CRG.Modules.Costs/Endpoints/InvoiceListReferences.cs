@@ -109,8 +109,8 @@ public sealed class InvoiceListMarks
         var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({archived}) AS \"Value\"");
         return TypedResults.Ok(new InvoiceQueuesView(
             troubles.With(LostMark.Fixable).Length,
-            archived.Length == 0 ? 0 : await db.Invoices.AsNoTracking()
-                .CountAsync(i => keys.Contains(i.Id) && i.Payment != InvoicePaymentState.Paid, ct),
+            archived.Length == 0 ? 0 : await InvoiceReferenceTrouble.InWork(db.Invoices.AsNoTracking())
+                .CountAsync(i => keys.Contains(i.Id), ct),
             troubles.With(LostMark.Locked).Length,
             troubles.Doubt,
             InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length));

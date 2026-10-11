@@ -14,9 +14,9 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// строкой при записи — правка названия не доехала бы до старых записей, а расхождение названий порт
 /// отвергает.</para>
 ///
-/// <para>⚠️ Чего здесь НЕТ: «отклонён». Оно приедет со своим переходом, и объявленное заранее
-/// действие означало бы фильтр на экране журнала, по которому никогда ничего не находится. «Разобран» приехал задачей C2 (issue #1078), правка разноски — задачей F1 (issue #1085),
-/// каждое вместе с адресом, который его записывает.</para>
+/// <para>Действие объявляется ВМЕСТЕ с адресом, который его записывает: объявленное заранее означало
+/// бы фильтр на экране журнала, по которому никогда ничего не находится. Так приехали «разобран»,
+/// «оплачен» и «отклонён» (issue #1284).</para>
 /// </summary>
 public sealed class InvoiceActions : IModuleActivityActions
 {
@@ -91,6 +91,13 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.invoice.draft", "Счёт возвращён в черновик", InvoiceRead);
 
     /// <summary>
+    /// «Отклонён»: по счёту решили не платить (issue #1284). ⚠️ Сумм запись не несёт (issue #1190) —
+    /// журнал ядра читают без права на счета; названы счёт, поставщик и прежнее состояние.
+    /// </summary>
+    public static readonly ModuleActivityAction Rejected =
+        new("costs.invoice.rejected", "Счёт отклонён", InvoiceRead);
+
+    /// <summary>
     /// Правка разноски строки (ТЗ COST-15): пишется с ПРЕЖНИМ и НОВЫМ распределением — разноску правят
     /// и после «разобран», и без прежнего распределения запись «разноска изменена» не отвечала бы на
     /// единственный вопрос, ради которого её читают: с какого объекта и на какой перенесли затраты.
@@ -147,7 +154,7 @@ public sealed class InvoiceActions : IModuleActivityActions
         new("costs.organization.created", "Организация заведена из файла счёта", InvoiceRead);
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, AllocationChanged,
+        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, Rejected, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

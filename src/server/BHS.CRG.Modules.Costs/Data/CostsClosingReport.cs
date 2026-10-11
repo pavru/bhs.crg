@@ -86,7 +86,7 @@ public sealed class CostsClosingReport(
                 await RegistryLinkAsync(scope, entering.Invoices, ct)));
         if (locked != entering.Invoices)
             frozen.Add(new("locked", "Запрутся целиком", locked, Invoices,
-                Note: "Вместе с отклонёнными оплаченными счетами и счетами, у которых в периоде есть доля без денег: " +
+                Note: "Вместе со счетами, у которых в периоде есть доля без денег: " +
                       "счёт запирается целиком, если закрыта хоть одна его учётная дата."));
 
         return new(DateRule, unfinished, frozen);
@@ -156,12 +156,12 @@ public sealed class CostsClosingReport(
     private static readonly JsonSerializerOptions LinkJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     /// <summary>
-    /// Сколько счетов запрётся. Запирается счёт целиком и по ЛЮБОЙ закрытой учётной дате — и отклонённый
-    /// оплаченный, и с долей без денег, которых в затратах периода нет.
+    /// Сколько счетов запрётся. Запирается счёт целиком и по ЛЮБОЙ закрытой учётной дате — и с долей
+    /// без денег, которой в затратах периода нет.
     /// </summary>
     private async Task<int> LockedAsync(ModuleClosingScope scope, DateOnly first, CancellationToken ct)
     {
-        var locked = SiteCostsEndpoints.Paid(db, first, scope.Through, scope.ConstructionId, rejectedToo: true);
+        var locked = SiteCostsEndpoints.Paid(db, first, scope.Through, scope.ConstructionId);
         if (scope.ClosedAhead.Count == 0) return await locked.CountAsync(ct);
 
         // Есть стройки, закрытые дальше компании: «день в отрезке» ещё не значит «закрывается впервые», и

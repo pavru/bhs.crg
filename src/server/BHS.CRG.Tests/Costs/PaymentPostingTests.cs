@@ -236,6 +236,32 @@ public class PaymentPostingTests
         Assert.All(unpaid, m => Assert.Null(m.AccountingOn));
     }
 
+    /// <summary>
+    /// «Оплачен и отклонён» не складывается ни с какой стороны (ревью PR #1290): правило стоит в самой
+    /// сущности, а не в адресах — следующему, кто позовёт метод, повторять проверку не придётся. Деньги
+    /// такого счёта молча выпали бы из затрат: отчёты считают «оплачен и не отклонён».
+    /// </summary>
+    [Fact]
+    public void Оплаченный_не_отклоняется_а_отклонённый_не_оплачивается()
+    {
+        var paid = Invoice(100m);
+        paid.Pay(D(9, 15), null, null);
+        Assert.Contains("отмените оплату", Assert.Throws<ConflictException>(paid.Reject).Message);
+        Assert.Equal(InvoiceState.Draft, paid.State);
+
+        var rejected = Invoice(100m);
+        rejected.Reject();
+        Assert.Contains("верните его в черновик",
+            Assert.Throws<ConflictException>(() => rejected.Pay(D(9, 15), null, null)).Message);
+        Assert.Equal(InvoicePaymentState.Unpaid, rejected.Payment);
+
+        // Обе дороги назад открыты: отмена оплаты и возврат в черновик.
+        paid.Unpay();
+        paid.Reject();
+        rejected.ReturnToDraft();
+        rejected.Pay(D(9, 15), null, null);
+    }
+
     private static Invoice Invoice(decimal? total)
     {
         var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);
