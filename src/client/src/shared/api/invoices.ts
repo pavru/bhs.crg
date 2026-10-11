@@ -442,7 +442,7 @@ function rereadOnConflict(qc: QueryClient) {
     // И 404 тоже (issue #1282): счёт удалили, пока он был открыт. Перечитывание ответит тем же 404, и
     // форма узнает, что счёта больше нет, — а не оставит человека с отказом над живой на вид формой.
     const status = (error as { response?: { status?: number } })?.response?.status;
-    if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: [QK, input.id] });
+    if (status === 409 || isNotFound(error)) void qc.invalidateQueries({ queryKey: [QK, input.id] });
   };
 }
 

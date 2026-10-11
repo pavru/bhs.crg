@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { QK, type InvoiceView } from './invoices';
+import { QK, isNotFound, type InvoiceView } from './invoices';
 
 /**
  * Распознавание скана счёта (ТЗ COST-8, задача B1b, issue #1077): состояние, запуск, счёт из скана и
@@ -91,14 +91,29 @@ export const recognitionKey = (id: string) => [QK, id, 'recognition'] as const;
  * @param enabled спрашивать ли: у счёта без скана распознавать нечего.
  */
 export function useInvoiceRecognition(id: string, enabled: boolean) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: recognitionKey(id),
-    queryFn: () => apiClient.get<InvoiceRecognition>(`/costs/invoices/${id}/recognition`).then(r => r.data),
+    queryFn: () => apiClient.get<InvoiceRecognition>(`/costs/invoices/${id}/recognition`).then(r => r.data)
+      .catch(error => { throw goneTold(qc, id, error); }),
     enabled,
     retry: false,
     staleTime: 0,
-    refetchInterval: query => (query.state.data?.state === 'running' ? 2000 : false),
+    // «Счёта нет» опрос останавливает (ревью PR #1298): в кэше осталось прежнее «идёт», и без этого
+    // запросы шли бы без конца по счёту, которого уже нет.
+    refetchInterval: query =>
+      (!isNotFound(query.state.error) && query.state.data?.state === 'running' ? 2000 : false),
   });
+}
+
+/**
+ * Отказ «счёта нет» от адресов распознавания — новость о СЧЁТЕ, а не о распознавании: его удалили,
+ * пока он был открыт. Счёт перечитывается, отвечает тем же 404 — и форма говорит «счёта больше нет»,
+ * а не «состояние распознавания не пришло» над живой на вид формой. Возвращает тот же отказ.
+ */
+function goneTold(qc: QueryClient, id: string, error: unknown): unknown {
+  if (isNotFound(error)) void qc.invalidateQueries({ queryKey: [QK, id], exact: true });
+  return error;
 }
 
 export interface InvoiceFromScan {
@@ -161,7 +176,10 @@ export function useStartRecognition() {
       void qc.invalidateQueries({ queryKey: [QK, 'queues'] });
     },
     // Отказ — тоже новость о состоянии: «уже распознаётся», «счёт уже не черновик».
-    onError: (_error, id) => { void qc.invalidateQueries({ queryKey: recognitionKey(id) }); },
+    onError: (error, id) => {
+      if (isNotFound(goneTold(qc, id, error))) return;
+      void qc.invalidateQueries({ queryKey: recognitionKey(id) });
+    },
   });
 }
 

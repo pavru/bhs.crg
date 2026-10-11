@@ -3,7 +3,7 @@ import { TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
-import { useDeleteInvoice, type CostsOrganization, type InvoiceView } from '@/shared/api/invoices';
+import { useDeleteInvoice, useFreshInvoice, type CostsOrganization, type InvoiceView } from '@/shared/api/invoices';
 import { K, duplicateLabel, refEntryId } from './invoiceFields';
 import {
   InvoiceDeleteContext, canDelete, confirmLabel, deleteInvoice, goingAway, invoiceTitle,
@@ -26,9 +26,9 @@ const capital = (text: string) => text[0].toUpperCase() + text.slice(1);
 export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizations, onDeleted, children }: {
   view: InvoiceView;
   canEdit: boolean;
-  /** Есть несохранённые правки шапки: они пропадут вместе со счётом, и диалог обязан это сказать. */
+  /** Есть несохранённые правки — шапки или строк: они пропадут вместе со счётом, и диалог обязан это сказать. */
   dirty: boolean;
-  /** Файл счёта сейчас читается: удалению это не мешает, но чтение прервётся. */
+  /** Файл счёта сейчас читается: удалению это не мешает, но прочитанное пропадёт. */
   reading: boolean;
   organizations: CostsOrganization[];
   onDeleted: () => void;
@@ -36,7 +36,11 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
 }) {
   const remove = useDeleteInvoice();
   const toast = useToast();
-  const [asked, setAsked] = useState<DeleteReason | null>(null);
+  const readFresh = useFreshInvoice();
+  // Вместе с причиной запоминается ВЕРСИЯ, которую человек видел, открывая диалог (ревью PR #1298).
+  // Вид под диалогом обновляется сам — файл дочитался, сосед сохранил, — и свежая версия под прежним
+  // решением удалила бы счёт, заполненный секунду назад, без единого слова.
+  const [asked, setAsked] = useState<{ reason: DeleteReason; seen: string } | null>(null);
 
   const available = canDelete(view, canEdit);
   const title = invoiceTitle(view);
@@ -46,14 +50,15 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
   const gone = goingAway(view);
 
   async function confirm() {
-    const outcome = await deleteInvoice(() => remove.mutateAsync({ id: view.id, seen: view.version }));
+    const seen = asked?.seen ?? view.version;
+    const outcome = await deleteInvoice(() => remove.mutateAsync({ id: view.id, seen }), () => readFresh(view.id));
     if (outcome === 'deleted') toast.success(`${capital(title)} удалён.`);
     else toast.info(`${capital(title)} уже удалён.`);
     onDeleted();
   }
 
   return (
-    <InvoiceDeleteContext.Provider value={available ? setAsked : null}>
+    <InvoiceDeleteContext.Provider value={available ? reason => setAsked({ reason, seen: view.version }) : null}>
       {children}
       <ConfirmDialog open={asked !== null} onOpenChange={open => { if (!open) setAsked(null); }}
         title={`Удалить ${title}?`}
@@ -61,7 +66,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
         confirmLabel={confirmLabel(view)} cancelLabel="Не удалять"
         description={(
           <div className="space-y-2 text-sm text-fg2" data-testid="invoice-delete-body">
-            {asked === 'duplicate' && view.duplicates.length > 0 && (
+            {asked?.reason === 'duplicate' && view.duplicates.length > 0 && (
               <p>Останется счёт <b>{duplicateLabel(view.duplicates[0])}</b>.</p>
             )}
             <p>{supplier ? <>Поставщик: <b>{supplier}</b>.</> : 'Поставщик не указан.'}</p>
@@ -74,7 +79,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
             {supplierId !== null && view.lines.length > 0
               && <p>Запомненные соответствия наименований этого поставщика остаются.</p>}
             {dirty && <p>Несохранённые правки на экране тоже пропадут.</p>}
-            {reading && <p>Файл сейчас распознаётся: чтение прервётся.</p>}
+            {reading && <p>Файл сейчас распознаётся: прочитанное никуда не запишется.</p>}
             <p>
               <b>Корзины нет: вернуть счёт будет нельзя.</b> В журнале действий останется запись об
               удалении.

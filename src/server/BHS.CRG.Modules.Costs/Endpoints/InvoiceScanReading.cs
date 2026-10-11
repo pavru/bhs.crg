@@ -28,7 +28,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, InvoiceScanImage image,
     IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties,
-    IModuleCatalog catalog)
+    IModuleCatalog catalog, IModuleBlobs blobs)
 {
     /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
     private const int MergeAttempts = 3;
@@ -49,7 +49,7 @@ public sealed class InvoiceScanReading(
         {
             if (!await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoiceId, ct))
             {
-                Dropped(invoiceId);
+                await DroppedAsync(invoiceId, scanBlobPath);
                 return;
             }
             throw new ConflictException("Распознавать нечего: распознавание по этому счёту не ставили.");
@@ -70,7 +70,7 @@ public sealed class InvoiceScanReading(
             catch (ConflictException gone) when (gone.InnerException is DbUpdateConcurrencyException)
             {
                 if (await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoiceId, CancellationToken.None)) throw;
-                Dropped(invoiceId);
+                await DroppedAsync(invoiceId, scanBlobPath);
                 return;
             }
         }
@@ -82,7 +82,7 @@ public sealed class InvoiceScanReading(
             var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct);
             if (invoice is null)
             {
-                Dropped(invoiceId);
+                await DroppedAsync(invoiceId, scanBlobPath);
                 return;
             }
             EnsureSameScan(invoice, scanBlobPath);
@@ -113,7 +113,7 @@ public sealed class InvoiceScanReading(
                     _ => "Refused",
                 }, refusal.Message))
             {
-                Dropped(invoiceId, refusal);
+                await DroppedAsync(invoiceId, scanBlobPath, refusal);
                 return;
             }
             throw;
@@ -127,7 +127,7 @@ public sealed class InvoiceScanReading(
                 "Прочитанное не удалось записать в счёт: внутренняя ошибка. Запустите распознавание ещё раз; " +
                 "если повторится — подробности в журнале сервера."))
             {
-                Dropped(invoiceId, crash);
+                await DroppedAsync(invoiceId, scanBlobPath, crash);
                 return;
             }
             throw;
@@ -257,8 +257,27 @@ public sealed class InvoiceScanReading(
     /// <param name="because">На чём задача остановилась. Пишется в журнал сервера всегда (ревью PR
     /// #1298): «счёт удалён» объясняет, почему исход некуда записать, но не то, что случилось до того, —
     /// сбой хранилища, совпавший с удалением, иначе пропал бы без следа.</param>
-    private void Dropped(Guid invoiceId, Exception? because = null) => logs.CreateLogger<InvoiceScanReading>().LogInformation(
-        because, "Счёт {InvoiceId} удалён, пока его файл распознавался или ждал очереди: прочитанное выброшено.", invoiceId);
+    ///
+    /// <para>⚠️ Файл убирается ЕЩЁ РАЗ (ревью PR #1298). Удаление счёта задачу не останавливает — порта
+    /// отмены у очереди нет, — и она могла построить читаемый образ офисного файла уже после того, как
+    /// удаление сняло оригинал вместе с записью об образе. Такой образ держался бы за оригинал, которого
+    /// нет, и не убрался бы никем. Повторное удаление безобидно, а запись и образ снимает само.</para>
+    private async Task DroppedAsync(Guid invoiceId, string? scanBlobPath, Exception? because = null)
+    {
+        var logger = logs.CreateLogger<InvoiceScanReading>();
+        logger.LogInformation(because,
+            "Счёт {InvoiceId} удалён, пока его файл распознавался или ждал очереди: прочитанное выброшено.", invoiceId);
+        if (scanBlobPath is null) return;
+
+        try
+        {
+            await blobs.DeleteAsync(scanBlobPath, CancellationToken.None);
+        }
+        catch (Exception lost)
+        {
+            logger.LogWarning(lost, "Счёт {InvoiceId} удалён, но его файл {Path} убрать не удалось.", invoiceId, scanBlobPath);
+        }
+    }
 
     private static void EnsureSameScan(Invoice invoice, string? scanBlobPath)
     {

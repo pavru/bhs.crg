@@ -66,28 +66,42 @@ describe('goingAway', () => {
 });
 
 describe('deleteInvoice', () => {
+  const unread = () => Promise.reject(new Error('читать не должны'));
+
   it('успех — удалён', async () => {
-    expect(await deleteInvoice(() => Promise.resolve())).toBe('deleted');
+    expect(await deleteInvoice(() => Promise.resolve(), unread)).toBe('deleted');
   });
 
   it('404 — не отказ: счёта уже нет, и человек хотел именно этого', async () => {
-    expect(await deleteInvoice(() => Promise.reject(refusal(404, 'Счёт не найден.')))).toBe('already');
+    expect(await deleteInvoice(() => Promise.reject(refusal(404, 'Счёт не найден.')), unread)).toBe('already');
   });
 
-  it('устаревшая версия — свои слова и без тихого повтора', async () => {
+  it('409, а счёт по-прежнему удаляемый — отказ был о версии: свои слова и без тихого повтора', async () => {
     let calls = 0;
-    const send = () => { calls++; return Promise.reject(refusal(409, 'Счёт 1 тем временем изменили, и это действие не выполнено.')); };
+    // Текст сервера нарочно ДРУГОЙ: признак — свежий счёт, а не слова отказа.
+    const send = () => { calls++; return Promise.reject(refusal(409, 'Счёт изменили одновременно с этой правкой.')); };
 
-    await expect(deleteInvoice(send)).rejects.toThrow('или дочитали его файл');
+    await expect(deleteInvoice(send, () => Promise.resolve(view()))).rejects.toThrow('или дочитали его файл');
     expect(calls).toBe(1);
   });
 
-  it('отказ по состоянию уходит словами сервера', async () => {
+  it('409, а счёт уже не черновик без оплаты — причина уходит словами сервера', async () => {
     const paid = refusal(409, 'Счёт 1 оплачен — удалить его нельзя.');
-    await expect(deleteInvoice(() => Promise.reject(paid))).rejects.toBe(paid);
+    await expect(deleteInvoice(() => Promise.reject(paid), () => Promise.resolve(view({ paid: true })))).rejects.toBe(paid);
+  });
+
+  it('409, а перечитывание отвечает «нет такого» — счёт удалил тот, с кем столкнулись', async () => {
+    const lost = refusal(409, 'Счёт изменили одновременно с этой правкой.');
+    expect(await deleteInvoice(() => Promise.reject(lost), () => Promise.reject(refusal(404, 'Счёт не найден.'))))
+      .toBe('already');
+  });
+
+  it('409, а счёт не перечитался — остаётся исходный отказ', async () => {
+    const lost = refusal(409, 'Счёт изменили.');
+    await expect(deleteInvoice(() => Promise.reject(lost), () => Promise.reject(new Error('Network Error')))).rejects.toBe(lost);
   });
 
   it('ответа нет — исход неизвестен, а не «не удалён»', async () => {
-    await expect(deleteInvoice(() => Promise.reject(new Error('Network Error')))).rejects.toThrow('неизвестно');
+    await expect(deleteInvoice(() => Promise.reject(new Error('Network Error')), unread)).rejects.toThrow('неизвестно');
   });
 });

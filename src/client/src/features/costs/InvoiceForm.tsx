@@ -78,6 +78,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const value = (key: string): unknown => (key in edits ? edits[key] : view.requisites[key]);
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
+  const [linesDirty, setLinesDirty] = useState(false);
 
   // Правки шапки лежат поверх вида (issue #1176). Вид обновился, а поля, которые человек правит,
   // остались прежними — правки в силе. Изменили именно их — поле на экране показывает набранное, а не
@@ -154,7 +155,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
 
   return (
     <RecognitionContext.Provider value={locked ? undefined : watch.recognition}>
-    <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty} reading={watch.running}
+    <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty || linesDirty} reading={watch.running}
       organizations={organizations} onDeleted={onClose}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={update.isPending}
@@ -257,7 +258,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
           </p>
         )}
 
-        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} />
+        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку

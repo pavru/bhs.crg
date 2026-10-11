@@ -59,8 +59,10 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view, locked, readOnly = false }: {
+export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty }: {
   view: InvoiceView;
+  /** Есть ли несохранённые правки строк: о них обязан сказать диалог удаления счёта (issue #1282). */
+  onDirty?: (dirty: boolean) => void;
   /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не
    *  приглушены; причину называет полоса вверху формы. */
   locked: boolean;
@@ -70,6 +72,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   const still = locked || readOnly;
   const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
   const [dirty, setDirty] = useState(false);
+  useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
 
   // На чём собран черновик строк (issue #1176). Подпись — сами строки, как их принял бы сервер: правка
   // шапки или разноски версию счёта двигает, а строк не касается — и черновик остаётся в силе.

@@ -75,7 +75,13 @@ export function InvoicesPage() {
   const view = useInvoice(selected ?? undefined);
   // Счёт удалили, пока он был открыт (issue #1282): чтение отвечает «нет такого», а прежний вид ещё в
   // руках. Форма остаётся с набранным, а не сменяется отказом чтения.
-  const gone = view.data != null && isNotFound(view.error);
+  //
+  // ⚠️ Узнанное запоминается (ревью PR #1298): по одной последней ошибке судить нельзя. Следующее
+  // перечитывание — возврат в окно — может кончиться обрывом связи, и «счёта нет» сменилось бы экраном
+  // «счёт не открылся» вместе с набранным, ради переноса которого форма и осталась.
+  const [goneId, setGoneId] = useState<string | null>(null);
+  if (selected && view.data != null && isNotFound(view.error) && goneId !== selected) setGoneId(selected);
+  const gone = selected !== null && goneId === selected && view.data != null;
 
   // Открытый счёт под отбором запоминается: после замены значения сервер его под отбором уже не
   // отдаёт, а строка обязана остаться, пока счёт открыт. Запись при отрисовке, а не в эффекте: так
@@ -119,6 +125,9 @@ export function InvoicesPage() {
    * Закрыть счёт, которого больше нет, — удалённый здесь или соседом. Сначала адрес, потом кэш: счёт,
    * выброшенный из кэша при открытой форме, был бы тут же запрошен заново. Следующий счёт сам не
    * открывается — выбор за человеком.
+   *
+   * <p>Кэш чистится при ЛЮБОМ уходе с такого счёта (ревью PR #1298), а не только по кнопке: щелчок по
+   * другой строке или «назад» иначе оставили бы удалённый счёт строкой списка.</p>
    */
   const closing = useRef<string | null>(null);
   function closeGone() {
@@ -130,6 +139,7 @@ export function InvoicesPage() {
       return next;
     }, { replace: true });
   }
+  useEffect(() => { if (gone && selected) closing.current = selected; }, [gone, selected]);
   useEffect(() => {
     if (closing.current === null || closing.current === selected) return;
     forgetInvoice(qc, closing.current);
