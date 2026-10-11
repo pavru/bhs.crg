@@ -259,12 +259,16 @@ public sealed class InvoiceScanRecognition(
             await db.SaveChangesAsync(ct);
             throw;
         }
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(invoice, first: false, ct);
     }
 
     /// <summary>
-    /// Сохранить запись перед постановкой. Первую запись счёта два одновременных запуска добавляют оба
+    /// Сохранить запись о распознавании. Первую запись счёта два одновременных запуска добавляют оба
     /// — и второй получает от базы отказ по ключу: это то же «уже распознаётся», а не сбой.
+    ///
+    /// <para>⚠️ Но отказ базы бывает и о другом (issue #1282): счёт удалили одновременно с запуском.
+    /// Новой записи тогда не на что сослаться, прежняя ушла каскадом — и «файл уже распознаётся» было
+    /// бы неправдой о счёте, которого нет. Поэтому сначала спрашиваем, есть ли счёт.</para>
     /// </summary>
     private async Task SaveAsync(Invoice invoice, bool first, CancellationToken ct)
     {
@@ -272,9 +276,12 @@ public sealed class InvoiceScanRecognition(
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException taken) when (first)
+        catch (Exception lost) when (lost is DbUpdateException or ConflictException { InnerException: DbUpdateConcurrencyException })
         {
-            throw AlreadyRunning(invoice, taken);
+            if (!await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoice.Id, ct))
+                throw new NotFoundException("Счёт не найден: его удалили, пока запускалось распознавание.");
+            if (first && lost is DbUpdateException) throw AlreadyRunning(invoice, lost);
+            throw;
         }
     }
 

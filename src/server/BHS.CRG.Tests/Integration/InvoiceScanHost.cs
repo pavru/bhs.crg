@@ -56,6 +56,12 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     /// </summary>
     public Exception? RenditionsFailure { get; set; }
 
+    /// <summary>
+    /// Отказ хранилища на удаление файла — пока стоит (issue #1282): так проверяется, что удаление счёта
+    /// не отвечает сбоем, когда счёт уже удалён, а файл убрать не удалось. Тест ставит и обязан снять.
+    /// </summary>
+    public Exception? BlobDeleteFailure { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -71,6 +77,10 @@ public sealed class InvoiceScanHost : InvoiceLineHost
             services.RemoveAll<IModuleRenditions>();
             services.AddScoped<ModuleRenditionsPort>();
             services.AddScoped<IModuleRenditions>(sp => new FailingRenditions(sp.GetRequiredService<ModuleRenditionsPort>(), this));
+
+            services.RemoveAll<IModuleBlobs>();
+            services.AddScoped<ModuleBlobsPort>();
+            services.AddScoped<IModuleBlobs>(sp => new FailingBlobs(sp.GetRequiredService<ModuleBlobsPort>(), this));
 
             services.RemoveAll<IModuleWriteGuard>();
             services.AddScoped<ModuleWriteGuardPort>();
@@ -93,6 +103,20 @@ public sealed class InvoiceScanHost : InvoiceLineHost
 
         public Task<ModuleRendition> RebuildAsync(string originalPath, CancellationToken ct = default) =>
             inner.RebuildAsync(originalPath, ct);
+    }
+
+    /// <summary>Настоящее хранилище — с отказом на удаление по просьбе теста.</summary>
+    private sealed class FailingBlobs(IModuleBlobs inner, InvoiceScanHost host) : IModuleBlobs
+    {
+        public Task<string> PutAsync(string fileName, Stream content, string contentType, CancellationToken ct = default) =>
+            inner.PutAsync(fileName, content, contentType, ct);
+
+        public Task<Stream> OpenAsync(string path, CancellationToken ct = default) => inner.OpenAsync(path, ct);
+
+        public Task DeleteAsync(string path, CancellationToken ct = default) =>
+            host.BlobDeleteFailure is { } failure ? Task.FromException(failure) : inner.DeleteAsync(path, ct);
+
+        public Task<long?> SizeAsync(string path, CancellationToken ct = default) => inner.SizeAsync(path, ct);
     }
 
     private sealed class FailingCatalog(IModuleCatalog inner, InvoiceScanHost host) : IModuleCatalog
