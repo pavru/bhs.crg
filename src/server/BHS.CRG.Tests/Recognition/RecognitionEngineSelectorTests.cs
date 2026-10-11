@@ -106,6 +106,8 @@ public class RecognitionEngineSelectorTests
     {
         public string Name => name;
 
+        public bool Accepts(string mimeType) => true;
+
         public Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
             Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
             => throw new InvalidOperationException("Отбор движков не должен ничего распознавать.");

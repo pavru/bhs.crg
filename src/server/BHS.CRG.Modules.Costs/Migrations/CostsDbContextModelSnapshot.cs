@@ -373,6 +373,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("finished_at");
 
+                    b.Property<string>("ImageBlobPath")
+                        .HasColumnType("text")
+                        .HasColumnName("image_blob_path");
+
                     b.Property<Guid?>("JobId")
                         .HasColumnType("uuid")
                         .HasColumnName("job_id");

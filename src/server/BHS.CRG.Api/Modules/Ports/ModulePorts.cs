@@ -53,6 +53,8 @@ public static class ModulePorts
         services.AddScoped<IModuleWriteGuard, ModuleWriteGuardPort>();
         // Распознавание для модулей (issue #1077): профиль модуля, движки и запрос — ядра.
         services.AddScoped<IModuleRecognition, ModuleRecognitionPort>();
+        // Читаемые образы файлов (issue #1269): образом владеет ядро, модуль спрашивает по пути оригинала.
+        services.AddScoped<IModuleRenditions, ModuleRenditionsPort>();
 
         // Границы закрытия периода — из службы ядра (ТЗ CORE-35). Сама служба регистрируется с
         // остальными службами ядра: она работает и при пустом составе модулей.

@@ -20,8 +20,8 @@ namespace BHS.CRG.Modules.Files;
 /// распознается, о чём скажет уже то место, которое его читает.</para>
 ///
 /// <para>Лежит в контрактах: файл счёта принимает модуль, а на ядро он не ссылается. Пока этим
-/// определением пользуется только файл счёта; реестр читаемых видов ядра (issue #1266) опирается
-/// на него же.</para>
+/// определением пользуется только файл счёта. Что о виде известно сверх признака — чем он
+/// показывается, как читается, предел размера, — держит реестр, <see cref="FileKindCatalog" />.</para>
 /// </summary>
 public static class FileKinds
 {
@@ -37,13 +37,6 @@ public static class FileKinds
     public const string Xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     public const string Docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     public const string Xls = "application/vnd.ms-excel";
-
-    /// <summary>
-    /// Что браузер показывает сам, без преобразования. Тот же перечень держит экран
-    /// (<c>scanView.ts</c>) — совпадение сверяет <c>ScanLimitsAgreeTests</c>.
-    /// </summary>
-    public static readonly IReadOnlySet<string> Shown =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Pdf, Png, Jpeg, Gif, WebP, Bmp };
 
     /// <summary>Сколько первых байт нужно, чтобы узнать вид по подписи.</summary>
     public const int HeadBytes = 64;
@@ -104,19 +97,7 @@ public static class FileKinds
     /// по записи счёта): до issue #1265 записывался заголовок клиента, а один и тот же вид браузеры
     /// называли по-разному.
     /// </summary>
-    public static string Recorded(string? stored) => stored?.Trim().ToLowerInvariant() switch
-    {
-        Pdf or "application/x-pdf" => Pdf,
-        Png or "image/x-png" => Png,
-        Jpeg or "image/jpg" or "image/pjpeg" => Jpeg,
-        Gif => Gif,
-        WebP => WebP,
-        Bmp or "image/x-ms-bmp" => Bmp,
-        Xlsx => Xlsx,
-        Docx => Docx,
-        Xls => Xls,
-        _ => Unknown,
-    };
+    public static string Recorded(string? stored) => FileKindCatalog.Named(stored)?.Mime ?? Unknown;
 
     /// <summary>
     /// «%PDF-1.7» в самом начале. Перед подписью допустимы только пробельные байты и метка порядка
@@ -154,9 +135,15 @@ public static class FileKinds
     }
 
     /// <summary>
-    /// Контейнер OLE — старый Excel, если в нём есть поток «Workbook» и нет потока «WordDocument»
+    /// Контейнер OLE — старый Excel, если в нём есть поток книги и нет потока «WordDocument»
     /// (документ Word со вставленной таблицей несёт оба). Имена потоков лежат в каталоге контейнера
     /// в UTF-16; каталог может стоять где угодно, поэтому просматривается весь файл.
+    ///
+    /// <para>Поток книги зовётся «Workbook», а у файлов старше Excel 97 — «Book» (issue #1268): так
+    /// по сей день сохраняют счета учётные программы, и два из трёх настоящих <c>.xls</c> в пробе
+    /// оказались такими. Короткое имя ищется строже длинного — только записью каталога: четыре
+    /// буквы посреди файла встречаются и сами по себе, а запись каталога начинается на границе
+    /// в 128 байт и кончается нулём.</para>
     /// </summary>
     private static async Task<string> ExcelInOleAsync(Stream content, CancellationToken ct)
     {
@@ -164,19 +151,34 @@ public static class FileKinds
         var workbook = false;
         var buffer = new byte[81920];
         var kept = 0;
+        long start = 0; // где в файле стоит начало окна
         while (true)
         {
             var read = await content.ReadAsync(buffer.AsMemory(kept), ct);
             if (read == 0) break;
             var window = buffer.AsSpan(0, kept + read);
             if (window.IndexOf(WordStream) >= 0) return Unknown;
-            workbook = workbook || window.IndexOf(WorkbookStream) >= 0;
+            workbook = workbook || window.IndexOf(WorkbookStream) >= 0 || HasOldBookEntry(window, start);
 
             // Хвост переносится в начало следующего куска: имя потока могло лечь на границу.
             kept = Math.Min(window.Length, WordStream.Length - 1);
+            start += window.Length - kept;
             window[^kept..].CopyTo(buffer);
         }
         return workbook ? Xls : Unknown;
+    }
+
+    /// <summary>Запись каталога с именем ровно «Book»: на границе в 128 байт, за именем — ноль.</summary>
+    private static bool HasOldBookEntry(ReadOnlySpan<byte> window, long start)
+    {
+        for (var from = 0; from < window.Length;)
+        {
+            var at = window[from..].IndexOf(OldBookEntry);
+            if (at < 0) return false;
+            if ((start + from + at) % 128 == 0) return true;
+            from += at + 1;
+        }
+        return false;
     }
 
     private static bool Same(string? recorded, string kind) =>
@@ -192,6 +194,9 @@ public static class FileKinds
     // Имена потоков в UTF-16LE, как они записаны в каталоге контейнера.
     private static ReadOnlySpan<byte> WorkbookStream =>
         [(byte)'W', 0, (byte)'o', 0, (byte)'r', 0, (byte)'k', 0, (byte)'b', 0, (byte)'o', 0, (byte)'o', 0, (byte)'k', 0];
+
+    private static ReadOnlySpan<byte> OldBookEntry =>
+        [(byte)'B', 0, (byte)'o', 0, (byte)'o', 0, (byte)'k', 0, 0, 0];
 
     private static ReadOnlySpan<byte> WordStream =>
         [(byte)'W', 0, (byte)'o', 0, (byte)'r', 0, (byte)'d', 0, (byte)'D', 0, (byte)'o', 0, (byte)'c', 0,

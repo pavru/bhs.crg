@@ -51,7 +51,7 @@ public static partial class TaxId
         if (valid.Count == 1) return valid[0];
         if (valid.Count > 1)
         {
-            problem = $"«{text.Trim()}» — в поле несколько разных ИНН, и какой из них нужен, по скану не понять";
+            problem = $"«{text.Trim()}» — в поле несколько разных ИНН, и какой из них нужен, по файлу не понять";
             return null;
         }
 

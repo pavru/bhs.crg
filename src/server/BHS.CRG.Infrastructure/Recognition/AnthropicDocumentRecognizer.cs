@@ -33,6 +33,8 @@ public class AnthropicRecognizerEngine(
 
     public string Name => "Anthropic";
 
+    public bool Accepts(string mimeType) => RecognitionShared.AcceptsPdfOrImage(mimeType);
+
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
@@ -42,12 +44,12 @@ public class AnthropicRecognizerEngine(
             throw new RecognitionUnavailableException("Не задан ключ Anthropic.");
         var model = string.IsNullOrWhiteSpace(cfg.Model) ? "claude-sonnet-4-6" : cfg.Model;
 
+        if (!Accepts(mimeType))
+            throw new RecognitionUnavailableException($"Anthropic: формат не поддерживается: {mimeType}");
         var b64 = Convert.ToBase64String(file);
-        object fileBlock = string.Equals(mimeType, "application/pdf", StringComparison.OrdinalIgnoreCase)
+        object fileBlock = RecognitionShared.IsPdf(mimeType)
             ? new { type = "document", source = new { type = "base64", media_type = "application/pdf", data = b64 } }
-            : RecognitionShared.ImageTypes.Contains(mimeType)
-                ? new { type = "image", source = new { type = "base64", media_type = RecognitionShared.NormalizeImageMime(mimeType), data = b64 } }
-                : throw new RecognitionUnavailableException($"Anthropic: формат не поддерживается: {mimeType}");
+            : new { type = "image", source = new { type = "base64", media_type = RecognitionShared.NormalizeImageMime(mimeType), data = b64 } };
 
         var requestBody = new
         {

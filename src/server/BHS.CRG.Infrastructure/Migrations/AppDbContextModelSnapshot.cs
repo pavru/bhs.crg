@@ -1805,6 +1805,63 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.ToTable("blob_registry", (string)null);
                 });
 
+            modelBuilder.Entity("BHS.CRG.Domain.Storage.RenditionRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Converter")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageBlobPath")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("Mime")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.PrimitiveCollection<List<string>>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("OriginalBlobPath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int?>("Pages")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RefusalKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("RefusalReason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OriginalBlobPath")
+                        .IsUnique();
+
+                    b.ToTable("renditions", (string)null);
+                });
+
             modelBuilder.Entity("BHS.CRG.Domain.Support.BugReport", b =>
                 {
                     b.Property<Guid>("Id")

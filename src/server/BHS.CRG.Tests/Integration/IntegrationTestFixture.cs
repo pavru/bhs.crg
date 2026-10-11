@@ -175,6 +175,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     internal static readonly string[] TruncatedTables =
     [
         "blob_registry",
+        "renditions",
         "agent_observations",
         "reconciliation_aliases",
         "reconciliation_findings",

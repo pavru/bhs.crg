@@ -461,6 +461,12 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // Запись читаемого образа (issue #1269): путь образа — ссылка для обоих, путь оригинала —
+        // ни для одного. Разойдись они здесь, сбор регистрировал бы оригиналы, которых уборка не держит.
+        var image = await UploadAsync("rendition.pdf");
+        db.Renditions.Add(BHS.CRG.Domain.Storage.RenditionRecord.Built(await UploadAsync("счёт.xlsx"), image, 1, [], null));
+        await db.SaveChangesAsync();
+
         var live = await scope.ServiceProvider.GetRequiredService<LiveBlobPathScan>().ScanAsync();
 
         // Реестр очищаем и собираем заново по данным — так он покажет, что нашёл БЫ сбор.
@@ -468,7 +474,7 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         await scope.ServiceProvider.GetRequiredService<BlobRegistryBackfill>().RunAsync();
         var collected = await db.BlobRegistry.AsNoTracking().Select(e => e.Path).ToListAsync();
 
-        var expected = new[] { scanPath, attachment }.OrderBy(p => p, StringComparer.Ordinal).ToList();
+        var expected = new[] { scanPath, attachment, image }.OrderBy(p => p, StringComparer.Ordinal).ToList();
         Assert.Equal(expected, live.Core.OrderBy(p => p, StringComparer.Ordinal).ToList());
         Assert.Equal(expected, collected.OrderBy(p => p, StringComparer.Ordinal).ToList());
     }

@@ -21,6 +21,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoices-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
+import { readFileSync } from 'node:fs';
 import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
 
 /** Подпись у помеченного поля — она же примета метки на экране. */
@@ -137,17 +138,31 @@ const markCount = () => page.getByText(MARK, { exact: true }).count();
  * «первого по номеру» приводил бы то к одному, то к другому. Проверка, зависящая от порядка строк в
  * списке, краснеет через раз и выглядит поломкой формы.
  */
-async function attachScan(id) {
-  await page.evaluate(async ([id, base64]) => {
+async function attachScan(id, base64 = PNG_BASE64, name = 'скан.png', type = 'image/png') {
+  await page.evaluate(async ([id, base64, name, type]) => {
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
     const form = new FormData();
-    form.append('file', new Blob([bytes], { type: 'image/png' }), 'скан.png');
+    form.append('file', new Blob([bytes], { type }), name);
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
-    const res = await fetch(`/api/costs/invoices/${id}/scan`,
-      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
-    if (!res.ok) throw new Error(`скан не приложился: ${res.status} ${await res.text()}`);
-  }, [id, PNG_BASE64]);
+    const seen = await fetch(`/api/costs/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!seen.ok) throw new Error(`счёт для файла не прочитан: ${seen.status}`);
+    const res = await fetch(`/api/costs/invoices/${id}/scan`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'If-Match': `"${(await seen.json()).version}"` },
+      body: form,
+    });
+    if (!res.ok) throw new Error(`файл не приложился: ${res.status} ${await res.text()}`);
+  }, [id, base64, name, type]);
 }
+
+/**
+ * Офисный файл для проверок образа — из `deploy/`: синтетическая книга-эталон и её двойник под
+ * паролем лежат там ради сторожа конвертера (`deploy/converter.tests.sh`), второй копии не заводим.
+ * Тип — «неизвестный»: так Excel называет браузер на машине без Office, и вид обязан определиться
+ * по содержимому.
+ */
+const officeFile = name => readFileSync(new URL(`../../../deploy/${name}`, import.meta.url)).toString('base64');
+const UNKNOWN_TYPE = 'application/octet-stream';
 
 /** PNG 1×1 — скан для проверки панели. Собран здесь: бинаря в репозитории быть не должно. */
 const PNG_BASE64 =
@@ -309,14 +324,17 @@ try {
   // а не условие. И о неудаче говорят все три места — форма, строка списка и отбор.
   await check('счёт из скана: отказ распознавания назван в форме, в строке и стоит под отбором', async () => {
     const fileName = `Скан-${stamp}.pdf`;
-    await page.locator('input[type=file][accept="application/pdf,image/png,image/jpeg"]').setInputFiles({
+    // Выбор файла сужен реестром видов (issue #1266): пустой `accept` — реестр не дошёл до экрана,
+    // и тогда выбор предлагает что угодно. Перечень сверяется по признаку, а не слово в слово: его
+    // состав — дело сервера.
+    await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles({
       name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${stamp}`),
     });
 
     // Черновик открылся сам: в адресе назван счёт, скан приложен.
     await named('черновик из скана не открылся', () => page.waitForURL(/[?&]invoice=/, { timeout: 15_000 }));
     await named('в форме отказ распознавания не назван',
-      () => page.getByText(/Скан не распознан: /).waitFor({ timeout: 30_000 }));
+      () => page.getByText(/Файл не распознан: /).waitFor({ timeout: 30_000 }));
 
     // Строка списка: номера нет — стоит имя файла, под ним причина.
     const row = page.locator('button', { hasText: fileName });
@@ -337,7 +355,7 @@ try {
   await check('пакет сканов: по черновику на файл, непринятый назван, экран не сдвинулся', async () => {
     const opened = new URL(page.url()).searchParams.get('invoice');
     const names = [`Пакет-${stamp}-2.pdf`, `Пакет-${stamp}-10.pdf`];
-    await page.locator('input[type=file][accept="application/pdf,image/png,image/jpeg"]').setInputFiles([
+    await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles([
       ...names.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${name}`) })),
       { name: `Заметки-${stamp}.txt`, mimeType: 'text/plain', buffer: Buffer.from('не скан') },
     ]);
@@ -346,12 +364,81 @@ try {
       .filter({ hasText: 'Заведено 2 из 3' });
     await named('итог пакета не показан', () => bar.waitFor({ timeout: 30_000 }));
     await named('непринятый файл не назван с причиной',
-      () => bar.locator('li', { hasText: `Заметки-${stamp}.txt` }).getByText('не PDF, PNG или JPEG').waitFor({ timeout: 5_000 }));
+      () => bar.locator('li', { hasText: `Заметки-${stamp}.txt` }).getByText('не PDF, PNG, JPEG, Excel или Word').waitFor({ timeout: 5_000 }));
     for (const name of names)
       await named(`черновика «${name}» в списке нет`,
         () => page.locator('button', { hasText: name }).waitFor({ timeout: 15_000 }));
     if (new URL(page.url()).searchParams.get('invoice') !== opened)
       throw new Error('пакет из нескольких файлов сменил открытый счёт');
+  });
+
+  // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
+  //
+  // Сторож задачи, на НАСТОЯЩЕМ конвертере: серверные тесты ходят к подставному, и только здесь
+  // книга в самом деле превращается в PDF. Распознавание запускается кнопкой; чем оно кончится,
+  // зависит от стенда (движок настроен или нет), поэтому сверяется одно: отказ, если он есть, — НЕ
+  // об образе. Образ построен, и причина «файл не приведён к читаемому виду» здесь была бы поломкой.
+  await check('счёт в Excel: показан вид для чтения с оговоркой, оригинал скачивается, распознавание запускается', async () => {
+    const number = `СЧ-X${stamp}`;
+    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'В Excel') });
+    const book = officeFile('converter-reference.xlsx');
+    await attachScan(created.id, book, 'Счёт.xlsx', UNKNOWN_TYPE);
+
+    await open(number);
+    const caveat = page.getByTestId('image-caveat');
+    await named('строки «Вид для чтения» в панели нет', () => caveat.waitFor({ timeout: 60_000 }));
+    await named('панель не говорит, что документ — оригинал',
+      () => caveat.getByText('документ — оригинал').waitFor({ timeout: 5_000 }));
+    await named('вид для чтения не показан', () => page.locator('iframe[title$="вид для чтения"]').waitFor({ timeout: 30_000 }));
+
+    // Скачивается оригинал — та же книга, байт в байт, а не PDF.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15_000 }),
+      page.getByRole('button', { name: 'Оригинал', exact: true }).click(),
+    ]);
+    const saved = readFileSync(await download.path()).toString('base64');
+    if (saved !== book) throw new Error('кнопка «Оригинал» отдала не приложенный файл');
+    if (!download.suggestedFilename().endsWith('.xlsx'))
+      throw new Error(`оригинал сохраняется под именем «${download.suggestedFilename()}», а не как Excel`);
+
+    await page.getByRole('button', { name: 'Распознать файл' }).click();
+    // Исход — любой, кроме «идёт»: кнопки запуска больше нет, а отказ об образе не назван.
+    await named('распознавание не дало исхода',
+      () => page.getByRole('button', { name: 'Распознать файл' }).waitFor({ state: 'detached', timeout: 60_000 }));
+    if ((await page.getByText('не приведён к читаемому виду').count()) !== 0)
+      throw new Error('распознавание отказало из-за образа, хотя образ построен');
+    // Панель осталась НА ЭКРАНЕ: таблица строк, пришедших из распознавания, шире формы и однажды
+    // выталкивала панель за правый край — вид был построен, а видеть его было нельзя.
+    const box = await caveat.boundingBox();
+    if (!box || box.x + box.width > 1500 + 1)
+      throw new Error('панель файла уехала за правый край экрана');
+  });
+
+  // ── 10. Файл под паролем ПРИЛОЖЕН, а причина названа словами (issue #1270) ──────────────────────
+  //
+  // Отказ построения — не отказ загрузки: загрузка выше не бросила, счёт открывается, оригинал
+  // скачивается. А распознать нельзя — и причину (пароль) говорят оба места: панель и шапка формы.
+  await check('файл под паролем приложен и скачивается, а распознать нельзя — причина названа', async () => {
+    const number = `СЧ-P${stamp}`;
+    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'Под паролем') });
+    const locked = officeFile('converter-protected.xlsx');
+    await attachScan(created.id, locked, 'Закрытый.xlsx', UNKNOWN_TYPE);
+
+    await open(number);
+    const refused = page.getByTestId('image-refused');
+    await named('панель не говорит, что вид не построен', () => refused.waitFor({ timeout: 60_000 }));
+    await named('в панели причина (пароль) не названа', () => refused.getByText(/парол/).waitFor({ timeout: 5_000 }));
+    await named('у формы причина (пароль) не названа',
+      () => page.getByText(/Не распознаётся: .*парол/).waitFor({ timeout: 10_000 }));
+    if ((await page.getByRole('button', { name: 'Распознать файл' }).count()) !== 0)
+      throw new Error('у файла под паролем есть кнопка «Распознать файл» — она ответила бы отказом');
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15_000 }),
+      refused.getByRole('button', { name: 'Скачать оригинал' }).click(),
+    ]);
+    if (readFileSync(await download.path()).toString('base64') !== locked)
+      throw new Error('«Скачать оригинал» отдала не приложенный файл');
   });
 } finally {
   await browser.close();

@@ -1,4 +1,5 @@
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -56,13 +57,14 @@ public static class InvoiceRecognitionEndpoints
         // пределом тела запроса проходил бы мимо экрана, который его отвергает (issue #1093).
         if (file.Length > InvoiceScanRecognition.MaxScanBytes)
             throw new InvalidRequestException(
-                $"Файл больше {InvoiceScanRecognition.MaxScanBytes / (1024 * 1024)} МБ — счёт из такого скана не заводится.");
+                $"Файл больше {InvoiceScanRecognition.MaxScanBytes / (1024 * 1024)} МБ — счёт из такого файла не заводится.");
         // По содержимому, а не по заголовку (issue #1265): PDF, присланный без типа, годится, а
         // файл другого вида, назвавшийся PDF, — нет.
         var kind = await InvoiceScanRecognition.KindAsync(file, ct);
         if (!InvoiceScanRecognition.IsReadable(kind))
             throw new InvalidRequestException(
-                "Из скана счёт заводится по PDF, PNG или JPEG. Файл другого вида можно приложить к счёту, " +
+                $"Счёт заводится из файла {FileKindCatalog.Words(FileKindCatalog.Recognized, "или")}. " +
+                "Файл другого вида можно приложить к счёту, " +
                 "заведённому вручную, — но распознать его нечем.");
 
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
@@ -98,12 +100,12 @@ public static class InvoiceRecognitionEndpoints
         try
         {
             await log.RecordAsync(InvoiceActions.Created, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
-                after: $"из скана: {file.FileName}", ct: none);
+                after: $"из файла: {file.FileName}", ct: none);
         }
         catch (Exception lost)
         {
             logs.CreateLogger(typeof(InvoiceRecognitionEndpoints)).LogError(lost,
-                "Счёт {InvoiceId} заведён из скана, но запись об этом в журнал действий не легла.", invoice.Id);
+                "Счёт {InvoiceId} заведён из файла, но запись об этом в журнал действий не легла.", invoice.Id);
         }
 
         try
@@ -119,7 +121,7 @@ public static class InvoiceRecognitionEndpoints
             // Не наш отказ: профиль не объявлен, у операции нет исполнителя, сбой базы. Распознавание
             // не поставлено — форма покажет «не запускалось» или «прервано», и запустить можно снова.
             logs.CreateLogger(typeof(InvoiceRecognitionEndpoints)).LogError(crash,
-                "Счёт {InvoiceId} заведён из скана, но распознавание поставить не удалось.", invoice.Id);
+                "Счёт {InvoiceId} заведён из файла, но распознавание поставить не удалось.", invoice.Id);
         }
 
         return TypedResults.Created($"/api/costs/invoices/{invoice.Id}",

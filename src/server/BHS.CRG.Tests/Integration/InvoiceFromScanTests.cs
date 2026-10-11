@@ -534,8 +534,8 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
     // ── Отказы адреса ─────────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData("text/plain", "содержимое", "PDF, PNG или JPEG")]
-    [InlineData("application/pdf", "содержимое", "PDF, PNG или JPEG")]
+    [InlineData("text/plain", "содержимое", "PDF, PNG, JPEG, Excel или Word")]
+    [InlineData("application/pdf", "содержимое", "PDF, PNG, JPEG, Excel или Word")]
     [InlineData("application/pdf", "", "Файл пуст")]
     public async Task Негодный_файл_отказ_и_черновик_не_заведён(string mime, string body, string expected)
     {
@@ -562,11 +562,11 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         var recognition = await RecognitionAsync(client, id);
         Assert.Equal("none", recognition.GetProperty("state").GetString());
         Assert.False(recognition.GetProperty("canStart").GetBoolean());
-        Assert.Contains("не приложен скан", recognition.GetProperty("whyNot").GetString());
+        Assert.Contains("не приложен файл", recognition.GetProperty("whyNot").GetString());
 
         var started = await client.PostAsync($"/api/costs/invoices/{id}/recognition", null);
         Assert.Equal(HttpStatusCode.Conflict, started.StatusCode);
-        Assert.Contains("не приложен скан", await started.Content.ReadAsStringAsync());
+        Assert.Contains("не приложен файл", await started.Content.ReadAsStringAsync());
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────

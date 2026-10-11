@@ -131,9 +131,9 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
 
         return problem is null
             ? new(name, null, new(InvoicePartyStates.NoTaxId, name, null,
-                "ИНН в скане не прочитан, а по названию организации не сопоставляются — выберите её из справочника.", [], []))
+                "ИНН в файле не прочитан, а по названию организации не сопоставляются — выберите её из справочника.", [], []))
             : new(name, null, new(InvoicePartyStates.BadTaxId, name, raw,
-                $"ИНН {problem}. Сверьте его со сканом и выберите организацию из справочника.", [], []));
+                $"ИНН {problem}. Сверьте его с файлом и выберите организацию из справочника.", [], []));
     }
 
     private static InvoicePartyView? Failed(Read? side) => side switch

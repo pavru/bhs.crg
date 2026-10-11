@@ -312,7 +312,8 @@ jobs:
           if [ -z "$BASE" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           git fetch -q --depth=1 origin "$BASE"
           FILES="docker-compose.yml deploy/docker-compose.yml deploy/dev-nginx.conf"
-          FILES="$FILES deploy/converter.tests.sh deploy/converter-reference.xlsx .github/workflows/ci.yml"
+          FILES="$FILES deploy/converter.tests.sh deploy/converter-reference.xlsx deploy/converter-reference.pdf"
+          FILES="$FILES deploy/converter-protected.xlsx deploy/converter-protected.xls .github/workflows/ci.yml"
           # shellcheck disable=SC2086 # список путей: разбиение по словам и нужно
           touched="$(git diff --name-only "$BASE" HEAD -- $FILES)"
           if [ -n "$touched" ]; then
@@ -442,6 +443,34 @@ jobs:
             -v garage_meta:/var/lib/garage/meta \
             garage-init
 
+      # Конвертер офисных файлов (issue #1270): прогон счетов прикладывает Excel и ждёт рядом с
+      # формой его вид для чтения. Серверные тесты ходят к подставному конвертеру — настоящий
+      # встречается с приложением только здесь.
+      #
+      # Образ ЧИТАЕМ из поставки, как и хранилище выше. Настройки названы те, от которых зависит
+      # ответ прогона: русская локаль и перезапуск после каждого документа. Остальное — сеть без
+      # выхода наружу, ограничения контейнера, согласие стенда с поставкой — сторожит
+      # `deploy/converter.tests.sh` в работе «Скрипт обновления»; здесь порт опубликован на петлю,
+      # потому что сервер запущен на хосте.
+      - name: Конвертер офисных файлов
+        run: |
+          CONVERTER_IMAGE=$(sed -n 's|^ *image: *\(gotenberg/gotenberg:[^ ]*\)$|\1|p' deploy/docker-compose.yml | head -1)
+          if [ -z "$CONVERTER_IMAGE" ]; then
+            echo "::error::В deploy/docker-compose.yml не нашёлся образ конвертера (gotenberg/gotenberg:…) — брать неоткуда"
+            exit 1
+          fi
+          echo "конвертер: $CONVERTER_IMAGE"
+          docker run -d --name converter -p 127.0.0.1:3910:3000 \
+            -e LANG=ru_RU.UTF-8 -e LC_ALL=ru_RU.UTF-8 \
+            "$CONVERTER_IMAGE" gotenberg --api-timeout=30s --libreoffice-restart-after=1 --libreoffice-auto-start
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3910/health >/dev/null 2>&1; then echo "конвертер готов"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::Конвертер офисных файлов не поднялся за две минуты"
+          docker logs --tail 50 converter 2>&1 || true
+          exit 1
+
       # Проверка Typst-блоков в редакторе типов зовёт компилятор на сервере. Без него эндпоинт
       # отвечает ошибкой, и проверка краснеет — не из-за регресса, а из-за отсутствия бинаря.
       #
@@ -539,6 +568,7 @@ jobs:
           AllowedOrigins: http://localhost:4173
           App__PublicUrl: http://localhost:4173
           TYPST_PATH: /usr/local/bin/typst
+          OfficeConverter__BaseUrl: http://127.0.0.1:3910
         run: |
           nohup dotnet ./BHS.CRG.Api.dll > ${{ runner.temp }}/api.log 2>&1 &
           echo "сервер запущен, ждём в шаге посева"
@@ -579,6 +609,9 @@ jobs:
           AllowedOrigins: http://localhost:4173
           App__PublicUrl: http://localhost:4173
           TYPST_PATH: /usr/local/bin/typst
+          # Тот же конвертер, что у первого запуска: перезапущенный без него сервер отвечал бы на
+          # Excel «конвертер не настроен», и прогон счетов краснел бы без единого запроса к нему.
+          OfficeConverter__BaseUrl: http://127.0.0.1:3910
         run: |
           # ⚠️ Сначала УБЕДИТЬСЯ, что прежний умер, и только потом поднимать новый. Иначе второй
           # экземпляр падает на занятом порту, а `curl /api/version` отвечает от СТАРОГО сервера —
@@ -638,3 +671,4 @@ jobs:
           # Хранилище тоже: когда падает оно, инициализация сообщает лишь «узел не ответил», а
           # причина (порт занят, битый конфиг, нехватка места) видна только здесь.
           echo '── хранилище ──'; docker logs --tail 50 garage 2>&1 || true
+          echo '── конвертер ──'; docker logs --tail 50 converter 2>&1 || true

@@ -78,6 +78,9 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> SignedIn = new()
     {
+        ["/api/files/kinds"] =
+            "реестр видов файлов: что система умеет показать и распознать. Нужен раньше любого права — " +
+            "из него собирается выбор файла, а данных в ответе нет",
         ["/api/notifications/health"] =
             "состояние системы и внешних служб показывает колокольчик, а он есть у каждого; " +
             "закрыть правом значит убрать индикатор у всех, кроме администратора",
