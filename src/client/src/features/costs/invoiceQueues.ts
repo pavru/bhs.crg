@@ -206,23 +206,29 @@ export interface AfterParsed {
  * <p>Переход не делается, пока в форме есть несохранённое: смена счёта перемонтирует форму, и правки
  * пропали бы молча. Счёт при этом разобран — об этом и сказано.</p>
  *
+ * <p>⚠️ Список, который не прочитан, — не пустая очередь (ревью PR #1303): `rows === null` отвечает
+ * «следующий не открыт», а не «разбирать больше нечего».</p>
+ *
  * <p>⚠️ «Готовых» вперёд не ставим и запертые не пропускаем: порядок списка предсказуем, прыжки —
  * нет, а строка без причины значит и «заперт», и «причина не прочитана» — клиент их не различает.</p>
  *
- * @param rows строки списка, как они стоят на экране (с удержанными).
+ * @param rows строки списка, перечитанного ПОСЛЕ перехода, с разобранным счётом на прежнем месте
+ *   (удержанной строкой) и уже с поиском; `null` — список не прочитан.
  * @param number номер разобранного счёта — у открытого счёта, строка списка могла устареть.
  */
 export function afterParsed(
-  queue: InvoiceQueue | null, rows: QueueRow[], id: string, number: string | null, query: string, unsaved: boolean,
+  queue: InvoiceQueue | null, rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean,
 ): AfterParsed | null {
   if (queue !== 'parsing') return null;
   const done = `${called(number)} разобран.`;
   if (unsaved) return { open: null, message: `${done} Следующий не открыт: в форме несохранённые правки.` };
+  if (!rows) return { open: null, message: `${done} Следующий не открыт: список счетов не прочитан.` };
 
   // Очередь — живые строки отбора: удержанные и след уже не черновики.
   const live = rows.filter(r => !r.left || r.item.id === id);
   const at = live.findIndex(r => r.item.id === id);
-  const others = [...live.slice(at + 1), ...live.slice(0, Math.max(at, 0))].filter(r => r.item.id !== id);
+  // Разобранного в списке нет вовсе (поиск его скрыл) — идём с начала.
+  const others = at < 0 ? live : [...live.slice(at + 1), ...live.slice(0, at)];
   if (others.length === 0) {
     const text = query.trim();
     return {
@@ -235,6 +241,20 @@ export function afterParsed(
     open: next,
     message: next.number?.trim() ? `${done} Открыт следующий — № ${next.number.trim()}.` : `${done} Открыт следующий.`,
   };
+}
+
+/** «Вернуться» не выполнено: в открытом счёте набрано несохранённое, и уводить с него нельзя. */
+export function backRefused(number: string | null): string {
+  return `${called(number)} не открыт: в форме несохранённые правки. Он стоит в списке строкой «разобран».`;
+}
+
+/**
+ * Держать ли след разобранного счёта. Нет — когда отбор сменили или сняли и когда счёт вернулся в
+ * список (его вернули в черновик): дальше он может уйти из очереди по любой другой причине —
+ * отклонён, удалён, — и слово «разобран» стало бы неправдой (ревью PR #1303).
+ */
+export function keepTrace(trace: HeldRow | null, queue: InvoiceQueue | null, listed: InvoiceListItem[] | undefined): boolean {
+  return !!trace && trace.queue === queue && !listed?.some(i => i.id === trace.item.id);
 }
 
 /**

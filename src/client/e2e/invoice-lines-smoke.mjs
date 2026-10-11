@@ -417,6 +417,10 @@ try {
       });
     if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== secondId)
       throw new Error('с последнего счёта очереди увели');
+    // След — у последнего разобранного: прежний уступил место, а не остался вторым «разобран».
+    const traces = await page.getByTestId('row-parsed').allInnerTexts();
+    if (traces.length !== 1 || !traces[0].includes(second))
+      throw new Error(`след «разобран» стоит не у последнего разобранного: ${JSON.stringify(traces)}`);
   });
 
   // ── 6а. Двое правят один счёт: второй получает отказ, а набранное остаётся (issue #1176) ──

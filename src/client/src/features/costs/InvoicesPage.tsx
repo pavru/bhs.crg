@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { FileText, Link2, Plus, ScanLine, Tags } from 'lucide-react';
@@ -25,7 +25,9 @@ import { SupplierMatchesDialog } from './SupplierMatchesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
-import { afterParsed, emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
+import {
+  afterParsed, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows, type HeldRow,
+} from './invoiceQueues';
 import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
@@ -95,26 +97,51 @@ export function InvoicesPage() {
   const [held, setHeld] = useState<HeldRow | null>(null);
   const nextHeld = heldRow(held, queue, selected, invoices.data);
   if (nextHeld !== held) setHeld(nextHeld);
-  // След счёта, разобранного под очередью (issue #1293): с него увели к следующему, и строка — путь
-  // назад, когда тост уже погас. Живёт до следующего разобранного либо до смены отбора.
+  // След счёта, разобранного под очередью (issue #1293): строка — путь назад, когда тост уже погас.
+  // Живёт до следующего разобранного, до смены отбора и до возврата счёта в список — снимается, а не
+  // прячется: спрятанный всплыл бы при возврате к отбору, на устаревшем месте.
   const [parsedTrace, setParsedTrace] = useState<HeldRow | null>(null);
-  const trace = parsedTrace?.queue === queue ? parsedTrace : null;
+  const trace = keepTrace(parsedTrace, queue, invoices.data) ? parsedTrace : null;
+  if (parsedTrace && !trace) setParsedTrace(null);
   const rows = queueRows(invoices.data ?? [], nextHeld, trace).filter(r => matches(r.item, query));
 
+  // Экран, каким он стоит СЕЙЧАС, — для решений, принимаемых после ответа сервера (ревью PR #1303):
+  // замыкание помнит миг нажатия, а за время запроса человек мог уйти на другой счёт, снять отбор
+  // или начать править. Слойным эффектом — как колбэк охраны ухода: между коммитом и обычным
+  // эффектом есть щель, в которую попадает ответ.
+  const now = useRef({ queue, selected, query, held: nextHeld });
+  useLayoutEffect(() => { now.current = { queue, selected, query, held: nextHeld }; });
+  const unsaved = useRef(false);
+  const noteUnsaved = useCallback((value: boolean) => { unsaved.current = value; }, []);
+
   /**
-   * После «Разобран»: под отбором очереди — к следующему счёту, с тостом и путём назад. Список
-   * берётся тот, что стоял на экране при нажатии: перечитанный разобранного уже не содержит, и
-   * «следующий после него» в нём не найти.
+   * После «Разобран»: под отбором очереди — к следующему счёту, с тостом и путём назад.
+   *
+   * Следующего выбирают по ПЕРЕЧИТАННОМУ списку: тот, что стоял на экране, мог устареть — сосед
+   * разобрал или удалил счёт, — и открылся бы не черновик, а то и «счёта нет». Место разобранного в
+   * перечитанном списке помнит удержанная строка.
    */
-  function leadOn(id: string, number: string | null, unsaved: boolean) {
-    const after = afterParsed(queue, rows, id, number, query, unsaved);
+  async function leadOn(id: string, number: string | null) {
+    if (now.current.queue !== 'parsing') return;
+    const fresh = await invoices.refetch();
+    const at = now.current;
+    // Ушли со счёта или сменили отбор, пока шёл запрос, — человек уже выбрал сам, вести некуда.
+    if (at.selected !== id || at.queue !== 'parsing') return;
+    const held = at.held?.item.id === id ? at.held : null;
+    // След ставится и тогда, когда перехода нет: разобранный отсюда счёт подписан одинаково, а
+    // прежний след уступает ему место.
+    setParsedTrace(held);
+    const listed = fresh.isError || !fresh.data
+      ? null : queueRows(fresh.data, held).filter(r => matches(r.item, at.query));
+    const after = afterParsed(at.queue, listed, id, number, at.query, unsaved.current);
     if (!after) return;
     if (!after.open) { toast.info(after.message); return; }
-    // Место следа — то, где счёт стоял в ответе сервера: его помнит удержание открытого счёта.
-    setParsedTrace(nextHeld?.item.id === id ? nextHeld : null);
     setSelected(after.open.id);
+    // «Вернуться» уводит со счёта, на который только что перевели, — и о его несохранённом
+    // спрашивает так же, как сам переход.
+    const back = () => { if (unsaved.current) toast.info(backRefused(number)); else setSelected(id); };
     // Дольше обычного: в сообщении действие, а прочитать надо два номера.
-    toast.success(after.message, { duration: 8000, action: { label: 'Вернуться', onClick: () => setSelected(id) } });
+    toast.success(after.message, { duration: 8000, action: { label: 'Вернуться', onClick: back } });
   }
 
   async function addDraft() {
@@ -321,7 +348,8 @@ export function InvoicesPage() {
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
                 onOpenInvoice={setSelected}
-                onParsed={unsaved => leadOn(opened.id, asInput(opened.data.requisites[K.number]) || null, unsaved)}
+                onParsed={() => void leadOn(opened.id, asInput(opened.data.requisites[K.number]) || null)}
+                onUnsaved={noteUnsaved}
                 gone={gone} onClose={() => closeGone(opened.id)}
                 scanSlot={hasScan && !wide && !gone
                   ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}

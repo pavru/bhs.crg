@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CheckCheck, Copy, Save, Sparkles, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -56,10 +56,13 @@ import { explainedByRecognition } from './recognition';
  * со сбросом состояния — он рисует лишний кадр с чужими правками, и в этом кадре номер одного счёта
  * стоит в форме другого.
  */
-export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onParsed }: {
+export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onParsed, onUnsaved }: {
   view: InvoiceView;
   /** Счёт разобран: дальше решает страница — она знает отбор и список (issue #1293). */
-  onParsed?: (unsaved: boolean) => void;
+  onParsed?: () => void;
+  /** Есть ли в форме несохранённое — в шапке или в строках. Страница спрашивает об этом в тот миг,
+   *  когда собирается сменить счёт, а не в миг нажатия (ревью PR #1303). Обязана быть стабильной. */
+  onUnsaved?: (unsaved: boolean) => void;
   /** Счёт удалили, пока он был открыт (issue #1282): набранное остаётся, действий записи нет. */
   gone?: boolean;
   /** Закрыть форму: после удаления и по «Закрыть счёт» у счёта, которого больше нет. */
@@ -82,6 +85,13 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
   const [linesDirty, setLinesDirty] = useState(false);
+  const unsaved = dirty || linesDirty;
+  // Закрытая форма несохранённого не держит: без снятия страница помнила бы правки счёта, которого
+  // на экране уже нет.
+  useEffect(() => {
+    onUnsaved?.(unsaved);
+    return () => onUnsaved?.(false);
+  }, [unsaved, onUnsaved]);
 
   // Правки шапки лежат поверх вида (issue #1176). Вид обновился, а поля, которые человек правит,
   // остались прежними — правки в силе. Изменили именно их — поле на экране показывает набранное, а не

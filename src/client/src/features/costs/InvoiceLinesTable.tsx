@@ -66,9 +66,8 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  */
 export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false, onParsed }: {
   view: InvoiceView;
-  /** Счёт разобран (issue #1293): страница решает, вести ли к следующему счёту очереди.
-   *  `unsaved` — в форме осталось набранное, и уводить с неё нельзя. */
-  onParsed?: (unsaved: boolean) => void;
+  /** Счёт разобран (issue #1293): страница решает, вести ли к следующему счёту очереди. */
+  onParsed?: () => void;
   /** Есть ли несохранённые правки строк: о них обязан сказать диалог удаления счёта (issue #1282). */
   onDirty?: (dirty: boolean) => void;
   /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не
@@ -256,7 +255,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     try {
       await state.mutateAsync({ id: view.id, seen: view.version, to });
       if (rejected) toast.success('Счёт возвращён в черновик.');
-      if (to === 'parsed') onParsed?.(dirty || headerDirty);
+      if (to === 'parsed') onParsed?.();
     }
     catch (e) { toast.apiError(e, to === 'parsed' ? 'Счёт не разобран' : 'Счёт не возвращён в черновик'); }
   }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { InvoiceListItem } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import {
-  afterParsed, emptyText, heldRow, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
+  afterParsed, backRefused, emptyText, heldRow, keepTrace, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
 } from './invoiceQueues';
 
 /** Очереди списка счетов — чипы «наведите порядок» в рейле (issue #1186). */
@@ -185,6 +185,35 @@ describe('после «Разобран» под отбором очереди',
     ]);
     expect(afterParsed('parsing', shown, 'c', '15', '', false)?.open).toBe(a);
     expect(afterParsed('parsing', queueRows([c], null, trace), 'c', '15', '', false)?.open).toBeNull();
+  });
+
+  it('список не прочитан — это не пустая очередь', () => {
+    expect(afterParsed('parsing', null, 'a', '15', '', false))
+      .toEqual({ open: null, message: 'Счёт № 15 разобран. Следующий не открыт: список счетов не прочитан.' });
+  });
+
+  it('следующий берётся из перечитанного списка: разобранный стоит в нём удержанной строкой', () => {
+    // Сервер b уже не отдаёт; сосед тем временем убрал и c — следующим идёт a, а не c.
+    const held = { queue: 'parsing' as const, item: b, index: 1 };
+    expect(afterParsed('parsing', queueRows([a, c], held), 'b', '15', '', false)?.open).toBe(c);
+    expect(afterParsed('parsing', queueRows([a], held), 'b', '15', '', false)?.open).toBe(a);
+    // Поиск скрыл сам разобранный — идём с начала найденного.
+    expect(afterParsed('parsing', rows(a, c), 'b', '15', 'запрос', false)?.open).toBe(a);
+  });
+
+  it('след снимается сменой отбора и возвратом счёта в список', () => {
+    const trace = { queue: 'parsing' as const, item: b, index: 1 };
+    expect(keepTrace(trace, 'parsing', [a, c])).toBe(true);
+    expect(keepTrace(trace, 'parsing', undefined)).toBe(true);
+    expect(keepTrace(trace, 'parsing', [a, b, c])).toBe(false);
+    expect(keepTrace(trace, 'archived', [a, c])).toBe(false);
+    expect(keepTrace(trace, null, [a, c])).toBe(false);
+    expect(keepTrace(null, 'parsing', [a])).toBe(false);
+  });
+
+  it('«Вернуться» при несохранённом называет, где счёт искать', () => {
+    expect(backRefused('15'))
+      .toBe('Счёт № 15 не открыт: в форме несохранённые правки. Он стоит в списке строкой «разобран».');
   });
 
   it('след и удержанный открытый счёт стоят каждый на своём месте', () => {
