@@ -85,9 +85,19 @@ describe('deleteInvoice', () => {
     expect(calls).toBe(1);
   });
 
-  it('409, а счёт уже не черновик без оплаты — причина уходит словами сервера', async () => {
-    const paid = refusal(409, 'Счёт 1 оплачен — удалить его нельзя.');
-    await expect(deleteInvoice(() => Promise.reject(paid), () => Promise.resolve(view({ paid: true })))).rejects.toBe(paid);
+  // Сервер на этом пути говорит о ВЕРСИИ («перечитайте и повторите»): её он сверяет раньше условия
+  // удаления. Повторить нечего — и экран называет, чем счёт стал и какой у этого выход (ревью PR #1299).
+  it('409, а счёт тем временем оплатили — названа оплата и выход, а не «повторите»', async () => {
+    const stale = refusal(409, 'Счёт тем временем изменили. Перечитайте счёт и повторите.');
+    await expect(deleteInvoice(() => Promise.reject(stale), () => Promise.resolve(view({ paid: true }))))
+      .rejects.toThrow('сначала отмените оплату');
+  });
+
+  it('409, а счёт тем временем разобрали — названо состояние и выход', async () => {
+    const stale = refusal(409, 'Счёт тем временем изменили. Перечитайте счёт и повторите.');
+    await expect(deleteInvoice(() => Promise.reject(stale),
+      () => Promise.resolve(view({ requisites: { Состояние: 'Разобран' } }))))
+      .rejects.toThrow('теперь он — разобран');
   });
 
   it('409, а перечитывание отвечает «нет такого» — счёт удалил тот, с кем столкнулись', async () => {

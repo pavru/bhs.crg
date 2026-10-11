@@ -1,7 +1,6 @@
-import { isNotFound } from '@/shared/api/invoices';
 import type { WaybillView } from '@/shared/api/waybills';
-import { isConflict } from '@/shared/utils/apiError';
 import { formatDate } from '@/shared/format/format';
+import { deleteRecord } from './recordDelete';
 
 /**
  * Удаление накладной — правила экрана (issue #1283; раздел Дизайнера от 11.10.2026). Устроено так же,
@@ -28,48 +27,17 @@ export function waybillTitle(view: WaybillView): string {
 export const waybillConfirmLabel = (view: WaybillView): string =>
   view.number ? `Удалить накладную № ${view.number}` : 'Удалить накладную без номера';
 
-/** Чем кончилось удаление: удалили этим запросом — или накладной уже не было. */
-export type WaybillDeleteOutcome = 'deleted' | 'already';
-
 /**
- * Удалить накладную — и перевести отказы на язык экрана.
- *
- * <p><b>404 — не отказ</b>: накладной уже нет (сосед удалил её секундой раньше, либо ответ на первый
- * запрос потерялся). Человек хотел именно этого, и «не удалена» про удалённую было бы неправдой.</p>
- *
- * <p><b>409</b> бывает про два положения, и различает их свежепрочитанная накладная, а не слова отказа.
- * Она по-прежнему черновик — значит, отказ был о версии: накладную изменили между открытием диалога и
- * нажатием. Тихого повтора нет — удалять изменённое вслепую нельзя. Уже проведена — причину назвал
- * сервер, и она уходит его словами.</p>
- *
- * <p><b>Ответа нет</b> — исход неизвестен, и сказать «не удалена» значило бы соврать в половине
- * случаев: запрос мог дойти.</p>
+ * Удалить накладную — и перевести отказы на язык экрана. Разбор общий со счётом: см. `deleteRecord`.
  *
  * @param send сам запрос удаления.
  * @param readFresh прочитать накладную заново, мимо кэша.
  */
-export async function deleteWaybill(
-  send: () => Promise<unknown>, readFresh: () => Promise<WaybillView>,
-): Promise<WaybillDeleteOutcome> {
-  try {
-    await send();
-    return 'deleted';
-  } catch (refusal) {
-    if (isNotFound(refusal)) return 'already';
-    if (!(refusal as { response?: unknown })?.response)
-      throw new Error('Удалена ли накладная — неизвестно: ответ не пришёл. Посмотрите список накладных.', { cause: refusal });
-    if (!isConflict(refusal)) throw refusal;
-
-    let fresh: WaybillView;
-    try { fresh = await readFresh(); }
-    catch (unread) {
-      // Накладной уже нет — её удалил тот, с кем столкнулись. Не прочиталась иначе — остаётся исходный отказ.
-      if (isNotFound(unread)) return 'already';
-      throw refusal;
-    }
-    if (!canDeleteWaybill(fresh, true)) throw refusal;
-    throw new Error(
-      'Накладную тем временем изменили. Она не удалена: закройте это окно, посмотрите накладную заново '
-      + 'и решите ещё раз.', { cause: refusal });
-  }
-}
+export const deleteWaybill = (send: () => Promise<unknown>, readFresh: () => Promise<WaybillView>) =>
+  deleteRecord(send, readFresh, fresh => canDeleteWaybill(fresh, true), {
+    unknown: 'Удалена ли накладная — неизвестно: ответ не пришёл. Посмотрите список накладных.',
+    changed: 'Накладную тем временем изменили. Она не удалена: закройте это окно, посмотрите накладную '
+      + 'заново и решите ещё раз.',
+    noLonger: () => 'Накладную тем временем провели. Она не удалена: удаляется только черновик — верните '
+      + 'накладную в черновик.',
+  });

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { seenBy } from './invoices';
+import { isNotFound, seenBy } from './invoices';
 
 /**
  * Расходные накладные модуля «Счета и накладные» (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
@@ -121,6 +121,9 @@ export function useWaybill(id: string | undefined) {
     queryKey: [QK, 'one', id] as const,
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     enabled: !!id,
+    // «Нет такой» повтором не лечится (ревью PR #1299): общий повтор держал бы «загружается…» лишнюю
+    // секунду перед «накладной нет» — и так при каждом возврате в окно.
+    retry: (failures, error) => !isNotFound(error) && failures < 1,
     // Открытая форма читает накладную заново, а не из кэша: «заперта» в её виде зависит от границ
     // периодов, а те меняют на другом экране. Человек, которому форма сказала «сначала отмените закрытие»,
     // отменяет его и возвращается — и прежний кэш ещё полминуты показывал бы замок (ревью PR #1296).
@@ -152,8 +155,10 @@ function useWaybillWrite<T extends { id: string }>(send: (input: T) => Promise<W
     mutationFn: send,
     onSuccess: settle,
     onError: (error: unknown, input: T) => {
-      if ((error as { response?: { status?: number } })?.response?.status === 409)
-        void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
+      // 404 — накладную удалили, пока она была открыта (issue #1283): перечитывание ответит тем же, и
+      // страница скажет «накладной больше нет», оставив набранное на экране.
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
     },
   });
 }
@@ -210,14 +215,11 @@ export function useMatchWaybillLine() {
  * `useWaybillWrite`; кэш после успеха чистит `forgetWaybill` — когда форма уже закрыта.
  */
 export function useDeleteWaybill() {
-  const qc = useQueryClient();
+  // Перечитывания на 409 здесь нет нарочно (ревью PR #1299): отказ разбирает `deleteWaybill`, и он
+  // сам читает накладную заново тем же ключом — второй запрос рядом был бы лишним.
   return useMutation({
     mutationFn: ({ id, seen }: { id: string; seen: string }) =>
       apiClient.delete(`/costs/waybills/${id}`, seenBy(seen)).then(() => undefined),
-    onError: (error: unknown, input) => {
-      if ((error as { response?: { status?: number } })?.response?.status === 409)
-        void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
-    },
   });
 }
 

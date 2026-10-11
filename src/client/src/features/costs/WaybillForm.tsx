@@ -45,7 +45,7 @@ const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs
  * устаревшей формы сервер отвергает по версии (заголовок <c>If-Match</c>). Уход со страницы и выбор другой
  * накладной спрашивают, что делать с правками.</p>
  */
-export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveGuard, onDeleted }: {
+export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit, gone, onLeaveGuard, onClose }: {
   /** Накладная, как её сейчас знает кэш. Форма работает по той, по которой собрана, — см. `view` ниже. */
   view: WaybillView;
   sites: CostsConstruction[];
@@ -57,9 +57,15 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
    * выбором другой накладной. `null` — спрашивать не о чем. Ссылка обязана быть устойчивой.
    */
   onLeaveGuard: (ask: ((proceed: () => void) => void) | null) => void;
-  /** Накладную удалили из этой формы (или её уже не было): страница закрывает форму и чистит кэш. */
-  onDeleted: () => void;
+  /**
+   * Накладной больше нет — её удалили, пока она была открыта (issue #1283). Форма остаётся с набранным,
+   * чтобы его можно было перенести, но действий записи у неё нет: сохранять уже некуда.
+   */
+  gone: boolean;
+  /** Закрыть форму накладной, которой нет: удалённой отсюда либо соседом. Страница чистит кэш. */
+  onClose: () => void;
 }) {
+  const canEdit = mayEdit && !gone;
   // Накладная, по которой собрана форма: с ней сверяется «изменено ли» и её версию называет сохранение.
   const [view, setView] = useState(fresh);
   const [draft, setDraft] = useState<WaybillDraft>(() => toDraft(fresh));
@@ -183,7 +189,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
             {posted ? 'Проведена' : 'Черновик'}
           </span>
           <div className="flex-1" />
-          {!canEdit && <span className="text-xs text-fg3">Только чтение: права вводить накладные нет</span>}
+          {!mayEdit && <span className="text-xs text-fg3">Только чтение: права вводить накладные нет</span>}
           {canEdit && !posted && (
             <>
               <Button size="sm" variant="outlined" icon={<Save size={13} />} disabled={!dirty || busy}
@@ -202,9 +208,20 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit, onLeaveG
               Вернуть в черновик
             </Button>
           )}
-          <WaybillDeleteMenu view={view} canEdit={canEdit} dirty={dirty} onDeleted={onDeleted} />
+          <WaybillDeleteMenu view={view} canEdit={canEdit} dirty={dirty} onDeleted={onClose} />
         </div>
-        {outdated && (
+        {gone && (
+          <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-lg border
+            border-danger-border bg-danger-subtle px-3 py-2 text-xs text-danger">
+            <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+            <p className="flex-1">
+              Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
+              экране: перенесите нужное себе. Сохранить его уже некуда.
+            </p>
+            <Button size="sm" variant="outlined" onClick={onClose}>Закрыть накладную</Button>
+          </div>
+        )}
+        {outdated && !gone && (
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger-border
             bg-danger-subtle px-3 py-2 text-xs text-danger">
             <TriangleAlert size={13} className="shrink-0 mt-0.5" />

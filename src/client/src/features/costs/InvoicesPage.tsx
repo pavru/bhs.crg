@@ -7,6 +7,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
 import { useToast } from '@/shared/ui/Toast';
+import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -129,22 +130,12 @@ export function InvoicesPage() {
    * <p>Кэш чистится при ЛЮБОМ уходе с такого счёта (ревью PR #1298), а не только по кнопке: щелчок по
    * другой строке или «назад» иначе оставили бы удалённый счёт строкой списка.</p>
    */
-  const closing = useRef<string | null>(null);
-  function closeGone() {
-    if (!selected) return;
-    closing.current = selected;
-    setParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.delete(INVOICE_RECORD.param);
-      return next;
-    }, { replace: true });
-  }
-  useEffect(() => { if (gone && selected) closing.current = selected; }, [gone, selected]);
-  useEffect(() => {
-    if (closing.current === null || closing.current === selected) return;
-    forgetInvoice(qc, closing.current);
-    closing.current = null;
-  }, [selected, qc]);
+  const closeGone = useCloseGone(selected, gone, id => setParams(prev => {
+    if (prev.get(INVOICE_RECORD.param) !== id) return prev;
+    const next = new URLSearchParams(prev);
+    next.delete(INVOICE_RECORD.param);
+    return next;
+  }, { replace: true }), id => forgetInvoice(qc, id));
   const me = useAuth().user?.sub;
   const batch = useScanBatch(me);
   const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
@@ -293,7 +284,7 @@ export function InvoicesPage() {
               organizations={organizations.data ?? []}
               organizationsError={organizations.isError ? organizations.error : undefined}
               onOpenInvoice={setSelected}
-              gone={gone} onClose={closeGone}
+              gone={gone} onClose={() => closeGone(view.data.id)}
               scanSlot={hasScan && !wide && !gone
                 ? <ScanTooNarrow invoiceId={view.data.id} blobPath={fileProp(scan, 'blobPath')}
                     fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
