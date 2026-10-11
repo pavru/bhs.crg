@@ -162,6 +162,8 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
 
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null));
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/rejected", null));
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null));
 
         // Оплата, правка платёжного документа и отмена.
         var today = await TodayAsync();

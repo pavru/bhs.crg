@@ -38,6 +38,9 @@ export const UNCONFIRMED_HINT = 'Распознано, не подтвержде
  * ядра читает отсутствующее запертое поле как стёртое — вырезав их, клиент получал бы отказ на каждом
  * сохранении.
  */
+/** Состояние «не платим» — тем словом, каким его отдаёт сервер в реквизите «Состояние». */
+export const REJECTED = 'Отклонён';
+
 export const READ_ONLY_KEYS: readonly string[] = [K.state, K.payment, K.scan];
 
 export interface InvoiceBlock {

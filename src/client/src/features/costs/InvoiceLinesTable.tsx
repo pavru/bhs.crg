@@ -6,7 +6,7 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
 } from '@/shared/api/invoices';
-import { K, refEntryId } from './invoiceFields';
+import { K, REJECTED, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import { LineMatchChip } from './LineMatchChip';
@@ -189,6 +189,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
   const paper = view.requisites[K.total];
   const difference = mismatch(paper, sums.amount, sums.count);
   const parsed = view.requisites[K.state] === 'Разобран';
+  const rejected = view.requisites[K.state] === REJECTED;
 
   function edit(key: string, patch: Partial<LineDraft>) {
     setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -304,7 +305,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
         matched={drafts.filter(d => d.matchedBy !== null).length} />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {still ? null : parsed
+        {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
+        {still ? null : parsed || rejected
           ? (
             <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
               onClick={() => move('draft')}>
@@ -319,10 +321,12 @@ export function InvoiceLinesTable({ view, locked, readOnly = false }: {
           )}
         {/* У разобранного — тоже, если разноска не сходится: счёт, разобранный до F1 (#1085), разноски
             не имеет, и фраза «разноска сходится» ниже была бы про него неправдой. */}
-        {(!parsed || !view.allocation.allocated) && view.lines.length > 0
+        {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
           && <AllocationSummary allocation={view.allocation} />}
         <span className="text-xs text-fg4">
-          {parsed
+          {rejected
+            ? 'Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.'
+            : parsed
             ? view.allocation.allocated
               ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены, разноска сходится.'
               : 'Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.'

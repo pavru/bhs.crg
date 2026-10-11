@@ -24,6 +24,7 @@ import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
+import { InvoiceMoreMenu } from './InvoiceMoreMenu';
 import { LostReferencesNote } from './LostReferencesNote';
 import { LOST } from './lostReferences';
 import { withArchiveWord } from '@/shared/ui/archive';
@@ -190,6 +191,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
               Сохранить
             </Button>
           )}
+          {!locked && <InvoiceMoreMenu view={view} dirty={dirty} />}
         </div>
 
         {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
