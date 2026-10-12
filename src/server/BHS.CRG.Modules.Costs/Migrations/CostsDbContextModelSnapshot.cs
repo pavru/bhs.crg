@@ -122,6 +122,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("scan_fingerprint");
 
+                    b.Property<string>("ScanFingerprintSeal")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scan_fingerprint_seal");
+
                     b.Property<string>("ScanMimeType")
                         .HasColumnType("text")
                         .HasColumnName("scan_mime_type");

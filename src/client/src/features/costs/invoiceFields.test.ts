@@ -132,10 +132,10 @@ describe('двойники счёта: тот же файл и те же рек�
     expect(twins.duplicates.map(d => d.id)).toEqual(['в']);
   });
 
-  it('без номера прежний счёт назван временем заведения, а не именем файла', () => {
+  it('без номера прежний счёт назван именем файла и временем заведения до секунд', () => {
     expect(sameFileLabel(same('а', 'СЧ-7'))).toBe('№ СЧ-7');
     const label = sameFileLabel(same('б', null));
-    expect(label).toMatch(/^без номера, заведён 12\.10\.2026, \d\d:02$/);
-    expect(label).not.toContain('Счёт.pdf');
+    expect(label).toMatch(/^без номера, «Счёт\.pdf», заведён 12\.10\.2026, \d\d:02:00$/);
+
   });
 });

@@ -20,12 +20,14 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
     </button>
   );
   // У разобранного, отклонённого и оплаченного пара с одним файлом — скорее всего законная (в файле
-  // несколько счетов): вечное жёлтое предупреждение на ней только приучало бы его не читать.
-  const draft = view.requisites[K.state] === DRAFT;
+  // несколько счетов): вечное жёлтое предупреждение на ней только приучало бы его не читать. Но не
+  // когда совпали ещё и поставщик, номер и дата: это самый сильный признак дубля, и тише оговорки
+  // об одних реквизитах он звучать не вправе — у разобранного счёта это риск оплатить дважды.
+  const loud = view.requisites[K.state] === DRAFT || both.size > 0;
 
   return (
     <>
-      {sameFile.length > 0 && (draft ? (
+      {sameFile.length > 0 && (loud ? (
         <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2"
           data-testid="same-file-note">
           <Copy size={14} className="text-warning shrink-0 mt-0.5" />
@@ -33,7 +35,8 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
             <span>{sameFile.length > 1 ? 'Этот файл уже приложен к другим счетам: ' : 'Этот файл уже приложен к другому счёту: '}</span>
             {sameFile.map((s, i) => (
               <span key={s.id}>
-                {i > 0 && ', '}
+                {/* Точка с запятой: внутри подписи запятые свои. */}
+                {i > 0 && '; '}
                 {link(s.id, sameFileLabel(s))}
                 {both.has(s.id) && ' — поставщик, номер и дата тоже совпадают'}
               </span>
@@ -51,7 +54,7 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
       ) : (
         <p className="text-xs text-fg3" data-testid="same-file-note">
           {sameFile.length > 1 ? 'Тот же файл приложен ещё к счетам: ' : 'Тот же файл приложен ещё к счёту: '}
-          {sameFile.map((s, i) => <span key={s.id}>{i > 0 && ', '}{link(s.id, sameFileLabel(s))}</span>)}.
+          {sameFile.map((s, i) => <span key={s.id}>{i > 0 && '; '}{link(s.id, sameFileLabel(s))}</span>)}.
         </p>
       ))}
       {duplicates.length > 0 && (

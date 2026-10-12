@@ -187,6 +187,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.ScanMimeType).HasColumnName("scan_mime_type");
         invoice.Property(i => i.ScanSize).HasColumnName("scan_size");
         invoice.Property(i => i.ScanFingerprint).HasColumnName("scan_fingerprint").HasMaxLength(64);
+        invoice.Property(i => i.ScanFingerprintSeal).HasColumnName("scan_fingerprint_seal").HasMaxLength(64);
+        invoice.Ignore(i => i.TrustedFingerprint);
 
         // Метки «распознано, не подтверждено» — массивом текста: это множество ключей полей, и
         // отдельная таблица на него завела бы вторую сущность там, где нет ни одной своей колонки

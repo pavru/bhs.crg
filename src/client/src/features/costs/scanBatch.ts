@@ -46,9 +46,19 @@ export interface RepeatedScan {
   name: string;
   /** Новый черновик. */
   id: string;
-  /** Прежний счёт — старший из совпавших; подпись снята в момент загрузки. */
-  other: { id: string; label: string; fileName: string | null };
-  /** Прежний счёт заведён этой же загрузкой: тогда его называют именем файла — оно здесь различает. */
+  /**
+   * Счета с тем же файлом, от старшего; назван первый. Все, а не один (ревью PR #1305): удалили
+   * старшего — у черновика остаются другие двойники, и строка о повторе обязана остаться.
+   */
+  others: RepeatTwin[];
+}
+
+export interface RepeatTwin {
+  id: string;
+  /** Подпись снята в момент загрузки. */
+  label: string;
+  fileName: string | null;
+  /** Заведён этой же загрузкой: тогда его называют именем файла — оно здесь различает. */
   inBatch: boolean;
 }
 
@@ -164,16 +174,37 @@ export function uploadedOf<T extends { id: string }>(items: T[] | undefined, bat
  */
 export function forgetCreated(id: string) {
   if (!state) return;
-  // Вместе со счётом уходит и строка о повторе — с любой её стороны: звать к удалённому нельзя, а
-  // без одного из пары оговорка уже неверна.
-  const repeats = state.repeats.filter(r => r.id !== id && r.other.id !== id);
-  if (state.created.includes(id) || repeats.length !== state.repeats.length)
-    patch({ created: state.created.filter(c => c !== id), repeats });
+  const touched = state.repeats.some(r => r.id === id || r.others.some(o => o.id === id));
+  if (state.created.includes(id) || touched)
+    patch({ created: state.created.filter(c => c !== id), repeats: without(state.repeats, o => o !== id) });
 }
 
+/**
+ * Повторы без ушедших счетов: нет нового черновика — нет строки; ушёл прежний — называется следующий
+ * двойник, а строка уходит, только когда не осталось ни одного.
+ */
+const without = (repeats: RepeatedScan[], kept: (id: string) => boolean): RepeatedScan[] => repeats
+  .filter(r => kept(r.id))
+  .map(r => ({ ...r, others: r.others.filter(o => kept(o.id)) }))
+  .filter(r => r.others.length > 0);
+
+/**
+ * Счета, которые есть в списке, — чтобы полоса не звала к удалённому соседом или в другой вкладке
+ * (ревью PR #1305). `null` — не знаем: список не пришёл, стоит под отбором сервера или загрузка ещё
+ * идёт (он перечитывается не на каждый файл). «Не знаем» повторы не прячет.
+ */
+export const aliveIds = (
+  items: { id: string }[] | undefined, known: boolean, batch: ScanBatch | null,
+): ReadonlySet<string> | null =>
+  items && known && batch?.phase === 'done' ? new Set(items.map(i => i.id)) : null;
+
+/** Повторы, которые показывает полоса: снимок загрузки, сверенный со списком, когда тот известен. */
+export const shownRepeats = (batch: ScanBatch, alive: ReadonlySet<string> | null): RepeatedScan[] =>
+  alive ? without(batch.repeats, id => alive.has(id)) : batch.repeats;
+
 /** Заголовок списка повторов в полосе; `null` — повторов нет. */
-export function repeatsTitle(batch: ScanBatch): string | null {
-  const n = batch.repeats.length;
+export function repeatsTitle(batch: ScanBatch, shown: RepeatedScan[] = batch.repeats): string | null {
+  const n = shown.length;
   if (n === 0) return null;
   return batch.phase === 'done' && n > 1 && n === batch.total
     ? `Все ${ruCount(n, 'файл', 'файла', 'файлов')} уже были приложены раньше — черновики всё равно заведены:`
@@ -181,10 +212,13 @@ export function repeatsTitle(batch: ScanBatch): string | null {
 }
 
 /** Что сказано о прежнем счёте: слова перед ссылкой и сама ссылка. */
-export const repeatWords = (repeat: RepeatedScan): { lead: string; link: string; tail: string } =>
-  repeat.inBatch && repeat.other.fileName
-    ? { lead: 'тот же файл, что ', link: `«${repeat.other.fileName}»`, tail: ' из этой же загрузки' }
-    : { lead: 'уже приложен к счёту ', link: repeat.other.label, tail: '' };
+export function repeatWords(repeat: RepeatedScan): { lead: string; link: string; tail: string } {
+  const [first, ...rest] = repeat.others;
+  const more = rest.length > 0 ? ` (и ещё ${rest.length})` : '';
+  return first.inBatch && first.fileName
+    ? { lead: 'тот же файл, что ', link: `«${first.fileName}»`, tail: ` из этой же загрузки${more}` }
+    : { lead: 'уже приложен к счёту ', link: first.label, tail: more };
+}
 
 /** Строка полосы об отборе «только заведённые этой загрузкой». */
 export interface UploadLine {
@@ -263,7 +297,8 @@ function restore(): ScanBatch | null {
     if (!text) return null;
     const stored = JSON.parse(text) as ScanBatch;
     // Копия, записанная до появления повторов, поля не несёт.
-    return interrupted({ ...stored, repeats: stored.repeats ?? [], rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
+    const repeats = (stored.repeats ?? []).filter(r => Array.isArray(r.others));
+    return interrupted({ ...stored, repeats, rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
   } catch { return null; }
 }
 
@@ -307,13 +342,12 @@ async function run(files: File[], port: BatchPort) {
         const { id, sameFile } = await port.send(file);
         // За время запроса пакет могли оборвать (вход завершился) — тогда исход уже записан обрывом.
         if (!alive()) return;
-        const other = sameFile[0];
+        const others = sameFile.map(s => ({
+          id: s.id, label: sameFileLabel(s), fileName: s.scanFileName, inBatch: state!.created.includes(s.id),
+        }));
         settle({
           created: [...state!.created, id],
-          repeats: other ? [...state!.repeats, {
-            name: file.name, id, inBatch: state!.created.includes(other.id),
-            other: { id: other.id, label: sameFileLabel(other), fileName: other.scanFileName },
-          }] : state!.repeats,
+          repeats: others.length > 0 ? [...state!.repeats, { name: file.name, id, others }] : state!.repeats,
         });
         if (state!.created.length % REFRESH_EVERY === 0) port.refresh();
       } catch (e) {

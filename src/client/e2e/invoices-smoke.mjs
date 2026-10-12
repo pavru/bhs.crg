@@ -423,8 +423,9 @@ try {
     const lines = await list.locator('li').allInnerTexts();
     if (lines.length !== 2 || !repeats.every(name => lines.some(text => text.startsWith(name))))
       throw new Error(`повторами названы не те файлы: ${JSON.stringify(lines)}`);
-    // Прежний счёт без номера назван временем заведения: имя файла у повтора обычно то же.
-    if (!lines.every(text => /уже приложен к счёту без номера, заведён \d\d\.\d\d\.\d{4}, \d\d:\d\d/.test(text)))
+    // Прежний счёт без номера назван именем файла и временем заведения до секунд: порознь они
+    // двух черновиков одной загрузки не различают.
+    if (!lines.every(text => /уже приложен к счёту без номера, «.+», заведён \d\d\.\d\d\.\d{4}, \d\d:\d\d:\d\d/.test(text)))
       throw new Error(`прежний счёт назван не временем заведения: ${JSON.stringify(lines)}`);
 
     // Из полосы — на новый черновик: оговорка стоит на форме и ведёт к удалению лишнего.

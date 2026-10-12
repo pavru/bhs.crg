@@ -170,6 +170,30 @@ public sealed class Invoice
     public string? ScanFingerprint { get; private set; }
 
     /// <summary>
+    /// Для какого файла посчитан отпечаток — хеш его пути (ревью PR #1305). Хешем, а не самим путём:
+    /// колонку, похожую на путь, резервная копия приняла бы за второй файл счёта.
+    ///
+    /// <para>Нужна потому, что путь умеет меняться в обход <see cref="AttachScan" />: копия, снятая до
+    /// появления отпечатка, возвращает счёту прежний путь, а колонку отпечатка не трогает — её в копии
+    /// нет. Без этой сверки у счёта стоял бы отпечаток ДРУГОГО файла, и экран уверенно называл бы
+    /// повтором разные файлы.</para>
+    /// </summary>
+    public string? ScanFingerprintSeal { get; private set; }
+
+    /// <summary>
+    /// Отпечаток, которому можно верить: он посчитан для файла, приложенного сейчас. Иначе — «не
+    /// знаем»: такой счёт ни с чем не сравнивается.
+    /// </summary>
+    public string? TrustedFingerprint => Trusted(ScanBlobPath, ScanFingerprint, ScanFingerprintSeal);
+
+    /// <summary>То же правило для строки, прочитанной не сущностью: поиск двойников читает проекцию.</summary>
+    public static string? Trusted(string? path, string? fingerprint, string? seal) =>
+        path is not null && fingerprint is not null && seal == Seal(path) ? fingerprint : null;
+
+    private static string Seal(string path) => Convert.ToHexStringLower(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(path)));
+
+    /// <summary>
     /// Ключи полей, которые заполнило распознавание и человек ещё не подтвердил (решение владельца
     /// продукта 29.09.2026, вариант C).
     ///
@@ -384,6 +408,7 @@ public sealed class Invoice
     public void AttachScan(string blobPath, string fileName, string mimeType, long size, string fingerprint)
     {
         ScanFingerprint = fingerprint;
+        ScanFingerprintSeal = Seal(blobPath);
         ScanBlobPath = blobPath;
         ScanFileName = fileName;
         ScanMimeType = mimeType;

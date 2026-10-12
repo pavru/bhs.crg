@@ -175,12 +175,16 @@ export function duplicateLabel(duplicate: InvoiceDuplicate): string {
 }
 
 /**
- * Чем назван счёт с тем же файлом (issue #1295). Без номера — временем заведения, а НЕ именем файла:
- * повтор почти всегда носит то же имя, и «файл X приложен к счёту из файла X» ничего не различает.
+ * Чем назван счёт с тем же файлом (issue #1295). Без номера — временем заведения ДО СЕКУНД и именем
+ * файла: одного имени мало (повтор почти всегда носит то же), одной минуты тоже — черновики одной
+ * загрузки заводятся в одну минуту, и две ссылки с одним текстом не различить (ревью PR #1305).
  */
-export const sameFileLabel = (same: InvoiceSameFile): string => same.number
-  ? `№ ${duplicateLabel(same)}`
-  : `без номера, заведён ${formatDateTime(same.createdAt)}`;
+export function sameFileLabel(same: InvoiceSameFile): string {
+  if (same.number) return `№ ${duplicateLabel(same)}`;
+  const seconds = String(new Date(same.createdAt).getSeconds()).padStart(2, '0');
+  const file = same.scanFileName ? `«${same.scanFileName}», ` : '';
+  return `без номера, ${file}заведён ${formatDateTime(same.createdAt)}:${seconds}`;
+}
 
 /**
  * Двойники счёта по двум признакам, без повтора: счёт, совпавший и файлом, и реквизитами, стоит

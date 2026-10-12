@@ -2,6 +2,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Endpoints;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -123,6 +127,41 @@ public sealed class InvoiceSameFileTests(InvoiceScanHost host)
         var again = await AttachAsync(client, Id(invoice), content, "Сам.pdf");
 
         Assert.Empty(SameFile(again));
+    }
+
+    /// <summary>
+    /// Путь файла сменился в обход приёма — так делает восстановление из копии, снятой до появления
+    /// отпечатка: путь возвращается прежний, а отпечаток остаётся от файла, приложенного позже. Такому
+    /// отпечатку верить нельзя: счёт ни с чем не сравнивается, в обе стороны.
+    /// </summary>
+    [Fact]
+    public async Task Отпечаток_чужого_файла_совпадением_не_считается()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var first = await FromScanAsync(client, content, "Копия.pdf");
+        var second = await FromScanAsync(client, content, "Копия.pdf");
+        Assert.Equal([Id(first)], SameFile(second));
+
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoices SET scan_blob_path = scan_blob_path || '.прежний' WHERE id = {Id(first)}");
+
+        Assert.Empty(SameFile(await ReadAsync(client, Id(second))));
+        Assert.Empty(SameFile(await ReadAsync(client, Id(first))));
+    }
+
+    /// <summary>Один бланк, загруженный десятки раз: оговорка называет первые, а не всех.</summary>
+    [Fact]
+    public async Task Двойников_называется_не_больше_предела()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        JsonElement last = default;
+        for (var i = 0; i < InvoiceSameFiles.Limit + 2; i++)
+            last = await FromScanAsync(client, content, $"Бланк {i}.pdf");
+
+        Assert.Equal(InvoiceSameFiles.Limit, SameFile(last).Length);
     }
 
     /// <summary>

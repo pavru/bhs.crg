@@ -26,10 +26,23 @@ public sealed record InvoiceSameFile(
 ///
 /// <para>⚠️ У счёта, заведённого до появления отпечатка, его нет — и с такими счетами файл не
 /// сравнивается вовсе. Это «неизвестно», а не «совпадений нет»: экран нигде не утверждает, что файл
-/// новый.</para>
+/// новый. То же — у счёта, чей путь файла сменился в обход приёма (восстановление из копии старше
+/// отпечатка): отпечаток у него от другого файла, и верить ему нельзя
+/// (<see cref="Invoice.TrustedFingerprint" />).</para>
+///
+/// <para><b>Третий проход по файлу — нарочно</b> (ревью PR #1305). Считать отпечаток по ходу выгрузки
+/// значило бы доверить его тому, как хранилище читает поток: повтор части, перемотка — и отпечаток
+/// неверен без единого отказа. Проход по файлу, уже лежащему на диске сервера, стоит доли секунды
+/// рядом с выгрузкой и распознаванием.</para>
 /// </summary>
-internal static class InvoiceSameFiles
+public static class InvoiceSameFiles
 {
+    /// <summary>
+    /// Сколько двойников называет оговорка. Предел есть потому, что один бланк могут загрузить десятки
+    /// раз, а поиск идёт на каждом чтении счёта; форме хватает первых — остальные она не различит.
+    /// </summary>
+    public const int Limit = 10;
+
     /// <summary>
     /// SHA-256 содержимого, шестнадцатеричной строкой в нижнем регистре. Своим проходом по файлу — как
     /// определение вида: поток, уже прочитанный до конца, дал бы отпечаток пустоты, одинаковый у всех.
@@ -44,14 +57,25 @@ internal static class InvoiceSameFiles
     internal static async Task<IReadOnlyList<InvoiceSameFile>> FindAsync(
         CostsDbContext db, Invoice invoice, CancellationToken ct)
     {
-        if (invoice.ScanFingerprint is not { } print) return [];
+        if (invoice.TrustedFingerprint is not { } print) return [];
 
+        // Проекцией, а не сущностями: счёт несёт реквизиты целиком, а нужны шесть полей. Запас сверх
+        // предела — на строки, которым верить нельзя: их отсеивает сверка ниже, уже в памяти.
         var found = await db.Invoices
             .AsNoTracking()
             .Where(i => i.Id != invoice.Id && i.ScanFingerprint == print)
             .OrderBy(i => i.CreatedAt)
+            .Select(i => new
+            {
+                i.Id, i.Number, i.IssuedOn, i.Total, i.ScanFileName, i.CreatedAt, i.ScanBlobPath,
+                i.ScanFingerprint, i.ScanFingerprintSeal,
+            })
+            .Take(Limit * 2)
             .ToListAsync(ct);
 
-        return [.. found.Select(i => new InvoiceSameFile(i.Id, i.Number, i.IssuedOn, i.Total, i.ScanFileName, i.CreatedAt))];
+        return [.. found
+            .Where(i => Invoice.Trusted(i.ScanBlobPath, i.ScanFingerprint, i.ScanFingerprintSeal) is not null)
+            .Take(Limit)
+            .Select(i => new InvoiceSameFile(i.Id, i.Number, i.IssuedOn, i.Total, i.ScanFileName, i.CreatedAt))];
     }
 }
