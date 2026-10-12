@@ -148,6 +148,18 @@ public class AccountingCurrencyLockedTests(InvoiceLineHost host) : InvoiceLineTe
     private const string Url = "/api/settings/company/currency";
 
     /// <summary>
+    /// Валюта возвращается к умолчанию после теста. Хост общий и базу между тестами не чистит: если
+    /// запрет однажды не сработает, записанный доллар достался бы всем соседям — и этому же тесту при
+    /// следующем прогоне, уже под видом «значение не пусто».
+    /// </summary>
+    public override async Task DisposeAsync()
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>()
+            .SetAsync(AppSettingKeys.AccountingCurrency, null);
+    }
+
+    /// <summary>
     /// Сторож задачи: при существующем счёте смена отказывает, значение и журнал не тронуты.
     /// Сломается, если сверка запрета уйдёт из транзакции записи или перестанет видеть счета.
     /// </summary>
