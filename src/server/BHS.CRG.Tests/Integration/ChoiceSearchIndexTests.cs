@@ -6,9 +6,10 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -17,11 +18,8 @@ namespace BHS.CRG.Tests.Integration;
 ///
 /// <para>⚠️ Обычный тест поиска до индекса не доходит: на десятках строк планировщик берёт проход, и
 /// тест зелёный при любом индексе — и без него, и с негодным. Поэтому путь здесь принуждается, а план
-/// читается.</para>
-///
-/// <para>Что ловится, кроме «индекс забыли»: локаль базы, при которой триграммы кириллицы не строятся
-/// или регистр сворачивается не так, как у <c>ILIKE</c>. Тогда индекс не замедляется, а ТЕРЯЕТ строки —
-/// «позиция не нашлась», и человек заводит дубль.</para>
+/// читается — у НАСТОЯЩЕГО запроса хранилища, с его параметром, <c>ESCAPE</c> и отбором по типу и
+/// фасете (ревью PR #1307): план рукописного запроса о настоящем не говорит ничего.</para>
 /// </summary>
 [Collection("Integration")]
 public class ChoiceSearchIndexTests(IntegrationTestFixture fixture)
@@ -29,48 +27,68 @@ public class ChoiceSearchIndexTests(IntegrationTestFixture fixture)
     private const string Index = "IX_domain_objects_SearchText";
 
     [Fact]
-    public async Task Поиск_идёт_по_колонке_под_индексом_и_находит_по_названию_и_по_имени()
+    public async Task Запрос_хранилища_идёт_по_индексу_и_отвечает_тем_же_что_проход()
     {
         var tag = Guid.NewGuid().ToString("N")[..8];
         var (type, byName, byAlias) = await SeedAsync(tag);
 
-        var sql = new List<string>();
-        await using var db = Context(sql);
+        var plans = new PlanProbe();
+        await using var db = Context(plans);
         await using var tx = await db.Database.BeginTransactionAsync();
-        await db.Database.ExecuteSqlRawAsync("SET LOCAL enable_seqscan = off");
+        var repository = new DomainObjectRepository(db);
 
-        var found = await new DomainObjectRepository(db).SearchForChoiceAsync([type], $"кабель {tag}", 10);
-
-        Assert.Equal([byName, byAlias], found.Items.OrderBy(i => i.DisplayName).Select(i => i.Id));
-        Assert.Equal($"Кабель {tag} ВВГ", found.Items.Single(i => i.Id == byAlias).MatchedAlias);
-        // Запрос обязан называть колонку, под которой индекс: отбор по названию и именам порознь
-        // даёт тот же ответ — и полный проход на каждое нажатие.
-        Assert.Contains(sql, s => s.Contains("\"SearchText\" ILIKE"));
-        Assert.DoesNotContain(sql, s => s.Contains("unnest"));
-    }
-
-    [Fact]
-    public async Task Индекс_используется_и_отвечает_тем_же_что_проход()
-    {
-        var tag = Guid.NewGuid().ToString("N")[..8];
-        var (_, byName, byAlias) = await SeedAsync(tag);
-        // Регистр набранного — третий, не совпадающий ни с названием, ни с именем. Без ORDER BY:
-        // с ним планировщик идёт по первичному ключу, и индекс поиска остаётся в стороне.
-        var query = $"""SELECT "Id" FROM domain_objects WHERE "SearchText" ILIKE '%кАбЕлЬ {tag}%'""";
-
-        await using var db = Context([]);
-        await using var tx = await db.Database.BeginTransactionAsync();
-
-        await db.Database.ExecuteSqlRawAsync("SET LOCAL enable_seqscan = off");
-        Assert.Contains(Index, await PlanAsync(db, query));
-        var viaIndex = await IdsAsync(db, query);
+        // Проход и обход по ключу запрещены, индекс по типу снят (до отката транзакции): из путей
+        // к строкам остаётся индекс поиска. Не может запрос им воспользоваться — в плане его не будет.
+        await db.Database.ExecuteSqlRawAsync("""
+            SET LOCAL enable_seqscan = off; SET LOCAL enable_indexscan = off;
+            DROP INDEX "IX_domain_objects_CompositeTypeId";
+            """);
+        // Регистр набранного — третий, не совпадающий ни с названием, ни с именем.
+        var viaIndex = await repository.SearchForChoiceAsync([type], $"кАбЕлЬ {tag}", 10);
+        Assert.Contains(Index, plans.Last);
 
         await db.Database.ExecuteSqlRawAsync("SET LOCAL enable_seqscan = on; SET LOCAL enable_bitmapscan = off");
-        Assert.DoesNotContain(Index, await PlanAsync(db, query));
-        var viaScan = await IdsAsync(db, query);
+        var viaScan = await repository.SearchForChoiceAsync([type], $"кАбЕлЬ {tag}", 10);
+        Assert.DoesNotContain(Index, plans.Last);
 
-        Assert.Equal(new[] { byName, byAlias }.Order(), viaScan);
-        Assert.Equal(viaScan, viaIndex);
+        Assert.Equal([byName, byAlias], viaScan.Items.Select(i => i.Id));
+        Assert.Equal(viaScan.Items, viaIndex.Items);
+        Assert.Equal($"Кабель {tag} ВВГ", viaIndex.Items[1].MatchedAlias);
+    }
+
+    /// <summary>
+    /// Образец из двух знаков триграмм не даёт — и обязан находить то же: порога длины нет, «ПВ» и
+    /// «АС» — законные запросы. Каким путём — здесь не проверяется: на таблице теста выбор
+    /// планировщика ничего не значит (замер на 200 000 строк — в DEV_NOTES).
+    /// </summary>
+    [Fact]
+    public async Task Образец_из_двух_знаков_находит_по_названию_и_по_имени()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var (type, byName, byAlias) = await SeedAsync(tag);
+        await using var db = Context(new PlanProbe());
+
+        var found = await new DomainObjectRepository(db).SearchForChoiceAsync([type], "кА", 10);
+
+        Assert.Equal([byName, byAlias], found.Items.Select(i => i.Id));
+    }
+
+    /// <summary>
+    /// Перевод строки в набранном не сшивает название с именем. В тексте поиска он — разделитель, и
+    /// образец «конец названия + перевод строки + начало имени» совпал бы с записью, в которой
+    /// набранного нет ни в названии, ни в одном имени.
+    /// </summary>
+    [Fact]
+    public async Task Перевод_строки_в_запросе_не_находит_через_границу_названия_и_имени()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var (type, _, _) = await SeedAsync(tag);
+        await using var db = Context(new PlanProbe());
+
+        // У второй записи: название «Провод {tag}», имя «Кабель {tag} ВВГ».
+        var found = await new DomainObjectRepository(db).SearchForChoiceAsync([type], $"{tag}\nКабель", 10);
+
+        Assert.Empty(found.Items);
     }
 
     /// <summary>
@@ -96,26 +114,38 @@ public class ChoiceSearchIndexTests(IntegrationTestFixture fixture)
         return (type, byName, byAlias);
     }
 
-    /// <summary>Свой контекст на базу хоста — чтобы видеть текст запросов и держать свою транзакцию.</summary>
-    private AppDbContext Context(List<string> sql) => new(new DbContextOptionsBuilder<AppDbContext>()
+    /// <summary>Свой контекст на базу хоста — со своей транзакцией и с чтением планов.</summary>
+    private AppDbContext Context(PlanProbe plans) => new(new DbContextOptionsBuilder<AppDbContext>()
         .UseNpgsql(fixture.Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres"))
-        .LogTo(sql.Add, [Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.CommandExecuting])
+        .AddInterceptors(plans)
         .Options);
 
-    private static async Task<string> PlanAsync(AppDbContext db, string query) =>
-        string.Join('\n', await ReadAsync(db, "EXPLAIN " + query, r => r.GetString(0)));
-
-    private static async Task<List<Guid>> IdsAsync(AppDbContext db, string query) => 
-        [.. (await ReadAsync(db, query, r => r.GetGuid(0))).Order()];
-
-    private static async Task<List<T>> ReadAsync<T>(AppDbContext db, string text, Func<DbDataReader, T> read)
+    /// <summary>
+    /// Читает план запроса выбора перед тем, как тот уйдёт в базу: тот же текст, те же параметры, то
+    /// же соединение и транзакция. Берётся запрос с отсечением — он выбирает строки; подсчёт архива
+    /// идёт рядом и своим путём.
+    /// </summary>
+    private sealed class PlanProbe : DbCommandInterceptor
     {
-        await using var command = db.Database.GetDbConnection().CreateCommand();
-        command.CommandText = text;
-        command.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
-        var rows = new List<T>();
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync()) rows.Add(read(reader));
-        return rows;
+        public string Last { get; private set; } = "";
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken ct = default)
+        {
+            if (!command.CommandText.Contains("\"SearchText\"") || !command.CommandText.Contains("LIMIT"))
+                return result;
+
+            await using var explain = command.Connection!.CreateCommand();
+            explain.CommandText = "EXPLAIN " + command.CommandText;
+            explain.Transaction = command.Transaction;
+            foreach (NpgsqlParameter parameter in command.Parameters) explain.Parameters.Add(parameter.Clone());
+
+            var lines = new List<string>();
+            await using (var reader = await explain.ExecuteReaderAsync(ct))
+                while (await reader.ReadAsync(ct)) lines.Add(reader.GetString(0));
+            Last = string.Join('\n', lines);
+            return result;
+        }
     }
 }
