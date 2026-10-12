@@ -209,9 +209,10 @@ export interface AfterExit {
 }
 
 /**
- * Куда ведёт «Разобран» — и «Отклонить» (issue #1293). Под отбором «Разобрать» открывается следующая ВИДИМАЯ строка —
- * та, что стоит под разобранной в списке на момент нажатия, уже с поиском: человек работает с тем,
- * что видит. С последней строки — на первую. Вне отбора — `null`: счёт остаётся открытым, слов нет.
+ * Куда ведут «Разобран» и «Отклонить» под отбором «Разобрать» (issue #1293): к следующей ВИДИМОЙ
+ * строке — той, что стоит под вышедшим счётом в списке, ПЕРЕЧИТАННОМ после записи, уже с поиском:
+ * человек работает с тем, что видит. С последней строки — на первую. Вне отбора функцию не зовут:
+ * счёт остаётся открытым, и это решает страница.
  *
  * <p>Переход не делается, пока в форме есть несохранённое: смена счёта перемонтирует форму, и правки
  * пропали бы молча. Счёт при этом разобран — об этом и сказано.</p>
@@ -227,10 +228,8 @@ export interface AfterExit {
  * @param number номер разобранного счёта — у открытого счёта, строка списка могла устареть.
  */
 export function afterExit(
-  queue: InvoiceQueue | null, rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean,
-  how: QueueExit = 'parsed',
-): AfterExit | null {
-  if (queue !== 'parsing') return null;
+  rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean, how: QueueExit,
+): AfterExit {
   const done = `${called(number)} ${EXIT_WORD[how]}.`;
   if (unsaved) return { open: null, message: `${done} Следующий не открыт: в форме несохранённые правки.` };
   if (!rows) return { open: null, message: `${done} Следующий не открыт: список счетов не прочитан.` };
@@ -255,7 +254,7 @@ export function afterExit(
 }
 
 /** «Вернуться» не выполнено: в открытом счёте набрано несохранённое, и уводить с него нельзя. */
-export function backRefused(number: string | null, how: QueueExit = 'parsed'): string {
+export function backRefused(number: string | null, how: QueueExit): string {
   return `${called(number)} не открыт: в форме несохранённые правки. Он стоит в списке строкой «${EXIT_WORD[how]}».`;
 }
 

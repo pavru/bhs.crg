@@ -61,9 +61,10 @@ export function InvoiceForm({
   view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onExit, onUnsaved, focusHeader = false,
 }: {
   view: InvoiceView;
-  /** Счёт разобран или отклонён: дальше решает страница — она знает отбор и список (issue #1293).
-   *  Отвечает, сказала ли об этом сама. */
-  onExit?: (how: QueueExit) => Promise<boolean>;
+  /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
+   *  форму на время записи и выбора следующего счёта и говорит о переходе. `otherwise` зовётся, когда
+   *  сама страница ничего не сказала. Обещание кончается ответом на запись. */
+  onExit?: <T>(how: QueueExit, send: () => Promise<T>, otherwise: (result: T) => void) => Promise<T>;
   /** Сюда привёл переход от соседнего счёта очереди: кнопка, на которой стоял фокус, исчезла вместе
    *  с прежней формой, и без переноса он падает в начало страницы. */
   focusHeader?: boolean;
@@ -228,7 +229,7 @@ export function InvoiceForm({
               Сохранить
             </Button>
           )}
-          {!locked && <InvoiceMoreMenu view={view} onRejected={onExit && (() => onExit('rejected'))} />}
+          {!locked && <InvoiceMoreMenu view={view} onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />}
         </div>
 
         {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
@@ -284,7 +285,7 @@ export function InvoiceForm({
         )}
 
         <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-          headerDirty={dirty} onParsed={() => onExit?.('parsed')} />
+          headerDirty={dirty} onParsed={onExit && (send => onExit('parsed', send, () => {}))} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
