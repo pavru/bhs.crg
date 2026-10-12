@@ -47,11 +47,12 @@ public partial class RecordPurgeTests
         Assert.Contains("Число ссылок не совпало", again.GetProperty("error").GetString());
         Assert.Equal(3, again.GetProperty("preview").GetProperty("references").GetInt32());
 
-        // Запись, занятая включённым модулем, пакет не проходит — и не удаляется никто.
+        // Запись, занятая включённым модулем, пакет не проходит — и не удаляется никто. Общее число
+        // названо то, что сошлось бы без неё: отказ обязан прийти от самой записи, а не от суммы.
         var withBusy = await client.PostAsJsonAsync("/api/common-data/purge-batch",
-            new { records = new[] { Seen(first, 2), Seen(second, 1), Seen(busy, 1) }, references = 4 });
+            new { records = new[] { Seen(first, 2), Seen(second, 1), Seen(busy, 1) }, references = 3 });
         Assert.Equal(HttpStatusCode.Conflict, withBusy.StatusCode);
-        Assert.Contains("Ничего не удалено", await withBusy.Content.ReadAsStringAsync());
+        Assert.Contains("удалить теперь нельзя записей: 1", await withBusy.Content.ReadAsStringAsync());
         foreach (var id in new[] { first, second, busy })
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/common-data/{id}")).StatusCode);
         Assert.Empty(await PurgedAsync(first));
