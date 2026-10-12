@@ -186,6 +186,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.ScanFileName).HasColumnName("scan_file_name");
         invoice.Property(i => i.ScanMimeType).HasColumnName("scan_mime_type");
         invoice.Property(i => i.ScanSize).HasColumnName("scan_size");
+        invoice.Property(i => i.ScanFingerprint).HasColumnName("scan_fingerprint").HasMaxLength(64);
 
         // Метки «распознано, не подтверждено» — массивом текста: это множество ключей полей, и
         // отдельная таблица на него завела бы вторую сущность там, где нет ни одной своей колонки
@@ -215,6 +216,11 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // Уникальный индекс запретил бы то, что ТЗ разрешает: у поставщика бывает два счёта с одним
         // номером в один день, и человек об этом знает больше нас.
         invoice.HasIndex(i => new { i.SupplierId, i.Number, i.IssuedOn }).HasDatabaseName("ix_invoices_duplicate");
+
+        // «Тот же файл у другого счёта» (issue #1295) ищется на каждом чтении счёта. Не уникальный по
+        // той же причине, что и выше: это оговорка, а в одном файле бывает несколько счетов.
+        invoice.HasIndex(i => i.ScanFingerprint).HasDatabaseName("ix_invoices_scan_fingerprint")
+            .HasFilter("scan_fingerprint IS NOT NULL");
 
         // Реестр счетов отбирается по сроку и состоянию оплаты (ТЗ COST-9.1: отбор «без срока»,
         // «просрочен»), и отбирается он на каждом открытии экрана.

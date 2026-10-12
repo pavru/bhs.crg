@@ -404,6 +404,40 @@ try {
       () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length > 3, null, { timeout: 10_000 }));
   });
 
+  // ── 8а. Тот же файл дважды: оговорка по СОДЕРЖИМОМУ, черновик всё равно заведён (issue #1295) ────
+  //
+  // Сторож задачи. Три файла: два несут содержимое файла из проверки 8 под другими именами, третий
+  // — имя того файла с другим содержимым. Повторами названы первые два; третий — нет: сравнение по
+  // имени вместо содержимого перевернуло бы оба ответа.
+  await check('тот же файл дважды: повтор назван в полосе и на форме, одноимённый с другим содержимым — нет', async () => {
+    const before = `Пакет-${stamp}-2.pdf`;
+    const repeats = [`Повтор-${stamp}-1.pdf`, `Повтор-${stamp}-2.pdf`];
+    await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles([
+      ...repeats.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${before}`) })),
+      { name: before, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 другое содержимое ${stamp}`) },
+    ]);
+
+    const list = page.getByTestId('upload-repeats');
+    await named('полоса не назвала повторы',
+      () => list.getByText('Уже были приложены — черновики всё равно заведены (2):').waitFor({ timeout: 30_000 }));
+    const lines = await list.locator('li').allInnerTexts();
+    if (lines.length !== 2 || !repeats.every(name => lines.some(text => text.startsWith(name))))
+      throw new Error(`повторами названы не те файлы: ${JSON.stringify(lines)}`);
+    // Прежний счёт без номера назван временем заведения: имя файла у повтора обычно то же.
+    if (!lines.every(text => /уже приложен к счёту без номера, заведён \d\d\.\d\d\.\d{4}, \d\d:\d\d/.test(text)))
+      throw new Error(`прежний счёт назван не временем заведения: ${JSON.stringify(lines)}`);
+
+    // Из полосы — на новый черновик: оговорка стоит на форме и ведёт к удалению лишнего.
+    await list.getByRole('button', { name: repeats[0] }).click();
+    const note = page.getByTestId('same-file-note');
+    await named('на форме оговорки о том же файле нет',
+      () => note.getByText(/Этот файл уже приложен к другим счетам: /).waitFor({ timeout: 15_000 }));
+    await note.getByRole('button', { name: 'Загружен дважды — удалить этот черновик…' }).click();
+    await named('диалог удаления не назвал остающийся счёт',
+      () => page.getByTestId('invoice-delete-body').getByText(/Останется счёт .* — с тем же файлом\./).waitFor({ timeout: 5_000 }));
+    await page.getByRole('button', { name: 'Не удалять' }).click();
+  });
+
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
   //
   // Сторож задачи, на НАСТОЯЩЕМ конвертере: серверные тесты ходят к подставному, и только здесь

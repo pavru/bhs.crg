@@ -117,6 +117,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("text")
                         .HasColumnName("scan_file_name");
 
+                    b.Property<string>("ScanFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scan_fingerprint");
+
                     b.Property<string>("ScanMimeType")
                         .HasColumnType("text")
                         .HasColumnName("scan_mime_type");
@@ -167,6 +172,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.HasIndex("PayerId")
                         .HasDatabaseName("ix_invoices_payer")
                         .HasFilter("payer_id IS NOT NULL");
+
+                    b.HasIndex("ScanFingerprint")
+                        .HasDatabaseName("ix_invoices_scan_fingerprint")
+                        .HasFilter("scan_fingerprint IS NOT NULL");
 
                     b.HasIndex("Payment", "DueDate")
                         .HasDatabaseName("ix_invoices_due");

@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
+import type { InvoiceSameFile } from '@/shared/api/invoices';
 import { onTokenChanged } from '@/shared/api/token';
 import { kindNamed, recognizedKinds, sizeLimitWords, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
 import { apiError } from '@/shared/utils/apiError';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
+import { sameFileLabel } from './invoiceFields';
 
 /**
  * Пакет сканов: несколько файлов разом — по черновику на файл (задача D4, issue #1093).
@@ -31,9 +33,23 @@ export interface BatchPort {
   /** Реестр видов файлов: что распознаётся. Нет его — вид каждого файла решает сервер. */
   kinds: FileKindsInfo | undefined;
   /** Отправить файл; ответ — счёт заведённого черновика. Списки при этом НЕ перечитываются. */
-  send: (file: File) => Promise<string>;
+  send: (file: File) => Promise<{ id: string; sameFile: InvoiceSameFile[] }>;
   /** Перечитать список и числа отборов. Зовётся раз в несколько файлов и в конце, а не на каждый. */
   refresh: () => void;
+}
+
+/**
+ * Файл, содержимое которого уже приложено к другому счёту (issue #1295). Это НЕ отказ: черновик
+ * заведён, и среди непринятых такому файлу не место.
+ */
+export interface RepeatedScan {
+  name: string;
+  /** Новый черновик. */
+  id: string;
+  /** Прежний счёт — старший из совпавших; подпись снята в момент загрузки. */
+  other: { id: string; label: string; fileName: string | null };
+  /** Прежний счёт заведён этой же загрузкой: тогда его называют именем файла — оно здесь различает. */
+  inBatch: boolean;
 }
 
 export interface RejectedScan {
@@ -51,6 +67,8 @@ export interface ScanBatch {
   settled: number;
   created: string[];
   rejected: RejectedScan[];
+  /** Заведённые из файла, который уже был приложен к другому счёту. */
+  repeats: RepeatedScan[];
   /** Имена файлов без исхода, по порядку; первый — тот, что отправляется сейчас. */
   pending: string[];
   /** Пакет остановился сам: отказ, после которого остальные файлы слать бессмысленно. */
@@ -145,8 +163,28 @@ export function uploadedOf<T extends { id: string }>(items: T[] | undefined, bat
  * туда, где уже пусто. Удалённый соседом так не узнать — его снимет перечитанный список.
  */
 export function forgetCreated(id: string) {
-  if (state?.created.includes(id)) patch({ created: state.created.filter(c => c !== id) });
+  if (!state) return;
+  // Вместе со счётом уходит и строка о повторе — с любой её стороны: звать к удалённому нельзя, а
+  // без одного из пары оговорка уже неверна.
+  const repeats = state.repeats.filter(r => r.id !== id && r.other.id !== id);
+  if (state.created.includes(id) || repeats.length !== state.repeats.length)
+    patch({ created: state.created.filter(c => c !== id), repeats });
 }
+
+/** Заголовок списка повторов в полосе; `null` — повторов нет. */
+export function repeatsTitle(batch: ScanBatch): string | null {
+  const n = batch.repeats.length;
+  if (n === 0) return null;
+  return batch.phase === 'done' && n > 1 && n === batch.total
+    ? `Все ${ruCount(n, 'файл', 'файла', 'файлов')} уже были приложены раньше — черновики всё равно заведены:`
+    : `Уже были приложены — черновики всё равно заведены (${n}):`;
+}
+
+/** Что сказано о прежнем счёте: слова перед ссылкой и сама ссылка. */
+export const repeatWords = (repeat: RepeatedScan): { lead: string; link: string; tail: string } =>
+  repeat.inBatch && repeat.other.fileName
+    ? { lead: 'тот же файл, что ', link: `«${repeat.other.fileName}»`, tail: ' из этой же загрузки' }
+    : { lead: 'уже приложен к счёту ', link: repeat.other.label, tail: '' };
 
 /** Строка полосы об отборе «только заведённые этой загрузкой». */
 export interface UploadLine {
@@ -224,7 +262,8 @@ function restore(): ScanBatch | null {
     const text = tab()?.getItem(STORED);
     if (!text) return null;
     const stored = JSON.parse(text) as ScanBatch;
-    return interrupted({ ...stored, rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
+    // Копия, записанная до появления повторов, поля не несёт.
+    return interrupted({ ...stored, repeats: stored.repeats ?? [], rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
   } catch { return null; }
 }
 
@@ -265,10 +304,17 @@ async function run(files: File[], port: BatchPort) {
       const problem = precheck(file, port.kinds);
       if (problem) { reject(problem, false); continue; }
       try {
-        const id = await port.send(file);
+        const { id, sameFile } = await port.send(file);
         // За время запроса пакет могли оборвать (вход завершился) — тогда исход уже записан обрывом.
         if (!alive()) return;
-        settle({ created: [...state!.created, id] });
+        const other = sameFile[0];
+        settle({
+          created: [...state!.created, id],
+          repeats: other ? [...state!.repeats, {
+            name: file.name, id, inBatch: state!.created.includes(other.id),
+            other: { id: other.id, label: sameFileLabel(other), fileName: other.scanFileName },
+          }] : state!.repeats,
+        });
         if (state!.created.length % REFRESH_EVERY === 0) port.refresh();
       } catch (e) {
         if (!alive()) return;
@@ -300,7 +346,7 @@ export function startBatch(files: File[], folders: string[], port: BatchPort) {
     ({ name, reason: 'это папка — перетащите файлы из неё', retry: null }));
   put({
     owner: port.owner, phase: refused ? 'done' : 'running', total: refused ? 0 : count,
-    settled: rejected.length, created: [], rejected, pending: ordered.map(f => f.name), halted: null, refused,
+    settled: rejected.length, created: [], repeats: [], rejected, pending: ordered.map(f => f.name), halted: null, refused,
   });
   if (!refused) void run(ordered, port);
 }

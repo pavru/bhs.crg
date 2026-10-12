@@ -163,6 +163,13 @@ public sealed class Invoice
     public long? ScanSize { get; private set; }
 
     /// <summary>
+    /// Отпечаток содержимого файла (issue #1295): по нему узнают, что тот же файл приложен к другому
+    /// счёту. Ставится вместе с путём; у счёта, заведённого до появления отпечатка, его нет — и такой
+    /// счёт ни с чем не сравнивается.
+    /// </summary>
+    public string? ScanFingerprint { get; private set; }
+
+    /// <summary>
     /// Ключи полей, которые заполнило распознавание и человек ещё не подтвердил (решение владельца
     /// продукта 29.09.2026, вариант C).
     ///
@@ -370,9 +377,13 @@ public sealed class Invoice
         Touch();
     }
 
-    /// <summary>Скан счёта: пришёл файлом или сканом (ТЗ COST-5).</summary>
-    public void AttachScan(string blobPath, string fileName, string mimeType, long size)
+    /// <summary>
+    /// Скан счёта: пришёл файлом или сканом (ТЗ COST-5). Отпечаток — обязательным параметром: файл,
+    /// приложенный без него, оставил бы у счёта отпечаток ПРЕЖНЕГО файла.
+    /// </summary>
+    public void AttachScan(string blobPath, string fileName, string mimeType, long size, string fingerprint)
     {
+        ScanFingerprint = fingerprint;
         ScanBlobPath = blobPath;
         ScanFileName = fileName;
         ScanMimeType = mimeType;

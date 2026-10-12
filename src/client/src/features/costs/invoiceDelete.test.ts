@@ -11,6 +11,7 @@ function view(over: {
     payment: { paid: over.paid ?? false },
     lines: (over.lines ?? []).map(line => ({ allocation: { parts: Array(line.parts).fill({}) } })),
     duplicates: [],
+    sameFile: [],
   } as unknown as InvoiceView;
 }
 

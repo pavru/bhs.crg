@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, Copy, Save, Sparkles, TriangleAlert } from 'lucide-react';
+import { CheckCheck, Save, Sparkles, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
@@ -14,7 +14,7 @@ import {
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, duplicateLabel, fromInput,
+  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, fromInput,
   isMarked, moneyInput, refEntryId, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
   type InvoiceBlock,
 } from './invoiceFields';
@@ -28,7 +28,7 @@ import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
 import type { QueueExit } from './invoiceQueues';
 import { InvoiceMoreMenu } from './InvoiceMoreMenu';
 import { InvoiceDeleteProvider, InvoiceGoneNotice } from './InvoiceDeleteDialog';
-import { useInvoiceDelete } from './invoiceDelete';
+import { InvoiceTwinNotes } from './InvoiceTwinNotes';
 import { LostReferencesNote } from './LostReferencesNote';
 import { LOST } from './lostReferences';
 import { withArchiveWord } from '@/shared/ui/archive';
@@ -252,7 +252,7 @@ export function InvoiceForm({
             onRetryRead={watch.retry} canEdit={canEdit} />
         )}
         <LostReferencesNote view={view} locked={closed || gone} />
-        {view.duplicates.length > 0 && <DuplicateNote view={view} onOpenInvoice={onOpenInvoice} />}
+        <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
         {scanSlot}
 
         <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-4"
@@ -483,41 +483,6 @@ const LABELS: Record<string, string> = {
   [K.state]: 'Состояние',
   [K.payment]: 'Оплата',
 };
-
-/**
- * Оговорка о дубликате — СО ССЫЛКОЙ и БЕЗ запрета (ТЗ COST-6.2).
- *
- * У поставщика бывает два счёта с одним номером в один день, и человек знает об этом больше нас.
- * Поэтому здесь ссылка «посмотреть тот счёт», а не отказ сохранения.
- */
-function DuplicateNote({ view, onOpenInvoice }: { view: InvoiceView; onOpenInvoice: (id: string) => void }) {
-  const askDelete = useInvoiceDelete();
-  return (
-    <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2">
-      <Copy size={14} className="text-warning shrink-0 mt-0.5" />
-      <div className="min-w-0 text-xs text-warning">
-        <span>Похоже на дубликат — у этого поставщика уже есть счёт с тем же номером и датой: </span>
-        {view.duplicates.map((d, i) => (
-          <span key={d.id}>
-            {i > 0 && ', '}
-            <button type="button" className="underline hover:no-underline font-medium"
-              onClick={() => onOpenInvoice(d.id)}>
-              {duplicateLabel(d)}
-            </button>
-          </span>
-        ))}
-        <span>. Сохранить всё равно можно: одинаковые номера у поставщика бывают.</span>
-        {/* Короткий путь (issue #1282) — только у счёта, который удалить можно. */}
-        {askDelete && (
-          <button type="button" className="ml-1 underline hover:no-underline font-medium"
-            onClick={() => askDelete('duplicate')}>
-            Это дубль — удалить этот счёт…
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function StateChip({ text }: { text: string }) {
   if (!text) return null;
