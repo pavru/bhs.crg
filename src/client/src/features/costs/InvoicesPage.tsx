@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { FileText, Link2, Plus, ScanLine, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
 import { useToast } from '@/shared/ui/Toast';
+import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from './RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
+  INVOICES_KEY, forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
 import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
@@ -25,7 +26,10 @@ import { SupplierMatchesDialog } from './SupplierMatchesDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
-import { emptyText, heldRow, lockedNote, queueRows, type HeldRow } from './invoiceQueues';
+import {
+  afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
+  type HeldRow, type QueueExit, type QueueTrace,
+} from './invoiceQueues';
 import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
@@ -48,11 +52,17 @@ import { retryRejected, startBatch, useScanBatch, type BatchPort } from './scanB
 export function InvoicesPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get(INVOICE_RECORD.param) || null;
-  const setSelected = (id: string) => setParams(prev => {
-    const next = new URLSearchParams(prev);
-    next.set(INVOICE_RECORD.param, id);
-    return next;
-  }, { replace: true });
+  // Счёт, на который привёл переход очереди: его форма при открытии берёт фокус на шапку. Любой
+  // другой выбор счёта это снимает — иначе счёт забирал бы фокус при каждом следующем открытии.
+  const [led, setLed] = useState<string | null>(null);
+  const setSelected = (id: string) => {
+    setLed(null);
+    setParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set(INVOICE_RECORD.param, id);
+      return next;
+    }, { replace: true });
+  };
   const [query, setQuery] = useState('');
   const [queue, setQueue] = useState<InvoiceQueue | null>(null);
   const wide = useWideEnoughForScan();
@@ -95,7 +105,102 @@ export function InvoicesPage() {
   const [held, setHeld] = useState<HeldRow | null>(null);
   const nextHeld = heldRow(held, queue, selected, invoices.data);
   if (nextHeld !== held) setHeld(nextHeld);
-  const rows = queueRows(invoices.data ?? [], nextHeld).filter(r => matches(r.item, query));
+  // След счёта, разобранного под очередью (issue #1293): строка — путь назад, когда тост уже погас.
+  // Живёт до следующего разобранного, до смены отбора и до возврата счёта в список — снимается, а не
+  // прячется: спрятанный всплыл бы при возврате к отбору, на устаревшем месте.
+  const [parsedTrace, setParsedTrace] = useState<QueueTrace | null>(null);
+  const trace = keepTrace(parsedTrace, queue, invoices.data) ? parsedTrace : null;
+  if (parsedTrace && !trace) setParsedTrace(null);
+  const rows = queueRows(invoices.data ?? [], nextHeld, trace).filter(r => matches(r.item, query));
+
+  // Экран, каким он стоит СЕЙЧАС, — для решений, принимаемых после ответа сервера (ревью PR #1303):
+  // замыкание помнит миг нажатия, а за время запроса человек мог уйти на другой счёт, снять отбор
+  // или начать править. Слойным эффектом — как колбэк охраны ухода: между коммитом и обычным
+  // эффектом есть щель, в которую попадает ответ.
+  const now = useRef({ queue, selected, query, held: nextHeld, trace });
+  useLayoutEffect(() => { now.current = { queue, selected, query, held: nextHeld, trace }; });
+  const unsaved = useRef(false);
+  const noteUnsaved = useCallback((value: boolean) => { unsaved.current = value; }, []);
+  // Сообщение с «Вернуться» живёт дольше, чем страница может простоять на экране.
+  const alive = useRef(false);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const navigate = useNavigate();
+  const guard = useNavigationGuard();
+  // Идёт запись выхода из очереди и выбор следующего счёта: форма на это время заперта (`inert`).
+  // «Несохранённое» знает только о шапке и строках, а набрать можно и в оплате, и в разноске, — и
+  // смена счёта стёрла бы это молча. Запертая форма закрывает весь класс разом, не перечисляя мест.
+  const [leading, setLeading] = useState(false);
+
+  /**
+   * «Разобран» и «Отклонить»: запись идёт отсюда. Под отбором очереди форма запирается, а после
+   * ответа выбирается следующий счёт — уже не задерживая того, кто звал: его обещание кончается
+   * ответом на запись. Сама ничего не сказала (вне отбора, ушли со счёта, сбой) — зовёт `otherwise`.
+   */
+  async function exiting<T>(
+    id: string, number: string | null, how: QueueExit, send: () => Promise<T>, otherwise: (result: T) => void,
+  ): Promise<T> {
+    if (now.current.queue !== 'parsing') {
+      const result = await send();
+      otherwise(result);
+      return result;
+    }
+    setLeading(true);
+    let result: T;
+    try { result = await send(); } catch (e) { setLeading(false); throw e; }
+    void leadOn(id, number, how).catch(() => false)
+      .then(said => { if (!said) otherwise(result); })
+      .finally(() => setLeading(false));
+    return result;
+  }
+
+  /**
+   * После «Разобран»: под отбором очереди — к следующему счёту, с тостом и путём назад.
+   *
+   * Следующего выбирают по ПЕРЕЧИТАННОМУ списку: тот, что стоял на экране, мог устареть — сосед
+   * разобрал или удалил счёт, — и открылся бы не черновик, а то и «счёта нет». Место разобранного в
+   * перечитанном списке помнит удержанная строка.
+   *
+   * @returns сказано ли о случившемся здесь: нет — говорит тот, кто вывел счёт из очереди.
+   */
+  async function leadOn(id: string, number: string | null, how: QueueExit): Promise<boolean> {
+    // Не отменяя начатого: запись уже инвалидировала список, и это чтение присоединяется к тому,
+    // что началось после неё, а не шлёт второе.
+    const fresh = await invoices.refetch({ cancelRefetch: false });
+    const at = now.current;
+    // Ушли со счёта или сменили отбор, пока шёл запрос, — человек уже выбрал сам, вести некуда.
+    if (at.selected !== id || at.queue !== 'parsing') return false;
+    // Место счёта в списке помнит удержанная строка, а у счёта, открытого по строке-следу, — сам след.
+    const place = at.held?.item.id === id ? at.held : at.trace?.item.id === id ? at.trace : null;
+    const read = !fresh.isError && !!fresh.data;
+    // Список не перечитан — в кэше прежний, где вышедший счёт стоит черновиком. Что он вышел,
+    // известно точно: убираем его оттуда сами, иначе след тут же снялся бы, а строка осталась «готов».
+    if (!read) qc.setQueryData<InvoiceListItem[]>([...INVOICES_KEY, 'list', 'parsing'], list => list?.filter(i => i.id !== id));
+    // След ставится и тогда, когда перехода нет: вышедший отсюда счёт подписан одинаково, а
+    // прежний след уступает ему место.
+    setParsedTrace(place && { queue: place.queue, item: place.item, index: place.index, how });
+    const listed = read ? queueRows(fresh.data, place).filter(r => matches(r.item, at.query)) : null;
+    const after = afterExit(listed, id, number, at.query, unsaved.current, how);
+    if (!after.open) { toast.info(after.message); return true; }
+    setSelected(after.open.id);
+    // Фокус на шапку — если человек не печатает в поиске: забирать его посреди ввода нельзя.
+    if (!(document.activeElement instanceof HTMLInputElement)) setLed(after.open.id);
+    // «Вернуться» уводит со счёта, на который только что перевели, — и о его несохранённом
+    // спрашивает так же, как сам переход.
+    const back = () => {
+      if (!alive.current) {
+        // Со страницы уже ушли: возвращаемся адресом, через охрану ухода того раздела, где человек сейчас.
+        const go = () => navigate(`${INVOICE_RECORD.screen}?${INVOICE_RECORD.param}=${id}`);
+        if (!guard?.attempt(go)) go();
+        return;
+      }
+      if (unsaved.current) { toast.info(backRefused(number, how)); return; }
+      setSelected(id);
+      setLed(id);
+    };
+    // Дольше обычного: в сообщении действие, а прочитать надо два номера.
+    toast.success(after.message, { duration: 8000, action: { label: 'Вернуться', onClick: back } });
+    return true;
+  }
 
   async function addDraft() {
     try {
@@ -238,9 +343,10 @@ export function InvoicesPage() {
                 )}
               </div>
             )}
-            {rows.map(({ item, left }) => left ? (
+            {rows.map(({ item, left, exit }) => left ? (
               // Номер — у открытого счёта: строка списка осталась снимком до правки.
               <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
+                exit={exit} active={item.id === selected}
                 number={shown?.id === item.id ? asInput(shown.requisites[K.number]) : item.number} />
             ) : (
               <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
@@ -288,7 +394,7 @@ export function InvoicesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col" inert={leading}>
             {opened.rereadFailed != null && (
               <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}
                 retrying={view.isFetching} onRetry={() => void view.refetch()} />
@@ -300,6 +406,10 @@ export function InvoicesPage() {
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
                 onOpenInvoice={setSelected}
+                onExit={(how, send, otherwise) => exiting(
+                  opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
+                focusHeader={led === opened.id}
+                onUnsaved={noteUnsaved}
                 gone={gone} onClose={() => closeGone(opened.id)}
                 scanSlot={hasScan && !wide && !gone
                   ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}

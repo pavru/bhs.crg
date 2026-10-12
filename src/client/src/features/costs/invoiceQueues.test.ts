@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { InvoiceListItem } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import {
-  emptyText, heldRow, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
+  afterExit, backRefused, emptyText, heldRow, keepTrace, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
 } from './invoiceQueues';
 
 /** Очереди списка счетов — чипы «наведите порядок» в рейле (issue #1186). */
@@ -138,6 +138,96 @@ describe('пустой список', () => {
   it('поиск под отбором называет и отбор, и запрос', () => {
     expect(emptyText('lost', ' ромашка ', numbers())).toBe('В отборе «Удалённые записи» по запросу «ромашка» ничего нет.');
     expect(emptyText(null, 'ромашка', undefined)).toBe('Ничего не найдено.');
+  });
+});
+
+describe('после «Разобран» под отбором очереди', () => {
+  const a = invoice('a'), b = invoice('b'), c = invoice('c');
+  const rows = (...items: InvoiceListItem[]) => queueRows(items, null);
+  const numbered = (id: string, number: string | null) => ({ ...invoice(id), number }) as InvoiceListItem;
+
+  it('открывается следующая строка списка, с последней — первая', () => {
+    expect(afterExit(rows(a, b, c), 'a', '15', '', false, 'parsed')?.open).toBe(b);
+    expect(afterExit(rows(a, b, c), 'c', '15', '', false, 'parsed')?.open).toBe(a);
+  });
+
+  it('сообщение называет оба счёта, а следующий без номера — не выдумывает его', () => {
+    const next = numbered('n', '16');
+    expect(afterExit(rows(a, next), 'a', '15', '', false, 'parsed')?.message)
+      .toBe('Счёт № 15 разобран. Открыт следующий — № 16.');
+    expect(afterExit(rows(a, numbered('n', null)), 'a', null, '', false, 'parsed')?.message)
+      .toBe('Счёт без номера разобран. Открыт следующий.');
+  });
+
+  it('очередь кончилась — счёт остаётся, и сказано, что именно пусто', () => {
+    expect(afterExit(rows(a), 'a', '15', '', false, 'parsed'))
+      .toEqual({ open: null, message: 'Счёт № 15 разобран. Очередь «Разобрать» пуста.' });
+    expect(afterExit(rows(a), 'a', '15', ' кабель ', false, 'parsed')?.message)
+      .toBe('Счёт № 15 разобран. По запросу «кабель» в отборе больше ничего нет.');
+  });
+
+  it('несохранённое в форме — с неё не уводят', () => {
+    expect(afterExit(rows(a, b), 'a', '15', '', true, 'parsed'))
+      .toEqual({ open: null, message: 'Счёт № 15 разобран. Следующий не открыт: в форме несохранённые правки.' });
+  });
+
+  it('след прежнего разобранного в очередь не входит: к нему не ведут', () => {
+    // b разобран раньше и стоит следом; открыт c — последний живой.
+    const trace = { queue: 'parsing' as const, item: b, index: 1, how: 'parsed' as const };
+    const shown = queueRows([a, c], null, trace);
+    expect(shown.map(r => [r.item.id, r.left, r.exit ?? null])).toEqual([
+      ['a', false, null], ['b', true, 'parsed'], ['c', false, null],
+    ]);
+    expect(afterExit(shown, 'c', '15', '', false, 'parsed')?.open).toBe(a);
+    expect(afterExit(queueRows([c], null, trace), 'c', '15', '', false, 'parsed')?.open).toBeNull();
+  });
+
+  it('список не прочитан — это не пустая очередь', () => {
+    expect(afterExit(null, 'a', '15', '', false, 'parsed'))
+      .toEqual({ open: null, message: 'Счёт № 15 разобран. Следующий не открыт: список счетов не прочитан.' });
+  });
+
+  it('следующий берётся из перечитанного списка: разобранный стоит в нём удержанной строкой', () => {
+    // Сервер b уже не отдаёт; сосед тем временем убрал и c — следующим идёт a, а не c.
+    const held = { queue: 'parsing' as const, item: b, index: 1 };
+    expect(afterExit(queueRows([a, c], held), 'b', '15', '', false, 'parsed')?.open).toBe(c);
+    expect(afterExit(queueRows([a], held), 'b', '15', '', false, 'parsed')?.open).toBe(a);
+    // Поиск скрыл сам разобранный — идём с начала найденного.
+    expect(afterExit(rows(a, c), 'b', '15', 'запрос', false, 'parsed')?.open).toBe(a);
+  });
+
+  it('след снимается сменой отбора и возвратом счёта в список', () => {
+    const trace = { queue: 'parsing' as const, item: b, index: 1, how: 'parsed' as const };
+    expect(keepTrace(trace, 'parsing', [a, c])).toBe(true);
+    expect(keepTrace(trace, 'parsing', undefined)).toBe(true);
+    expect(keepTrace(trace, 'parsing', [a, b, c])).toBe(false);
+    expect(keepTrace(trace, 'archived', [a, c])).toBe(false);
+    expect(keepTrace(trace, null, [a, c])).toBe(false);
+    expect(keepTrace(null, 'parsing', [a])).toBe(false);
+  });
+
+  it('«Вернуться» при несохранённом называет, где счёт искать', () => {
+    expect(backRefused('15', 'parsed'))
+      .toBe('Счёт № 15 не открыт: в форме несохранённые правки. Он стоит в списке строкой «разобран».');
+  });
+
+  it('отклонённый ведёт так же и называется своим словом — в сообщении и в следе', () => {
+    const next = numbered('n', '16');
+    expect(afterExit(rows(a, next), 'a', '15', '', false, 'rejected'))
+      .toEqual({ open: next, message: 'Счёт № 15 отклонён. Открыт следующий — № 16.' });
+    expect(afterExit(rows(a), 'a', '15', '', false, 'rejected')?.message)
+      .toBe('Счёт № 15 отклонён. Очередь «Разобрать» пуста.');
+    expect(backRefused('15', 'rejected')).toContain('строкой «отклонён»');
+    expect(queueRows([a], null, { queue: 'parsing', item: b, index: 1, how: 'rejected' })[1])
+      .toEqual({ item: b, left: true, exit: 'rejected' });
+  });
+
+  it('след и удержанный открытый счёт стоят каждый на своём месте', () => {
+    const trace = { queue: 'parsing' as const, item: a, index: 0, how: 'parsed' as const };
+    const held = { queue: 'parsing' as const, item: c, index: 2 };
+    expect(queueRows([b], held, trace).map(r => r.item.id)).toEqual(['a', 'b', 'c']);
+    // Открыли сам след — строка одна.
+    expect(queueRows([b], { ...trace }, trace).map(r => r.item.id)).toEqual(['a', 'b']);
   });
 });
 

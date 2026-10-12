@@ -137,7 +137,23 @@ export interface QueueRow {
    * или оплатить в закрытый период — слова «исправлено» список сказать не вправе (ревью PR #1241).
    */
   left: boolean;
+  /**
+   * След счёта, выведенного из очереди отсюда же (issue #1293): с него перешли к следующему, и строка —
+   * путь назад. Здесь причина ухода известна — человек только что нажал «Разобран» либо отклонил
+   * счёт, — поэтому слово названо прямо.
+   */
+  exit?: QueueExit;
 }
+
+/** Чем счёт вывели из очереди «Разобрать» на этом экране. Удаления здесь нет нарочно: возвращаться
+ *  некуда, а следующий счёт с тем же «Удалить» под рукой провоцирует удаление по инерции. */
+export type QueueExit = 'parsed' | 'rejected';
+
+/** Слово о счёте, вышедшем из очереди, — одно в сообщении и в строке-следе. */
+export const EXIT_WORD: Record<QueueExit, string> = { parsed: 'разобран', rejected: 'отклонён' };
+
+/** След вышедшего из очереди счёта: где стоял, каким был и чем вышел. */
+export type QueueTrace = HeldRow & { how: QueueExit };
 
 /** Открытый счёт, запомненный под отбором: где стоял и каким был. */
 export interface HeldRow {
@@ -169,11 +185,86 @@ export function heldRow(
  * уходит из-под человека сразу после сохранения — исчезнувший без его действия счёт читается как сбой.
  * Стоит она там же, где стояла.
  */
-export function queueRows(listed: InvoiceListItem[], held: HeldRow | null): QueueRow[] {
-  const rows = listed.map(item => ({ item, left: false }));
-  if (!held || listed.some(i => i.id === held.item.id)) return rows;
-  rows.splice(Math.min(held.index, rows.length), 0, { item: held.item, left: true });
+export function queueRows(listed: InvoiceListItem[], held: HeldRow | null, trace: QueueTrace | null = null): QueueRow[] {
+  const rows: QueueRow[] = listed.map(item => ({ item, left: false }));
+  const absent = (row: HeldRow | null): row is HeldRow => !!row && !listed.some(i => i.id === row.item.id);
+  // След раньше открытого счёта: оба стояли в одном списке, и вставка по возрастанию места сохраняет
+  // их взаимный порядок. Открыли сам след — строка одна, и она остаётся следом.
+  const extra = [
+    ...(absent(trace) ? [{ at: trace.index, row: { item: trace.item, left: true, exit: trace.how } }] : []),
+    ...(absent(held) && held.item.id !== trace?.item.id ? [{ at: held.index, row: { item: held.item, left: true } }] : []),
+  ].sort((a, b) => a.at - b.at);
+  for (const { at, row } of extra) rows.splice(Math.min(at, rows.length), 0, row);
   return rows;
+}
+
+/** Как счёт называют в сообщении: номером, а без номера — так и сказано. */
+const called = (number: string | null | undefined) => number?.trim() ? `Счёт № ${number.trim()}` : 'Счёт без номера';
+
+/** Что делать после выхода счёта из очереди под её отбором — и какими словами об этом сказать. */
+export interface AfterExit {
+  /** Счёт, который открыть следом; `null` — остаться на прежнем. */
+  open: InvoiceListItem | null;
+  message: string;
+}
+
+/**
+ * Куда ведут «Разобран» и «Отклонить» под отбором «Разобрать» (issue #1293): к следующей ВИДИМОЙ
+ * строке — той, что стоит под вышедшим счётом в списке, ПЕРЕЧИТАННОМ после записи, уже с поиском:
+ * человек работает с тем, что видит. С последней строки — на первую. Вне отбора функцию не зовут:
+ * счёт остаётся открытым, и это решает страница.
+ *
+ * <p>Переход не делается, пока в форме есть несохранённое: смена счёта перемонтирует форму, и правки
+ * пропали бы молча. Счёт при этом разобран — об этом и сказано.</p>
+ *
+ * <p>⚠️ Список, который не прочитан, — не пустая очередь (ревью PR #1303): `rows === null` отвечает
+ * «следующий не открыт», а не «разбирать больше нечего».</p>
+ *
+ * <p>⚠️ «Готовых» вперёд не ставим и запертые не пропускаем: порядок списка предсказуем, прыжки —
+ * нет, а строка без причины значит и «заперт», и «причина не прочитана» — клиент их не различает.</p>
+ *
+ * @param rows строки списка, перечитанного ПОСЛЕ перехода, с разобранным счётом на прежнем месте
+ *   (удержанной строкой) и уже с поиском; `null` — список не прочитан.
+ * @param number номер разобранного счёта — у открытого счёта, строка списка могла устареть.
+ */
+export function afterExit(
+  rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean, how: QueueExit,
+): AfterExit {
+  const done = `${called(number)} ${EXIT_WORD[how]}.`;
+  if (unsaved) return { open: null, message: `${done} Следующий не открыт: в форме несохранённые правки.` };
+  if (!rows) return { open: null, message: `${done} Следующий не открыт: список счетов не прочитан.` };
+
+  // Очередь — живые строки отбора: удержанные и след уже не черновики.
+  const live = rows.filter(r => !r.left || r.item.id === id);
+  const at = live.findIndex(r => r.item.id === id);
+  // Разобранного в списке нет вовсе (поиск его скрыл) — идём с начала.
+  const others = at < 0 ? live : [...live.slice(at + 1), ...live.slice(0, at)];
+  if (others.length === 0) {
+    const text = query.trim();
+    return {
+      open: null,
+      message: text ? `${done} По запросу «${text}» в отборе больше ничего нет.` : `${done} Очередь «Разобрать» пуста.`,
+    };
+  }
+  const next = others[0].item;
+  return {
+    open: next,
+    message: next.number?.trim() ? `${done} Открыт следующий — № ${next.number.trim()}.` : `${done} Открыт следующий.`,
+  };
+}
+
+/** «Вернуться» не выполнено: в открытом счёте набрано несохранённое, и уводить с него нельзя. */
+export function backRefused(number: string | null, how: QueueExit): string {
+  return `${called(number)} не открыт: в форме несохранённые правки. Он стоит в списке строкой «${EXIT_WORD[how]}».`;
+}
+
+/**
+ * Держать ли след разобранного счёта. Нет — когда отбор сменили или сняли и когда счёт вернулся в
+ * список (его вернули в черновик): дальше он может уйти из очереди по любой другой причине —
+ * отклонён, удалён, — и слово «разобран» стало бы неправдой (ревью PR #1303).
+ */
+export function keepTrace(trace: HeldRow | null, queue: InvoiceQueue | null, listed: InvoiceListItem[] | undefined): boolean {
+  return !!trace && trace.queue === queue && !listed?.some(i => i.id === trace.item.id);
 }
 
 /**

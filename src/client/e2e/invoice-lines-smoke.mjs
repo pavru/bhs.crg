@@ -355,6 +355,96 @@ try {
     if ((await page.getByRole('button', { name: new RegExp(`СЧ-Н${stamp}`) }).count()) !== 0)
       throw new Error('в отборе «Разобрать» остался счёт, у которого все строки разобраны');
   });
+  // ── 6б. «Разобран» под очередью ведёт к следующему счёту (issue #1293) ──
+  //
+  // Два готовых черновика готовит сам прогон — строка с позицией, разнесённая целиком: проверяется
+  // переход, а не путь к готовности. Поиск сужает список до этих двух: стенд общий, и «следующим»
+  // иначе оказался бы чужой счёт.
+  await check('«Разобран» и «Отклонить» под отбором очереди открывают следующий счёт и оставляют путь назад', async () => {
+    const site = (await api('GET', '/constructions')).find(c => c.name === 'Демо-стройка');
+    if (!site) throw new Error('стройки «Демо-стройка» нет — посев не отработал');
+    const service = await position(`Услуга перехода ${stamp}`);
+    const ready = async number => {
+      const created = await invoice(number, 100);
+      const view = await api('PUT', `/costs/invoices/${created.id}/lines`, {
+        lines: [{ supplierText: 'Услуга прогона', nomenclature: { $ref: 'catalog', entryId: service }, amount: '100' }],
+      });
+      await api('PUT', `/costs/invoices/${created.id}/lines/${view.lines[0].id}/allocation`, {
+        parts: [{ construction: site.id, amount: '100' }],
+      });
+      return created.id;
+    };
+    // Три счёта: разобрать, отклонить, разобрать последний. Порядок списка прогон не угадывает —
+    // «следующим» считает тот, что открылся, и сверяет с ним слова сообщения.
+    const names = {};
+    for (const n of [1, 2, 3]) names[await ready(`СЧ-Д${stamp}-${n}`)] = `СЧ-Д${stamp}-${n}`;
+    const [firstId] = Object.keys(names);
+    const current = () => new URLSearchParams(new URL(page.url()).search).get('invoice');
+    const opened = id => page.waitForFunction(
+      wanted => new URLSearchParams(location.search).get('invoice') === wanted, id, { timeout: 10_000 });
+    const left = from => page.waitForFunction(
+      was => { const now = new URLSearchParams(location.search).get('invoice'); return now && now !== was; },
+      from, { timeout: 10_000 });
+    const said = text => page.getByText(text).first().waitFor({ timeout: 10_000 }).catch(async () => {
+      throw new Error(`не сказано «${text}»; на экране: `
+        + (await page.locator('[role="status"]').allInnerTexts()).join(' | '));
+    });
+    const isReady = () => page.getByTestId('invoice-readiness').filter({ hasText: 'Всё готово' })
+      .waitFor({ timeout: 10_000 }).catch(async () => {
+        throw new Error('подготовленный черновик не готов к «Разобран» — проверять переход не на чем: '
+          + (await page.getByTestId('invoice-readiness').innerText().catch(() => 'строки готовности нет')));
+      });
+    const trace = async (id, word) => {
+      const traces = await page.getByTestId('row-exit').allInnerTexts();
+      if (traces.length !== 1 || !traces[0].includes(names[id]) || !traces[0].includes(word))
+        throw new Error(`след «${word}» стоит не у счёта ${names[id]}: ${JSON.stringify(traces)}`);
+    };
+
+    await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
+    await page.getByRole('group', { name: 'Отбор списка счетов' })
+      .getByRole('button', { name: /^Разобрать/ }).click();
+    await page.getByPlaceholder('Номер, поставщик, назначение…').fill(`СЧ-Д${stamp}`);
+    await page.getByRole('button', { name: new RegExp(names[firstId]) }).first().click();
+    await opened(firstId);
+    await isReady();
+
+    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
+    await left(firstId).catch(() => { throw new Error('после «Разобран» следующий счёт очереди не открылся'); });
+    const secondId = current();
+    if (!names[secondId]) throw new Error('после «Разобран» открылся счёт не из найденных поиском');
+    // Переход назван словами — оба номера, — и разобранный остался следом в списке.
+    await said(`Счёт № ${names[firstId]} разобран. Открыт следующий — № ${names[secondId]}.`);
+    await trace(firstId, 'разобран');
+    // Фокус — на шапке открывшегося счёта: кнопка, где он стоял, исчезла вместе с прежней формой.
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'invoice-header',
+      null, { timeout: 10_000 }).catch(() => { throw new Error('после перехода фокус не на шапке нового счёта'); });
+
+    // Путь назад — действие в сообщении: открывается тот самый, уже разобранный.
+    await page.getByRole('button', { name: 'Вернуться' }).click();
+    await opened(firstId).catch(() => { throw new Error('«Вернуться» не открыло разобранный счёт'); });
+    await page.getByRole('button', { name: 'Вернуть в черновик' }).waitFor({ timeout: 10_000 });
+
+    // «Отклонить» ведёт так же, а след называет причину своим словом.
+    await page.getByRole('button', { name: new RegExp(names[secondId]) }).first().click();
+    await opened(secondId);
+    await page.getByRole('button', { name: 'Ещё' }).click();
+    await page.getByRole('menuitem', { name: 'Отклонить…' }).click();
+    await page.getByRole('button', { name: 'Отклонить счёт' }).click();
+    await left(secondId).catch(() => { throw new Error('после «Отклонить» следующий счёт очереди не открылся'); });
+    const thirdId = current();
+    if (!names[thirdId] || thirdId === firstId) throw new Error('после «Отклонить» открылся не оставшийся черновик');
+    await said(`Счёт № ${names[secondId]} отклонён. Открыт следующий — № ${names[thirdId]}.`);
+    await trace(secondId, 'отклонён');
+
+    // Последний счёт запроса: вести некуда — счёт остаётся открытым, и сказано, что пусто.
+    await isReady();
+    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
+    await said(`Счёт № ${names[thirdId]} разобран. По запросу «СЧ-Д${stamp}» в отборе больше ничего нет.`);
+    if (current() !== thirdId) throw new Error('с последнего счёта очереди увели');
+    // След — у последнего вышедшего: прежний уступил место, а не остался вторым.
+    await trace(thirdId, 'разобран');
+  });
+
   // ── 6а. Двое правят один счёт: второй получает отказ, а набранное остаётся (issue #1176) ──
   //
   // До правки сервер сверял версию, прочитанную тем же запросом, и второй затирал строки первого

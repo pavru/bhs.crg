@@ -5,7 +5,7 @@ import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { useFreshInvoice, useInvoiceState, type InvoiceView } from '@/shared/api/invoices';
 import { K, REJECTED } from './invoiceFields';
-import { rejectInvoice } from './invoiceReject';
+import { rejectInvoice, type RejectOutcome } from './invoiceReject';
 import { useInvoiceDelete } from './invoiceDelete';
 
 /**
@@ -28,7 +28,13 @@ import { useInvoiceDelete } from './invoiceDelete';
  * <p>Меню, а не кнопка рядом с «Сохранить»: «Отклонить» — решение о документе, а не шаг его
  * заполнения, и рядом с «Разобран» читалось бы как его пара.</p>
  */
-export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
+export function InvoiceMoreMenu({ view, onRejected }: {
+  view: InvoiceView;
+  /** Отклонение идёт через страницу (issue #1293): под отбором очереди она ведёт к следующему счёту и
+   *  говорит об этом сама, иначе зовёт `say`. Обещание кончается ответом на запись, а не переходом:
+   *  диалог не ждёт перечитывания списка, и сбой перехода не читается как «счёт не отклонён». */
+  onRejected?: (send: () => Promise<RejectOutcome>, say: (outcome: RejectOutcome) => void) => Promise<RejectOutcome>;
+}) {
   const state = useInvoiceState();
   const readFresh = useFreshInvoice();
   const toast = useToast();
@@ -67,12 +73,17 @@ export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
             <p>Передумали — «Вернуть в черновик» под строками счёта.</p>
           </div>
         )}
-        onConfirm={() => rejectInvoice(
-          () => state.mutateAsync({ id: view.id, seen: view.version, to: 'rejected' }),
-          () => readFresh(view.id),
-        ).then(outcome => (outcome === 'rejected'
-          ? toast.success(`${label} отклонён.`)
-          : toast.info(`${label} уже отклонён.`)))} />
+        onConfirm={() => {
+          const send = () => rejectInvoice(
+            () => state.mutateAsync({ id: view.id, seen: view.version, to: 'rejected' }),
+            () => readFresh(view.id),
+          );
+          // «Уже отклонён» ведёт так же: счёт из очереди вышел, и человек хотел именно этого.
+          const say = (outcome: RejectOutcome) => (outcome === 'rejected'
+            ? toast.success(`${label} отклонён.`)
+            : toast.info(`${label} уже отклонён.`));
+          return onRejected ? onRejected(send, say) : send().then(say);
+        }} />
     </>
   );
 }

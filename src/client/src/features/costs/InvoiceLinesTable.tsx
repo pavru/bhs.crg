@@ -64,8 +64,11 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false }: {
+export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false, onParsed }: {
   view: InvoiceView;
+  /** Переход «разобран» идёт через страницу (issue #1293): она запирает форму на время записи и
+   *  решает, вести ли к следующему счёту очереди. Отказ записи возвращается сюда же. */
+  onParsed?: (send: () => Promise<unknown>) => Promise<unknown>;
   /** Есть ли несохранённые правки строк: о них обязан сказать диалог удаления счёта (issue #1282). */
   onDirty?: (dirty: boolean) => void;
   /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не
@@ -251,7 +254,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     // Возврат отклонённого — решение о счёте, как и отклонение: о нём говорят вслух. Вход у возврата
     // один, этот (ревью PR #1290): второй, в меню «Ещё», жил своей мутацией и своими правилами.
     try {
-      await state.mutateAsync({ id: view.id, seen: view.version, to });
+      const send = () => state.mutateAsync({ id: view.id, seen: view.version, to });
+      await (to === 'parsed' && onParsed ? onParsed(send) : send());
       if (rejected) toast.success('Счёт возвращён в черновик.');
     }
     catch (e) { toast.apiError(e, to === 'parsed' ? 'Счёт не разобран' : 'Счёт не возвращён в черновик'); }
