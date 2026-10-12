@@ -55,6 +55,14 @@ public partial class ArchiveReadInventoryTests
             Seen("основы наследников — по идентификатору из _baseRef: значение архивной основы у живой роли не пропадает"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|ownerId is { } id && await repo.GetByIdAsync(id, ct) is { } owner"] =
             Seen("вынос в общие данные: объект-источник читается ради стоявших в нём ссылок, архив ли он сам — не важно"),
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.BatchPurge.cs|var entries = await repo.FindAsync(e => e.Facet == null && ids.Contains(e.Id), ct);"] =
+            Service("пакетная очистка (#1245): названные записи удаляются, архивные тоже — человек назвал их сам"),
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.BatchPurge.cs|var found = await objects.RefsAmongAsync(ids, ct);"] =
+            Service("предпросмотр пакетной очистки: названные записи, архивные с признаком"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Purge.cs|await Db.Set<DomainObject>().AsNoTracking()"] =
+            Service("готовый отбор пакетной очистки: действующие записи типа, не выбор значения"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Purge.cs|return await Db.Set<DomainObject>().AsNoTracking()"] =
+            Service("названные записи пакетной очистки — все, архивные с признаком"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);"] =
             Shown("названия уже стоящих ссылок"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);"] =

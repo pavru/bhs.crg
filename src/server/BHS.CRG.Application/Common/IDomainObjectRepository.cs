@@ -73,6 +73,19 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     Task<IReadOnlyList<ArchivedRecord>> ArchivedAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
     /// <summary>
+    /// Действующие записи типа на уровне — ссылками, без данных (issue #1245): готовый отбор
+    /// пакетной очистки. Архивных здесь нет.
+    /// </summary>
+    Task<IReadOnlyList<CommonDataRef>> LiveRefsOfTypeAsync(
+        Guid typeId, BHS.CRG.Domain.Catalog.CatalogScope scope, Guid? scopeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Названные записи общих данных ссылками, какого бы вида они ни были (issue #1245). Все,
+    /// включая архивные; признак — в каждой ссылке.
+    /// </summary>
+    Task<IReadOnlyList<CommonDataRef>> RefsAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>
     /// Сохранить правку объекта, собранную по версии <paramref name="seen" /> (issue #1214): строка
     /// блокируется, её версия сверяется с названной, и только потом идёт запись — сверка и запись
     /// неразрывны. Не совпала — <see cref="BHS.CRG.Domain.Common.ConflictException" />, и не записано

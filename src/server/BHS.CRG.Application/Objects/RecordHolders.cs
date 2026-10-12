@@ -31,6 +31,37 @@ public interface IRecordHolders
     /// а названия документов стоили бы запроса на каждую держащую колонку впустую.
     /// </summary>
     Task<HeldRecords> HeldAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>
+    /// Кто держит КАЖДУЮ из записей — порознь (issue #1245). Пакетная очистка решает о каждой
+    /// записи отдельно, а <see cref="FindAsync" /> отвечает о группе целиком: строка, держащая две
+    /// записи, там одна, и разнести её по записям нечем.
+    ///
+    /// <para>Записи, которую никто не держит, в ответе нет.</para>
+    /// </summary>
+    /// <param name="documents">
+    /// Называть ли документы-держатели. Это запрос на каждую колонку каждой записи, поэтому
+    /// спрашивают их только для того, что покажут человеку: разбор тысячи записей типа и само
+    /// удаление обходятся без названий (ревью PR #1308). И только у записи, которую можно отпустить
+    /// (<see cref="RecordHoldings.Release" />): у остальных разбивку не показывают.
+    /// </param>
+    Task<HoldingsByRecord> FindEachAsync(
+        IReadOnlyCollection<Guid> ids, bool documents, CancellationToken ct = default);
+
+    /// <summary>
+    /// Есть ли на экземпляре данные выключенных или снятых модулей (issue #1245). Нет — пакетной
+    /// очистке нечего искать, и экран её действий не показывает. «Есть» не обещает, что занятые
+    /// записи найдутся: это повод показать действие, а не его результат.
+    /// </summary>
+    Task<bool> AnyDormantAsync(CancellationToken ct = default);
+}
+
+/// <param name="Unverified">
+/// Проверить не удалось — тогда <paramref name="ByRecord" /> пуст НЕ потому, что никто не держит.
+/// </param>
+public sealed record HoldingsByRecord(RecordHoldings? Unverified, IReadOnlyDictionary<Guid, RecordHoldings> ByRecord)
+{
+    public static readonly HoldingsByRecord None = new(null, new Dictionary<Guid, RecordHoldings>());
 }
 
 /// <param name="Ids">Какие из спрошенных записей держат.</param>
