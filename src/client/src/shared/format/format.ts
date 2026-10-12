@@ -24,7 +24,7 @@ import type { DatePrecision } from '@/shared/api/types';
  * `AppRoutes` из ответа о доступе, первый кадр берёт её из зеркала в браузере. Знак валюты нигде
  * больше не пишется: кому нужен он один, без суммы, — `currencySign()`.</p>
  */
-const DEFAULT_CURRENCY = 'RUB';
+export const DEFAULT_CURRENCY = 'RUB';
 /** Зеркало валюты в браузере — чтобы первый кадр не рисовал рубль на экземпляре с тенге. */
 export const CURRENCY_KEY = 'crg.currency';
 
@@ -62,12 +62,18 @@ function isCurrency(code: string): boolean {
  * Остаться с прежней валютой здесь лучше, чем остаться без экрана.</p>
  */
 export function setFormatCurrency(next: string): void {
+  // Горячий путь первым (ревью PR #1306): зовут в каждом рендере корня маршрутов, а проверка
+  // годности строит Intl-форматтер — на порядок дороже самого форматирования.
+  if (known && next === currency) return;
   if (!isCurrency(next)) return;
+
+  // Зеркало пишется и когда валюта совпала с умолчанием: иначе на рублёвом экземпляре оно не
+  // появилось бы никогда, и страницы ждали бы ответа о доступе при каждой загрузке.
   known = true;
+  try { localStorage.setItem(CURRENCY_KEY, next); } catch { /* зеркало — удобство, не хранилище */ }
   if (next === currency) return;
   currency = next;
   numbers.clear();
-  try { localStorage.setItem(CURRENCY_KEY, next); } catch { /* зеркало — удобство, не хранилище */ }
 }
 
 /**

@@ -4,7 +4,7 @@ import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { useLocale } from '@/shared/hooks/useLocale';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAccess } from '@/shared/api/access';
-import { setFormatCurrency } from '@/shared/format/format';
+import { DEFAULT_CURRENCY, setFormatCurrency } from '@/shared/format/format';
 import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
@@ -96,8 +96,10 @@ function AppRoutes() {
   // не перерисовался, держит прежний знак до своей перерисовки; сменить валюту при этом можно
   // только на экземпляре без единого документа.
   const { user } = useAuth();
-  const currency = useAccess(!!user).data?.accounting?.currency;
-  if (currency) setFormatCurrency(currency);
+  // Ответ без валюты — сервер старше настройки: у него рубль зашит, и это тоже ответ. Без него
+  // клиент новее сервера ждал бы валюту при каждой загрузке, так её и не узнав.
+  const access = useAccess(!!user).data;
+  if (access) setFormatCurrency(access.accounting?.currency ?? DEFAULT_CURRENCY);
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

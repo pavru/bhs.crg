@@ -154,12 +154,10 @@ public partial class ModuleDataBackupTests
         var (_, manifest) = await ExportAsync(BackupScope.Full);
         var data = manifest.ModuleData!;
         using var scope = fixture.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        Assert.True(new AccountingCurrencyLock(db, Registry()).Carries(data));
-        Assert.False(new AccountingCurrencyLock(db, new ModuleRegistry([], [new ProbeModule()])).Carries(data));
-        Assert.False(new AccountingCurrencyLock(db, Registry())
-            .Carries([.. data.Select(s => s with { Schema = "probe_old" })]));
+        Assert.True(Guard(scope, Registry()).Carries(data));
+        Assert.False(Guard(scope, new ModuleRegistry([], [new ProbeModule()])).Carries(data));
+        Assert.False(Guard(scope, Registry()).Carries([.. data.Select(s => s with { Schema = "probe_old" })]));
     }
 
     /// <summary>
@@ -171,14 +169,14 @@ public partial class ModuleDataBackupTests
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var guard = new AccountingCurrencyLock(db, Registry());
+        var guard = Guard(scope, Registry());
 
         // Без транзакции замок снялся бы сразу — это отказ, а не тихое «заперто».
-        await Assert.ThrowsAsync<InvalidOperationException>(() => guard.FreezeAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guard.TryLockAsync());
 
         await using (var tx = await db.Database.BeginTransactionAsync())
         {
-            await guard.FreezeAsync();
+            Assert.True(await guard.TryLockAsync());
 
             // Замок вставки — тот же, что берёт INSERT; ждать его конца не будем.
             var refused = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
@@ -192,7 +190,10 @@ public partial class ModuleDataBackupTests
         await ExecuteAsync($"SET lock_timeout = '300ms'; LOCK TABLE {ModuleSchemaName}.invoices IN ROW EXCLUSIVE MODE");
     }
 
-    /// <summary>Таблицы заняты чужой записью дольше срока — отказ словами, а не зависший запрос.</summary>
+    /// <summary>
+    /// Таблицы заняты чужой записью дольше срока — отказ словами, а не зависший запрос. И транзакция
+    /// после отказа жива: восстановление копии на этом месте продолжается.
+    /// </summary>
     [Fact]
     public async Task Занятые_учётные_таблицы_смена_не_ждёт_вечно()
     {
@@ -207,9 +208,95 @@ public partial class ModuleDataBackupTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await using var tx = await db.Database.BeginTransactionAsync();
 
-        await Assert.ThrowsAsync<AccountingTablesBusyException>(
-            () => new AccountingCurrencyLock(db, Registry()).FreezeAsync());
+        Assert.IsType<CurrencyChangeOutcome.Busy>(await Guard(scope, Registry()).TryChangeAsync("USD"));
+
+        Assert.Equal(1, await db.Database.SqlQuery<int>($"SELECT 1 AS \"Value\"").SingleAsync());
+        await tx.CommitAsync();
+        Assert.Null(await StoredCurrencyAsync());
     }
+
+    /// <summary>
+    /// Две смены сразу не пишут обе (ревью PR #1306): замки таблиц между собой совместимы, строки
+    /// настройки может ещё не быть — вторая ждёт очереди, а не читает «было рубль» рядом с первой.
+    /// </summary>
+    [Fact]
+    public async Task Вторая_одновременная_смена_ждёт_первую_а_не_пишет_поверх()
+    {
+        using var first = fixture.Services.CreateScope();
+        var firstDb = first.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var firstTx = await firstDb.Database.BeginTransactionAsync();
+        Assert.IsType<CurrencyChangeOutcome.Changed>(await Guard(first, Registry()).TryChangeAsync("USD"));
+
+        using (var second = fixture.Services.CreateScope())
+        {
+            var secondDb = second.ServiceProvider.GetRequiredService<AppDbContext>();
+            await using var secondTx = await secondDb.Database.BeginTransactionAsync();
+            Assert.IsType<CurrencyChangeOutcome.Busy>(await Guard(second, Registry()).TryChangeAsync("KZT"));
+        }
+
+        await firstTx.CommitAsync();
+        Assert.Equal("USD", await StoredCurrencyAsync());
+        Assert.Single(await CurrencyChangesAsync());
+    }
+
+    /// <summary>
+    /// Валюта, которой эта версия не знает, — не «ключа нет» (ревью PR #1306): приравняв её к рублю,
+    /// восстановление сбросило бы местный выбор и положило бы документы копии под рубль.
+    /// </summary>
+    [Fact]
+    public async Task Неизвестная_валюта_в_копии_местную_не_сбрасывает_и_названа()
+    {
+        await SeedInvoiceAsync(await SeedCoreObjectAsync());
+        await SetCurrencyAsync("XTS");
+        var (archive, _) = await ExportAsync(BackupScope.Full);
+        await ExecuteAsync($"DELETE FROM {ModuleSchemaName}.invoices");
+        await SetCurrencyAsync("KZT");
+
+        var report = await ImportAsync(archive);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal("KZT", await StoredCurrencyAsync());
+        Assert.Empty(await CurrencyChangesAsync());
+        var warning = Assert.Single(report.Warnings, w => w.Contains("Валюта учёта", StringComparison.Ordinal));
+        Assert.Contains("«XTS»", warning);
+        Assert.Contains("проверьте их суммы", warning);
+    }
+
+    /// <summary>Совет проверить суммы документов копии звучит, только когда документы из неё придут.</summary>
+    [Fact]
+    public async Task Копия_без_документов_совета_проверить_их_суммы_не_даёт()
+    {
+        await SetCurrencyAsync("KZT");
+        var (archive, _) = await ExportAsync(BackupScope.Full);
+        await SetCurrencyAsync(null);
+        await SeedInvoiceAsync(await SeedCoreObjectAsync());
+
+        var report = await ImportAsync(archive);
+
+        var warning = Assert.Single(report.Warnings, w => w.Contains("Валюта учёта", StringComparison.Ordinal));
+        Assert.Contains("НЕ изменена", warning);
+        Assert.DoesNotContain("проверьте", warning);
+    }
+
+    /// <summary>Негодная местная строка при совпадении действующих валют убирается и восстановлением.</summary>
+    [Fact]
+    public async Task Восстановление_убирает_негодную_местную_строку_не_меняя_валюты()
+    {
+        await SeedInvoiceAsync(await SeedCoreObjectAsync());
+        await SetCurrencyAsync("RUB");
+        var (archive, _) = await ExportAsync(BackupScope.Full);
+        await SetCurrencyAsync("рубли");
+
+        var report = await ImportAsync(archive);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal("RUB", await StoredCurrencyAsync());
+        Assert.Empty(await CurrencyChangesAsync());
+    }
+
+    private static AccountingCurrencyLock Guard(IServiceScope scope, ModuleRegistry registry) => new(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(), registry,
+        scope.ServiceProvider.GetRequiredService<IActivityLog>());
 
     /// <summary>
     /// Негодное объявление — отказ СТАРТА (ревью PR #1306), а не экрана настроек: имя таблицы уходит
@@ -265,8 +352,7 @@ public partial class ModuleDataBackupTests
     private async Task<IReadOnlyList<CurrencyHolder>> HoldersAsync(ModuleRegistry registry)
     {
         using var scope = fixture.Services.CreateScope();
-        return await new AccountingCurrencyLock(scope.ServiceProvider.GetRequiredService<AppDbContext>(), registry)
-            .HoldersAsync();
+        return await Guard(scope, registry).HoldersAsync();
     }
 
     private async Task SetCurrencyAsync(string? value)

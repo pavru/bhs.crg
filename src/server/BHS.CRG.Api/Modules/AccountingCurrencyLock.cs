@@ -1,5 +1,8 @@
+using BHS.CRG.Api.Modules.Ports;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Domain.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Data;
@@ -9,7 +12,7 @@ using Npgsql;
 namespace BHS.CRG.Api.Modules;
 
 /// <summary>
-/// Кто держит валюту учёта (issue #1248): документы с суммами по объявлениям
+/// Кто держит валюту учёта и как её сменить (issue #1248): документы с суммами по объявлениям
 /// <see cref="IAppModule.AccountingDocuments" />, сосчитанные самим ядром.
 ///
 /// <para>Живёт в приложении: только оно видит и базу ядра, и состав модулей. Считает сырым запросом
@@ -20,10 +23,50 @@ namespace BHS.CRG.Api.Modules;
 /// Имена таблиц — в тексте запроса: параметром имя не передать. Они из объявлений в коде, и форму
 /// их проверяет старт (<see cref="ModuleAccountingDocuments" />) — кавычке в них взяться неоткуда.</para>
 /// </summary>
-public sealed class AccountingCurrencyLock(AppDbContext db, ModuleRegistry registry) : IAccountingCurrencyLock
+public sealed class AccountingCurrencyLock(AppDbContext db, ModuleRegistry registry, IActivityLog journal)
+    : IAccountingCurrencyLock
 {
-    /// <summary>Сколько ждать замка таблиц: дольше пишет разве что восстановление копии.</summary>
-    private const string FreezeTimeout = "5s";
+    /// <summary>Сколько ждать замков смены: дольше пишет разве что восстановление копии.</summary>
+    private const string LockTimeout = "5s";
+
+    public async Task<CurrencyChangeOutcome> TryChangeAsync(
+        string next, string? note = null, CancellationToken ct = default)
+    {
+        if (!AccountingCurrencies.IsKnown(next))
+            throw new ArgumentException($"Валюты «{next}» в списке нет.", nameof(next));
+
+        // Замки — первыми, чтение — после них: вторая из двух одновременных смен обязана увидеть
+        // результат первой, а не прочитать «было рубль» рядом с ней и записать поверх.
+        var locked = await TryLockAsync(ct);
+
+        var row = await db.AppSettings.FirstOrDefaultAsync(a => a.Key == AppSettingKeys.AccountingCurrency, ct);
+        if (AppSettingCatalog.CurrencyChange(row?.Value, next) is not { } change)
+        {
+            // Действует то же самое. Строку правим, только если в базе лежит негодное: это уборка,
+            // знак сумм она не меняет — и ни запрет, ни занятые таблицы ей не помеха.
+            if (row is not null && row.Value != next)
+            {
+                row.SetValue(next);
+                await db.SaveChangesAsync(ct);
+            }
+
+            return new CurrencyChangeOutcome.Unchanged();
+        }
+
+        if (!locked) return new CurrencyChangeOutcome.Busy(change);
+
+        var holders = await HoldersAsync(ct);
+        if (holders.Count > 0) return new CurrencyChangeOutcome.Held(change, holders);
+
+        if (row is not null) row.SetValue(next);
+        else db.AppSettings.Add(AppSetting.Create(AppSettingKeys.AccountingCurrency, next));
+        await db.SaveChangesAsync(ct);
+
+        // Журнал — в той же транзакции: значение без записи осталось бы сменой без следа.
+        await journal.RecordAsync(ActivityActions.AccountingCurrencyChanged, AppSettingKeys.AccountingCurrency,
+            change.Label, before: change.Before, after: change.After + note, ct: ct);
+        return new CurrencyChangeOutcome.Changed(change, Created: row is null);
+    }
 
     public async Task<IReadOnlyList<CurrencyHolder>> HoldersAsync(CancellationToken ct = default)
     {
@@ -44,33 +87,49 @@ public sealed class AccountingCurrencyLock(AppDbContext db, ModuleRegistry regis
                 [.. g.Select(t => new CurrencyHeldCount(t.Noun, t.Count))]))];
     }
 
-    public async Task FreezeAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Взять оба замка смены до конца текущей транзакции; <c>false</c> — не дождались за срок.
+    ///
+    /// <para><b>Очередь смен</b> (advisory): строки настройки может ещё не быть, запереть её нечем, а
+    /// замки таблиц между собой совместимы — без очереди две одновременные смены обе прочли бы
+    /// «было рубль» и обе записали, с двумя несходящимися записями журнала (ревью PR #1306).</para>
+    ///
+    /// <para><b>Учётные таблицы</b> — SHARE: читать можно, писать нет. Вставка, уже идущая в чужой
+    /// транзакции, заставит подождать её конца — и сверка, сделанная следом, её увидит. Без этого
+    /// счёт, зафиксированный между сверкой и фиксацией смены, получил бы новый знак.</para>
+    /// </summary>
+    public async Task<bool> TryLockAsync(CancellationToken ct = default)
     {
         if (db.Database.CurrentTransaction is null)
             throw new InvalidOperationException(
-                "Учётные таблицы запирают внутри транзакции: замок живёт до её конца, а без неё он " +
-                "снялся бы сразу и ничего не закрыл.");
+                "Валюту меняют внутри транзакции: замки живут до её конца, а без неё они снялись бы " +
+                "сразу и ничего не закрыли.");
 
         var tables = await ExistingAsync(ct);
-        if (tables.Count == 0) return;
 
-        // Срок ожидания — только на этот замок: остальная транзакция живёт с прежним.
+        // Срок ожидания — только на эти замки: остальная транзакция живёт с прежним. Точка
+        // сохранения — потому что отказ в замке обрывает транзакцию, а вызывающему она ещё нужна:
+        // восстановление копии после такого отказа продолжается.
         var before = await db.Database
             .SqlQuery<string>($"SELECT current_setting('lock_timeout') AS \"Value\"").SingleAsync(ct);
-        await db.Database.ExecuteSqlAsync($"SELECT set_config('lock_timeout', {FreezeTimeout}, true)", ct);
+        await db.Database.ExecuteSqlRawAsync("SAVEPOINT currency_locks", ct);
         try
         {
-            // SHARE: читать можно, писать — нет. Вставка, уже идущая в чужой транзакции, заставит
-            // подождать её конца — и сверка, сделанная следом, её увидит.
-            await db.Database.ExecuteSqlRawAsync("LOCK TABLE " +
-                string.Join(", ", tables.Select(t => Quoted(t.Module, t.Document))) + " IN SHARE MODE", ct);
+            await db.Database.ExecuteSqlAsync($"SELECT set_config('lock_timeout', {LockTimeout}, true)", ct);
+            await db.Database.ExecuteSqlAsync(
+                $"SELECT pg_advisory_xact_lock(hashtext({AppSettingKeys.AccountingCurrency}))", ct);
+            if (tables.Count > 0)
+                await db.Database.ExecuteSqlRawAsync("LOCK TABLE " +
+                    string.Join(", ", tables.Select(t => Quoted(t.Module, t.Document))) + " IN SHARE MODE", ct);
         }
         catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.LockNotAvailable)
         {
-            throw new AccountingTablesBusyException();
+            await db.Database.ExecuteSqlRawAsync("ROLLBACK TO SAVEPOINT currency_locks", ct);
+            return false;
         }
 
         await db.Database.ExecuteSqlAsync($"SELECT set_config('lock_timeout', {before}, true)", ct);
+        return true;
     }
 
     public bool Carries(IEnumerable<BackupModuleSchema> data)

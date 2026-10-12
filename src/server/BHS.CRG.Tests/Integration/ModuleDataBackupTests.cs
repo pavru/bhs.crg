@@ -505,7 +505,7 @@ public partial class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAs
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Settings.IAppSettingCatalog>(),
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Recognition.RecognitionProfileCatalog>(),
         // Запрет смены валюты — по составу модулей ЭТОГО теста: у хоста поддельного модуля нет.
-        new AccountingCurrencyLock(scope.ServiceProvider.GetRequiredService<AppDbContext>(), Registry()));
+        Guard(scope, Registry()));
 
     /// <summary>Копия целиком в памяти: её читают дважды — как манифест и как вход восстановления.</summary>
     private static async Task<MemoryStream> ArchiveAsync(BackupService service, BackupScope scope)

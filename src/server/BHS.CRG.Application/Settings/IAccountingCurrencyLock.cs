@@ -29,12 +29,18 @@ public interface IAccountingCurrencyLock
     Task<IReadOnlyList<CurrencyHolder>> HoldersAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Запереть учётные таблицы от записи до конца текущей транзакции (ревью PR #1306): между
-    /// сверкой и фиксацией смены документ появиться не должен — иначе счёт, внесённый в рублях,
-    /// получил бы новый знак, а запрет, ради которого всё заведено, был бы обойдён. Зовут ПЕРЕД
-    /// <see cref="HoldersAsync" />. Таблицы заняты дольше срока — <see cref="AccountingTablesBusyException" />.
+    /// Сменить действующую валюту — ЕДИНСТВЕННЫЙ путь записи настройки, один на экран и на
+    /// восстановление копии (ревью PR #1306): две копии последовательности «сверить, записать,
+    /// занести в журнал» расходились — замок был в одной, уборка негодной строки тоже.
+    ///
+    /// <para>Работает внутри транзакции вызывающего и сам её не фиксирует. Порядок: очередь смен
+    /// (две одновременные не пишут обе), замок учётных таблиц от записи, сверка держателей, запись и
+    /// журнал. Между сверкой и фиксацией документ появиться не может — иначе счёт, внесённый в
+    /// рублях, получил бы новый знак.</para>
     /// </summary>
-    Task FreezeAsync(CancellationToken ct = default);
+    /// <param name="next">Код из <see cref="AccountingCurrencies" />.</param>
+    /// <param name="note">Приписка к «стало» в журнале: « (восстановление копии)».</param>
+    Task<CurrencyChangeOutcome> TryChangeAsync(string next, string? note = null, CancellationToken ct = default);
 
     /// <summary>
     /// Несёт ли копия документы с суммами, которые восстановление ПОЛОЖИТ в базу: строки учётных
@@ -43,9 +49,26 @@ public interface IAccountingCurrencyLock
     bool Carries(IEnumerable<BackupModuleSchema> data);
 }
 
-/// <summary>В учётные таблицы сейчас пишут, и запереть их за отведённый срок не удалось.</summary>
-public sealed class AccountingTablesBusyException() : Exception(
-    "В счета или накладные сейчас идёт запись — валюта не изменена. Повторите через минуту.");
+/// <summary>Чем кончилась попытка сменить валюту.</summary>
+public abstract record CurrencyChangeOutcome
+{
+    /// <summary>Действует то же, что и было. Негодная строка в базе при этом заменена годной.</summary>
+    public sealed record Unchanged : CurrencyChangeOutcome;
+
+    /// <summary>Сменена и записана в журнал.</summary>
+    /// <param name="Created">Строки настройки раньше не было.</param>
+    public sealed record Changed(SettingChange Change, bool Created) : CurrencyChangeOutcome;
+
+    /// <summary>Не сменена: документы с суммами уже есть.</summary>
+    public sealed record Held(SettingChange Change, IReadOnlyList<CurrencyHolder> Holders) : CurrencyChangeOutcome;
+
+    /// <summary>Не сменена: в учётные таблицы пишут либо идёт другая смена — дольше отведённого срока.</summary>
+    public sealed record Busy(SettingChange Change) : CurrencyChangeOutcome
+    {
+        public const string Message =
+            "В счета или накладные сейчас идёт запись — валюта не изменена. Повторите через минуту.";
+    }
+}
 
 /// <summary>Слова о запрете — одни на экран настройки, отказ адреса и восстановление копии.</summary>
 public static class AccountingCurrencyLockText

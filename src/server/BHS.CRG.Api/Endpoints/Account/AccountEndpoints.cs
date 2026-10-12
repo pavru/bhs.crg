@@ -42,8 +42,11 @@ public static class AccountEndpoints
                 // в Intl.NumberFormat, а тот на строке не по форме роняет экран.
                 accounting = new
                 {
+                    // GetManyAsync, а не GetAsync: адрес зовёт каждый вошедший раз в полминуты, и
+                    // чтение без отслеживания здесь дешевле (ревью PR #1306).
                     currency = AccountingCurrencies.Effective(
-                        await settings.GetAsync(AppSettingKeys.AccountingCurrency, ct)),
+                        (await settings.GetManyAsync([AppSettingKeys.AccountingCurrency], ct))
+                            .GetValueOrDefault(AppSettingKeys.AccountingCurrency)),
                 },
                 permissions = granted.Order(StringComparer.Ordinal).ToArray(),
                 // Модули экземпляра целиком: и доступные, и нет. Клиенту нужны оба списка —

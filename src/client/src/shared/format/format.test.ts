@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   formatAmount, formatBytes, formatCount, formatDate, formatDatePrecise, formatDateTime, formatDay, formatDayTime,
   formatInput, formatInputAmount, formatLocale, formatMoney, formatNumber, formatQuantity, formatTime,
-  currencySign, formatCurrency, setFormatCurrency, setFormatLocale,
+  CURRENCY_KEY, currencyKnown, currencySign, formatCurrency, setFormatCurrency, setFormatLocale,
 } from './format';
 
 // Пробел между разрядами и перед знаком валюты у русского языка — неразрывный.
@@ -32,6 +32,25 @@ describe('валюта учёта (issue #1248)', () => {
     expect(currencySign()).toBe('$');
     setFormatLocale('en-US');
     expect(formatMoney(1234.5)).toBe('$1,234.50');
+  });
+
+  it('зеркало в браузере пишется и для валюты по умолчанию', () => {
+    // Иначе на рублёвом экземпляре валюта не становилась бы «известной» никогда, и страницы ждали
+    // бы ответа о доступе при каждой загрузке (ревью PR #1306).
+    const written: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => written[key] ?? null,
+      setItem: (key: string, value: string) => { written[key] = value; },
+    });
+    try {
+      setFormatCurrency('KZT');
+      expect(written[CURRENCY_KEY]).toBe('KZT');
+      setFormatCurrency('RUB');
+      expect(written[CURRENCY_KEY]).toBe('RUB');
+      expect(currencyKnown()).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it.each(['тенге', 'kz', '', 'RUBLE'])('негодный код «%s» не принимается и экран не роняет', code => {

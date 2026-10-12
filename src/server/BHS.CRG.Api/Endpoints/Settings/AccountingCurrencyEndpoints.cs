@@ -1,6 +1,4 @@
 using BHS.CRG.Api.Auth;
-using BHS.CRG.Api.Modules.Ports;
-using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
@@ -42,48 +40,26 @@ public static class AccountingCurrencyEndpoints
             });
         });
 
-        g.MapPut("/", async (AccountingCurrencyRequest req, IAppSettingsStore store,
-            IAccountingCurrencyLock guard, IActivityLog journal, AppDbContext db, CancellationToken ct) =>
+        g.MapPut("/", async (AccountingCurrencyRequest req, IAccountingCurrencyLock guard, AppDbContext db,
+            CancellationToken ct) =>
         {
             var next = req.Currency?.Trim();
             if (!AccountingCurrencies.IsKnown(next))
                 return Results.BadRequest(new { error = $"Валюты «{req.Currency}» в списке нет." });
 
-            // Значение, запись журнала и сверка запрета — одной транзакцией. Журнал отдельно от
-            // значения оставил бы смену без следа (урок ревью PR #1249).
+            // Значение, запись журнала и сверка запрета — одной транзакцией; что и в каком порядке
+            // делается внутри — у самой операции (TryChangeAsync), она же служит восстановлению копии.
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            var was = await store.GetAsync(AppSettingKeys.AccountingCurrency, ct);
-
-            if (AppSettingCatalog.CurrencyChange(was, next) is not { } change)
+            switch (await guard.TryChangeAsync(next!, ct: ct))
             {
-                // Действует то же самое. Строку правим, только если в базе лежит негодное: это
-                // уборка, знак сумм она не меняет — и запрет ей не помеха.
-                if (was is not null && was != next)
-                {
-                    await store.SetAsync(AppSettingKeys.AccountingCurrency, next, ct);
+                case CurrencyChangeOutcome.Held held:
+                    return Results.Conflict(new { error = AccountingCurrencyLockText.Reason(held.Holders) });
+                case CurrencyChangeOutcome.Busy:
+                    return Results.Conflict(new { error = CurrencyChangeOutcome.Busy.Message });
+                default:
                     await tx.CommitAsync(ct);
-                }
-
-                return Results.NoContent();
+                    return Results.NoContent();
             }
-
-            // ⚠️ Сначала запереть учётные таблицы, потом сверять (ревью PR #1306). Без замка счёт,
-            // зафиксированный между сверкой и фиксацией смены, получил бы новый знак: внесли в
-            // рублях — показан в долларах. Замок держится до конца транзакции; вставка, уже идущая
-            // рядом, заставит подождать — и сверка её увидит. Создание документа на это время ждёт.
-            try { await guard.FreezeAsync(ct); }
-            catch (AccountingTablesBusyException busy) { return Results.Conflict(new { error = busy.Message }); }
-
-            var holders = await guard.HoldersAsync(ct);
-            if (holders.Count > 0)
-                return Results.Conflict(new { error = AccountingCurrencyLockText.Reason(holders) });
-
-            await store.SetAsync(AppSettingKeys.AccountingCurrency, next, ct);
-            await journal.RecordAsync(ActivityActions.AccountingCurrencyChanged, AppSettingKeys.AccountingCurrency,
-                change.Label, before: change.Before, after: change.After, ct: ct);
-
-            await tx.CommitAsync(ct);
-            return Results.NoContent();
         });
     }
 }
