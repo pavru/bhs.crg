@@ -370,6 +370,30 @@ try {
         () => page.locator('button', { hasText: name }).waitFor({ timeout: 15_000 }));
     if (new URL(page.url()).searchParams.get('invoice') !== opened)
       throw new Error('пакет из нескольких файлов сменил открытый счёт');
+
+    // Отбор загрузки (issue #1294): список отсортирован по дате счёта, и после распознавания её
+    // черновики разъезжаются между старыми счетами. Из полосы одним действием видны ровно они.
+    const rows = page.getByTestId('invoice-row');
+    const line = page.getByTestId('upload-line');
+    await page.getByPlaceholder('Номер, поставщик, назначение…').fill('заведомо ничего');
+    await line.getByRole('button', { name: 'Показать только их' }).click();
+    await named('полоса не назвала число счетов под отбором загрузки',
+      () => line.getByText('В списке только они: 2.').waitFor({ timeout: 10_000 }));
+    const shown = await rows.allInnerTexts();
+    if (shown.length !== 2 || !names.every(name => shown.some(text => text.includes(name))))
+      throw new Error(`под отбором загрузки не ровно её счета: ${JSON.stringify(shown)}`);
+    if (await page.getByPlaceholder('Номер, поставщик, назначение…').inputValue() !== '')
+      throw new Error('отбор загрузки не снял поиск — под ним её счетов не видно');
+    // Чип очереди отбор снимает: пересечение дало бы пустой список без объяснения.
+    await page.getByRole('button', { name: /^Разобрать/ }).click();
+    await named('чип очереди не снял отбор загрузки',
+      () => line.getByRole('button', { name: 'Показать только их' }).waitFor({ timeout: 10_000 }));
+    await page.getByRole('button', { name: /^Разобрать/ }).click();
+    // И обратно — «Показать все счета» возвращает общий список.
+    await line.getByRole('button', { name: 'Показать только их' }).click();
+    await line.getByRole('button', { name: 'Показать все счета' }).click();
+    await named('«Показать все счета» не вернуло общий список',
+      () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length > 2, null, { timeout: 10_000 }));
   });
 
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────

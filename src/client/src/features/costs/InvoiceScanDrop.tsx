@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { carriesFiles, droppedFiles, useFileDragActive } from '@/shared/ui/fileDrop';
 import { ruCount } from '@/shared/utils/pluralize';
-import { batchTitle, dismissBatch, retryable, stopBatch, type ScanBatch } from './scanBatch';
+import { batchTitle, dismissBatch, retryable, stopBatch, uploadLine, type ScanBatch } from './scanBatch';
 
 /**
  * Колонка списка счетов как цель перетаскивания сканов (задача D4, issue #1093).
@@ -68,15 +68,21 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
  * <p>Тостов у пакета нет: непринятые файлы с причинами обязаны дожить до того, как человек на них
  * посмотрит, а тост уходит через восемь секунд. Закрывает полосу крестик или следующий пакет.</p>
  */
-export function InvoiceScanBatchBar({ batch, narrowed, onShowAll, onRetry }: {
+export function InvoiceScanBatchBar({ batch, only, found, onOnly, onShowAll, onRetry }: {
   /** Пакет вошедшего; чужой сюда не приходит. */
   batch: ScanBatch | null;
-  /** Список сужен отбором или поиском — новые черновики под ним могут быть не видны. */
-  narrowed: boolean;
+  /** Список сужен до заведённых этой загрузкой (issue #1294). */
+  only: boolean;
+  /** Сколько заведённых стоит в списке; `null` — список не пришёл. */
+  found: number | null;
+  onOnly: () => void;
   onShowAll: () => void;
   onRetry: () => void;
 }) {
   if (!batch) return null;
+  // Отбор живёт здесь, а не чипом в ряду отборов: чипы — постоянные очереди сервера, загрузка —
+  // состояние этой вкладки. Чип, который появляется и пропадает, обещал бы постоянство, которого нет.
+  const line = uploadLine(batch, found, only);
 
   const done = batch.phase === 'done';
   const again = retryable(batch).length;
@@ -108,10 +114,11 @@ export function InvoiceScanBatchBar({ batch, narrowed, onShowAll, onRetry }: {
       {done && again > 0 && (
         <Button variant="outlined" size="sm" onClick={onRetry}>Повторить непринятые ({again})</Button>
       )}
-      {done && batch.created.length > 0 && narrowed && (
-        <p className="text-fg3">
-          Под отбором или поиском новых черновиков может быть не видно.{' '}
-          <button type="button" className="underline hover:text-fg1" onClick={onShowAll}>Показать все счета</button>
+      {line && (
+        <p className="text-fg3" data-testid="upload-line">
+          {line.text && `${line.text} `}
+          <button type="button" className="underline hover:text-fg1" title={line.title}
+            onClick={line.action === 'only' ? onOnly : onShowAll}>{line.label}</button>
         </p>
       )}
     </div>

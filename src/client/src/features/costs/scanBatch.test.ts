@@ -2,7 +2,8 @@ import { beforeEach, describe, it, expect } from 'vitest';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
 import {
   MAX_FILES, batchTitle, currentBatch, dismissBatch, endSession, failure, inOrder, interrupted,
-  precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, type BatchPort,
+  precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, uploadLine, uploadedOf,
+  type BatchPort, type ScanBatch,
 } from './scanBatch';
 
 /** Пакет сканов (issue #1093): непринятый файл не исчезает, а «ответ не пришёл» не выдаётся за «не заведён». */
@@ -223,6 +224,46 @@ describe('пакет', () => {
     await settled();
     dismissBatch();
     expect(currentBatch()).toBeNull();
+  });
+});
+
+describe('счета этой загрузки в списке', () => {
+  const made = (created: string[]): ScanBatch => ({
+    owner: 'me', phase: 'done', total: created.length, settled: created.length, created,
+    rejected: [], pending: [], halted: null, refused: null,
+  });
+  const list = ['x', 'b', 'y', 'a'].map(id => ({ id }));
+
+  it('отбор — ровно заведённые, в порядке списка, а не файлов', () => {
+    expect(uploadedOf(list, made(['a', 'b']))).toEqual([{ id: 'b' }, { id: 'a' }]);
+  });
+
+  it('удалённого счёта в отборе нет — число берётся из списка, а не из заведённых', () => {
+    expect(uploadedOf(list, made(['a', 'gone']))).toEqual([{ id: 'a' }]);
+  });
+
+  it('список не пришёл — «не знаем», а не «ни одного»', () => {
+    expect(uploadedOf(undefined, made(['a']))).toBeNull();
+    expect(uploadedOf(list, null)).toBeNull();
+  });
+
+  it('полоса предлагает отбор, как только заведён первый черновик, — и до конца загрузки', () => {
+    expect(uploadLine(made([]), 0, false)).toBeNull();
+    expect(uploadLine({ ...made(['a']), phase: 'running' }, 1, false))
+      .toMatchObject({ action: 'only', label: 'Показать только их' });
+    // Список не пришёл — действие остаётся: «не знаем» не прячет его.
+    expect(uploadLine(made(['a']), null, false)?.action).toBe('only');
+  });
+
+  it('все заведённые из списка ушли — предлагать нечего, а включённый отбор снять можно', () => {
+    expect(uploadLine(made(['a']), 0, false)).toBeNull();
+    expect(uploadLine(made(['a']), 0, true))
+      .toEqual({ text: 'В списке только они: 0.', action: 'all', label: 'Показать все счета' });
+  });
+
+  it('включённый отбор называет число найденных, а не заведённых', () => {
+    expect(uploadLine(made(['a', 'b', 'c']), 2, true)?.text).toBe('В списке только они: 2.');
+    expect(uploadLine(made(['a']), null, true)?.text).toBe('В списке только они.');
   });
 });
 

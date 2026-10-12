@@ -34,7 +34,7 @@ import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
-import { retryRejected, startBatch, useScanBatch, type BatchPort } from './scanBatch';
+import { retryRejected, startBatch, UPLOAD_EMPTY, uploadedOf, useScanBatch, type BatchPort } from './scanBatch';
 
 /**
  * Счета на оплату: реестр слева, форма ввода справа, скан рядом с формой (задача C1, issue #1076).
@@ -111,7 +111,20 @@ export function InvoicesPage() {
   const [parsedTrace, setParsedTrace] = useState<QueueTrace | null>(null);
   const trace = keepTrace(parsedTrace, queue, invoices.data) ? parsedTrace : null;
   if (parsedTrace && !trace) setParsedTrace(null);
-  const rows = queueRows(invoices.data ?? [], nextHeld, trace).filter(r => matches(r.item, query));
+  // Отбор «только заведённые этой загрузкой» (issue #1294). Живёт на странице и нигде не хранится:
+  // включить его заново — один щелчок в полосе, а переживший перезагрузку отбор без полосы рядом
+  // выглядел бы пропажей счетов. Полосу закрыли — снимается и он: управлять им больше нечем.
+  const me = useAuth().user?.sub;
+  const batch = useScanBatch(me);
+  const [onlyUpload, setOnlyUpload] = useState(false);
+  if (onlyUpload && !batch) setOnlyUpload(false);
+  const uploaded = queue === null ? uploadedOf(invoices.data, batch) : null;
+  const ofUpload = onlyUpload && batch ? new Set(batch.created) : null;
+  const rows = queueRows(invoices.data ?? [], nextHeld, trace)
+    .filter(r => matches(r.item, query) && (!ofUpload || ofUpload.has(r.item.id)));
+  // Отборы исключают друг друга: чип считает сервер, загрузку — вкладка, и их пересечение дало бы
+  // пустой список без объяснения.
+  const chooseQueue = (next: InvoiceQueue | null) => { setOnlyUpload(false); setQueue(next); };
 
   // Экран, каким он стоит СЕЙЧАС, — для решений, принимаемых после ответа сервера (ревью PR #1303):
   // замыкание помнит миг нажатия, а за время запроса человек мог уйти на другой счёт, снять отбор
@@ -223,6 +236,8 @@ export function InvoicesPage() {
       // (issue #1292), и выбрасывать человека из рабочей очереди незачем.
       if (queue !== 'parsing') setQueue(null);
       setQuery('');
+      // И отбор загрузки: этот счёт заведён не ею, под ним его не было бы.
+      setOnlyUpload(false);
       setSelected(created.invoice.id);
     } catch (e) { toast.apiError(e, 'Счёт из файла не заведён'); }
   }
@@ -247,8 +262,6 @@ export function InvoicesPage() {
     next.delete(INVOICE_RECORD.param);
     return next;
   }, { replace: true }), id => forgetInvoice(qc, id));
-  const me = useAuth().user?.sub;
-  const batch = useScanBatch(me);
   const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
   // Что распознаётся, говорит реестр видов: из него и выбор файла, и подсказка, и отсев до отправки.
   const kinds = useFileKinds();
@@ -261,7 +274,11 @@ export function InvoicesPage() {
   };
   function addScans(files: File[], folders: string[] = []) {
     if (files.length === 1 && folders.length === 0) void addFromScan(files[0]);
-    else startBatch(files, folders, port);
+    else {
+      // Новая загрузка — отбор прежней снимается: под ним новые черновики не появились бы.
+      setOnlyUpload(false);
+      startBatch(files, folders, port);
+    }
   }
 
   // Тот же счёт, что в форме: панель скана и форма обязаны говорить об одном (ревью PR #1300).
@@ -316,11 +333,14 @@ export function InvoicesPage() {
       nav={
         <InvoiceScanDrop enabled={hasPermission(access, 'costs.invoice.edit') && !loading} onFiles={addScans}>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
-          <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
+          <InvoiceQueueChips queue={queue} onChange={chooseQueue} queues={queues} parsing={parsing}
             failed={counts.isError}
             onRetry={() => void counts.refetch()} />
-          <InvoiceScanBatchBar batch={batch} narrowed={queue !== null || query.trim() !== ''}
-            onShowAll={() => { setQueue(null); setQuery(''); }} onRetry={() => retryRejected(port)} />
+          <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={uploaded?.length ?? null}
+            // Включение снимает чип и поиск: одним действием видны ровно те счета. Список при этом
+            // перечитывается — во время загрузки он обновляется не на каждый файл.
+            onOnly={() => { setQueue(null); setQuery(''); setOnlyUpload(true); void invoices.refetch(); }}
+            onShowAll={() => setOnlyUpload(false)} onRetry={() => retryRejected(port)} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-xs text-warning" role="status">
@@ -335,9 +355,9 @@ export function InvoicesPage() {
             )}
             {!invoices.isPending && !invoices.isError && rows.length === 0 && (
               <div className="px-3 py-2 text-xs text-fg3 space-y-1">
-                <p>{emptyText(queue, query, queues)}</p>
-                {queue && !query.trim() && (
-                  <button type="button" className="underline hover:text-fg1" onClick={() => setQueue(null)}>
+                <p>{onlyUpload && !query.trim() ? UPLOAD_EMPTY : emptyText(queue, query, queues)}</p>
+                {(queue || onlyUpload) && !query.trim() && (
+                  <button type="button" className="underline hover:text-fg1" onClick={() => chooseQueue(null)}>
                     Показать все счета
                   </button>
                 )}
