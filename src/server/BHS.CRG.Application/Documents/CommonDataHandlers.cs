@@ -9,7 +9,7 @@ using MediatR;
 
 namespace BHS.CRG.Application.Documents;
 
-public class CommonDataHandlers(
+public partial class CommonDataHandlers(
     IRepository<DomainObject> repo,
     IDomainObjectRepository objects,
     IRepository<DocumentType> typeRepo,
@@ -169,6 +169,23 @@ public class CommonDataHandlers(
         Guid id, Func<RecordHoldings, DormantRelease?> moduleGate, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(id, ct) ?? throw new NotFoundException();
+        await EnsureCoreFreeAsync(id, ct);
+        // issue #1094: и данные модулей. Индекс ссылок ядра видит только таблицы ядра — позиция
+        // номенклатуры, стоящая в строке счёта, для него свободна (issue #1168).
+        // ⚠️ ПОСЛЕДНИМ из отказов: по нему адрес предлагает принудительное удаление, а предлагать
+        // его записи, которую держит ещё и ядро, нельзя.
+        var release = moduleGate(await holders.FindAsync([id], ct));
+        repo.Remove(entry);
+        await repo.SaveChangesAsync(ct);
+        return (entry, release);
+    }
+
+    /// <summary>
+    /// Отказы ЯДРА на удаление записи — одно тело на все пути: обычный, принудительный и пакетный
+    /// (issue #1245). Отказ, дописанный сюда, встаёт на каждый из них сам.
+    /// </summary>
+    private async Task EnsureCoreFreeAsync(Guid id, CancellationToken ct)
+    {
         // Запрета «тип закрыт для общего адреса» здесь НЕТ нарочно (issue #1215): строка такого
         // типа в общей таблице — мусор, и удаление — способ его убрать. См. TypeStorageRules.
         // issue #258: объект-профиль (на который ссылается FK контейнера) — синглтон, удалять нельзя.
@@ -195,14 +212,6 @@ public class CommonDataHandlers(
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
-        // issue #1094: и данные модулей. Индекс ссылок выше видит только таблицы ядра — позиция
-        // номенклатуры, стоящая в строке счёта, для него свободна (issue #1168).
-        // ⚠️ ПОСЛЕДНИМ из отказов: по нему адрес предлагает принудительное удаление, а предлагать
-        // его записи, которую держит ещё и ядро, нельзя.
-        var release = moduleGate(await holders.FindAsync([id], ct));
-        repo.Remove(entry);
-        await repo.SaveChangesAsync(ct);
-        return (entry, release);
     }
 
     public async Task<DomainObject?> Handle(GetCommonDataEntryQuery q, CancellationToken ct)

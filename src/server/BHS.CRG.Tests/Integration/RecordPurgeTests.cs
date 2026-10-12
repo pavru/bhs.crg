@@ -28,7 +28,7 @@ namespace BHS.CRG.Tests.Integration;
 /// <see cref="OccupiedRecordDeleteTests" />: решение принимает ответ порта, а не адрес.</para>
 /// </summary>
 [Collection("Integration")]
-public class RecordPurgeTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
+public partial class RecordPurgeTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
     /// <summary>
     /// СТОРОЖ ЗАДАЧИ. Администратор видит в отказе, что запись держат данные снятого модуля и сколько
