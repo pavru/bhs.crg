@@ -11,7 +11,7 @@ import { deleteRecord } from './recordDelete';
  * решает и говорит об этом сам: когда действие есть, как назвать счёт и чем кончилась попытка.</p>
  */
 
-const DRAFT = 'Черновик';
+export const DRAFT = 'Черновик';
 
 /**
  * Можно ли удалить — то же условие, что проверит сервер. Действие, которое сервер заведомо откажется
@@ -80,7 +80,7 @@ export const deleteInvoice = (send: () => Promise<unknown>, readFresh: () => Pro
   });
 
 /** Откуда пришли к удалению: от этого зависит первая строка диалога. */
-export type DeleteReason = 'menu' | 'duplicate' | 'wrong-file';
+export type DeleteReason = 'menu' | 'duplicate' | 'same-file' | 'wrong-file';
 
 /**
  * Спросить об удалении открытого счёта. `null` — удалить нельзя: все три входа (меню «Ещё», оговорка

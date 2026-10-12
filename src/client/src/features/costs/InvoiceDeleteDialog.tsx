@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
 import { useDeleteInvoice, useFreshInvoice, type CostsOrganization, type InvoiceView } from '@/shared/api/invoices';
-import { K, duplicateLabel, refEntryId } from './invoiceFields';
+import { K, duplicateLabel, refEntryId, sameFileLabel } from './invoiceFields';
 import {
   InvoiceDeleteContext, canDelete, confirmLabel, deleteInvoice, goingAway, invoiceTitle,
   type DeleteReason,
@@ -68,6 +68,9 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
           <div className="space-y-2 text-sm text-fg2" data-testid="invoice-delete-body">
             {asked?.reason === 'duplicate' && view.duplicates.length > 0 && (
               <p>Останется счёт <b>{duplicateLabel(view.duplicates[0])}</b>.</p>
+            )}
+            {asked?.reason === 'same-file' && view.sameFile.length > 0 && (
+              <p>Останется счёт <b>{sameFileLabel(view.sameFile[0])}</b> — с тем же файлом.</p>
             )}
             <p>{supplier ? <>Поставщик: <b>{supplier}</b>.</> : 'Поставщик не указан.'}</p>
             {gone.length > 0 && (

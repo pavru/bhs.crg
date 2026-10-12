@@ -1,5 +1,5 @@
-import type { InvoiceDuplicate, InvoiceRequisites } from '@/shared/api/invoices';
-import { formatDate, formatInputAmount, formatMoney } from '@/shared/format/format';
+import type { InvoiceDuplicate, InvoiceRequisites, InvoiceSameFile } from '@/shared/api/invoices';
+import { formatDate, formatDateTime, formatInputAmount, formatMoney } from '@/shared/format/format';
 
 /**
  * Правила формы счёта, отделённые от разметки (задача C1, issue #1076, ТЗ COST-6.2).
@@ -172,5 +172,30 @@ export function duplicateLabel(duplicate: InvoiceDuplicate): string {
   if (duplicate.issuedOn) parts.push(`от ${formatDate(duplicate.issuedOn)}`);
   if (duplicate.total != null) parts.push(`на ${formatMoney(duplicate.total)}`);
   return parts.join(' ');
+}
+
+/**
+ * Чем назван счёт с тем же файлом (issue #1295). Без номера — временем заведения ДО СЕКУНД и именем
+ * файла: одного имени мало (повтор почти всегда носит то же), одной минуты тоже — черновики одной
+ * загрузки заводятся в одну минуту, и две ссылки с одним текстом не различить (ревью PR #1305).
+ */
+export function sameFileLabel(same: InvoiceSameFile): string {
+  if (same.number) return `№ ${duplicateLabel(same)}`;
+  const seconds = String(new Date(same.createdAt).getSeconds()).padStart(2, '0');
+  const file = same.scanFileName ? `«${same.scanFileName}», ` : '';
+  return `без номера, ${file}заведён ${formatDateTime(same.createdAt)}:${seconds}`;
+}
+
+/**
+ * Двойники счёта по двум признакам, без повтора: счёт, совпавший и файлом, и реквизитами, стоит
+ * только среди «тех же файлов» (`both` его помечает) — иначе об одном счёте говорили бы два блока.
+ */
+export function twinsOf(view: { sameFile: InvoiceSameFile[]; duplicates: InvoiceDuplicate[] }) {
+  const byFile = new Set(view.sameFile.map(s => s.id));
+  return {
+    sameFile: view.sameFile,
+    both: new Set(view.duplicates.filter(d => byFile.has(d.id)).map(d => d.id)),
+    duplicates: view.duplicates.filter(d => !byFile.has(d.id)),
+  };
 }
 

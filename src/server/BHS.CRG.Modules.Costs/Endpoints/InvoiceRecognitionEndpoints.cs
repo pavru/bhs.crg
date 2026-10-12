@@ -72,6 +72,8 @@ public static class InvoiceRecognitionEndpoints
                 $"Тип «{CostsRecordTypes.InvoiceCode}» в системе не заведён, поэтому счёт завести нечем. Тип " +
                 "заводит запуск приложения — причину пропуска он называет в журнале запуска.");
 
+        var print = await InvoiceSameFiles.FingerprintAsync(file, ct);
+
         string path;
         await using (var content = file.OpenReadStream())
             path = await blobs.PutAsync(file.FileName, content, kind, ct);
@@ -79,7 +81,7 @@ public static class InvoiceRecognitionEndpoints
         var invoice = Invoice.Create(typeId, user.Id);
         try
         {
-            invoice.AttachScan(path, file.FileName, kind, file.Length);
+            invoice.AttachScan(path, file.FileName, kind, file.Length, print);
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync(ct);
         }

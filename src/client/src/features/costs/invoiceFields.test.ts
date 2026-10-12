@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BLOCKS, K, READ_ONLY_KEYS, SCAN_BESIDE_MIN_WIDTH,
-  asInput, catalogRef, duplicateLabel, fromInput, refEntryId,
+  asInput, catalogRef, duplicateLabel, fromInput, refEntryId, sameFileLabel, twinsOf,
   isMarked, moneyInput, scanFitsBeside, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
 } from './invoiceFields';
 
@@ -117,5 +117,25 @@ describe('показ значений', () => {
   it('дубликат без номера назван, а не пропущен', () => {
     expect(duplicateLabel({ id: 'x', number: null, issuedOn: null, total: null }))
       .toBe('без номера');
+  });
+});
+
+describe('двойники счёта: тот же файл и те же реквизиты (issue #1295)', () => {
+  const same = (id: string, number: string | null) =>
+    ({ id, number, issuedOn: null, total: null, scanFileName: 'Счёт.pdf', createdAt: '2026-10-12T11:02:00Z' });
+  const dup = (id: string) => ({ id, number: 'СЧ-7', issuedOn: null, total: null });
+
+  it('счёт, совпавший и файлом, и реквизитами, назван один раз — в оговорке о файле', () => {
+    const twins = twinsOf({ sameFile: [same('а', 'СЧ-7'), same('б', null)], duplicates: [dup('а'), dup('в')] });
+    expect(twins.sameFile.map(s => s.id)).toEqual(['а', 'б']);
+    expect([...twins.both]).toEqual(['а']);
+    expect(twins.duplicates.map(d => d.id)).toEqual(['в']);
+  });
+
+  it('без номера прежний счёт назван именем файла и временем заведения до секунд', () => {
+    expect(sameFileLabel(same('а', 'СЧ-7'))).toBe('№ СЧ-7');
+    const label = sameFileLabel(same('б', null));
+    expect(label).toMatch(/^без номера, «Счёт\.pdf», заведён 12\.10\.2026, \d\d:02:00$/);
+
   });
 });

@@ -257,6 +257,7 @@ public static class InvoiceEndpoints
         // Вид — по содержимому (issue #1265): заголовок клиента не читается вовсе. Неизвестный файл
         // приложить можно — он хранится и скачивается, но не показывается и не распознаётся.
         var kind = await InvoiceScanRecognition.KindAsync(file, ct);
+        var print = await InvoiceSameFiles.FingerprintAsync(file, ct);
 
         string path;
         await using (var content = file.OpenReadStream())
@@ -274,7 +275,7 @@ public static class InvoiceEndpoints
                         $"{Label(write.Invoice)} заперт: {locked}. Заменить файл нельзя: прежний — документ " +
                         "закрытого периода, и замена его удалила бы.");
 
-                write.Invoice.AttachScan(path, file.FileName, kind, file.Length);
+                write.Invoice.AttachScan(path, file.FileName, kind, file.Length, print);
                 await db.SaveChangesAsync(ct);
                 return (write.Invoice, replaced);
             }, ct, evenLocked: true);

@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
+import type { InvoiceSameFile } from '@/shared/api/invoices';
 import { onTokenChanged } from '@/shared/api/token';
 import { kindNamed, recognizedKinds, sizeLimitWords, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
 import { apiError } from '@/shared/utils/apiError';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
+import { sameFileLabel } from './invoiceFields';
 
 /**
  * Пакет сканов: несколько файлов разом — по черновику на файл (задача D4, issue #1093).
@@ -31,9 +33,33 @@ export interface BatchPort {
   /** Реестр видов файлов: что распознаётся. Нет его — вид каждого файла решает сервер. */
   kinds: FileKindsInfo | undefined;
   /** Отправить файл; ответ — счёт заведённого черновика. Списки при этом НЕ перечитываются. */
-  send: (file: File) => Promise<string>;
+  send: (file: File) => Promise<{ id: string; sameFile: InvoiceSameFile[] }>;
   /** Перечитать список и числа отборов. Зовётся раз в несколько файлов и в конце, а не на каждый. */
   refresh: () => void;
+}
+
+/**
+ * Файл, содержимое которого уже приложено к другому счёту (issue #1295). Это НЕ отказ: черновик
+ * заведён, и среди непринятых такому файлу не место.
+ */
+export interface RepeatedScan {
+  name: string;
+  /** Новый черновик. */
+  id: string;
+  /**
+   * Счета с тем же файлом, от старшего; назван первый. Все, а не один (ревью PR #1305): удалили
+   * старшего — у черновика остаются другие двойники, и строка о повторе обязана остаться.
+   */
+  others: RepeatTwin[];
+}
+
+export interface RepeatTwin {
+  id: string;
+  /** Подпись снята в момент загрузки. */
+  label: string;
+  fileName: string | null;
+  /** Заведён этой же загрузкой: тогда его называют именем файла — оно здесь различает. */
+  inBatch: boolean;
 }
 
 export interface RejectedScan {
@@ -51,6 +77,8 @@ export interface ScanBatch {
   settled: number;
   created: string[];
   rejected: RejectedScan[];
+  /** Заведённые из файла, который уже был приложен к другому счёту. */
+  repeats: RepeatedScan[];
   /** Имена файлов без исхода, по порядку; первый — тот, что отправляется сейчас. */
   pending: string[];
   /** Пакет остановился сам: отказ, после которого остальные файлы слать бессмысленно. */
@@ -145,7 +173,51 @@ export function uploadedOf<T extends { id: string }>(items: T[] | undefined, bat
  * туда, где уже пусто. Удалённый соседом так не узнать — его снимет перечитанный список.
  */
 export function forgetCreated(id: string) {
-  if (state?.created.includes(id)) patch({ created: state.created.filter(c => c !== id) });
+  if (!state) return;
+  const touched = state.repeats.some(r => r.id === id || r.others.some(o => o.id === id));
+  if (state.created.includes(id) || touched)
+    patch({ created: state.created.filter(c => c !== id), repeats: without(state.repeats, o => o !== id) });
+}
+
+/**
+ * Повторы без ушедших счетов: нет нового черновика — нет строки; ушёл прежний — называется следующий
+ * двойник, а строка уходит, только когда не осталось ни одного.
+ */
+const without = (repeats: RepeatedScan[], kept: (id: string) => boolean): RepeatedScan[] => repeats
+  .filter(r => kept(r.id))
+  .map(r => ({ ...r, others: r.others.filter(o => kept(o.id)) }))
+  .filter(r => r.others.length > 0);
+
+/**
+ * Счета, которые есть в списке, — чтобы полоса не звала к удалённому соседом или в другой вкладке
+ * (ревью PR #1305). `null` — не знаем: список не пришёл, стоит под отбором сервера или загрузка ещё
+ * идёт (он перечитывается не на каждый файл). «Не знаем» повторы не прячет.
+ */
+export const aliveIds = (
+  items: { id: string }[] | undefined, known: boolean, batch: ScanBatch | null,
+): ReadonlySet<string> | null =>
+  items && known && batch?.phase === 'done' ? new Set(items.map(i => i.id)) : null;
+
+/** Повторы, которые показывает полоса: снимок загрузки, сверенный со списком, когда тот известен. */
+export const shownRepeats = (batch: ScanBatch, alive: ReadonlySet<string> | null): RepeatedScan[] =>
+  alive ? without(batch.repeats, id => alive.has(id)) : batch.repeats;
+
+/** Заголовок списка повторов в полосе; `null` — повторов нет. */
+export function repeatsTitle(batch: ScanBatch, shown: RepeatedScan[] = batch.repeats): string | null {
+  const n = shown.length;
+  if (n === 0) return null;
+  return batch.phase === 'done' && n > 1 && n === batch.total
+    ? `Все ${ruCount(n, 'файл', 'файла', 'файлов')} уже были приложены раньше — черновики всё равно заведены:`
+    : `Уже были приложены — черновики всё равно заведены (${n}):`;
+}
+
+/** Что сказано о прежнем счёте: слова перед ссылкой и сама ссылка. */
+export function repeatWords(repeat: RepeatedScan): { lead: string; link: string; tail: string } {
+  const [first, ...rest] = repeat.others;
+  const more = rest.length > 0 ? ` (и ещё ${rest.length})` : '';
+  return first.inBatch && first.fileName
+    ? { lead: 'тот же файл, что ', link: `«${first.fileName}»`, tail: ` из этой же загрузки${more}` }
+    : { lead: 'уже приложен к счёту ', link: first.label, tail: more };
 }
 
 /** Строка полосы об отборе «только заведённые этой загрузкой». */
@@ -224,7 +296,9 @@ function restore(): ScanBatch | null {
     const text = tab()?.getItem(STORED);
     if (!text) return null;
     const stored = JSON.parse(text) as ScanBatch;
-    return interrupted({ ...stored, rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
+    // Копия, записанная до появления повторов, поля не несёт.
+    const repeats = (stored.repeats ?? []).filter(r => Array.isArray(r.others));
+    return interrupted({ ...stored, repeats, rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
   } catch { return null; }
 }
 
@@ -265,10 +339,16 @@ async function run(files: File[], port: BatchPort) {
       const problem = precheck(file, port.kinds);
       if (problem) { reject(problem, false); continue; }
       try {
-        const id = await port.send(file);
+        const { id, sameFile } = await port.send(file);
         // За время запроса пакет могли оборвать (вход завершился) — тогда исход уже записан обрывом.
         if (!alive()) return;
-        settle({ created: [...state!.created, id] });
+        const others = sameFile.map(s => ({
+          id: s.id, label: sameFileLabel(s), fileName: s.scanFileName, inBatch: state!.created.includes(s.id),
+        }));
+        settle({
+          created: [...state!.created, id],
+          repeats: others.length > 0 ? [...state!.repeats, { name: file.name, id, others }] : state!.repeats,
+        });
         if (state!.created.length % REFRESH_EVERY === 0) port.refresh();
       } catch (e) {
         if (!alive()) return;
@@ -300,7 +380,7 @@ export function startBatch(files: File[], folders: string[], port: BatchPort) {
     ({ name, reason: 'это папка — перетащите файлы из неё', retry: null }));
   put({
     owner: port.owner, phase: refused ? 'done' : 'running', total: refused ? 0 : count,
-    settled: rejected.length, created: [], rejected, pending: ordered.map(f => f.name), halted: null, refused,
+    settled: rejected.length, created: [], repeats: [], rejected, pending: ordered.map(f => f.name), halted: null, refused,
   });
   if (!refused) void run(ordered, port);
 }

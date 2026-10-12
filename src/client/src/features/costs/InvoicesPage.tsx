@@ -35,7 +35,7 @@ import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
 import { K, asInput, scanFitsBeside } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
 import {
-  forgetCreated, retryRejected, startBatch, uploadEmpty, uploadedOf, useScanBatch, type BatchPort,
+  aliveIds, forgetCreated, retryRejected, startBatch, uploadEmpty, uploadedOf, useScanBatch, type BatchPort,
 } from './scanBatch';
 
 /**
@@ -291,7 +291,7 @@ export function InvoicesPage() {
   const port: BatchPort = {
     owner: me ?? '',
     kinds: kinds.data,
-    send: file => sendScan(qc, file).then(created => created.invoice.id),
+    send: file => sendScan(qc, file).then(created => created.invoice),
     refresh: () => refreshInvoiceLists(qc),
   };
   function addScans(files: File[], folders: string[] = []) {
@@ -358,10 +358,10 @@ export function InvoicesPage() {
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
             failed={counts.isError}
             onRetry={() => void counts.refetch()} />
-          <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found}
+          <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(invoices.data, listKnown, batch)}
             // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
             onOnly={() => { setQuery(''); setFilter('upload'); }}
-            onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} />
+            onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={setSelected} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-xs text-warning" role="status">

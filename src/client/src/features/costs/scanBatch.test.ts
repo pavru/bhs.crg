@@ -2,7 +2,7 @@ import { beforeEach, describe, it, expect } from 'vitest';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
 import {
   MAX_FILES, batchTitle, currentBatch, dismissBatch, endSession, failure, inOrder, interrupted,
-  precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, forgetCreated, uploadEmpty, uploadLine, uploadedOf,
+  precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, forgetCreated, uploadEmpty, uploadLine, uploadedOf, repeatsTitle, repeatWords, aliveIds, shownRepeats,
   type BatchPort, type ScanBatch,
 } from './scanBatch';
 
@@ -29,8 +29,12 @@ const kinds: FileKindsInfo = {
     { mime: 'image/webp', label: 'WebP', extensions: ['.webp'], aliases: [], view: 'image', recognized: false },
   ],
 };
-const port = (send: BatchPort['send'], owner = 'я'): BatchPort =>
-  ({ owner, kinds, send, refresh: () => { refreshed++; } });
+type Sent = Awaited<ReturnType<BatchPort['send']>>;
+/** Отправка в тестах отвечает идентификатором; ответ с повтором называет его целиком. */
+const port = (send: (file: File) => Promise<string | Sent>, owner = 'я'): BatchPort => ({
+  owner, kinds, refresh: () => { refreshed++; },
+  send: async file => { const got = await send(file); return typeof got === 'string' ? { id: got, sameFile: [] } : got; },
+});
 
 /** Дождаться конца пакета: отправка идёт своим ходом, вне теста. */
 async function settled() {
@@ -230,7 +234,7 @@ describe('пакет', () => {
 describe('счета этой загрузки в списке', () => {
   const made = (created: string[]): ScanBatch => ({
     owner: 'me', phase: 'done', total: created.length, settled: created.length, created,
-    rejected: [], pending: [], halted: null, refused: null,
+    rejected: [], repeats: [], pending: [], halted: null, refused: null,
   });
   const list = ['x', 'b', 'y', 'a'].map(id => ({ id }));
 
@@ -309,7 +313,87 @@ describe('пакет оборван извне', () => {
   });
 
   it('законченный пакет обрыв не трогает', () => {
-    const done = { owner: 'я', phase: 'done', total: 1, settled: 1, created: ['x'], rejected: [], pending: [], halted: null, refused: null } as const;
-    expect(interrupted({ ...done, created: ['x'], rejected: [], pending: [] }, 'страница перезагружена')).toMatchObject({ halted: null });
+    const done = { owner: 'я', phase: 'done', total: 1, settled: 1, created: ['x'], rejected: [], repeats: [], pending: [], halted: null, refused: null } as const;
+    expect(interrupted({ ...done, created: ['x'], rejected: [], repeats: [], pending: [] }, 'страница перезагружена')).toMatchObject({ halted: null });
+  });
+});
+
+describe('файл, уже приложенный к другому счёту', () => {
+  const same = (id: string, number: string | null, scanFileName: string) =>
+    ({ id, number, issuedOn: null, total: null, scanFileName, createdAt: '2026-10-12T11:02:07Z' });
+  /** Два файла: первый новый, второй повторяет названные счета. */
+  const twice = (...twins: ReturnType<typeof same>[]) => startBatch([pdf('1.pdf'), pdf('2.pdf')], [],
+    port(async file => (file.name === '1.pdf' ? 'первый' : { id: 'новый', sameFile: twins })));
+
+  it('повтор — не отказ: черновик заведён, а в полосе назван прежний счёт', async () => {
+    twice(same('прежний', 'СЧ-7', 'старый.pdf'), same('ещё', null, 'x.pdf'));
+    const batch = await settled();
+
+    expect(batch.created).toEqual(['первый', 'новый']);
+    expect(batch.rejected).toEqual([]);
+    expect(batch.repeats).toMatchObject([{
+      name: '2.pdf', id: 'новый',
+      others: [{ id: 'прежний', label: '№ СЧ-7', fileName: 'старый.pdf', inBatch: false }, { id: 'ещё', inBatch: false }],
+    }]);
+    expect(repeatsTitle(batch)).toBe('Уже были приложены — черновики всё равно заведены (1):');
+    expect(repeatWords(batch.repeats[0])).toEqual({ lead: 'уже приложен к счёту ', link: '№ СЧ-7', tail: ' (и ещё 1)' });
+    // Заголовок полосы повторы в непринятые не записывает.
+    expect(batchTitle(batch)).toContain('Заведено 2 черновика');
+  });
+
+  it('оба файла в одной загрузке: прежний назван именем файла', async () => {
+    twice(same('первый', null, '1.pdf'));
+    const batch = await settled();
+
+    expect(batch.repeats[0].others[0].inBatch).toBe(true);
+    expect(repeatWords(batch.repeats[0])).toEqual({ lead: 'тот же файл, что ', link: '«1.pdf»', tail: ' из этой же загрузки' });
+    // Подпись без номера различает и имя файла, и секунды: черновики одной загрузки заведены в одну минуту.
+    expect(batch.repeats[0].others[0].label).toMatch(/^без номера, «1\.pdf», заведён 12\.10\.2026, \d\d:02:07$/);
+  });
+
+  it('все файлы повторные — заголовок говорит это прямо', async () => {
+    startBatch([pdf('1.pdf'), pdf('2.pdf')], [], port(async file =>
+      ({ id: `новый-${file.name}`, sameFile: [same(`прежний-${file.name}`, null, file.name)] })));
+    expect(repeatsTitle(await settled()))
+      .toBe('Все 2 файла уже были приложены раньше — черновики всё равно заведены:');
+  });
+
+  it('удалён новый черновик — строка уходит; удалён прежний — уходит, только если двойников не осталось', async () => {
+    twice(same('прежний', 'СЧ-7', 'старый.pdf'), same('ещё', 'СЧ-8', 'x.pdf'));
+    await settled();
+    // Старший двойник удалён, но остался другой: черновик по-прежнему лишний, и строка называет его.
+    forgetCreated('прежний');
+    expect(currentBatch()!.repeats).toMatchObject([{ id: 'новый', others: [{ id: 'ещё' }] }]);
+    expect(repeatWords(currentBatch()!.repeats[0]).link).toBe('№ СЧ-8');
+    forgetCreated('ещё');
+    expect(currentBatch()).toMatchObject({ repeats: [], created: ['первый', 'новый'] });
+
+    dismissBatch();
+    twice(same('прежний', 'СЧ-7', 'старый.pdf'));
+    await settled();
+    forgetCreated('новый');
+    expect(currentBatch()).toMatchObject({ repeats: [], created: ['первый'] });
+  });
+
+  it('счёт, удалённый соседом, из полосы уходит по списку — а пока список неизвестен, повторы на месте', async () => {
+    twice(same('прежний', 'СЧ-7', 'старый.pdf'), same('ещё', 'СЧ-8', 'x.pdf'));
+    const batch = await settled();
+    const list = (...ids: string[]) => ids.map(id => ({ id }));
+
+    // Не знаем — не прячем: список не пришёл, стоит под отбором сервера либо загрузка ещё идёт.
+    expect(aliveIds(undefined, true, batch)).toBeNull();
+    expect(aliveIds(list('новый'), false, batch)).toBeNull();
+    expect(aliveIds(list('новый'), true, { ...batch, phase: 'running' })).toBeNull();
+    expect(shownRepeats(batch, null)).toBe(batch.repeats);
+
+    // Сосед удалил старшего двойника: называется следующий.
+    const shown = shownRepeats(batch, aliveIds(list('новый', 'ещё'), true, batch));
+    expect(shown.map(r => r.others.map(o => o.id))).toEqual([['ещё']]);
+    // Удалил обоих либо сам новый черновик: звать некуда, строки нет — и заголовка тоже.
+    expect(shownRepeats(batch, aliveIds(list('новый'), true, batch))).toEqual([]);
+    expect(shownRepeats(batch, aliveIds(list('прежний', 'ещё'), true, batch))).toEqual([]);
+    expect(repeatsTitle(batch, [])).toBeNull();
+    // Снимок при этом цел: список мог отстать, и следующее чтение вернёт строку.
+    expect(batch.repeats).toHaveLength(1);
   });
 });

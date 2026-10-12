@@ -39,6 +39,8 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// <param name="Duplicates">Счета с тем же поставщиком, номером и датой (ТЗ COST-6.2) — оговорка, а
 /// не запрет: у поставщика бывает два счёта с одним номером в один день, и человек знает об этом
 /// больше нас.</param>
+/// <param name="SameFile">Счета, к которым приложен файл с тем же содержимым (issue #1295), — тоже
+/// оговорка: в одном файле бывает несколько счетов.</param>
 /// <param name="Lines">Строки счёта в порядке бумаги (C2, issue #1078). Приезжают ВМЕСТЕ со счётом, а
 /// не отдельным запросом: форма показывает шапку и строки одним экраном, и два запроса дали бы два
 /// снимка одного счёта — сверка суммы строк с суммой к оплате считалась бы по разным состояниям.</param>
@@ -60,6 +62,7 @@ public sealed record InvoiceView(
     JsonObject Requisites,
     IReadOnlyList<string> Unconfirmed,
     IReadOnlyList<InvoiceDuplicate> Duplicates,
+    IReadOnlyList<InvoiceSameFile> SameFile,
     IReadOnlyList<InvoiceLineView> Lines,
     InvoiceLineTotals Totals,
     AllocationSummaryView Allocation,
@@ -147,7 +150,7 @@ public static class InvoiceViews
     /// СЛОВАРЯ — незнание, и выдавать второе за первое нельзя (см. <c>InvoiceLineView</c>).</param>
     public static InvoiceView Of(
         Invoice invoice, string version, IReadOnlyList<InvoiceDuplicate> duplicates,
-        IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
+        IReadOnlyList<InvoiceSameFile> sameFile, IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment,
         InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived,
         InvoiceReadiness readiness, IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
@@ -157,6 +160,7 @@ public static class InvoiceViews
         InvoiceRequisites.Merge(invoice),
         invoice.Unconfirmed,
         duplicates,
+        sameFile,
         [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost, archived)
             with { Match = InvoiceLineMatchView.Of(l, invoice.SupplierId, matches) })],
         InvoiceLineTotals.Of(lines),

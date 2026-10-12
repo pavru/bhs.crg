@@ -3,7 +3,9 @@ import { X } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { carriesFiles, droppedFiles, useFileDragActive } from '@/shared/ui/fileDrop';
 import { ruCount } from '@/shared/utils/pluralize';
-import { batchTitle, dismissBatch, retryable, stopBatch, uploadLine, type ScanBatch } from './scanBatch';
+import {
+  batchTitle, dismissBatch, repeatsTitle, repeatWords, retryable, shownRepeats, stopBatch, uploadLine, type ScanBatch,
+} from './scanBatch';
 
 /**
  * Колонка списка счетов как цель перетаскивания сканов (задача D4, issue #1093).
@@ -68,18 +70,24 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
  * <p>Тостов у пакета нет: непринятые файлы с причинами обязаны дожить до того, как человек на них
  * посмотрит, а тост уходит через восемь секунд. Закрывает полосу крестик или следующий пакет.</p>
  */
-export function InvoiceScanBatchBar({ batch, only, found, onOnly, onShowAll, onRetry }: {
+export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowAll, onRetry, onOpen }: {
   /** Пакет вошедшего; чужой сюда не приходит. */
   batch: ScanBatch | null;
   /** Список сужен до заведённых этой загрузкой (issue #1294). */
   only: boolean;
   /** Сколько заведённых стоит в списке; `null` — список не пришёл. */
   found: number | null;
+  /** Счета, которые есть в списке; `null` — не знаем, и повторы показаны как запомнены. */
+  alive: ReadonlySet<string> | null;
   onOnly: () => void;
   onShowAll: () => void;
   onRetry: () => void;
+  /** Открыть счёт — новый черновик или прежний, к которому тот же файл уже приложен. */
+  onOpen: (id: string) => void;
 }) {
   if (!batch) return null;
+  const repeated = shownRepeats(batch, alive);
+  const repeats = repeatsTitle(batch, repeated);
   // Отбор живёт здесь, а не чипом в ряду отборов: чипы — постоянные очереди сервера, загрузка —
   // состояние этой вкладки. Чип, который появляется и пропадает, обещал бы постоянство, которого нет.
   const line = uploadLine(batch, found, only);
@@ -113,6 +121,28 @@ export function InvoiceScanBatchBar({ batch, only, found, onOnly, onShowAll, onR
       )}
       {done && again > 0 && (
         <Button variant="outlined" size="sm" onClick={onRetry}>Повторить непринятые ({again})</Button>
+      )}
+      {/* Повторы (issue #1295) — своим списком, а не среди непринятых: черновик заведён. Удаления
+          здесь нет: ему нужны версия счёта и диалог с перечнем уходящего — они на форме, в одном щелчке. */}
+      {repeats && (
+        <div data-testid="upload-repeats">
+          <p className="text-fg2">{repeats}</p>
+          <ul className="max-h-24 overflow-y-auto space-y-0.5">
+            {repeated.map(r => {
+              const words = repeatWords(r);
+              return (
+                <li key={r.id} className="text-fg2">
+                  <button type="button" className="font-medium break-all underline hover:text-fg1"
+                    title="Открыть новый черновик" onClick={() => onOpen(r.id)}>{r.name}</button>
+                  {' — '}{words.lead}
+                  <button type="button" className="underline hover:text-fg1" title="Открыть прежний счёт"
+                    onClick={() => onOpen(r.others[0].id)}>{words.link}</button>
+                  {words.tail}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
       {line && (
         <p className="text-fg3" data-testid="upload-line">

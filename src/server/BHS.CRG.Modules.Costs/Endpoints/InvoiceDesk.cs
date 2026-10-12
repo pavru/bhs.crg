@@ -264,7 +264,8 @@ public sealed class InvoiceDesk(
         string? Name(Guid? id) => organizations?.FirstOrDefault(o => o.Id == id)?.DisplayName;
 
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
-            await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct), lines, names, allocation,
+            await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct),
+            await InvoiceSameFiles.FindAsync(db, invoice, ct), lines, names, allocation,
             await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),

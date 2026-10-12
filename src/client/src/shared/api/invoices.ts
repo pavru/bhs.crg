@@ -22,6 +22,15 @@ export interface InvoiceDuplicate {
 }
 
 /**
+ * Счёт, к которому приложен файл с тем же содержимым (issue #1295). У черновика из файла нет ни
+ * номера, ни даты — узнают его по времени заведения.
+ */
+export interface InvoiceSameFile extends InvoiceDuplicate {
+  scanFileName: string | null;
+  createdAt: string;
+}
+
+/**
  * Строка счёта (C2, issue #1078, ТЗ COST-7).
  *
  * ⚠️ Пустое `nomenclatureName` при заполненном `nomenclatureId` потерей НЕ является — потерю называет
@@ -241,6 +250,8 @@ export interface InvoiceView {
   /** Ключи полей, заполненных распознаванием и не подтверждённых человеком. */
   unconfirmed: string[];
   duplicates: InvoiceDuplicate[];
+  /** Счета с тем же содержимым файла — оговорка, не запрет: в одном файле бывает несколько счетов. */
+  sameFile: InvoiceSameFile[];
   lines: InvoiceLineView[];
   totals: InvoiceLineTotals;
   allocation: AllocationSummaryView;
