@@ -42,10 +42,13 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   // Ответа на удаление нет: удалён ли пакет, неизвестно. Хранит записи пакета — перепроверять по ним.
   const [unknown, setUnknown] = useState<string[] | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // Номер попытки — в ключе запроса: «Проверить заново» обязано дойти до сервера и тогда, когда
+  // источник не изменился (те же записи в том же порядке), иначе диалог показал бы прежний ответ.
+  const [attempt, setAttempt] = useState(0);
   const fieldId = useId(), hintId = useId(), errorId = useId();
 
   const asked = useQuery({
-    queryKey: ['purge-batch-preview', source],
+    queryKey: ['purge-batch-preview', source, attempt],
     queryFn: () => previewPurgeBatch(source),
     gcTime: 0, staleTime: Infinity, retry: false, refetchOnWindowFocus: false,
   });
@@ -80,6 +83,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   function recheck() {
     if (!unknown) return;
     setSource({ ids: unknown });
+    setAttempt(n => n + 1);
     setFresh(null);
     setUnknown(null);
     setInput('');

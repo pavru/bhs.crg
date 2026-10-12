@@ -15,9 +15,10 @@ public static class RecordBatchPurgeEndpoints
 {
     public static void Map(RouteGroupBuilder purge)
     {
-        // Есть ли что искать: экран по этому ответу решает, показывать ли действия пакета.
+        // Есть ли что искать: экран по этому ответу решает, показывать ли действия пакета. Предел
+        // пакета едет здесь же: он нужен панели выбора ДО предпросмотра, а владеет им сервер.
         purge.MapGet("/purge-batch/available", async (IRecordHolders holders, CancellationToken ct) =>
-            Results.Ok(new { available = await holders.AnyDormantAsync(ct) }));
+            Results.Ok(new { available = await holders.AnyDormantAsync(ct), limit = RecordBatchPurge.Limit }));
 
         // Предпросмотр: готовый отбор (тип на уровне) или названные записи. POST — список
         // идентификаторов в строку адреса не помещается.

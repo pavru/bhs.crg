@@ -37,11 +37,16 @@ public interface IRecordHolders
     /// записи отдельно, а <see cref="FindAsync" /> отвечает о группе целиком: строка, держащая две
     /// записи, там одна, и разнести её по записям нечем.
     ///
-    /// <para>Записи, которую никто не держит, в ответе нет. Названия документов-держателей даются
-    /// только там, где запись можно отпустить (<see cref="RecordHoldings.Release" />): остальным они
-    /// стоили бы запроса на каждую колонку, а читать их некому.</para>
+    /// <para>Записи, которую никто не держит, в ответе нет.</para>
     /// </summary>
-    Task<HoldingsByRecord> FindEachAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+    /// <param name="documents">
+    /// Называть ли документы-держатели. Это запрос на каждую колонку каждой записи, поэтому
+    /// спрашивают их только для того, что покажут человеку: разбор тысячи записей типа и само
+    /// удаление обходятся без названий (ревью PR #1308). И только у записи, которую можно отпустить
+    /// (<see cref="RecordHoldings.Release" />): у остальных разбивку не показывают.
+    /// </param>
+    Task<HoldingsByRecord> FindEachAsync(
+        IReadOnlyCollection<Guid> ids, bool documents, CancellationToken ct = default);
 
     /// <summary>
     /// Есть ли на экземпляре данные выключенных или снятых модулей (issue #1245). Нет — пакетной

@@ -82,7 +82,8 @@ public sealed class ModuleRecordHolders(
         return new RecordHoldings(found);
     }
 
-    public async Task<HoldingsByRecord> FindEachAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    public async Task<HoldingsByRecord> FindEachAsync(
+        IReadOnlyCollection<Guid> ids, bool documents, CancellationToken ct = default)
     {
         if (ids.Count == 0) return HoldingsByRecord.None;
         var granted = await GrantedAsync(ct);
@@ -106,9 +107,9 @@ public sealed class ModuleRecordHolders(
             var own = holding.Where(c => c.Hits.ContainsKey(id))
                 .Select(c => c with { Hits = new Dictionary<Guid, int> { [id] = c.Hits[id] }, Rows = c.Hits[id] })
                 .ToList();
-            // Названия документов — только отпускаемой записи: у занятой включённым модулем их
-            // никто не прочтёт, а запрос на каждую колонку каждой такой записи — тысячи запросов.
-            var releasable = own.All(c => ModuleOf(c.Schema) is not { } m || !registry.IsEnabled(m.Code));
+            // Названия документов — только когда их просили и только отпускаемой записи: у занятой
+            // включённым модулем их никто не прочтёт.
+            var releasable = documents && own.All(c => ModuleOf(c.Schema) is not { } m || !registry.IsEnabled(m.Code));
             var found = new List<RecordHolder>();
             foreach (var column in own)
                 found.Add(await DescribeAsync(

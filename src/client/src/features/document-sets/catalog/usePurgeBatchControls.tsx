@@ -3,12 +3,10 @@ import { ListChecks, SearchCheck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useCan } from '@/shared/api/access';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { usePurgeBatchAvailable, type PurgeBatchSource } from '@/shared/api/recordPurge';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { PurgeBatchDialog } from './PurgeBatchDialog';
-
-/** Больше записей за раз сервер не принимает: удаляемое обязано быть обозримо до ввода числа. */
-const LIMIT = 200;
 
 /**
  * Пакетная очистка в списке справочника (issue #1245): меню типа, режим выбора и диалог. Вынесено
@@ -24,19 +22,20 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
 }) {
   const allowed = useCan().permission('core.catalog.purge');
   const dormant = usePurgeBatchAvailable(allowed);
-  const offered = allowed && !!type && (dormant.data ?? dormant.isError);
+  const offered = allowed && !!type && (dormant.data?.available ?? dormant.isError);
+  // Предел пакета — серверный. Не узнали — панель не ограничивает: откажет сам сервер, словами.
+  const limit = dormant.data?.limit ?? Infinity;
 
-  // Выбор привязан к типу: сменили тип — режима нет, и сбрасывать его отдельно не нужно.
-  const [picking, setPicking] = useState<{ typeId: string; ids: Set<string> } | null>(null);
+  // Выбор живёт, пока открыт ЭТОТ список: тип на уровне. Ушли — режим сброшен, а не отложен
+  // (ревью PR #1308): вернувшись, человек нашёл бы галочки, о которых забыл, и «Выбрано: 5» над
+  // списком, где отмечать он ничего не собирался.
+  const where = `${scope}|${scopeId ?? ''}|${type?.id ?? ''}`;
+  const [picking, setPicking] = useState<{ where: string; ids: Set<string> } | null>(null);
   const [dialog, setDialog] = useState<PurgeBatchSource | null>(null);
-  const picked = offered && picking?.typeId === type?.id ? picking.ids : null;
+  if (picking && (picking.where !== where || !offered)) setPicking(null);
+  const picked = picking?.where === where && offered ? picking.ids : null;
 
-  const toggle = (id: string) => setPicking(p => {
-    if (!p) return p;
-    const ids = new Set(p.ids);
-    if (!ids.delete(id)) ids.add(id);
-    return { ...p, ids };
-  });
+  const toggle = (id: string) => setPicking(p => p && { ...p, ids: toggleInSet(p.ids, id) });
 
   const menu: ReactNode = offered && type && !picked ? (
     <RowActionsMenu ariaLabel={`Очистка: ${type.name}`} actions={[
@@ -46,7 +45,7 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
       },
       {
         key: 'pick', label: 'Выбрать записи для удаления с потерей ссылок', icon: <ListChecks size={14} />,
-        onSelect: () => setPicking({ typeId: type.id, ids: new Set() }),
+        onSelect: () => setPicking({ where, ids: new Set() }),
       },
     ]} />
   ) : null;
@@ -54,13 +53,13 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
   /** Панель режима выбора — на месте кнопки «Добавить запись». `shown` — записи, видимые сейчас. */
   const bar = (shown: string[]): ReactNode => picked && type && (
     <div className="flex flex-1 items-center gap-3 flex-wrap justify-end text-xs text-fg2">
-      <span className="tabular-nums">Выбрано: {picked.size}</span>
+      <span className="tabular-nums">Выбрано: {picked.size}{hiddenNote(picked, shown)}</span>
       <Button variant="text" size="sm"
-        onClick={() => setPicking({ typeId: type.id, ids: new Set([...picked, ...shown]) })}>
+        onClick={() => setPicking({ where, ids: new Set([...picked, ...shown]) })}>
         Выбрать все показанные
       </Button>
-      {picked.size > LIMIT
-        ? <span className="text-warning">За раз — не больше {LIMIT}: снимите лишние.</span>
+      {picked.size > limit
+        ? <span className="text-warning">За раз — не больше {limit}: снимите лишние.</span>
         : picked.size > 0 && (
           <Button variant="filled" danger size="sm" onClick={() => setDialog({ ids: [...picked] })}>
             Удалить, потеряв ссылки…
@@ -76,4 +75,14 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
   );
 
   return { picked, toggle, menu, bar, dialog: dialogNode };
+}
+
+/**
+ * Отмеченные записи, которых сейчас не видно (скрыты поиском), — числом рядом с «Выбрано». В пакет
+ * они войдут, и молчать о них нельзя: человек видит три галочки, а удалил бы восемь.
+ */
+function hiddenNote(picked: ReadonlySet<string>, shown: string[]): string {
+  const visible = new Set(shown);
+  const hidden = [...picked].filter(id => !visible.has(id)).length;
+  return hidden > 0 ? ` (из них не показано: ${hidden})` : '';
 }

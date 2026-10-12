@@ -2,7 +2,7 @@ import {
   purgeBatchChanged, type PurgeBatchExcluded, type PurgeBatchPreview, type PurgeBatchSource, type PurgedBatch,
 } from '@/shared/api/recordPurge';
 import { apiError } from '@/shared/utils/apiError';
-import { consequences } from './purgeRecord';
+import { lostLinks } from './purgeRecord';
 
 /**
  * Чистая логика диалога пакетной очистки (issue #1245): слова заголовка и итога, группировка не
@@ -30,7 +30,10 @@ export function batchSubtitle(source: PurgeBatchSource, typeName: string | undef
 /** Почему пакет пуст. Три разных «пусто» обязаны читаться по-разному. */
 export function emptyText(source: PurgeBatchSource, typeName: string | undefined, preview: PurgeBatchPreview): string {
   if (!isNamed(source))
-    return `В типе «${typeName ?? ''}» на этом уровне нет действующих записей, занятых только данными выключенных модулей.`;
+    // Найденные, но занятые ещё и ядром, — не «таких записей нет»: они есть и названы ниже.
+    return preview.excluded.length > 0
+      ? `В типе «${typeName ?? ''}» найдены записи, занятые данными выключенных модулей, но удалить нельзя ни одну — причины ниже.`
+      : `В типе «${typeName ?? ''}» на этом уровне нет действующих записей, занятых только данными выключенных модулей.`;
   if (preview.missing >= preview.checked) return `Записей пакета в справочнике уже нет: ${preview.missing}.`;
   return 'Из выбранных не подходит ни одна.';
 }
@@ -49,17 +52,16 @@ export function leftOut(preview: PurgeBatchPreview): number {
 
 /** Последствия — те же, что у одной записи, во множественном числе там, где речь о записях. */
 export function batchConsequences(preview: PurgeBatchPreview): string[] {
-  const one = consequences({ allowed: true, references: preview.references, untraceable: preview.untraceable, holders: [] });
   return [
     'Записи будут удалены совсем. Вернуть их можно только из резервной копии.',
-    ...one.slice(1, -1),
+    ...lostLinks(preview),
     'Действие записывается в журнал по каждой записи: кто, какую запись, сколько ссылок потеряно.',
   ];
 }
 
 export function moreNote(preview: PurgeBatchPreview): string | null {
   return preview.more > 0
-    ? `Показаны первые ${preview.limit}. Подходит ещё записей: ${preview.more} — их можно удалить следующим заходом.`
+    ? `За один раз — не больше ${preview.limit}. Занятых выключенными модулями осталось ещё: ${preview.more} — повторите действие после удаления.`
     : null;
 }
 
@@ -80,6 +82,8 @@ export function carriedOver(before: PurgeBatchPreview, now: PurgeBatchPreview): 
     excluded: [...now.excluded, ...before.excluded.filter(e => !known.has(e.id))],
     missing: now.missing + before.missing,
     checked: before.checked,
+    // Отказ разбирает только записи пакета и об остатке типа не знает — он прежний.
+    more: before.more,
   };
 }
 

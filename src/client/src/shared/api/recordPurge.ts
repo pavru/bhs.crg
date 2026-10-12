@@ -114,7 +114,8 @@ export interface PurgedBatch {
 export function usePurgeBatchAvailable(enabled: boolean) {
   return useQuery({
     queryKey: ['common-data', 'purge-batch-available'],
-    queryFn: () => apiClient.get<{ available: boolean }>('/common-data/purge-batch/available').then(r => r.data.available),
+    // `limit` — предел пакета: им владеет сервер, панели выбора он нужен до предпросмотра.
+    queryFn: () => apiClient.get<{ available: boolean; limit: number }>('/common-data/purge-batch/available').then(r => r.data),
     enabled,
     staleTime: 60_000,
   });

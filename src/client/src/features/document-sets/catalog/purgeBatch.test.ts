@@ -33,6 +33,9 @@ describe('пакетная очистка: слова диалога', () => {
   it('три «пусто» читаются по-разному', () => {
     const none = preview({ records: [], references: 0 });
     expect(emptyText(byType, 'Организация', none)).toContain('нет действующих записей');
+    // Найдены, но все под отказом ядра — это не «записей нет».
+    expect(emptyText(byType, 'Организация', { ...none, excluded: [{ id: 'x', name: 'Х', reason: 'ядро' }] }))
+      .toContain('удалить нельзя ни одну');
     expect(emptyText(named, undefined, { ...none, checked: 2, missing: 2 })).toContain('уже нет: 2');
     expect(emptyText(named, undefined, { ...none, checked: 2, missing: 0 })).toBe('Из выбранных не подходит ни одна.');
   });
@@ -54,7 +57,7 @@ describe('пакетная очистка: слова диалога', () => {
 
   it('потолок пакета назван, итог называет не тронутые', () => {
     expect(moreNote(preview())).toBeNull();
-    expect(moreNote(preview({ more: 37 }))).toContain('ещё записей: 37');
+    expect(moreNote(preview({ more: 37 }))).toContain('осталось ещё: 37');
     expect(batchToast({ records: 6, references: 143, untraceable: 0 }, 4))
       .toBe('Удалено записей: 6. Потеряно ссылок: 143. Не тронуто: 4.');
     expect(batchToast({ records: 6, references: 143, untraceable: 0 }, 0))
@@ -62,11 +65,11 @@ describe('пакетная очистка: слова диалога', () => {
   });
 
   it('свежий список после отказа не теряет не вошедшие при первом показе', () => {
-    const before = preview({ checked: 4, missing: 1, excluded: [{ id: 'c', name: 'В', reason: 'свободна' }] });
+    const before = preview({ checked: 4, missing: 1, more: 37, excluded: [{ id: 'c', name: 'В', reason: 'свободна' }] });
     const now = preview({ checked: 2, records: [record('a', 3)], excluded: [{ id: 'b', name: 'Б', reason: 'занята' }], references: 3 });
     const merged = carriedOver(before, now);
     expect(merged.excluded.map(e => e.id)).toEqual(['b', 'c']);
-    expect([merged.checked, merged.missing]).toEqual([4, 1]);
+    expect([merged.checked, merged.missing, merged.more]).toEqual([4, 1, 37]);
     expect(batchSubtitle(named, undefined, merged)).toBe('Выбрано 4: будут удалены 1, не войдут 3');
   });
 

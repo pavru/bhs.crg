@@ -85,6 +85,14 @@ public class ModuleReferenceScan(AppDbContext db)
     private const string UuidInText = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
     /// <summary>
+    /// Схемы вне ядра, в которых есть колонки, способные держать записи, — те же, что обходит скан.
+    /// Дёшево: один запрос к каталогу базы, данных не читает.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> SchemasAsync(CancellationToken ct = default) =>
+        await db.Database.SqlQueryRaw<string>($"SELECT DISTINCT s.nspname AS \"Value\" FROM ({ColumnsSql}) s (nspname, relname, attname, kind)")
+            .ToListAsync(ct);
+
+    /// <summary>
     /// Колонки, где встречается хотя бы один из идентификаторов. Список колонок и чтение каждой —
     /// в одном снимке базы: иначе ссылка, переехавшая по ходу скана из непрочитанной колонки в
     /// прочитанную, не нашлась бы ни там, ни там.
@@ -95,14 +103,6 @@ public class ModuleReferenceScan(AppDbContext db)
     /// каждой записи ссылки — забытый вызов молчал бы.</para>
     /// </summary>
     /// <exception cref="ModuleDataUnreadableException">Колонку не удалось прочитать.</exception>
-    /// <summary>
-    /// Схемы вне ядра, в которых есть колонки, способные держать записи, — те же, что обходит скан.
-    /// Дёшево: один запрос к каталогу базы, данных не читает.
-    /// </summary>
-    public async Task<IReadOnlyList<string>> SchemasAsync(CancellationToken ct = default) =>
-        await db.Database.SqlQueryRaw<string>($"SELECT DISTINCT s.nspname AS \"Value\" FROM ({ColumnsSql}) s (nspname, relname, attname, kind)")
-            .ToListAsync(ct);
-
     public async Task<IReadOnlyList<HeldColumn>> FindAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
