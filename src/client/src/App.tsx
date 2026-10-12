@@ -2,6 +2,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { useLocale } from '@/shared/hooks/useLocale';
+import { useAuth } from '@/shared/hooks/useAuth';
+import { useAccess } from '@/shared/api/access';
+import { DEFAULT_CURRENCY, setFormatCurrency } from '@/shared/format/format';
 import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
@@ -86,6 +89,17 @@ function AppRoutes() {
   // Файл, отпущенный мимо цели, не открывается вместо страницы (issue #1093).
   useDropMissGuard();
   useLocale();
+  // Валюта учёта (issue #1248) — форматтеру ПРЯМО В РЕНДЕРЕ, как язык у `LocaleProvider`: эффект
+  // сработал бы после отрисовки страниц, и кадр со сменой нарисовался бы прежним знаком. Вызов
+  // повторяемый: то же значение ничего не меняет. Пока валюта не известна вовсе (новый браузер, зеркала
+  // нет), страницы не рисуются — см. `ProtectedRoute`. Как и со сменой языка, компонент, который
+  // не перерисовался, держит прежний знак до своей перерисовки; сменить валюту при этом можно
+  // только на экземпляре без единого документа.
+  const { user } = useAuth();
+  // Ответ без валюты — сервер старше настройки: у него рубль зашит, и это тоже ответ. Без него
+  // клиент новее сервера ждал бы валюту при каждой загрузке, так её и не узнав.
+  const access = useAccess(!!user).data;
+  if (access) setFormatCurrency(access.accounting?.currency ?? DEFAULT_CURRENCY);
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

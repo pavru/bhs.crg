@@ -40,9 +40,21 @@ public sealed class InvoiceSameFileTests(InvoiceScanHost host)
 
     private async Task<JsonElement> AttachAsync(HttpClient client, Guid invoice, string content, string fileName)
     {
-        var attached = await client.PostAsync($"/api/costs/invoices/{invoice}/scan", Form(content, fileName));
-        await OkAsync(attached);
-        return await attached.Content.ReadFromJsonAsync<JsonElement>();
+        // Счёт заведён из файла, и приём мог поставить его на распознавание: хост у классов счетов
+        // общий, и движок в нём бывает настроен соседним тестом. Пока файл читается, замена отвечает
+        // 409 — это правило адреса, а не предмет этих тестов, поэтому ждём, а не падаем через раз.
+        for (var attempt = 0; ; attempt++)
+        {
+            var attached = await client.PostAsync($"/api/costs/invoices/{invoice}/scan", Form(content, fileName));
+            if (attached.StatusCode == System.Net.HttpStatusCode.Conflict && attempt < 100)
+            {
+                await Task.Delay(200);
+                continue;
+            }
+
+            await OkAsync(attached);
+            return await attached.Content.ReadFromJsonAsync<JsonElement>();
+        }
     }
 
     private static Guid[] SameFile(JsonElement view) =>

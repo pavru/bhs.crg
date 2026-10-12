@@ -359,7 +359,7 @@ public static class AllocationMatrixEndpoints
             var spent = values.Sum(v => v.Amount!.Value);
             if (Math.Abs(spent) > Math.Abs(total))
                 throw new InvalidRequestException(
-                    $"разнесено {spent:0.00} ₽, а к оплате {total:0.00} ₽. Разнести больше счёта нельзя: лишнее " +
+                    $"разнесено {spent:0.00}, а к оплате {total:0.00}. Разнести больше счёта нельзя: лишнее " +
                     "легло бы в затраты стройки из ниоткуда.");
 
             return values;

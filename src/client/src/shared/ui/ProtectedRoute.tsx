@@ -1,13 +1,23 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
+import { currencyKnown } from '@/shared/format/format';
 import { workNav, settingsNav, type NavItem } from './navConfig';
 import { allowed, missingFor } from './navAccess';
 import { NoAccessPage } from './NoAccessPage';
 
 export function ProtectedRoute() {
   const { user } = useAuth();
-  return user ? <Outlet /> : <Navigate to="/login" replace />;
+  const { isPending } = useAccess(!!user);
+  if (!user) return <Navigate to="/login" replace />;
+
+  // Валюта учёта ещё не известна — ни из зеркала, ни от сервера (issue #1248): форматтер рисовал
+  // бы рубль наугад, а суммы есть и вне разделов под `RequireAccess` (образец формата в профиле).
+  // Ждём ответа о доступе — он несёт валюту. Запрос упал — рисуем: рубль по умолчанию лучше пустого
+  // экрана. Ждать приходится один раз на браузер: первый же ответ пишет зеркало — и при рубле тоже.
+  if (!currencyKnown() && isPending) return null;
+
+  return <Outlet />;
 }
 
 /**

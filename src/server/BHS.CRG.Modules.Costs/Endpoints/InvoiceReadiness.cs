@@ -236,11 +236,11 @@ public sealed class InvoiceReadiness
 
         if (!allocation.WithinTolerance && allocation.Discrepancy is { } gap)
         {
-            problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} ₽ при допуске " +
-                $"{allocation.Tolerance:0.00} ₽ — расхождение в пределах допуска уходит в последнюю часть " +
+            problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} при допуске " +
+                $"{allocation.Tolerance:0.00} — расхождение в пределах допуска уходит в последнюю часть " +
                 "разноски, сверх него нужно разобраться: скидка, доставка или строка, которой нет в таблице");
             gaps.Add(new InvoiceReadinessGap("total",
-                $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} ₽", Field: InvoiceRequisites.TotalKey));
+                $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00}", Field: InvoiceRequisites.TotalKey));
         }
 
         // «Не разнесён» без единой названной причины — счёт без строк: разносить ещё нечего.

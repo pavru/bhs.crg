@@ -1,14 +1,66 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   formatAmount, formatBytes, formatCount, formatDate, formatDatePrecise, formatDateTime, formatDay, formatDayTime,
   formatInput, formatInputAmount, formatLocale, formatMoney, formatNumber, formatQuantity, formatTime,
-  setFormatLocale,
+  CURRENCY_KEY, currencyKnown, currencySign, formatCurrency, setFormatCurrency, setFormatLocale,
 } from './format';
 
 // Пробел между разрядами и перед знаком валюты у русского языка — неразрывный.
 const NB = ' ';
 
-afterEach(() => setFormatLocale('ru-RU'));
+afterEach(() => { setFormatLocale('ru-RU'); setFormatCurrency('RUB'); });
+
+describe('валюта учёта (issue #1248)', () => {
+  it('по умолчанию — рубль', () => {
+    expect(formatCurrency()).toBe('RUB');
+    expect(currencySign()).toBe('₽');
+  });
+
+  it('смена валюты меняет знак и у суммы, и у единицы — сразу, без прежнего форматтера', () => {
+    expect(formatMoney(1234.5)).toBe(`1${NB}234,50${NB}₽`);
+
+    setFormatCurrency('KZT');
+
+    expect(formatMoney(1234.5)).toBe(`1${NB}234,50${NB}₸`);
+    expect(currencySign()).toBe('₸');
+    // Сумма без знака и количество от валюты не зависят.
+    expect(formatAmount(1234.5)).toBe(`1${NB}234,50`);
+  });
+
+  it('знак следует и за языком: кэш после его смены не держит прежний', () => {
+    setFormatCurrency('USD');
+    expect(currencySign()).toBe('$');
+    setFormatLocale('en-US');
+    expect(formatMoney(1234.5)).toBe('$1,234.50');
+  });
+
+  it('зеркало в браузере пишется и для валюты по умолчанию', () => {
+    // Иначе на рублёвом экземпляре валюта не становилась бы «известной» никогда, и страницы ждали
+    // бы ответа о доступе при каждой загрузке (ревью PR #1306).
+    const written: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => written[key] ?? null,
+      setItem: (key: string, value: string) => { written[key] = value; },
+    });
+    try {
+      setFormatCurrency('KZT');
+      expect(written[CURRENCY_KEY]).toBe('KZT');
+      setFormatCurrency('RUB');
+      expect(written[CURRENCY_KEY]).toBe('RUB');
+      expect(currencyKnown()).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each(['тенге', 'kz', '', 'RUBLE'])('негодный код «%s» не принимается и экран не роняет', code => {
+    // Строка не по форме бросает исключение в конструкторе Intl — на каждом экране с суммой сразу.
+    setFormatCurrency(code);
+
+    expect(formatCurrency()).toBe('RUB');
+    expect(formatMoney(1)).toBe(`1,00${NB}₽`);
+  });
+});
 
 describe('числа', () => {
   it('сумма — с копейками и знаком валюты, даже круглая', () => {

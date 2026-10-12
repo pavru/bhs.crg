@@ -13,6 +13,7 @@ import { BackupSection } from './BackupSection';
 import { GithubSettingsSection } from './GithubSettingsSection';
 import { ProxySettingsSection } from './ProxySettingsSection';
 import { BrandingSection } from './BrandingSection';
+import { CompanySection } from './CompanySection';
 import { ModuleSettingsSections } from './ModuleSettingsSections';
 import { useMaxTemplateVersions } from './useMaxTemplateVersions';
 
@@ -57,6 +58,9 @@ export function SettingsPage() {
 
       {/* ── Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) ─────────── */}
       <BrandingSection />
+
+      {/* ── Компания: валюта учёта (ТЗ COST-7.2, issue #1248) ─────────────────── */}
+      <CompanySection />
 
       {/* ── Настройки модулей (issue #1070): секция на модуль, у которого они есть ── */}
       <ModuleSettingsSections />

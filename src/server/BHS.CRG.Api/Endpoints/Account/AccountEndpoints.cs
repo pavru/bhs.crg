@@ -31,11 +31,23 @@ public static class AccountEndpoints
         /// устаревший ответ рисует меню, которого у пользователя больше нет, — то есть пункты,
         /// отвечающие отказом. Это тот же случай, что и роль в токене, только этажом выше.
         g.MapGet("/access", async (ClaimsPrincipal principal, IUserPermissions permissions,
-            ModuleRegistry modules, CancellationToken ct) =>
+            ModuleRegistry modules, IAppSettingsStore settings, CancellationToken ct) =>
         {
             var granted = await permissions.ForAsync(principal, ct);
             return Results.Ok(new
             {
+                // Валюта учёта (issue #1248) — здесь, потому что знак суммы рисует клиент на любом
+                // экране и каждому вошедшему, а адрес настройки открыт одному администратору. Всегда
+                // код из списка: негодную строку в базе заменяет умолчание — клиент отдаёт код прямо
+                // в Intl.NumberFormat, а тот на строке не по форме роняет экран.
+                accounting = new
+                {
+                    // GetManyAsync, а не GetAsync: адрес зовёт каждый вошедший раз в полминуты, и
+                    // чтение без отслеживания здесь дешевле (ревью PR #1306).
+                    currency = AccountingCurrencies.Effective(
+                        (await settings.GetManyAsync([AppSettingKeys.AccountingCurrency], ct))
+                            .GetValueOrDefault(AppSettingKeys.AccountingCurrency)),
+                },
                 permissions = granted.Order(StringComparer.Ordinal).ToArray(),
                 // Модули экземпляра целиком: и доступные, и нет. Клиенту нужны оба списка —
                 // «нет такого модуля на экземпляре» и «модуль есть, но не для вас» это разные

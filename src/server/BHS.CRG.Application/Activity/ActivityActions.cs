@@ -98,6 +98,13 @@ public static class ActivityActions
         new("core.settings.changed", "Изменена настройка модуля");
 
     /// <summary>
+    /// Сменена валюта учёта (issue #1248). Суммы при смене не пересчитываются, поэтому день смены —
+    /// единственный ответ на вопрос «в чём велись суммы до него».
+    /// </summary>
+    public static readonly ActivityAction AccountingCurrencyChanged =
+        new("core.currency.changed", "Сменена валюта учёта");
+
+    /// <summary>
     /// Позиция номенклатуры заведена коротким окном — из строки счёта (issue #1079). Обычное создание
     /// записи справочника в журнал не пишется; это пишется, потому что заводит позицию не тот, кто
     /// ведёт справочник за его формой, а тот, кто вводит счёт, — и запись ложится неполной.
@@ -108,7 +115,8 @@ public static class ActivityActions
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
-         RecordArchived, RecordUnarchived, RecordPurged, ModuleSettingChanged, NomenclatureCreated];
+         RecordArchived, RecordUnarchived, RecordPurged, ModuleSettingChanged, NomenclatureCreated,
+         AccountingCurrencyChanged];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

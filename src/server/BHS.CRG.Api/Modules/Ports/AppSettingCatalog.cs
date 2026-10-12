@@ -16,6 +16,10 @@ public sealed class AppSettingCatalog(ModuleSettingCatalog modules, ModuleRegist
 {
     public bool Accepts(string key, string value)
     {
+        // Валюта — только из закрытого списка (issue #1248): строка не по форме из копии уронила бы
+        // форматирование сумм на каждом экране клиента.
+        if (key == AppSettingKeys.AccountingCurrency) return AccountingCurrencies.IsKnown(value);
+
         if (AppSettingKeys.IsKnown(key)) return value.Length <= AppSettingKeys.MaxValueLength;
 
         // Настройка модуля — и выключенного тоже: его значение лежит и ждёт включения. Значение
@@ -28,11 +32,22 @@ public sealed class AppSettingCatalog(ModuleSettingCatalog modules, ModuleRegist
 
     public SettingChange? Change(string key, string? before, string? after)
     {
+        if (key == AppSettingKeys.AccountingCurrency) return CurrencyChange(before, after);
+
         if (modules.Find(key) is not { } setting) return null;
 
         var owner = registry.Enabled.Concat(registry.Disabled)
             .FirstOrDefault(m => string.Equals(m.Code, setting.Module, StringComparison.Ordinal));
         return ModuleSettingValues.Change(owner?.Title ?? setting.Module, setting, before, after);
+    }
+
+    /// <summary>Смена ДЕЙСТВУЮЩЕЙ валюты: запись «RUB» поверх несохранённого рубля — не смена.</summary>
+    public static SettingChange? CurrencyChange(string? before, string? after)
+    {
+        var (was, now) = (AccountingCurrencies.Effective(before), AccountingCurrencies.Effective(after));
+        return was == now
+            ? null
+            : new SettingChange("Валюта учёта", AccountingCurrencies.Display(was), AccountingCurrencies.Display(now));
     }
 }
 
@@ -55,7 +70,7 @@ public static class ModuleSettingValues
     ///
     /// <para>Сравниваются действующие значения, а не сохранённые строки (ревью PR #1249): сброс
     /// негодного «500» к умолчанию, запись «1» поверх несохранённого рубля и «1.00» поверх «1»
-    /// строку в базе меняют, а настройку — нет, и запись «было 1,00 ₽, стало 1,00 ₽» была бы шумом.</para>
+    /// строку в базе меняют, а настройку — нет, и запись «было 1,00, стало 1,00» была бы шумом.</para>
     /// </summary>
     public static SettingChange? Change(string moduleTitle, ModuleSetting setting, string? before, string? after)
     {

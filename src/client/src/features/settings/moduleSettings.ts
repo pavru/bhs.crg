@@ -1,4 +1,5 @@
 import type { ModuleSetting } from '@/shared/api/moduleSettings';
+import { currencySign } from '@/shared/format/format';
 
 /**
  * Логика формы настроек модуля (issue #1070) — отдельно от экрана, чтобы её можно было проверить.
@@ -76,7 +77,7 @@ export function localRefusals(
       refusals[setting.key] = 'нужно число';
     } else if (setting.min !== null && setting.max !== null && (number < setting.min || number > setting.max)) {
       refusals[setting.key] =
-        `допустимо от ${shown(String(setting.min))} до ${withUnit(shown(String(setting.max)), setting.unit)}`;
+        `допустимо от ${shown(String(setting.min))} до ${withUnit(shown(String(setting.max)), unitOf(setting))}`;
     }
   }
   return refusals;
@@ -94,9 +95,18 @@ export function changeWarnings(settings: ModuleSetting[], values: Record<string,
       key: s.key,
       title: s.title,
       warning: s.changeWarning!,
-      from: withUnit(shown(s.value), s.unit),
-      to: withUnit(shown(values[s.key] ?? s.default), s.unit),
+      from: withUnit(shown(s.value), unitOf(s)),
+      to: withUnit(shown(values[s.key] ?? s.default), unitOf(s)),
     }));
+}
+
+/**
+ * Единица настройки. У суммы в валюте учёта (issue #1248) своей единицы нет: знак берётся у
+ * форматтера сумм — того же, что рисует «412 500,00 ₽» на остальных экранах, — и меняется вместе с
+ * настройкой валюты. Сервер знака не присылает: он его не знает.
+ */
+export function unitOf(setting: Pick<ModuleSetting, 'unit' | 'money'>): string | null {
+  return setting.money ? currencySign() : setting.unit;
 }
 
 export function withUnit(text: string, unit: string | null): string {
@@ -105,7 +115,7 @@ export function withUnit(text: string, unit: string | null): string {
 
 /** Подсказка под полем: умолчание и границы — чтобы отказ сервера не был первым, кто их назовёт. */
 export function boundsHint(setting: ModuleSetting): string {
-  const parts = [`По умолчанию: ${withUnit(shown(setting.default), setting.unit)}`];
+  const parts = [`По умолчанию: ${withUnit(shown(setting.default), unitOf(setting))}`];
   if (setting.min !== null && setting.max !== null)
     parts.push(`допустимо от ${shown(String(setting.min))} до ${shown(String(setting.max))}`);
   return parts.join(' · ');
@@ -119,7 +129,7 @@ export function boundsHint(setting: ModuleSetting): string {
 export function staleStored(setting: ModuleSetting): string | null {
   if (setting.stale === null) return null;
   return `Сохранено «${setting.stale}», но это значение не подходит — действует ` +
-    `${withUnit(shown(setting.value), setting.unit)}. Сохраните годное значение или верните умолчание.`;
+    `${withUnit(shown(setting.value), unitOf(setting))}. Сохраните годное значение или верните умолчание.`;
 }
 
 /** Причины отказа по полям из ответа сервера; пусто — отказ не про поле. */

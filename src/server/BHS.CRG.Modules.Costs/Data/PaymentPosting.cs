@@ -126,7 +126,7 @@ public static class PaymentPosting
             return "у счёта не указана сумма к оплате";
 
         if (!balance.WithinTolerance && balance.Discrepancy is { } gap)
-            return $"сумма строк {total - gap:0.00} расходится с суммой к оплате {total:0.00} на {Math.Abs(gap):0.00} ₽ " +
+            return $"сумма строк {total - gap:0.00} расходится с суммой к оплате {total:0.00} на {Math.Abs(gap):0.00} " +
                    $"(допуск {balance.Tolerance:0.00})";
 
         return null;

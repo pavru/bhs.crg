@@ -20,9 +20,19 @@ public partial class BackupService
     /// системы, и ключ, которого в копии нет, трогать нельзя — его задали здесь, а не там.
     /// </summary>
     private async Task RestoreAppSettingsAsync(
-        BackupAppSetting[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+        BackupAppSetting[] items, BackupModuleSchema[] moduleData, RestoreStats stats, List<string> warnings,
+        CancellationToken ct)
     {
-        if (items.Length == 0) return;
+        // Валюта — отдельно и до общего выхода «настроек в копии нет»: копия без этого ключа тоже
+        // говорит о валюте (см. RestoreAccountingCurrencyAsync).
+        var currencyRow = await RestoreAccountingCurrencyAsync(
+            items.LastOrDefault(i => i.Key == AppSettingKeys.AccountingCurrency)?.Value, moduleData, warnings, ct);
+        items = [.. items.Where(i => i.Key != AppSettingKeys.AccountingCurrency)];
+        if (items.Length == 0)
+        {
+            if (currencyRow != default) stats.Count("Настройки системы", currencyRow.Created, currencyRow.Updated);
+            return;
+        }
 
         // Ключ из копии проверяется КАТАЛОГОМ, как и на адресе (ТЗ CORE-25.4): копия приходит от
         // другой сборки, и в ней бывает ключ будущей версии или опечатка. Записать его молча
@@ -37,7 +47,7 @@ public partial class BackupService
             "их ключ эта версия не объявляет или значение она не принимает");
 
         var existing = await db.AppSettings.ToDictionaryAsync(a => a.Key, StringComparer.Ordinal, ct);
-        int created = 0, updated = 0;
+        var (created, updated) = currencyRow;
         var changes = new List<(string Key, BHS.CRG.Application.Settings.SettingChange Change)>();
         foreach (var item in ok)
         {
@@ -62,5 +72,71 @@ public partial class BackupService
 
         db.ChangeTracker.Clear();
         stats.Count("Настройки системы", created, updated);
+    }
+
+    /// <summary>
+    /// Валюта учёта из копии (issue #1248) — отдельно от остальных настроек, потому что запись её
+    /// «как есть» умеет две беды сразу.
+    ///
+    /// <para><b>Смена поверх живых документов.</b> Восстановление ничего не удаляет: местные счета
+    /// остаются, и валюта из копии переодела бы их суммы — тот самый случай, который запрещён на
+    /// экране. Поэтому при местных документах валюта остаётся местной, а восстановление говорит об
+    /// этом. Спрашиваем ДО восстановления схем модулей — то есть именно о местных документах.</para>
+    ///
+    /// <para><b>Копия без ключа.</b> Это не «о валюте ничего не сказано», а рубль: его не хранят, пока
+    /// не сменили, а версии до настройки другого и не знали. Если такая копия несёт документы, а
+    /// здесь выбрана другая валюта, документы легли бы под чужой знак — валюта возвращается к рублю.
+    /// Копию без документов и без ключа не трогаем: защищать нечего, а выбор сделан здесь.</para>
+    ///
+    /// <para><b>Валюта, которой эта версия не знает.</b> Не «ключа нет»: копия называет валюту, просто
+    /// не из нашего списка. Приравнять её к рублю значило бы сбросить местный выбор и положить
+    /// документы копии под рубль (ревью PR #1306). Валюта не трогается, предупреждение называет её.</para>
+    ///
+    /// <para>Саму смену делает <see cref="IAccountingCurrencyLock.TryChangeAsync" /> — та же
+    /// операция, что на экране настройки: с замком учётных таблиц и записью в журнал.</para>
+    /// </summary>
+    /// <param name="inCopy">Значение ключа в копии как есть; <c>null</c> — ключа нет.</param>
+    private async Task<(int Created, int Updated)> RestoreAccountingCurrencyAsync(
+        string? inCopy, BackupModuleSchema[] moduleData, List<string> warnings, CancellationToken ct)
+    {
+        // Совет проверить суммы — только когда документы из копии действительно придут: иначе он
+        // отправлял бы искать то, чего в копии нет.
+        var carries = currencyLock.Carries(moduleData);
+        var check = carries ? " Документы из копии заведены в её валюте — проверьте их суммы." : "";
+
+        if (inCopy is not null && !AccountingCurrencies.IsKnown(inCopy))
+        {
+            warnings.Add(
+                $"Валюта учёта в копии — «{inCopy}»; эта версия такой не знает. Валюта на этой установке " +
+                $"НЕ изменена.{check}");
+            return default;
+        }
+
+        if (inCopy is null && !carries) return default;
+
+        switch (await currencyLock.TryChangeAsync(
+                    AccountingCurrencies.Effective(inCopy), " (восстановление копии)", ct))
+        {
+            case CurrencyChangeOutcome.Changed changed:
+                return changed.Created ? (1, 0) : (0, 1);
+
+            case CurrencyChangeOutcome.Held held:
+                warnings.Add(
+                    $"Валюта учёта в копии — {held.Change.After}, на этой установке — {held.Change.Before}. " +
+                    "Она НЕ изменена: здесь уже есть документы с суммами " +
+                    $"({AccountingCurrencyLockText.Holders(held.Holders)}), а суммы при смене валюты не " +
+                    $"пересчитываются.{check}");
+                return default;
+
+            case CurrencyChangeOutcome.Busy busy:
+                warnings.Add(
+                    $"Валюта учёта в копии — {busy.Change.After}, на этой установке — {busy.Change.Before}. " +
+                    "Она НЕ изменена: во время восстановления в счета или накладные шла запись. " +
+                    $"Смените её в настройках, пока документов нет.{check}");
+                return default;
+
+            default:
+                return default;
+        }
     }
 }

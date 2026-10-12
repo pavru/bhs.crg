@@ -70,6 +70,9 @@ public static class ModulePorts
         // Какие ключи настроек экземпляра знает ЭТА сборка — ядро плюс модули. Спрашивает его
         // восстановление копии в инфраструктуре, которой о контрактах модулей знать нельзя.
         services.AddSingleton<BHS.CRG.Application.Settings.IAppSettingCatalog, AppSettingCatalog>();
+        // Держат ли документы модулей валюту учёта (issue #1248). Нужен при любом составе модулей:
+        // без модулей держать нечему, а настройка есть.
+        services.AddScoped<BHS.CRG.Application.Settings.IAccountingCurrencyLock, AccountingCurrencyLock>();
 
         // Кто выполняет фоновую работу модуля. Спрашивает её фоновый цикл в инфраструктуре — по
         // интерфейсу из слоя приложения, потому что о контрактах модулей ему знать нельзя.

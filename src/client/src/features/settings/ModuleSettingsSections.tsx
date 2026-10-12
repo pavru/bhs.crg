@@ -11,6 +11,7 @@ import {
 } from '@/shared/api/moduleSettings';
 import {
   boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, localRefusals, sentence, staleStored,
+  unitOf,
   type SettingsDraft,
 } from './moduleSettings';
 
@@ -94,7 +95,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
               inputMode="decimal"
               value={fieldText(setting, draft)}
               onChange={e => edit(setting.key, e.target.value)}
-              trailing={setting.unit ? <span className="text-sm text-fg3">{setting.unit}</span> : undefined}
+              trailing={unitOf(setting) ? <span className="text-sm text-fg3">{unitOf(setting)}</span> : undefined}
               error={errors[setting.key] ? sentence(errors[setting.key]) : undefined}
               hint={boundsHint(setting)}
             />
