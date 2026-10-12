@@ -67,21 +67,20 @@ public static class AccountingCurrencyEndpoints
                 return Results.NoContent();
             }
 
+            // ⚠️ Сначала запереть учётные таблицы, потом сверять (ревью PR #1306). Без замка счёт,
+            // зафиксированный между сверкой и фиксацией смены, получил бы новый знак: внесли в
+            // рублях — показан в долларах. Замок держится до конца транзакции; вставка, уже идущая
+            // рядом, заставит подождать — и сверка её увидит. Создание документа на это время ждёт.
+            try { await guard.FreezeAsync(ct); }
+            catch (AccountingTablesBusyException busy) { return Results.Conflict(new { error = busy.Message }); }
+
+            var holders = await guard.HoldersAsync(ct);
+            if (holders.Count > 0)
+                return Results.Conflict(new { error = AccountingCurrencyLockText.Reason(holders) });
+
             await store.SetAsync(AppSettingKeys.AccountingCurrency, next, ct);
             await journal.RecordAsync(ActivityActions.AccountingCurrencyChanged, AppSettingKeys.AccountingCurrency,
                 change.Label, before: change.Before, after: change.After, ct: ct);
-
-            // ⚠️ Сверка — ПОСЛЕДНИМ оператором перед фиксацией, а не первым: так она видит и счёт,
-            // зафиксированный, пока шла запись. Отдельного замка нет — создание счёта и накладной
-            // его не берёт, взять его не на чём. Остаётся окно между этим запросом и фиксацией: счёт,
-            // заведённый в нём на экземпляре без единого документа, получит новый знак. Портить там
-            // нечего — счёт валюту при создании не читает, — поэтому окно названо, а не закрыто.
-            var holders = await guard.HoldersAsync(ct);
-            if (holders.Count > 0)
-            {
-                await tx.RollbackAsync(ct);
-                return Results.Conflict(new { error = AccountingCurrencyLockText.Reason(holders) });
-            }
 
             await tx.CommitAsync(ct);
             return Results.NoContent();

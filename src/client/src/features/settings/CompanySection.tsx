@@ -26,17 +26,28 @@ export function CompanySection() {
   const next = picked ?? data?.currency;
   const dirty = !!data && next !== data.currency;
 
+  /** Сменить. Отказ НЕ ловим: диалог показывает причину сам и остаётся открытым — она длинная
+   *  («…счетов: 1440, накладных: 39…»), в исчезающем уведомлении её не прочитать. */
   async function submit() {
     if (!next) return;
+    await save.mutateAsync(next);
+    toast.success('Валюта учёта изменена.');
+    setPicked(null);
+    setConfirming(false);
+  }
+
+  /**
+   * Убрать из базы строку, которой нет в списке: записать действующую валюту её кодом. Валюту это
+   * не меняет, поэтому доступно и при документах, и без подтверждения. Обычным «Сохранить» сюда не
+   * попасть — выбор совпадает с действующим, сохранять «нечего» (ревью PR #1306).
+   */
+  async function cleanUp() {
+    if (!data) return;
     try {
-      await save.mutateAsync(next);
-      toast.success('Валюта учёта изменена.');
+      await save.mutateAsync(data.currency);
+      toast.success('Сохранённое значение исправлено.');
     } catch (e) {
-      toast.apiError(e, 'Не удалось сменить валюту учёта.');
-    } finally {
-      // И при отказе: набранное больше не годится — поле придёт с сервера запертым.
-      setPicked(null);
-      setConfirming(false);
+      toast.apiError(e, 'Не удалось исправить сохранённое значение.');
     }
   }
 
@@ -85,15 +96,22 @@ export function CompanySection() {
       ))}
 
       {data?.stale && (
-        <p className="text-xs text-warning max-w-xl">
-          В базе сохранено «{data.stale}» — такой валюты в списке нет, действует{' '}
-          {currencyTitle(data, data.currency)}.
-        </p>
+        <div data-testid="currency-stale">
+          <p className="text-xs text-warning max-w-xl">
+            В базе сохранено «{data.stale}» — такой валюты в списке нет, действует{' '}
+            {currencyTitle(data, data.currency)}.
+          </p>
+          <Button variant="text" size="sm" className="mt-1 -ml-2" onClick={() => void cleanUp()}
+            disabled={save.isPending}>
+            Записать «{currencyTitle(data, data.currency)}»
+          </Button>
+        </div>
       )}
 
       <ConfirmDialog
         open={confirming}
-        onOpenChange={o => { if (!o) setConfirming(false); }}
+        // Закрыли после отказа — выбор сбрасываем: поле к этому времени пришло с сервера запертым.
+        onOpenChange={o => { if (!o) { setConfirming(false); if (save.isError) setPicked(null); } }}
         title="Сменить валюту учёта?"
         description={
           <div className="space-y-3">

@@ -29,6 +29,8 @@ const DEFAULT_CURRENCY = 'RUB';
 export const CURRENCY_KEY = 'crg.currency';
 
 let stored = readMirror();
+// Известна ли валюта: из зеркала или от сервера. «Ещё не знаем» — не «рубль» (ревью PR #1306).
+let known = false;
 let currency = readCurrencyMirror();
 
 function readMirror(): string {
@@ -38,7 +40,9 @@ function readMirror(): string {
 function readCurrencyMirror(): string {
   try {
     const mirrored = localStorage.getItem(CURRENCY_KEY);
-    return mirrored && isCurrency(mirrored) ? mirrored : DEFAULT_CURRENCY;
+    if (!mirrored || !isCurrency(mirrored)) return DEFAULT_CURRENCY;
+    known = true;
+    return mirrored;
   } catch { return DEFAULT_CURRENCY; }
 }
 
@@ -58,10 +62,21 @@ function isCurrency(code: string): boolean {
  * Остаться с прежней валютой здесь лучше, чем остаться без экрана.</p>
  */
 export function setFormatCurrency(next: string): void {
-  if (next === currency || !isCurrency(next)) return;
+  if (!isCurrency(next)) return;
+  known = true;
+  if (next === currency) return;
   currency = next;
   numbers.clear();
   try { localStorage.setItem(CURRENCY_KEY, next); } catch { /* зеркало — удобство, не хранилище */ }
+}
+
+/**
+ * Знает ли форматтер валюту экземпляра — из зеркала в браузере или из ответа сервера. Пока нет,
+ * он рисует рубль наугад: в новом браузере на экземпляре с тенге первый кадр показал бы не ту
+ * валюту. Спрашивает `ProtectedRoute` — и ждёт ответа о доступе, прежде чем рисовать страницы.
+ */
+export function currencyKnown(): boolean {
+  return known;
 }
 
 /** Код валюты учёта, которой форматирует модуль. */

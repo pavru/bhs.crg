@@ -28,9 +28,24 @@ public interface IAccountingCurrencyLock
     /// </summary>
     Task<IReadOnlyList<CurrencyHolder>> HoldersAsync(CancellationToken ct = default);
 
-    /// <summary>Несёт ли копия документы с суммами — строки объявленных учётных таблиц.</summary>
+    /// <summary>
+    /// Запереть учётные таблицы от записи до конца текущей транзакции (ревью PR #1306): между
+    /// сверкой и фиксацией смены документ появиться не должен — иначе счёт, внесённый в рублях,
+    /// получил бы новый знак, а запрет, ради которого всё заведено, был бы обойдён. Зовут ПЕРЕД
+    /// <see cref="HoldersAsync" />. Таблицы заняты дольше срока — <see cref="AccountingTablesBusyException" />.
+    /// </summary>
+    Task FreezeAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Несёт ли копия документы с суммами, которые восстановление ПОЛОЖИТ в базу: строки учётных
+    /// таблиц включённого модуля с тем же именем схемы. Остальные секции оно пропускает.
+    /// </summary>
     bool Carries(IEnumerable<BackupModuleSchema> data);
 }
+
+/// <summary>В учётные таблицы сейчас пишут, и запереть их за отведённый срок не удалось.</summary>
+public sealed class AccountingTablesBusyException() : Exception(
+    "В счета или накладные сейчас идёт запись — валюта не изменена. Повторите через минуту.");
 
 /// <summary>Слова о запрете — одни на экран настройки, отказ адреса и восстановление копии.</summary>
 public static class AccountingCurrencyLockText
