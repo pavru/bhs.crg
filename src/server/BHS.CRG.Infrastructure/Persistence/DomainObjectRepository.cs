@@ -3,6 +3,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Infrastructure.Persistence;
@@ -271,8 +272,13 @@ public partial class DomainObjectRepository(AppDbContext db) : Repository<Domain
             // ⚠️ И по альтернативным именам (issue #1169): они «участвуют в сопоставлении по имени
             // наравне с названием» (DomainObject.Aliases). Без них запрос «ВВГ 3*2.5» к позиции
             // «Кабель ВВГнг(А)-LS 3х2,5» отвечал пустым списком — и человек заводил дубль.
-            query = query.Where(o => EF.Functions.ILike(o.DisplayName!, pattern, "!")
-                                     || o.Aliases.Any(a => EF.Functions.ILike(a, pattern, "!")));
+            //
+            // Ищем по генерируемой колонке «название + имена» (issue #1247): под ней триграммный
+            // индекс, и образец с подстановкой впереди перестаёт быть проходом по всей таблице.
+            // Образец из одного-двух знаков триграмм не даёт и идёт проходом, как раньше, — порога
+            // длины нет нарочно: «ПВ» и «АС» — законные запросы.
+            query = query.Where(o => EF.Functions.ILike(
+                EF.Property<string>(o, DomainObjectConfiguration.SearchText), pattern, "!"));
         }
 
         // Архив считается ТЕМ ЖЕ отбором, что и выбор, — до того, как архивные из выбора убраны.

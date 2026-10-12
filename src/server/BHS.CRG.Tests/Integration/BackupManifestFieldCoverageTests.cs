@@ -50,6 +50,7 @@ public class BackupManifestFieldCoverageTests(IntegrationTestFixture fixture)
         // Версия строки (issue #1214) — системная колонка базы: у восстановленной записи она своя,
         // и форма называет ту, что прочла после восстановления.
         ["DomainObject.RowVersion"] = "системная колонка xmin: её ведёт база, перенести нельзя и незачем",
+        ["DomainObject.SearchText"] = "генерируемая колонка поиска (issue #1247): её считает база из названия и имён",
     };
 
     private static string NameOf(Type t) =>

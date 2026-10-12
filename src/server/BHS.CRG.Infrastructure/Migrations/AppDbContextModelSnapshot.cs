@@ -22,6 +22,7 @@ namespace BHS.CRG.Infrastructure.Migrations
                 .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("BHS.CRG.Domain.Activity.ActivityRecord", b =>
@@ -1264,6 +1265,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("SearchText")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("choice_search_text(\"DisplayName\", \"Aliases\")", true);
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1271,7 +1277,15 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.HasIndex("CompositeTypeId");
 
+                    b.HasIndex("SearchText");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchText"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("SearchText"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("ScopeLevel", "ScopeId");
+
+                    b.HasIndex(new[] { "CompositeTypeId" }, "IX_domain_objects_CompositeTypeId_Archived")
+                        .HasFilter("\"ArchivedAt\" IS NOT NULL");
 
                     b.ToTable("domain_objects", (string)null);
                 });
