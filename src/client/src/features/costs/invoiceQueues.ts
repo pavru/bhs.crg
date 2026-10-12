@@ -138,12 +138,22 @@ export interface QueueRow {
    */
   left: boolean;
   /**
-   * След счёта, разобранного отсюда же (issue #1293): с него перешли к следующему, и строка — путь
-   * назад. Здесь причина ухода известна — человек только что нажал «Разобран», — поэтому слово
-   * названо прямо.
+   * След счёта, выведенного из очереди отсюда же (issue #1293): с него перешли к следующему, и строка —
+   * путь назад. Здесь причина ухода известна — человек только что нажал «Разобран» либо отклонил
+   * счёт, — поэтому слово названо прямо.
    */
-  parsed?: boolean;
+  exit?: QueueExit;
 }
+
+/** Чем счёт вывели из очереди «Разобрать» на этом экране. Удаления здесь нет нарочно: возвращаться
+ *  некуда, а следующий счёт с тем же «Удалить» под рукой провоцирует удаление по инерции. */
+export type QueueExit = 'parsed' | 'rejected';
+
+/** Слово о счёте, вышедшем из очереди, — одно в сообщении и в строке-следе. */
+export const EXIT_WORD: Record<QueueExit, string> = { parsed: 'разобран', rejected: 'отклонён' };
+
+/** След вышедшего из очереди счёта: где стоял, каким был и чем вышел. */
+export type QueueTrace = HeldRow & { how: QueueExit };
 
 /** Открытый счёт, запомненный под отбором: где стоял и каким был. */
 export interface HeldRow {
@@ -175,13 +185,13 @@ export function heldRow(
  * уходит из-под человека сразу после сохранения — исчезнувший без его действия счёт читается как сбой.
  * Стоит она там же, где стояла.
  */
-export function queueRows(listed: InvoiceListItem[], held: HeldRow | null, trace: HeldRow | null = null): QueueRow[] {
+export function queueRows(listed: InvoiceListItem[], held: HeldRow | null, trace: QueueTrace | null = null): QueueRow[] {
   const rows: QueueRow[] = listed.map(item => ({ item, left: false }));
   const absent = (row: HeldRow | null): row is HeldRow => !!row && !listed.some(i => i.id === row.item.id);
   // След раньше открытого счёта: оба стояли в одном списке, и вставка по возрастанию места сохраняет
   // их взаимный порядок. Открыли сам след — строка одна, и она остаётся следом.
   const extra = [
-    ...(absent(trace) ? [{ at: trace.index, row: { item: trace.item, left: true, parsed: true } }] : []),
+    ...(absent(trace) ? [{ at: trace.index, row: { item: trace.item, left: true, exit: trace.how } }] : []),
     ...(absent(held) && held.item.id !== trace?.item.id ? [{ at: held.index, row: { item: held.item, left: true } }] : []),
   ].sort((a, b) => a.at - b.at);
   for (const { at, row } of extra) rows.splice(Math.min(at, rows.length), 0, row);
@@ -191,15 +201,15 @@ export function queueRows(listed: InvoiceListItem[], held: HeldRow | null, trace
 /** Как счёт называют в сообщении: номером, а без номера — так и сказано. */
 const called = (number: string | null | undefined) => number?.trim() ? `Счёт № ${number.trim()}` : 'Счёт без номера';
 
-/** Что делать после «Разобран» под отбором очереди — и какими словами об этом сказать. */
-export interface AfterParsed {
-  /** Счёт, который открыть следом; `null` — остаться на разобранном. */
+/** Что делать после выхода счёта из очереди под её отбором — и какими словами об этом сказать. */
+export interface AfterExit {
+  /** Счёт, который открыть следом; `null` — остаться на прежнем. */
   open: InvoiceListItem | null;
   message: string;
 }
 
 /**
- * Куда ведёт «Разобран» (issue #1293). Под отбором «Разобрать» открывается следующая ВИДИМАЯ строка —
+ * Куда ведёт «Разобран» — и «Отклонить» (issue #1293). Под отбором «Разобрать» открывается следующая ВИДИМАЯ строка —
  * та, что стоит под разобранной в списке на момент нажатия, уже с поиском: человек работает с тем,
  * что видит. С последней строки — на первую. Вне отбора — `null`: счёт остаётся открытым, слов нет.
  *
@@ -216,11 +226,12 @@ export interface AfterParsed {
  *   (удержанной строкой) и уже с поиском; `null` — список не прочитан.
  * @param number номер разобранного счёта — у открытого счёта, строка списка могла устареть.
  */
-export function afterParsed(
+export function afterExit(
   queue: InvoiceQueue | null, rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean,
-): AfterParsed | null {
+  how: QueueExit = 'parsed',
+): AfterExit | null {
   if (queue !== 'parsing') return null;
-  const done = `${called(number)} разобран.`;
+  const done = `${called(number)} ${EXIT_WORD[how]}.`;
   if (unsaved) return { open: null, message: `${done} Следующий не открыт: в форме несохранённые правки.` };
   if (!rows) return { open: null, message: `${done} Следующий не открыт: список счетов не прочитан.` };
 
@@ -244,8 +255,8 @@ export function afterParsed(
 }
 
 /** «Вернуться» не выполнено: в открытом счёте набрано несохранённое, и уводить с него нельзя. */
-export function backRefused(number: string | null): string {
-  return `${called(number)} не открыт: в форме несохранённые правки. Он стоит в списке строкой «разобран».`;
+export function backRefused(number: string | null, how: QueueExit = 'parsed'): string {
+  return `${called(number)} не открыт: в форме несохранённые правки. Он стоит в списке строкой «${EXIT_WORD[how]}».`;
 }
 
 /**

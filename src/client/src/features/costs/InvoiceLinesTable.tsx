@@ -67,7 +67,7 @@ function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): 
 export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false, onParsed }: {
   view: InvoiceView;
   /** Счёт разобран (issue #1293): страница решает, вести ли к следующему счёту очереди. */
-  onParsed?: () => void;
+  onParsed?: () => unknown;
   /** Есть ли несохранённые правки строк: о них обязан сказать диалог удаления счёта (issue #1282). */
   onDirty?: (dirty: boolean) => void;
   /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не

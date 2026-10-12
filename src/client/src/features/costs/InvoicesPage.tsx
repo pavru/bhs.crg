@@ -26,7 +26,8 @@ import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
 import {
-  afterParsed, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows, type HeldRow,
+  afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
+  type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
 import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
 import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
@@ -100,7 +101,9 @@ export function InvoicesPage() {
   // След счёта, разобранного под очередью (issue #1293): строка — путь назад, когда тост уже погас.
   // Живёт до следующего разобранного, до смены отбора и до возврата счёта в список — снимается, а не
   // прячется: спрятанный всплыл бы при возврате к отбору, на устаревшем месте.
-  const [parsedTrace, setParsedTrace] = useState<HeldRow | null>(null);
+  const [parsedTrace, setParsedTrace] = useState<QueueTrace | null>(null);
+  // Счёт, на который привёл переход: его форма при открытии берёт фокус на шапку.
+  const [led, setLed] = useState<string | null>(null);
   const trace = keepTrace(parsedTrace, queue, invoices.data) ? parsedTrace : null;
   if (parsedTrace && !trace) setParsedTrace(null);
   const rows = queueRows(invoices.data ?? [], nextHeld, trace).filter(r => matches(r.item, query));
@@ -120,28 +123,36 @@ export function InvoicesPage() {
    * Следующего выбирают по ПЕРЕЧИТАННОМУ списку: тот, что стоял на экране, мог устареть — сосед
    * разобрал или удалил счёт, — и открылся бы не черновик, а то и «счёта нет». Место разобранного в
    * перечитанном списке помнит удержанная строка.
+   *
+   * @returns сказано ли о случившемся здесь: нет — говорит тот, кто вывел счёт из очереди.
    */
-  async function leadOn(id: string, number: string | null) {
-    if (now.current.queue !== 'parsing') return;
+  async function leadOn(id: string, number: string | null, how: QueueExit): Promise<boolean> {
+    if (now.current.queue !== 'parsing') return false;
     const fresh = await invoices.refetch();
     const at = now.current;
     // Ушли со счёта или сменили отбор, пока шёл запрос, — человек уже выбрал сам, вести некуда.
-    if (at.selected !== id || at.queue !== 'parsing') return;
+    if (at.selected !== id || at.queue !== 'parsing') return false;
     const held = at.held?.item.id === id ? at.held : null;
-    // След ставится и тогда, когда перехода нет: разобранный отсюда счёт подписан одинаково, а
+    // След ставится и тогда, когда перехода нет: вышедший отсюда счёт подписан одинаково, а
     // прежний след уступает ему место.
-    setParsedTrace(held);
+    setParsedTrace(held && { ...held, how });
     const listed = fresh.isError || !fresh.data
       ? null : queueRows(fresh.data, held).filter(r => matches(r.item, at.query));
-    const after = afterParsed(at.queue, listed, id, number, at.query, unsaved.current);
-    if (!after) return;
-    if (!after.open) { toast.info(after.message); return; }
+    const after = afterExit(at.queue, listed, id, number, at.query, unsaved.current, how);
+    if (!after) return false;
+    if (!after.open) { toast.info(after.message); return true; }
+    setLed(after.open.id);
     setSelected(after.open.id);
     // «Вернуться» уводит со счёта, на который только что перевели, — и о его несохранённом
     // спрашивает так же, как сам переход.
-    const back = () => { if (unsaved.current) toast.info(backRefused(number)); else setSelected(id); };
+    const back = () => {
+      if (unsaved.current) { toast.info(backRefused(number, how)); return; }
+      setLed(id);
+      setSelected(id);
+    };
     // Дольше обычного: в сообщении действие, а прочитать надо два номера.
     toast.success(after.message, { duration: 8000, action: { label: 'Вернуться', onClick: back } });
+    return true;
   }
 
   async function addDraft() {
@@ -285,10 +296,10 @@ export function InvoicesPage() {
                 )}
               </div>
             )}
-            {rows.map(({ item, left, parsed }) => left ? (
+            {rows.map(({ item, left, exit }) => left ? (
               // Номер — у открытого счёта: строка списка осталась снимком до правки.
               <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
-                parsed={parsed} active={item.id === selected}
+                exit={exit} active={item.id === selected}
                 number={shown?.id === item.id ? asInput(shown.requisites[K.number]) : item.number} />
             ) : (
               <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
@@ -348,7 +359,8 @@ export function InvoicesPage() {
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
                 onOpenInvoice={setSelected}
-                onParsed={() => void leadOn(opened.id, asInput(opened.data.requisites[K.number]) || null)}
+                onExit={how => leadOn(opened.id, asInput(opened.data.requisites[K.number]) || null, how)}
+                focusHeader={led === opened.id}
                 onUnsaved={noteUnsaved}
                 gone={gone} onClose={() => closeGone(opened.id)}
                 scanSlot={hasScan && !wide && !gone

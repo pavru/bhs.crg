@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckCheck, Copy, Save, Sparkles, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -25,6 +25,7 @@ import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
+import type { QueueExit } from './invoiceQueues';
 import { InvoiceMoreMenu } from './InvoiceMoreMenu';
 import { InvoiceDeleteProvider, InvoiceGoneNotice } from './InvoiceDeleteDialog';
 import { useInvoiceDelete } from './invoiceDelete';
@@ -56,10 +57,16 @@ import { explainedByRecognition } from './recognition';
  * со сбросом состояния — он рисует лишний кадр с чужими правками, и в этом кадре номер одного счёта
  * стоит в форме другого.
  */
-export function InvoiceForm({ view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onParsed, onUnsaved }: {
+export function InvoiceForm({
+  view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onExit, onUnsaved, focusHeader = false,
+}: {
   view: InvoiceView;
-  /** Счёт разобран: дальше решает страница — она знает отбор и список (issue #1293). */
-  onParsed?: () => void;
+  /** Счёт разобран или отклонён: дальше решает страница — она знает отбор и список (issue #1293).
+   *  Отвечает, сказала ли об этом сама. */
+  onExit?: (how: QueueExit) => Promise<boolean>;
+  /** Сюда привёл переход от соседнего счёта очереди: кнопка, на которой стоял фокус, исчезла вместе
+   *  с прежней формой, и без переноса он падает в начало страницы. */
+  focusHeader?: boolean;
   /** Есть ли в форме несохранённое — в шапке или в строках. Страница спрашивает об этом в тот миг,
    *  когда собирается сменить счёт, а не в миг нажатия (ревью PR #1303). Обязана быть стабильной. */
   onUnsaved?: (unsaved: boolean) => void;
@@ -86,6 +93,9 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
   const dirty = Object.keys(edits).length > 0;
   const [linesDirty, setLinesDirty] = useState(false);
   const unsaved = dirty || linesDirty;
+  const header = useRef<HTMLDivElement>(null);
+  // Один раз, при открытии: форма перемонтируется на каждый счёт.
+  useEffect(() => { if (focusHeader) header.current?.focus(); }, [focusHeader]);
   // Закрытая форма несохранённого не держит: без снятия страница помнила бы правки счёта, которого
   // на экране уже нет.
   useEffect(() => {
@@ -176,7 +186,9 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
         onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3">
+      <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3 outline-none"
+        ref={header} tabIndex={-1} role="group" data-testid="invoice-header"
+        aria-label={`Счёт № ${asInput(view.requisites[K.number]) || 'без номера'}`}>
         {gone && <InvoiceGoneNotice onClose={onClose} />}
         {!gone && base.stale && !watch.settling && !byScan
           && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
@@ -216,7 +228,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
               Сохранить
             </Button>
           )}
-          {!locked && <InvoiceMoreMenu view={view} />}
+          {!locked && <InvoiceMoreMenu view={view} onRejected={onExit && (() => onExit('rejected'))} />}
         </div>
 
         {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
@@ -272,7 +284,7 @@ export function InvoiceForm({ view, organizations, organizationsError, onOpenInv
         )}
 
         <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-          headerDirty={dirty} onParsed={onParsed} />
+          headerDirty={dirty} onParsed={() => onExit?.('parsed')} />
 
         <p className="text-xs text-fg4">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку

@@ -28,7 +28,12 @@ import { useInvoiceDelete } from './invoiceDelete';
  * <p>Меню, а не кнопка рядом с «Сохранить»: «Отклонить» — решение о документе, а не шаг его
  * заполнения, и рядом с «Разобран» читалось бы как его пара.</p>
  */
-export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
+export function InvoiceMoreMenu({ view, onRejected }: {
+  view: InvoiceView;
+  /** Счёт отклонён (issue #1293): под отбором очереди страница ведёт к следующему и говорит об этом
+   *  сама. Отвечает, сказала ли, — иначе о том, что счёт отклонён, говорит меню. */
+  onRejected?: () => Promise<boolean>;
+}) {
   const state = useInvoiceState();
   const readFresh = useFreshInvoice();
   const toast = useToast();
@@ -70,9 +75,12 @@ export function InvoiceMoreMenu({ view }: { view: InvoiceView }) {
         onConfirm={() => rejectInvoice(
           () => state.mutateAsync({ id: view.id, seen: view.version, to: 'rejected' }),
           () => readFresh(view.id),
-        ).then(outcome => (outcome === 'rejected'
-          ? toast.success(`${label} отклонён.`)
-          : toast.info(`${label} уже отклонён.`)))} />
+        ).then(async outcome => {
+          // «Уже отклонён» ведёт так же: счёт из очереди вышел, и человек хотел именно этого.
+          if (await onRejected?.()) return;
+          if (outcome === 'rejected') toast.success(`${label} отклонён.`);
+          else toast.info(`${label} уже отклонён.`);
+        })} />
     </>
   );
 }
