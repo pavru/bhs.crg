@@ -9,6 +9,8 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
 import { purgeOffered, type PurgeOffer } from '@/shared/api/recordPurge';
 import { PurgeRecordDialog } from './PurgeRecordDialog';
+import { PickRow } from './PickRow';
+import { usePurgeBatchControls } from './usePurgeBatchControls';
 import {
   useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope, useCommonDataEntry, archiveOffered,
 } from '@/shared/api/commonData';
@@ -126,10 +128,16 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     });
   const { groups, noType } = groupObjectsByType(filtered, allSelectableTypes);
 
+  // Пакетная очистка (issue #1245): меню типа, режим выбора и диалог — всё в своём файле.
+  const batch = usePurgeBatchControls({ scope, scopeId, type: selectedType });
+
   // При поиске группы раскрыты все (ревью PR #1226): совпадение в свёрнутой группе — тем более
   // архивное, которого нет и в её счётчике, — читалось бы как «такой записи нет».
   const searching = !!search.trim();
-  const row = (entry: CommonDataEntry, siblings: CommonDataEntry[], border: boolean) => (
+  const row = (entry: CommonDataEntry, siblings: CommonDataEntry[], border: boolean) => batch.picked ? (
+    <PickRow key={entry.id} entry={entry} checked={batch.picked.has(entry.id)}
+      onToggle={() => batch.toggle(entry.id)} className={border ? 'border-t border-muted' : ''} />
+  ) : (
     <ObjectRow key={entry.id} entry={entry} siblings={siblings} resolvePool={scopeChain}
       onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
       onArchive={archiveAction(entry)} archiveDisabled={archive.pending}
@@ -144,7 +152,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       <>
         {live.length === 0 && <p className="px-4 py-3 text-sm text-fg4">Действующих записей нет.</p>}
         {live.map((e, idx) => row(e, items, idx > 0))}
-        <ArchivedRows count={gone.length} forceOpen={searching}>
+        <ArchivedRows count={gone.length} forceOpen={searching || !!batch.picked}>
           {gone.map(e => row(e, items, true))}
         </ArchivedRows>
       </>
@@ -231,8 +239,12 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             <SearchInput value={search} onChange={setSearch}
               placeholder={selectedType ? `Поиск: ${selectedType.name}…` : 'Поиск по каталогу…'} />
           </div>
-          <span className="flex-1" />
-          <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>
+          {batch.picked ? batch.bar(filtered.map(e => e.id)) : (
+            <>
+              <span className="flex-1" />
+              <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>
+            </>
+          )}
         </div>
 
         {isLoading ? (
@@ -252,6 +264,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 <span className="text-xs bg-warning-subtle text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
               )}
               <span className="text-xs text-fg4">{filtered.filter(isLive).length}</span>
+              {batch.menu}
             </div>
             <div>{rows(filtered)}</div>
           </div>
@@ -314,6 +327,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
         title={`Удалить «${deleteTarget?.displayName ?? ''}»?`} confirmLabel="Удалить"
         onConfirm={() => { if (deleteTarget) return deleteMutation.mutateAsync(deleteTarget.id); }}
         onRefused={e => (deleteTarget ? refusalExit(e, deleteTarget) : null)} />
+      {batch.dialog}
       {purging && (
         <PurgeRecordDialog target={purging.target} offer={purging.offer} onClose={() => setPurging(null)} />
       )}

@@ -3608,6 +3608,20 @@ POST   /api/common-data/{id}/purge          { references } → { id, name, refer
                                     core.record.purged: держатели и число, с адресом колонки там,
                                     где потерю потом не покажет никто. Сотрудник удаляется этим же
                                     адресом; у модуля такого пути нет.
+GET    /api/common-data/purge-batch/available → { available } — есть ли на экземпляре схемы
+                                    выключенных или снятых модулей (#1245). Экран по нему решает,
+                                    показывать ли действия пакета; «да» не обещает находок.
+POST   /api/common-data/purge-batch/preview { typeId, scope, scopeId } | { ids[] } → { records[],
+                                    excluded[], references, untraceable, checked, missing, more,
+                                    limit } — что войдёт в пакет. Отбор по типу берёт действующие
+                                    записи уровня и молчит о свободных; названные записи (и
+                                    архивные) разбираются все, не вошедшие — с причиной.
+POST   /api/common-data/purge-batch         { records: [{ id, references }], references } →
+                                    { records, references, untraceable } — удалить пакет. Всё или
+                                    ничего: расхождение по любой записи или по общему числу — 409
+                                    с { error, preview } (свежий список). Не больше 200 записей.
+                                    В журнал — core.record.purged на КАЖДУЮ запись. Все три адреса
+                                    — право core.catalog.purge.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
 GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
 POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь
