@@ -140,6 +140,14 @@ export function uploadedOf<T extends { id: string }>(items: T[] | undefined, bat
   return items.filter(i => created.has(i.id));
 }
 
+/**
+ * Счёт удалён в этой вкладке — из заведённых он уходит: иначе полоса звала бы «Показать только их»
+ * туда, где уже пусто. Удалённый соседом так не узнать — его снимет перечитанный список.
+ */
+export function forgetCreated(id: string) {
+  if (state?.created.includes(id)) patch({ created: state.created.filter(c => c !== id) });
+}
+
 /** Строка полосы об отборе «только заведённые этой загрузкой». */
 export interface UploadLine {
   /** Что сказано перед действием; пусто — говорить нечего, действие стоит одно. */
@@ -156,7 +164,8 @@ export interface UploadLine {
  * `null` — предлагать нечего: ничего не заведено либо все заведённые из списка уже ушли. Включённый
  * отбор при этом остаётся снимаемым — иначе из пустого списка не было бы выхода в самой полосе.
  *
- * @param found сколько заведённых стоит в списке; `null` — список не пришёл.
+ * @param found сколько заведённых стоит в списке (под включённым отбором — сколько их показано, с
+ * учётом поиска); `null` — не знаем: список не пришёл, перечитывается либо стоит под другим отбором.
  */
 export function uploadLine(batch: ScanBatch, found: number | null, only: boolean): UploadLine | null {
   if (batch.created.length === 0) return null;
@@ -165,15 +174,19 @@ export function uploadLine(batch: ScanBatch, found: number | null, only: boolean
       text: found === null ? 'В списке только они.' : `В списке только они: ${found}.`,
       action: 'all', label: 'Показать все счета',
     };
-  if (found === 0) return null;
+  // Пока загрузка идёт, список перечитывается не на каждый файл (ревью PR #1304): «ни одного в списке»
+  // значит тогда «список отстал», а не «все удалены», — и действие прятать нельзя.
+  if (found === 0 && batch.phase === 'done') return null;
   return {
     text: '', action: 'only', label: 'Показать только их',
     title: 'Только счета, заведённые этой загрузкой. Отбор и поиск будут сняты.',
   };
 }
 
-/** Пустой список под отбором загрузки: все её счета удалены. Под поиском говорит общий текст. */
-export const UPLOAD_EMPTY = 'Счетов этой загрузки в списке не осталось.';
+/** Пустой список под отбором загрузки: её счета удалены либо не подошли под поиск. */
+export const uploadEmpty = (query: string): string => query.trim()
+  ? `Среди счетов этой загрузки по запросу «${query.trim()}» ничего нет.`
+  : 'Счетов этой загрузки в списке не осталось.';
 
 /** Набор больше предела — отказ ВСЕМУ набору, а не «первые пятьдесят»: какие из них первые, человек не выбирал. */
 export const tooMany = (count: number): string | null => count > MAX_FILES

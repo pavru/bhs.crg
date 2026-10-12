@@ -2,7 +2,7 @@ import { beforeEach, describe, it, expect } from 'vitest';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
 import {
   MAX_FILES, batchTitle, currentBatch, dismissBatch, endSession, failure, inOrder, interrupted,
-  precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, uploadLine, uploadedOf,
+  precheck, resetBatchForTests, retryRejected, retryable, startBatch, stopBatch, tooMany, forgetCreated, uploadEmpty, uploadLine, uploadedOf,
   type BatchPort, type ScanBatch,
 } from './scanBatch';
 
@@ -253,6 +253,22 @@ describe('счета этой загрузки в списке', () => {
       .toMatchObject({ action: 'only', label: 'Показать только их' });
     // Список не пришёл — действие остаётся: «не знаем» не прячет его.
     expect(uploadLine(made(['a']), null, false)?.action).toBe('only');
+    // Загрузка идёт, а список ещё не перечитан: «ни одного» значит «список отстал» — действие на месте.
+    expect(uploadLine({ ...made(['a']), phase: 'running' }, 0, false)?.action).toBe('only');
+  });
+
+  it('удалённый в этой вкладке счёт уходит из заведённых, чужой идентификатор ничего не меняет', async () => {
+    startBatch([pdf('1.pdf'), pdf('2.pdf')], [], port(async file => `id-${file.name}`));
+    await settled();
+    forgetCreated('нет такого');
+    expect(currentBatch()!.created).toEqual(['id-1.pdf', 'id-2.pdf']);
+    forgetCreated('id-1.pdf');
+    expect(currentBatch()!.created).toEqual(['id-2.pdf']);
+  });
+
+  it('пустой список под отбором называет поиск, если пусто из-за него', () => {
+    expect(uploadEmpty('')).toBe('Счетов этой загрузки в списке не осталось.');
+    expect(uploadEmpty(' акт ')).toBe('Среди счетов этой загрузки по запросу «акт» ничего нет.');
   });
 
   it('все заведённые из списка ушли — предлагать нечего, а включённый отбор снять можно', () => {

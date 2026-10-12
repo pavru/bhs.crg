@@ -379,9 +379,17 @@ try {
     await line.getByRole('button', { name: 'Показать только их' }).click();
     await named('полоса не назвала число счетов под отбором загрузки',
       () => line.getByText('В списке только они: 2.').waitFor({ timeout: 10_000 }));
+    // Третья строка — открытый счёт из проверки 7: заведён не этой загрузкой, но остаётся строкой,
+    // пока открыт. В число полосы он не входит.
     const shown = await rows.allInnerTexts();
-    if (shown.length !== 2 || !names.every(name => shown.some(text => text.includes(name))))
-      throw new Error(`под отбором загрузки не ровно её счета: ${JSON.stringify(shown)}`);
+    if (shown.length !== 3 || !names.every(name => shown.some(text => text.includes(name))))
+      throw new Error(`под отбором загрузки не её счета и открытый: ${JSON.stringify(shown)}`);
+    // Поиск сужает внутри отбора, и число в полосе идёт за строками.
+    await page.getByPlaceholder('Номер, поставщик, назначение…').fill(names[0]);
+    await named('число в полосе не пошло за поиском',
+      () => line.getByText('В списке только они: 1.').waitFor({ timeout: 10_000 }));
+    await page.getByPlaceholder('Номер, поставщик, назначение…').fill('');
+    await line.getByText('В списке только они: 2.').waitFor({ timeout: 10_000 });
     if (await page.getByPlaceholder('Номер, поставщик, назначение…').inputValue() !== '')
       throw new Error('отбор загрузки не снял поиск — под ним её счетов не видно');
     // Чип очереди отбор снимает: пересечение дало бы пустой список без объяснения.
@@ -393,7 +401,7 @@ try {
     await line.getByRole('button', { name: 'Показать только их' }).click();
     await line.getByRole('button', { name: 'Показать все счета' }).click();
     await named('«Показать все счета» не вернуло общий список',
-      () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length > 2, null, { timeout: 10_000 }));
+      () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length > 3, null, { timeout: 10_000 }));
   });
 
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
