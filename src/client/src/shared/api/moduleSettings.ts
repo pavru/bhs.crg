@@ -27,6 +27,8 @@ export interface ModuleSetting {
   max: number | null;
   scale: number | null;
   unit: string | null;
+  /** Число — сумма в валюте учёта: единицы нет, знак подставляет экран (`unitOf`). */
+  money?: boolean;
   /** О чём предупредить ДО сохранения нового значения: настройка действует на записанные данные. */
   changeWarning: string | null;
 }

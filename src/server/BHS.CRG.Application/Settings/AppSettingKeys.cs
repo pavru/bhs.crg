@@ -32,11 +32,21 @@ public static class AppSettingKeys
     /// </summary>
     public const string ProductName = "branding.productName";
 
+    /// <summary>
+    /// Валюта учёта — код из <see cref="AccountingCurrencies" /> (ТЗ COST-7.2, issue #1248). Пусто —
+    /// настройку не задавали, действует рубль.
+    ///
+    /// <para>Ключ ядра, а не модуля счетов: знак валюты рисует клиент ядра, на любом экране с суммой.
+    /// ⚠️ Пишут его не общим адресом настроек, а своим — со сверкой запрета
+    /// (<see cref="IAccountingCurrencyLock" />): при существующих документах смена отказывает.</para>
+    /// </summary>
+    public const string AccountingCurrency = "accounting.currency";
+
     /// <summary>Предел длины значения: идентификаторы поясов короткие, и снаружи приходит что угодно.</summary>
     public const int MaxValueLength = 128;
 
     /// <summary>Объявлен ли ключ. Незнакомый — отказ, а не молчаливая запись.</summary>
-    public static bool IsKnown(string key) => key is CompanyTimeZone or ProductName;
+    public static bool IsKnown(string key) => key is CompanyTimeZone or ProductName or AccountingCurrency;
 
     /// <summary>
     /// Разбирается ли идентификатор пояса этой системой. Пустая строка — не пояс: «как у компании»

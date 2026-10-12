@@ -204,6 +204,13 @@ public sealed class CostsModule : IAppModule
 
     public IReadOnlyList<BHS.CRG.Modules.Settings.ModuleSetting> Settings => CostsSettings.All;
 
+    /// <summary>
+    /// Документы с суммами (issue #1248): счета и накладные. Строки, разноска и оплата без своего
+    /// документа не живут — их не называем. Имена — как в <c>CostsDbContext</c>; сверяет тест.
+    /// </summary>
+    public IReadOnlyList<ModuleAccountingDocument> AccountingDocuments =>
+        [new("invoices", "счетов"), new("waybills", "накладных")];
+
     public IReadOnlyList<ModuleReference> References => CostsReferences.All;
 
     public IReadOnlyList<ModuleFile> Files => CostsFiles.All;

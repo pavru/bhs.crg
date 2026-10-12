@@ -57,8 +57,8 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         var written = await ChangesAsync();
         Assert.Equal(2, written.Count);
         // Новые записи первыми. «Было» у первой смены — умолчание: сохранённого значения не было.
-        Assert.Equal(("0,10 ₽", "0,40 ₽"), (written[0].Before, written[0].After));
-        Assert.Equal(("1,00 ₽", "0,10 ₽"), (written[1].Before, written[1].After));
+        Assert.Equal(("0,10", "0,40"), (written[0].Before, written[0].After));
+        Assert.Equal(("1,00", "0,10"), (written[1].Before, written[1].After));
         Assert.Equal(Key, written[0].TargetId);
         Assert.Contains("Допуск расхождения сумм", written[0].TargetLabel);
     }
@@ -108,7 +108,9 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Equal(0m, setting.GetProperty("min").GetDecimal());
         Assert.Equal(100m, setting.GetProperty("max").GetDecimal());
         Assert.Equal(2, setting.GetProperty("scale").GetInt32());
-        Assert.Equal("₽", setting.GetProperty("unit").GetString());
+        Assert.Equal(JsonValueKind.Null, setting.GetProperty("unit").ValueKind);
+        // Сумма в валюте учёта: знак подставляет экран (issue #1248).
+        Assert.True(setting.GetProperty("money").GetBoolean());
         Assert.False(string.IsNullOrWhiteSpace(setting.GetProperty("effect").GetString()));
         // Настройка действует на записанные счета — предупреждение обязано ехать с объявлением.
         Assert.Contains("закрытых периодов", setting.GetProperty("changeWarning").GetString());
@@ -137,8 +139,8 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
 
     [Theory]
     [InlineData("рубль", "нужно число")]
-    [InlineData("100.01", "допустимо от 0,00 до 100,00 ₽")]
-    [InlineData("-0.01", "допустимо от 0,00 до 100,00 ₽")]
+    [InlineData("100.01", "допустимо от 0,00 до 100,00")]
+    [InlineData("-0.01", "допустимо от 0,00 до 100,00")]
     [InlineData("0.005", "не больше 2 знаков")]
     [InlineData("1,5", "нужно число")]
     public async Task Негодное_значение_отвергнуто_с_причиной_у_своего_поля(string value, string reason)
@@ -206,8 +208,8 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         var catalog = host.Services.GetRequiredService<IAppSettingCatalog>();
 
         var lowered = catalog.Change(Key, null, "0.10");
-        Assert.Equal(new SettingChange("Счета и накладные: Допуск расхождения сумм", "1,00 ₽", "0,10 ₽"), lowered);
-        Assert.Equal("0,10 ₽", catalog.Change(Key, "0.10", null)!.Before);
+        Assert.Equal(new SettingChange("Счета и накладные: Допуск расхождения сумм", "1,00", "0,10"), lowered);
+        Assert.Equal("0,10", catalog.Change(Key, "0.10", null)!.Before);
 
         // Та же настройка другой строкой: несохранённый рубль и «1», «1» и «1.00», негодное и сброс.
         Assert.Null(catalog.Change(Key, null, "1"));
@@ -254,7 +256,7 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         await SaveAsync(client, "-0");
         Assert.Equal("0.00", Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
             .GetProperty("stored").GetString());
-        Assert.Equal("0,00 ₽", Assert.Single(await ChangesAsync()).After);
+        Assert.Equal("0,00", Assert.Single(await ChangesAsync()).After);
     }
 
     private async Task StoreRawAsync(string value)

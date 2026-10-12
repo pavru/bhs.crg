@@ -20,15 +20,53 @@ import type { DatePrecision } from '@/shared/api/types';
  * <p>⚠️ <b>Язык слушает ПОКАЗ, а не ввод.</b> Число в поле ввода (`formatInput`) пишется одинаково
  * при любом языке: его читают разбор формы и сервер, а они знают одну запись — см. там.</p>
  *
- * <p>⚠️ <b>Валюта учёта пока одна и вписана здесь</b> — рубль. Настройкой модуля она станет в M1
- * (issue #1070), и менять придётся только `CURRENCY`: знак валюты нигде больше не пишется.</p>
+ * <p>⚠️ <b>Валюта учёта — настройка экземпляра</b> (issue #1248), одна на всех. Сюда её кладёт
+ * `AppRoutes` из ответа о доступе, первый кадр берёт её из зеркала в браузере. Знак валюты нигде
+ * больше не пишется: кому нужен он один, без суммы, — `currencySign()`.</p>
  */
-const CURRENCY = 'RUB';
+const DEFAULT_CURRENCY = 'RUB';
+/** Зеркало валюты в браузере — чтобы первый кадр не рисовал рубль на экземпляре с тенге. */
+export const CURRENCY_KEY = 'crg.currency';
 
 let stored = readMirror();
+let currency = readCurrencyMirror();
 
 function readMirror(): string {
   try { return localStorage.getItem(LOCALE_KEY) ?? SYSTEM_LOCALE; } catch { return SYSTEM_LOCALE; }
+}
+
+function readCurrencyMirror(): string {
+  try {
+    const mirrored = localStorage.getItem(CURRENCY_KEY);
+    return mirrored && isCurrency(mirrored) ? mirrored : DEFAULT_CURRENCY;
+  } catch { return DEFAULT_CURRENCY; }
+}
+
+/**
+ * Годится ли код форматтеру. Спрашиваем у самого `Intl`, а не сверяем со списком: список валют
+ * держит сервер, а уронить экран может только то, на чём бросает исключение конструктор.
+ */
+function isCurrency(code: string): boolean {
+  try { new Intl.NumberFormat('ru-RU', { style: 'currency', currency: code }); return true; } catch { return false; }
+}
+
+/**
+ * Сменить валюту учёта. Зовёт `AppRoutes` по ответу сервера; тестам — своя валюта на время проверки.
+ *
+ * <p>⚠️ Негодный код не принимается молча, и это не небрежность: сервер отдаёт только код из
+ * закрытого списка, а строка не по форме роняла бы `Intl.NumberFormat` на каждом экране с суммой.
+ * Остаться с прежней валютой здесь лучше, чем остаться без экрана.</p>
+ */
+export function setFormatCurrency(next: string): void {
+  if (next === currency || !isCurrency(next)) return;
+  currency = next;
+  numbers.clear();
+  try { localStorage.setItem(CURRENCY_KEY, next); } catch { /* зеркало — удобство, не хранилище */ }
+}
+
+/** Код валюты учёта, которой форматирует модуль. */
+export function formatCurrency(): string {
+  return currency;
 }
 
 /** Сменить язык форматирования. Зовёт `LocaleProvider`; тестам — свой язык на время проверки. */
@@ -65,7 +103,10 @@ function dateFormat(key: string, options: Intl.DateTimeFormatOptions): Intl.Date
 
 // ─── Числа ──────────────────────────────────────────────────────────────────────────────────────
 
-const MONEY: Intl.NumberFormatOptions = { style: 'currency', currency: CURRENCY, currencyDisplay: 'narrowSymbol' };
+// Не константа, в отличие от соседей: валюта — настройка. Объект собирается только при промахе
+// кэша — `setFormatCurrency` его чистит.
+const money = (): Intl.NumberFormatOptions =>
+  ({ style: 'currency', currency, currencyDisplay: 'narrowSymbol' });
 const AMOUNT: Intl.NumberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 const QUANTITY: Intl.NumberFormatOptions = { maximumFractionDigits: 3 };
 const COUNT: Intl.NumberFormatOptions = { maximumFractionDigits: 0 };
@@ -73,7 +114,17 @@ const COUNT: Intl.NumberFormatOptions = { maximumFractionDigits: 0 };
 /** Сумма со знаком валюты учёта: «412 500,00 ₽». Копейки пишутся всегда — «100 ₽» и «100,00 ₽» в
  * одной колонке читаются как разная точность. */
 export function formatMoney(value: number): string {
-  return numberFormat('money', MONEY).format(value);
+  return (numbers.get('money') ?? numberFormat('money', money())).format(value);
+}
+
+/**
+ * Знак валюты учёта без суммы: «₽», «₸», «Br» — для подписи единицы у поля ввода и для заголовка
+ * колонки. Берётся у того же форматтера, что рисует суммы: вторая таблица знаков разошлась бы с
+ * ним на первом же языке, где знак пишется иначе.
+ */
+export function currencySign(): string {
+  const parts = (numbers.get('money') ?? numberFormat('money', money())).formatToParts(0);
+  return parts.find(p => p.type === 'currency')?.value ?? currency;
 }
 
 /** Сумма без знака валюты — для колонки, у которой валюта названа в заголовке: «412 500,00». */

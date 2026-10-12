@@ -31,7 +31,7 @@ public static class ModuleSettingsEndpoints
     public record ModuleSettingView(
         string Key, string Title, string Effect, string Kind,
         string Value, string? Stored, string? Stale, string Default,
-        decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning);
+        decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning, bool Money = false);
 
     public record ModuleSettingsView(string Code, string Title, IReadOnlyList<ModuleSettingView> Settings);
 
@@ -99,7 +99,7 @@ public static class ModuleSettingsEndpoints
                 if (change is null && (was is null || string.Equals(was, now, StringComparison.Ordinal))) continue;
 
                 await store.SetAsync(key, now, ct);
-                // В журнал — только настоящая смена: «было 1,00 ₽, стало 1,00 ₽» — шум, за которым
+                // В журнал — только настоящая смена: «было 1,00, стало 1,00» — шум, за которым
                 // теряется запись, ради которой журнал открывали.
                 if (change is not null)
                     await journal.RecordAsync(ActivityActions.ModuleSettingChanged, key,
@@ -120,6 +120,7 @@ public static class ModuleSettingsEndpoints
             Stored: stored is null || stale ? null : setting.Normalize(stored),
             Stale: stale ? stored : null,
             Default: setting.DefaultText,
-            number?.Min, number?.Max, number?.Scale, number?.Unit, setting.ChangeWarning);
+            number?.Min, number?.Max, number?.Scale, number?.Unit, setting.ChangeWarning,
+            Money: number?.Money ?? false);
     }
 }

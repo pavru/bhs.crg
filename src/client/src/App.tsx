@@ -2,6 +2,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { useLocale } from '@/shared/hooks/useLocale';
+import { useAuth } from '@/shared/hooks/useAuth';
+import { useAccess } from '@/shared/api/access';
+import { setFormatCurrency } from '@/shared/format/format';
 import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
@@ -86,6 +89,12 @@ function AppRoutes() {
   // Файл, отпущенный мимо цели, не открывается вместо страницы (issue #1093).
   useDropMissGuard();
   useLocale();
+  // Валюта учёта (issue #1248) — форматтеру ПРЯМО В РЕНДЕРЕ, как язык у `LocaleProvider`: эффект
+  // сработал бы после отрисовки страниц, и кадр со сменой нарисовался бы прежним знаком. Экраны с
+  // суммами стоят под `RequireAccess` и ждут того же ответа — он приходит сюда раньше, чем к ним.
+  const { user } = useAuth();
+  const currency = useAccess(!!user).data?.accounting?.currency;
+  if (currency) setFormatCurrency(currency);
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

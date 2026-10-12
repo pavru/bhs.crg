@@ -172,14 +172,14 @@ public static class AllocationEndpoints
                 .FirstOrDefault(p => p.Amount is { } value && Math.Sign(value) != Math.Sign(amount));
             if (opposite.Amount is not null)
                 throw new InvalidRequestException(
-                    $"Часть {opposite.Number}: {opposite.Amount:0.00} ₽ при сумме строки {amount:0.00} ₽. Знак " +
+                    $"Часть {opposite.Number}: {opposite.Amount:0.00} при сумме строки {amount:0.00}. Знак " +
                     "части — знак строки: часть с обратным знаком позволила бы разнести на одну стройку больше, " +
                     "чем стоит строка, списав разницу с другой.");
 
             var spent = parts.Sum(p => p.Amount ?? 0m);
             if (Math.Abs(spent) > Math.Abs(amount))
                 throw new InvalidRequestException(
-                    $"Разнесено {spent:0.00} ₽, а сумма строки {amount:0.00} ₽. Разнести больше, чем стоит " +
+                    $"Разнесено {spent:0.00}, а сумма строки {amount:0.00}. Разнести больше, чем стоит " +
                     "строка, нельзя: лишнее легло бы в затраты стройки из ниоткуда.");
         }
     }

@@ -42,7 +42,7 @@ public abstract record ModuleSetting(string Key, string Title, string Effect)
     public abstract string Normalize(string value);
 
     /// <summary>
-    /// Годное значение словами для человека — в журнал действий и в тексты отказов: «0,50 ₽», а не
+    /// Годное значение словами для человека — в журнал действий и в тексты отказов: «0,50», а не
     /// «0.50». Хранимый вид — для машины, и читать его в журнале пришлось бы с оглядкой на ключ.
     /// </summary>
     public abstract string Display(string value);
@@ -92,12 +92,15 @@ public abstract record ModuleSetting<T>(string Key, string Title, string Effect)
     public abstract T Read(string? stored);
 }
 
-/// <summary>Число с границами и единицей: «допуск, ₽».</summary>
+/// <summary>Число с границами и единицей: «срок, дн.» — либо сумма в валюте учёта.</summary>
 /// <param name="Scale">Сколько знаков после запятой допускается.</param>
 /// <param name="Unit">Единица для подписи; <c>null</c> — число без единицы.</param>
+/// <param name="Money">Число — сумма в валюте учёта (issue #1248). Единицей её не называют: валюта —
+/// настройка экземпляра, а объявление статическое и в базу не ходит. Знак подставляет экран, тем же
+/// форматтером, что и на остальных суммах; в журнал и в отказы сумма идёт без знака.</param>
 public sealed record NumberSetting(
     string Key, string Title, string Effect,
-    decimal DefaultValue, decimal Min, decimal Max, int Scale = 0, string? Unit = null)
+    decimal DefaultValue, decimal Min, decimal Max, int Scale = 0, string? Unit = null, bool Money = false)
     : ModuleSetting<decimal>(Key, Title, Effect)
 {
     public override string Kind => "number";
@@ -134,6 +137,7 @@ public sealed record NumberSetting(
     {
         if (Scale is < 0 or > 6) return $"«{Key}» — знаков после запятой может быть от 0 до 6";
         if (Min > Max) return $"«{Key}» — нижняя граница больше верхней";
+        if (Money && Unit is not null) return $"«{Key}» — у суммы в валюте учёта своей единицы нет";
         return base.Validate();
     }
 
@@ -142,7 +146,7 @@ public sealed record NumberSetting(
     private string Human(decimal number) => Text(number).Replace('.', ',');
 
     // Ноль — без знака: «-0» проходит границу «не меньше нуля», а decimal знак нуля помнит и
-    // печатает — в базе и в журнале оказалось бы «-0,00 ₽» (ревью PR #1249).
+    // печатает — в базе и в журнале оказалось бы «-0,00» (ревью PR #1249).
     private static decimal Parse(string value) => TryParse(value, out var number) && number != 0 ? number : 0m;
 
     // Разделитель — точка: значение хранится и едет по сети в одном виде, а запятую человека

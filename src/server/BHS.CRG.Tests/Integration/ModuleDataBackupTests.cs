@@ -38,7 +38,7 @@ namespace BHS.CRG.Tests.Integration;
 /// живым хостом.</para>
 /// </summary>
 [Collection("Integration")]
-public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifetime
+public partial class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
     private const string ModuleCode = "probe";
     private const string ModuleSchemaName = "probe_data";
@@ -503,7 +503,9 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Periods.IPeriodClosures>(),
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Objects.IRecordArchive>(),
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Settings.IAppSettingCatalog>(),
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Recognition.RecognitionProfileCatalog>());
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Recognition.RecognitionProfileCatalog>(),
+        // Запрет смены валюты — по составу модулей ЭТОГО теста: у хоста поддельного модуля нет.
+        new AccountingCurrencyLock(scope.ServiceProvider.GetRequiredService<AppDbContext>(), Registry()));
 
     /// <summary>Копия целиком в памяти: её читают дважды — как манифест и как вход восстановления.</summary>
     private static async Task<MemoryStream> ArchiveAsync(BackupService service, BackupScope scope)
@@ -678,6 +680,8 @@ public class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAsyncLifet
         public IReadOnlyList<string> RoutePrefixes => [];
 
         public ModuleSchema? Schema => new(ModuleSchemaName, typeof(ProbeInvoiceContext));
+
+        public IReadOnlyList<ModuleAccountingDocument> AccountingDocuments => [new("invoices", "счетов")];
 
         public void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
 

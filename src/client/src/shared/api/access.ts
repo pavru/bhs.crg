@@ -19,6 +19,12 @@ export interface ModuleAccess {
 export interface AccessInfo {
   permissions: string[];
   modules: ModuleAccess[];
+  /**
+   * Валюта учёта экземпляра (issue #1248) — код из закрытого списка сервера. Едет здесь, потому что
+   * знак суммы нужен каждому вошедшему, а адрес самой настройки открыт только администратору.
+   * Необязательное: `NO_ACCESS` и ответ старого сервера его не несут — тогда действует зеркало.
+   */
+  accounting?: { currency: string };
 }
 
 export const ACCESS_KEY = ['account', 'access'] as const;
@@ -29,11 +35,13 @@ export const ACCESS_KEY = ['account', 'access'] as const;
  * ответу, показывает пункты, которые отвечают «нельзя», — то есть ровно то, от чего уходили,
  * убирая роль из токена.
  */
-export function useAccess() {
+export function useAccess(enabled = true) {
   return useQuery({
     queryKey: ACCESS_KEY,
     queryFn: () => apiClient.get<AccessInfo>('/account/access').then(r => r.data),
     staleTime: 30_000,
+    // Выключают там, где вошедшего может не быть (корень маршрутов): запрос без входа — отказ.
+    enabled,
   });
 }
 

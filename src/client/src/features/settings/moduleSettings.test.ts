@@ -1,15 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setFormatCurrency } from '@/shared/format/format';
 import type { ModuleSetting } from '@/shared/api/moduleSettings';
 import {
   boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, localRefusals, sentence, shown, staleStored,
-  toServer,
+  toServer, unitOf,
 } from './moduleSettings';
+
+afterEach(() => setFormatCurrency('RUB'));
 
 function tolerance(over: Partial<ModuleSetting> = {}): ModuleSetting {
   return {
     key: 'costs.allocation.tolerance', title: 'Допуск расхождения сумм', effect: 'Что меняет',
     kind: 'number', value: '1.00', stored: null, stale: null, default: '1.00',
-    min: 0, max: 100, scale: 2, unit: '₽', changeWarning: 'Действует на все счета.', ...over,
+    min: 0, max: 100, scale: 2, unit: null, money: true, changeWarning: 'Действует на все счета.', ...over,
   };
 }
 
@@ -116,7 +119,20 @@ describe('changeWarnings — предупреждение до сохранен�
 describe('подписи', () => {
   it('подсказка называет умолчание и границы', () => {
     expect(boundsHint(tolerance())).toBe('По умолчанию: 1,00 ₽ · допустимо от 0 до 100');
-    expect(boundsHint(tolerance({ min: null, max: null, unit: null }))).toBe('По умолчанию: 1,00');
+    expect(boundsHint(tolerance({ min: null, max: null, money: false }))).toBe('По умолчанию: 1,00');
+  });
+
+  it('единица суммы — знак валюты учёта, и меняется вместе с ней (issue #1248)', () => {
+    // Сервер знака не присылает: он его не знает. Зашей здесь «₽» — и допуск на экземпляре с тенге
+    // подписывался бы рублём при суммах в тенге на остальных экранах.
+    expect(unitOf(tolerance())).toBe('₽');
+    expect(unitOf(tolerance({ money: false, unit: 'дн.' }))).toBe('дн.');
+
+    setFormatCurrency('KZT');
+
+    expect(unitOf(tolerance())).toBe('₸');
+    expect(boundsHint(tolerance())).toBe('По умолчанию: 1,00 ₸ · допустимо от 0 до 100');
+    expect(changeWarnings([tolerance()], { [KEY]: '0.50' })[0].to).toBe('0,50 ₸');
   });
 
   it('сохранено одно, действует другое — сказано словами', () => {
