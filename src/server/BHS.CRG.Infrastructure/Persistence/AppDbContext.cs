@@ -102,6 +102,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        // Триграммы — под поиск «на выбор» по подстроке (issue #1247), см. DomainObjectConfiguration.
+        // Расширение ставит миграция, а не установщик: так оно приходит и обновлению у заказчика, и
+        // каждой тестовой базе. Роль приложения — владелец базы, а модуль «trusted»: прав хватает.
+        builder.HasPostgresExtension("pg_trgm");
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 

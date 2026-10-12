@@ -3,6 +3,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Infrastructure.Persistence;
@@ -263,16 +264,28 @@ public partial class DomainObjectRepository(AppDbContext db) : Repository<Domain
             .AsNoTracking()
             .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId));
 
-        if (!string.IsNullOrWhiteSpace(search))
+        // Перевод строки в набранном — пробел (ревью PR #1307): в тексте поиска он разделяет
+        // название и имена, и образец с ним совпал бы ЧЕРЕЗ границу — «конец названия + начало
+        // имени», чего нет ни в одном из них. Запись попала бы в ответ без пояснения «найдено по …».
+        var needle = search?.Replace('\r', ' ').Replace('\n', ' ').Trim();
+
+        if (!string.IsNullOrEmpty(needle))
         {
             // ⚠️ Знаки образца обезврежены: «%» в набранном тексте иначе означал бы «что угодно», то
             // есть поиск «100%» показывал бы всё подряд и выглядел бы исправной работой.
-            var pattern = "%" + search.Trim().Replace("!", "!!").Replace("%", "!%").Replace("_", "!_") + "%";
+            var pattern = "%" + needle.Replace("!", "!!").Replace("%", "!%").Replace("_", "!_") + "%";
             // ⚠️ И по альтернативным именам (issue #1169): они «участвуют в сопоставлении по имени
             // наравне с названием» (DomainObject.Aliases). Без них запрос «ВВГ 3*2.5» к позиции
             // «Кабель ВВГнг(А)-LS 3х2,5» отвечал пустым списком — и человек заводил дубль.
-            query = query.Where(o => EF.Functions.ILike(o.DisplayName!, pattern, "!")
-                                     || o.Aliases.Any(a => EF.Functions.ILike(a, pattern, "!")));
+            //
+            // Ищем по генерируемой колонке «название + имена» (issue #1247): под ней триграммный
+            // индекс, и образец с подстановкой впереди перестаёт быть проходом по всей таблице.
+            // Образец из одного-двух знаков триграмм не даёт, и индекс ему бесполезен. Путь выбирает
+            // планировщик: образец он видит (запрос не подготовленный) и полный обход индекса
+            // оценивает дороже прохода — замер в DEV_NOTES. Порога длины нет нарочно: «ПВ» и «АС» —
+            // законные запросы.
+            query = query.Where(o => EF.Functions.ILike(
+                EF.Property<string>(o, DomainObjectConfiguration.SearchText), pattern, "!"));
         }
 
         // Архив считается ТЕМ ЖЕ отбором, что и выбор, — до того, как архивные из выбора убраны.
@@ -287,12 +300,11 @@ public partial class DomainObjectRepository(AppDbContext db) : Repository<Domain
 
         // Альтернативные имена едут только когда искали текстом: назвать «найдено по …» больше
         // некому, а без поиска они ссылке не нужны.
-        if (string.IsNullOrWhiteSpace(search))
+        if (string.IsNullOrEmpty(needle))
             return new ChoiceCandidates(await ordered
                 .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName, false, null))
                 .ToListAsync(ct), inArchive);
 
-        var needle = search.Trim();
         var found = await ordered
             .Select(o => new { o.Id, o.CompositeTypeId, o.DisplayName, o.Aliases })
             .ToListAsync(ct);
