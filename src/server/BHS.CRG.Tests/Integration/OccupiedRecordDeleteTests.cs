@@ -275,8 +275,8 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
         await Assert.ThrowsAsync<RecordHeldException>(() =>
             m.Send(new BHS.CRG.Application.QualityDocs.DeleteQualityDocumentCommand(certificate.Id)));
         // И комплект, и стройка над документом: каскад уровня спрашивает о содержимом.
-        await Assert.ThrowsAsync<RecordHeldException>(() => m.Send(new DeleteDocumentSetCommand(set.Id)));
-        await Assert.ThrowsAsync<RecordHeldException>(() => m.Send(new DeleteConstructionCommand(site)));
+        await Assert.ThrowsAnyAsync<RecordHeldException>(() => m.Send(new DeleteDocumentSetCommand(set.Id)));
+        await Assert.ThrowsAnyAsync<RecordHeldException>(() => m.Send(new DeleteConstructionCommand(site)));
     }
 
     /// <summary>

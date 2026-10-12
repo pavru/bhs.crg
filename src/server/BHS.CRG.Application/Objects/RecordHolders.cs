@@ -120,7 +120,7 @@ public sealed record DormantRelease(int References, IReadOnlyList<RecordHolder> 
 /// Отказ «запись держат данные модулей» — с самим ответом, а не только словами: адрес отдаёт экрану
 /// поле «можно удалить принудительно», и разбирать для этого фразу он не должен.
 /// </summary>
-public sealed class RecordHeldException(string message, RecordHoldings holdings) : ConflictException(message)
+public class RecordHeldException(string message, RecordHoldings holdings) : ConflictException(message)
 {
     public RecordHoldings Holdings { get; } = holdings;
 }

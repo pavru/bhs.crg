@@ -40,7 +40,47 @@ public interface IScopeCascade
 
     /// <summary>Отказ, если на содержимое ссылаются извне. <paramref name="levelAccusative"/> —
     /// «комплект», «раздел», «стройку».</summary>
-    void EnsureDeletable(ScopeCascadePlan plan, string levelAccusative);
+    /// <returns>Всегда <c>null</c>: обычное удаление ссылок не теряет.</returns>
+    DormantRelease? EnsureDeletable(ScopeCascadePlan plan, string levelAccusative);
+
+    /// <summary>
+    /// То же для принудительного удаления (issue #1243): отказы ядра остаются все, а держатели в
+    /// модулях пропускаются, только если это одни выключенные или снятые модули и человек подтвердил
+    /// общее число их ссылок.
+    /// </summary>
+    DormantRelease EnsureReleasable(ScopeCascadePlan plan, string levelAccusative, int confirmed);
+}
+
+/// <summary>
+/// Что уходит вместе с уровнем — числами, для диалога и журнала (issue #1243). Документы и записи
+/// общих данных считаются вместе: каскад читает объекты без документной фасеты и различить их не
+/// может, а отдельный запрос ради подписи не нужен.
+/// </summary>
+public sealed record ScopeLeaving(int Sections, int Sets, int Objects, int QualityDocuments, int WorkPlanItems)
+{
+    public string Describe()
+    {
+        string?[] parts =
+        [
+            Sections > 0 ? $"разделов — {Sections}" : null,
+            Sets > 0 ? $"комплектов — {Sets}" : null,
+            Objects > 0 ? $"документов и записей — {Objects}" : null,
+            QualityDocuments > 0 ? $"документов качества — {QualityDocuments}" : null,
+            WorkPlanItems > 0 ? $"позиций перечня работ — {WorkPlanItems}" : null,
+        ];
+        var said = parts.Where(p => p is not null).ToList();
+        return said.Count == 0 ? "ничего" : string.Join(", ", said);
+    }
+}
+
+/// <summary>
+/// Отказ «уровень держат данные модулей» — с составом уходящего: экран показывает его рядом с
+/// предложением принудительного удаления, и спрашивать о нём вторым запросом не должен.
+/// </summary>
+public sealed class ScopeHeldException(string message, RecordHoldings holdings, ScopeLeaving leaving)
+    : RecordHeldException(message, holdings)
+{
+    public ScopeLeaving Leaving { get; } = leaving;
 }
 
 /// <param name="Objects">Объекты поддерева.</param>
@@ -76,7 +116,11 @@ public sealed record ScopeCascadePlan(
     IReadOnlyList<DomainObjectReferences.Referrer> ExternalReferrers,
     IReadOnlyList<WorkPlanItem> WorkPlanItems,
     RecordHoldings ModuleHolders,
-    int WorkPlanItemsHoldingObjects);
+    int WorkPlanItemsHoldingObjects)
+{
+    /// <summary>Сколько чего уходит с уровнем. Сам уровень в счёт не входит.</summary>
+    public ScopeLeaving Leaving { get; init; } = new(0, 0, 0, 0, 0);
+}
 
 /// <inheritdoc cref="IScopeCascade" />
 public class ScopeCascade(
@@ -162,7 +206,14 @@ public class ScopeCascade(
                     p => objectIds.Contains(p.WorkTypeId) || objectIds.Contains(p.UnitId), ct))
                 .Count(p => !itemIds.Contains(p.Id));
 
-        return new ScopeCascadePlan(objects, quality, links, referrers, items, moduleHolders, held);
+        return new ScopeCascadePlan(objects, quality, links, referrers, items, moduleHolders, held)
+        {
+            // Комплект — сам себе поддерево (см. IScopeSubtree): себя он «уходящим» не считает.
+            Leaving = new ScopeLeaving(
+                Sections: scope == CatalogScope.Construction ? sectionIds.Count : 0,
+                Sets: scope == CatalogScope.Set ? 0 : setIds.Count,
+                objects.Count, quality.Count, items.Count),
+        };
     }
 
     /// <inheritdoc />
@@ -183,12 +234,31 @@ public class ScopeCascade(
     }
 
     /// <inheritdoc />
-    public void EnsureDeletable(ScopeCascadePlan plan, string levelAccusative)
-    {
-        // Ссылки модулей — первыми: это самая дорогая из потерь здесь (счета потеряли бы стройку, а
-        // план, факт и акты — позицию перечня, к которой относятся).
-        plan.ModuleHolders.EnsureNone(levelAccusative);
+    public DormantRelease? EnsureDeletable(ScopeCascadePlan plan, string levelAccusative) =>
+        Ensure(plan, levelAccusative, found => { found.EnsureNone(levelAccusative, forcedExit: true); return null; });
 
+    /// <inheritdoc />
+    public DormantRelease EnsureReleasable(ScopeCascadePlan plan, string levelAccusative, int confirmed) =>
+        Ensure(plan, levelAccusative, found => found.EnsureOnlyDormant(levelAccusative, confirmed))!;
+
+    /// <summary>
+    /// Одно тело на оба пути: различаются они ТОЛЬКО вопросом к держателям в модулях, и передаётся
+    /// он действием, а не признаком, — отказ ядра, дописанный сюда позже, встаёт на оба пути сам.
+    /// </summary>
+    private static DormantRelease? Ensure(
+        ScopeCascadePlan plan, string levelAccusative, Func<RecordHoldings, DormantRelease?> moduleGate)
+    {
+        EnsureCoreFree(plan, levelAccusative);
+        // ⚠️ Данные модулей — ПОСЛЕДНИМ из отказов (issue #1243; до него стояли первыми): по этому
+        // отказу адрес предлагает принудительное удаление, а предлагать его уровню, который держит
+        // ещё и ядро, нельзя — человек ввёл бы число и получил второй отказ. Потерь перестановка не
+        // создаёт: меняется только то, какой из отказов прозвучит.
+        try { return moduleGate(plan.ModuleHolders); }
+        catch (RecordHeldException ex) { throw new ScopeHeldException(ex.Message, ex.Holdings, plan.Leaving); }
+    }
+
+    private static void EnsureCoreFree(ScopeCascadePlan plan, string levelAccusative)
+    {
         if (plan.WorkPlanItemsHoldingObjects > 0)
             throw new ConflictException(
                 $"Нельзя удалить {levelAccusative}: на его записи ссылается перечень работ ДРУГИХ "

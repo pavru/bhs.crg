@@ -3,6 +3,8 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Objects;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Modules;
 using MediatR;
@@ -62,11 +64,17 @@ public static class ConstructionEndpoints
         cEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
             => Results.Ok(await m.Send(new RenameConstructionCommand(id, req.Name))));
 
-        cEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        // Отказ «держат данные модулей» отвечает ЗДЕСЬ, а не общим разбором ошибок: в нём поле
+        // purge — предложение принудительного удаления (issue #1243). Прочие отказы идут как шли.
+        cEdit.MapDelete("/{id:guid}", async (
+            Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct) =>
         {
-            await m.Send(new DeleteConstructionCommand(id));
+            try { await m.Send(new DeleteConstructionCommand(id), ct); }
+            catch (RecordHeldException ex) { return await ScopePurge.ConflictAsync(ex, user, permissions, ct); }
             return Results.NoContent();
         });
+
+        ScopePurge.Map(Purging(app, "/api/constructions"), CatalogScope.Construction);
 
         // Пояс и внешний идентификатор — СВОИМИ адресами, а не полями в теле переименования
         // (ТЗ CORE-5). Сложи их в одно тело — и клиент, присылающий только имя, снимал бы пояс
@@ -107,12 +115,22 @@ public static class ConstructionEndpoints
         sEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
             => Results.Ok(await m.Send(new RenameSectionCommand(id, req.Name))));
 
-        sEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        sEdit.MapDelete("/{id:guid}", async (
+            Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct) =>
         {
-            await m.Send(new DeleteSectionCommand(id));
+            try { await m.Send(new DeleteSectionCommand(id), ct); }
+            catch (RecordHeldException ex) { return await ScopePurge.ConflictAsync(ex, user, permissions, ct); }
             return Results.NoContent();
         });
+
+        ScopePurge.Map(Purging(app, "/api/sections"), CatalogScope.Section);
     }
+
+    /// <summary>Группа принудительного удаления: правка строек И право терять ссылки — оба.</summary>
+    private static RouteGroupBuilder Purging(IEndpointRouteBuilder app, string prefix) =>
+        app.MapGroup(prefix)
+            .RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsEdit))
+            .RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogPurge));
 
     static Guid GetUserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);

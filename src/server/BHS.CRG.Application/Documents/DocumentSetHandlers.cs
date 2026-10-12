@@ -19,11 +19,9 @@ public class DocumentSetHandlers(
     IReferenceIndex refIndex,
     IRecordHolders holders,
     IBlobStorage blobStorage,
-    IScopeSubtree scopeSubtree,
-    IScopeCascade cascade) :
+    IScopeSubtree scopeSubtree) :
     IRequestHandler<CreateDocumentSetCommand, DocumentSet>,
     IRequestHandler<RenameDocumentSetCommand, DocumentSet>,
-    IRequestHandler<DeleteDocumentSetCommand>,
     IRequestHandler<GetDocumentSetQuery, DocumentSet?>,
     IRequestHandler<ListAvailableInstancesQuery, IReadOnlyList<DomainObject>>,
     IRequestHandler<AddDocumentToSetCommand, DomainObject>,
@@ -70,19 +68,9 @@ public class DocumentSetHandlers(
         return set;
     }
 
-    public async Task Handle(DeleteDocumentSetCommand cmd, CancellationToken ct)
-    {
-        var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
-        // Всё, что висит на оси (Set, этот Id) — документы, Set-скоуп общих данных, документы
-        // качества уровня комплекта и связки материалов, — принадлежит комплекту: FK-каскада на
-        // комплект нет (единая ось, полиморфный ScopeId), удаляем прикладно.
-        // issue #739: и тот же guard, что у поштучного удаления, — иначе каскад обходит его с фланга.
-        var plan = await cascade.PlanAsync(CatalogScope.Set, cmd.Id, ct);
-        cascade.EnsureDeletable(plan, "комплект");
-        cascade.Remove(plan);
-        setRepo.Remove(set);
-        await setRepo.SaveChangesAsync(ct);
-    }
+    // Удаление комплекта — в ScopeDeletionHandlers: одно тело на три уровня (issue #1243). Всё, что
+    // висит на оси (Set, этот Id), принадлежит комплекту, а каскада базы на него нет — уносит
+    // IScopeCascade.
 
     public Task<DocumentSet?> Handle(GetDocumentSetQuery q, CancellationToken ct)
         => setRepo.GetByIdAsync(q.Id, ct);

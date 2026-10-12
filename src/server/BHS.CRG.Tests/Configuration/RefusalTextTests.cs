@@ -109,6 +109,11 @@ public class RefusalTextTests
             + "«разнесено больше, чем в строке» и не знает, в какой",
         ["$\"Счёт целиком: {e.Message}\", e"] =
             "то же для разноски счёта суммой: наш отказ с пометкой, что он про счёт, а не про строку",
+        // Удаление уровня (issue #1243). Ловится ТОЛЬКО RecordHeldException — наш отказ «держат данные
+        // модулей»; текст переносится дословно, меняется тип: к отказу прикладывается состав уходящего.
+        ["ex.Message, ex.Holdings, plan.Leaving"] =
+            "наш же RecordHeldException становится ScopeHeldException с тем же текстом — чужому "
+            + "сообщению взяться неоткуда, catch назван поимённо",
         ["""
          "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select( r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message))
          """] =

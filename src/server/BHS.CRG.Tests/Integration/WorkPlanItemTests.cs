@@ -188,12 +188,12 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var cascade = CascadeWith(scope, new FakeReferrer("строки отчётов монтажников", 7));
 
         var plan = await cascade.PlanAsync(CatalogScope.Construction, construction);
-        var refusal = Assert.Throws<RecordHeldException>(() => cascade.EnsureDeletable(plan, "стройку"));
+        var refusal = Assert.ThrowsAny<RecordHeldException>(() => cascade.EnsureDeletable(plan, "стройку"));
         Assert.Contains("строки отчётов монтажников: 7", refusal.Message);
 
         // Раздел — тот же вопрос: позиция раздела уйдёт с ним, и держатель об этом не узнает.
         var forSection = await cascade.PlanAsync(CatalogScope.Section, section);
-        Assert.Throws<RecordHeldException>(() => cascade.EnsureDeletable(forSection, "раздел"));
+        Assert.ThrowsAny<RecordHeldException>(() => cascade.EnsureDeletable(forSection, "раздел"));
     }
 
     /// <summary>
