@@ -26,7 +26,13 @@ import { OutlinedField } from './OutlinedField';
  * как в `TextField`, здесь неосуществимо. Фокус по той же причине приходит пропом.
  *
  * ВНИМАНИЕ: Radix запрещает пустую строку как value у Item. Для «пусто/все» используйте
- * placeholder (не передавайте value) либо отдельный Item с непустым sentinel-значением.
+ * placeholder и `value={undefined}` либо отдельный Item с непустым sentinel-значением.
+ *
+ * Список ВСЕГДА управляемый: «значения нет» уходит в Radix пустой строкой, а не `undefined`
+ * (ревью PR #1319). С `undefined` Radix считает список неуправляемым и помнит выбор сам — и стоило
+ * вызывающему коду сбросить своё значение («Отменить», очистка после «Добавить»), как список
+ * продолжал показывать сброшенное, а выбрать тот же пункт заново было нельзя: значение «то же»,
+ * событие не приходит. Пустую строку Radix читает как «значения нет» и показывает placeholder.
  */
 export interface SelectProps {
   value: string | undefined;
@@ -84,7 +90,7 @@ export function Select({
   // Обязательность в слое формы проверяет само приложение (`isFieldMissing` + «Обязательное поле»),
   // поэтому в Radix не передаём, а доступность закрываем `aria-required` на триггере.
   const control = (
-    <RS.Root value={value} onValueChange={onValueChange} disabled={disabled}
+    <RS.Root value={value ?? ''} onValueChange={onValueChange} disabled={disabled}
       required={framed ? undefined : required} name={name} onOpenChange={setOpen}>
       <RS.Trigger className={`${framed ? FRAMED_TRIGGER : TRIGGER} ${className}`}
         aria-label={framed ? undefined : aria['aria-label']}

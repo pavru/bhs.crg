@@ -35,15 +35,80 @@ export interface SchemaWrite {
 }
 
 /**
+ * Поля, которые список строки даёт ВЫБРАТЬ. Это уже, чем показанное (`listedFields`): негодное поле
+ * с тэгом в списке названо, но недоступно, а у строки «расходится в подтипе» списка нет вовсе —
+ * она чинится в редакторе типа.
+ */
+export function offeredFields(row: CoverageRow): CoverageField[] {
+  return row.fault === 'DiffersInSubtype' ? [] : row.fields.filter(f => f.fits);
+}
+
+/**
+ * Набранное в строке — единственное место, где читают черновик. Отдаёт САМО поле, а не ключ:
+ * «выбор есть, а поля нет» тогда непредставимо, и запись не может превратить выбор в снятие тэга.
+ *
+ * Выбор действителен, пока список его предлагает. Список перечитывается, и поле тем временем могли
+ * удалить, сменить ему вид или сделать расчётным; оставшийся в черновике ключ экран считал бы
+ * правкой, а запись — снятием тэга: поставить его некуда, снять с прежнего есть откуда. Повторное
+ * «Сохранить» после отказа «поля больше нет» молча снимало обязательное назначение и отвечало
+ * «сохранено» (проверка правок PR #1318). Сверка — с тем, что список даёт выбрать, а не со всеми
+ * полями строки: негодное поле сервер присылает тоже, и выбор, ставший негодным, оставался бы
+ * «правкой», которую запись отклоняет при каждом нажатии (ревью PR #1319).
+ *
+ * `undefined` — строку не трогали либо набранное больше не предлагается; `null` — «Не назначено».
+ */
+function chosen(row: CoverageRow, draft: MappingDraft): CoverageField | null | undefined {
+  const key = draft[row.tag];
+  if (key === undefined) return undefined;
+  const offered = offeredFields(row);
+  // «Не назначено» список предлагает только необязательной строке — и только пока он сам есть.
+  if (key === null) return !row.required && offered.length > 0 ? null : undefined;
+  return offered.find(f => f.key === key);
+}
+
+/** Правка строки: что выбрано взамен действующего; `null` — назначение снять. */
+interface RowChange {
+  row: CoverageRow;
+  target: CoverageField | null;
+}
+
+/**
  * Строки, в которых выбор отличается от действующего. Действующим считается только сопоставленное:
  * у нарушенной строки (два поля с тэгом) любой выбор — правка, даже если он совпал с одним из двух.
+ * Строки есть только у назначенного справочника: у прочих экран их не показывает.
  */
-export function changedRows(group: CoverageGroup, draft: MappingDraft): CoverageRow[] {
-  return group.rows.filter(row => {
-    const chosen = draft[row.tag];
-    if (chosen === undefined) return false;
-    return row.state === 'mapped' ? chosen !== row.key : chosen !== null || row.fields.some(f => f.tagged);
+function changes(group: CoverageGroup, draft: MappingDraft): RowChange[] {
+  if (group.state !== 'mapped') return [];
+  return group.rows.flatMap(row => {
+    const target = chosen(row, draft);
+    if (target === undefined) return [];
+    const differs = row.state === 'mapped'
+      ? (target?.key ?? null) !== row.key
+      : target !== null || row.fields.some(f => f.tagged);
+    return differs ? [{ row, target }] : [];
   });
+}
+
+/** Строки с несохранённой правкой — см. `changes`. */
+export function changedRows(group: CoverageGroup, draft: MappingDraft): CoverageRow[] {
+  return changes(group, draft).map(change => change.row);
+}
+
+/**
+ * Черновик с выбором в строке. Выбор, равный действующему, — не правка и в черновике НЕ остаётся.
+ *
+ * Иначе «выбрал другое и вернул прежнее» оставляло бы спящий ключ: пометки нет, кнопок нет, а
+ * стоит назначению смениться со стороны (тэг перенесли в редакторе типа) — и строка становится
+ * «не сохранено» с выбором, от которого человек отказался; «Сохранить» вернуло бы тэг на прежнее
+ * поле поверх чужого назначения. Тот же класс, что у выбора пропавшего поля, только с другой
+ * стороны: там ключ недействителен, здесь — пуст (проверка правок PR #1319).
+ */
+export function withPick(
+  group: CoverageGroup, draft: MappingDraft, row: CoverageRow, key: string | null,
+): MappingDraft {
+  const next = { ...draft, [row.tag]: key };
+  if (!changedRows(group, next).includes(row)) delete next[row.tag];
+  return next;
 }
 
 /**
@@ -54,19 +119,57 @@ export function changedRows(group: CoverageGroup, draft: MappingDraft): Coverage
  */
 export function schemaWrites(group: CoverageGroup, draft: MappingDraft): SchemaWrite[] {
   const writes = new Map<string, SchemaWrite>();
-  for (const row of changedRows(group, draft)) {
-    const chosen = draft[row.tag] ?? null;
-    const target = chosen === null ? undefined : row.fields.find(f => f.key === chosen);
+  for (const { row, target } of changes(group, draft)) {
     const touched = [...row.fields.filter(f => f.tagged), ...(target ? [target] : [])];
     for (const field of touched) {
       const { id, name } = field.declaredIn;
       const write = writes.get(id) ?? { typeId: id, typeName: name, placements: [] };
       if (!write.placements.some(p => p.tag === row.tag))
-        write.placements.push({ tag: row.tag, key: target?.declaredIn.id === id ? chosen : null });
+        write.placements.push({ tag: row.tag, key: target?.declaredIn.id === id ? target.key : null });
       writes.set(id, write);
     }
   }
   return [...writes.values()];
+}
+
+/**
+ * Черновик без выбора, которого список больше не предлагает, и строки, где он снят. Тот же объект,
+ * если снимать нечего.
+ *
+ * Недействительный выбор мало не читать — его надо ВЫЧИСТИТЬ: спящий ключ ожил бы, стоило полю с
+ * тем же ключом появиться снова (удалённое по ошибке вернули; справочником назначили другой тип, а
+ * в нём свой «Код»), — и строка стала бы «не сохранено» с выбором, сделанным для другого состояния,
+ * хотя человек ничего не трогал (ревью PR #1319).
+ */
+export function reconciled(
+  group: CoverageGroup, draft: MappingDraft,
+): { draft: MappingDraft; dropped: CoverageRow[] } {
+  const kept: MappingDraft = {};
+  const dropped: CoverageRow[] = [];
+  let lost = false;
+  for (const tag of Object.keys(draft)) {
+    const row = group.rows.find(r => r.tag === tag);
+    if (row && group.state === 'mapped' && chosen(row, draft) !== undefined) {
+      kept[tag] = draft[tag];
+      continue;
+    }
+    lost = true;
+    if (row) dropped.push(row);
+  }
+  return lost ? { draft: kept, dropped } : { draft, dropped };
+}
+
+/**
+ * Что сказать человеку, когда его выбор снял сам экран. Молча это делать нельзя: пометка «не
+ * сохранено» и кнопки пропали бы без причины (ревью PR #1319). «Выберите заново» — только если
+ * выбирать есть из чего: совет без пути — не совет.
+ */
+export function droppedNotice(group: CoverageGroup, dropped: CoverageRow[]): string {
+  if (dropped.length === 0) return 'Несохранённый выбор отменён: справочник тем временем изменили.';
+  const names = dropped.map(row => `«${row.label}»`).join(', ');
+  const again = group.state === 'mapped' && dropped.some(row => offeredFields(row).length > 0);
+  return `Выбор для ${names} отменён: тип тем временем изменили, и список этого больше не предлагает.`
+    + (again ? ' Выберите заново.' : '');
 }
 
 /** Собственные поля схемы — как лежат. */
@@ -188,8 +291,8 @@ export function listedFields(row: CoverageRow): CoverageField[] {
 
 /** Что стоит в списке строки: набранное, а если не трогали — действующее назначение. */
 export function selectedKey(row: CoverageRow, draft: MappingDraft): string | undefined {
-  const chosen = draft[row.tag];
-  if (chosen !== undefined) return chosen ?? NOT_ASSIGNED;
+  const pick = chosen(row, draft);
+  if (pick !== undefined) return pick?.key ?? NOT_ASSIGNED;
   if (row.key !== null) return row.key;
   // Одно негодное поле с тэгом — показываем его, с пометкой: пустой список скрыл бы, что тэг стоит.
   const tagged = row.fields.filter(f => f.tagged);
