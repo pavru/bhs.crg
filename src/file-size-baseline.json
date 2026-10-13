@@ -1,5 +1,5 @@
 {
-  "deploy/install.sh": 569,
+  "deploy/install.sh": 570,
   "deploy/update.sh": 852,
   "src/client/e2e/seed.mjs": 568,
   "src/client/src/features/datasets/PdfGroupingEditor.tsx": 538,
