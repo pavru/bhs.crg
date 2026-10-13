@@ -93,7 +93,12 @@ public sealed record ModuleCatalogFieldValue(
 /// ровно одно. ⚠️ <c>false</c> — это не «значений нет»: схему ведёт человек, тэг могли снять, поставить
 /// на второе поле или сделать поле составным, и модуль обязан ответить на это отказом с названием
 /// того, что не сопоставлено. Записей в ответе тогда нет.</param>
-public sealed record ModuleCatalogFieldValues(bool Declared, IReadOnlyList<ModuleCatalogFieldValue> Records);
+/// <param name="Reason">Почему поле не сопоставлено — словами ядра, готовыми к показу: «назначено
+/// дважды», «у подтипа «…» назначено другому полю». Только при <c>Declared == false</c>. Причину знает
+/// ядро, а не модуль: модуль, перечислявший возможные причины сам, назвал три из четырёх и отправил
+/// человека проверять тип, в котором всё было верно (ревью PR #1317).</param>
+public sealed record ModuleCatalogFieldValues(
+    bool Declared, IReadOnlyList<ModuleCatalogFieldValue> Records, string? Reason = null);
 
 /// <summary>
 /// Справочники ядра для модуля — ЧТЕНИЕ (ТЗ CORE-34): поставщик у счёта, стройка у разноски, лицо в

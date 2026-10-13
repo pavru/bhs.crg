@@ -27,7 +27,8 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class DirectoryRoleDefaultsTests(IntegrationTestFixture host)
 {
-    private sealed record Seed(string Code, string Schema, string Kind = "Composite");
+    /// <param name="Parent">Код родителя; родитель в перечне стоит РАНЬШЕ потомка.</param>
+    private sealed record Seed(string Code, string Schema, string Kind = "Composite", string? Parent = null);
 
     private const string Live = """
         [{"Code":"Организация","Schema":"{\"fields\":[{\"key\":\"Наименование\",\"type\":\"complex\"},{\"key\":\"ИНН\",\"type\":\"primitive\"},{\"key\":\"КПП\",\"type\":\"string\"}]}"},
@@ -60,6 +61,23 @@ public class DirectoryRoleDefaultsTests(IntegrationTestFixture host)
         // Справочник — составной тип; документ с тем же кодом им не становится.
         { "код занят документом", """[{"Code":"Организация","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"string\"}]}","Kind":"Document"}]""" },
         { "полей с прежними ключами нет", """[{"Code":"Организация","Schema":"{\"fields\":[{\"key\":\"Название\",\"type\":\"string\"}]}"}]""" },
+        // Прежний код находил тип без учёта регистра и поле по схеме с наследованием (ревью PR #1317).
+        { "код в другом регистре", LowerCase },
+        { "ИНН объявлен у родителя", Inherited },
+        { "ИНН у деда, у родителя полей нет", """
+            [{"Code":"Субъект","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"primitive\"},{\"key\":\"Наименование\",\"type\":\"complex\"}]}"},
+             {"Code":"Лицо","Parent":"Субъект","Schema":"{}"},
+             {"Code":"Организация","Parent":"Лицо","Schema":"{\"fields\":[]}"}]
+            """ },
+        // Ближайшее объявление заслоняет дальнее: у носителя «ИНН» составной — тэг не получает никто.
+        { "своё поле не того вида заслоняет родительское", """
+            [{"Code":"Лицо","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"string\"}]}"},
+             {"Code":"Организация","Parent":"Лицо","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"complex\"}]}"}]
+            """ },
+        { "тэг уже стоит на поле родителя", """
+            [{"Code":"Лицо","Schema":"{\"fields\":[{\"key\":\"Номер\",\"type\":\"string\",\"tags\":[\"org.inn\"]}]}"},
+             {"Code":"Организация","Parent":"Лицо","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"string\"}]}"}]
+            """ },
     };
 
     [Theory]
@@ -99,6 +117,30 @@ public class DirectoryRoleDefaultsTests(IntegrationTestFixture host)
         Assert.Equal("identity:1", nomenclature["fields"]![0]!["tags"]![0]!.GetValue<string>());
     }
 
+    private const string LowerCase = """
+            [{"Code":"организация","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"string\"}]}"},
+             {"Code":"НОМЕНКЛАТУРА","Schema":"{\"fields\":[]}"}]
+        """;
+
+    private const string Inherited = """
+            [{"Code":"Лицо","Schema":"{\"fields\":[{\"key\":\"ИНН\",\"type\":\"string\"}]}"},
+             {"Code":"Организация","Parent":"Лицо","Schema":"{\"fields\":[{\"key\":\"Наименование\",\"type\":\"string\"}]}"}]
+        """;
+
+    /// <summary>Результат новых случаев — по существу: сойтись в бездействии два исполнения могли бы и тут.</summary>
+    [Fact]
+    public void Тип_в_другом_регистре_и_поле_родителя_находятся_как_находил_прежний_код()
+    {
+        var lower = Applied(JsonSerializer.Deserialize<Seed[]>(LowerCase)!);
+        Assert.Equal("role.organization", JsonNode.Parse(lower["организация"])!["tags"]![0]!.GetValue<string>());
+        Assert.Equal("org.inn", JsonNode.Parse(lower["организация"])!["fields"]![0]!["tags"]![0]!.GetValue<string>());
+        Assert.Equal("role.nomenclature", JsonNode.Parse(lower["НОМЕНКЛАТУРА"])!["tags"]![0]!.GetValue<string>());
+
+        var inherited = Applied(JsonSerializer.Deserialize<Seed[]>(Inherited)!);
+        Assert.Equal("org.inn", JsonNode.Parse(inherited["Лицо"])!["fields"]![0]!["tags"]![0]!.GetValue<string>());
+        Assert.Equal("org.name", JsonNode.Parse(inherited["Организация"])!["fields"]![0]!["tags"]![0]!.GetValue<string>());
+    }
+
     [Fact]
     public void Повторное_применение_ничего_не_меняет()
     {
@@ -133,9 +175,12 @@ public class DirectoryRoleDefaultsTests(IntegrationTestFixture host)
 
     private static Dictionary<string, string> Applied(Seed[] seeds)
     {
-        var types = seeds.Select(s => DocumentType.Create(
-            s.Code, s.Code, Enum.Parse<DocumentTypeKind>(s.Kind), null, JsonDocument.Parse(s.Schema),
-            TypeOwner.Core, TypeVisibility.Shared)).ToList();
+        var types = new List<DocumentType>();
+        foreach (var s in seeds)
+            types.Add(DocumentType.Create(
+                s.Code, s.Code, Enum.Parse<DocumentTypeKind>(s.Kind),
+                s.Parent is null ? null : types.Single(t => t.Code == s.Parent).Id, JsonDocument.Parse(s.Schema),
+                TypeOwner.Core, TypeVisibility.Shared));
 
         var result = types.ToDictionary(t => t.Code, t => t.Schema.RootElement.GetRawText());
         foreach (var (type, schema) in DirectoryRoleDefaults.Apply(types))
@@ -157,12 +202,16 @@ public class DirectoryRoleDefaultsTests(IntegrationTestFixture host)
             CREATE TEMP TABLE document_types
                 (LIKE public.document_types INCLUDING DEFAULTS) ON COMMIT DROP
             """);
+        var ids = seeds.ToDictionary(s => s.Code, _ => Guid.NewGuid());
         foreach (var seed in seeds)
         {
             await using var insert = new NpgsqlCommand("""
-                INSERT INTO document_types ("Id", "Name", "Code", "Schema", "PluginBindings", "CreatedAt", "UpdatedAt", "Kind")
-                VALUES (gen_random_uuid(), @code, @code, @schema::jsonb, '[]'::jsonb, now(), now(), @kind)
+                INSERT INTO document_types ("Id", "ParentId", "Name", "Code", "Schema", "PluginBindings", "CreatedAt", "UpdatedAt", "Kind")
+                VALUES (@id, @parent, @code, @code, @schema::jsonb, '[]'::jsonb, now(), now(), @kind)
                 """, conn, tx);
+            insert.Parameters.AddWithValue("id", ids[seed.Code]);
+            insert.Parameters.Add(new NpgsqlParameter("parent", NpgsqlTypes.NpgsqlDbType.Uuid)
+                { Value = seed.Parent is null ? DBNull.Value : ids[seed.Parent] });
             insert.Parameters.AddWithValue("code", seed.Code);
             insert.Parameters.AddWithValue("schema", seed.Schema);
             insert.Parameters.AddWithValue("kind", seed.Kind);

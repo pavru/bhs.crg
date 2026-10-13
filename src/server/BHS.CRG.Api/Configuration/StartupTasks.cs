@@ -148,7 +148,14 @@ internal static class StartupTasks
 
         // Потребности модулей в справочниках ядра — тем же приёмом (issue #1101): роль, которой нет в
         // реестре, или тэг чужой роли обязаны остановить запуск, а не прийти отказом в форму счёта.
-        _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleNeeds>();
+        var needs = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleNeeds>();
+
+        // А чего из объявленного сейчас нет — словами в журнал. Запуск это не останавливает: роль
+        // назначает человек, и на новой установке её законно нет до первой настройки.
+        foreach (var unmet in needs.Unmet(
+                     scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>(),
+                     await db.DocumentTypes.AsNoTracking().ToListAsync()))
+            app.Logger.LogWarning("Справочник ядра не сопоставлен. {Unmet}", unmet);
 
         // Объявления системных наборов — ЗДЕСЬ, при старте (ТЗ CORE-24.1, CORE-24.3, issue #965).
         // Реестр поставщиков создаётся на запрос, и проверка в его конструкторе пришла бы отказом в

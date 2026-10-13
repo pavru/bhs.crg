@@ -162,6 +162,66 @@ public class RoleResolutionTests
         Assert.Equal(RoleFieldFault.Absent, RoleResolution.Field(RoleResolution.Role(Role, all), TaxId, all).Fault);
     }
 
+    /// <summary>
+    /// Подтип, который помеченное поле просто ИСКЛЮЧИЛ, справочник не останавливает (ревью PR #1317):
+    /// у его записей значения нет, и только. До ролей было так же — «ИНН» читался у всех остальных.
+    /// </summary>
+    [Fact]
+    public void Подтип_исключивший_поле_справочник_не_останавливает()
+    {
+        var root = Type("Организация", Bearer("""{"key":"ИНН","type":"string","tags":["org.inn"]}"""));
+        var child = Type("ОрганизацияСРО", """{"excludedFields":["ИНН"],"fields":[]}""", root.Id);
+        var all = new[] { root, child };
+
+        var field = RoleResolution.Field(RoleResolution.Role(Role, all), TaxId, all);
+
+        Assert.Equal(RoleFieldFault.None, field.Fault);
+        Assert.Equal("ИНН", field.Key);
+    }
+
+    /// <summary>
+    /// Роль на документе: сохранение схемы её не даст, а восстановление копии и правка базы — дадут.
+    /// Справочника тогда нет ни для кого — а не «упал запуск» у одного читателя и 500 у другого.
+    /// </summary>
+    [Fact]
+    public void Роль_на_документе_не_обеспечена_и_причина_называет_тип()
+    {
+        var document = DocumentType.Create("Счёт", "Счёт", DocumentTypeKind.Document, null,
+            JsonDocument.Parse(Bearer()), TypeOwner.Core, TypeVisibility.Shared);
+
+        var resolved = RoleResolution.Role(Role, [document]);
+
+        Assert.Null(resolved.Root);
+        Assert.Empty(resolved.Family);
+        Assert.Same(document, resolved.Unfit);
+        Assert.Contains("«Счёт»", resolved.Describe(Tags.Find(Role)!));
+        Assert.Contains("поставить нельзя", Assert.Single(RoleResolution.UnfitBearerProblems(Tags, document)));
+    }
+
+    [Fact]
+    public void Составному_типу_роль_ставится_без_возражений()
+    {
+        Assert.Empty(RoleResolution.UnfitBearerProblems(Tags, Type("Организация", Bearer())));
+        Assert.Null(RoleResolution.Role(Role, [Type("Организация", Bearer())]).Describe(Tags.Find(Role)!));
+    }
+
+    /// <summary>Каждая причина называется своими словами — и подтип по имени.</summary>
+    [Fact]
+    public void Причина_несопоставленного_поля_называет_подтип_и_ключи()
+    {
+        var root = Type("Организация", Bearer("""{"key":"ИНН","type":"string","tags":["org.inn"]}"""));
+        var child = Type("ОрганизацияСРО",
+            """{"excludedFields":["ИНН"],"fields":[{"key":"ИННСРО","type":"string","tags":["org.inn"]}]}""", root.Id);
+        var all = new[] { root, child };
+        Assert.Contains("«ОрганизацияСРО»", RoleResolution.Field(RoleResolution.Role(Role, all), TaxId, all).Describe(TaxId));
+
+        var twice = Type("Организация", Bearer(
+            """{"key":"ИНН","type":"string","tags":["org.inn"]}""", """{"key":"ИНН2","type":"string","tags":["org.inn"]}"""));
+        var words = RoleResolution.Field(RoleResolution.Role(Role, [twice]), TaxId, [twice]).Describe(TaxId)!;
+        Assert.Contains("«ИНН»", words);
+        Assert.Contains("«ИНН2»", words);
+    }
+
     private static string Bearer(params string[] fields) =>
         $$"""{"tags":["{{Role}}"],"fields":[{{string.Join(",", fields)}}]}""";
 

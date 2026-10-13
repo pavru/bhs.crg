@@ -55,9 +55,10 @@ public static class OrganizationEndpoints
 
         var entries = await catalog.ListAsync(CostsDirectories.Organization, records, ct)
             // Пустой список здесь означал бы «организаций ещё не завели», а это другое.
-            ?? throw new ConflictException(
-                CostsDirectories.NoOrganizations("выбрать поставщика не из чего") +
-                " Тип счёта появится со следующего запуска приложения.");
+            // Про «тип счёта появится после перезапуска» здесь не говорим: это верно только для
+            // новой установки. Справочник, оставшийся без роли при заведённом типе счёта,
+            // перезапуском не чинится — и совет перезапустить был бы неправдой (ревью PR #1317).
+            ?? throw new ConflictException(CostsDirectories.NoOrganizations("выбрать поставщика не из чего"));
 
         return TypedResults.Ok<IReadOnlyList<CostsOrganization>>(
             [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType, e.Archived))]);

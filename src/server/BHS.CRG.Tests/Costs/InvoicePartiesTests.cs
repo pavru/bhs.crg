@@ -282,6 +282,14 @@ public class InvoicePartiesTests
         Assert.Equal("unavailable", renamed.State);
         Assert.Contains("не назначено поле «ИНН организации»", renamed.Why);
 
+        // Причину называет ядро, и до человека она доходит дословно — с именем подтипа, а не
+        // перечнем «могло быть то или это» (ревью PR #1317).
+        var subtype = await SupplierAsync(
+            new FakeCatalog(new ModuleCatalogFieldValues(false, [], "поле у подтипа «ОрганизацияСРО» назначено иначе")),
+            "Поставщик", Valid);
+        Assert.Contains("у подтипа «ОрганизацияСРО»", subtype.Why);
+        Assert.Contains("Назначает администратор", subtype.Why);
+
         var noType = await SupplierAsync(new FakeCatalog(null), "Поставщик", Valid);
         Assert.Equal("unavailable", noType.State);
         Assert.Contains("Справочник организаций не назначен", noType.Why);

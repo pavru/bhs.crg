@@ -455,9 +455,10 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
             if (target is null)
                 throw new ConflictException(f.TargetRole is { Length: > 0 } role
                     ? $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на " +
-                      $"справочник с ролью «{role}», а роль не обеспечена: её не несёт ни один тип либо " +
-                      "несут несколько. Поле осталось бы без цели: не нарисовалось бы и не заполнилось. " +
-                      "Назначьте роль одному типу в редакторе типов."
+                      $"справочник с ролью «{role}», а роль не обеспечена: её не несёт ни один тип, несут " +
+                      "несколько либо несёт тип, который справочником быть не может. Поле осталось бы без " +
+                      "цели: не нарисовалось бы и не заполнилось. Назначьте роль одному составному типу в " +
+                      "редакторе типов."
                     : $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на тип " +
                       $"«{f.Target}», а типа с таким кодом в системе нет. Поле осталось бы без цели: не " +
                       "нарисовалось бы и не заполнилось, а справочник с виду был бы целым. Проверьте " +
@@ -494,7 +495,8 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
             .Where(f => f.Target is { Length: > 0 } || f.TargetRole is { Length: > 0 })
             .Where(f => TargetOf(f, all) is null)
             .Select(f => f.TargetRole is { Length: > 0 } role
-                ? $"справочника с ролью «{role}» (роль не назначена ни одному типу либо назначена нескольким)"
+                ? $"справочника с ролью «{role}» (роль не назначена ни одному типу, назначена нескольким " +
+                  "либо типу, который справочником быть не может)"
                 : $"типа «{f.Target}»")
             .FirstOrDefault();
 

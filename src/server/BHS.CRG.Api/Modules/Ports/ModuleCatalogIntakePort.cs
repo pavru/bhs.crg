@@ -34,10 +34,8 @@ public sealed class ModuleCatalogIntakePort(
         var resolved = RoleResolution.Role(role, all);
         if (resolved.Root is not { } type) return null;
 
-        if (!TypeStorageRules.KeptInCommonTable(type))
-            throw new InvalidOperationException(
-                $"Тип «{type.Code}» лежит не в общей таблице (носитель «{type.Storage}») — портом заведения " +
-                "его записи не создаются.");
+        // Годен ли носитель в справочники (составной, в общих данных), решает сам расчёт роли: тип
+        // с собственной таблицей носителем не считается, и сюда не доходит.
 
         // Ключи полей — по тэгам. Несопоставленное поле — отказ человеку, а не дефект: тэг снимает
         // администратор, и причина обязана называть поле его словами, а не ключом.
@@ -67,15 +65,7 @@ public sealed class ModuleCatalogIntakePort(
         var field = RoleResolution.Field(role, tag, all);
         if (field.Key is not null) return field.Key;
 
-        refusals.Add(field.Fault switch
-        {
-            RoleFieldFault.Several =>
-                $"поле «{tag.Label}» назначено дважды ({string.Join(", ", field.Keys.Select(k => $"«{k}»"))}) — в какое класть значение, не понять",
-            RoleFieldFault.WrongKind => $"поле «{tag.Label}» назначено полю неподходящего вида",
-            RoleFieldFault.DiffersInSubtype =>
-                $"поле «{tag.Label}» у подтипа «{field.Subtype!.Name}» назначено иначе, чем у самого справочника",
-            _ => $"в справочнике не назначено поле «{tag.Label}»",
-        });
+        refusals.Add(field.Describe(tag)!);
         return null;
     }
 }

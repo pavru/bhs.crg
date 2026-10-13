@@ -8,6 +8,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
+using System.Net.Http.Json;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -101,6 +102,61 @@ public class DirectoryRoleReleaseTests(InvoiceLineHost host) : InvoiceLineTestBa
             scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>(),
             scope.ServiceProvider.GetRequiredService<IRecordHolders>(),
             organizations, Without(organizations.Schema, FunctionalTag.RoleOrganization), all, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Вторая дверь (ревью PR #1317): подтип, переставленный под другого родителя, уносит свои записи
+    /// из справочника, хотя схему никто не трогал. Отказ — пока на запись ссылается счёт; подтип без
+    /// ссылок уходит свободно — иначе правило заперло бы иерархию навсегда.
+    /// </summary>
+    [Fact]
+    public async Task Подтип_не_выводится_из_справочника_пока_на_его_запись_ссылается_счёт()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var organizations = await OrganizationsAsync();
+        var mark = Guid.NewGuid().ToString("N")[..8];
+
+        var held = await SendAsync(new CreateDocumentTypeCommand(
+            $"Подтип со счётом {mark}", $"ПодтипСоСчётом{mark}", DocumentTypeKind.Composite, organizations.Id,
+            JsonDocument.Parse("""{"fields":[]}""")));
+        var record = await EntryAsync(held.Id, $"ООО «Подтип {mark}»");
+        await OkAsync(await client.PostAsJsonAsync("/api/costs/invoices", new
+        {
+            requisites = new Dictionary<string, object?>
+            {
+                ["Номер"] = $"СЧ-{mark}", ["Дата"] = "2026-09-29", ["Поставщик"] = Reference(record),
+            },
+        }));
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(
+            () => SendAsync(new UpdateDocumentTypeCommand(held.Id, held.Name, held.Code, null)));
+
+        Assert.Contains("нельзя вывести из справочника «Справочник организаций»", refusal.Message);
+        Assert.Contains("ссылаются документы модулей", refusal.Message);
+
+        // Переименование без смены родителя проверку не задевает.
+        await SendAsync(new UpdateDocumentTypeCommand(held.Id, held.Name + " (переименован)", held.Code, organizations.Id));
+
+        var free = await SendAsync(new CreateDocumentTypeCommand(
+            $"Подтип без счетов {mark}", $"ПодтипБезСчетов{mark}", DocumentTypeKind.Composite, organizations.Id,
+            JsonDocument.Parse("""{"fields":[]}""")));
+        await EntryAsync(free.Id, $"ООО «Свободный {mark}»");
+
+        var moved = await SendAsync(new UpdateDocumentTypeCommand(free.Id, free.Name, free.Code, null));
+        Assert.Null(moved.ParentId);
+    }
+
+    /// <summary>Роль справочника документу не ставится: с ней приложение не нашло бы цель поля счёта.</summary>
+    [Fact]
+    public async Task Роль_справочника_документу_не_ставится()
+    {
+        var mark = Guid.NewGuid().ToString("N")[..8];
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(new CreateDocumentTypeCommand(
+            $"Документ {mark}", $"Документ{mark}", DocumentTypeKind.Document, null,
+            JsonDocument.Parse($$"""{"tags":["{{FunctionalTag.RoleNomenclature}}"],"fields":[]}"""))));
+
+        Assert.Contains("справочником бывает только составной тип", refusal.Message);
     }
 
     private async Task<DocumentType> OrganizationsAsync()

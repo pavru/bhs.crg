@@ -1,5 +1,6 @@
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
@@ -105,6 +106,50 @@ public class ModuleNeedsTests
     }
 
     /// <summary>
+    /// Цель поля, названная ролью, — тоже чтение справочника (ревью PR #1317): без потребности в нём
+    /// поле целилось бы в справочник, которого администратор на экране сопоставления не видит.
+    /// </summary>
+    [Fact]
+    public void Цель_поля_по_роли_без_потребности_в_ней_останавливает_запуск()
+    {
+        var type = new ModuleRecordType("ПробныйТип", "Пробный тип", default,
+            [new ModuleSystemField("Контрагент", "Контрагент", "complex", TargetRole: Role)]);
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => new ModuleNeeds(new ModuleRegistry([new Declaring([], [], [type])], []), Tags));
+        Assert.Contains("«Контрагент»", refusal.Message);
+
+        // С потребностью — годно.
+        _ = new ModuleNeeds(new ModuleRegistry([new Declaring(
+            [new ModuleRoleNeed(Role, "Зачем", "Что не работает.", [])], [], [type])], []), Tags);
+    }
+
+    /// <summary>
+    /// Журнал запуска называет необеспеченное словами: обновление, перенёсшее роли не до конца,
+    /// поднимается зелёным, и молчать об этом нельзя.
+    /// </summary>
+    [Fact]
+    public void Необеспеченное_называется_словами_а_обеспеченное_молчит()
+    {
+        var needs = Needs(new ModuleRoleNeed(Role, "Зачем", "Счёт не завести.",
+            [new(FunctionalTag.OrgTaxId, true, "Не работает поиск по ИНН.")]));
+
+        DocumentType Type(string schema) => DocumentType.Create("Организация", "Организация",
+            DocumentTypeKind.Composite, null, System.Text.Json.JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared);
+
+        var nothing = Assert.Single(needs.Unmet(Tags, []));
+        Assert.Contains("не назначена ни одному типу", nothing);
+        Assert.Contains("Счёт не завести.", nothing);
+
+        var noField = Assert.Single(needs.Unmet(Tags, [Type($$"""{"tags":["{{Role}}"],"fields":[]}""")]));
+        Assert.Contains("«ИНН организации»", noField);
+        Assert.Contains("Не работает поиск по ИНН.", noField);
+
+        Assert.Empty(needs.Unmet(Tags, [Type(
+            $$"""{"tags":["{{Role}}"],"fields":[{"key":"ИНН","type":"string","tags":["org.inn"]}]}""")]));
+    }
+
+    /// <summary>
     /// Настоящее объявление модуля счетов проходит проверку — и называет ровно то, что его код читает:
     /// два справочника и два поля организаций.
     /// </summary>
@@ -126,8 +171,11 @@ public class ModuleNeedsTests
     private static ModuleNeeds Needs(params ModuleRoleNeed[] needs) =>
         new(new ModuleRegistry([new Declaring(needs, [])], []), Tags);
 
-    private sealed class Declaring(IReadOnlyList<ModuleRoleNeed> needs, IReadOnlyList<ModuleIntakeType> intake) : IAppModule
+    private sealed class Declaring(
+        IReadOnlyList<ModuleRoleNeed> needs, IReadOnlyList<ModuleIntakeType> intake,
+        IReadOnlyList<ModuleRecordType>? types = null) : IAppModule
     {
+        public IReadOnlyList<ModuleRecordType> RecordTypes => types ?? [];
         public string Code => "probe";
         public string Title => "Проба";
         public IReadOnlyList<AppPermission> Permissions => [];

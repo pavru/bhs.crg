@@ -41,6 +41,18 @@ public sealed class ModuleNeeds
                             $"Модуль «{module.Code}» объявляет заведение записей в справочнике «{intake.Role}» " +
                             $"по тэгу «{tag}», а в потребностях (Needs) этой пары нет. Объявите её: иначе " +
                             "поле, в которое модуль пишет, администратору негде было бы сопоставить.");
+
+            // И цель поля, названная ролью, — тоже чтение справочника (ревью PR #1317): «Поставщик»
+            // счёта целится в справочник организаций. Проекция сверяет роль только с реестром тэгов,
+            // и без этой строки поле целилось бы в справочник, которого нет в потребностях.
+            foreach (var type in module.RecordTypes)
+                foreach (var field in type.Fields)
+                    if (field.TargetRole is { Length: > 0 } role && module.Needs.All(n => n.Role != role))
+                        throw new InvalidOperationException(
+                            $"Модуль «{module.Code}» объявляет полю «{field.Key}» типа «{type.Code}» цель — " +
+                            $"справочник с ролью «{role}», а в потребностях (Needs) этой роли нет. Объявите " +
+                            "её: иначе справочник, в который целится поле, администратор на экране " +
+                            "сопоставления не увидел бы.");
         }
 
         All = declared;
@@ -67,6 +79,36 @@ public sealed class ModuleNeeds
             throw new InvalidOperationException(
                 $"Поле с тэгом «{fieldTag}» справочника «{role}» ни один включённый модуль не объявил в " +
                 "потребностях (Needs) — портом оно не читается.");
+    }
+
+    /// <summary>
+    /// Что из объявленного сейчас НЕ обеспечено — строками для журнала запуска.
+    ///
+    /// <para>Зачем при старте: обновление, перенёсшее роли не до конца (тип с иным кодом, поле у
+    /// подтипа помечено иначе), поднимается зелёным и молчит — об остановленном сопоставлении
+    /// поставщика узнают, открыв счёт. Журнал запуска читает тот, кто обновлял (ревью PR #1317).</para>
+    /// </summary>
+    public IReadOnlyList<string> Unmet(TagCatalog tags, IReadOnlyList<Domain.Documents.DocumentType> all)
+    {
+        var lines = new List<string>();
+        foreach (var (module, need) in All)
+        {
+            var role = RoleResolution.Role(need.Role, all);
+            if (role.Describe(tags.Find(need.Role)!) is { } absent)
+            {
+                lines.Add($"Модуль «{module.Code}»: {absent}. {need.WithoutIt}");
+                continue;
+            }
+
+            foreach (var field in need.Fields)
+            {
+                var tag = tags.Find(field.Tag)!;
+                if (RoleResolution.Field(role, tag, all).Describe(tag) is { } fault)
+                    lines.Add($"Модуль «{module.Code}»: {fault}. {field.WithoutIt}");
+            }
+        }
+
+        return lines;
     }
 
     private static void Validate(IAppModule module, ModuleRoleNeed need, TagCatalog tags)

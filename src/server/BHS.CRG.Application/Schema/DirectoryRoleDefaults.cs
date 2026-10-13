@@ -26,6 +26,12 @@ namespace BHS.CRG.Application.Schema;
 /// не трогается; тэг, который уже стоит на каком-то поле типа, — тоже; поле не того вида тэга не
 /// получает. Чего нет, того нет: установка без типа «Организация» остаётся без роли и честно
 /// говорит «не назначено».</para>
+///
+/// <para><b>Находит то же, что находил прежний код</b> (ревью PR #1317). Тот искал тип без учёта
+/// регистра, а поле — по схеме с наследованием. Поэтому и здесь: код типа сравнивается без регистра,
+/// а поле ищется у носителя роли и ВЫШЕ по цепочке родителей — тэг получает ближайшее объявление.
+/// Иначе установка, где «ИНН» объявлен у родителя «Организации», обновилась бы зелёной и перестала
+/// бы сопоставлять поставщика.</para>
 /// </summary>
 public static class DirectoryRoleDefaults
 {
@@ -52,16 +58,27 @@ public static class DirectoryRoleDefaults
     /// </summary>
     public static IReadOnlyList<(DocumentType Type, JsonDocument Schema)> Apply(IReadOnlyList<DocumentType> all)
     {
-        var changed = new List<(DocumentType, JsonDocument)>();
+        // Рабочие копии схем: два правила полей и роль могут лечь в один тип, а поле — в родителя.
+        var schemas = new Dictionary<Guid, JsonObject>();
+        var touched = new HashSet<Guid>();
+        var byId = all.ToDictionary(t => t.Id);
+
+        JsonObject? SchemaOf(DocumentType type)
+        {
+            if (schemas.TryGetValue(type.Id, out var known)) return known;
+            if (JsonNode.Parse(type.Schema.RootElement.GetRawText()) is not JsonObject parsed) return null;
+            return schemas[type.Id] = parsed;
+        }
 
         foreach (var rule in Rules)
         {
-            // Код — посимвольно, как в миграции: там сравнение SQL, и «организация» с маленькой
-            // буквы она не тронула бы тоже.
-            var type = all.FirstOrDefault(t => t.Code == rule.Code && t.Kind == DocumentTypeKind.Composite);
-            if (type is null || JsonNode.Parse(type.Schema.RootElement.GetRawText()) is not JsonObject schema) continue;
+            // Без регистра — как искал прежний код; двух типов, различных только регистром, не
+            // бывает: коды уникальны тоже без него.
+            var type = all.FirstOrDefault(t =>
+                string.Equals(t.Code, rule.Code, StringComparison.OrdinalIgnoreCase)
+                && t.Kind == DocumentTypeKind.Composite);
+            if (type is null || SchemaOf(type) is not { } schema) continue;
 
-            var touched = false;
             var bears = SchemaTags.SchemaHasTypeTag(type.Schema, rule.Role);
 
             if (!bears && !all.Any(t => SchemaTags.SchemaHasTypeTag(t.Schema, rule.Role)))
@@ -69,34 +86,52 @@ public static class DirectoryRoleDefaults
                 var tags = schema["tags"] as JsonArray ?? [];
                 tags.Add(rule.Role);
                 schema["tags"] = tags;
-                touched = bears = true;
+                touched.Add(type.Id);
+                bears = true;
             }
 
             // Поля — только у носителя роли: тэг роли на типе без роли никто не прочитает.
-            if (bears && schema["fields"] is JsonArray fields)
-                foreach (var field in rule.Fields)
-                    touched |= Tag(fields, field);
+            if (!bears) continue;
 
-            if (touched) changed.Add((type, JsonDocument.Parse(schema.ToJsonString())));
+            // Носитель и его предки, ближайший первым. Цикл в цепочке родителей базе ничем не
+            // запрещён — обход помнит пройденное.
+            var chain = new List<(DocumentType Type, JsonArray Fields)>();
+            for (var cur = type; cur is not null && chain.All(c => c.Type.Id != cur.Id);
+                 cur = cur.ParentId is { } p ? byId.GetValueOrDefault(p) : null)
+                if (SchemaOf(cur)?["fields"] is JsonArray fields)
+                    chain.Add((cur, fields));
+
+            foreach (var field in rule.Fields)
+                if (Tag(chain, field) is { } owner)
+                    touched.Add(owner);
         }
 
-        return changed;
+        return [.. all.Where(t => touched.Contains(t.Id))
+            .Select(t => (t, JsonDocument.Parse(schemas[t.Id].ToJsonString())))];
     }
 
-    private static bool Tag(JsonArray fields, FieldRule rule)
+    /// <returns>Тип, чьё поле получило тэг; <c>null</c> — не получило ничьё.</returns>
+    private static Guid? Tag(IReadOnlyList<(DocumentType Type, JsonArray Fields)> chain, FieldRule rule)
     {
-        var objects = fields.OfType<JsonObject>().ToList();
+        // Тэг уже стоит на каком-то поле цепочки — не важно, на каком: это решение человека.
+        if (chain.Any(c => c.Fields.OfType<JsonObject>()
+                .Any(f => f["tags"] is JsonArray tags && tags.Any(t => IsTag(t, rule.Tag)))))
+            return null;
 
-        // Тэг уже стоит на каком-то поле типа — не важно, на каком: это решение человека.
-        if (objects.Any(f => f["tags"] is JsonArray tags && tags.Any(t => IsTag(t, rule.Tag)))) return false;
+        // Ближайшее объявление поля: у самого носителя, иначе у родителя, и так вверх.
+        foreach (var (type, fields) in chain)
+        {
+            var target = fields.OfType<JsonObject>().FirstOrDefault(f => Text(f["key"]) == rule.Key);
+            if (target is null) continue;
+            if (!rule.Kinds.Contains(Text(target["type"]) ?? "", StringComparer.Ordinal)) return null;
 
-        var target = objects.FirstOrDefault(f => Text(f["key"]) == rule.Key);
-        if (target is null || !rule.Kinds.Contains(Text(target["type"]) ?? "", StringComparer.Ordinal)) return false;
+            var own = target["tags"] as JsonArray ?? [];
+            own.Add(rule.Tag);
+            target["tags"] = own;
+            return type.Id;
+        }
 
-        var own = target["tags"] as JsonArray ?? [];
-        own.Add(rule.Tag);
-        target["tags"] = own;
-        return true;
+        return null;
     }
 
     private static bool IsTag(JsonNode? node, string tag) => Text(node) is { } text && TagCode.CodeOf(text) == tag;

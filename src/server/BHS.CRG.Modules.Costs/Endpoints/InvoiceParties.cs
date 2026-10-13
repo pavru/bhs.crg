@@ -149,7 +149,7 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
             return new(InvoicePartyStates.Unavailable, side.Name, taxId,
                 CostsDirectories.NoOrganizations("сопоставить не с чем"), [], []);
         if (!answer.Declared)
-            return new(InvoicePartyStates.Unavailable, side.Name, taxId, CostsDirectories.TaxIdNotMapped, [], []);
+            return new(InvoicePartyStates.Unavailable, side.Name, taxId, CostsDirectories.TaxIdNotMapped(answer.Reason), [], []);
 
         var unreadable = answer.Records.Where(r => r.Unreadable).Select(Candidate).ToList();
         var found = answer.Records

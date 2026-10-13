@@ -102,6 +102,45 @@ public partial class BackupServiceTests
         Assert.Equal(FunctionalTag.RoleOrganization, (await SchemaOfAsync("Контрагент")).GetProperty("tags")[0].GetString());
     }
 
+    /// <summary>
+    /// Отчёт не молчит, когда справочника после восстановления НЕТ (ревью PR #1317): правило ничего
+    /// не назначило — типа с прежним кодом в копии не оказалось. Молчание здесь и было бы «поднялась
+    /// зелёной и без справочников».
+    /// </summary>
+    [Fact]
+    public async Task Копия_прежней_версии_без_типа_организаций_говорит_что_роль_не_назначена()
+    {
+        await fixture.ResetDatabaseAsync();
+
+        var result = await ImportManifestZipAsync(ManifestWith([LegacyType("Контрагент", LegacyOrganization)]));
+
+        Assert.Contains(result.Warnings, w =>
+            w.Contains(FunctionalTag.RoleOrganization) && w.Contains("не назначена ни одному типу"));
+    }
+
+    /// <summary>Новая копия поверх живой системы: роль несут два типа — и отчёт называет обоих.</summary>
+    [Fact]
+    public async Task Два_носителя_роли_после_восстановления_названы_в_отчёте()
+    {
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(Domain.Documents.DocumentType.Restore(
+                Guid.NewGuid(), "Контрагент", "Контрагент", Domain.Documents.DocumentTypeKind.Composite, null,
+                JsonDocument.Parse($$"""{"tags":["{{FunctionalTag.RoleOrganization}}"],"fields":[]}"""),
+                JsonDocument.Parse("{}"), false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            await db.SaveChangesAsync();
+        }
+
+        var result = await ImportManifestZipAsync(ManifestWith(
+            [LegacyType("Организация", $$"""{"tags":["{{FunctionalTag.RoleOrganization}}"],"fields":[]}""")])
+            with { KnowsDirectoryRoles = true });
+
+        Assert.Contains(result.Warnings, w =>
+            w.Contains("несут несколько типов") && w.Contains("«Контрагент»") && w.Contains("«Организация»"));
+    }
+
     [Fact]
     public async Task Новая_копия_говорит_что_знает_о_ролях()
     {

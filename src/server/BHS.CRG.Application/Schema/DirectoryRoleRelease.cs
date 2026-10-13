@@ -20,8 +20,12 @@ namespace BHS.CRG.Application.Schema;
 /// бывает: потолок «один носитель» не даст поставить роль, пока её несёт прежний тип. Поэтому
 /// стеречь достаточно снятие.</para>
 ///
-/// <para>⚠️ Чего проверка не видит: подтип, выведенный из справочника сменой родителя, — его записи
-/// покидают справочник тем же способом. Случай редкий и чинится возвратом родителя.</para>
+/// <para><b>Дверей две, и стерегутся обе.</b> Вторая — смена родителя подтипа
+/// (<see cref="EnsureMayLeaveAsync" />): записи «ОрганизацииСРО», переставленной под другой тип,
+/// покидают справочник тем же способом, хотя схему никто не трогал (ревью PR #1317).</para>
+///
+/// <para>⚠️ Чего проверка не видит: восстановление копии. Оно типы переписывает целиком и о
+/// держателях не спрашивает — зато говорит о необеспеченной роли в своём отчёте.</para>
 /// </summary>
 public static class DirectoryRoleRelease
 {
@@ -35,24 +39,64 @@ public static class DirectoryRoleRelease
             .ToList();
         if (released.Count == 0) return;
 
-        // Справочник — носитель и его подтипы: записи подтипа покидают его вместе с ролью.
+        var role = string.Join(", ", released.Select(t => $"«{t.Label}»"));
+        await EnsureNotHeldAsync(objects, holders, type, all,
+            $"Роль {role} с типа «{type.Name}» сейчас снять нельзя",
+            $"Роль {role} с типа «{type.Name}» снять нельзя: ",
+            "Роль можно снять, когда ссылок не останется.", ct);
+    }
+
+    /// <summary>
+    /// Смена родителя: тип, входивший в справочник подтипом, не выводится из него, пока на записи
+    /// его и его потомков ссылаются документы модулей.
+    /// </summary>
+    /// <param name="newParentId">Родитель, которого типу назначают. Проверку зовут ДО перестановки:
+    /// семья справочника считается по прежней цепочке.</param>
+    public static async Task EnsureMayLeaveAsync(
+        TagCatalog tags, IDomainObjectRepository objects, IRecordHolders holders,
+        DocumentType type, Guid? newParentId, IReadOnlyList<DocumentType> all, CancellationToken ct)
+    {
+        var left = new List<TagDefinition>();
+        foreach (var tag in tags.All.Where(t => tags.IsRole(t.Code)))
+        {
+            var directory = RoleResolution.Role(tag.Code, all);
+
+            // Сам носитель справочник не покидает, куда бы его ни переставили: роль на нём.
+            if (directory.Root is not { } root || root.Id == type.Id || !directory.Family.ContainsKey(type.Id)) continue;
+            if (newParentId is { } parent && directory.Family.ContainsKey(parent)) continue;
+            left.Add(tag);
+        }
+
+        if (left.Count == 0) return;
+
+        var role = string.Join(", ", left.Select(t => $"«{t.Label}»"));
+        await EnsureNotHeldAsync(objects, holders, type, all,
+            $"Тип «{type.Name}» сейчас нельзя вывести из справочника {role}",
+            $"Тип «{type.Name}» нельзя вывести из справочника {role}: новый родитель в этот справочник не входит, а ",
+            "Родителя можно сменить, когда ссылок не останется.", ct);
+    }
+
+    private static async Task EnsureNotHeldAsync(
+        IDomainObjectRepository objects, IRecordHolders holders, DocumentType type, IReadOnlyList<DocumentType> all,
+        string unverified, string refused, string wayOut, CancellationToken ct)
+    {
+        // Тип и его подтипы: их записи покидают справочник вместе с ним.
         var family = RoleResolution.Family(type, all).Keys.ToList();
         var ids = await objects.RecordIdsOfTypesAsync(family, ct);
         if (ids.Count == 0) return;
 
         var held = await holders.HeldAsync(ids, ct);
-        var role = string.Join(", ", released.Select(t => $"«{t.Label}»"));
 
         if (!held.Verified)
             throw new ConflictException(
-                $"Роль {role} с типа «{type.Name}» сейчас снять нельзя: не удалось проверить, ссылаются ли " +
-                "на его записи документы модулей. Повторите позже; подробности — в журнале сервера.");
+                $"{unverified}: не удалось проверить, ссылаются ли на его записи документы модулей. " +
+                "Повторите позже; подробности — в журнале сервера.");
 
         if (held.Ids.Count > 0)
             throw new ConflictException(
-                $"Роль {role} с типа «{type.Name}» снять нельзя: на его записи ссылаются документы модулей " +
-                $"(записей со ссылками: {held.Ids.Count}). По роли код находит эти записи — без неё они " +
-                "перестали бы находиться в уже заведённых документах, хотя сами остались бы на месте. " +
-                "Роль можно снять, когда ссылок не останется.");
+                $"{refused}на его записи ссылаются документы модулей " +
+                $"(записей со ссылками: {held.Ids.Count}). По роли код находит эти записи — вне справочника " +
+                "они перестали бы находиться в уже заведённых документах, хотя сами остались бы на месте. " +
+                wayOut);
     }
 }

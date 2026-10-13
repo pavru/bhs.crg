@@ -101,9 +101,12 @@ public sealed class ModuleCatalogPort(
         // выглядел бы как «ни у одной организации ИНН нет» — то есть как «не совпало ни с кем».
         // Простое — сверх того, что допускает сам тэг: значение одного поля читается скаляром.
         // Тэг в реестре есть наверняка: потребность с неизвестным тэгом не пережила бы старт.
-        var field = RoleResolution.Field(resolved, tags.Find(fieldTag)!, all);
-        if (field.Key is not { } fieldKey || !SchemaFieldKinds.IsScalar(field.Field!.Type))
-            return new ModuleCatalogFieldValues(false, []);
+        var tag = tags.Find(fieldTag)!;
+        var field = RoleResolution.Field(resolved, tag, all);
+        if (field.Key is not { } fieldKey) return new ModuleCatalogFieldValues(false, [], field.Describe(tag));
+        if (!SchemaFieldKinds.IsScalar(field.Field!.Type))
+            return new ModuleCatalogFieldValues(false, [],
+                $"поле «{tag.Label}» назначено полю «{fieldKey}», а оно составное — одним значением не читается");
 
         var codes = resolved.Family;
         var values = await mediator.Send(new CommonDataFieldValuesQuery([.. codes.Keys], fieldKey, records), ct);
