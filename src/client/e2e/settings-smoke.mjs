@@ -408,17 +408,27 @@ await check('branding-says-what-came-of-the-logo', async () => {
       await route.fulfill({ status: 200, contentType: 'image/png', body: await picture.body() });
     });
     await page.clock.install();
-    await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
-      icons: { ...b.icons, state: 'failed', version: `${b.icons.version}-до`, problem: 'builder', aspect: null } }));
+    const notBuilt = b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
+      icons: { ...b.icons, state: 'failed', version: `${b.icons.version}-до`, problem: 'builder', aspect: null } });
+    await shown(notBuilt);
     if (!(await failed.count())) throw new Error('при сбое построителя плашки отказа нет');
     await unread.waitFor({ timeout: 8000 })
       .catch(() => { throw new Error('хранилище не отвечает, а рамка логотипа об этом не говорит'); });
     storageUp = true;
-    change = b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
+    // Как отвечает сервер: запрос, запустивший повтор, результата не приносит — построение идёт в
+    // фоне, и ответ на него прежний отказ. Построенные значки видит только СЛЕДУЮЩИЙ запрос. Подмена,
+    // отдающая значки первым же опросом, проверяла бы поведение, которого у сервера нет.
+    let polls = 0;
+    change = b => (polls++ === 0 ? notBuilt(b) : { ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
       icons: { ...b.icons, state: 'custom', problem: null, aspect: 1 } });
-    await page.clock.fastForward(61_000);
+    const asked = page.waitForResponse(r => new URL(r.url()).pathname === '/api/branding', { timeout: 8000 })
+      .catch(() => { throw new Error('полминуты спустя секция оформление не переспросила'); });
+    await page.clock.fastForward(31_000);
+    await asked;
+    if (!(await failed.count())) throw new Error('повтор только начат, а плашка «не построены» уже ушла');
+    await page.clock.fastForward(30_000);
     await previews.waitFor({ timeout: 8000 })
-      .catch(() => { throw new Error('значки достроены, а минуту спустя секция их не показывает — оформление не переспрошено'); });
+      .catch(() => { throw new Error('значки достроены, а следующий опрос их не показал — оформление не переспрошено'); });
     if (await failed.count()) throw new Error('значки достроены, а плашка «не построены» осталась');
     await unread.waitFor({ state: 'detached', timeout: 8000 })
       .catch(() => { throw new Error('значки построены из логотипа, а рамка рядом всё ещё говорит «не читается»'); });

@@ -1,6 +1,7 @@
-import { useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { FileCheck2 } from 'lucide-react';
 import { useBranding, logoUrl } from '@/shared/api/branding';
+import { useImageFailure } from './useImageFailure';
 
 /**
  * Знак экземпляра: логотип компании, если он загружен, иначе общий значок продукта.
@@ -16,15 +17,15 @@ export function BrandLogo(
   const src = logoUrl(data);
   // Картинка не загрузилась — рисуем общий значок, а не битую рамку с alt-текстом. Признак
   // hasLogo с сервера означает лишь, что строка ассета ЕСТЬ: файл могли убрать мимо системы, а
-  // ответ про оформление живёт в клиенте десять минут (ревью PR #1061). Ключ сбрасывает отказ при
-  // смене адреса: иначе заменённый логотип остался бы «сломанным» до перезагрузки страницы.
-  const [failed, setFailed] = useState<string | null>(null);
+  // ответ про оформление живёт в клиенте десять минут (ревью PR #1061). Отказ помнится по адресу
+  // вместе с меткой значков и недолго — так же, как в рамке настройки: см. `useImageFailure`.
+  const [failed, fail] = useImageFailure(src && `${src}|${data?.icons.version ?? ''}`);
 
-  if (src && failed !== src) {
+  if (src && !failed) {
     return (
       <span className={`flex items-center justify-center shrink-0 overflow-hidden ${className}`} style={style}>
         <img src={src} alt={data?.productName ?? ''} className="max-w-full max-h-full object-contain"
-          onError={() => setFailed(src)} />
+          onError={fail} />
       </span>
     );
   }

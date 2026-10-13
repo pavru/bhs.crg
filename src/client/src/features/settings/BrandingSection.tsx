@@ -6,6 +6,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { brandIconUrl } from '@/shared/ui/brandIcons';
+import { useImageFailure } from '@/shared/ui/useImageFailure';
 import {
   useBranding, useSaveProductName, useUploadLogo, useRemoveLogo, logoUrl,
   type BrandIcons, type Branding,
@@ -14,6 +15,9 @@ import { elongatedWarning, homeScreenNameHint, iconsFailure, rebuildPoll } from 
 
 /** Тот же предел, что на сервере (BrandingDefaults.MaxProductNameLength). */
 const MAX_NAME = 64;
+
+/** Сколько держится сообщение о непостроенных значках — как у сообщений об отказе. */
+const FAILURE_TOAST = 8000;
 
 /**
  * Название продукта и логотип компании (ТЗ CORE-25.1, issue #967).
@@ -60,8 +64,11 @@ export function BrandingSection() {
       const saved = await uploadLogo.mutateAsync(file);
       // Логотип сохранён, а значки из него не вышли — это не «успех»: зелёный тост здесь был бы
       // отказом, переодетым в результат. Подробности — под логотипом, постоянной плашкой.
+      // Держится столько же, сколько отказ: загрузка идёт до пятнадцати секунд, и четыре секунды
+      // обычного сообщения администратор, отвлёкшийся на это время, пропустил бы.
       if (saved.icons.state === 'failed')
-        toast.info('Логотип загружен, но значки из него построить не удалось — подробности под логотипом.');
+        toast.info('Логотип загружен, но значки из него построить не удалось — подробности под логотипом.',
+          { duration: FAILURE_TOAST });
       else toast.success('Логотип загружен.');
     } catch (e) {
       toast.apiError(e, 'Не удалось загрузить логотип.');
@@ -179,29 +186,36 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   // хранилище не отвечало, значки не построились, рамка сказала «не читается»; хранилище поднялось,
   // опрос принёс построенные значки — а адрес логотипа прежний, и без метки рамка стояла бы со
   // словами «не читается» рядом с превью, построенными из этого самого логотипа (проверка перед PR).
-  const mark = `${logo}|${data.icons.version}`;
-  const [unread, setUnread] = useState<string | null>(null);
+  //
+  // И недолго: случайный сбой загрузки картинки при уже построенных значках метку не меняет и
+  // опроса не запускает — картинку пробуют снова (см. `useImageFailure`).
+  const [unread, fail] = useImageFailure(logo && `${logo}|${data.icons.version}`);
+  // Пока идёт одна правка логотипа, вторая заперта: загрузка длится до пятнадцати секунд, и
+  // «Убрать», нажатое в это время, отвечало бы раньше — экран остался бы с тем ответом, что пришёл
+  // последним, а не с тем, что на сервере (ревью PR #1321).
+  const busy = uploading || removing;
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
       <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
         {!logo && <span className="text-[11px] text-fg4">нет</span>}
-        {logo && unread === mark && (
+        {logo && unread && (
           <span className="text-[11px] leading-tight text-center text-warning" data-testid="branding-logo-unread">
             {/* Перенос задан явно: в одну строку слова встают в рамку впритык, от края до края. */}
             не<br />читается
           </span>
         )}
-        {logo && unread !== mark && (
+        {logo && !unread && (
           <img src={logo} alt="Логотип компании" className="max-w-full max-h-full object-contain"
-            onError={() => setUnread(mark)} />
+            onError={fail} />
         )}
       </div>
 
-      <Button variant="outlined" icon={<Upload size={14} />} onClick={onUpload} loading={uploading}>
+      <Button variant="outlined" icon={<Upload size={14} />} onClick={onUpload} loading={uploading}
+        disabled={removing}>
         {data.hasLogo ? 'Заменить' : 'Загрузить'}
       </Button>
       {data.hasLogo && (
-        <Button variant="text" icon={<Trash2 size={14} />} onClick={onRemove} disabled={removing}>
+        <Button variant="text" icon={<Trash2 size={14} />} onClick={onRemove} disabled={busy}>
           Убрать
         </Button>
       )}
@@ -218,8 +232,18 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
  * логотипа администратор и так видит на самой вкладке.
  */
 function IconPreviews({ icons }: { icons: BrandIcons }) {
+  // Превью не загрузилось (429 корзины значков, сервер перезапускается) — говорим словами: битая
+  // картинка с alt-текстом на месте «вот что вышло из логотипа» читалась бы как сам результат.
+  const [missing, fail] = useImageFailure(icons.state === 'custom' ? icons.version : null);
   if (icons.state !== 'custom') return null;
   const tab = brandIconUrl('tab', icons.version);
+  if (missing)
+    return (
+      <p className="border-l border-stroke pl-4 text-[11px] leading-tight text-warning max-w-[9rem]"
+        data-testid="brand-icon-previews-missing">
+        Значки построены, но их картинки не загрузились.
+      </p>
+    );
   return (
     <div className="flex items-end gap-4 border-l border-stroke pl-4" data-testid="brand-icon-previews">
       <figure className="flex flex-col items-center gap-1">
@@ -228,10 +252,10 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             не переключаются: вкладка браузера ей не следует. */}
         <div className="flex rounded-md border border-stroke overflow-hidden">
           <span className="flex items-center justify-center w-7 h-7 bg-[var(--f-tab-light)]">
-            <img src={tab} alt="Значок вкладки на светлом фоне" width={16} height={16} />
+            <img src={tab} alt="Значок вкладки на светлом фоне" width={16} height={16} onError={fail} />
           </span>
           <span className="flex items-center justify-center w-7 h-7 bg-[var(--f-tab-dark)]">
-            <img src={tab} alt="Значок вкладки на тёмном фоне" width={16} height={16} />
+            <img src={tab} alt="Значок вкладки на тёмном фоне" width={16} height={16} onError={fail} />
           </span>
         </div>
         <figcaption className="text-[11px] text-fg4">вкладка</figcaption>
@@ -243,7 +267,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             разглядеть. 40 точек: меньше 48 этот значок на телефоне не бывает, а 40 ещё помещается
             в строку. */}
         <img src={brandIconUrl('apple', icons.version)} alt="Значок приложения" width={40} height={40}
-          className="rounded-[22%] border border-stroke" />
+          className="rounded-[22%] border border-stroke" onError={fail} />
         <figcaption className="text-[11px] text-fg4">приложение</figcaption>
       </figure>
     </div>
