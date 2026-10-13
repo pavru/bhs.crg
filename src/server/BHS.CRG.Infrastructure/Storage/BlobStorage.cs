@@ -38,10 +38,20 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
     {
         var (bucket, obj) = ParsePath(blobPath);
         var ms = new MemoryStream();
+        // Тело читает асинхронный обратный вызов — с токеном. Перегрузка с одним параметром читала
+        // его синхронно (`s.CopyTo(ms)`), а отмена у клиента действует только до заголовков ответа:
+        // хранилище, отдавшее заголовки и замершее посреди тела, её не слышало, и поток пула стоял
+        // в чтении, пока хранилище не оживёт. Читает файлы одно это место, так что стоял бы любой
+        // читатель — от значка вкладки до сборки комплекта.
+        //
+        // ⚠️ Годится это, только пока клиент обратного вызова ДОЖИДАЕТСЯ: иначе управление вернётся
+        // после первых байтов, и наружу уйдёт поток короче файла — без единой ошибки. В Minio 7.0.0
+        // дожидается (сверено по сборке: ExecuteTaskCoreAsync); и это, и саму отмену при обновлении
+        // пакета сторожит BlobDownloadCancellationTests — настоящим клиентом на поддельном хранилище.
         await minio.GetObjectAsync(new GetObjectArgs()
             .WithBucket(bucket)
             .WithObject(obj)
-            .WithCallbackStream(s => s.CopyTo(ms)), ct);
+            .WithCallbackStream((s, c) => s.CopyToAsync(ms, c)), ct);
         ms.Position = 0;
         return ms;
     }
