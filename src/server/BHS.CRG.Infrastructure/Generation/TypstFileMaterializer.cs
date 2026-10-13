@@ -123,6 +123,9 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
             }
             return buffer.ToArray();
         }
+        // Отмену не глотаем: она не «недоступный blob», и отменённая генерация не должна доехать до
+        // PDF без вложения.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch { return null; } // недоступный blob не должен прерывать генерацию документа
     }
 

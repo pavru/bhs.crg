@@ -51,9 +51,42 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
         await minio.GetObjectAsync(new GetObjectArgs()
             .WithBucket(bucket)
             .WithObject(obj)
-            .WithCallbackStream((s, c) => s.CopyToAsync(ms, c)), ct);
+            .WithCallbackStream((s, c) => CopyBodyAsync(s, ms, c)), ct);
         ms.Position = 0;
         return ms;
+    }
+
+    /// <summary>
+    /// Переносит тело ответа в память и не ждёт замолчавшее хранилище дольше
+    /// <see cref="BlobStorageOptions.ReadStallTimeout"/>.
+    ///
+    /// Отменяемость сама зависания не лечит: читатель без токена — или с токеном остановки
+    /// приложения — ждал бы замершее тело до перезапуска. Срок стоит на ТИШИНЕ, а не на всём
+    /// чтении: большой файл по медленному каналу читается сколько нужно, пока байты идут, а
+    /// общий срок пришлось бы подбирать под самый большой файл и самый медленный канал разом.
+    ///
+    /// Истёкший срок — <see cref="TimeoutException"/>, а не отмена: вызывающий ничего не отменял,
+    /// и «отменено» в журнале указывало бы на него, а не на хранилище.
+    /// </summary>
+    private async Task CopyBodyAsync(Stream body, MemoryStream target, CancellationToken ct)
+    {
+        using var silence = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var buffer = new byte[81920];
+        try
+        {
+            while (true)
+            {
+                silence.CancelAfter(options.ReadStallTimeout);
+                var read = await body.ReadAsync(buffer, silence.Token);
+                if (read == 0) return;
+                target.Write(buffer, 0, read);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Хранилище замолчало посреди файла: за {options.ReadStallTimeout.TotalSeconds:0.#} с не пришло ни байта.");
+        }
     }
 
     public async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
@@ -131,4 +164,11 @@ public class BlobStorageOptions
     public string SecretKey { get; set; } = "";
     public string Bucket { get; set; } = "bhs-crg";
     public bool UseSSL { get; set; }
+
+    /// <summary>
+    /// Сколько чтение файла ждёт очередных байтов тела, прежде чем признать хранилище замершим.
+    /// Это срок тишины, не срок чтения: он заводится заново с каждой пришедшей порцией. Минута —
+    /// с большим запасом: живой Garage отдаёт блок за миллисекунды.
+    /// </summary>
+    public TimeSpan ReadStallTimeout { get; set; } = TimeSpan.FromSeconds(60);
 }

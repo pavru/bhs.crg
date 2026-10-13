@@ -7,7 +7,8 @@ using Minio;
 namespace BHS.CRG.Tests.Storage;
 
 /// <summary>
-/// Чтение тела файла из хранилища отменяемо — и при этом файл приходит целиком.
+/// Чтение тела файла из хранилища отменяемо, не ждёт замолчавшее хранилище без срока — и при этом
+/// файл приходит целиком либо не приходит вовсе.
 ///
 /// Отмена у клиента хранилища действует только до заголовков ответа. Пока тело читалось синхронно
 /// (<c>s.CopyTo(ms)</c>), хранилище, отдавшее заголовки и замершее посреди тела, отмены не слышало:
@@ -32,10 +33,10 @@ public class BlobDownloadCancellationTests
     {
         var body = Bytes(256 * 1024);
         using var storage = FakeStorage.StallingAfter(body, sent: 64 * 1024);
-        var blobs = Blobs(storage);
+        using var client = Client(storage);
         using var cts = new CancellationTokenSource();
 
-        var download = blobs.DownloadAsync("bucket/file.bin", cts.Token);
+        var download = Blobs(client).DownloadAsync("bucket/file.bin", cts.Token);
 
         // Заголовки и четверть тела ушли, остальное не придёт никогда. Чтение обязано ЖДАТЬ: вернись
         // оно сейчас — с частью файла или с отказом, — проверка отмены ниже ничего бы не значила.
@@ -60,9 +61,9 @@ public class BlobDownloadCancellationTests
         // вызова, вернул бы управление после первых байтов — поток короче файла и без единой ошибки.
         var body = Bytes(3 * 1024 * 1024 + 517);
         using var storage = FakeStorage.Dribbling(body, chunk: 256 * 1024, pause: TimeSpan.FromMilliseconds(15));
-        var blobs = Blobs(storage);
+        using var client = Client(storage);
 
-        await using var stream = await blobs.DownloadAsync("bucket/file.bin").WaitAsync(Limit);
+        await using var stream = await Blobs(client).DownloadAsync("bucket/file.bin").WaitAsync(Limit);
 
         var read = Assert.IsType<MemoryStream>(stream);
         Assert.Equal(0, read.Position);
@@ -71,26 +72,69 @@ public class BlobDownloadCancellationTests
     }
 
     [Fact]
-    public async Task Отменённый_до_запроса_токен_до_хранилища_не_доходит()
+    public async Task Замолчавшее_хранилище_без_отмены_обрывает_срок_тишины()
     {
-        using var storage = FakeStorage.Dribbling(Bytes(1024), chunk: 1024, pause: TimeSpan.Zero);
-        var blobs = Blobs(storage);
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        // Токена у читателя нет — отменить некому. Раньше такое чтение ждало бы до перезапуска.
+        using var storage = FakeStorage.StallingAfter(Bytes(256 * 1024), sent: 64 * 1024);
+        using var client = Client(storage);
+        var blobs = Blobs(client, silence: TimeSpan.FromMilliseconds(300));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => blobs.DownloadAsync("bucket/file.bin", cts.Token));
-        Assert.Empty(storage.RequestLines);
+        var download = blobs.DownloadAsync("bucket/file.bin");
+
+        var finished = await Task.WhenAny(download, Task.Delay(Limit));
+        Assert.True(finished == download, "чтение ждёт замолчавшее хранилище дольше срока тишины");
+        // Именно срок, а не отмена: читатель ничего не отменял, и «отменено» указывало бы на него.
+        await Assert.ThrowsAsync<TimeoutException>(() => download);
+    }
+
+    [Fact]
+    public async Task Срок_тишины_не_обрывает_медленное_но_идущее_чтение()
+    {
+        // Всё чтение — полторы секунды, срок тишины — секунда: общий срок оборвал бы его, а срок
+        // тишины заводится заново с каждой порцией и медленному каналу не мешает.
+        var body = Bytes(10 * 16 * 1024);
+        using var storage = FakeStorage.Dribbling(body, chunk: 16 * 1024, pause: TimeSpan.FromMilliseconds(150));
+        using var client = Client(storage);
+        var blobs = Blobs(client, silence: TimeSpan.FromSeconds(1));
+
+        await using var stream = await blobs.DownloadAsync("bucket/file.bin").WaitAsync(Limit);
+
+        Assert.True(body.AsSpan().SequenceEqual(Assert.IsType<MemoryStream>(stream).ToArray()));
+    }
+
+    [Fact]
+    public async Task Обрыв_соединения_посреди_тела_это_отказ_а_не_короткий_файл()
+    {
+        // Заголовок обещал 256 КиБ, пришло 64, и хранилище закрыло соединение. Самый прямой путь к
+        // «потоку короче файла без единой ошибки»: клиенту достаточно проглотить отказ обратного
+        // вызова при статусе 200.
+        using var storage = FakeStorage.ClosingAfter(Bytes(256 * 1024), sent: 64 * 1024);
+        using var client = Client(storage);
+
+        var download = Blobs(client).DownloadAsync("bucket/file.bin");
+
+        var finished = await Task.WhenAny(download, Task.Delay(Limit));
+        Assert.True(finished == download, "чтение не заметило, что хранилище закрыло соединение");
+        var failure = await Record.ExceptionAsync(() => download);
+        Assert.True(failure is not null, "оборванное на четверти тело вернулось как целый файл");
+        Assert.IsNotAssignableFrom<OperationCanceledException>(failure);
     }
 
     // ── Обвязка ──────────────────────────────────────────────────────────────────
 
-    private static MinIOBlobStorage Blobs(FakeStorage storage) => new(
-        new MinioClient()
-            .WithEndpoint("127.0.0.1", storage.Port)
-            .WithCredentials("GK0123456789abcdef01234567", "secret")
-            .WithSSL(false)
-            .Build(),
-        new BlobStorageOptions { Bucket = "bucket" });
+    /// <summary>Клиента освобождает тест: за ним свой HttpClient и соединения к подделке.</summary>
+    private static IMinioClient Client(FakeStorage storage) => new MinioClient()
+        .WithEndpoint("127.0.0.1", storage.Port)
+        .WithCredentials("GK0123456789abcdef01234567", "secret")
+        .WithSSL(false)
+        .Build();
+
+    private static MinIOBlobStorage Blobs(IMinioClient client, TimeSpan? silence = null)
+    {
+        var options = new BlobStorageOptions { Bucket = "bucket" };
+        if (silence is { } limit) options.ReadStallTimeout = limit;
+        return new MinIOBlobStorage(client, options);
+    }
 
     /// <summary>Содержимое с постоянным зерном: расхождение воспроизводится, а не случается.</summary>
     private static byte[] Bytes(int length)
@@ -103,7 +147,11 @@ public class BlobDownloadCancellationTests
     /// <summary>
     /// Поддельное хранилище: на HEAD отвечает заголовками объекта, на GET — ими же и телом. Тело
     /// отдаёт кусками с паузой, а дойдя до <c>stallAt</c> — замирает, не закрывая соединения: ровно
-    /// так выглядит хранилище, у которого посреди ответа встал диск или сосед по кластеру.
+    /// так выглядит хранилище, у которого посреди ответа встал диск или сосед по кластеру. Либо, в
+    /// режиме обрыва, закрывает соединение на том же месте.
+    ///
+    /// На всё, кроме HEAD и GET объекта, отвечает 501: появись у клиента запрос другого вида, тест
+    /// покраснеет отказом клиента с этим кодом, а не сроком ожидания без слова о причине.
     /// </summary>
     private sealed class FakeStorage : IDisposable
     {
@@ -115,6 +163,7 @@ public class BlobDownloadCancellationTests
         private readonly int _chunk;
         private readonly TimeSpan _pause;
         private readonly int _stallAt;
+        private readonly bool _closeAtStall;
 
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
         public List<string> RequestLines { get; } = [];
@@ -122,15 +171,18 @@ public class BlobDownloadCancellationTests
         /// <summary>Завершается, когда хранилище отдало свою часть тела и замерло.</summary>
         public Task Stalled => _stalled.Task;
 
-        private FakeStorage(byte[] body, int chunk, TimeSpan pause, int stallAt)
+        private FakeStorage(byte[] body, int chunk, TimeSpan pause, int stallAt, bool closeAtStall = false)
         {
-            (_body, _chunk, _pause, _stallAt) = (body, chunk, pause, stallAt);
+            (_body, _chunk, _pause, _stallAt, _closeAtStall) = (body, chunk, pause, stallAt, closeAtStall);
             _listener.Start();
             _ = AcceptLoopAsync();
         }
 
         /// <summary>Отдаёт заголовки и первые <paramref name="sent"/> байт тела, дальше молчит.</summary>
         public static FakeStorage StallingAfter(byte[] body, int sent) => new(body, sent, TimeSpan.Zero, sent);
+
+        /// <summary>Отдаёт заголовки и первые <paramref name="sent"/> байт тела и закрывает соединение.</summary>
+        public static FakeStorage ClosingAfter(byte[] body, int sent) => new(body, sent, TimeSpan.Zero, sent, closeAtStall: true);
 
         /// <summary>Отдаёт тело целиком, кусками по <paramref name="chunk"/> байт с паузой между ними.</summary>
         public static FakeStorage Dribbling(byte[] body, int chunk, TimeSpan pause) => new(body, chunk, pause, body.Length);
@@ -165,6 +217,13 @@ public class BlobDownloadCancellationTests
                     }
                     var requestLine = text.ToString().Split("\r\n")[0];
                     lock (RequestLines) RequestLines.Add(requestLine);
+                    var get = requestLine.StartsWith("GET /bucket/", StringComparison.Ordinal);
+                    if (!get && !requestLine.StartsWith("HEAD /bucket/", StringComparison.Ordinal))
+                    {
+                        await stream.WriteAsync(Encoding.ASCII.GetBytes(
+                            "HTTP/1.1 501 Not Implemented\r\nContent-Length: 0\r\n\r\n"), _stop.Token);
+                        continue;
+                    }
 
                     await stream.WriteAsync(Encoding.ASCII.GetBytes(
                         "HTTP/1.1 200 OK\r\n" +
@@ -173,7 +232,7 @@ public class BlobDownloadCancellationTests
                         "ETag: \"0123456789abcdef0123456789abcdef\"\r\n" +
                         "Last-Modified: Wed, 14 Oct 2026 00:00:00 GMT\r\n" +
                         "Accept-Ranges: bytes\r\n\r\n"), _stop.Token);
-                    if (!requestLine.StartsWith("GET ", StringComparison.Ordinal)) continue;
+                    if (!get) continue;
 
                     for (var offset = 0; offset < _stallAt; offset += _chunk)
                     {
@@ -182,6 +241,7 @@ public class BlobDownloadCancellationTests
                         if (_pause > TimeSpan.Zero) await Task.Delay(_pause, _stop.Token);
                     }
                     if (_stallAt >= _body.Length) continue;
+                    if (_closeAtStall) { client.Dispose(); return; }
 
                     _stalled.TrySetResult();
                     await Task.Delay(Timeout.Infinite, _stop.Token);
@@ -204,6 +264,7 @@ public class BlobDownloadCancellationTests
             _listener.Stop();
             lock (_clients)
                 foreach (var client in _clients) client.Dispose();
+            _stop.Dispose();
         }
     }
 }
