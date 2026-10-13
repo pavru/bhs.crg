@@ -17,7 +17,7 @@ import {
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
 import { useOpenRecord } from './openRecord';
-import { RereadFailedNotice } from './RereadFailedNotice';
+import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
 
 const PARAM = 'waybill';

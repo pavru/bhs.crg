@@ -46,14 +46,14 @@ export async function saveGroup(group: CoverageGroup, draft: MappingDraft, io: S
     const plan = [];
     for (const write of removalsFirst(schemaWrites(group, draft))) {
       const { name, schema } = await io.read(write.typeId);
+      // Что делать дальше, эти два отказа не говорят: экран следом перечитается, снимет выбор,
+      // которого больше нет, и сам назовёт строку и позовёт выбрать заново.
       const gone = missingKey(schema, write.placements);
       if (gone !== null)
-        throw new Error(`В типе «${name}» больше нет поля «${gone}» — тип тем временем изменили. ` +
-          'Список полей обновлён, выберите заново.');
+        throw new Error(`В типе «${name}» больше нет поля «${gone}» — тип тем временем изменили.`);
       const unfit = unfitKey(schema, write.placements, kinds);
       if (unfit !== null)
-        throw new Error(`Поле «${unfit}» типа «${name}» больше не подходит — его тем временем изменили. ` +
-          'Список полей обновлён, выберите заново.');
+        throw new Error(`Поле «${unfit}» типа «${name}» больше не подходит — его тем временем изменили.`);
       plan.push({ write, schema });
     }
 
