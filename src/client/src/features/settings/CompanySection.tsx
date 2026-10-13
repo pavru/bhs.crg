@@ -6,10 +6,11 @@ import { useToast } from '@/shared/ui/Toast';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useAccountingCurrency, useSaveAccountingCurrency } from '@/shared/api/accountingCurrency';
 import { currencyTitle } from './companySettings';
+import { CompanyTimeZone } from './CompanyTimeZone';
 
 /**
- * Настройки компании (ТЗ CORE-25.3). Пока одна — валюта учёта (ТЗ COST-7.2, issue #1248); часовой
- * пояс компании встанет сюда же своей задачей.
+ * Настройки компании (ТЗ CORE-25.3): валюта учёта (ТЗ COST-7.2, issue #1248) и часовой пояс —
+ * он своим блоком, `CompanyTimeZone`: у него свой запрос и своё сохранение.
  *
  * Валюту меняют, пока документов с суммами нет: суммы при смене не пересчитываются. Когда
  * документы есть, выбора на экране НЕТ вовсе — валюта названа текстом, причина под ней. Поле с
@@ -107,6 +108,10 @@ export function CompanySection() {
           </Button>
         </div>
       )}
+
+      <div className="pt-4 mt-1 border-t border-stroke">
+        <CompanyTimeZone />
+      </div>
 
       <ConfirmDialog
         open={confirming}

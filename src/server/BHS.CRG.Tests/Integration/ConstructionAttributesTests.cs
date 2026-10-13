@@ -115,6 +115,19 @@ public class ConstructionAttributesTests(IntegrationTestFixture fixture)
         Assert.Equal("Europe/Moscow", after.GetProperty("effectiveTimeZoneId").GetString());
         Assert.True(after.GetProperty("resolved").GetBoolean());
 
+        // Экрану (issue #1148) сервер отдаёт и то, что предлагать, и то, чем проверить выбор:
+        // смещения и «сейчас у компании» посчитаны здешней базой поясов, а не базой браузера.
+        Assert.Equal("UTC+03:00", after.GetProperty("effectiveOffset").GetString());
+        Assert.Equal("Москва", after.GetProperty("effectiveCity").GetString());
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", after.GetProperty("effectiveNow").GetString()!);
+        var offered = after.GetProperty("timeZones").EnumerateArray().ToList();
+        var moscow = Assert.Single(offered, z => z.GetProperty("id").GetString() == "Europe/Moscow");
+        Assert.Equal("Москва", moscow.GetProperty("city").GetString());
+        Assert.Equal("UTC+03:00", moscow.GetProperty("offset").GetString());
+        // До выбора названия у пояса сервера нет — он не из списка, и выдумывать ему город нельзя.
+        Assert.Equal(TimeZoneInfo.Local.Id, before.GetProperty("serverTimeZoneId").GetString());
+        Assert.False(string.IsNullOrEmpty(before.GetProperty("serverOffset").GetString()));
+
         Assert.Equal(HttpStatusCode.BadRequest,
             (await client.PutAsJsonAsync("/api/settings/company", new { timeZoneId = "Mars/Olympus" })).StatusCode);
 

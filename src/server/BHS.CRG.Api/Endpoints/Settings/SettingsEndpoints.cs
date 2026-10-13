@@ -36,10 +36,17 @@ public static class SettingsEndpoints
         var company = app.MapGroup("/api/settings/company")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
-        company.MapGet("/", async (IAppSettingsStore store, CancellationToken ct) =>
+        company.MapGet("/", async (IAppSettingsStore store, TimeProvider clock, CancellationToken ct) =>
         {
             var stored = await store.GetAsync(AppSettingKeys.CompanyTimeZone, ct);
             var effective = await store.GetCompanyTimeZoneAsync(ct);
+            var now = clock.GetUtcNow();
+            object Named(OfferedTimeZone z) => new
+            {
+                id = z.Id,
+                city = z.City,
+                offset = CompanyTimeZones.Offset(TimeZoneInfo.FindSystemTimeZoneById(z.Id), now),
+            };
             // Три значения, а не одно, и это не избыточность: «что выбрали», «что действует» и «что
             // на сервере». Совпадать они перестают ровно тогда, когда базу перенесли на машину, где
             // выбранного пояса нет, — и администратор обязан увидеть это здесь, а не по сдвинутым
@@ -50,6 +57,14 @@ public static class SettingsEndpoints
                 effectiveTimeZoneId = effective.Id,
                 serverTimeZoneId = TimeZoneInfo.Local.Id,
                 resolved = stored is null || string.Equals(stored, effective.Id, StringComparison.Ordinal),
+                // Для экрана (issue #1148). Смещения и «сейчас» считает сервер: клиент посчитал бы их
+                // по своей базе поясов, а действует здешняя — и расходятся они ровно в тот день, когда
+                // это важно. «Сейчас» — то, чем администратор проверяет выбор: число и час у компании.
+                effectiveOffset = CompanyTimeZones.Offset(effective, now),
+                effectiveCity = CompanyTimeZones.City(effective.Id),
+                serverOffset = CompanyTimeZones.Offset(TimeZoneInfo.Local, now),
+                effectiveNow = TimeZoneInfo.ConvertTime(now, effective).ToString("yyyy-MM-dd'T'HH:mm"),
+                timeZones = CompanyTimeZones.Offered().Select(Named),
             });
         });
 

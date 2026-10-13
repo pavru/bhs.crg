@@ -3887,8 +3887,13 @@ POST   /api/tables/{модуль.таблица}/query   → то же тело�
                                     С ПРИЧИНОЙ (no-right / removed / module-off), а не пропадает.
                                     Та же таблица — системный набор `system:table:модуль.таблица`.
 
-GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved }
-PUT    /api/settings/company                { timeZoneId }  — null снимает настройку
+GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved,
+                                              effectiveOffset, effectiveCity, serverOffset, effectiveNow,
+                                              timeZones: [{ id, city, offset }] }
+                                              — смещения и «сейчас у компании» считает сервер, своей базой
+                                              поясов; timeZones — что экран предлагает на выбор (issue #1148)
+PUT    /api/settings/company                { timeZoneId }  — null снимает настройку; принимает ЛЮБОЙ пояс,
+                                              известный машине, а не только из timeZones
 GET    /api/settings/company/currency       → { currency, stale, currencies: [{ code, title }], locked, reason }
                                     Валюта учёта (issue #1248). currency — действующая, всегда из
                                     списка; stale — что лежит в базе и в список не входит; locked и

@@ -13,7 +13,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/settings-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, callApi } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -88,6 +88,23 @@ await check('updates-toggle-reflects-server', async () => {
   const t = await openSection('ОБНОВЛЕНИЯ');
   if (!/Проверять обновления|Последняя проверка|обновлени/i.test(t))
     throw new Error(`раздел обновлений не раскрылся: ${t.slice(-200)}`);
+});
+
+// Пояс компании (issue #1148): пока он не выбран, сутки считаются по поясу сервера — и отказа
+// нет нигде. Сказать об этом обязан экран; проверка сверяет его слова с ответом сервера.
+await check('company-time-zone-names-what-is-in-force', async () => {
+  const { body } = await callApi(page, 'GET', '/settings/company');
+  await openSection('КОМПАНИЯ');
+  const block = page.getByTestId('company-time-zone');
+  const text = (await block.innerText()).replace(/\s+/g, ' ');
+  if (!/Сейчас у компании: \d\d\.\d\d\.\d{4}, \d\d:\d\d/.test(text))
+    throw new Error(`нет числа и часа у компании: ${text}`);
+  const unset = /Пояс не выбран — действует пояс сервера/.test(text);
+  if (unset !== (body.timeZoneId === null))
+    throw new Error(`экран говорит «${unset ? 'не выбран' : 'выбран'}», сервер — ${body.timeZoneId}`);
+  if (unset && !text.includes(body.serverTimeZoneId)) throw new Error('пояс сервера не назван');
+  if (await block.getByRole('button', { name: 'Сохранить пояс' }).isEnabled())
+    throw new Error('«Сохранить пояс» доступна без правки');
 });
 
 await check('backup-schedule-form-shows-saved-values', async () => {
