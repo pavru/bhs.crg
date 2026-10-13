@@ -1,12 +1,12 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
 import { Search, Sun, Moon, Monitor, LogOut, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/themeContext';
 import { workNav, settingsNav } from './navConfig';
 import { visibleNav } from './navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
+import { useGuardedLeave, useGuardedNavigate } from './NavigationGuard';
 
 interface Cmd { id: string; label: string; section: string; icon: LucideIcon; run: () => void }
 
@@ -24,7 +24,11 @@ export function CommandPalette(props: { open: boolean; onOpenChange: (o: boolean
 }
 
 function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const navigate = useNavigate();
+  // Палитра — второй вход в те же разделы, что и рейл, и уходить обязана тем же путём — через
+  // охрану несохранённых правок (issue #1238). С прямым `navigate` счёт с правками терялся за два
+  // нажатия, без вопроса; то же — команда выхода.
+  const navigate = useGuardedNavigate();
+  const leave = useGuardedLeave();
   const { logout } = useAuth();
   const { setTheme } = useTheme();
   // Те же права, что и у сайдбара, и из того же источника (issue #952). Палитра — второй вход в
@@ -43,10 +47,10 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
       { id: 'theme-light',  label: 'Тема: светлая',   section: 'Действия', icon: Sun,     run: () => setTheme('light') },
       { id: 'theme-dark',   label: 'Тема: тёмная',    section: 'Действия', icon: Moon,    run: () => setTheme('dark') },
       { id: 'theme-system', label: 'Тема: системная', section: 'Действия', icon: Monitor, run: () => setTheme('system') },
-      { id: 'logout',       label: 'Выйти',           section: 'Действия', icon: LogOut,  run: logout },
+      { id: 'logout',       label: 'Выйти',           section: 'Действия', icon: LogOut,  run: () => leave(logout) },
     ];
     return [...nav, ...actions];
-  }, [work, settings, navigate, setTheme, logout]);
+  }, [work, settings, navigate, leave, setTheme, logout]);
 
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -57,7 +61,9 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
 
 
 
-  function exec(it: Cmd) { it.run(); onOpenChange(false); }
+  // Сначала закрыться, потом исполнить: вопрос об уходе задаёт страница, своим окном, — и оно не
+  // должно открываться под палитрой.
+  function exec(it: Cmd) { onOpenChange(false); it.run(); }
 
   function onKey(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, filtered.length - 1)); }
@@ -70,6 +76,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
+          data-modal-state="transient"
           className="fixed left-1/2 top-24 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
         >

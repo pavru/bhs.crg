@@ -63,6 +63,39 @@ export const DISMISSAL: Record<ModalState, Dismissal> = {
 /** Сколько держится кольцо вокруг кнопки выхода после клика мимо. */
 export const HINT_MS = 600;
 
+/**
+ * Состояние окна для обвязки приложения — атрибут `data-modal-state` на КАЖДОМ `Dialog.Content`
+ * (issue #1238). `free` — окно закрывается клавишей, поверх него можно открыть палитру; остальные
+ * значения — окно держит человека: правки, запрос, результат. `transient` — сама палитра.
+ *
+ * <p>Атрибут обязателен и у окна, которому держать нечего: по нему же находится ВЕРХНЕЕ окно, а
+ * забытый атрибут означал бы окно, поверх которого палитра уводит со страницы. Сверяет
+ * `chromeLeavesThroughGuard.test.ts` — по исходникам, у всех `Dialog.Content` сразу.</p>
+ */
+export type DialogHold = ModalState | 'free' | 'transient';
+
+/**
+ * Уводить со страницы сейчас нельзя: открыто окно, которое держит человека. Тогда уход не
+ * исполняется, а верхнее окно показывает свой выход — как на промах мимо него (при идущем запросе
+ * выхода нет, и показывать нечего).
+ *
+ * <p>Показывается ВЕРХНЕЕ окно, а не то, что держит: кольцо на кнопке под затемнением соседа
+ * человек не увидит (ревью PR #1313).</p>
+ *
+ * @returns отказано ли в уходе.
+ */
+export function refusedByDialog(): boolean {
+  const open = [...document.querySelectorAll<HTMLElement>('[data-modal-state]')]
+    .filter(d => d.dataset.modalState !== 'transient');
+  if (!open.some(d => d.dataset.modalState !== 'free')) return false;
+  const top = open[open.length - 1];
+  if (top.dataset.modalState !== 'busy') pointAtExit(top, false);
+  return true;
+}
+
+/** Открыта ли командная палитра. */
+export const paletteShown = () => document.querySelector('[data-modal-state="transient"]') !== null;
+
 const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
 /**
@@ -76,8 +109,11 @@ const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
  *   уведённый из поля щелчком, он превратил бы следующий пробел в «Отмену».
  */
 export function pointAtExit(root: HTMLElement | null | undefined, focus: boolean) {
-  const exit = root?.querySelector<HTMLElement>('[data-modal-exit]:not([disabled])')
-    ?? root?.querySelector<HTMLElement>('[data-modal-cross]');
+  // Кнопка под вопросом «Закрыть без сохранения?» недоступна (`inert`) — кольцо на ней было бы
+  // обещанием, которое нельзя исполнить.
+  const reachable = (query: string) => [...(root?.querySelectorAll<HTMLElement>(query) ?? [])]
+    .find(el => !el.closest('[inert]'));
+  const exit = reachable('[data-modal-exit]:not([disabled])') ?? reachable('[data-modal-cross]');
   if (!root || !exit) return;
   exit.scrollIntoView?.({ block: 'nearest' });
   if (focus) exit.focus();

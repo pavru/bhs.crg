@@ -204,7 +204,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
                 : <p id={hintId} className="mt-1 text-xs text-fg3">Введите число из строки «Всего ссылок».</p>}
             </div>
             <div className="flex gap-2 justify-end items-start mt-4">
-              <Button type="button" variant="text" size="sm" className="shrink-0" disabled={busy} onClick={() => onClose(false)}>Отмена</Button>
+              <Button type="button" variant="text" size="sm" className="shrink-0" disabled={busy} data-modal-exit="" onClick={() => onClose(false)}>Отмена</Button>
               <Button type="submit" variant="filled" danger size="sm" multiline className="min-w-0" disabled={!matches} loading={busy}>
                 Удалить записи, потеряв ссылки
               </Button>
@@ -220,6 +220,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
+          // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
+          data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}
           className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}>
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">{title}</Dialog.Title>

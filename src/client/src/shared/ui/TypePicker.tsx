@@ -100,6 +100,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
+          data-modal-state="free"
           className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
         >

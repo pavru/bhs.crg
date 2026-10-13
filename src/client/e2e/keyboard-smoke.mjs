@@ -153,6 +153,20 @@ try {
     await page.keyboard.press('Escape');   // в самом диалоге ничего не набрано — теперь закрывается он
     await closed();
   });
+
+  // Палитра поверх окна с правками (issue #1238): её команда увела бы со страницы вместе с окном —
+  // правило закрытия обходилось двумя нажатиями. Вместо палитры окно показывает свой выход.
+  await check('palette-does-not-open-over-dirty-dialog', async () => {
+    await page.goto(`${BASE}/users`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /Добавить пользователя/ }).click();
+    const dlg = page.locator('[role=dialog]').last();
+    await dlg.getByLabel(/Email/i).first().fill('palette-probe@bhs.local');
+    await page.keyboard.press('Control+k');
+    await dlg.locator('[data-modal-hint]').waitFor({ state: 'attached', timeout: 2000 });
+    if (await page.locator(PALETTE_INPUT).count()) throw new Error('палитра открылась поверх окна с правками');
+    if (await dialogs() !== 1) throw new Error(`ожидалось одно окно, открыто ${await dialogs()}`);
+  });
 } finally {
   await browser.close();
 }

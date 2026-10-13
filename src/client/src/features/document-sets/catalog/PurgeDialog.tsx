@@ -90,6 +90,9 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         {/* На узком экране — у верха: по центру клавиатура закрыла бы и поле, и кнопки. */}
         <Dialog.Content
+          // Идёт удаление, показан его исход или набрано подтверждение — окно держит человека: поверх
+          // него обвязка не открывает палитру и не уводит со страницы (см. `DialogHold`).
+          data-modal-state={pending ? 'busy' : refused ?? failed ?? changed ? 'result' : input ? 'touched' : 'free'}
           className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}>
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">
@@ -163,7 +166,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
               </div>
 
               <div className="flex gap-2 justify-end items-start mt-4">
-                <Button type="button" variant="text" size="sm" className="shrink-0" disabled={pending} onClick={onClose}>Отмена</Button>
+                <Button type="button" variant="text" size="sm" className="shrink-0" disabled={pending} data-modal-exit="" onClick={onClose}>Отмена</Button>
                 <Button type="submit" variant="filled" danger size="sm" multiline className="min-w-0"
                   disabled={!matches} loading={pending}>
                   {subject.submit}
