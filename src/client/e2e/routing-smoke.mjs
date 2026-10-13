@@ -167,6 +167,23 @@ try {
     await page.waitForURL(atPath('/document-sets'), { timeout: 5000 });
   });
 
+  // ── …и переход командой палитры (issue #1238) ───────────────────────────────
+  // Палитра звала переход напрямую, мимо охраны: правки терялись за два нажатия, без вопроса.
+  await check('leave-guard-intercepts-palette', async () => {
+    await page.goto(`${BASE}/field-types`);
+    await page.waitForLoadState('networkidle');
+    await page.getByLabel('Описание').fill('правка для проверки гарда');
+    await page.keyboard.press('Control+k');
+    await page.fill(PALETTE_INPUT, 'Шаблоны');
+    await page.keyboard.press('Enter');
+    await page.getByRole('dialog').getByText('Есть несохранённые изменения', { exact: false })
+      .waitFor({ state: 'visible', timeout: 5000 });
+    if (pathOf(page) !== '/field-types') throw new Error('палитра увела со страницы, хотя гард показал диалог');
+    if (await page.locator(PALETTE_INPUT).count()) throw new Error('палитра осталась открытой поверх вопроса');
+    await page.getByRole('button', { name: 'Не сохранять' }).click();
+    await page.waitForURL(atPath('/templates'), { timeout: 5000 });
+  });
+
   // ── Закрытый раздел отвечает страницей, а не переносом ─────────────────────
   //
   // Прежняя редакция ждала, что пользователя УВЕДЁТ на список строек, и проверяла смену адреса.

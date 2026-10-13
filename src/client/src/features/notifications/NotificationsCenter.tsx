@@ -3,7 +3,7 @@ import {
   Bell, BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
   ArrowRight, ExternalLink,
 } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { formatDayTime } from '@/shared/format/format';
 import { IconButton } from '@/shared/ui/Button';
 import {
@@ -69,7 +69,8 @@ function relTime(iso: string): string {
 }
 
 function NotificationRow({ n }: { n: NotificationDto }) {
-  const navigate = useNavigate();
+  // Колокольчик виден над любой страницей — уходит через охрану несохранённых правок (issue #1238).
+  const navigate = useGuardedNavigate();
   const markRead = useMarkNotificationRead();
   const dismiss = useDismissNotification();
   const meta = SEVERITY[n.severity];

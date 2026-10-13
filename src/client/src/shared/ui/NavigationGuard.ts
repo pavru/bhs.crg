@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
+import { createContext, useCallback, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
@@ -28,6 +28,30 @@ export function useGuardedNavClick() {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     if (guard && guard.attempt(() => navigate(to))) e.preventDefault();
   };
+}
+
+/**
+ * Уход со страницы не ссылкой (issue #1238): командой палитры, кнопкой уведомления, выходом из
+ * учётной записи. Под охраной действие достаётся странице-владельцу — она спросит о несохранённом
+ * и исполнит его сама; без охраны исполняется сразу.
+ *
+ * <p>Охрана живёт в ссылках, а не в маршрутизаторе (`useBlocker` без data-router недоступен), и
+ * потому видит только то, что её позвало: прямой `navigate(…)` из обвязки приложения уводил со
+ * счёта с правками молча. Обвязке — всему, что нарисовано вокруг любой страницы, — `useNavigate` и
+ * голый `<Link>` запрещены; сверяет `chromeLeavesThroughGuard.test.ts`.</p>
+ *
+ * <p>Кнопку «Назад» браузера охрана не видит по построению — это отдельное решение.</p>
+ */
+export function useGuardedLeave() {
+  const guard = useNavigationGuard();
+  return useCallback((leave: () => void) => { if (!guard?.attempt(leave)) leave(); }, [guard]);
+}
+
+/** Переход по адресу через охрану — замена `useNavigate` для обвязки приложения. */
+export function useGuardedNavigate() {
+  const leave = useGuardedLeave();
+  const navigate = useNavigate();
+  return useCallback((to: string) => leave(() => navigate(to)), [leave, navigate]);
 }
 
 /**

@@ -17,7 +17,8 @@ import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
 import { visibleNav } from '@/shared/ui/navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
-import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
+import { useGuardedLeave, useGuardedNavClick } from '@/shared/ui/NavigationGuard';
+import { heldDialog, pointAtExit } from '@/shared/ui/modalDismissal';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
@@ -81,12 +82,21 @@ export function AppShell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const bugReport = useBugReportDialog();
   const guardedProfileClick = useGuardedNavClick();
+  const guardedLeave = useGuardedLeave();
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        // Поверх окна, которое сейчас нельзя закрыть (правки, запрос, результат), палитра не
+        // открывается (issue #1238): её команда увела бы со страницы вместе с окном. Молчать при
+        // этом нельзя — показываем выход окна, как на промах мимо него; при запросе выхода нет.
+        const held = heldDialog();
+        if (held) {
+          if (held.dataset.modalHeld !== 'busy') pointAtExit(held, false);
+          return;
+        }
         setPaletteOpen(o => !o);
         return;
       }
@@ -163,7 +173,7 @@ export function AppShell() {
               <Bug size={22} className="text-fg3 shrink-0" />
               <span className="text-sm font-medium text-fg1">Сообщить об ошибке</span>
             </button>
-            <button type="button" onClick={logout}
+            <button type="button" onClick={() => guardedLeave(logout)}
               className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
               <LogOut size={22} className="text-fg3 shrink-0" />
               <span className="text-sm font-medium text-fg1">Выйти</span>
@@ -198,6 +208,7 @@ function EmailConfirmBanner() {
   const resend = useResendConfirmation();
   const [dismissed, setDismissed] = useState(false);
   const [sent, setSent] = useState(false);
+  const guardedClick = useGuardedNavClick();
 
   if (dismissed || !account || account.emailConfirmed) return null;
 
@@ -214,7 +225,7 @@ function EmailConfirmBanner() {
               Отправить письмо
             </button>}
         {' · '}
-        <Link to="/profile" className="font-medium underline hover:no-underline">Профиль</Link>
+        <Link to="/profile" onClick={guardedClick('/profile')} className="font-medium underline hover:no-underline">Профиль</Link>
       </span>
       <button type="button" onClick={() => setDismissed(true)} aria-label="Скрыть"
         className="shrink-0 p-1 rounded hover:bg-warning/10">

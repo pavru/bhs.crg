@@ -63,6 +63,19 @@ export const DISMISSAL: Record<ModalState, Dismissal> = {
 /** Сколько держится кольцо вокруг кнопки выхода после клика мимо. */
 export const HINT_MS = 600;
 
+/**
+ * Окно, которое сейчас нельзя закрыть клавишей: правки, запрос, результат (issue #1238). Такое окно
+ * называет себя атрибутом `data-modal-held` со своим состоянием — по нему обвязка приложения не
+ * открывает поверх него командную палитру: иначе правило закрытия обходилось бы двумя нажатиями
+ * (Ctrl+K, Enter), и окно исчезало вместе со страницей.
+ *
+ * @returns верхнее из таких окон или `null`.
+ */
+export function heldDialog(): HTMLElement | null {
+  const held = document.querySelectorAll<HTMLElement>('[data-modal-held]');
+  return held.length ? held[held.length - 1] : null;
+}
+
 const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
 /**
