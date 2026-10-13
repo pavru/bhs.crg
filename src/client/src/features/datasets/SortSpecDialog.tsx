@@ -74,7 +74,8 @@ export function SortSpecDialog({
   const { saving, refusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить сортировку');
   // Личности строк (issue #517): без них повторный Enter по «Ниже» двигает уже другой уровень.
   const [levels, setLevels] = useState<SortColumn[]>(() => withRowUids(initial ?? []));
-  const edited = useChangedSince(levels);
+  // Мерило — то, что уйдёт в `onSave`: пустой уровень, добавленный и не заполненный, не правка.
+  const edited = useChangedSince(levels.filter(l => l.column.trim()));
 
   function addLevel() {
     setLevels(prev => [...prev, withRowUid({ column: '', direction: 'asc' as const })]);

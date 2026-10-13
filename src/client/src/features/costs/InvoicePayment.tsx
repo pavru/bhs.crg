@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { Banknote, Lock, Undo2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
-import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
@@ -156,7 +155,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
  * неактивна — иначе человек подтвердил бы расклад прежней даты. Сервер это ловит отметкой расклада,
  * но отказ после нажатия хуже кнопки, которая честно ждёт.</p>
  */
-function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
+export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
   const toast = useToast();
   const preview = usePaymentPreview();
   const pay = usePayInvoice();
@@ -166,8 +165,9 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   const [asked, setAsked] = useState<PaymentPosting | null>(null);
   const [date, setDate] = useState<string | null>(null);
   const [document, setDocument] = useState('');
-  // Дата приходит и из календаря, которого окно не замечает: признак правок — явно.
-  const edited = useChangedSince([date, document]);
+  // Признак правок — только выбор ЧЕЛОВЕКА. Само состояние `date` сюда не годится (ревью PR #1311):
+  // его ставит и ответ сервера на вопрос о раскладе, и окно без единой правки спрашивало бы о потере.
+  const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   const [changed, setChanged] = useState<ReadonlySet<string>>(new Set());
@@ -178,6 +178,8 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   // Ошибка первого вопроса жива, только пока на него не ответили позже: запрос больше не повторяется,
   // и без этого условия удачный повтор оставлял бы диалог в «расклад не получен» до закрытия.
   const failed = refused ?? (asked === null && first.error ? apiError(first.error, 'сервер не ответил') : null);
+  // Дата, вернувшаяся к предложенной сервером, — уже не правка.
+  const edited = document.trim() !== '' || (picked !== null && picked !== (first.data?.paidOn ?? ''));
 
   async function ask(date: string | null, after?: PaymentPosting) {
     const turn = ++turns.current;
@@ -250,6 +252,7 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
             hint={posting?.dateRefusal ?? undefined}
             onChange={iso => {
               const next = iso ? iso.slice(0, 10) : '';
+              setPicked(next);
               setDate(next);
               if (next) void ask(next);
             }} />

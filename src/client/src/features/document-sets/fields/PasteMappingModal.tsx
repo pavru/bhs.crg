@@ -385,7 +385,7 @@ function PasteMappingModalBody({
 
   // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
   return (
-    <Modal open onOpenChange={onOpenChange} title="Сопоставление столбцов" wide isDirty={pasted}
+    <Modal open onOpenChange={onOpenChange} title="Сопоставление столбцов" wide isDirty={pasted} busy={resolving}
       footer={
         <div className="flex justify-between">
           <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>

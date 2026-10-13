@@ -62,10 +62,19 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
     finally { setSending(false); }
   }
 
+  // Закрытие стирает набранное. Компонент смонтирован постоянно, и без сброса текст доживал до
+  // следующего открытия: вопрос «изменения будут потеряны» лгал, а свежее окно — в том числе после
+  // удачной отправки — сразу считалось окном с правками (ревью PR #1311).
+  function leave() {
+    onClose();
+    setQueued(false); setError('');
+    setUnchecked(new Set()); setExternal(''); setSubject(''); setBody('');
+  }
+
   const field = "w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface";
 
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setQueued(false); setError(''); } }} title={`Отправить: ${itemName}`}
+    <Modal open={open} onOpenChange={o => { if (!o) leave(); }} title={`Отправить: ${itemName}`}
       // Письмо ушло в очередь — терять уже нечего. Подписчиков снимают галками (их окно видит),
       // но признак явный: компонент смонтирован постоянно, и сам он знает точнее.
       isDirty={!queued && (unchecked.size > 0 || !!external.trim() || !!subject.trim() || !!body.trim())}

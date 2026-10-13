@@ -143,7 +143,7 @@ function Closed({ state }: { state: PeriodContourState }) {
   );
 }
 
-function CloseDialog({ state, name, today, onDone }: {
+export function CloseDialog({ state, name, today, onDone }: {
   state: PeriodContourState; name: string; today: string; onDone: () => void;
 }) {
   const toast = useToast();

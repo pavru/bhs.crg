@@ -50,8 +50,6 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   // в нём нет. Как и у режимов union'а, переключение недеструктивно — маппинг ждёт в стэше.
   const [byIdMode, setByIdMode] = useState(!!source.materializeByIdColumn);
   const [byIdColumn, setByIdColumn] = useState(source.materializeByIdColumn ?? '');
-  // Тип, вариант и сопоставление выбирают списками и кнопками — окно этого не замечает.
-  const edited = useChangedSince([typeId, rawMapping, byRowType, discriminator, byIdMode, byIdColumn]);
   const [mappingModeStash, setMappingModeStash] = useState<Record<string, string> | null>(null);
 
   const selectedType = allDocTypes.find(t => t.id === typeId);
@@ -195,20 +193,25 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   // Не «проблема» (человек ничего не сделал не так), а просто не время сохранять.
   const typesPending = !!typeId && !selectedType;
 
+  // То, что уйдёт на сервер, — и оно же мерило «есть несохранённые правки» (ревью PR #1311).
+  // Сравнивать всё состояние диалога нельзя: запасы неактивных режимов (правила варианта после
+  // «включил и выключил», колонка Ид) правкой не являются, а окно спрашивало бы о их потере.
+  const setting = {
+    typeId: typeId || null,
+    // В режиме «по Ид» маппинга нет вовсе: строка целиком — ссылка. Отправить и то и другое
+    // значит сохранить две разные настройки одного и того же (сервер такое и не примет).
+    mapping: typeId && !useByIdMode ? mapping : {},
+    discriminator: typeId && useDiscriminator ? discriminator : null,
+    byIdColumn: typeId && useByIdMode ? byIdColumn : null,
+  };
+  // Тип, вариант и сопоставление выбирают списками и кнопками — окно этого не замечает.
+  const edited = useChangedSince(setting);
+
   function handleSave() {
     if (problem || typesPending) return;
     save.mutate(
-      {
-        sourceId: source.id,
-        // `source` — снимок, с которого диалог открыт (см. SourcesExpander): его версию и называем.
-        ifMatch: source.materializationVersion,
-        typeId: typeId || null,
-        // В режиме «по Ид» маппинга нет вовсе: строка целиком — ссылка. Отправить и то и другое
-        // значит сохранить две разные настройки одного и того же (сервер такое и не примет).
-        mapping: typeId && !useByIdMode ? mapping : {},
-        discriminator: typeId && useDiscriminator ? discriminator : null,
-        byIdColumn: typeId && useByIdMode ? byIdColumn : null,
-      },
+      // `source` — снимок, с которого диалог открыт (см. SourcesExpander): его версию и называем.
+      { sourceId: source.id, ifMatch: source.materializationVersion, ...setting },
       { onSuccess: onClose },
     );
   }

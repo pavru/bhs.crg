@@ -254,7 +254,8 @@ export function RowFilterDialog({
   );
 
   const { saving, refusal, clearRefusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить отбор');
-  const edited = useChangedSince(root);
+  // Мерило — то, что уйдёт в `onSave`: черновик несёт служебное (личности узлов, пустые условия).
+  const edited = useChangedSince(cleanFilterNode(fromDraft(pruneDraft(root))));
 
   // На экране с этого момента — ровно то дерево, что уехало: пустые строки на сервер не идут, а он
   // называет условие номером по отправленному («условие 2.1»). Останься они, номер в отказе указывал

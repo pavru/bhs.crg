@@ -52,9 +52,10 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
   return (
     // Общий `Modal`, а не свой Radix (issue #1236): вставленную таблицу и расставленные роли жалко
     // так же, как любую форму, — а голый диалог закрывался промахом и Esc. Роли выбирают списком,
-    // вставка идёт из буфера — признак правок называем сами.
+    // вставка идёт из буфера — признак правок называем сами. Он — про таблицу: роли без неё ни к
+    // чему не относятся (и отбрасываются, стоит ширине смениться).
     <Modal open extraWide onOpenChange={o => { if (!o) onClose(); }} title="Вставка строк из буфера"
-      isDirty={text.trim() !== '' || roles !== null}
+      isDirty={text.trim() !== ''}
       footer={
         <div className="flex items-center justify-end gap-2">
           <ModalExit size="sm" />

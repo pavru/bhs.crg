@@ -71,7 +71,8 @@ export function ComputedColumnsDialog({
 }) {
   const { saving, refusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить вычисляемые колонки');
   const [columns, setColumns] = useState<ComputedColumn[]>(initial ?? []);
-  const edited = useChangedSince(columns);
+  // Мерило — то, что уйдёт в `onSave`: строка без имени или выражения не сохраняется и не правка.
+  const edited = useChangedSince(columns.filter(c => c.alias.trim() && c.expr.trim()));
   // Куда вставлять по клику: последнее выражение, в котором стоял курсор.
   const active = useRef<{ el: HTMLInputElement; index: number } | null>(null);
 

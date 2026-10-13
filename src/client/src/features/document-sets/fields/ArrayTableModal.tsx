@@ -9,7 +9,6 @@ import { Clipboard, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
@@ -58,7 +57,11 @@ function ArrayTableModalBody({
 }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>(() => items.map(r => ({ ...r })));
   // Строки добавляют, удаляют и двигают кнопками — окно этого не замечает: признак правок явный.
-  const edited = useChangedSince(rows);
+  // По ССЫЛКЕ, а не записью значения: рендер идёт на каждую клавишу и каждый `dragover`, а таблица
+  // бывает в сотни строк с картинками в data-URI — писать её в JSON на каждый кадр нельзя (ревью
+  // PR #1311). Цена: строка, изменённая и возвращённая как была, остаётся правкой.
+  const [opened] = useState(rows);
+  const edited = rows !== opened;
   // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
   const [rowIds, setRowIds] = useState<string[]>(() => items.map(() => newLocalId()));
   // Личности строк, какими они были при ОТКРЫТИИ таблицы. Только по ним видно, КАКОЙ слот исчез
