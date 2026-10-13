@@ -36,13 +36,13 @@ export async function seedInvoices({ api, findType, ensureEntry, ensureUser, fie
   await ensureUser(process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local', 'Семён Снабженцев', 'Supplier');
 
   // ⚠️ Тип счёта может быть ещё НЕ ЗАВЕДЁН, и это нормальный ход событий, а не сбой. Тип объявляет
-  // модуль, но ссылается он на тип «Организация», который заводит человек — здесь его только что
+  // модуль, но ссылается он на справочник организаций, который заводит человек — здесь его только что
   // завёл посев, уже после старта приложения. Проекция типов модуля идёт один раз, при запуске,
   // поэтому счёт появится со следующего. Скажем это вслух и выйдем: уронив посев, мы остановили бы
   // и всё остальное, что он сеет, — а счета прогону не нужны, он заводит свои.
   if (!(await invoiceTypeReady(api))) {
     console.log('  · счета пока не сеются: тип «СчётНаОплату» появится при следующем запуске '
-      + 'приложения (он ссылается на тип «Организация», который завёл этот же посев). '
+      + 'приложения (он ссылается на справочник организаций, который завёл этот же посев). '
       + 'Перезапустите приложение и повторите посев, если счета нужны на стенде глазами.');
     return null;
   }
@@ -165,7 +165,7 @@ async function seedNarrowUser({ api, ensureUser }) {
  * встраиваться в чужую работу посеву тем более незачем.
  */
 async function seedNomenclature({ api, findType, ensureEntry, field }) {
-  let type = await findType('Номенклатура');
+  let type = await findDirectory(api, findType, NOMENCLATURE_ROLE, 'Номенклатура');
   if (!type) {
     if (await findType('Материал')) {
       console.log('  · позиции номенклатуры не сеются: «Материал» в базе есть, а «Номенклатуры» нет — '
@@ -174,11 +174,13 @@ async function seedNomenclature({ api, findType, ensureEntry, field }) {
       return;
     }
 
-    // Имя — с приметой посева, а КОД точный: по коду модуль счетов находит справочник (имена
-    // уникальны наравне с кодами, и «Номенклатура» именем занимать незачем — его ждёт миграция).
+    // Имя — с приметой посева. Справочником тип делает РОЛЬ — тэг типа (issue #1101): по ней, а не
+    // по коду, его находит модуль счетов. Код оставлен прежним: его ждёт миграция ядра.
     type = await api('POST', '/document-types', {
       name: 'Номенклатура ядра (посев)', code: 'Номенклатура', kind: 'Composite', parentId: null,
-      schema: JSON.stringify({ fields: [field('Наименование', 'Наименование', 'string')] }),
+      schema: JSON.stringify({
+        tags: [NOMENCLATURE_ROLE], fields: [field('Наименование', 'Наименование', 'string')],
+      }),
       isAbstract: false, module: 'core',
     });
     console.log('  + тип «Номенклатура ядра (посев)» (код «Номенклатура»)');
@@ -188,6 +190,28 @@ async function seedNomenclature({ api, findType, ensureEntry, field }) {
     'Лоток лестничный 100х50 (посев)']) {
     await ensureEntry(type.id, name, {});
   }
+}
+
+const ORGANIZATION_ROLE = 'role.organization';
+const NOMENCLATURE_ROLE = 'role.nomenclature';
+
+/**
+ * Справочник по роли (issue #1101): тип, который роль УЖЕ несёт, как бы он ни назывался, — иначе тип
+ * с прежним кодом. Сначала роль: в базе, где справочником назначен другой тип, посев завёл бы второй
+ * носитель и получил бы отказ «роль уже занята».
+ *
+ * Найденный по коду тип без роли НЕ трогаем, как и раньше: роль на действующей базе ставит миграция
+ * ядра, а не посев.
+ */
+async function findDirectory(api, findType, role, code) {
+  const all = await api('GET', '/document-types');
+  // Схема в ответе приходит строкой с JSON; объект принимаем тоже — посев не должен зависеть от того,
+  // в каком виде её отдал сервер.
+  const tagsOf = t => {
+    try { return (typeof t.schema === 'string' ? JSON.parse(t.schema) : t.schema)?.tags ?? []; }
+    catch { return []; }
+  };
+  return all.find(t => tagsOf(t).includes(role)) ?? await findType(code);
 }
 
 /**
@@ -206,18 +230,23 @@ async function invoiceTypeReady(api) {
  * «Организация» заводит человек, и в рабочей базе он есть — со схемой заказчика. Доведи мы его «до
  * нужного состояния», как делает `ensureType`, посев ПЕРЕПИСАЛ БЫ схему живого справочника
  * организаций, а README зовёт натравливать посев на свою базу. Счёту же нужен не состав полей, а сам
- * тип: поля «Поставщик» и «Плательщик» ссылаются на него по коду.
+ * справочник: поля «Поставщик» и «Плательщик» ссылаются на него по роли.
  */
 async function ensureOrganizationType({ api, findType, field }) {
-  const found = await findType('Организация');
+  const found = await findDirectory(api, findType, ORGANIZATION_ROLE, 'Организация');
   if (found) return found.id;
 
   const created = await api('POST', '/document-types', {
     // Имя — не «Организация (посев)»: оно занято типом `ORG_SEED` (имена уникальны наравне с
-    // кодами). Важен здесь КОД: по нему поле счёта называет цель.
+    // кодами). Справочником тип делает РОЛЬ — тэг типа, а поля находятся по своим тэгам
+    // (issue #1101): без них счёт не нашёл бы ни поставщика, ни его ИНН.
     name: 'Организация ядра (посев)', code: 'Организация', kind: 'Composite', parentId: null,
     schema: JSON.stringify({
-      fields: [field('Наименование', 'Наименование', 'string'), field('ИНН', 'ИНН', 'string')],
+      tags: [ORGANIZATION_ROLE],
+      fields: [
+        { ...field('Наименование', 'Наименование', 'string'), tags: ['org.name'] },
+        { ...field('ИНН', 'ИНН', 'string'), tags: ['org.inn'] },
+      ],
     }),
     isAbstract: false, module: 'core',
   });

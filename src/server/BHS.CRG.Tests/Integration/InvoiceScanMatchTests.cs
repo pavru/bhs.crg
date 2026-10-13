@@ -190,7 +190,7 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
     }
 
     private async Task<Guid> PositionAsync() =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция {Guid.NewGuid().ToString("N")[..6]}");
 
     /// <summary>Что записал журнал о распознавании этого счёта.</summary>

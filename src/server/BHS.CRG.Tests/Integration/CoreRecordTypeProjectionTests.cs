@@ -463,7 +463,7 @@ public class CoreRecordTypeProjectionTests(IntegrationTestFixture fixture) : IAs
 
         // И причину пропуска проекция называет — ею живёт предупреждение в журнале запуска.
         var all = await after.ServiceProvider.GetRequiredService<IRepository<DocumentType>>().GetAllAsync();
-        Assert.Equal(CoreRecordTypes.UnitCode,
+        Assert.Equal($"типа «{CoreRecordTypes.UnitCode}»",
             ModuleTypeProjectionHandler.MissingTargetOf(CoreRecordTypes.WorkType, all));
     }
 

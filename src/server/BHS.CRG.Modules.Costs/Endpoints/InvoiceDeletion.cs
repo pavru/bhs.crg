@@ -115,7 +115,7 @@ public static class InvoiceDeletion
         {
             try
             {
-                supplier = (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [id], CancellationToken.None))
+                supplier = (await catalog.RefsAsync(CostsDirectories.Organization, [id], CancellationToken.None))
                     ?.FirstOrDefault(o => o.Id == id)?.DisplayName;
             }
             catch (Exception)

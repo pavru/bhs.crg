@@ -256,7 +256,7 @@ public partial class RecordPurgeTests(InvoiceLineHost host) : InvoiceLineTestBas
 
     private async Task<Guid> OwnPositionAsync() =>
         await EntryAsync(
-            await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+            await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция {Guid.NewGuid().ToString()[..8]}");
 
     /// <summary>Другая запись ядра, ссылающаяся на эту значением поля.</summary>
@@ -265,7 +265,7 @@ public partial class RecordPurgeTests(InvoiceLineHost host) : InvoiceLineTestBas
         using var scope = host.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new CreateCommonDataEntryCommand(
             $"Ссылается {Guid.NewGuid().ToString()[..8]}",
-            await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+            await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             JsonDocument.Parse(
                 """{"Наименование":"x","Основа":{"$ref":"catalog","entryId":"§"}}""".Replace("§", target.ToString())),
             CatalogScope.System, null));

@@ -32,12 +32,14 @@ public partial class ArchiveReadInventoryTests
             Documents("документ по идентификатору"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));"] =
             ByPurpose("назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery(codes.Keys, ids), ct), codes);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. codes.Keys], ids), ct), codes);"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var entry = await mediator.Send(new GetCommonDataEntryQuery(id), ct);"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery(codes.Keys, query, limit), ct);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. codes.Keys], query, limit), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
+        ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entries = await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, type.Id), ct);"] =
+            ByPurpose("свой справочник модуля: назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Свой_справочник_модуля_список_по_назначению)),
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entry = await objects.GetByIdAsync(id, ct);"] =
             Shown("своя запись модуля по идентификатору — переименование и удаление"),
 
@@ -62,7 +64,8 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Purge.cs|await Db.Set<DomainObject>().AsNoTracking()"] =
             Service("готовый отбор пакетной очистки: действующие записи типа, не выбор значения"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Purge.cs|return await Db.Set<DomainObject>().AsNoTracking()"] =
-            Service("названные записи пакетной очистки — все, архивные с признаком"),
+            Service("названные записи пакетной очистки — все, архивные с признаком; и идентификаторы записей типа " +
+                    "перед снятием роли справочника — тоже все: ссылка на архивную запись держит так же").X(2),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);"] =
             Shown("названия уже стоящих ссылок"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);"] =
@@ -303,13 +306,13 @@ public partial class ArchiveReadInventoryTests
             Shown("справочник статей: названия стоящих частей, проверка новой части и экран справочника — признак в ответе"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceSnapshots.cs|var records = await targets.StatesAsync(ReferenceTarget.Record,"] =
             Shown("состояние ссылок счёта и черновиков списка: «в архиве» у сторон, строк и частей разноски"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsDirectories.Organization, parties, ct);"] =
             Seen("названия сторон счёта — уже стоящих; признак рядом, из состояния ссылок"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDeletion.cs|supplier = (await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, [id], CancellationToken.None))"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDeletion.cs|supplier = (await catalog.RefsAsync(CostsDirectories.Organization, [id], CancellationToken.None))"] =
             Seen("название поставщика удалённого счёта — в запись журнала; стоял в счёте, архивный назван так же"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceListEndpoint.cs|var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceListEndpoint.cs|var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct);"] =
             Shown("реестр счетов: названия поставщиков уже заведённых счетов, признак значком"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct);"] =
             Seen("названия позиций в стоящих строках счёта; признак строке даёт состояние ссылок"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var states = await targets.StatesAsync(ReferenceTarget.Record, [.. named.Select(p => p.Id!.Value)], ct);"] =
             Seen("новая сторона счёта: есть ли запись вовсе; архивную отвергает правило новых ссылок следом"),
@@ -318,23 +321,23 @@ public partial class ArchiveReadInventoryTests
                 nameof(InvoiceArchiveTests.Счёт_с_архивным_поставщиком_читается_и_правится_а_новым_поставщиком_архивный_не_ставится),
                 nameof(InvoiceArchiveTests.Строка_счёта_с_архивной_позицией_остаётся_а_новая_строка_её_не_принимает),
                 nameof(InvoiceArchiveTests.Накладная_стоявшую_архивную_позицию_держит_новую_не_принимает)),
-        ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureEndpoints.cs|var found = await catalog.SearchAsync(CostsRecordTypes.NomenclatureCode, query, Limit + 1, ct)"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureEndpoints.cs|var found = await catalog.SearchAsync(CostsDirectories.Nomenclature, query, Limit + 1, ct)"] =
             Choice("выбор позиции в строке счёта и накладной", nameof(ArchiveReadPurposeTests.Выбор_позиции_номенклатуры_в_счёте_архивную_не_предлагает)),
-        ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchEndpoints.cs|var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, positions, ct);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchEndpoints.cs|var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, positions, ct);"] =
             Choice("подстановка запомненного в строку счёта: архивная позиция названа с причиной, но не подставляется",
                 nameof(SupplierMatchTests.Архивная_позиция_не_подставляется_и_это_названо)),
         ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchListEndpoints.cs|var refs = await catalog.RefsAsync(typeCode, ids, ct);"] =
             Choice("список соответствий: названия уже стоящих поставщиков и позиций — с признаком архива; по той же " +
                    "записи судится НОВАЯ позиция соответствия — архивная отвергается",
                 nameof(SupplierMatchListTests.Смена_позиции_требует_виденной_версии_пишет_журнал_и_меняет_подстановку)),
-        ["BHS.CRG.Modules.Costs/Endpoints/OrganizationEndpoints.cs|var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/OrganizationEndpoints.cs|var entries = await catalog.ListAsync(CostsDirectories.Organization, records, ct)"] =
             ByPurpose("организации для формы счёта: выбор скрывает архивные, показ отдаёт с признаком",
                 nameof(InvoiceArchiveTests.Список_организаций_на_выбор_архивную_скрывает_а_на_показ_отдаёт_с_признаком)),
-        ["BHS.CRG.Modules.Costs/Endpoints/SiteCostsEndpoints.cs|: (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/SiteCostsEndpoints.cs|: (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];"] =
             Seen("названия поставщиков уже заведённых счетов"),
-        ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct))"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct))"] =
             Shown("позиции стоящих строк накладной и перечня отпущенного: название и признак"),
-        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))"] =
+        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var names = (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))"] =
             Seen("названия поставщиков уже заведённых счетов"),
     };
 }

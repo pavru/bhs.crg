@@ -128,9 +128,10 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
     public async Task Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком()
     {
         var (type, live, archived) = await PairAsync();
-        var code = await CodeAsync(type);
+        var directory = await AsDirectoryAsync(type);
+        var code = directory.Role;
         using var scope = host.Services.CreateScope();
-        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+        var catalog = directory.Port(scope.ServiceProvider);
 
         var choice = await catalog.ListAsync(code, PortRecordsFor.Choice);
         var display = await catalog.ListAsync(code, PortRecordsFor.Display);
@@ -146,9 +147,34 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
         Assert.False(refs!.Single(r => r.Id == live).Archived);
         Assert.True((await catalog.GetAsync(archived))!.Archived);
         Assert.False((await catalog.GetAsync(live))!.Archived);
-        // Пустой перечень — пустой ответ, даже когда вида нет: спрашивать нечего, и «вида нет» здесь
-        // звавший принял бы за отказ.
-        Assert.Empty((await catalog.RefsAsync("ТипаТакогоНет", []))!);
+        // Пустой перечень — пустой ответ, даже когда роль не обеспечена: спрашивать нечего, и «роль
+        // не обеспечена» здесь звавший принял бы за отказ.
+        var unassigned = new TestDirectory();
+        Assert.Empty((await unassigned.Port(scope.ServiceProvider).RefsAsync(unassigned.Role, []))!);
+    }
+
+    /// <summary>
+    /// Свой справочник модуля читается своим портом (issue #1101) — и назначение у него такое же
+    /// обязательное: выбор архивную статью скрывает, показ отдаёт с признаком.
+    /// </summary>
+    [Fact]
+    public async Task Свой_справочник_модуля_список_по_назначению()
+    {
+        var mark = Guid.NewGuid().ToString("N")[..8];
+        using var scope = host.Services.CreateScope();
+        var own = scope.ServiceProvider.GetRequiredService<IModuleOwnCatalog>();
+        var live = (await own.CreateAsync(CostsRecordTypes.ArticleCode, $"Статья {mark} живая"))!.Id;
+        var archived = (await own.CreateAsync(CostsRecordTypes.ArticleCode, $"Статья {mark} в архиве"))!.Id;
+        await ArchiveAsync(archived);
+
+        var choice = await own.ListAsync(CostsRecordTypes.ArticleCode, PortRecordsFor.Choice);
+        var display = await own.ListAsync(CostsRecordTypes.ArticleCode, PortRecordsFor.Display);
+
+        Assert.Contains(choice!, e => e.Id == live);
+        Assert.DoesNotContain(choice!, e => e.Id == archived);
+        Assert.True(display!.Single(e => e.Id == archived).Archived);
+        Assert.False(display!.Single(e => e.Id == live).Archived);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => own.ListAsync(CostsRecordTypes.ArticleCode, default));
     }
 
     /// <summary>Архивная запись — не потеря: у ссылки на неё своё состояние, третье.</summary>
@@ -174,7 +200,7 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
         Guid nomenclature;
         using (var scope = host.Services.CreateScope())
             nomenclature = (await scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>()
-                .FindAsync(t => t.Code == CostsRecordTypes.NomenclatureCode)).Single().Id;
+                .FindAsync(t => t.Code == TestDirectories.NomenclatureCode)).Single().Id;
         var mark = Guid.NewGuid().ToString("N")[..8];
         var live = await EntryAsync(nomenclature, $"Автомат {mark} живой");
         var archived = await EntryAsync(nomenclature, $"Автомат {mark} в архиве");
@@ -197,7 +223,7 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
     {
         var (type, _, _) = await PairAsync();
         var set = await SetAsync();
-        var code = await CodeAsync(type);
+        var directory = await AsDirectoryAsync(type);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             SendAsync(new ListCommonDataEntriesQuery(default, CompositeTypeId: type)));
@@ -208,7 +234,7 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
 
         using var scope = host.Services.CreateScope();
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync(code, default));
+            directory.Port(scope.ServiceProvider).ListAsync(directory.Role, default));
     }
 
     // ── Подготовка ─────────────────────────────────────────────────────────────
@@ -237,10 +263,20 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
         return (await SendAsync(new CreateDocumentSetCommand(sections[0], "Комплект"))).Id;
     }
 
-    private async Task<string> CodeAsync(Guid type)
+    /// <summary>
+    /// Сделать тип справочником — своим на этот тест (issue #1101): порт находит справочник по роли,
+    /// а не по коду типа.
+    /// </summary>
+    private async Task<TestDirectory> AsDirectoryAsync(Guid type)
     {
+        var directory = new TestDirectory();
         using var scope = host.Services.CreateScope();
-        return (await scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>().GetByIdAsync(type))!.Code;
+        var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+        var found = (await types.GetByIdAsync(type))!;
+        found.UpdateSchema(JsonDocument.Parse(directory.BareSchema()));
+        types.Update(found);
+        await types.SaveChangesAsync();
+        return directory;
     }
 
     private async Task<T> SendAsync<T>(IRequest<T> request)

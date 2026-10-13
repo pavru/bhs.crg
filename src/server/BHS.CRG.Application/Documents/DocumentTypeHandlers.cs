@@ -346,7 +346,14 @@ public class DocumentTypeHandlers(
         if (cmd.ParentId.HasValue && IsDescendant(cmd.ParentId.Value, cmd.Id, all))
             throw new ConflictException("Нельзя установить дочерний тип в качестве родителя — возникнет цикл.");
 
-        if (cmd.ParentId != dt.ParentId) EnsureParentAllowsDerived(cmd.ParentId, all);
+        if (cmd.ParentId != dt.ParentId)
+        {
+            EnsureParentAllowsDerived(cmd.ParentId, all);
+            // Смена родителя — вторая дверь и к выводу записей из справочника (issue #1101): подтип,
+            // переставленный под чужой тип, уносит свои записи, а счета ссылаются на них по роли.
+            // До SetParent: семья справочника считается по ПРЕЖНЕЙ цепочке.
+            await DirectoryRoleRelease.EnsureMayLeaveAsync(tags, objectRepo, holders, dt, cmd.ParentId, all, ct);
+        }
 
         dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
@@ -399,6 +406,8 @@ public class DocumentTypeHandlers(
         // подмена схемы у отслеживаемой записала бы черновик чужим SaveChanges в том же запросе).
         var all = await repo.GetAllAsync(ct);
         ValidateTagRestrictions(dt.WithSchema(cmd.Schema), all);
+        // Роль справочника не снимается, пока на его записи ссылаются документы модулей (issue #1101).
+        await DirectoryRoleRelease.EnsureAllowedAsync(tags, objectRepo, holders, dt, cmd.Schema, all, ct);
 
         // Уровень правки (ТЗ CORE-19.1): что администратору можно сделать со схемой ЭТОГО типа.
         // Проверка идёт ДО записи и сравнивает старую схему с новой по полям модуля.
@@ -445,6 +454,8 @@ public class DocumentTypeHandlers(
             .Concat(TagCardinalityValidator.Validate(tags, saving, all).Select(v => v.Describe()))
             // Третья — про место хранения: денежный тэг у типа в общей таблице (H1, issue #1104).
             .Concat(TagMoneyStorageValidator.Validate(tags, saving, all).Select(v => v.Describe()))
+            // Четвёртая — роль справочника у типа, который справочником быть не может (issue #1101).
+            .Concat(RoleResolution.UnfitBearerProblems(tags, saving))
             .ToList();
         if (messages.Count > 0) throw new ConflictException(string.Join(" ", messages));
     }

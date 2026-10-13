@@ -175,7 +175,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     public async Task Не_хватает_только_живой_позиции()
     {
         var (client, _) = await SignInAsync("Admin");
-        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        var doomed = await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client, complete: true);
         await AllocatedLinesAsync(client, invoice, [Line(doomed, quantity: 2, price: 50m, rate: 20)]);
@@ -194,7 +194,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     public async Task Не_хватает_только_живой_организации(string field)
     {
         var (client, _) = await SignInAsync("Admin");
-        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+        var doomed = await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             $"ООО под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client, complete: true);
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",

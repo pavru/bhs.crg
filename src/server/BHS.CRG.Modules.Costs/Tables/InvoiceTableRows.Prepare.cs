@@ -20,7 +20,7 @@ public sealed partial class InvoiceTableRows : IModuleTableCounts
     private async Task<Dictionary<Guid, string>> OrganizationNamesAsync(CancellationToken ct)
     {
         // Показ: названия нужны счетам, которые уже есть, — архивный поставщик в реестре читается.
-        var names = (await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct))
+        var names = (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))
             ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
         return names;
     }

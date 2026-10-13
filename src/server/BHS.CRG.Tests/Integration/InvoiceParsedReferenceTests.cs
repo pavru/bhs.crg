@@ -29,7 +29,7 @@ public class InvoiceParsedReferenceTests(InvoiceLineHost host) : InvoiceLineTest
     public async Task Разобран_отказывает_пока_позиции_строки_нет_в_справочнике()
     {
         var (client, _) = await SignInAsync("Admin");
-        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        var doomed = await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client, complete: true);
         await AllocatedLinesAsync(client, invoice,
@@ -60,7 +60,7 @@ public class InvoiceParsedReferenceTests(InvoiceLineHost host) : InvoiceLineTest
     public async Task После_замены_потерянной_позиции_разобран_проходит()
     {
         var (client, _) = await SignInAsync("Admin");
-        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        var doomed = await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client, complete: true);
         var view = await AllocatedLinesAsync(client, invoice, [Line(doomed, quantity: 2, price: 50m, rate: 20)]);
@@ -86,7 +86,7 @@ public class InvoiceParsedReferenceTests(InvoiceLineHost host) : InvoiceLineTest
     public async Task Разобран_отказывает_пока_организации_шапки_нет_в_справочнике(string field)
     {
         var (client, _) = await SignInAsync("Admin");
-        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+        var doomed = await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             $"ООО под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client, complete: true);
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
@@ -110,9 +110,9 @@ public class InvoiceParsedReferenceTests(InvoiceLineHost host) : InvoiceLineTest
     public async Task Отказ_называет_все_потери_разом()
     {
         var (client, _) = await SignInAsync("Admin");
-        var organization = await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+        var organization = await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             $"ООО под удаление {Guid.NewGuid().ToString()[..6]}");
-        var position = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        var position = await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client, complete: true);
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",

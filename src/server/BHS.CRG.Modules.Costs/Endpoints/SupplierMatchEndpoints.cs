@@ -54,11 +54,11 @@ public static class SupplierMatchEndpoints
             [.. lines.Select(l => (l.SupplierCode, l.SupplierText))], ct);
 
         var positions = found.OfType<SupplierMatch>().Select(m => m.NomenclatureId).Distinct().ToList();
-        var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, positions, ct);
+        var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, positions, ct);
         if (refs is null && positions.Count > 0)
+            // Это не «ничего не запомнено»: соответствия есть, а назвать их позиции нечем.
             throw new ConflictException(
-                $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, а соответствия на него " +
-                "ссылаются. Подставлять нечего — и это не «ничего не запомнено».");
+                CostsDirectories.NoNomenclature("запомненные соответствия подставить нельзя"));
         var known = (refs ?? []).ToDictionary(r => r.Id);
 
         var items = new List<MatchSuggestion>();

@@ -68,7 +68,11 @@ public sealed record ModuleSystemField(
     IReadOnlyList<string>? Tags = null,
     bool Required = false,
     bool Locked = true,
-    string? Target = null)
+    string? Target = null,
+    // Цель РОЛЬЮ (issue #1101) — для справочника, который ведёт не модуль и не ядро-объявление, а
+    // человек: «Поставщик» счёта целится в справочник организаций, как бы его тип ни назывался.
+    // Взаимоисключающе с Target: кодом адресуют свои типы и типы, объявленные ядром.
+    string? TargetRole = null)
 {
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }

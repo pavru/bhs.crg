@@ -80,6 +80,13 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
         Guid typeId, BHS.CRG.Domain.Catalog.CatalogScope scope, Guid? scopeId, CancellationToken ct = default);
 
     /// <summary>
+    /// Идентификаторы ВСЕХ записей общих данных названных типов — действующих и архивных (issue #1101):
+    /// кого спросить о держателях, прежде чем снять с типа роль справочника. Только идентификаторы:
+    /// у номенклатуры записи несут картинки.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> RecordIdsOfTypesAsync(IReadOnlyCollection<Guid> typeIds, CancellationToken ct = default);
+
+    /// <summary>
     /// Названные записи общих данных ссылками, какого бы вида они ни были (issue #1245). Все,
     /// включая архивные; признак — в каждой ссылке.
     /// </summary>

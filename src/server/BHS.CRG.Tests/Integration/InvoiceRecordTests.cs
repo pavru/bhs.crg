@@ -81,14 +81,16 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
 
-        if ((await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Count == 0)
+        if ((await types.FindAsync(t => t.Code == TestDirectories.OrganizationCode)).Count == 0)
         {
             await types.AddAsync(DocumentType.Create(
-                "Организация", CostsRecordTypes.OrganizationCode, DocumentTypeKind.Composite, null,
+                "Организация", TestDirectories.OrganizationCode, DocumentTypeKind.Composite, null,
                 JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared));
             await types.SaveChangesAsync();
         }
 
+        // Тип — ещё не справочник: цель «Поставщика» находится по роли (issue #1101).
+        await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
         await scope.ServiceProvider.ProjectModuleTypesAsync();
 
         supplier = await OrganizationAsync(SupplierName);
@@ -189,7 +191,7 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
         var invoice = (await types.FindAsync(t => t.Code == CostsRecordTypes.InvoiceCode)).Single();
-        var organization = (await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Single();
+        var organization = (await types.FindAsync(t => t.Code == TestDirectories.OrganizationCode)).Single();
 
         var fields = invoice.Schema.RootElement.GetProperty("fields").EnumerateArray()
             .ToDictionary(f => f.GetProperty("key").GetString()!, f => f);
@@ -691,7 +693,7 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
         Assert.Contains(SupplierName, names);
         Assert.Contains(PayerName, names);
         Assert.All(organizations.EnumerateArray(),
-            o => Assert.Equal(CostsRecordTypes.OrganizationCode, o.GetProperty("type").GetString()));
+            o => Assert.Equal(TestDirectories.OrganizationCode, o.GetProperty("type").GetString()));
     }
 
     /// <summary>
@@ -804,7 +806,7 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     {
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
-        var typeId = (await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Single().Id;
+        var typeId = (await types.FindAsync(t => t.Code == TestDirectories.OrganizationCode)).Single().Id;
 
         var created = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(
             new CreateCommonDataEntryCommand(name, typeId,

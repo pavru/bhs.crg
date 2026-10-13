@@ -298,7 +298,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var found = Assert.Single(await catalog.ListAsync("Организация", RecordsFor.Display), e => e.Id == created);
+        var found = Assert.Single(await catalog.ListAsync(Organizations, RecordsFor.Display), e => e.Id == created);
         Assert.Equal("ООО «Поставщик»", found.DisplayName);
         Assert.Contains("7701234567", found.DataJson);
         Assert.Equal("Организация", found.EntityType);
@@ -329,7 +329,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var found = Assert.Single(await catalog.ListAsync("Организация", RecordsFor.Display), e => e.Id == entry.Id);
+        var found = Assert.Single(await catalog.ListAsync(Organizations, RecordsFor.Display), e => e.Id == entry.Id);
 
         // Вид — свойство ЗАПИСИ, а не запроса: спросили «Организация», а запись своего подтипа.
         Assert.Equal(subtype.Code, found.EntityType);
@@ -349,13 +349,42 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     [Fact]
     public async Task Нет_вида_и_нет_записей_это_разные_ответы()
     {
-        var empty = await TypeIdAsync($"ВидБезЗаписей{Guid.NewGuid():N}");
+        // Два своих справочника (issue #1101): у одного роль назначена типу без записей, у другого
+        // не назначена никому. Ответы обязаны различаться.
+        var empty = new TestDirectory();
+        var unassigned = new TestDirectory();
+        await SendAsync(new CreateDocumentTypeCommand(
+            $"Вид без записей {Guid.NewGuid():N}", $"ВидБезЗаписей{Guid.NewGuid():N}", DocumentTypeKind.Composite,
+            null, JsonDocument.Parse(empty.BareSchema())));
+
+        using var scope = host.Services.CreateScope();
+
+        Assert.Null(await unassigned.Port(scope.ServiceProvider).ListAsync(unassigned.Role, RecordsFor.Display));
+        Assert.Empty((await empty.Port(scope.ServiceProvider).ListAsync(empty.Role, RecordsFor.Display))!);
+    }
+
+    /// <summary>
+    /// Справочник, который ни один включённый модуль не объявил нужным, порт не читает вовсе
+    /// (issue #1101) — и это отказ коду, а не «роль не обеспечена». Иначе модуль читал бы справочник,
+    /// о котором экран сопоставления администратору не говорит.
+    /// </summary>
+    [Fact]
+    public async Task Необъявленный_справочник_порт_не_читает()
+    {
+        var first = await OrganizationAsync("ООО «Необъявленное»", "{}");
 
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        Assert.Null(await catalog.ListAsync("Органиазция", RecordsFor.Display));
-        Assert.Empty((await catalog.ListAsync(await CodeOfAsync(empty), RecordsFor.Display))!);
+        // Код типа вместо роли — та самая прежняя адресация.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.ListAsync("Организация", RecordsFor.Display));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.SearchAsync("Организация", null, 10));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.RefsAsync("Организация", [first]));
+        // И пустой перечень дефекта не прячет.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.RefsAsync("Организация", []));
+        // Роль объявлена, а тэг поля — нет: читать его модулю тоже нечем.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            catalog.FieldValuesAsync(Organizations, "identity", RecordsFor.Display));
     }
 
     /// <summary>
@@ -383,15 +412,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
         Assert.Null(await catalog.GetAsync(document.Id));
-        Assert.DoesNotContain(await catalog.ListAsync("Организация", RecordsFor.Display) ?? [], e => e.Id == document.Id);
-    }
-
-    /// <summary>Код типа по идентификатору — чтобы спросить порт тем же словом, каким тип заведён.</summary>
-    private async Task<string> CodeOfAsync(Guid typeId)
-    {
-        using var scope = host.Services.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
-        return (await repo.GetByIdAsync(typeId))!.Code;
+        Assert.DoesNotContain(await catalog.ListAsync(Organizations, RecordsFor.Display) ?? [], e => e.Id == document.Id);
     }
 
     /// <summary>
@@ -408,7 +429,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             await OrganizationAsync(name, "{}");
 
         using var scope = host.Services.CreateScope();
-        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync("Организация", RecordsFor.Display);
+        var entries = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>().ListAsync(Organizations, RecordsFor.Display);
 
         Assert.Equal(["Берёза", "Дуб", "Ёлка", "Яшма"],
             entries.Where(e => e.DisplayName is "Яшма" or "Берёза" or "Ёлка" or "Дуб").Select(e => e.DisplayName));
@@ -431,16 +452,19 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
 
-        var found = await catalog.SearchAsync("Организация", "кабель-торг (поиск", 10);
+        var found = await catalog.SearchAsync(Organizations, "кабель-торг (поиск", 10);
         Assert.Equal("Кабель-Торг (поиск)", Assert.Single(found!.Items).DisplayName);
 
         // Ссылка на выбранное: спрашиваем два, существует один — ненайденное в ответ НЕ попадает, и
         // разбираться с этим обязан звавший (иначе «ссылка есть, записи нет» прошло бы молча).
-        var refs = await catalog.RefsAsync("Организация", [first, Guid.NewGuid()]);
+        var refs = await catalog.RefsAsync(Organizations, [first, Guid.NewGuid()]);
         Assert.Equal(first, Assert.Single(refs!).Id);
 
-        Assert.Null(await catalog.SearchAsync("ТипаТакогоНет", null, 10));
-        Assert.Null(await catalog.RefsAsync("ТипаТакогоНет", [first]));
+        // Роль, которую не несёт ни один тип, — свой справочник теста: у «организаций» она назначена.
+        var unassigned = new TestDirectory();
+        var none = unassigned.Port(scope.ServiceProvider);
+        Assert.Null(await none.SearchAsync(unassigned.Role, null, 10));
+        Assert.Null(await none.RefsAsync(unassigned.Role, [first]));
     }
 
     // ── Охрана записи ─────────────────────────────────────────────────────────
@@ -739,14 +763,21 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         using var scope = host.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
 
-        if ((await repo.FindAsync(t => t.Code == code)).FirstOrDefault() is { } existing) return existing.Id;
+        if ((await repo.FindAsync(t => t.Code == code)).FirstOrDefault() is not { } type)
+        {
+            type = DocumentType.Create(code, code, DocumentTypeKind.Composite, null,
+                JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
+            await repo.AddAsync(type);
+            await repo.SaveChangesAsync();
+        }
 
-        var created = DocumentType.Create(code, code, DocumentTypeKind.Composite, null,
-            JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
-        await repo.AddAsync(created);
-        await repo.SaveChangesAsync();
-        return created.Id;
+        // Тип — ещё не справочник: порт находит организации по роли (issue #1101).
+        await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
+        return type.Id;
     }
+
+    /// <summary>Роль справочника организаций — ею, а не кодом типа, порт спрашивают.</summary>
+    private const string Organizations = BHS.CRG.Domain.Schema.FunctionalTag.RoleOrganization;
 
     private async Task<T> SendAsync<T>(IRequest<T> request)
     {

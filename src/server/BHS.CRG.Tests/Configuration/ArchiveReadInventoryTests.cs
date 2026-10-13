@@ -98,7 +98,12 @@ public partial class ArchiveReadInventoryTests
     /// Имя, под которым порт справочников объявлен в файле. По ТИПУ, а не по слову «catalog»: порт,
     /// внедрённый под другим именем, иначе прошёл бы мимо переписи.
     /// </summary>
-    private static readonly Regex DeclaredCatalog = new(@"IModuleCatalog\s+(\w+)", RegexOptions.Compiled);
+    /// <remarks>
+    /// Оба порта: справочники ядра (<c>IModuleCatalog</c>) и свой справочник модуля
+    /// (<c>IModuleOwnCatalog</c>, чтение — с issue #1101). Статьи вне строек переехали на второй, и без
+    /// него в образце их чтение выпало бы из переписи тем же PR, которым переехало.
+    /// </remarks>
+    private static readonly Regex DeclaredCatalog = new(@"IModule(?:Own)?Catalog\s+(\w+)", RegexOptions.Compiled);
 
     /// <summary>Состояние ссылки модуля на запись.</summary>
     private static readonly Regex States = new(@"\.StatesAsync\(ReferenceTarget\.Record", RegexOptions.Compiled);

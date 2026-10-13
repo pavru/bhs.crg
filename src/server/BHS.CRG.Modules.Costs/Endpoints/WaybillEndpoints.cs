@@ -426,7 +426,7 @@ public static class WaybillEndpoints
         var ids = positions.OfType<Guid>().Distinct().ToList();
         if (ids.Count == 0) return new Dictionary<Guid, ModuleCatalogRef>();
 
-        return (await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct))
+        return (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct))
             ?.ToDictionary(r => r.Id);
     }
 
@@ -454,10 +454,10 @@ public static class WaybillEndpoints
         var fresh = positions.Select(p => p.Position).OfType<Guid>().Distinct().Except(stored).ToList();
         if (fresh.Count == 0) return;
 
-        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode, fresh, ct)
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsDirectories.Nomenclature, fresh, ct)
             ?? throw new ConflictException(
-                $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, поэтому ссылаться строкам " +
-                "не на что. Строки без позиции при этом сохраняются — они считаются несопоставленными.");
+                CostsDirectories.NoNomenclature("ссылаться строкам не на что") +
+                " Строки без позиции при этом сохраняются — они считаются несопоставленными.");
 
         var lost = NewReferences.Rows(positions, verdicts, NewReference.Missing);
         if (lost.Count > 0)

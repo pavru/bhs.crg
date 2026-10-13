@@ -251,7 +251,7 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.Empty(found.GetProperty("items").EnumerateArray());
 
         // И заводить номенклатуру модулю нечем: в перечне типов, которые он вправе заводить, её нет.
-        Assert.DoesNotContain(new CostsModule().IntakeTypes, t => t.TypeCode == CostsRecordTypes.NomenclatureCode);
+        Assert.DoesNotContain(new CostsModule().IntakeTypes, t => t.Role == CostsDirectories.Nomenclature);
     }
 
     /// <summary>
@@ -359,11 +359,11 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     }
 
     private async Task<Guid> VendorAsync() =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+        await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             $"ООО «Поставщик {Guid.NewGuid().ToString("N")[..6]}»");
 
     private async Task<Guid> PositionAsync() =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция {Guid.NewGuid().ToString("N")[..6]}");
 
     private async Task<int> CountAsync(BHS.CRG.Modules.Ports.ModuleActivityAction action)

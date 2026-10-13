@@ -53,12 +53,12 @@ public static class OrganizationEndpoints
                 "месте с признаком)."),
         };
 
-        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)
-            ?? throw new ConflictException(
-                $"Тип «{CostsRecordTypes.OrganizationCode}» в системе не заведён, поэтому выбрать " +
-                "поставщика не из чего. Этот тип ведёт человек — заведите его в разделе типов, и " +
-                "счета заработают со следующего запуска приложения. Пустой список здесь означал бы " +
-                "«организаций ещё не завели», а это другое.");
+        var entries = await catalog.ListAsync(CostsDirectories.Organization, records, ct)
+            // Пустой список здесь означал бы «организаций ещё не завели», а это другое.
+            // Про «тип счёта появится после перезапуска» здесь не говорим: это верно только для
+            // новой установки. Справочник, оставшийся без роли при заведённом типе счёта,
+            // перезапуском не чинится — и совет перезапустить был бы неправдой (ревью PR #1317).
+            ?? throw new ConflictException(CostsDirectories.NoOrganizations("выбрать поставщика не из чего"));
 
         return TypedResults.Ok<IReadOnlyList<CostsOrganization>>(
             [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType, e.Archived))]);

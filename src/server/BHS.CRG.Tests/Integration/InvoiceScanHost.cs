@@ -153,7 +153,7 @@ public sealed class InvoiceScanHost : InvoiceLineHost
 
         public Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
             string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
-            host.RefsFailure is { } failure && entityType == CostsRecordTypes.NomenclatureCode
+            host.RefsFailure is { } failure && entityType == CostsDirectories.Nomenclature
                 ? Task.FromException<IReadOnlyList<ModuleCatalogRef>?>(failure)
                 : inner.RefsAsync(entityType, ids, ct);
 

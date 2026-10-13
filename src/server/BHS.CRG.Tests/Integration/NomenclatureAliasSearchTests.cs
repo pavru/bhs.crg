@@ -98,7 +98,7 @@ public class NomenclatureAliasSearchTests(InvoiceLineHost host) : InvoiceLineTes
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
 
     private async Task<Guid> PositionAsync(string name, params string[] aliases) =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"), name, aliases);
+        await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"), name, aliases);
 
     private static async Task<JsonElement> SearchAsync(HttpClient client, string query) =>
         await client.GetFromJsonAsync<JsonElement>(

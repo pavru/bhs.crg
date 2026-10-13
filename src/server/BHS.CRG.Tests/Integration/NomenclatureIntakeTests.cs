@@ -79,7 +79,7 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
         Assert.Contains("«Код»", urezan.GetProperty("refusals")[0].GetString());
 
         // Корень семейства у этого хоста — без схемы: сверить позицию не с чем.
-        var root = kinds.EnumerateArray().Single(k => k.GetProperty("code").GetString() == CostsRecordTypes.NomenclatureCode);
+        var root = kinds.EnumerateArray().Single(k => k.GetProperty("code").GetString() == TestDirectories.NomenclatureCode);
         Assert.Contains("Идентификатор", root.GetProperty("refusals")[0].GetString());
     }
 
@@ -280,7 +280,7 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
         // Тип не из семейства номенклатуры: дверь открывает один справочник, а не все.
         await RefusedAsync(HttpStatusCode.NotFound, new
         {
-            typeId = await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+            typeId = await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             values = new Dictionary<string, string> { ["Наименование"] = name },
         });
 
@@ -376,7 +376,7 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
 
     private async Task<Guid> SubtypeAsync(string code, string name, string schema)
     {
-        var root = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var root = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
 

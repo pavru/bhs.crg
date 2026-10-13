@@ -151,6 +151,75 @@ public class TagCatalogTests
         }
     }
 
+    // ── Роли справочников (issue #1101) ───────────────────────────────────────
+
+    private static TagDefinition RoleTag(string code, int? ceiling = 1, TagScope scope = TagScope.Type) =>
+        new(code, code, "описание", scope, ["Composite"], Multiple: false,
+            Restriction: ceiling is null ? null : new(ceiling), Directory: true);
+
+    private static TagDefinition FieldOf(string code, string? role, TagScope scope = TagScope.Field) =>
+        new(code, code, "описание", scope, ["string"], Multiple: false, Role: role);
+
+    [Fact]
+    public void Тэг_поля_относится_к_роли_которая_есть_в_реестре()
+    {
+        var catalog = TagCatalog.Build([RoleTag("role.x"), FieldOf("x.field", "role.x")], []);
+
+        Assert.True(catalog.IsRole("role.x"));
+        Assert.False(catalog.IsRole("x.field"));
+        Assert.False(catalog.IsRole("нет.такого"));
+    }
+
+    /// <summary>
+    /// Опечатка в роли тэга дала бы тэг, который редактор не предлагает нигде, а порт не находит
+    /// никогда, — без единого отказа. Поэтому отказ при сборке реестра, то есть при старте.
+    /// </summary>
+    [Theory]
+    [InlineData("role.y")]          // роли нет
+    [InlineData("profile.x")]       // тэг типа с потолком 1, но не справочник
+    public void Тэг_поля_с_ролью_которой_нет_останавливает_сборку_реестра(string role)
+    {
+        var profile = new TagDefinition("profile.x", "Профиль", "описание", TagScope.Type, ["Composite"],
+            Multiple: false, Restriction: new(MaxBearers: 1));
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => TagCatalog.Build([RoleTag("role.x"), profile, FieldOf("x.field", role)], []));
+
+        Assert.Contains("x.field", refusal.Message);
+    }
+
+    /// <summary>К роли относят тэг ПОЛЯ: тэг типа «роли такой-то» читать было бы некому.</summary>
+    [Fact]
+    public void К_роли_нельзя_отнести_тэг_типа()
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => TagCatalog.Build([RoleTag("role.x"), FieldOf("x.type", "role.x", TagScope.Type)], []));
+    }
+
+    /// <summary>
+    /// Роль читают как «единственный справочник»: без потолка носителей коду пришлось бы выбирать
+    /// между двумя типами молча.
+    /// </summary>
+    [Fact]
+    public void Роль_без_потолка_одного_носителя_останавливает_сборку_реестра()
+    {
+        Assert.Throws<InvalidOperationException>(() => TagCatalog.Build([RoleTag("role.x", ceiling: null)], []));
+        Assert.Throws<InvalidOperationException>(() => TagCatalog.Build([RoleTag("role.x", ceiling: 2)], []));
+        Assert.Throws<InvalidOperationException>(() => TagCatalog.Build([RoleTag("role.x", scope: TagScope.Field)], []));
+    }
+
+    /// <summary>Профили уровня — не справочники, хотя носитель у них тоже один.</summary>
+    [Fact]
+    public void В_реестре_ядра_ролей_две_и_профили_уровня_к_ним_не_относятся()
+    {
+        var catalog = TagCatalog.Build(TagRegistry.Core, []);
+
+        Assert.Equal(
+            new[] { "role.nomenclature", "role.organization" },
+            catalog.All.Where(t => catalog.IsRole(t.Code)).Select(t => t.Code).Order());
+        Assert.False(catalog.IsRole(BHS.CRG.Domain.Schema.FunctionalTag.ProfileConstruction));
+    }
+
     /// <summary>
     /// Зеркало уровней тэга (та же идиома, что у <c>ModuleSchemaLevel</c>): у сборки контрактов
     /// модулей НОЛЬ ссылок на проекты, поэтому доменный перечень туда не дотянуть — и состав

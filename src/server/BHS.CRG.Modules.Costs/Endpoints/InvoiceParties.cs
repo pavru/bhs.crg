@@ -85,14 +85,6 @@ public sealed record InvoicePartiesView(InvoicePartyView? Supplier, InvoiceParty
 /// </summary>
 public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
 {
-    /// <summary>Ключ поля ИНН в типе «Организация». Тип ведёт человек — переименование даёт
-    /// состояние <c>unavailable</c> с названием поля, а не «организаций нет».</summary>
-    public const string TaxIdField = "ИНН";
-
-    /// <summary>Ключ поля названия в типе «Организация» — в него ложится название при заведении
-    /// организации из скана. Строение поля (строка или «Полное / Сокращённое») знает ядро.</summary>
-    public const string NameField = "Наименование";
-
     public async Task<InvoicePartiesView> MatchAsync(IReadOnlyDictionary<string, string?> read, CancellationToken ct)
     {
         var supplier = Side(read, CostsRecognitionProfiles.Supplier, CostsRecognitionProfiles.SupplierTaxId);
@@ -105,7 +97,10 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
         ModuleCatalogFieldValues? answer;
         try
         {
-            answer = await catalog.FieldValuesAsync(CostsRecordTypes.OrganizationCode, TaxIdField, RecordsFor.Display, ct);
+            // Поле — по тэгу (issue #1101): справочник ведёт человек, и снятый или переставленный тэг
+            // даёт состояние `unavailable` с названной причиной, а не «организаций нет».
+            answer = await catalog.FieldValuesAsync(
+                CostsDirectories.Organization, CostsDirectories.TaxId, RecordsFor.Display, ct);
         }
         catch (Exception crash) when (crash is not OperationCanceledException)
         {
@@ -152,11 +147,9 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
 
         if (answer is null)
             return new(InvoicePartyStates.Unavailable, side.Name, taxId,
-                $"Тип «{CostsRecordTypes.OrganizationCode}» в системе не заведён — сопоставить не с чем.", [], []);
+                CostsDirectories.NoOrganizations("сопоставить не с чем"), [], []);
         if (!answer.Declared)
-            return new(InvoicePartyStates.Unavailable, side.Name, taxId,
-                $"В типе «{CostsRecordTypes.OrganizationCode}» нет простого поля «{TaxIdField}» — сопоставить не по чему. " +
-                "Поле могли переименовать или сделать составным; организацию выберите из справочника.", [], []);
+            return new(InvoicePartyStates.Unavailable, side.Name, taxId, CostsDirectories.TaxIdNotMapped(answer.Reason), [], []);
 
         var unreadable = answer.Records.Where(r => r.Unreadable).Select(Candidate).ToList();
         var found = answer.Records
@@ -193,7 +186,7 @@ public sealed class InvoiceParties(IModuleCatalog catalog, ILoggerFactory logs)
             _ when unreadable.Count > 0 => new(InvoicePartyStates.Unknown, side.Name, taxId,
                 $"Организация с ИНН {taxId} среди прочитанных записей не найдена, но у части записей справочника " +
                 $"ИНН прочитать не удалось: {Names(unreadable)}. Либо запись наследует реквизиты от записи, которой " +
-                $"нет или которая лежит в другой области, либо в поле «{TaxIdField}» у неё лежит не текст и не число. " +
+                "нет или которая лежит в другой области, либо в поле ИНН у неё лежит не текст и не число. " +
                 "Сказать «такой организации нет» нельзя — проверьте эти записи.",
                 [], unreadable),
             _ => new(InvoicePartyStates.Absent, side.Name, taxId, $"Организации с ИНН {taxId} в справочнике нет.", [], []),

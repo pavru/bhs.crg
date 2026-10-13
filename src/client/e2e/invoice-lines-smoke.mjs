@@ -71,10 +71,18 @@ const supplierId = organizations[0].id;
  * проверках, которые не выполнялись.
  */
 const types = await api('GET', '/document-types');
-const nomenclatureType = types.find(t => t.code === 'Номенклатура');
+// Справочник — тот тип, что несёт РОЛЬ (issue #1101): так его находят и модуль, и посев. По коду
+// искать нельзя: на стенде, где роль несёт тип с другим кодом, позиции легли бы в тип без роли, и
+// поиск в строке счёта их не увидел бы — проверки краснели бы не от того, что проверяют.
+const tagsOf = t => {
+  try { return (typeof t.schema === 'string' ? JSON.parse(t.schema) : t.schema)?.tags ?? []; }
+  catch { return []; }
+};
+const nomenclatureType = types.find(t => tagsOf(t).includes('role.nomenclature'));
 if (!nomenclatureType) {
-  console.error('Типа «Номенклатура» в базе нет — выбирать позицию не из чего. Его поднимает '
-    + 'миграция ядра над «Материалом», а на базе без «Материала» — посев (npm run test:e2e:seed). '
+  console.error('Справочника номенклатуры в базе нет: ни один тип не несёт тэг типа «Справочник '
+    + 'номенклатуры» — выбирать позицию не из чего. На действующей базе тэг ставит миграция ядра, '
+    + 'на пустой — посев (npm run test:e2e:seed). '
     + 'Прогон остановлен: без типа три проверки из шести проверяли бы пустоту.');
   await browser.close();
   process.exit(1);

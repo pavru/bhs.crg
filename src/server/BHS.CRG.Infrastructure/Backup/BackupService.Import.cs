@@ -81,6 +81,7 @@ public partial class BackupService
             await RestoreEnumTypesAsync(manifest.EnumTypes ?? [], stats, warnings, ct);
             await RestoreRecognitionProfilesAsync(manifest.RecognitionProfiles ?? [], stats, warnings, ct);
             await RestoreDocumentTypesAsync(manifest.DocumentTypes, stats, warnings, ct);
+            await AssignDirectoryRolesAsync(manifest, warnings, ct);
             await RestoreTemplatesAsync(manifest.Templates, stats, warnings, ct);
             await RestoreTemplateAssetsAsync(manifest.TemplateAssets ?? [], stats, warnings, ct);
             await RestoreTypstUserLibAsync(manifest.TypstUserLib, stats, ct);

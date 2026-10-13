@@ -7,6 +7,8 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
 using MediatR;
+using CoreRecordsFor = BHS.CRG.Application.Documents.RecordsFor;
+using RecordsFor = BHS.CRG.Modules.Ports.RecordsFor;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -22,6 +24,24 @@ public sealed class ModuleOwnCatalogPort(
     IMediator mediator, IRepository<DocumentType> types, IRepository<DomainObject> objects,
     IRecordArchive archive) : IModuleOwnCatalog
 {
+    public async Task<IReadOnlyList<ModuleCatalogRef>?> ListAsync(
+        string typeCode, RecordsFor purpose, CancellationToken ct = default)
+    {
+        var records = purpose switch
+        {
+            RecordsFor.Choice => CoreRecordsFor.Choice,
+            RecordsFor.Display => CoreRecordsFor.Display,
+            _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose, "Неизвестное назначение чтения."),
+        };
+        if (await OwnTypeAsync(typeCode, ct) is not { } type) return null;
+
+        // Порядок задаёт порт, сравнение культурное: список читает человек.
+        var entries = await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, type.Id), ct);
+        return [.. entries
+            .Select(e => new ModuleCatalogRef(e.Id, type.Code, e.DisplayName, e.IsArchived))
+            .OrderBy(e => e.DisplayName, StringComparer.CurrentCulture)];
+    }
+
     public async Task<ModuleCatalogRef?> CreateAsync(string typeCode, string displayName, CancellationToken ct = default)
     {
         if (await OwnTypeAsync(typeCode, ct) is not { } type) return null;

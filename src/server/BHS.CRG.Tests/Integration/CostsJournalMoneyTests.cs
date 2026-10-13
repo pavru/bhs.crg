@@ -182,7 +182,7 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         var matchId = match.GetProperty("id").GetGuid();
         using (var point = new HttpRequestMessage(HttpMethod.Put, $"/api/costs/supplier-matches/{matchId}"))
         {
-            var other = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"), "Позиция для журнала");
+            var other = await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"), "Позиция для журнала");
             point.Content = JsonContent.Create(new { nomenclatureId = other });
             point.Headers.TryAddWithoutValidation("If-Match", match.GetProperty("version").GetString());
             var pointed = await client.SendAsync(point);
@@ -194,7 +194,7 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         }
 
         // «Забыть все соответствия поставщика» — у своего поставщика: общий служит соседним тестам.
-        var vendor = await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"), "ООО «Журнал соответствий»");
+        var vendor = await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"), "ООО «Журнал соответствий»");
         var extra = await client.PostAsJsonAsync("/api/costs/invoices", new
         {
             requisites = new Dictionary<string, object?>

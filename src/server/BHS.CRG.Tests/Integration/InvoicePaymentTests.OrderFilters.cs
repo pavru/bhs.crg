@@ -55,7 +55,7 @@ public partial class InvoicePaymentTests
 
     private async Task<(Guid Invoice, Guid Position, Guid Site)> InvoiceWithPositionAsync(HttpClient admin, string name)
     {
-        var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var nomenclature = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         var position = await EntryAsync(nomenclature, $"{name} {Guid.NewGuid().ToString()[..6]}");
         var (site, _) = await SiteAsync($"Стройка: {name}");
 

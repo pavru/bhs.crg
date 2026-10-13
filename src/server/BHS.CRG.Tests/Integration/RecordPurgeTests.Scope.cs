@@ -223,7 +223,7 @@ public partial class RecordPurgeTests
         using var scope = host.Services.CreateScope();
         return (await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new CreateCommonDataEntryCommand(
             $"На уровне {Guid.NewGuid().ToString()[..8]}",
-            await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+            await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             JsonDocument.Parse("""{"Наименование":"x"}"""), level, levelId))).Id;
     }
 

@@ -28,8 +28,8 @@ public partial class InvoicePaymentTests
     /// </summary>
     private async Task<LostCase> LostInvoiceAsync(HttpClient admin)
     {
-        var organizations = await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация");
-        var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var organizations = await TypeAsync(TestDirectories.OrganizationCode, "Организация");
+        var nomenclature = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         var mark = Guid.NewGuid().ToString()[..6];
         var lostSupplier = await EntryAsync(organizations, $"Поставщик потерянный {mark}");
         var lostPayer = await EntryAsync(organizations, $"Плательщик потерянный {mark}");
@@ -214,7 +214,7 @@ public partial class InvoicePaymentTests
     {
         var (admin, _) = await SignInAsync("Admin");
         var today = await TodayAsync();
-        var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var nomenclature = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         var position = await EntryAsync(nomenclature, $"Позиция закрытого {Guid.NewGuid().ToString()[..6]}");
         var (site, _) = await SiteAsync("Стройка закрытая");
 
@@ -276,8 +276,8 @@ public partial class InvoicePaymentTests
     public async Task Запись_другого_вида_названа_отдельно_и_потерей_не_считается()
     {
         var (admin, _) = await SignInAsync("Admin");
-        var organizations = await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация");
-        var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var organizations = await TypeAsync(TestDirectories.OrganizationCode, "Организация");
+        var nomenclature = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         var position = await EntryAsync(nomenclature, $"Позиция переведённая {Guid.NewGuid().ToString()[..6]}");
         var (article, _) = await ArticleAsync(admin, "Статья переведённая");
 

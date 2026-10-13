@@ -4,13 +4,13 @@ namespace BHS.CRG.Modules.Ports;
 /// Справочник ядра, в который модулю разрешено ЗАВОДИТЬ записи (issue #1077). Объявляется в манифесте
 /// модуля (<see cref="IAppModule.IntakeTypes" />): чего там нет, порт не заведёт.
 /// </summary>
-/// <param name="TypeCode">Код типа. Запись заводится ровно этого типа; подтипы — нет: у них свои
-/// обязательные поля, о которых модуль не знает.</param>
-/// <param name="NameField">Ключ поля, в которое ложится название. Строение поля знает ядро — оно и
-/// раскладывает название по схеме.</param>
-/// <param name="UniqueField">Ключ простого поля, по которому запись единственна (у организации —
-/// ИНН): пока есть запись с таким значением, вторая не заводится.</param>
-public sealed record ModuleIntakeType(string TypeCode, string NameField, string UniqueField);
+/// <param name="Role">Роль справочника (issue #1101). Запись заводится типа-НОСИТЕЛЯ роли; подтипы —
+/// нет: у них свои обязательные поля, о которых модуль не знает.</param>
+/// <param name="NameTag">Тэг поля, в которое ложится название. Какое это поле и как оно устроено,
+/// знает ядро — оно и раскладывает название по схеме.</param>
+/// <param name="UniqueTag">Тэг простого поля, по которому запись единственна (у организации — ИНН):
+/// пока есть запись с таким значением, вторая не заводится.</param>
+public sealed record ModuleIntakeType(string Role, string NameTag, string UniqueTag);
 
 /// <summary>
 /// Чем кончилась попытка завести запись. Заполнено ровно одно из трёх.
@@ -19,7 +19,7 @@ public sealed record ModuleIntakeType(string TypeCode, string NameField, string 
 /// <param name="Existing">Записи с тем же значением поля единственности — действующие и архивные.
 /// Создания не было: второе нажатие кнопки получает сюда запись, заведённую первым.</param>
 /// <param name="Refusals">Почему завести нельзя — причины в схеме типа, словами для человека
-/// (обязательное поле, которое заполнить нечем; название положить некуда).</param>
+/// (обязательное поле, которое заполнить нечем; название положить некуда; поле не сопоставлено).</param>
 public sealed record ModuleIntakeResult(
     ModuleCatalogRef? Created, IReadOnlyList<ModuleCatalogRef> Existing, IReadOnlyList<string> Refusals);
 
@@ -48,13 +48,14 @@ public sealed record ModuleIntakeResult(
 public interface IModuleCatalogIntake
 {
     /// <summary>
-    /// Завести запись; <c>null</c> — типа с таким кодом нет. Тип, не объявленный ни одним включённым
-    /// модулем, — дефект вызывающего кода, а не отказ человеку.
+    /// Завести запись; <c>null</c> — роль не обеспечена: её не несёт ни один тип (или несут
+    /// несколько). Справочник, не объявленный ни одним включённым модулем, — дефект вызывающего кода,
+    /// а не отказ человеку.
     ///
     /// <para>Проверка «такой ещё нет» и создание идут под одним замком: два одновременных нажатия
     /// дают одну запись. Значение сравнивается ТОЧНО — модуль обязан прислать его в том же виде, в
     /// каком пришлёт следующий раз.</para>
     /// </summary>
     Task<ModuleIntakeResult?> CreateAsync(
-        string typeCode, string name, string uniqueValue, CancellationToken ct = default);
+        string role, string name, string uniqueValue, CancellationToken ct = default);
 }

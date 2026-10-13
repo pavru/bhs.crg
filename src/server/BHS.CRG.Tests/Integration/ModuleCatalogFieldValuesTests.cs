@@ -24,7 +24,8 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class ModuleCatalogFieldValuesTests(IntegrationTestFixture host)
 {
-    private const string Field = "ИНН";
+    /// <summary>Справочник каждого заведённого здесь типа: своя роль и свой тэг поля (issue #1101).</summary>
+    private readonly Dictionary<Guid, TestDirectory> _directories = [];
 
     [Fact]
     public async Task Своё_значение_читается_строкой_и_числом_а_записи_без_поля_оно_пусто()
@@ -214,28 +215,56 @@ public class ModuleCatalogFieldValuesTests(IntegrationTestFixture host)
     }
 
     /// <summary>
-    /// Сторож: поля в схеме нет (переименовали, сделали составным) — это отдельный ответ, а не «ни у
-    /// кого значения нет». Вида нет — третий.
+    /// Сторож: поле не сопоставлено — тэг снят, стоит на двух полях или на составном — это отдельный
+    /// ответ, а не «ни у кого значения нет». Роль не обеспечена — третий.
     /// </summary>
     [Fact]
-    public async Task Поле_которого_нет_в_схеме_и_вид_которого_нет_отвечают_по_разному()
+    public async Task Несопоставленное_поле_и_необеспеченная_роль_отвечают_по_разному()
     {
-        var type = await TypeAsync();
-        await EntryAsync(type, "Есть запись", """{"ИНН":"7701234567","Наименование":{"Краткое":"ООО"}}""");
+        const string record = """{"ИНН":"7701234567","Наименование":{"Краткое":"ООО"}}""";
+
+        // Роль есть, тэга поля нет ни на чём.
+        var bare = new TestDirectory();
+        await EntryAsync(await TypeAsync(bare, bare.BareSchema()), "Есть запись", record);
+        // Тэг на двух полях: какое читать, решить нечем.
+        var twice = new TestDirectory();
+        await EntryAsync(await TypeAsync(twice, $$"""
+            {"tags":["{{twice.Role}}"],"fields":[
+              {"key":"ИНН","type":"string","tags":["{{twice.FieldTag}}"]},
+              {"key":"ИННСтарый","type":"string","tags":["{{twice.FieldTag}}"]}]}
+            """), "Есть запись", record);
+        // Тэг на составном поле: значение одного поля читается скаляром.
+        var complex = new TestDirectory();
+        await EntryAsync(await TypeAsync(complex, complex.Schema("Наименование", "complex")), "Есть запись", record);
+        // Роль не несёт ни один тип.
+        var unassigned = new TestDirectory();
 
         using var scope = host.Services.CreateScope();
-        var catalog = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+        async Task<ModuleCatalogFieldValues?> Ask(TestDirectory d) =>
+            await d.Port(scope.ServiceProvider).FieldValuesAsync(d.Role, d.FieldTag, RecordsFor.Display);
 
-        Assert.Null(await catalog.FieldValuesAsync("НетТакогоВида", Field, RecordsFor.Display));
+        Assert.Null(await Ask(unassigned));
 
-        var renamed = await catalog.FieldValuesAsync(type.Code, "ИНН организации", RecordsFor.Display);
-        Assert.False(renamed!.Declared);
-        Assert.Empty(renamed.Records);
+        foreach (var directory in (TestDirectory[])[bare, twice, complex])
+        {
+            var answer = await Ask(directory);
+            Assert.False(answer!.Declared);
+            Assert.Empty(answer.Records);
+        }
+    }
 
-        var complex = await catalog.FieldValuesAsync(type.Code, "Наименование", RecordsFor.Display);
-        Assert.False(complex!.Declared);
+    /// <summary>
+    /// Поле читается по ТЭГУ, а не по ключу (issue #1101): переименованное поле остаётся тем же полем.
+    /// Прежде переименование «ИНН» останавливало сопоставление поставщика у каждого счёта.
+    /// </summary>
+    [Fact]
+    public async Task Переименованное_поле_читается_пока_на_нём_тэг()
+    {
+        var directory = new TestDirectory();
+        var type = await TypeAsync(directory, directory.Schema("НалоговыйНомер"));
+        var entry = await EntryAsync(type, "Под новым ключом", """{"НалоговыйНомер":"7701234567","ИНН":"не то"}""");
 
-        Assert.True((await catalog.FieldValuesAsync(type.Code, Field, RecordsFor.Display))!.Declared);
+        Assert.Equal(("7701234567", null, false), Of(await ValuesAsync(type), entry));
     }
 
     private static (string? Value, Guid? From, bool Unreadable) Of(IReadOnlyList<ModuleCatalogFieldValue> values, Guid id)
@@ -248,18 +277,29 @@ public class ModuleCatalogFieldValuesTests(IntegrationTestFixture host)
         DocumentType type, RecordsFor purpose = RecordsFor.Display)
     {
         using var scope = host.Services.CreateScope();
-        var answer = await scope.ServiceProvider.GetRequiredService<IModuleCatalog>()
-            .FieldValuesAsync(type.Code, Field, purpose);
+        // Подтип читается справочником своего корня: роль несёт корень.
+        var directory = _directories[type.ParentId ?? type.Id];
+        var answer = await directory.Port(scope.ServiceProvider)
+            .FieldValuesAsync(directory.Role, directory.FieldTag, purpose);
         Assert.True(answer!.Declared);
         return answer.Records;
     }
 
     /// <summary>Свой вид на каждый тест: схему «Организации» у заказчика ведёт человек, здесь — мы.</summary>
-    private async Task<DocumentType> TypeAsync() =>
-        await SendAsync(new CreateDocumentTypeCommand(
+    private Task<DocumentType> TypeAsync()
+    {
+        var directory = new TestDirectory();
+        return TypeAsync(directory, directory.Schema());
+    }
+
+    private async Task<DocumentType> TypeAsync(TestDirectory directory, string schema)
+    {
+        var type = await SendAsync(new CreateDocumentTypeCommand(
             $"Контрагент {Guid.NewGuid():N}", $"Контрагент{Guid.NewGuid():N}", DocumentTypeKind.Composite, null,
-            JsonDocument.Parse(
-                """{"fields":[{"key":"ИНН","type":"string","title":"ИНН"},{"key":"Наименование","type":"complex","title":"Наименование"}]}""")));
+            JsonDocument.Parse(schema)));
+        _directories[type.Id] = directory;
+        return type;
+    }
 
     private async Task<Guid> EntryAsync(
         DocumentType type, string name, string data, CatalogScope scope = CatalogScope.System, Guid? scopeId = null) =>

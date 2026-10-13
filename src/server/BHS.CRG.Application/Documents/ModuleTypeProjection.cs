@@ -24,10 +24,16 @@ namespace BHS.CRG.Application.Documents;
 /// в другие справочники (<c>EnumType</c>, <c>PrimitiveType</c>), то есть требуют не строчки, а
 /// своего разрешения цели.</para>
 /// </param>
+/// <param name="TargetRole">
+/// Цель РОЛЬЮ (ТЗ CORE-20.4, issue #1101) — тэг типа, который несёт справочник: поле целится в
+/// единственного носителя роли, как бы тот ни назывался. Для справочников, которые заводит человек:
+/// кода «Организация» на новой установке нет, а на действующей его могли назвать иначе.
+/// Взаимоисключающе с <paramref name="Target" />.
+/// </param>
 public sealed record ModuleFieldSpec(
     string Key, string Title, string Type,
     IReadOnlyList<string>? Tags = null, bool Required = false, bool Locked = true,
-    string? Target = null)
+    string? Target = null, string? TargetRole = null)
 {
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
@@ -439,20 +445,24 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
 
         foreach (var f in spec.Fields)
         {
-            if (f.Target is not { Length: > 0 } code) continue;
+            if (f.Target is not { Length: > 0 } && f.TargetRole is not { Length: > 0 }) continue;
 
-            var target = all.FirstOrDefault(
-                t => string.Equals(t.Code, code, StringComparison.OrdinalIgnoreCase));
+            var target = TargetOf(f, all);
 
             // Цели нет — пропуск, а не отказ, и для уже заведённого типа тоже (см. ниже).
             if (target is null && spec.SkipWhenBlocked) return null;
 
             if (target is null)
-                throw new ConflictException(
-                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на тип " +
-                    $"«{code}», а типа с таким кодом в системе нет. Поле осталось бы без цели: не " +
-                    "нарисовалось бы и не заполнилось, а справочник с виду был бы целым. Проверьте " +
-                    "код цели в объявлении — его могли переименовать из редактора типов.");
+                throw new ConflictException(f.TargetRole is { Length: > 0 } role
+                    ? $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на " +
+                      $"справочник с ролью «{role}», а роль не обеспечена: её не несёт ни один тип, несут " +
+                      "несколько либо несёт тип, который справочником быть не может. Поле осталось бы без " +
+                      "цели: не нарисовалось бы и не заполнилось. Назначьте роль одному составному типу в " +
+                      "редакторе типов."
+                    : $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» ссылку на тип " +
+                      $"«{f.Target}», а типа с таким кодом в системе нет. Поле осталось бы без цели: не " +
+                      "нарисовалось бы и не заполнилось, а справочник с виду был бы целым. Проверьте " +
+                      "код цели в объявлении — его могли переименовать из редактора типов.");
 
             if (!TypeOwnershipRules.Allows(spec.Module, target.Module))
                 throw new ConflictException(
@@ -478,12 +488,27 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     /// Спрашивается ЗАНОВО по базе: причину пропуска называют фактами, а не памятью о том, почему
     /// команда вернула «не завёл».
     /// </summary>
+    /// <returns>Чего нет — словами в родительном падеже: «типа «ЕдиницаИзмерения»» либо
+    /// «справочника с ролью «role.organization»…». Журнал подставляет их в готовую фразу.</returns>
     public static string? MissingTargetOf(ModuleTypeSpec spec, IReadOnlyList<DocumentType> all) =>
         spec.Fields
-            .Select(f => f.Target)
-            .Where(code => code is { Length: > 0 })
-            .FirstOrDefault(code => !all.Any(
-                t => string.Equals(t.Code, code, StringComparison.OrdinalIgnoreCase)));
+            .Where(f => f.Target is { Length: > 0 } || f.TargetRole is { Length: > 0 })
+            .Where(f => TargetOf(f, all) is null)
+            .Select(f => f.TargetRole is { Length: > 0 } role
+                ? $"справочника с ролью «{role}» (роль не назначена ни одному типу, назначена нескольким " +
+                  "либо типу, который справочником быть не может)"
+                : $"типа «{f.Target}»")
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Цель поля: по коду типа либо по роли (issue #1101). Роль разрешает тот же расчёт, которым
+    /// справочник находит порт модулей, — иначе поле счёта и список организаций в его форме могли бы
+    /// смотреть на разные типы.
+    /// </summary>
+    private static DocumentType? TargetOf(ModuleFieldSpec f, IReadOnlyList<DocumentType> all) =>
+        f.TargetRole is { Length: > 0 } role
+            ? RoleResolution.Role(role, all).Root
+            : all.FirstOrDefault(t => string.Equals(t.Code, f.Target, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Кто объявил — словами. У ядра модуля нет, и «модуль «core»» было бы неправдой: с issue #962
@@ -536,12 +561,24 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     {
         foreach (var f in spec.Fields)
         {
-            var targeted = f.Target is { Length: > 0 };
+            var targeted = f.Target is { Length: > 0 } || f.TargetRole is { Length: > 0 };
+
+            if (f.Target is { Length: > 0 } && f.TargetRole is { Length: > 0 })
+                throw new ConflictException(
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» цель дважды — " +
+                    $"кодом «{f.Target}» и ролью «{f.TargetRole}». Цель у поля одна: какая из двух " +
+                    "победит, решал бы порядок проверок.");
+
+            if (f.TargetRole is { Length: > 0 } role && !tags.IsRole(role))
+                throw new ConflictException(
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» цель ролью " +
+                    $"«{role}», а такой роли в реестре тэгов нет. Роль — тэг типа с признаком " +
+                    "справочника; с опечаткой поле не нашло бы цель никогда.");
 
             if (targeted && !TargetedKinds.Contains(f.Type))
                 throw new ConflictException(
                     $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» цель " +
-                    $"«{f.Target}», а вид поля «{f.Type}» цели не принимает. Ссылка была бы записана " +
+                    $"«{f.Target ?? f.TargetRole}», а вид поля «{f.Type}» цели не принимает. Ссылка была бы записана " +
                     "в схему рядом с видом, который её не читает: поле нарисовалось бы пустым. " +
                     $"Цель принимают: {string.Join(", ", TargetedKinds.Order(StringComparer.Ordinal))}.");
 

@@ -92,8 +92,8 @@ public static class SupplierMatchListEndpoints
             .Select(m => new Key(m.Id, m.SupplierId, m.NomenclatureId, m.SourceText))
             .ToListAsync(ct);
 
-        var positions = await RefsAsync(catalog, CostsRecordTypes.NomenclatureCode, [.. keys.Select(k => k.NomenclatureId).Distinct()], ct);
-        var organizations = await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [.. keys.Select(k => k.SupplierId).Distinct()], ct);
+        var positions = await RefsAsync(catalog, CostsDirectories.Nomenclature, [.. keys.Select(k => k.NomenclatureId).Distinct()], ct);
+        var organizations = await RefsAsync(catalog, CostsDirectories.Organization, [.. keys.Select(k => k.SupplierId).Distinct()], ct);
 
         string? IssueOf(Key key) => !positions.TryGetValue(key.NomenclatureId, out var position) ? IssueLost
             : position.Archived ? IssueArchived
@@ -136,7 +136,7 @@ public static class SupplierMatchListEndpoints
             .GroupBy(m => m.SupplierId)
             .Select(g => new { Id = g.Key, Count = g.Count() })
             .ToListAsync(ct);
-        var organizations = await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [.. perSupplier.Select(s => s.Id)], ct);
+        var organizations = await RefsAsync(catalog, CostsDirectories.Organization, [.. perSupplier.Select(s => s.Id)], ct);
 
         return TypedResults.Ok<IReadOnlyList<SupplierMatchSupplier>>(
         [
@@ -239,7 +239,7 @@ public static class SupplierMatchListEndpoints
         var matches = await db.SupplierMatches.Where(m => m.SupplierId == supplier).ToListAsync(ct);
         if (matches.Count == 0) return TypedResults.Ok(new SupplierMatchesForgotten(0));
 
-        var name = (await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [supplier], ct))
+        var name = (await RefsAsync(catalog, CostsDirectories.Organization, [supplier], ct))
             .GetValueOrDefault(supplier)?.DisplayName ?? "поставщик удалён";
 
         db.SupplierMatches.RemoveRange(matches);
@@ -274,10 +274,10 @@ public static class SupplierMatchListEndpoints
     private static async Task<(string Label, ModuleCatalogRef? Supplier, ModuleCatalogRef? Before, ModuleCatalogRef? After)>
         NamesAsync(IModuleCatalog catalog, SupplierMatch match, Guid position, CancellationToken ct)
     {
-        var supplier = (await RefsAsync(catalog, CostsRecordTypes.OrganizationCode, [match.SupplierId], ct))
+        var supplier = (await RefsAsync(catalog, CostsDirectories.Organization, [match.SupplierId], ct))
             .GetValueOrDefault(match.SupplierId);
         var positions = await RefsAsync(
-            catalog, CostsRecordTypes.NomenclatureCode, [.. new[] { match.NomenclatureId, position }.Distinct()], ct);
+            catalog, CostsDirectories.Nomenclature, [.. new[] { match.NomenclatureId, position }.Distinct()], ct);
 
         var key = match.Kind == SupplierMatchKind.Code ? "артикул" : "наименование";
         return ($"{supplier?.DisplayName ?? "поставщик удалён"}: {key} «{match.SourceText}»",

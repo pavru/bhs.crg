@@ -406,7 +406,7 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
     /// <summary>Своя позиция номенклатуры: общие позиции базового класса делят все классы хоста.</summary>
     private async Task<Guid> OwnPositionAsync() =>
         await EntryAsync(
-            await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+            await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция {Guid.NewGuid().ToString()[..8]}");
 
     private static ModuleRecordHolders HoldersWith(IServiceScope scope, ModuleRegistry registry) =>
