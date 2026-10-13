@@ -62,3 +62,29 @@ export const DISMISSAL: Record<ModalState, Dismissal> = {
 
 /** Сколько держится кольцо вокруг кнопки выхода после клика мимо. */
 export const HINT_MS = 600;
+
+const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+
+/**
+ * Показать выход окна: кнопку, помеченную `data-modal-exit`, иначе крестик (`data-modal-cross`).
+ * Кольцом, без движения: тишина неотличима от зависшего окна, а встряхивание читается как ошибка.
+ *
+ * <p>Одна на `Modal` и `ConfirmDialog` (ревью PR #1312): второй гасил Esc и промах в состоянии
+ * отказа молча — то есть ровно той тишиной, от которой здесь уходят.</p>
+ *
+ * @param focus Esc ещё и переносит туда фокус — закрывает уже Enter. Клик мимо фокус не трогает:
+ *   уведённый из поля щелчком, он превратил бы следующий пробел в «Отмену».
+ */
+export function pointAtExit(root: HTMLElement | null | undefined, focus: boolean) {
+  const exit = root?.querySelector<HTMLElement>('[data-modal-exit]:not([disabled])')
+    ?? root?.querySelector<HTMLElement>('[data-modal-cross]');
+  if (!root || !exit) return;
+  exit.scrollIntoView?.({ block: 'nearest' });
+  if (focus) exit.focus();
+  // Кольцо снимается со ВСЕХ кнопок окна, а не с этой: выход между двумя промахами мог смениться
+  // («Отмена» стала недоступна — остался крестик), а таймер на окно один.
+  clearTimeout(rings.get(root));
+  root.querySelectorAll('[data-modal-hint]').forEach(old => old.removeAttribute('data-modal-hint'));
+  exit.setAttribute('data-modal-hint', '');
+  rings.set(root, setTimeout(() => exit.removeAttribute('data-modal-hint'), HINT_MS));
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -195,12 +195,11 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
   );
 }
 
-// Тело монтируется по открытию: пароль, отказ и итог заводятся заново, сбрасывать их нечем и незачем.
+/**
+ * Сброс пароля. Окно одно и смонтировано всегда — так `Modal` возвращает фокус на кнопку-ключ в
+ * строке (ревью PR #1312); состояние поэтому сбрасывается при закрытии, руками.
+ */
 export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; onClose: () => void }) {
-  return user ? <ResetPasswordBody key={user.id} user={user} onClose={onClose} /> : null;
-}
-
-function ResetPasswordBody({ user, onClose }: { user: AppUser; onClose: () => void }) {
   const reset = useResetUserPassword();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -210,8 +209,22 @@ function ResetPasswordBody({ user, onClose }: { user: AppUser; onClose: () => vo
   const [issued, setIssued] = useState<string | null>(null);
   const [copied, setCopied] = useState<'yes' | 'failed' | null>(null);
 
+  // «Скопировано» верно, пока человек не ушёл из окна браузера: там буфер могли перезаписать, а
+  // подпись продолжала бы утверждать своё. Вернулся — кнопка снова предлагает скопировать.
+  useEffect(() => {
+    const forget = () => setCopied(null);
+    window.addEventListener('blur', forget);
+    return () => window.removeEventListener('blur', forget);
+  }, []);
+
+  function leave() {
+    setPassword(''); setError(''); setIssued(null); setCopied(null);
+    onClose();
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) return;
     setError('');
     try { await reset.mutateAsync({ id: user.id, newPassword: password }); setIssued(password); }
     catch (err) { setError(apiError(err)); }
@@ -219,49 +232,50 @@ function ResetPasswordBody({ user, onClose }: { user: AppUser; onClose: () => vo
 
   async function copy() {
     // Буфер доступен не везде (страница без HTTPS, отказ браузера) — тогда честно говорим, что
-    // копировать придётся выделением: пароль для того и оставлен выделяемым текстом.
+    // копировать придётся выделением: поле для того и оставлено выделяемым.
     try { await navigator.clipboard.writeText(issued ?? ''); setCopied('yes'); }
     catch { setCopied('failed'); }
   }
 
-  if (issued !== null) return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Пароль изменён — ${user.email}`}
-      acknowledge="Готово">
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <output aria-label="Новый пароль"
-            className="flex-1 min-w-0 rounded-md border border-stroke bg-base px-3 py-2 font-mono text-sm text-fg1 break-all select-all">
-            {issued}
-          </output>
-          <Button type="button" variant="tonal" onClick={copy}>
-            {copied === 'yes' ? 'Скопировано' : 'Скопировать'}
-          </Button>
-        </div>
-        {copied === 'failed' && (
-          <p role="alert" className="text-sm text-danger">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
-        )}
-        <p className="text-sm text-fg3">
-          Сообщите пароль пользователю. После закрытия окна он больше нигде не показывается.
-        </p>
-      </div>
-    </Modal>
-  );
-
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Сброс пароля — ${user.email}`}
-      isDirty={password !== ''} busy={reset.isPending}>
-      <form onSubmit={submit} className="space-y-3">
-        <TextField label="Новый пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
-          required minLength={PASSWORD_MIN_LENGTH} autoFocus className="font-mono"
-          hint={`${PASSWORD_HINT} После сброса пароль останется на экране — его можно будет скопировать.`} />
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <div className="flex justify-end gap-2 pt-1">
-          <ModalExit />
-          <Button type="submit" variant="filled" loading={reset.isPending}>
-            {reset.isPending ? 'Сохранение…' : 'Сбросить пароль'}
-          </Button>
+    <Modal open={!!user} onOpenChange={o => { if (!o) leave(); }}
+      title={`${issued === null ? 'Сброс пароля' : 'Пароль изменён'} — ${user?.email ?? ''}`}
+      isDirty={issued === null && password !== ''} busy={reset.isPending}
+      acknowledge={issued === null ? undefined : 'Готово'}>
+      {issued === null ? (
+        <form onSubmit={submit} className="space-y-3">
+          <TextField label="Новый пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
+            required minLength={PASSWORD_MIN_LENGTH} autoFocus className="font-mono"
+            hint={`${PASSWORD_HINT} После сброса пароль останется на экране — его можно будет скопировать.`} />
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <ModalExit />
+            <Button type="submit" variant="filled" loading={reset.isPending}>
+              {reset.isPending ? 'Сохранение…' : 'Сбросить пароль'}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            {/* Поле только для чтения, а не `<output>`: тот — живая область, и секрет при появлении
+                зачитывался бы вслух программой чтения с экрана. */}
+            <input readOnly aria-label="Новый пароль" value={issued} onFocus={e => e.target.select()}
+              className="flex-1 min-w-0 rounded-md border border-stroke bg-base px-3 py-2 font-mono text-sm text-fg1" />
+            {/* Фокус — сюда, а не на «Готово»: форму отправляют клавишей Enter, и задержанная
+                клавиша закрыла бы окно с паролем раньше, чем его прочли. */}
+            <Button type="button" variant="tonal" autoFocus onClick={copy}>
+              {copied === 'yes' ? 'Скопировано' : 'Скопировать'}
+            </Button>
+          </div>
+          {copied === 'failed' && (
+            <p role="alert" className="text-sm text-danger">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
+          )}
+          <p className="text-sm text-fg3">
+            Сообщите пароль пользователю. После закрытия окна он больше нигде не показывается.
+          </p>
         </div>
-      </form>
+      )}
     </Modal>
   );
 }

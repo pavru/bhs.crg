@@ -55,13 +55,34 @@ describe('подтверждение с отказом', () => {
     await tick();
     expect(screen.getByText('Запись используется в двух документах.')).toBeTruthy();
 
+    // Выход под рукой и у клавиатуры: кнопка, на которой стоял фокус, с отказом исчезла.
+    const exit = screen.getByRole('button', { name: 'Понятно' });
+    expect(document.activeElement).toBe(exit);
+
     await missAndEscape();
     expect(onOpenChange).not.toHaveBeenCalled();
-
-    // Выход под рукой и у клавиатуры: кнопка, на которой стоял фокус, с отказом исчезла.
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Понятно' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }));
+    fireEvent.click(exit);
     expect(closed(onOpenChange)).toBe(true);
+  });
+
+  // Тишина неотличима от зависшего окна: правило то же, что у `Modal` в состоянии «результат».
+  it('отказ на промах и Esc отвечает: кольцо вокруг выхода, по Esc — ещё и фокус', async () => {
+    shown(refuse);
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить запись' }));
+    await tick();
+    const exit = screen.getByRole('button', { name: 'Понятно' });
+    // Человек щёлкнул в текст причины — фокус с выхода ушёл.
+    exit.blur();
+
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
+    expect(exit.hasAttribute('data-modal-hint')).toBe(true);
+    expect(document.activeElement).not.toBe(exit);
+
+    exit.removeAttribute('data-modal-hint');
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(exit.hasAttribute('data-modal-hint')).toBe(true);
+    expect(document.activeElement).toBe(exit);
   });
 
   it('отказ, известный заранее, держится так же', async () => {
@@ -91,6 +112,34 @@ describe('панель ошибки в окне без шапки', () => {
     expect(screen.getByText('Не удалось открыть документ')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
     expect(leave).toHaveBeenCalledTimes(1);
+  });
+
+  // Упавший редактор признак правок уже не снимет: окно остаётся «с правками», и Esc его не
+  // закрывает. Без метки выхода он не находил бы и кнопку — окно молчало бы.
+  it('в окне с несохранёнными правками Esc находит «Закрыть», а она спрашивает о потере', async () => {
+    const silenced = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onOpenChange = vi.fn();
+    render(
+      <Modal open onOpenChange={onOpenChange} title="Документ" fullScreen headerless flushBody isDirty>
+        {requestClose => (
+          <ErrorBoundary variant="inline" title="Не удалось открыть документ" onClose={requestClose}>
+            <Broken />
+          </ErrorBoundary>
+        )}
+      </Modal>,
+    );
+    silenced.mockRestore();
+    await tick();
+
+    const exit = screen.getByRole('button', { name: 'Закрыть' });
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await tick();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(exit);
+
+    fireEvent.click(exit);
+    expect(screen.getByText('Закрыть без сохранения?')).toBeTruthy();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it('без выхода кнопки нет — границе страницы закрывать нечего', () => {

@@ -25,7 +25,9 @@ export class ErrorBoundary extends Component<
     allowReload?: boolean;
     /**
      * Выход из того, что упало (issue #1237), — кнопка «Закрыть». Нужен границе внутри окна без
-     * шапки: крестика там нет, и без кнопки выйти можно только клавишей Esc или перезагрузкой.
+     * шапки: крестика там нет, и без кнопки выйти можно только клавишей Esc (а при несохранённых
+     * правках Esc не закрывает) или перезагрузкой. Передавайте выход окна (`requestClose`), а не
+     * голое закрытие: о несохранённом обязан спросить тот, кто о нём знает.
      */
     onClose?: () => void;
   },
@@ -68,8 +70,8 @@ export class ErrorBoundary extends Component<
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-medium text-fg1">{title}</h2>
               <p className="text-sm text-fg3 mt-1">
-                Произошла ошибка при отображении. Данные не потеряны — можно попробовать снова или
-                перезагрузить страницу.
+                Произошла ошибка при отображении. Сохранённые данные целы — можно попробовать снова
+                или перезагрузить страницу.
               </p>
 
               <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -102,7 +104,9 @@ export class ErrorBoundary extends Component<
                   </button>
                 )}
                 {onClose && (
-                  <button type="button" onClick={onClose}
+                  // `data-modal-exit` — договор окна без шапки: по этой метке Esc и клик мимо
+                  // находят выход, когда закрыть сразу нельзя (в редакторе остались правки).
+                  <button type="button" onClick={onClose} data-modal-exit=""
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
                     <X size={14} /> Закрыть
                   </button>
