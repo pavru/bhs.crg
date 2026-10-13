@@ -18,7 +18,7 @@ import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
 import { visibleNav } from '@/shared/ui/navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedLeave, useGuardedNavClick } from '@/shared/ui/NavigationGuard';
-import { heldDialog, pointAtExit } from '@/shared/ui/modalDismissal';
+import { paletteShown, refusedByDialog } from '@/shared/ui/modalDismissal';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
@@ -91,13 +91,12 @@ export function AppShell() {
         e.preventDefault();
         // Поверх окна, которое сейчас нельзя закрыть (правки, запрос, результат), палитра не
         // открывается (issue #1238): её команда увела бы со страницы вместе с окном. Молчать при
-        // этом нельзя — показываем выход окна, как на промах мимо него; при запросе выхода нет.
-        const held = heldDialog();
-        if (held) {
-          if (held.dataset.modalHeld !== 'busy') pointAtExit(held, false);
-          return;
-        }
-        setPaletteOpen(o => !o);
+        // этом нельзя — верхнее окно показывает свой выход, как на промах мимо него.
+        // Открытую палитру Ctrl+K закрывает всегда: окно под ней могло стать держащим, пока она
+        // открыта, и запрет ниже не должен запирать её саму.
+        if (paletteShown()) { setPaletteOpen(false); return; }
+        if (refusedByDialog()) return;
+        setPaletteOpen(true);
         return;
       }
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {

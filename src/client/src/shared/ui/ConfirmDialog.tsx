@@ -142,8 +142,8 @@ function ConfirmDialogBody({
           className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
           ref={content}
-          // Идёт запрос или показан отказ — окно держит человека, см. `heldDialog`.
-          data-modal-held={busy ? 'busy' : rule ? 'result' : undefined}
+          // Идёт запрос или показан отказ — окно держит человека, см. `DialogHold`.
+          data-modal-state={busy ? 'busy' : rule ? 'result' : 'free'}
           // Причина не должна исчезать от промаха мимо окна и от Esc, нажатого по привычке, — но и
           // молчать окно не должно: Esc переносит фокус на выход, промах обводит его кольцом.
           onEscapeKeyDown={e => {

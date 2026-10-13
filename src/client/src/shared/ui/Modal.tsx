@@ -181,8 +181,8 @@ function ModalBody({
         />
         <Dialog.Content
           ref={content}
-          // Окно, которое Esc сейчас не закрывает, называет себя — см. `heldDialog`.
-          data-modal-held={rule.escape === 'close' ? undefined : state}
+          // Окно, которое Esc сейчас не закрывает, держит человека — см. `DialogHold`.
+          data-modal-state={rule.escape === 'close' ? 'free' : state}
           className={fullScreen
             ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-base'
             : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${

@@ -118,7 +118,7 @@ function PickerDialog({ from, onClose, onPick }: {
     <Dialog.Root open onOpenChange={o => { if (!o) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content className="fixed z-50 left-1/2 top-24 -translate-x-1/2 w-[min(40rem,92vw)]
+        <Dialog.Content data-modal-state="free" className="fixed z-50 left-1/2 top-24 -translate-x-1/2 w-[min(40rem,92vw)]
           max-h-[calc(100vh-7rem)] overflow-y-auto
           rounded-xl border border-stroke bg-surface shadow-xl p-4 space-y-3">
           <Dialog.Title className="text-sm font-medium text-fg2">

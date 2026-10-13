@@ -5,8 +5,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router';
 import { CommandPalette } from './CommandPalette';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Modal } from './Modal';
-import { heldDialog } from './modalDismissal';
+import { Modal, ModalExit } from './Modal';
+import { paletteShown, refusedByDialog } from './modalDismissal';
 import { useLeaveGuard } from './NavigationGuard';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
 
@@ -50,7 +50,7 @@ function shown(dirty: boolean) {
 
 const address = () => screen.getByLabelText('адрес').textContent;
 function choose(command: string) {
-  const search = screen.getByRole('textbox');
+  const search = screen.getByRole('textbox', { hidden: true });
   fireEvent.change(search, { target: { value: command } });
   fireEvent.keyDown(search, { key: 'Enter' });
 }
@@ -92,39 +92,90 @@ describe('команда палитры при несохранённых пра
   });
 });
 
-describe('окно, поверх которого палитра не открывается', () => {
-  const held = () => heldDialog()?.dataset.modalHeld ?? null;
+describe('окно, которое держит человека', () => {
+  /** Состояния всех открытых окон, снизу вверх. */
+  const states = () => [...document.querySelectorAll<HTMLElement>('[data-modal-state]')].map(d => d.dataset.modalState);
 
-  it('обычное и лёгкое окно себя не называют', () => {
+  it('обычное и лёгкое окно уходу не мешают', () => {
     render(<Modal open onOpenChange={() => {}} title="Окно">текст</Modal>);
-    expect(held()).toBeNull();
+    expect(states()).toEqual(['free']);
+    expect(refusedByDialog()).toBe(false);
     cleanup();
     render(<Modal open onOpenChange={() => {}} title="Окно" nothingToLose>текст</Modal>);
-    expect(held()).toBeNull();
+    expect(refusedByDialog()).toBe(false);
   });
 
   it.each([
     ['dirty', { isDirty: true }],
     ['busy', { busy: true }],
     ['result', { acknowledge: 'Понятно' }],
-  ] as const)('окно в состоянии %s называет себя', (state, props) => {
+  ] as const)('окно в состоянии %s уйти не даёт', (state, props) => {
     render(<Modal open onOpenChange={() => {}} title="Окно" {...props}>текст</Modal>);
-    expect(held()).toBe(state);
+    expect(states()).toEqual([state]);
+    expect(refusedByDialog()).toBe(true);
   });
 
   it('окно, в котором набирали, — тоже', () => {
     render(<Modal open onOpenChange={() => {}} title="Окно"><input aria-label="поле" /></Modal>);
-    expect(held()).toBeNull();
+    expect(refusedByDialog()).toBe(false);
     fireEvent.change(screen.getByLabelText('поле'), { target: { value: 'набрано' } });
-    expect(held()).toBe('touched');
+    expect(states()).toEqual(['touched']);
+    expect(refusedByDialog()).toBe(true);
   });
 
   it('подтверждение: вопрос — нет, отказ — да', () => {
     render(<ConfirmDialog open onOpenChange={() => {}} title="Удалить?" confirmLabel="Удалить запись" onConfirm={() => {}} />);
-    expect(held()).toBeNull();
+    expect(refusedByDialog()).toBe(false);
     cleanup();
     render(<ConfirmDialog open onOpenChange={() => {}} title="Удалить?" confirmLabel="Удалить запись"
       blocked="Период закрыт." onConfirm={() => {}} />);
-    expect(held()).toBe('result');
+    expect(refusedByDialog()).toBe(true);
+  });
+
+  it('отказ показывает выход ВЕРХНЕГО окна, а не того, что под затемнением', () => {
+    render(<>
+      <Modal open onOpenChange={() => {}} title="Форма" isDirty footer={<ModalExit />}>форма</Modal>
+      <Modal open onOpenChange={() => {}} title="Выбор" nothingToLose>пикер</Modal>
+    </>);
+    expect(states()).toEqual(['dirty', 'free']);
+    expect(refusedByDialog()).toBe(true);
+    const ringed = document.querySelector('[data-modal-hint]');
+    expect(ringed?.closest('[role=dialog]')?.textContent).toContain('Выбор');
+  });
+
+  it('при идущем запросе выхода нет — кольца тоже', () => {
+    render(<Modal open onOpenChange={() => {}} title="Окно" busy footer={<ModalExit />}>текст</Modal>);
+    expect(refusedByDialog()).toBe(true);
+    expect(document.querySelector('[data-modal-hint]')).toBeNull();
+  });
+
+  it('кнопка под вопросом «Закрыть без сохранения?» недоступна — кольцо на неё не ложится', () => {
+    render(<Modal open onOpenChange={() => {}} title="Окно" isDirty footer={<ModalExit />}>текст</Modal>);
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(screen.getByText('Закрыть без сохранения?')).toBeTruthy();
+    expect(refusedByDialog()).toBe(true);
+    expect(document.querySelector('[data-modal-hint]')).toBeNull();
+  });
+});
+
+describe('команда палитры поверх окна, которое стало держать', () => {
+  it('не уводит со страницы: окно получило результат, пока палитра была открыта', () => {
+    const asked = shown(false);
+    render(<Modal open onOpenChange={() => {}} title="Итог" acknowledge="Понятно">итог</Modal>);
+    expect(paletteShown()).toBe(true);
+
+    choose('Учётный период');
+    expect(address()).toBe('/invoices');
+    expect(asked).not.toHaveBeenCalled();
+    // Палитра закрылась, окно показало свой выход.
+    expect(paletteShown()).toBe(false);
+    expect(document.querySelector('[data-modal-hint]')?.textContent).toBe('Понятно');
+  });
+
+  it('и не выходит из учётной записи', () => {
+    shown(false);
+    render(<Modal open onOpenChange={() => {}} title="Итог" acknowledge="Понятно">итог</Modal>);
+    choose('Выйти');
+    expect(logout).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
+import { refusedByDialog } from './modalDismissal';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
 export type LeaveHandler = (proceed: () => void) => void;
@@ -17,6 +18,15 @@ export const Ctx = createContext<NavGuard | null>(null);
 export function useNavigationGuard() { return useContext(Ctx); }
 
 /**
+ * Одна попытка ухода на всех — и на ссылку, и на команду (ревью PR #1313: правило жило двумя
+ * копиями). Уход перехвачен, если открыто окно, которое держит человека, — оно покажет свой выход,
+ * — либо если страница с правками взяла решение на себя.
+ */
+function intercepted(guard: NavGuard | null, leave: () => void): boolean {
+  return refusedByDialog() || !!guard?.attempt(leave);
+}
+
+/**
  * onClick-обработчик для ссылок навигации (NavLink/Link): при активном гарде отменяет мгновенный
  * переход и отдаёт решение странице-владельцу; иначе — обычная навигация. Modifier-клики (Ctrl/⌘/Shift
  * — открыть в новой вкладке) и не-левый клик не перехватываются.
@@ -26,7 +36,7 @@ export function useGuardedNavClick() {
   const navigate = useNavigate();
   return (to: string) => (e: MouseEvent) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    if (guard && guard.attempt(() => navigate(to))) e.preventDefault();
+    if (intercepted(guard, () => navigate(to))) e.preventDefault();
   };
 }
 
@@ -44,7 +54,7 @@ export function useGuardedNavClick() {
  */
 export function useGuardedLeave() {
   const guard = useNavigationGuard();
-  return useCallback((leave: () => void) => { if (!guard?.attempt(leave)) leave(); }, [guard]);
+  return useCallback((leave: () => void) => { if (!intercepted(guard, leave)) leave(); }, [guard]);
 }
 
 /** Переход по адресу через охрану — замена `useNavigate` для обвязки приложения. */

@@ -76,6 +76,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
+          data-modal-state="transient"
           className="fixed left-1/2 top-24 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
         >
