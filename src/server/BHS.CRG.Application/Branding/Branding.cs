@@ -57,7 +57,12 @@ public static class BrandingDefaults
 /// заходил, — то есть ровно у тех, ради кого замену и делали (та же причина, что у метки знака в
 /// <c>index.html</c>, issue #728).
 /// </param>
-public record BrandingInfo(string ProductName, bool IsCustom, bool HasLogo, string? LogoVersion);
+/// <param name="Icons">
+/// Значки вкладки и приложения (issue #1315): стандартные, построенные из логотипа либо «построить
+/// не удалось» — последнее экран настройки обязан назвать словами.
+/// </param>
+public record BrandingInfo(
+    string ProductName, bool IsCustom, bool HasLogo, string? LogoVersion, BrandIconsInfo Icons);
 
 /// <param name="ETag">Сильный тег версии файла — по нему браузер переспрашивает одним 304.</param>
 public record BrandingLogo(byte[] Content, string MimeType, string FileName, string ETag);
@@ -78,6 +83,13 @@ public interface IBrandingService
 
     /// <summary>Логотип с содержимым; null — логотипа нет.</summary>
     Task<BrandingLogo?> GetLogoAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Значок экземпляра — ВСЕГДА картинка: построенная из логотипа, а без логотипа или при отказе
+    /// построения — стандартная. Адрес значка стоит в <c>index.html</c> любой страницы, включая
+    /// страницу входа: отказ здесь означал бы пустую вкладку.
+    /// </summary>
+    Task<BrandIcon> GetIconAsync(BrandIconKind kind, CancellationToken ct = default);
 
     /// <summary>Загрузить или заменить логотип. Возвращает новое состояние оформления.</summary>
     Task<BrandingInfo> SetLogoAsync(

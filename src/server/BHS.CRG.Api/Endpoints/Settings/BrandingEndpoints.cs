@@ -1,6 +1,8 @@
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Api.Endpoints.Common;
+using System.Security.Cryptography;
+using System.Text;
 using BHS.CRG.Application.Branding;
 using Microsoft.Net.Http.Headers;
 
@@ -67,6 +69,8 @@ public static class BrandingEndpoints
                 entityTag: EntityTagHeaderValue.Parse(logo.ETag));
         });
 
+        MapIcons(app);
+
         admin.MapPut("/", async (ProductNameRequest req, IBrandingService branding, CancellationToken ct) =>
         {
             var name = req.ProductName?.Trim();
@@ -100,6 +104,50 @@ public static class BrandingEndpoints
 
         admin.MapDelete("/logo", async (IBrandingService branding, CancellationToken ct) =>
             Results.Ok(await branding.RemoveLogoAsync(ct)));
+    }
+
+    /// <summary>
+    /// Значки вкладки и приложения и манифест (issue #1315) — анонимные, как всё оформление: на них
+    /// ссылается <c>index.html</c> любой страницы, включая страницу входа.
+    ///
+    /// <para><b>Своя политика частоты, а не общая с названием и логотипом.</b> Значок и манифест
+    /// браузер переспрашивает при каждой загрузке страницы; в общей корзине они съели бы её
+    /// втрое быстрее, и 429 пришёл бы адресу с названием — то есть экрану без шапки.</para>
+    ///
+    /// <para><b>Отказа у значка нет.</b> Нет логотипа или значки из него не построены — отдаётся
+    /// стандартная картинка: значок стоит на странице входа, и ошибка здесь — пустая вкладка. О том,
+    /// что значки не построены, говорит <c>GET /api/branding</c> (<c>icons.state</c>), а экран
+    /// настройки — словами.</para>
+    /// </summary>
+    private static void MapIcons(IEndpointRouteBuilder app)
+    {
+        var icons = app.MapGroup("/api/branding").RequireRateLimiting("branding-icons");
+
+        icons.MapGet("/icons/{name}", async (
+            string name, string? v, IBrandingService branding, HttpContext http, CancellationToken ct) =>
+        {
+            if (!BrandIconKinds.ByRoute.TryGetValue(name, out var kind)) return Results.NotFound();
+            var icon = await branding.GetIconAsync(kind, ct);
+
+            // index.html — статический файл и метку версии логотипа знать не может: его ссылка идёт
+            // без ?v и обязана проверяться на свежесть каждый раз (ответ — 304 по тегу). Длинный
+            // кеш — только адресу с ДЕЙСТВУЮЩЕЙ меткой: так зовут значок манифест и вкладка,
+            // открытая в момент смены логотипа. Чужая или устаревшая метка длинного кеша не получает
+            // — иначе он закрепил бы за старым адресом новую картинку, а за новым — старую.
+            http.Response.Headers.CacheControl = v == icon.Version ? "public, max-age=604800" : "no-cache";
+            return Results.File(icon.Content, icon.MimeType, enableRangeProcessing: false,
+                entityTag: EntityTagHeaderValue.Parse(icon.ETag));
+        });
+
+        icons.MapGet("/manifest.webmanifest", async (
+            IBrandingService branding, HttpContext http, CancellationToken ct) =>
+        {
+            var content = Encoding.UTF8.GetBytes(BrandManifest.Build(await branding.GetAsync(ct)));
+            http.Response.Headers.CacheControl = "no-cache";
+            var tag = Convert.ToHexStringLower(SHA256.HashData(content))[..16];
+            return Results.File(content, BrandManifest.ContentType, enableRangeProcessing: false,
+                entityTag: new EntityTagHeaderValue($"\"{tag}\""));
+        });
     }
 
     private record ProductNameRequest(string? ProductName);

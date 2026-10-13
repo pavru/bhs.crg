@@ -28,6 +28,7 @@ public class BrandingService(
     IBlobStorage blob,
     IAppSettingsStore settings,
     IMemoryCache cache,
+    BrandIconStore icons,
     ILogger<BrandingService> logger) : IBrandingService
 {
     /// <summary>
@@ -45,7 +46,40 @@ public class BrandingService(
             string.IsNullOrWhiteSpace(name) ? BrandingDefaults.ProductName : name,
             IsCustom: !string.IsNullOrWhiteSpace(name),
             HasLogo: logo is not null,
-            LogoVersion: logo is null ? null : Version(logo));
+            LogoVersion: logo is null ? null : Version(logo),
+            Icons: IconsInfo(logo, await IconsOfAsync(logo, ct)));
+    }
+
+    public async Task<BrandIcon> GetIconAsync(BrandIconKind kind, CancellationToken ct = default)
+    {
+        var logo = await LogoAssetAsync(ct);
+        if (logo is null || (await IconsOfAsync(logo, ct))?.Set is not { } set)
+            return StandardBrandIcons.Get(kind);
+
+        var version = Version(logo);
+        return new BrandIcon(set.Icons[kind], "image/png", $"\"{version}-{BrandIconKinds.Route(kind)}\"", version);
+    }
+
+    /// <summary>
+    /// Значки действующего логотипа; <c>null</c> — логотипа нет. Построены ли они уже, решает
+    /// <see cref="BrandIconStore" />: при загрузке логотипа, а после перезапуска или восстановления
+    /// копии — при первом обращении, без особого случая здесь.
+    /// </summary>
+    private async Task<BrandIconBuild?> IconsOfAsync(TemplateAsset? logo, CancellationToken ct) =>
+        logo is null
+            ? null
+            : await icons.EnsureAsync(
+                // Версии одной мало: ассет логотипа могли завести заново с той же меткой времени
+                // (восстановление копии) — а строка и файл у него будут другие.
+                $"{logo.Id:N}:{Version(logo)}:{logo.BlobPath}",
+                async c => (await ContentAsync(logo, c))?.Content, ct);
+
+    private static BrandIconsInfo IconsInfo(TemplateAsset? logo, BrandIconBuild? build)
+    {
+        if (logo is null || build is null) return BrandIconsInfo.Standard;
+        return build.Set is { } set
+            ? new(BrandIconsState.Custom, Version(logo), null, Math.Round(set.Aspect, 3))
+            : BrandIconsInfo.Failed(build.Problem ?? BrandIconProblem.Builder);
     }
 
     public Task SetProductNameAsync(string? name, CancellationToken ct = default) =>
@@ -55,8 +89,11 @@ public class BrandingService(
     public async Task<BrandingLogo?> GetLogoAsync(CancellationToken ct = default)
     {
         var asset = await LogoAssetAsync(ct);
-        if (asset is null) return null;
+        return asset is null ? null : await ContentAsync(asset, ct);
+    }
 
+    private async Task<BrandingLogo?> ContentAsync(TemplateAsset asset, CancellationToken ct)
+    {
         if (cache.TryGetValue<BrandingLogo>(CacheKey(asset), out var cached) && cached is not null)
             return cached;
 
@@ -94,24 +131,32 @@ public class BrandingService(
         var blobPath = await blob.UploadAsync(fileName, new MemoryStream(content), mimeType, ct);
         var asset = await LogoAssetAsync(ct);
 
+        string? previous = null;
         if (asset is null)
         {
-            db.TemplateAssets.Add(TemplateAsset.Create(
+            asset = TemplateAsset.Create(
                 TemplateAssetScope.System, null, TemplateAssetKind.Image,
-                BrandingDefaults.LogoAssetName, fileName, mimeType, blobPath));
+                BrandingDefaults.LogoAssetName, fileName, mimeType, blobPath);
+            db.TemplateAssets.Add(asset);
         }
         else
         {
-            // Старый файл убираем ПОСЛЕ успешной записи новой строки: наоборот — значит на миг
-            // остаться без логотипа и с ссылкой в никуда, если запись не удалась.
-            var previous = asset.BlobPath;
+            previous = asset.BlobPath;
             asset.Replace(fileName, mimeType, blobPath, fontFamilyName: null);
-            await db.SaveChangesAsync(ct);
-            await TryDeleteAsync(previous, ct);
-            return await GetAsync(ct);
         }
 
         await db.SaveChangesAsync(ct);
+        // Перечитываем строку: метка версии — момент замены, а база хранит его грубее, чем память
+        // (микросекунды против ста наносекунд). Без этого ответ загрузки называл бы одну метку, а
+        // следующее чтение — другую: значки строились бы дважды, а открытая вкладка увидела бы
+        // «смену» логотипа, которой не было (issue #1315).
+        await db.Entry(asset).ReloadAsync(ct);
+
+        // Старый файл убираем ПОСЛЕ успешной записи новой строки: наоборот — значит на миг
+        // остаться без логотипа и с ссылкой в никуда, если запись не удалась.
+        if (previous is not null) await TryDeleteAsync(previous, ct);
+
+        // Значки строятся здесь же, до ответа (GetAsync): администратор сразу видит, получились ли.
         return await GetAsync(ct);
     }
 
