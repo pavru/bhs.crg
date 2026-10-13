@@ -15,7 +15,7 @@ afterEach(cleanup);
 
 type Extra = Partial<ModalProps>;
 
-function open(extra: Extra = {}, body: React.ReactNode = <input aria-label="поле" />) {
+function open(extra: Extra = {}, body: ModalProps['children'] = <input aria-label="поле" />) {
   const onOpenChange = vi.fn();
   const props = {
     open: true, onOpenChange, title: 'Окно',
@@ -203,20 +203,11 @@ describe('показан результат (acknowledge)', () => {
 });
 
 describe('наблюдение за вводом', () => {
-  // Диалог замечает ввод, но не имеет права его съесть. Перехват `input` React исполняет раньше
-  // `onChange` поля и сразу перерисовывает — управляемое поле возвращается к прежнему значению, и
-  // первый набранный знак пропадает молча.
-  function Controlled() {
-    const [value, setValue] = useState('2026');
-    return <input aria-label="поле" value={value} onChange={e => setValue(e.target.value)} />;
-  }
-
-  it('первый набранный знак в управляемом поле не теряется', () => {
-    open({}, <Controlled />);
-    const field = screen.getByLabelText('поле') as HTMLInputElement;
-    fireEvent.input(field, { target: { value: '20' } });
-    expect(field.value).toBe('20');
-  });
+  // ⚠️ Чего здесь НЕТ: проверки, что наблюдение не съедает первый набранный знак (перехват `input`
+  // перерисовывал управляемое поле раньше его `onChange`). В jsdom это не воспроизводится — тест
+  // оставался зелёным при сломанном коде. Ловят живые прогоны: `date-input-discards-partial-input-
+  // on-blur` (shared-ui), `ref-picker-search-narrows-and-restores` и `paste-detects-header-and-
+  // counts-rows` (fields) — все три краснели на этой поломке.
 
   // События React всплывают по дереву компонентов: запрос поиска в пикере, открытом из формы,
   // дошёл бы до формы и записал бы «тронуто» ей.
