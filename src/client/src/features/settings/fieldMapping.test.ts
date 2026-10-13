@@ -131,6 +131,8 @@ describe('свежая схема перед записью', () => {
     expect(unfitKey(schema, [{ tag: 'org.inn', key: 'Реквизиты' }], kinds)).toBe('Реквизиты');
     expect(unfitKey(schema, [{ tag: 'org.inn', key: 'Итог' }], kinds)).toBe('Итог');
     expect(unfitKey(schema, [{ tag: 'org.inn', key: 'ИНН' }, { tag: 'org.inn', key: null }], kinds)).toBeNull();
+    // Поле без вида сервер читает строкой — отказа ему нет.
+    expect(unfitKey({ fields: [{ key: 'Старое' }] }, [{ tag: 'org.inn', key: 'Старое' }], kinds)).toBeNull();
     // Тэг без ограничения по виду ложится на любое поле, кроме расчётного.
     expect(unfitKey(schema, [{ tag: 'any.tag', key: 'Реквизиты' }], kinds)).toBeNull();
   });

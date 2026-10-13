@@ -102,7 +102,10 @@ export function unfitKey(
     const field = key === null ? undefined : byKey.get(key);
     if (!field) continue;
     const allowed = kinds[tag] ?? [];
-    if (field.computed === true || (allowed.length > 0 && !allowed.includes(String(field.type)))) return key;
+    // Поле без вида сервер читает строкой — и здесь так же: иначе годное поле старой схемы
+    // получило бы отказ, которого сервер не дал бы.
+    const kind = typeof field.type === 'string' ? field.type : 'string';
+    if (field.computed === true || (allowed.length > 0 && !allowed.includes(kind))) return key;
   }
   return null;
 }
