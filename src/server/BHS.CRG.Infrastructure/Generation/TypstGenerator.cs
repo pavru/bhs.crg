@@ -180,6 +180,10 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
             }
             return buffer.ToArray();
         }
+        // Отмену не глотаем: иначе «отменённая» генерация пошла бы к следующему ассету и доехала бы
+        // до PDF без шрифта. Чтение тела файла отмену слышит — значит, сюда она приходит на всём
+        // протяжении загрузки, а не только до заголовков ответа.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch { return null; }
     }
 }
