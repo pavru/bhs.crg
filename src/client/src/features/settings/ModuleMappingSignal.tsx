@@ -10,6 +10,9 @@ import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
  * Назначают на отдельной странице, под правом на типы. Здесь — только знание: тот, кто настраивает
  * систему, обязан увидеть, что модуль работает не весь, даже если назначить поле не может. Ссылки у
  * него поэтому нет — действие, которое ответит отказом, не показываем.
+ *
+ * Число — справочники ВМЕСТЕ с их обязательными полями, и подпись говорит это прямо: под словами
+ * «поля справочников» человек искал бы недостающее поле, когда не назначен сам справочник.
  */
 export function ModuleMappingSignal({ signal }: { signal: Signal }) {
   const can = useCan();
@@ -20,8 +23,8 @@ export function ModuleMappingSignal({ signal }: { signal: Signal }) {
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1" data-mapping-signal>
       <p className={`text-xs max-w-xl ${complete ? 'text-fg3' : 'text-warning'}`}>
         {complete
-          ? `Поля справочников: назначены все ${signal.total}.`
-          : `Поля справочников: не назначено ${signal.unmet} из ${signal.total}. ${signal.notWorking.join(' ')}`}
+          ? `Справочники и их поля: назначены все ${signal.total}.`
+          : `Справочники и их поля: не назначено ${signal.unmet} из ${signal.total}. ${signal.notWorking.join(' ')}`}
       </p>
       {can.permission('core.types.edit') && (
         <Button variant="text" size="sm" onClick={() => go('/field-mapping')}>Сопоставление полей</Button>

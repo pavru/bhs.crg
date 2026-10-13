@@ -133,6 +133,66 @@ public static class RoleResolution
                     $"Тэг типа «{t.Label}» типу «{saving.Name}» поставить нельзя: справочником бывает только " +
                     "составной тип, записи которого лежат в общих данных.");
 
+    /// <summary>
+    /// Два справочника, которые делили бы записи, — отказ сохранению (ревью PR #1318).
+    ///
+    /// <para>Справочник — носитель роли со всеми потомками. Поэтому роли на одном типе и роли на типе и
+    /// его предке означают одно: запись входит в оба справочника сразу. Потолок носителей этого не
+    /// видит — он считает каждую роль отдельно.</para>
+    ///
+    /// <para>Дверей три, и проверка стоит на всех: тэг в схеме, новый тип под носителем и смена
+    /// родителя. Отказывает только сохранению, которое в пересечении участвует: чужой тип правится и
+    /// тогда, когда пересечение уже лежит в базе (его приносит восстановление копии).</para>
+    /// </summary>
+    /// <param name="saving">Сохраняемый тип — уже с входящей схемой и новым родителем.</param>
+    public static IEnumerable<string> OverlapProblems(
+        TagCatalog tags, DocumentType saving, IReadOnlyList<DocumentType> all)
+    {
+        var after = all.Where(t => t.Id != saving.Id).Append(saving).ToList();
+        var byId = after.ToDictionary(t => t.Id);
+        var bearers = tags.All.Where(t => tags.IsRole(t.Code))
+            .SelectMany(role => after.Where(t => SchemaTags.SchemaHasTypeTag(t.Schema, role.Code))
+                .Select(type => (Type: type, Role: role)))
+            .ToList();
+
+        foreach (var upper in bearers)
+        foreach (var lower in bearers)
+        {
+            if (upper.Role.Code == lower.Role.Code) continue;
+
+            if (upper.Type.Id == lower.Type.Id)
+            {
+                // Пара названа один раз, а не дважды в обе стороны.
+                if (upper.Type.Id == saving.Id && string.CompareOrdinal(upper.Role.Code, lower.Role.Code) < 0)
+                    yield return $"Тэги типа «{upper.Role.Label}» и «{lower.Role.Label}» не могут стоять на одном " +
+                                 $"типе («{saving.Name}»): его записи вошли бы сразу в два справочника.";
+                continue;
+            }
+
+            if (!IsAncestorOrSelf(upper.Type, lower.Type, byId)) continue;
+            // Участвует ли сохраняемый: он один из двоих либо стоит в цепочке между ними.
+            if (!IsAncestorOrSelf(saving, lower.Type, byId) || !IsAncestorOrSelf(upper.Type, saving, byId)) continue;
+
+            yield return $"Тип «{lower.Type.Name}» с тэгом «{lower.Role.Label}» оказался бы подтипом " +
+                         $"«{upper.Type.Name}» с тэгом «{upper.Role.Label}»: его записи вошли бы сразу в два справочника.";
+        }
+    }
+
+    /// <summary>
+    /// Стоит ли <paramref name="upper" /> в цепочке родителей <paramref name="lower" /> (или это он
+    /// сам). Цикл в цепочке базой не запрещён — обход помнит пройденное.
+    /// </summary>
+    public static bool IsAncestorOrSelf(
+        DocumentType upper, DocumentType lower, IReadOnlyDictionary<Guid, DocumentType> byId)
+    {
+        var seen = new HashSet<Guid>();
+        for (var cur = lower; cur is not null && seen.Add(cur.Id);
+             cur = cur.ParentId is { } p ? byId.GetValueOrDefault(p) : null)
+            if (cur.Id == upper.Id) return true;
+
+        return false;
+    }
+
     public static ResolvedRoleField Field(ResolvedRole role, TagDefinition tag, IReadOnlyList<DocumentType> all)
     {
         if (role.Root is not { } root) return new(null, RoleFieldFault.Absent, []);

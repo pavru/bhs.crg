@@ -15,10 +15,10 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  NOT_ASSIGNED, changedRows, fieldLabel, kindsText, listedFields, missingKey, schemaWrites, selectedKey,
-  withTagPlacements, withTypeTag,
+  NOT_ASSIGNED, changedRows, fieldLabel, fullSentence, kindsText, listedFields, selectedKey, withTypeTag,
   type MappingDraft, type RawSchema,
 } from './fieldMapping';
+import { saveGroup } from './fieldMappingSave';
 
 /**
  * «Сопоставление полей» (ТЗ TYPE-23.1, issue #1101): что включённые модули читают из справочников
@@ -53,6 +53,74 @@ export function FieldMappingPage() {
       </Frame>
     );
 
+  return <Mapping data={data} />;
+}
+
+/** Состояние одной группы на экране; ключ — `groupId`. */
+interface GroupEdit {
+  draft: MappingDraft;
+  refusal: string | null;
+}
+
+const UNTOUCHED: GroupEdit = { draft: {}, refusal: null };
+
+function groupId(module: ModuleCoverage, group: CoverageGroup): string {
+  return `${module.code}:${group.role}`;
+}
+
+/**
+ * Экран с данными. Черновики всех групп живут ЗДЕСЬ, а не в группах: охрана ухода в приложении одна
+ * на страницу, и группа, зарегистрировавшая свою, стирала бы чужую — правки первой группы терялись
+ * бы молча, стоило сохранить или отменить вторую (ревью PR #1318).
+ */
+function Mapping({ data }: { data: ModuleCoverage[] }) {
+  const qc = useQueryClient();
+  const update = useUpdateDocumentTypeSchema();
+  const toast = useToast();
+  const [edits, setEdits] = useState<Record<string, GroupEdit>>({});
+  const [saving, setSaving] = useState(false);
+  const [leave, setLeave] = useState<(() => void) | null>(null);
+
+  const dirty = data.flatMap(m => m.groups.map(g => ({ id: groupId(m, g), group: g })))
+    .filter(x => changedRows(x.group, edits[x.id]?.draft ?? {}).length > 0);
+  useLeaveGuard(dirty.length > 0, proceed => setLeave(() => proceed));
+
+  /** Перечитать всё, что зависит от схемы: и после отказа — тип могли тем временем изменить. */
+  const reread = () => Promise.all([
+    qc.invalidateQueries({ queryKey: FIELD_MAPPING_KEY }),
+    qc.invalidateQueries({ queryKey: MODULE_SETTINGS_KEY }),
+  ]);
+
+  const set = (id: string, edit: GroupEdit) => setEdits(all => ({ ...all, [id]: edit }));
+
+  async function save(id: string, group: CoverageGroup): Promise<boolean> {
+    setSaving(true);
+    try {
+      const outcome = await saveGroup(group, edits[id]?.draft ?? {}, {
+        read: async typeId => {
+          const type = await freshType(typeId);
+          return { name: type.name, schema: type.schema as unknown as RawSchema };
+        },
+        write: async (typeId, schema) => { await update.mutateAsync({ id: typeId, schema: JSON.stringify(schema) }); },
+      });
+      if (outcome.ok) {
+        set(id, UNTOUCHED);
+        toast.success('Сопоставление полей сохранено.');
+        return true;
+      }
+      // Постоянной строкой, а не только тостом: тост исчезает, а причина нужна, пока её не устранили.
+      // Сохранилось частично — черновик сбрасываем: он собран по состоянию, которого больше нет.
+      const reason = fullSentence(apiError(outcome.error, 'Сервер не ответил'));
+      set(id, outcome.partial
+        ? { draft: {}, refusal: `Сохранено не всё, и вернуть прежнее назначение не удалось. ${reason} Проверьте строки ниже.` }
+        : { draft: edits[id]?.draft ?? {}, refusal: `Не сохранено, назначение осталось прежним. ${reason}` });
+      return false;
+    } finally {
+      setSaving(false);
+      await reread();
+    }
+  }
+
   const single = data.length === 1 ? data[0] : null;
   return (
     <Frame title={single ? `Сопоставление полей — ${single.title}` : 'Сопоставление полей'}>
@@ -60,7 +128,35 @@ export function FieldMappingPage() {
         Модуль берёт эти сведения из справочников. Здесь назначается, какой тип служит справочником и какое
         его поле за что отвечает. То же самое видно в редакторе типа — тэгом типа и тэгом поля.
       </p>
-      {data.map(module => <ModuleBlock key={module.code} module={module} titled={!single} />)}
+      {data.map(module => (
+        <section key={module.code} className="space-y-5" data-module={module.code}>
+          {!single && <h2 className="text-base font-semibold text-fg1">{module.title}</h2>}
+          {module.unmet > 0 && (
+            <p className="text-sm text-warning">
+              Не назначено {module.unmet} из {module.total} — считая справочники и их обязательные поля.
+            </p>
+          )}
+          {module.groups.map(group => {
+            const id = groupId(module, group);
+            return (
+              <GroupSection key={id} group={group} edit={edits[id] ?? UNTOUCHED} saving={saving}
+                onEdit={edit => set(id, edit)} onSave={() => void save(id, group)} onAssigned={reread} />
+            );
+          })}
+        </section>
+      ))}
+
+      <LeaveGuardDialog
+        open={leave !== null} saving={saving}
+        onCancel={() => setLeave(null)}
+        onDiscard={() => { const proceed = leave; setLeave(null); setEdits({}); proceed?.(); }}
+        onSave={async () => {
+          // Сохраняем ВСЕ группы с правками. Не сохранилась хоть одна — остаёмся: причина под ней.
+          const proceed = leave;
+          setLeave(null);
+          for (const { id, group } of dirty) if (!(await save(id, group))) return;
+          proceed?.();
+        }} />
     </Frame>
   );
 }
@@ -74,84 +170,19 @@ function Frame({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function ModuleBlock({ module, titled }: { module: ModuleCoverage; titled: boolean }) {
-  return (
-    <section className="space-y-5" data-module={module.code}>
-      {titled && <h2 className="text-base font-semibold text-fg1">{module.title}</h2>}
-      {module.unmet > 0 && (
-        <p className="text-sm text-warning">Не назначено: {module.unmet} из {module.total}.</p>
-      )}
-      {module.groups.map(group => <GroupSection key={group.role} group={group} />)}
-    </section>
-  );
-}
-
-/** Первая буква — заглавная, в конце точка: причину сервер отдаёт серединой фразы. */
-function sentence(text: string): string {
-  const t = text.trim();
-  return t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.');
-}
-
 /** Свежая схема типа — прямо перед записью: список на экране мог устареть. */
 async function freshType(id: string): Promise<DocumentType> {
   return (await apiClient.get<DocumentType>(`/document-types/${id}`)).data;
 }
 
-function GroupSection({ group }: { group: CoverageGroup }) {
+/** Одна группа — справочник. Состояние и запись держит экран: см. `Mapping`. */
+function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
+  group: CoverageGroup; edit: GroupEdit; saving: boolean;
+  onEdit: (edit: GroupEdit) => void; onSave: () => void; onAssigned: () => Promise<unknown>;
+}) {
   const go = useGuardedNavigate();
-  const qc = useQueryClient();
-  const update = useUpdateDocumentTypeSchema();
-  const toast = useToast();
-  const [draft, setDraft] = useState<MappingDraft>({});
-  const [refusal, setRefusal] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [leave, setLeave] = useState<(() => void) | null>(null);
-
+  const { draft, refusal } = edit;
   const dirty = changedRows(group, draft).length > 0;
-  useLeaveGuard(dirty, proceed => setLeave(() => proceed));
-
-  /** Перечитать всё, что зависит от схемы: и после отказа — тип могли тем временем изменить. */
-  const reread = () => Promise.all([
-    qc.invalidateQueries({ queryKey: FIELD_MAPPING_KEY }),
-    qc.invalidateQueries({ queryKey: MODULE_SETTINGS_KEY }),
-  ]);
-
-  /**
-   * Записать группу. Правка — по одной на тип; сначала те, что только СНИМАЮТ тэг: сервер считает
-   * «одно поле типа на тэг» по типу вместе с предками, и постановка раньше снятия была бы отказом.
-   */
-  async function save(): Promise<boolean> {
-    const writes = schemaWrites(group, draft)
-      .sort((a, b) => Number(a.placements.some(p => p.key !== null)) - Number(b.placements.some(p => p.key !== null)));
-    let written = 0;
-    setSaving(true);
-    try {
-      for (const write of writes) {
-        const type = await freshType(write.typeId);
-        const schema = type.schema as unknown as RawSchema;
-        const gone = missingKey(schema, write.placements);
-        if (gone !== null)
-          throw new Error(`В типе «${type.name}» больше нет поля «${gone}» — тип тем временем изменили. ` +
-            'Список полей обновлён, выберите заново.');
-        const next = withTagPlacements(schema, write.placements);
-        if (next === schema) continue;
-        await update.mutateAsync({ id: write.typeId, schema: JSON.stringify(next) });
-        written++;
-      }
-      setDraft({});
-      setRefusal(null);
-      toast.success('Сопоставление полей сохранено.');
-      return true;
-    } catch (e) {
-      // Постоянной строкой, а не только тостом: тост исчезает, а причина нужна, пока её не устранили.
-      setRefusal((written > 0 ? 'Сохранено не всё. ' : 'Не сохранено. ') + sentence(apiError(e, 'Сервер не ответил')));
-      if (written > 0) setDraft({});
-      return false;
-    } finally {
-      setSaving(false);
-      await reread();
-    }
-  }
 
   return (
     <div className="space-y-2" data-role={group.role}>
@@ -169,12 +200,12 @@ function GroupSection({ group }: { group: CoverageGroup }) {
       </div>
       <p className="text-xs text-fg3">{group.purpose}.</p>
 
-      {group.state === 'absent' && <AssignRole group={group} onDone={reread} />}
+      {group.state === 'absent' && <AssignRole group={group} onDone={onAssigned} />}
 
       {group.state === 'violated' && (
         <div className="space-y-2">
           <p className="text-sm text-danger max-w-3xl">
-            <b>Нарушено.</b> {sentence(group.reason ?? '')} {group.withoutIt}{' '}
+            <b>Нарушено.</b> {fullSentence(group.reason ?? '')} {group.withoutIt}{' '}
             Исправляется в редакторе типов: тэг типа «{group.label}» должен остаться у одного составного типа.
           </p>
           <Button variant="outlined" size="sm" onClick={() => go('/composite-types')}>Открыть составные типы</Button>
@@ -188,7 +219,7 @@ function GroupSection({ group }: { group: CoverageGroup }) {
           </div>
           {group.rows.map(row => (
             <Row key={row.tag} row={row} group={group} draft={draft} disabled={saving}
-              onPick={key => { setDraft(d => ({ ...d, [row.tag]: key })); setRefusal(null); }} />
+              onPick={key => onEdit({ draft: { ...draft, [row.tag]: key }, refusal: null })} />
           ))}
         </div>
       )}
@@ -198,21 +229,10 @@ function GroupSection({ group }: { group: CoverageGroup }) {
       {/* Кнопки — только когда есть что сохранять: недоступное действие не показываем. */}
       {dirty && (
         <div className="flex items-center gap-3 pt-1">
-          <Button variant="filled" onClick={() => void save()} disabled={saving}>Сохранить</Button>
-          <Button variant="text" onClick={() => { setDraft({}); setRefusal(null); }} disabled={saving}>Отменить</Button>
+          <Button variant="filled" onClick={onSave} disabled={saving}>Сохранить</Button>
+          <Button variant="text" onClick={() => onEdit(UNTOUCHED)} disabled={saving}>Отменить</Button>
         </div>
       )}
-
-      <LeaveGuardDialog
-        open={leave !== null} saving={saving}
-        onCancel={() => setLeave(null)}
-        onDiscard={() => { const proceed = leave; setLeave(null); setDraft({}); proceed?.(); }}
-        onSave={async () => {
-          // Не сохранилось — остаёмся: причина стоит под группой.
-          const proceed = leave;
-          setLeave(null);
-          if (await save()) proceed?.();
-        }} />
     </div>
   );
 }
@@ -292,7 +312,7 @@ function RowState({ row, selectable }: { row: CoverageRow; selectable: boolean }
       : 'Исправляется в редакторе типа: у подтипа тэг должен стоять на том же поле либо не стоять вовсе.';
   return (
     <p className="text-sm text-danger">
-      <b>Нарушено.</b> {sentence(row.reason ?? '')} {row.withoutIt} {way}
+      <b>Нарушено.</b> {fullSentence(row.reason ?? '')} {row.withoutIt} {way}
     </p>
   );
 }
@@ -306,7 +326,11 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
   const go = useGuardedNavigate();
   const update = useUpdateDocumentTypeSchema();
   const toast = useToast();
-  const [typeId, setTypeId] = useState<string | undefined>(undefined);
+  const [picked, setPicked] = useState<string | undefined>(undefined);
+  // Выбор действителен, пока тип есть среди предлагаемых: список перечитывается, и тип, только что
+  // назначенный другим справочником, из него уходит. Запомненный выбор оставил бы кнопку, которая
+  // поставила бы ему вторую роль (ревью PR #1318).
+  const typeId = group.candidates.some(c => c.id === picked) ? picked : undefined;
   const [refusal, setRefusal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -320,7 +344,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
       setRefusal(null);
       toast.success(`Тип «${type.name}» назначен: ${group.label.toLowerCase()}.`);
     } catch (e) {
-      setRefusal('Не назначено. ' + sentence(apiError(e, 'Сервер не ответил')));
+      setRefusal('Не назначено. ' + fullSentence(apiError(e, 'Сервер не ответил')));
     } finally {
       setSaving(false);
       await onDone();
@@ -340,7 +364,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-72">
               <Select aria-label={`Тип — ${group.label.toLowerCase()}`}
-                value={typeId} onValueChange={setTypeId} placeholder="Выберите тип" disabled={saving}>
+                value={typeId} onValueChange={setPicked} placeholder="Выберите тип" disabled={saving}>
                 {group.candidates.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </Select>
             </div>

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { CoverageField, CoverageGroup, CoverageRow, CoverageType } from '@/shared/api/fieldMapping';
 import { offeredInRoles, type TagDefinition } from '@/shared/api/tags';
 import {
-  NOT_ASSIGNED, changedRows, fieldLabel, listedFields, missingKey, schemaWrites, selectedKey,
-  withTagPlacements, withTypeTag,
+  NOT_ASSIGNED, changedRows, fieldLabel, fullSentence, listedFields, missingKey, restoreTags, schemaWrites,
+  selectedKey, unfitKey, withTagPlacements, withTypeTag,
 } from './fieldMapping';
 
 const ORG: CoverageType = { id: 'org', name: 'Организация', code: 'Организация', kind: 'Composite' };
@@ -116,6 +116,51 @@ describe('правка сырой схемы', () => {
   });
 });
 
+describe('свежая схема перед записью', () => {
+  const schema = {
+    fields: [
+      { key: 'ИНН', type: 'string', tags: ['org.inn:2'] },
+      { key: 'Реквизиты', type: 'complex' },
+      { key: 'Итог', type: 'string', computed: true },
+    ],
+  };
+  const kinds = { 'org.inn': ['string', 'text'], 'any.tag': [] };
+
+  // Вид поля на экране мог устареть так же, как список: «сохранено» и тут же «нарушено» — не ответ.
+  it('поле сменило вид или стало расчётным — названо, а не записано', () => {
+    expect(unfitKey(schema, [{ tag: 'org.inn', key: 'Реквизиты' }], kinds)).toBe('Реквизиты');
+    expect(unfitKey(schema, [{ tag: 'org.inn', key: 'Итог' }], kinds)).toBe('Итог');
+    expect(unfitKey(schema, [{ tag: 'org.inn', key: 'ИНН' }, { tag: 'org.inn', key: null }], kinds)).toBeNull();
+    // Тэг без ограничения по виду ложится на любое поле, кроме расчётного.
+    expect(unfitKey(schema, [{ tag: 'any.tag', key: 'Реквизиты' }], kinds)).toBeNull();
+  });
+
+  it('откат возвращает тэг туда, где он стоял, — с параметром и не трогая прочее', () => {
+    const moved = {
+      fields: [
+        { key: 'ИНН', type: 'string', tags: [] },
+        { key: 'Реквизиты', type: 'complex', tags: ['org.inn', 'identity'] },
+        { key: 'Новое', type: 'string' },
+      ],
+    };
+
+    expect(restoreTags(moved, schema, ['org.inn'])).toEqual({
+      fields: [
+        { key: 'ИНН', type: 'string', tags: ['org.inn:2'] },
+        { key: 'Реквизиты', type: 'complex', tags: ['identity'] },
+        { key: 'Новое', type: 'string' },
+      ],
+    });
+    expect(restoreTags(schema, schema, ['org.inn'])).toBe(schema);
+  });
+
+  it('причина сервера становится законченной фразой', () => {
+    expect(fullSentence('поле назначено дважды')).toBe('Поле назначено дважды.');
+    expect(fullSentence('Тип закрыт.')).toBe('Тип закрыт.');
+    expect(fullSentence('')).toBe('');
+  });
+});
+
 describe('список полей строки', () => {
   it('негодное поле показывается, только если тэг стоит на нём', () => {
     const r = row({
@@ -136,6 +181,10 @@ describe('список полей строки', () => {
     });
 
     expect(selectedKey(r, {})).toBeUndefined();
+    // И у необязательной: стой там «Не назначено», выбрать его ещё раз было бы нельзя — и снять тэг
+    // с обоих полей было бы нечем.
+    expect(selectedKey({ ...r, required: false }, {})).toBeUndefined();
+    expect(changedRows(group({ ...r, required: false }), { 'org.inn': null })).toHaveLength(1);
   });
 
   it('необязательное без назначения стоит на «Не назначено», обязательное — пусто', () => {

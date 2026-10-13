@@ -87,6 +87,52 @@ export function missingKey(schema: RawSchema, placements: TagPlacement[]): strin
 }
 
 /**
+ * Ключ поля, которое в свежей схеме тэгу уже не подходит, — или `null`. Вид поля на экране мог
+ * устареть так же, как список: полю тем временем сменили вид или сделали его расчётным. Поставить
+ * тэг такому полю значило бы ответить «сохранено» и тут же показать «нарушено» — а если тэг
+ * переносили, с прежнего, годного поля он к этому времени уже снят (ревью PR #1318).
+ *
+ * @param kinds виды, которые допускает каждый тэг; пусто — любой.
+ */
+export function unfitKey(
+  schema: RawSchema, placements: TagPlacement[], kinds: Record<string, string[]>,
+): string | null {
+  const byKey = new Map(ownFields(schema).map(f => [f.key, f]));
+  for (const { tag, key } of placements) {
+    const field = key === null ? undefined : byKey.get(key);
+    if (!field) continue;
+    const allowed = kinds[tag] ?? [];
+    if (field.computed === true || (allowed.length > 0 && !allowed.includes(String(field.type)))) return key;
+  }
+  return null;
+}
+
+/**
+ * Схема, в которой названные тэги стоят там же, где стояли в `before`, — откат записи, за которой
+ * не прошла следующая. Трогает только эти тэги: остальное в свежей схеме могли тем временем
+ * править. Тот же объект, если возвращать нечего.
+ */
+export function restoreTags(schema: RawSchema, before: RawSchema, tags: string[]): RawSchema {
+  const had = new Map(ownFields(before).map(f => [f.key, Array.isArray(f.tags) ? (f.tags as string[]) : []]));
+  let changed = false;
+  const fields = ownFields(schema).map(field => {
+    const now = Array.isArray(field.tags) ? (field.tags as string[]) : [];
+    const was = had.get(field.key) ?? [];
+    let next = now;
+    for (const tag of tags) {
+      const old = was.find(t => tagCode(t) === tag);
+      const has = next.some(t => tagCode(t) === tag);
+      if (old !== undefined && !has) next = [...next, old];
+      else if (old === undefined && has) next = next.filter(t => tagCode(t) !== tag);
+    }
+    if (next === now) return field;
+    changed = true;
+    return { ...field, tags: next };
+  });
+  return changed ? { ...schema, fields } : schema;
+}
+
+/**
  * Схема с переставленными тэгами. Возвращает ТОТ ЖЕ объект, если менять нечего, — так вызывающий
  * отличает правку от её отсутствия и не шлёт пустое сохранение (оно легло бы в журнал действий).
  *
@@ -145,7 +191,19 @@ export function selectedKey(row: CoverageRow, draft: MappingDraft): string | und
   // Одно негодное поле с тэгом — показываем его, с пометкой: пустой список скрыл бы, что тэг стоит.
   const tagged = row.fields.filter(f => f.tagged);
   if (tagged.length === 1) return tagged[0].key;
-  return row.required ? undefined : NOT_ASSIGNED;
+  // Тэг на двух полях — не «не назначено», и у необязательной строки тоже: выбранный пункт «Не
+  // назначено» нельзя было бы выбрать ещё раз, и снять тэг с обоих было бы нечем (ревью PR #1318).
+  return row.required || tagged.length > 1 ? undefined : NOT_ASSIGNED;
+}
+
+/**
+ * Причина сервера — законченной фразой: с заглавной буквы и с точкой. Сервер отдаёт её серединой
+ * предложения, а экран ставит между своими. Не `sentence` из настроек модуля: та точку не ставит —
+ * её текст стоит под полем один.
+ */
+export function fullSentence(text: string): string {
+  const t = text.trim();
+  return t && t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.');
 }
 
 /** Виды, которые тэг допускает, словами — для «в типе нет поля вида …». */

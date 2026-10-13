@@ -117,6 +117,9 @@ public static class ModuleCoverage
 
         var byId = all.ToDictionary(t => t.Id);
         var fields = DocumentTypeSchemaReader.EffectiveFields(root.Id, byId);
+        // Где поле объявлено, от потребности не зависит — считаем раз на справочник, а не на строку.
+        var declaredIn = fields.Select(f => f.Key).Distinct(StringComparer.Ordinal)
+            .ToDictionary(key => key, key => View(DeclaredIn(root, key, byId)), StringComparer.Ordinal);
         var rows = need.Fields.Select(f =>
         {
             var tag = tags.Find(f.Tag)!;
@@ -132,7 +135,7 @@ public static class ModuleCoverage
                 state, found.Fault.ToString(), found.Describe(tag), found.Key, tag.AppliesTo,
                 [.. fields.Select(field => new CoverageField(
                     field.Key, field.Title is { Length: > 0 } title ? title : field.Key, field.Type,
-                    View(DeclaredIn(root, field.Key, byId)),
+                    declaredIn[field.Key],
                     Fits: !field.Computed && (tag.AppliesTo.Length == 0 || tag.AppliesTo.Contains(field.Type, StringComparer.Ordinal)),
                     Tagged: found.Keys.Contains(field.Key, StringComparer.Ordinal)))]);
         }).ToList();
@@ -142,17 +145,21 @@ public static class ModuleCoverage
     }
 
     /// <summary>
-    /// Кого можно назначить справочником: годный тип, который сам роли не несёт и не входит в семью
-    /// другого справочника. Организации и номенклатура одним типом быть не могут — записи у них разные.
+    /// Кого можно назначить справочником: годный тип, который с носителем любой роли не в родстве —
+    /// не он сам, не его потомок и не его ПРЕДОК. Справочник — тип со всеми потомками: назначь мы
+    /// предка чужого носителя, записи того вошли бы в оба справочника (ревью PR #1318). Сохранение
+    /// схемы отказало бы тем же — <see cref="RoleResolution.OverlapProblems" />; предлагать то, на что
+    /// сервер ответит отказом, незачем.
     /// </summary>
     private static List<CoverageType> Candidates(TagCatalog tags, IReadOnlyList<DocumentType> all)
     {
-        var taken = tags.All.Where(t => tags.IsRole(t.Code))
-            .Select(t => RoleResolution.Role(t.Code, all))
-            .SelectMany(r => r.Root is null ? r.Bearers.Select(b => b.Id) : r.Family.Keys)
-            .ToHashSet();
+        var byId = all.ToDictionary(t => t.Id);
+        var bearers = tags.All.Where(t => tags.IsRole(t.Code))
+            .SelectMany(t => RoleResolution.Role(t.Code, all).Bearers)
+            .ToList();
 
-        return [.. all.Where(t => RoleResolution.IsDirectory(t) && !taken.Contains(t.Id))
+        return [.. all.Where(t => RoleResolution.IsDirectory(t) && !bearers.Any(b =>
+                RoleResolution.IsAncestorOrSelf(b, t, byId) || RoleResolution.IsAncestorOrSelf(t, b, byId)))
             .OrderBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(View)];
     }

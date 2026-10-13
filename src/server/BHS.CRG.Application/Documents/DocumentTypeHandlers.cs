@@ -456,6 +456,8 @@ public class DocumentTypeHandlers(
             .Concat(TagMoneyStorageValidator.Validate(tags, saving, all).Select(v => v.Describe()))
             // Четвёртая — роль справочника у типа, который справочником быть не может (issue #1101).
             .Concat(RoleResolution.UnfitBearerProblems(tags, saving))
+            // Пятая — два справочника с общими записями: роли на одном типе либо на типе и его предке.
+            .Concat(RoleResolution.OverlapProblems(tags, saving, all))
             .ToList();
         if (messages.Count > 0) throw new ConflictException(string.Join(" ", messages));
     }

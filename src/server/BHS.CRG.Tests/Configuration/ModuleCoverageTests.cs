@@ -130,6 +130,23 @@ public class ModuleCoverageTests
     }
 
     /// <summary>
+    /// Предок чужого носителя справочником быть не может: справочник — тип со всеми потомками, и
+    /// записи номенклатуры вошли бы в организации тоже (ревью PR #1318).
+    /// </summary>
+    [Fact]
+    public void Предок_носителя_другой_роли_в_справочники_не_предлагается()
+    {
+        var goods = Type("Ценность", """{"fields":[]}""");
+        var nomenclature = Type("Номенклатура", """{"tags":["role.nomenclature"],"fields":[]}""", goods.Id);
+        var free = Type("Контрагент", """{"fields":[]}""");
+
+        var view = ModuleCoverage.Of(Costs, Tags, [goods, nomenclature, free]);
+
+        var group = Assert.Single(view.Groups, g => g.Role == FunctionalTag.RoleOrganization);
+        Assert.Equal(["Контрагент"], group.Candidates.Select(c => c.Code));
+    }
+
+    /// <summary>
     /// Роль несут двое — это не «не назначено»: назначить третьего здесь нельзя, сначала снимают
     /// лишнее. Поэтому выбирать не из чего.
     /// </summary>
