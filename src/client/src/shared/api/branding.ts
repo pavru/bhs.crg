@@ -43,13 +43,21 @@ export function withIcons(raw: Branding): Branding {
     : { ...raw, icons: { state: 'standard', version: '', problem: null, aspect: null } };
 }
 
-export function useBranding() {
+/**
+ * @param follow через сколько спросить снова по тому, что получено, — или `false`. Задаёт его ТОЛЬКО
+ *   экран настройки (см. `rebuildPoll`), и это не случайность: хук зовут шапка и страница входа, то
+ *   есть каждая открытая вкладка каждого пользователя. Опрос отсюда при вечном отказе построителя
+ *   (на сервере нет Typst) слал бы запрос в минуту с каждой вкладки без конца — а корзина запросов
+ *   оформления одна на адрес, и офис за одним адресом сам довёл бы себя до 429.
+ */
+export function useBranding(follow?: (branding: Branding | undefined) => number | false) {
   return useQuery<Branding>({
     queryKey: BRANDING_KEY,
     queryFn: () => apiClient.get('/branding').then(r => withIcons(r.data)),
     // Оформление меняют раз в жизни экземпляра, а спрашивают на каждом экране: без длинного
     // «свежего» окна имя мигало бы умолчанием при каждом переходе.
     staleTime: 10 * 60 * 1000,
+    refetchInterval: follow ? query => follow(query.state.data) : false,
   });
 }
 

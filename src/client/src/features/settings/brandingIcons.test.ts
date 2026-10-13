@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrandIcons } from '@/shared/api/branding';
-import { elongatedWarning, homeScreenNameHint, iconsFailure } from './brandingIcons';
+import { elongatedWarning, homeScreenNameHint, iconsFailure, rebuildPoll } from './brandingIcons';
 
 const built = (aspect: number | null): BrandIcons => ({ state: 'custom', version: 'v', problem: null, aspect });
 const failed = (problem: string | null): BrandIcons => ({ state: 'failed', version: 'std', problem, aspect: null });
@@ -56,13 +56,38 @@ describe('отказ построения значков', () => {
   ])('причина %s — свой совет', (problem, advice) => {
     const text = iconsFailure(failed(problem))!;
 
-    expect(text).toContain('Значки из логотипа не построены. Логотип сохранён и виден в шапке');
+    expect(text).toContain('Значки из логотипа не построены: на вкладке, в закладках и в приложении остаются стандартные значки.');
     expect(text).toContain(advice);
+  });
+
+  // Файл с верным расширением, который картинкой не является, сохранён — а в шапке вместо него
+  // общий значок; то же, когда файл не читается из хранилища. Виден ли логотип, плашка не знает и
+  // говорить об этом не вправе: это показывает рамка логотипа рядом.
+  it.each(['file', 'size', 'builder', 'timeout', null])('при причине %s о самом логотипе не утверждает ничего', problem => {
+    const text = iconsFailure(failed(problem))!;
+
+    expect(text).not.toContain('сохранён');
+    expect(text).not.toContain('шапке');
   });
 
   it('сбой сервера не отправляет чинить файл, а битый файл — грузить его снова', () => {
     expect(iconsFailure(failed('builder'))).not.toContain('PNG');
     expect(iconsFailure(failed('file'))).not.toContain('ещё раз');
+  });
+});
+
+describe('опрос оформления после отказа построения', () => {
+  // Эти отказы сервер повторяет сам, а ответ живёт в клиенте десять минут: без опроса плашка
+  // стояла бы, когда значки уже построены.
+  it.each(['builder', 'timeout'])('отказ «%s» проходит сам — секция спрашивает снова через минуту', problem => {
+    expect(rebuildPoll(failed(problem))).toBe(60_000);
+  });
+
+  // Битый файл и слишком большая картинка сами не меняются; а пока отказа нет или оформление не
+  // получено, спрашивать не о чем. Опрос здесь был бы запросом в минуту без конца.
+  it('в остальных случаях опроса нет', () => {
+    for (const icons of [failed('file'), failed('size'), failed(null), failed('что-то новое'), standard, built(1), undefined])
+      expect(rebuildPoll(icons)).toBe(false);
   });
 });
 

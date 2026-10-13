@@ -10,7 +10,7 @@ import {
   useBranding, useSaveProductName, useUploadLogo, useRemoveLogo, logoUrl,
   type BrandIcons, type Branding,
 } from '@/shared/api/branding';
-import { elongatedWarning, homeScreenNameHint, iconsFailure } from './brandingIcons';
+import { elongatedWarning, homeScreenNameHint, iconsFailure, rebuildPoll } from './brandingIcons';
 
 /** Тот же предел, что на сервере (BrandingDefaults.MaxProductNameLength). */
 const MAX_NAME = 64;
@@ -26,7 +26,9 @@ const MAX_NAME = 64;
  * показывает, что из логотипа вышло, — и говорит словами, когда не вышло.
  */
 export function BrandingSection() {
-  const { data } = useBranding();
+  // Пока отказ построения из тех, что сервер повторяет сам, секция спрашивает оформление снова —
+  // иначе плашка «не построены» пережила бы сам отказ (см. `rebuildPoll`).
+  const { data, isError, refetch } = useBranding(b => rebuildPoll(b?.icons));
   // Пока настройка НЕ ПОЛУЧЕНА, сохранять нечего: поле пусто не потому, что название сняли, а
   // потому, что его ещё не знают, — и «Сохранить» отправило бы пустоту, стерев заданное (ревью
   // PR #1061). Та же мысль, что у знака в шапке: «ещё не знаем» — не «пусто».
@@ -80,6 +82,17 @@ export function BrandingSection() {
         установленного приложения; логотип — ещё и сам значок: на вкладке, в закладках и на экране
         телефона. Пока они не заданы, система называет себя общим именем и показывает свой значок.
       </p>
+
+      {/* Настройка не получена и уже не придёт сама — это не «ещё грузится»: без слов секция стояла
+          бы с пустым полем, запертой «Сохранить» и без строки логотипа, то есть отказом, одетым в
+          загрузку (проверка перед PR). Только пока показать нечего: упавший перезапрос уже
+          показанную настройку не закрывает. */}
+      {isError && !data && (
+        <div className="flex items-center gap-3" data-testid="branding-load-failed">
+          <span className="text-sm text-danger">Название и логотип не загрузились.</span>
+          <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
+        </div>
+      )}
 
       <div>
         <TextField
@@ -156,12 +169,25 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   data: Branding; uploading: boolean; removing: boolean; onUpload: () => void; onRemove: () => void;
 }) {
   const logo = logoUrl(data);
+  // Файл логотипа сохранён, а браузер его не показывает — не изображение под верным расширением
+  // либо не читается из хранилища. Говорим словом, а не битой рамкой с alt-текстом: шапка в этом
+  // случае молча рисует общий значок (`BrandLogo`), и узнать, что логотипа на экране нет, больше
+  // неоткуда. Отказ помнится по адресу: заменённый логотип не остаётся «нечитаемым».
+  const [unread, setUnread] = useState<string | null>(null);
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
       <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
-        {logo
-          ? <img src={logo} alt="Логотип компании" className="max-w-full max-h-full object-contain" />
-          : <span className="text-[11px] text-fg4">нет</span>}
+        {!logo && <span className="text-[11px] text-fg4">нет</span>}
+        {logo && unread === logo && (
+          <span className="text-[11px] leading-tight text-center text-warning" data-testid="branding-logo-unread">
+            {/* Перенос задан явно: в одну строку слова встают в рамку впритык, от края до края. */}
+            не<br />читается
+          </span>
+        )}
+        {logo && unread !== logo && (
+          <img src={logo} alt="Логотип компании" className="max-w-full max-h-full object-contain"
+            onError={() => setUnread(logo)} />
+        )}
       </div>
 
       <Button variant="outlined" icon={<Upload size={14} />} onClick={onUpload} loading={uploading}>

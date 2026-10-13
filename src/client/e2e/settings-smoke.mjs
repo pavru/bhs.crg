@@ -300,7 +300,9 @@ await check('recognition-profile-detail-shows-fields', async () => {
 // правке остаётся настоящей — по ней превью и грузят картинки.
 await check('branding-says-what-came-of-the-logo', async () => {
   let change = body => body;
+  let broken = false;
   await page.route('**/api/branding', async route => {
+    if (broken) return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
     const response = await route.fetch();
     if (!response.ok()) return route.fulfill({ response });
     await route.fulfill({ response, json: change(await response.json()) });
@@ -311,13 +313,21 @@ await check('branding-says-what-came-of-the-logo', async () => {
   const elongated = page.getByTestId('brand-icons-elongated');
   const row = page.getByTestId('branding-logo-row');
 
-  /** Секция с оформлением, каким его назвал бы сервер после правки `patch`. */
-  async function shown(patch) {
-    change = patch;
+  const loadFailed = page.getByTestId('branding-load-failed');
+  const unread = page.getByTestId('branding-logo-unread');
+
+  /** Страница настроек с раскрытой секцией оформления. */
+  async function opened() {
     await page.goto(`${BASE}/settings`);
     await settled(page);
     const header = page.locator('button').filter({ hasText: 'Название и логотип' }).first();
     if ((await header.getAttribute('aria-expanded')) !== 'true') { await header.click(); await settled(page); }
+  }
+
+  /** Секция с оформлением, каким его назвал бы сервер после правки `patch`. */
+  async function shown(patch) {
+    change = patch;
+    await opened();
     await row.waitFor({ timeout: 8000 }).catch(() => { throw new Error('строка логотипа не появилась'); });
   }
 
@@ -344,15 +354,22 @@ await check('branding-says-what-came-of-the-logo', async () => {
     if (!warning.includes('Название тогда задайте выше')) throw new Error('при незаданном названии предупреждение не зовёт его задать');
     if (await failed.count()) throw new Error('плашка отказа стоит при построенных значках');
 
-    // 2) Значки не построены: вместо превью — слова, и совет по причине.
+    // 2) Значки не построены: вместо превью — слова, и совет по причине. Файл при этом сохранён, а
+    //    картинкой не является — браузер его тоже не показывает: об этом говорит рамка логотипа, а
+    //    плашка про сам логотип не утверждает ничего (раньше уверяла, что он виден в шапке).
+    await page.route('**/api/branding/logo*', route => route.fulfill({ status: 404, body: '' }));
     await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
       icons: { ...b.icons, state: 'failed', problem: 'file', aspect: null } }));
     if (await previews.count()) throw new Error('при отказе построения показаны превью — стандартные значки выданы за построенные');
     if (!(await failed.count())) throw new Error('значки не построены, а слов об этом под логотипом нет');
     const refusal = (await failed.innerText()).replace(/\s+/g, ' ');
-    for (const part of ['Значки из логотипа не построены.', 'Сохраните логотип в PNG и загрузите его.'])
+    for (const part of ['Значки из логотипа не построены:', 'Сохраните логотип в PNG и загрузите его.'])
       if (!refusal.includes(part)) throw new Error(`в плашке отказа нет «${part}»: «${refusal}»`);
+    if (/сохранён|шапке/.test(refusal)) throw new Error(`плашка отказа говорит о самом логотипе, хотя не знает, виден ли он: «${refusal}»`);
+    await unread.waitFor({ timeout: 8000 })
+      .catch(() => { throw new Error('файл логотипа браузер не показывает, а рамка логотипа об этом не говорит'); });
     if (await elongated.count()) throw new Error('предупреждение о вытянутом логотипе стоит при непостроенных значках');
+    await page.unroute('**/api/branding/logo*');
 
     // 3) Логотипа нет: ни превью, ни слов о значках — только «нет» и «Загрузить».
     await shown(b => ({ ...b, hasLogo: false, logoVersion: null,
@@ -362,6 +379,32 @@ await check('branding-says-what-came-of-the-logo', async () => {
     if (!(await row.innerText()).includes('нет') || !(await row.getByRole('button', { name: 'Загрузить' }).count()))
       throw new Error(`без логотипа в строке: «${(await row.innerText()).replace(/\s+/g, ' ')}»`);
     if (await row.getByRole('button', { name: 'Убрать' }).count()) throw new Error('без логотипа предлагается его убрать');
+
+    // 4) Оформление не загрузилось: секция говорит об этом и даёт повторить. Без слов она стояла бы
+    //    с пустым полем и без строки логотипа — отказ, одетый в загрузку.
+    broken = true;
+    await opened();
+    await loadFailed.waitFor({ timeout: 15000 })
+      .catch(() => { throw new Error('оформление не загрузилось, а секция об этом молчит'); });
+    if (await row.count()) throw new Error('оформление не получено, а строка логотипа стоит — «не знаем» выдано за «логотипа нет»');
+    broken = false;
+    await loadFailed.getByRole('button', { name: 'Повторить' }).click();
+    await row.waitFor({ timeout: 8000 }).catch(() => { throw new Error('после «Повторить» строка логотипа не появилась'); });
+    if (await loadFailed.count()) throw new Error('оформление получено, а слова об отказе остались');
+
+    // 5) Сбой построителя сервер повторяет сам — и секция спрашивает оформление снова: плашка
+    //    уходит без перезагрузки страницы. Минуту не ждём: часы страницы подменены и переведены.
+    //    Шаг последний, после него страница не нужна — подменённые часы никому не мешают.
+    await page.clock.install();
+    await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
+      icons: { ...b.icons, state: 'failed', problem: 'builder', aspect: null } }));
+    if (!(await failed.count())) throw new Error('при сбое построителя плашки отказа нет');
+    change = b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
+      icons: { ...b.icons, state: 'custom', problem: null, aspect: 1 } });
+    await page.clock.fastForward(61_000);
+    await previews.waitFor({ timeout: 8000 })
+      .catch(() => { throw new Error('значки достроены, а минуту спустя секция их не показывает — оформление не переспрошено'); });
+    if (await failed.count()) throw new Error('значки достроены, а плашка «не построены» осталась');
   } finally {
     await page.unrouteAll({ behavior: 'wait' });
   }
