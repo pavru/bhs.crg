@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using BHS.CRG.Application.Branding;
 using SkiaSharp;
 
@@ -6,8 +7,14 @@ namespace BHS.CRG.Infrastructure.Branding;
 /// <param name="Icons">Готовые PNG — по одному на каждый <see cref="BrandIconKind" />.</param>
 /// <param name="Aspect">Ширина к высоте видимой части логотипа — того, что вписано в значок.</param>
 /// <param name="Tile">Цвет плитки, на которой стоит логотип.</param>
+/// <param name="Stamp">
+/// Отпечаток набора — по содержимому всех значков. Идёт в метку версии и в тег ответа: значок —
+/// функция не только от логотипа, но и от правил ниже и от Typst. Без отпечатка обновление
+/// приложения, изменившее поля или правило плитки, давало бы другие картинки под прежней меткой —
+/// и браузер, переспросив с прежним тегом, получал бы 304 и держал старый значок бессрочно.
+/// </param>
 public sealed record BrandIconSet(
-    IReadOnlyDictionary<BrandIconKind, byte[]> Icons, double Aspect, SKColor Tile);
+    IReadOnlyDictionary<BrandIconKind, byte[]> Icons, double Aspect, SKColor Tile, string Stamp);
 
 /// <summary>
 /// Значки из логотипа (issue #1315): логотип целиком, без обрезки, по центру плитки.
@@ -71,6 +78,15 @@ public static class BrandIconComposer
     /// <summary>Допуск «одного цвета» на канал — под сжатие JPEG.</summary>
     private const int SameColor = 8;
 
+    /// <summary>С какой непрозрачности точка считается залитой — частью сплошного фона.</summary>
+    private const byte Opaque = 250;
+
+    /// <summary>
+    /// С какой доли залитых точек прямоугольник логотипа считается залитым целиком — своим фоном.
+    /// Не единица: у плашки со слегка скруглёнными углами теряются доли процента площади.
+    /// </summary>
+    private const double FilledFrom = 0.99;
+
     /// <summary>
     /// С какой средней яркости логотип считается светлым. Порог сдвинут к белому нарочно: выбор по
     /// наибольшему контрасту увёл бы на тёмную плитку и бирюзу, и оранжевый. При 0,5 туда уходят
@@ -104,7 +120,14 @@ public static class BrandIconComposer
         using var logo = SKImage.FromBitmap(trimmed);
 
         var icons = Specs.ToDictionary(spec => spec.Kind, spec => Draw(spec, logo, tile));
-        return new BrandIconSet(icons, box.Width / (double)box.Height, tile);
+        return new BrandIconSet(icons, box.Width / (double)box.Height, tile, StampOf(icons));
+    }
+
+    private static string StampOf(IReadOnlyDictionary<BrandIconKind, byte[]> icons)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var kind in Enum.GetValues<BrandIconKind>()) hash.AppendData(icons[kind]);
+        return Convert.ToHexStringLower(hash.GetHashAndReset())[..8];
     }
 
     /// <summary>Прямоугольник видимых точек; <c>null</c> — видимых нет.</summary>
@@ -130,9 +153,9 @@ public static class BrandIconComposer
     /// <summary>
     /// Цвет плитки — из самого логотипа:
     /// <list type="number">
-    /// <item>у логотипа свой фон (четыре угла непрозрачны и одного цвета) — плитка его продолжает.
-    /// Иначе JPEG с цветной заливкой встал бы на белом квадрате «флагом», а в круглой маске —
-    /// полосой через круг. Почти белый фон становится чисто белым;</item>
+    /// <item>у логотипа свой фон (прямоугольник залит целиком, а четыре его угла одного цвета) —
+    /// плитка его продолжает. Иначе JPEG с цветной заливкой встал бы на белом квадрате «флагом», а
+    /// в круглой маске — полосой через круг. Почти белый фон становится чисто белым;</item>
     /// <item>логотип светлый — плитка тёмная. Белый логотип на белой плитке — пустой квадрат при
     /// «успешном» построении, то есть отказ, переодетый в результат;</item>
     /// <item>иначе — белая.</item>
@@ -142,11 +165,33 @@ public static class BrandIconComposer
         OwnBackground(pixels, stride, box)
         ?? (MeanLuminance(pixels, stride, box) >= LightFrom ? DarkTile : LightTile);
 
+    /// <summary>
+    /// Цвет собственного фона логотипа; <c>null</c> — фона у него нет.
+    ///
+    /// <para>⚠️ Признак фона — ЗАЛИТЫЙ прямоугольник, а не четыре занятых угла; углы дают только
+    /// цвет. У надписи с прямоугольными крайними буквами («НИИ», «HILTI»), у рамки и у плашки с
+    /// буквами-вырезами углы тоже непрозрачны и одного цвета, а фона нет: плитка взяла бы цвет
+    /// самого знака, и значок вышел бы сплошным одноцветным квадратом при «успешном» построении
+    /// (проверка перед PR). Такие логотипы уходят в правила яркости — тёмный на белую плитку,
+    /// светлый на тёмную.</para>
+    /// </summary>
     private static SKColor? OwnBackground(ReadOnlySpan<byte> pixels, int stride, SKRectI box)
     {
-        // Углы берём с отступом: крайний ряд при растрировании бывает полупрозрачным.
+        // С отступом от края: крайний ряд при растрировании бывает полупрозрачным — он съел бы
+        // порог залитости у узкой плашки, а угол в нём читался бы не тем цветом.
         var inset = Math.Max(2, Math.Min(box.Width, box.Height) / 100);
         if (box.Width <= inset * 2 || box.Height <= inset * 2) inset = 0;
+
+        int width = box.Width - inset * 2, height = box.Height - inset * 2;
+        long filled = 0;
+        for (var y = box.Top + inset; y < box.Bottom - inset; y++)
+        {
+            var row = pixels.Slice(y * stride + (box.Left + inset) * 4, width * 4);
+            for (var x = 0; x < width; x++)
+                if (row[x * 4 + 3] >= Opaque) filled++;
+        }
+
+        if (filled < (long)width * height * FilledFrom) return null;
 
         Span<int> xs = [box.Left + inset, box.Right - 1 - inset];
         Span<int> ys = [box.Top + inset, box.Bottom - 1 - inset];
@@ -157,7 +202,7 @@ public static class BrandIconComposer
         foreach (var x in xs)
         {
             var p = pixels.Slice(y * stride + x * 4, 4);
-            if (p[3] < 250) return null;
+            if (p[3] < Opaque) return null;
             for (var c = 0; c < 3; c++) { corners[n * 3 + c] = p[c]; sum[c] += p[c]; }
             n++;
         }

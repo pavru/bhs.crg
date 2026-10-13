@@ -2,6 +2,7 @@ using BHS.CRG.Application.Branding;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Templates;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -56,9 +57,15 @@ public class BrandingService(
         if (logo is null || (await IconsOfAsync(logo, ct))?.Set is not { } set)
             return StandardBrandIcons.Get(kind);
 
-        var version = Version(logo);
+        var version = IconsVersion(logo, set);
         return new BrandIcon(set.Icons[kind], "image/png", $"\"{version}-{BrandIconKinds.Route(kind)}\"", version);
     }
+
+    /// <summary>
+    /// Метка версии построенных значков: логотип И отпечаток самих значков. Одной метки логотипа
+    /// мало — см. <see cref="BrandIconSet" />: картинки меняются и без смены логотипа.
+    /// </summary>
+    private static string IconsVersion(TemplateAsset logo, BrandIconSet set) => $"{Version(logo)}-{set.Stamp}";
 
     /// <summary>
     /// Значки действующего логотипа; <c>null</c> — логотипа нет. Построены ли они уже, решает
@@ -76,10 +83,12 @@ public class BrandingService(
 
     private static BrandIconsInfo IconsInfo(TemplateAsset? logo, BrandIconBuild? build)
     {
-        if (logo is null || build is null) return BrandIconsInfo.Standard;
+        if (logo is null || build is null)
+            return new(BrandIconsState.Standard, StandardBrandIcons.Version, null, null);
         return build.Set is { } set
-            ? new(BrandIconsState.Custom, Version(logo), null, Math.Round(set.Aspect, 3))
-            : BrandIconsInfo.Failed(build.Problem ?? BrandIconProblem.Builder);
+            ? new(BrandIconsState.Custom, IconsVersion(logo, set), null, Math.Round(set.Aspect, 3))
+            // Метка — стандартная: отдаются стандартные картинки.
+            : new(BrandIconsState.Failed, StandardBrandIcons.Version, build.Problem ?? BrandIconProblem.Builder, null);
     }
 
     public Task SetProductNameAsync(string? name, CancellationToken ct = default) =>
@@ -105,7 +114,9 @@ public class BrandingService(
             await stream.CopyToAsync(ms, ct);
             content = ms.ToArray();
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // Отмену сверяем с токеном вызывающего: «человек ушёл» — отмена, а истёкший срок самого
+        // хранилища — такой же отказ чтения, как любой другой, и отвечать на него надо так же.
+        catch (Exception ex) when (!HttpFailure.IsUserCancellation(ex, ct))
         {
             // Строка ассета есть, файла нет: хранилище недоступно или файл убрали мимо системы.
             // Отвечаем «логотипа нет», а не отказом: логотип стоит на СТРАНИЦЕ ВХОДА, и уронить

@@ -8,8 +8,9 @@ namespace BHS.CRG.Tests.Branding;
 ///
 /// <para>Образец — тело знака и четыре красные метки, по одной у середины каждой стороны, вплотную
 /// к краю. По меткам и видно, обрезан ли логотип: их общий прямоугольник в значке обязан совпасть с
-/// местом, куда логотип вписан. Сплошной рамкой метки не сделаны нарочно: рамка заняла бы углы, а
-/// одноцветные непрозрачные углы — это «у логотипа свой фон», другое правило плитки.</para>
+/// местом, куда логотип вписан. Сплошной рамкой метки не сделаны нарочно: образец обязан оставаться
+/// знаком на прозрачном холсте с пустыми углами. Знаки с ЗАНЯТЫМИ углами — отдельные образцы,
+/// <see cref="Shape" />: на них держится правило «свой фон — это залитый прямоугольник».</para>
 /// </summary>
 public static class BrandIconSamples
 {
@@ -43,6 +44,41 @@ public static class BrandIconSamples
         using var data = image.Encode(format, 95);
         return data.ToArray();
     }
+
+    /// <summary>
+    /// Знак на прозрачном холсте 600×600, занимающий все четыре угла своего прямоугольника: части
+    /// заданы в долях стороны как (x, y, ширина, высота). <paramref name="holes" /> — вырезы:
+    /// прозрачные окна в уже нарисованном; <paramref name="more" /> — части другого цвета.
+    /// </summary>
+    public static byte[] Shape(SKColor color, (float X, float Y, float W, float H)[] parts,
+        (float X, float Y, float W, float H)[]? holes = null,
+        (SKColor Color, (float X, float Y, float W, float H) Part)[]? more = null)
+    {
+        const int side = 600;
+        using var bitmap = new SKBitmap(new SKImageInfo(side, side, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+
+        using var paint = new SKPaint { Color = color, IsAntialias = false };
+        foreach (var (x, y, w, h) in parts) canvas.DrawRect(SKRect.Create(x * side, y * side, w * side, h * side), paint);
+        foreach (var (other, (x, y, w, h)) in more ?? [])
+        {
+            paint.Color = other;
+            canvas.DrawRect(SKRect.Create(x * side, y * side, w * side, h * side), paint);
+        }
+
+        paint.BlendMode = SKBlendMode.Clear;
+        foreach (var (x, y, w, h) in holes ?? []) canvas.DrawRect(SKRect.Create(x * side, y * side, w * side, h * side), paint);
+        canvas.Flush();
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 95);
+        return data.ToArray();
+    }
+
+    /// <summary>Буква «Н» во весь холст: две стойки и перекладина — углы заняты, середина пуста.</summary>
+    public static byte[] LetterH(SKColor color) =>
+        Shape(color, [(0f, 0f, 0.25f, 1f), (0.75f, 0f, 0.25f, 1f), (0.25f, 0.4f, 0.5f, 0.2f)]);
 
     /// <summary>Тот же образец в SVG: только <c>viewBox</c>, без размеров — как отдают редакторы.</summary>
     public static byte[] Svg(int width, int height)

@@ -71,15 +71,22 @@ public static class BrandIconProblem
     /// <summary>Картинка слишком велика в точках — разворачивать её в памяти не берёмся.</summary>
     public const string Size = "size";
 
-    /// <summary>Сбой на сервере, а не файл: построитель недоступен, не уложился в срок, хранилище.</summary>
+    /// <summary>Сбой на сервере, а не файл: построитель недоступен, хранилище не отвечает.</summary>
     public const string Builder = "builder";
+
+    /// <summary>
+    /// Построитель не уложился в срок. Отдельно от <see cref="Builder" />: виноват может быть и
+    /// файл (тяжёлый SVG), и занятый сервер — по одному отказу это не различить, и совет «причина
+    /// на сервере, а не в файле» был бы здесь неправдой. Повторяется сам, с растущей паузой.
+    /// </summary>
+    public const string Timeout = "timeout";
 }
 
 /// <param name="State">Одно из <see cref="BrandIconsState" />.</param>
 /// <param name="Version">
-/// Метка версии значков — адресу как <c>?v=</c>. У построенных это метка логотипа; у стандартных —
-/// <see cref="StandardVersion" />. При отказе построения — тоже стандартная: отдаются стандартные
-/// картинки, и открытой вкладке менять ссылку незачем.
+/// Метка версии значков — адресу как <c>?v=</c>; для клиента это непрозрачная строка. У построенных
+/// в ней логотип и отпечаток самих значков, у стандартных — отпечаток стандартных картинок. При
+/// отказе построения — тоже стандартная: отдаются стандартные картинки.
 /// </param>
 /// <param name="Problem">Одно из <see cref="BrandIconProblem" />; <c>null</c>, пока отказа нет.</param>
 /// <param name="Aspect">
@@ -87,15 +94,7 @@ public static class BrandIconProblem
 /// <c>null</c>, пока значки не построены. Считает сервер: у SVG без размеров клиент пропорций не
 /// узнает, а предупреждение «логотип вытянутый» обязано говорить о том же, что вписано.
 /// </param>
-public record BrandIconsInfo(string State, string Version, string? Problem, double? Aspect)
-{
-    public const string StandardVersion = "std";
-
-    public static readonly BrandIconsInfo Standard = new(BrandIconsState.Standard, StandardVersion, null, null);
-
-    public static BrandIconsInfo Failed(string problem) =>
-        new(BrandIconsState.Failed, StandardVersion, problem, null);
-}
+public record BrandIconsInfo(string State, string Version, string? Problem, double? Aspect);
 
 /// <param name="ETag">Сильный тег — по нему браузер переспрашивает одним 304.</param>
 /// <param name="Version">Метка версии: запрос с такой же <c>?v=</c> получает длинный кеш.</param>

@@ -14,6 +14,19 @@ export interface Branding {
   hasLogo: boolean;
   /** Метка версии файла — едет в адрес картинки, иначе заменённый логотип останется старым. */
   logoVersion: string | null;
+  icons: BrandIcons;
+}
+
+/** Значки вкладки и приложения (issue #1315): чьи они сейчас — и почему, если не из логотипа. */
+export interface BrandIcons {
+  /** `failed` — логотип есть, а значки из него не построены: отдаются стандартные. */
+  state: 'standard' | 'custom' | 'failed';
+  /** Метка версии значков — в адрес как `?v=`. Строка непрозрачная: разбирать её нельзя. */
+  version: string;
+  /** Почему не построены: `file`, `size`, `builder`, `timeout`; null, пока отказа нет. */
+  problem: string | null;
+  /** Ширина к высоте того, что вписано в значок; null, пока значки не построены. */
+  aspect: number | null;
 }
 
 export const BRANDING_KEY = ['branding'] as const;

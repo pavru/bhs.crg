@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Branding;
 using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Branding;
@@ -27,13 +28,39 @@ public sealed record BrandIconBuild(BrandIconSet? Set, string? Problem);
 public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIconStore> logger)
 {
     /// <summary>
-    /// Через сколько повторять построение после сбоя сервера. Отказ из-за самого файла не
-    /// повторяется вовсе — тот же файл даст тот же отказ; повторит его новая загрузка (новый ключ).
-    /// А сбой сервера проходит сам, и без повтора значки остались бы стандартными до перезапуска.
+    /// Через сколько повторять построение после отказа, который проходит сам: сбой сервера или
+    /// истёкший срок. Отказ из-за самого файла не повторяется вовсе — тот же файл даст тот же
+    /// отказ; повторит его новая загрузка (новый ключ). А сбой сервера проходит сам, и без повтора
+    /// значки остались бы стандартными до перезапуска.
+    ///
+    /// <para>Пауза РАСТЁТ: каждый следующий отказ подряд удваивает её, до
+    /// <see cref="RetryCeiling" />. Повтор не бесплатен — пока он идёт, за ним стоят все, кому
+    /// нужно оформление (см. <see cref="BuildDeadline" />). С постоянной минутой логотип, на
+    /// котором Typst не укладывается в срок, или молчащее хранилище задерживали бы название в шапке
+    /// на десять секунд каждую минуту — бессрочно (проверка перед PR).</para>
     /// </summary>
     public TimeSpan RetryAfterFailure { get; init; } = TimeSpan.FromMinutes(1);
 
-    private sealed record Slot(string Key, BrandIconBuild Build, long RetryAt);
+    /// <summary>Предел растущей паузы между повторами.</summary>
+    public TimeSpan RetryCeiling { get; init; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Срок на всё построение — чтение логотипа из хранилища и растеризацию.
+    ///
+    /// <para>⚠️ Построения ждёт <c>GET /api/branding</c> — название в шапке каждого экрана и на
+    /// странице входа; до значков этот адрес делал два чтения базы и ни от хранилища, ни от Typst
+    /// не зависел. У чтения из хранилища своего срока нет (у клиента — полчаса): хранилище,
+    /// которое приняло соединение и молчит, держало бы за общим замком всех, а оборванный запрос не
+    /// запоминался бы — следующий в очереди повторял бы то же. Истёкший срок — сбой построителя: он
+    /// запоминается, и очередь получает готовый ответ.</para>
+    /// </summary>
+    public TimeSpan BuildDeadline { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Часы, в миллисекундах; свои — у тестов растущей паузы.</summary>
+    public Func<long> Clock { get; init; } = () => Environment.TickCount64;
+
+    /// <param name="Failures">Сколько отказов подряд дал этот логотип — по ним растёт пауза.</param>
+    private sealed record Slot(string Key, BrandIconBuild Build, long RetryAt, int Failures);
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private volatile Slot? slot;
@@ -51,10 +78,7 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
             if (Fresh(key) is { } built) return built;
 
             var build = await BuildAsync(readLogo, ct);
-            var retryAt = build.Problem == BrandIconProblem.Builder
-                ? Environment.TickCount64 + (long)RetryAfterFailure.TotalMilliseconds
-                : long.MaxValue;
-            slot = new Slot(key, build, retryAt);
+            slot = Remembered(key, build);
             return build;
         }
         finally
@@ -64,10 +88,24 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
     }
 
     private BrandIconBuild? Fresh(string key) =>
-        slot is { } s && s.Key == key && Environment.TickCount64 < s.RetryAt ? s.Build : null;
+        slot is { } s && s.Key == key && Clock() < s.RetryAt ? s.Build : null;
 
-    private async Task<BrandIconBuild> BuildAsync(Func<CancellationToken, Task<byte[]?>> readLogo, CancellationToken ct)
+    private Slot Remembered(string key, BrandIconBuild build)
     {
+        if (build.Problem is not (BrandIconProblem.Builder or BrandIconProblem.Timeout))
+            return new Slot(key, build, long.MaxValue, 0);
+
+        var failures = slot is { } s && s.Key == key ? s.Failures + 1 : 1;
+        var pause = Math.Min(
+            RetryAfterFailure.TotalMilliseconds * Math.Pow(2, failures - 1), RetryCeiling.TotalMilliseconds);
+        return new Slot(key, build, Clock() + (long)pause, failures);
+    }
+
+    private async Task<BrandIconBuild> BuildAsync(Func<CancellationToken, Task<byte[]?>> readLogo, CancellationToken caller)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(caller);
+        deadline.CancelAfter(BuildDeadline);
+        var ct = deadline.Token;
         try
         {
             if (await readLogo(ct) is not { } logo) return new(null, BrandIconProblem.Builder);
@@ -91,11 +129,17 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
 
             return new(set, null);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // Отмену сверяем с токеном ВЫЗЫВАЮЩЕГО, а не со своим сроком. Ушёл человек — это отмена, и
+        // запоминать её нельзя: следующему значки нужны. Истёк срок — сбой построителя, и его
+        // запоминаем: иначе каждый следующий в очереди ждал бы тот же срок заново.
+        catch (Exception ex) when (!HttpFailure.IsUserCancellation(ex, caller))
         {
             // Значок стоит на странице входа: отказ построения не должен стать отказом страницы.
             // Наружу — состояние «не построены», причина — в журнал.
-            logger.LogWarning(ex, "Значки из логотипа не построены: сбой построителя");
+            if (ex is OperationCanceledException)
+                logger.LogWarning("Значки из логотипа не построены: не уложились в срок {Deadline}", BuildDeadline);
+            else
+                logger.LogWarning(ex, "Значки из логотипа не построены: сбой построителя");
             return new(null, BrandIconProblem.Builder);
         }
     }

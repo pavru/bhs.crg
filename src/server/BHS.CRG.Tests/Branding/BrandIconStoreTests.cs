@@ -25,6 +25,12 @@ public class BrandIconStoreTests
             ? new(rasterizer, NullLogger<BrandIconStore>.Instance) { RetryAfterFailure = r }
             : new(rasterizer, NullLogger<BrandIconStore>.Instance);
 
+    /// <summary>Часы, которые двигает тест: растущую паузу иначе пришлось бы ждать минутами.</summary>
+    private sealed class Hands
+    {
+        public long Now;
+    }
+
     [Fact]
     public async Task Один_логотип_строится_один_раз()
     {
@@ -97,6 +103,112 @@ public class BrandIconStoreTests
 
         Assert.Equal(BrandIconProblem.Builder, failed.Problem);
         Assert.NotNull(built.Set);
+        Assert.Equal(2, rasterizer.Calls);
+    }
+
+    /// <summary>
+    /// Повтор не бесплатен: пока он идёт, за ним стоят все, кому нужно оформление. Поэтому пауза
+    /// растёт — минута, две, четыре… до предела, — а с постоянной минутой логотип, на котором Typst
+    /// не укладывается в срок, задерживал бы название в шапке на десять секунд каждую минуту,
+    /// бессрочно.
+    /// </summary>
+    [Theory]
+    [InlineData(BrandIconProblem.Builder)]
+    [InlineData(BrandIconProblem.Timeout)]
+    public async Task Пауза_между_повторами_растёт_с_каждым_отказом_подряд(string problem)
+    {
+        var hands = new Hands();
+        var rasterizer = new Counting { Answer = new RasterizedLogo(null, problem) };
+        var store = new BrandIconStore(rasterizer, NullLogger<BrandIconStore>.Instance)
+        {
+            RetryAfterFailure = TimeSpan.FromMinutes(1), RetryCeiling = TimeSpan.FromMinutes(5),
+            Clock = () => hands.Now,
+        };
+
+        async Task<int> CallsAfter(TimeSpan passed)
+        {
+            hands.Now += (long)passed.TotalMilliseconds;
+            await store.EnsureAsync("logo:1", Bytes, default);
+            return rasterizer.Calls;
+        }
+
+        Assert.Equal(1, await CallsAfter(TimeSpan.Zero));
+        Assert.Equal(1, await CallsAfter(TimeSpan.FromSeconds(59)));    // минута не прошла
+        Assert.Equal(2, await CallsAfter(TimeSpan.FromSeconds(1)));     // первая пауза — минута
+        Assert.Equal(2, await CallsAfter(TimeSpan.FromSeconds(119)));   // вторая — уже две
+        Assert.Equal(3, await CallsAfter(TimeSpan.FromSeconds(1)));
+        Assert.Equal(3, await CallsAfter(TimeSpan.FromSeconds(239)));   // третья — четыре
+        Assert.Equal(4, await CallsAfter(TimeSpan.FromSeconds(1)));
+        Assert.Equal(4, await CallsAfter(TimeSpan.FromSeconds(299)));   // четвёртая упёрлась в предел: пять, а не восемь
+        Assert.Equal(5, await CallsAfter(TimeSpan.FromSeconds(1)));
+    }
+
+    /// <summary>Счёт отказов — у логотипа: новый логотип начинает с первой, короткой паузы.</summary>
+    [Fact]
+    public async Task Новый_логотип_начинает_паузу_заново()
+    {
+        var hands = new Hands();
+        var rasterizer = new Counting { Answer = new RasterizedLogo(null, BrandIconProblem.Builder) };
+        var store = new BrandIconStore(rasterizer, NullLogger<BrandIconStore>.Instance) { Clock = () => hands.Now };
+
+        await store.EnsureAsync("logo:1", Bytes, default);
+        hands.Now += 60_000;
+        await store.EnsureAsync("logo:1", Bytes, default);              // второй отказ: пауза уже две минуты
+        await store.EnsureAsync("logo:2", Bytes, default);              // другой логотип
+        hands.Now += 60_000;
+        await store.EnsureAsync("logo:2", Bytes, default);
+
+        Assert.Equal(4, rasterizer.Calls);
+    }
+
+    /// <summary>
+    /// Хранилище приняло соединение и молчит. Построения ждёт название в шапке каждого экрана —
+    /// срок обязан истечь, а отказ запомниться: иначе каждый следующий в очереди ждал бы столько же.
+    /// </summary>
+    [Fact]
+    public async Task Молчащее_хранилище_упирается_в_срок_и_запоминается_сбоем()
+    {
+        var reads = 0;
+        var rasterizer = new Counting();
+        var store = new BrandIconStore(rasterizer, NullLogger<BrandIconStore>.Instance)
+        {
+            BuildDeadline = TimeSpan.FromMilliseconds(100),
+        };
+
+        async Task<byte[]?> Silent(CancellationToken ct)
+        {
+            reads++;
+            await Task.Delay(Timeout.Infinite, ct);
+            return null;
+        }
+
+        var first = await store.EnsureAsync("logo:1", Silent, default);
+        var second = await store.EnsureAsync("logo:1", Silent, default);
+
+        Assert.Equal((null, BrandIconProblem.Builder), (first.Set, first.Problem));
+        Assert.Same(first, second);
+        Assert.Equal(1, reads);
+        Assert.Equal(0, rasterizer.Calls);
+    }
+
+    /// <summary>
+    /// Ушёл человек — это отмена, а не сбой: запомненная, она оставила бы без значков следующего,
+    /// у которого всё построилось бы.
+    /// </summary>
+    [Fact]
+    public async Task Отмена_вызывающего_не_запоминается()
+    {
+        var rasterizer = new Counting { Delay = TimeSpan.FromSeconds(30) };
+        var store = Store(rasterizer);
+        using var gone = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.EnsureAsync("logo:1", Bytes, gone.Token));
+
+        // Ячейка пуста: тот же логотип тут же строится заново — и строится.
+        rasterizer.Delay = TimeSpan.Zero;
+        var next = await store.EnsureAsync("logo:1", Bytes, default);
+
+        Assert.NotNull(next.Set);
         Assert.Equal(2, rasterizer.Calls);
     }
 
@@ -179,7 +291,7 @@ public class BrandIconStoreTests
         private int calls;
         public int Calls => calls;
         public RasterizedLogo? Answer { get; set; }
-        public TimeSpan Delay { get; init; }
+        public TimeSpan Delay { get; set; }
         public bool Throw { get; init; }
 
         public async Task<RasterizedLogo> RasterizeAsync(byte[] logo, CancellationToken ct)

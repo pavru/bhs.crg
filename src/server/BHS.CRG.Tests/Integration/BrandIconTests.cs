@@ -57,7 +57,13 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var icons = (await BrandingAsync(anonymous)).GetProperty("icons");
         Assert.Equal(BrandIconsState.Standard, icons.GetProperty("state").GetString());
-        Assert.Equal(BrandIconsInfo.StandardVersion, icons.GetProperty("version").GetString());
+        // Метка стандартных — по содержимому картинок, а не постоянное слово: сборка с новыми
+        // картинками обязана дать новый адрес, иначе длинный кеш неделю отдавал бы прежние.
+        var version = icons.GetProperty("version").GetString();
+        Assert.Equal(StandardBrandIcons.Version, version);
+        Assert.Matches("^std-[0-9a-f]{8}$", version);
+        Assert.Equal("public, max-age=604800",
+            (await anonymous.GetAsync($"/api/branding/icons/app-192?v={version}")).Headers.CacheControl?.ToString());
         // Значок вкладки без логотипа — SVG: он сам светлеет на тёмной вкладке.
         Assert.Equal("image/svg+xml", StandardBrandIcons.Get(BrandIconKind.Tab).MimeType);
     }
@@ -90,7 +96,10 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // Построены уже к ответу загрузки: администратор сразу видит, получились ли.
         var icons = uploaded.GetProperty("icons");
         Assert.Equal(BrandIconsState.Custom, icons.GetProperty("state").GetString());
-        Assert.Equal(uploaded.GetProperty("logoVersion").GetString(), icons.GetProperty("version").GetString());
+        // В метке — логотип и отпечаток самих значков: картинки меняются и без смены логотипа
+        // (обновление приложения с другими полями), и метка обязана это заметить.
+        var version = icons.GetProperty("version").GetString()!;
+        Assert.Matches($"^{uploaded.GetProperty("logoVersion").GetString()}-[0-9a-f]{{8}}$", version);
         Assert.Equal(4.0, icons.GetProperty("aspect").GetDouble(), 1);
 
         var anonymous = fixture.CreateClient();
@@ -101,12 +110,52 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
             Assert.Equal((side, side), Size(await response.Content.ReadAsByteArrayAsync()));
+            // Тег следует за меткой, а с ней — за содержимым значков.
+            Assert.Equal($"\"{version}-{route}\"", response.Headers.ETag?.Tag);
         }
 
         // Логотип не обрезан: метки у его краёв стоят там, куда он вписан, — 76 % стороны на четверть.
         var marks = Marks(await anonymous.GetByteArrayAsync("/api/branding/icons/app-512"));
         Assert.InRange(marks.Width, 383, 392);
         Assert.InRange(marks.Height, 92, 100);
+    }
+
+    /// <summary>
+    /// Высокий логотип — через настоящий Typst. Тесты сборщика получают растр готовым и страницу
+    /// растеризатора не видят: без вписывания по высоте она растянула бы логотип 200×600 на ширину
+    /// страницы и срезала бы его до средней трети — «успешно» и с неверными пропорциями.
+    /// </summary>
+    [Fact]
+    public async Task Высокий_логотип_вписан_по_высоте_и_не_обрезан()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+
+        var uploaded = await UploadedAsync(admin, "logo.png", Logo(200, 600));
+
+        Assert.Equal(0.333, uploaded.GetProperty("icons").GetProperty("aspect").GetDouble(), 2);
+        var marks = Marks(await fixture.CreateClient().GetByteArrayAsync("/api/branding/icons/app-512"));
+        Assert.InRange(marks.Height, 383, 392);
+        Assert.InRange(marks.Width, 124, 134);
+    }
+
+    /// <summary>
+    /// Свой фон логотипа — на растре, который отдал Typst, а не на исходных точках: правило требует
+    /// залитого прямоугольника и одноцветных углов, и пересчёт картинки мог бы нарушить оба. Фон
+    /// цветной нарочно: белый дал бы белую плитку и без этого правила.
+    /// </summary>
+    [Fact]
+    public async Task Цветной_фон_логотипа_плитка_продолжает_и_после_растеризации()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+        var fill = new SKColor(0x10, 0x9e, 0x92);
+
+        await UploadedAsync(admin, "logo.jpg", Logo(800, 200, SKEncodedImageFormat.Jpeg, background: fill, body: SKColors.White));
+
+        // Угол значка iPhone — плитка: логотип занимает середину. Допуск — на сжатие JPEG.
+        var corner = Pixel(await fixture.CreateClient().GetByteArrayAsync("/api/branding/icons/apple"), 4, 4);
+        Assert.InRange(corner.Red, fill.Red - 12, fill.Red + 12);
+        Assert.InRange(corner.Green, fill.Green - 12, fill.Green + 12);
+        Assert.InRange(corner.Blue, fill.Blue - 12, fill.Blue + 12);
     }
 
     [Fact]
@@ -124,13 +173,21 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
         again.Headers.IfNoneMatch.Add(tag!);
         Assert.Equal(HttpStatusCode.NotModified, (await anonymous.SendAsync(again)).StatusCode);
 
-        await UploadedAsync(admin, "logo.png", Logo(400, 400));
+        var replacedInfo = await UploadedAsync(admin, "logo.png", Logo(400, 400));
+        // Значки — от НОВОГО логотипа. Тег выводится из метки и о ячейке хранилища значков сам по
+        // себе не знает: прежний набор под новой меткой (ключ ячейки без версии) прошёл бы
+        // проверку тега зелёным. Прежний логотип — 4:1, новый — квадрат.
+        Assert.Equal(1.0, replacedInfo.GetProperty("icons").GetProperty("aspect").GetDouble(), 1);
 
         var replaced = new HttpRequestMessage(HttpMethod.Get, "/api/branding/icons/tab");
         replaced.Headers.IfNoneMatch.Add(tag!);
         var fresh = await anonymous.SendAsync(replaced);
         Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
         Assert.NotEqual(tag, fresh.Headers.ETag);
+
+        // И сами точки — нового: у квадратного логотипа метки занимают всю высоту вписанного.
+        var marks = Marks(await anonymous.GetByteArrayAsync("/api/branding/icons/app-512"));
+        Assert.InRange(marks.Height, 383, 392);
     }
 
     /// <summary>
@@ -163,10 +220,11 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var plain = await ManifestAsync(anonymous);
         Assert.Equal(BrandingDefaults.ProductName, plain.GetProperty("name").GetString());
         Assert.All(plain.GetProperty("icons").EnumerateArray(),
-            i => Assert.EndsWith("?v=" + BrandIconsInfo.StandardVersion, i.GetProperty("src").GetString()));
+            i => Assert.EndsWith("?v=" + StandardBrandIcons.Version, i.GetProperty("src").GetString()));
 
         (await admin.PutAsJsonAsync("/api/branding", new { productName = "Пример-Строй" })).EnsureSuccessStatusCode();
-        var version = (await UploadedAsync(admin, "logo.png", Logo(800, 200))).GetProperty("logoVersion").GetString();
+        var version = (await UploadedAsync(admin, "logo.png", Logo(800, 200)))
+            .GetProperty("icons").GetProperty("version").GetString();
 
         var response = await anonymous.GetAsync("/api/branding/manifest.webmanifest");
         Assert.Equal(BrandManifest.ContentType, response.Content.Headers.ContentType?.MediaType);
@@ -210,8 +268,8 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var icons = uploaded.GetProperty("icons");
         Assert.Equal(BrandIconsState.Failed, icons.GetProperty("state").GetString());
         Assert.Equal(BrandIconProblem.File, icons.GetProperty("problem").GetString());
-        // Метка — стандартная: отдаются стандартные картинки, и ссылку вкладке менять незачем.
-        Assert.Equal(BrandIconsInfo.StandardVersion, icons.GetProperty("version").GetString());
+        // Метка — стандартная: отдаются стандартные картинки.
+        Assert.Equal(StandardBrandIcons.Version, icons.GetProperty("version").GetString());
 
         var anonymous = fixture.CreateClient();
         Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync("/api/branding/logo")).StatusCode);
@@ -269,10 +327,20 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        var icon = await fixture.CreateClient().GetAsync("/api/branding/icons/apple");
+        var anonymous = fixture.CreateClient();
+        var icon = await anonymous.GetAsync("/api/branding/icons/apple");
+        var bytes = await icon.Content.ReadAsByteArrayAsync();
 
         Assert.Equal("image/png", icon.Content.Headers.ContentType?.MediaType);
-        Assert.Equal((180, 180), Size(await icon.Content.ReadAsByteArrayAsync()));
+        Assert.Equal((180, 180), Size(bytes));
+        // Стандартный значок iPhone — тоже PNG 180×180: без сверки с ним отказ построения (формат
+        // выбран по расширению, ассет не найден, Typst не запустился) оставлял бы тест зелёным.
+        Assert.NotEqual(StandardBrandIcons.Get(BrandIconKind.Apple).Content, bytes);
+        var icons = (await BrandingAsync(anonymous)).GetProperty("icons");
+        Assert.Equal(BrandIconsState.Custom, icons.GetProperty("state").GetString());
+        // Логотип здесь квадратный, в остальных тестах — 4:1: набор, оставшийся в ячейке от
+        // прошлого теста, эту проверку не пройдёт.
+        Assert.Equal(1.0, icons.GetProperty("aspect").GetDouble(), 1);
     }
 
     [Fact]

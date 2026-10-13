@@ -42,7 +42,7 @@ public sealed class TypstLogoRasterizer(ILogger<TypstLogoRasterizer> logger) : I
     public const int Side = 1024;
 
     /// <summary>Срок на запуск. Логотип растрируется за доли секунды; десять секунд — уже «не закончится».</summary>
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
 
     private const string LogoFile = "logo";
     private const string PageFile = "logo.typ";
@@ -87,11 +87,17 @@ public sealed class TypstLogoRasterizer(ILogger<TypstLogoRasterizer> logger) : I
             {
                 (exitCode, stderr) = await TypstProcess.RunAsync(psi, ct, Timeout);
             }
+            // Тексты обоих отказов написаны про шаблон печатной формы («бесконечный цикл в шаблоне»)
+            // — наружу их не отдаём, только в журнал.
+            catch (TypstTimeoutException ex)
+            {
+                // Своей причиной, а не «сбоем сервера»: в срок может не уложиться и сам файл.
+                logger.LogWarning(ex, "Значки из логотипа не построены: Typst не уложился в срок");
+                return new(null, BrandIconProblem.Timeout);
+            }
             catch (ConflictException ex)
             {
-                // Typst недоступен либо не уложился в срок. Тексты этих отказов написаны про шаблон
-                // печатной формы («бесконечный цикл в шаблоне») — наружу их не отдаём, только в журнал.
-                logger.LogWarning(ex, "Значки из логотипа не построены: Typst не запустился или не уложился в срок");
+                logger.LogWarning(ex, "Значки из логотипа не построены: Typst не запустился");
                 return new(null, BrandIconProblem.Builder);
             }
 

@@ -139,6 +139,84 @@ public class BrandIconComposerTests
         Assert.Equal(fill, Pixel(set.Icons[BrandIconKind.Maskable512], 3, 3));
     }
 
+    /// <summary>
+    /// Порог светлого — с обеих сторон и вплотную: серый чуть темнее порога остаётся на белой
+    /// плитке, чуть светлее — уходит на тёмную. Далёкие образцы (белый, бирюза) сдвига порога не
+    /// заметили бы, а сдвиг — это светло-серый логотип на белом, пустой квадрат.
+    /// </summary>
+    [Theory]
+    [InlineData(179, false)]   // яркость ≈ 0,45
+    [InlineData(196, true)]    // яркость ≈ 0,55
+    public void Порог_светлого_логотипа_стоит_на_половине_яркости(byte gray, bool dark)
+    {
+        var set = Compose(Logo(800, 200, body: new SKColor(gray, gray, gray)));
+
+        Assert.Equal(dark ? BrandIconComposer.DarkTile : BrandIconComposer.LightTile, set.Tile);
+    }
+
+    /// <summary>
+    /// Занятые углы — ещё не фон. У буквы «Н» все четыре угла непрозрачны и одного цвета, а середина
+    /// пуста: плитка цвета самого знака дала бы сплошной одноцветный квадрат при «успешном»
+    /// построении — отказ, переодетый в результат. Так выходило у одноцветной надписи с
+    /// прямоугольными крайними буквами («НИИ», «HILTI»). Такой знак идёт в правила яркости.
+    /// </summary>
+    [Fact]
+    public void Знак_с_занятыми_углами_не_принимается_за_свой_фон()
+    {
+        var dark = Compose(LetterH(Body));
+
+        Assert.Equal(BrandIconComposer.LightTile, dark.Tile);
+        // И знак на плитке ВИДЕН. Он вписан в 389 точек по центру значка 512 (от 61 до 451): в
+        // стойке буквы — её цвет, в просвете над перекладиной — плитка.
+        Assert.Equal(Body, Pixel(dark.Icons[BrandIconKind.App512], 100, 140));
+        Assert.Equal(BrandIconComposer.LightTile, Pixel(dark.Icons[BrandIconKind.App512], 256, 140));
+
+        // Белая «Н» — на тёмную плитку: без этого шага она попала бы на «почти белый фон», то есть
+        // на белую.
+        Assert.Equal(BrandIconComposer.DarkTile, Compose(LetterH(SKColors.White)).Tile);
+    }
+
+    public static TheoryData<string, byte[]> ЗнакиБезФона => new()
+    {
+        // Рамка с прозрачной серединой и знаком того же цвета внутри.
+        { "рамка", Shape(Body, [(0f, 0f, 1f, 0.1f), (0f, 0.9f, 1f, 0.1f), (0f, 0f, 0.1f, 1f), (0.9f, 0f, 0.1f, 1f), (0.4f, 0.4f, 0.2f, 0.2f)]) },
+        // Плашка с буквой-вырезом: залита почти вся, но вырез — и есть знак.
+        { "плашка с вырезом", Shape(Body, [(0f, 0f, 1f, 1f)], holes: [(0.3f, 0.3f, 0.4f, 0.4f)]) },
+    };
+
+    [Theory]
+    [MemberData(nameof(ЗнакиБезФона))]
+    public void Рамка_и_плашка_с_вырезом_не_дают_плитку_своего_цвета(string what, byte[] logo)
+    {
+        var set = Compose(logo);
+
+        Assert.True(BrandIconComposer.LightTile == set.Tile, $"{what}: плитка {set.Tile} — цвета самого знака");
+    }
+
+    /// <summary>
+    /// Залитый прямоугольник с РАЗНЫМИ углами — тоже не «свой фон»: продолжать нечего, цвета два.
+    /// Плитка «среднего по углам» цвета не совпала бы ни с одним краем логотипа.
+    /// </summary>
+    [Fact]
+    public void Залитый_логотип_с_разными_углами_не_даёт_плитку_среднего_цвета()
+    {
+        var twoTone = Shape(Body, [(0f, 0f, 0.5f, 1f)], more: [(new SKColor(120, 20, 20), (0.5f, 0f, 0.5f, 1f))]);
+
+        Assert.Equal(BrandIconComposer.LightTile, Compose(twoTone).Tile);
+    }
+
+    /// <summary>
+    /// Отпечаток набора следует за содержимым значков: он идёт в метку версии и в тег ответа, и по
+    /// нему браузер узнаёт, что картинка другая, даже когда логотип тот же.
+    /// </summary>
+    [Fact]
+    public void Отпечаток_набора_один_у_одинаковых_значков_и_разный_у_разных()
+    {
+        Assert.Equal(Compose(Logo(800, 200)).Stamp, Compose(Logo(800, 200)).Stamp);
+        Assert.NotEqual(Compose(Logo(800, 200)).Stamp, Compose(Logo(800, 200, body: SKColors.White)).Stamp);
+        Assert.Matches("^[0-9a-f]{8}$", Compose(Logo(800, 200)).Stamp);
+    }
+
     /// <summary>Почти белый фон (сжатие JPEG) — чисто белая плитка, а не «почти».</summary>
     [Fact]
     public void Почти_белый_фон_даёт_чисто_белую_плитку()
