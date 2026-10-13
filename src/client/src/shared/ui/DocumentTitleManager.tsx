@@ -49,5 +49,13 @@ export function DocumentTitleManager({ children }: { children: ReactNode }) {
     document.title = documentTitle(base, productName);
   }, [location.pathname, detail, productName]);
 
+  // Название под значком на экране «Домой» iPhone (issue #1315). Без этого тега iOS предлагает
+  // заголовок вкладки — «раздел и название»; с ним — само название продукта. Тег лежит в index.html
+  // с общим именем; здесь он получает название экземпляра, как только оно известно.
+  useEffect(() => {
+    if (!productName) return;
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', productName);
+  }, [productName]);
+
   return <DetailCtx.Provider value={setDetail}>{children}</DetailCtx.Provider>;
 }

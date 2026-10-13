@@ -31,10 +31,22 @@ export interface BrandIcons {
 
 export const BRANDING_KEY = ['branding'] as const;
 
+/**
+ * Ответ сервера — с полем `icons` в любом случае. Пока идёт обновление, клиент новой версии может
+ * получить ответ от сервера прежней, где этого поля ещё нет; значки не повод ронять ни шапку, ни
+ * экран настройки. Подставляется «стандартные, метки нет»: ссылку значка без метки никто не тронет,
+ * превью и предупреждений не будет.
+ */
+export function withIcons(raw: Branding): Branding {
+  return (raw as Partial<Branding>).icons
+    ? raw
+    : { ...raw, icons: { state: 'standard', version: '', problem: null, aspect: null } };
+}
+
 export function useBranding() {
   return useQuery<Branding>({
     queryKey: BRANDING_KEY,
-    queryFn: () => apiClient.get('/branding').then(r => r.data),
+    queryFn: () => apiClient.get('/branding').then(r => withIcons(r.data)),
     // Оформление меняют раз в жизни экземпляра, а спрашивают на каждом экране: без длинного
     // «свежего» окна имя мигало бы умолчанием при каждом переходе.
     staleTime: 10 * 60 * 1000,
@@ -51,7 +63,7 @@ export function useSaveProductName() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (productName: string | null) =>
-      apiClient.put('/branding', { productName }).then(r => r.data as Branding),
+      apiClient.put('/branding', { productName }).then(r => withIcons(r.data)),
     onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
   });
 }
@@ -62,7 +74,7 @@ export function useUploadLogo() {
     mutationFn: (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      return apiClient.post('/branding/logo', form).then(r => r.data as Branding);
+      return apiClient.post('/branding/logo', form).then(r => withIcons(r.data));
     },
     onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
   });
@@ -71,7 +83,7 @@ export function useUploadLogo() {
 export function useRemoveLogo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.delete('/branding/logo').then(r => r.data as Branding),
+    mutationFn: () => apiClient.delete('/branding/logo').then(r => withIcons(r.data)),
     onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
   });
 }

@@ -13,6 +13,12 @@
   --f-bg3: #eef0f4;   /* input, subtle       (surface-container)       */
   --f-bg4: #e9e7ee;   /* selected, hover-deep(surface-container-high)  */
 
+  /* Половины превью значка вкладки в настройке оформления (issue #1315). С темой НЕ переключаются
+     и в тёмной теме не переопределяются: вкладка браузера теме приложения не следует, и показать
+     значок надо на обеих. Значения — фон страницы светлой и тёмной темы (--f-bg2). */
+  --f-tab-light: #f4f2f7;
+  --f-tab-dark: #191c20;
+
   /* Foregrounds → MD3 on-surface / on-surface-variant / outline */
   --f-fg1: #1a1c1e;   /* primary text        (on-surface)              */
   --f-fg2: #44474e;   /* secondary / labels  (on-surface-variant)      */

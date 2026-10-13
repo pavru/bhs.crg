@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
-import { Upload, Trash2 } from 'lucide-react';
+import { AlertTriangle, Upload, Trash2 } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { brandIconUrl } from '@/shared/ui/brandIcons';
 import {
   useBranding, useSaveProductName, useUploadLogo, useRemoveLogo, logoUrl,
+  type BrandIcons, type Branding,
 } from '@/shared/api/branding';
+import { elongatedWarning, homeScreenNameHint, iconsFailure } from './brandingIcons';
 
 /** Тот же предел, что на сервере (BrandingDefaults.MaxProductNameLength). */
 const MAX_NAME = 64;
@@ -18,6 +21,9 @@ const MAX_NAME = 64;
  * Своя секция, а не поле в «Интеграциях»: там внешние службы, а здесь — как система называется и
  * выглядит на ЭТОМ экземпляре. Видно результат сразу: шапка и заголовок вкладки читают ту же
  * настройку, что правится здесь.
+ *
+ * Логотип — ещё и значок вкладки и приложения (issue #1315): значки строит сервер, а секция
+ * показывает, что из логотипа вышло, — и говорит словами, когда не вышло.
  */
 export function BrandingSection() {
   const { data } = useBranding();
@@ -35,7 +41,6 @@ export function BrandingSection() {
   const [edited, setEdited] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const name = edited ?? (data?.isCustom ? data.productName : '');
-  const logo = logoUrl(data);
 
   async function submitName() {
     try {
@@ -50,18 +55,30 @@ export function BrandingSection() {
   async function pickLogo(file: File | undefined) {
     if (!file) return;
     try {
-      await uploadLogo.mutateAsync(file);
-      toast.success('Логотип загружен.');
+      const saved = await uploadLogo.mutateAsync(file);
+      // Логотип сохранён, а значки из него не вышли — это не «успех»: зелёный тост здесь был бы
+      // отказом, переодетым в результат. Подробности — под логотипом, постоянной плашкой.
+      if (saved.icons.state === 'failed')
+        toast.info('Логотип загружен, но значки из него построить не удалось — подробности под логотипом.');
+      else toast.success('Логотип загружен.');
     } catch (e) {
       toast.apiError(e, 'Не удалось загрузить логотип.');
     }
   }
 
+  // Подсказки под названием: сначала прежняя — про общее название, к ней — про длину под значком.
+  // Пока настройка не получена, о названии сказать нечего: «не задано» было бы догадкой.
+  const nameHints = [
+    data && (data.isCustom ? 'Пусто — вернуться к общему названию' : `Не задано, действует общее: ${data.productName}`),
+    homeScreenNameHint(name),
+  ].filter(Boolean).join('. ');
+
   return (
     <CollapsibleSection title="Название и логотип" storageKey="branding" defaultOpen={false}>
       <p className="text-xs text-fg3">
-        Видны в шапке, на странице входа и в заголовке вкладки браузера. Пока название не задано,
-        система называет себя общим именем и показывает свой значок.
+        Видны в шапке и на странице входа. Название — ещё в заголовке вкладки и под значком
+        установленного приложения; логотип — ещё и сам значок: на вкладке, в закладках и на экране
+        телефона. Пока они не заданы, система называет себя общим именем и показывает свой значок.
       </p>
 
       <div>
@@ -71,9 +88,7 @@ export function BrandingSection() {
           value={name}
           maxLength={MAX_NAME}
           onChange={e => setEdited(e.target.value)}
-          hint={data?.isCustom
-            ? 'Пусто — вернуться к общему названию'
-            : `Не задано, действует общее: ${data?.productName ?? ''}`}
+          hint={nameHints}
         />
       </div>
 
@@ -88,41 +103,41 @@ export function BrandingSection() {
           Логотип — PNG, JPEG, WebP или SVG, до 5 МБ. Он же доступен печатным формам как ассет
           уровня системы: в шаблоне это{' '}
           <code className="text-[11px]">image(&quot;/assets/company-logo.png&quot;)</code>{' '}
-          — с тем расширением, с каким файл загружен.
+          — с тем расширением, с каким файл загружен. Значок вкладки и приложения система строит из
+          логотипа сама: вписывает его в квадрат целиком, без обрезки.
         </p>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
-            {logo
-              ? <img src={logo} alt="Логотип компании" className="max-w-full max-h-full object-contain" />
-              : <span className="text-[11px] text-fg4">нет</span>}
-          </div>
+        {/* Пока настройка не получена, строки логотипа нет вовсе: «нет» в рамке и кнопка «Загрузить»
+            на месте неполученного были бы «ещё не знаем», выданным за «пусто». */}
+        {data && (
+          <LogoRow data={data} uploading={uploadLogo.isPending} removing={removeLogo.isPending}
+            onUpload={() => fileInput.current?.click()} onRemove={() => setRemoving(true)} />
+        )}
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".png,.jpg,.jpeg,.webp,.svg"
+          className="hidden"
+          onChange={e => { void pickLogo(e.target.files?.[0]); e.target.value = ''; }}
+        />
 
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".png,.jpg,.jpeg,.webp,.svg"
-            className="hidden"
-            onChange={e => { void pickLogo(e.target.files?.[0]); e.target.value = ''; }}
-          />
-          <Button variant="outlined" icon={<Upload size={14} />}
-            onClick={() => fileInput.current?.click()} disabled={uploadLogo.isPending}>
-            {data?.hasLogo ? 'Заменить' : 'Загрузить'}
-          </Button>
-          {data?.hasLogo && (
-            <Button variant="text" icon={<Trash2 size={14} />}
-              onClick={() => setRemoving(true)} disabled={removeLogo.isPending}>
-              Убрать
-            </Button>
-          )}
-        </div>
+        {data && <IconsNote icons={data.icons} named={data.isCustom} />}
       </div>
+
+      {/* Постоянно, а не «после смены»: секцию открывают, чтобы менять оформление, а вопрос «почему
+          на телефоне старый значок» возникает назавтра — оговорка из состояния сессии к тому
+          времени исчезла бы. Касается и названия, и снятия логотипа, поэтому внизу и без условия. */}
+      <p className="text-xs text-fg4 max-w-xl">
+        Приложение, уже установленное на телефон или компьютер, получает новые значок и название не
+        сразу: срок выбирает браузер, это может занять несколько дней. На iPhone они сами не
+        обновляются: значок с экрана «Домой» удаляют и добавляют заново.
+      </p>
 
       <ConfirmDialog
         open={removing}
         onOpenChange={o => { if (!o) setRemoving(false); }}
         title="Убрать логотип?"
-        description="Система вернётся к своему значку. Печатные формы, ставящие логотип, останутся без него."
+        description="Система вернётся к своему значку — в шапке, на вкладке и в приложении. Печатные формы, ставящие логотип, останутся без него."
         confirmLabel="Убрать логотип"
         // Отказ показывает сам диалог (он остаётся открытым и называет причину), поэтому здесь
         // только успех: тост о неудаче дублировал бы уже показанное на месте.
@@ -133,5 +148,97 @@ export function BrandingSection() {
         }}
       />
     </CollapsibleSection>
+  );
+}
+
+/** Строка логотипа: сам логотип, кнопки и — за чертой — что из него вышло значками. */
+function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
+  data: Branding; uploading: boolean; removing: boolean; onUpload: () => void; onRemove: () => void;
+}) {
+  const logo = logoUrl(data);
+  return (
+    <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
+      <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
+        {logo
+          ? <img src={logo} alt="Логотип компании" className="max-w-full max-h-full object-contain" />
+          : <span className="text-[11px] text-fg4">нет</span>}
+      </div>
+
+      <Button variant="outlined" icon={<Upload size={14} />} onClick={onUpload} loading={uploading}>
+        {data.hasLogo ? 'Заменить' : 'Загрузить'}
+      </Button>
+      {data.hasLogo && (
+        <Button variant="text" icon={<Trash2 size={14} />} onClick={onRemove} disabled={removing}>
+          Убрать
+        </Button>
+      )}
+
+      <IconPreviews icons={data.icons} />
+    </div>
+  );
+}
+
+/**
+ * Превью значков — только ПОСТРОЕННЫХ из логотипа. Картинки здесь значат одно: «вот что вышло из
+ * вашего логотипа». Стандартный значок на этом месте сделал бы состояния «логотипа нет» и «значки
+ * не построены» неотличимыми на вид — отказом, переодетым в результат; действующий значок без
+ * логотипа администратор и так видит на самой вкладке.
+ */
+function IconPreviews({ icons }: { icons: BrandIcons }) {
+  if (icons.state !== 'custom') return null;
+  const tab = brandIconUrl('tab', icons.version);
+  return (
+    <div className="flex items-end gap-4 border-l border-stroke pl-4" data-testid="brand-icon-previews">
+      <figure className="flex flex-col items-center gap-1">
+        {/* 16 точек, а не 32, как в файле: крупнее значок на вкладке не бывает нигде, и для широкого
+            логотипа это разница между «видно» и «полоска». Половины закреплены и с темой приложения
+            не переключаются: вкладка браузера ей не следует. */}
+        <div className="flex rounded-md border border-stroke overflow-hidden">
+          <span className="flex items-center justify-center w-7 h-7 bg-[var(--f-tab-light)]">
+            <img src={tab} alt="Значок вкладки на светлом фоне" width={16} height={16} />
+          </span>
+          <span className="flex items-center justify-center w-7 h-7 bg-[var(--f-tab-dark)]">
+            <img src={tab} alt="Значок вкладки на тёмном фоне" width={16} height={16} />
+          </span>
+        </div>
+        <figcaption className="text-[11px] text-fg4">вкладка</figcaption>
+      </figure>
+
+      <figure className="flex flex-col items-center gap-1">
+        {/* Значок iPhone: он без своего скругления и прозрачности — скругляем сами, как система.
+            Рамка обязательна: белая плитка на светлой поверхности иначе не видна, и полей не
+            разглядеть. 40 точек: меньше 48 этот значок на телефоне не бывает, а 40 ещё помещается
+            в строку. */}
+        <img src={brandIconUrl('apple', icons.version)} alt="Значок приложения" width={40} height={40}
+          className="rounded-[22%] border border-stroke" />
+        <figcaption className="text-[11px] text-fg4">приложение</figcaption>
+      </figure>
+    </div>
+  );
+}
+
+/** Слова под строкой логотипа: отказ построения — плашкой, вытянутый логотип — предупреждением. */
+function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
+  const failure = iconsFailure(icons);
+  if (failure)
+    // Warning, а не danger: логотип сохранён, действует запасное значение — стандартные значки.
+    // Заметность даёт заливка и то, что плашка стоит на месте ожидаемого результата — превью.
+    return (
+      <p role="status" data-testid="brand-icons-failed"
+        className="mt-3 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-subtle text-warning border border-warning-border max-w-xl">
+        <AlertTriangle size={13} className="shrink-0 mt-px" />
+        <span>{failure}</span>
+      </p>
+    );
+
+  const elongated = elongatedWarning(icons, named);
+  if (!elongated) return null;
+  // Без блокировки и без подтверждения перед загрузкой: вытянутый логотип — законный выбор, а путь
+  // к разборчивому значку — та же «Заменить» строкой выше.
+  return (
+    <p data-testid="brand-icons-elongated" className="mt-3 flex items-start gap-1.5 text-xs text-warning max-w-xl">
+      <AlertTriangle size={13} className="shrink-0 mt-px" />
+      <span>{elongated}</span>
+    </p>
   );
 }

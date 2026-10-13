@@ -291,6 +291,80 @@ await check('recognition-profile-detail-shows-fields', async () => {
   if (!inputs.some(v => v && v.trim())) throw new Error('поля профиля пусты — форма собралась не из ответа');
 });
 
+// Секция «Название и логотип» о значках из логотипа (issue #1315): что вышло — картинками, что не
+// вышло — словами. Идёт ПОСЛЕДНЕЙ: раскрытая секция запоминается в localStorage, а проверки выше
+// ищут поля по странице целиком и чужой раскрытой секции не терпят.
+//
+// Ответ `GET /api/branding` берётся настоящий и правится: логотип на стендах разный (в CI его нет
+// вовсе), а загружать его ради проверки значило бы писать в оформление стенда. Метка версии в
+// правке остаётся настоящей — по ней превью и грузят картинки.
+await check('branding-says-what-came-of-the-logo', async () => {
+  let change = body => body;
+  await page.route('**/api/branding', async route => {
+    const response = await route.fetch();
+    if (!response.ok()) return route.fulfill({ response });
+    await route.fulfill({ response, json: change(await response.json()) });
+  });
+
+  const previews = page.getByTestId('brand-icon-previews');
+  const failed = page.getByTestId('brand-icons-failed');
+  const elongated = page.getByTestId('brand-icons-elongated');
+  const row = page.getByTestId('branding-logo-row');
+
+  /** Секция с оформлением, каким его назвал бы сервер после правки `patch`. */
+  async function shown(patch) {
+    change = patch;
+    await page.goto(`${BASE}/settings`);
+    await settled(page);
+    const header = page.locator('button').filter({ hasText: 'Название и логотип' }).first();
+    if ((await header.getAttribute('aria-expanded')) !== 'true') { await header.click(); await settled(page); }
+    await row.waitFor({ timeout: 8000 }).catch(() => { throw new Error('строка логотипа не появилась'); });
+  }
+
+  try {
+    // 1) Значки построены, логотип вчетверо шире своей высоты, название не задано.
+    await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1', isCustom: false,
+      icons: { ...b.icons, state: 'custom', problem: null, aspect: 4 } }));
+    const version = (await callApi(page, 'GET', '/branding')).body.icons.version;
+    const sources = await previews.locator('img').evaluateAll(imgs => imgs.map(i => ({ alt: i.alt, src: i.getAttribute('src'), loaded: i.complete && i.naturalWidth > 0 })));
+    const expected = [
+      ['Значок вкладки на светлом фоне', 'tab'], ['Значок вкладки на тёмном фоне', 'tab'], ['Значок приложения', 'apple'],
+    ];
+    if (sources.length !== expected.length) throw new Error(`в превью ${sources.length} картинок вместо трёх`);
+    for (const [i, [alt, name]] of expected.entries()) {
+      const want = `/api/branding/icons/${name}?v=${encodeURIComponent(version)}`;
+      if (sources[i].alt !== alt || sources[i].src !== want)
+        throw new Error(`превью ${i + 1}: «${sources[i].alt}» ${sources[i].src}, а ждали «${alt}» ${want}`);
+    }
+    // Значок приложения — PNG: по нему и видно, что адрес с меткой отдаёт картинку.
+    if (!sources[2].loaded) throw new Error('картинка значка приложения в превью не загрузилась');
+    const warning = (await elongated.innerText()).replace(/\s+/g, ' ');
+    if (!warning.includes('занимает 4 из 16 точек по высоте')) throw new Error(`предупреждение о вытянутом логотипе: «${warning}»`);
+    if (!warning.includes('Название тогда задайте выше')) throw new Error('при незаданном названии предупреждение не зовёт его задать');
+    if (await failed.count()) throw new Error('плашка отказа стоит при построенных значках');
+
+    // 2) Значки не построены: вместо превью — слова, и совет по причине.
+    await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
+      icons: { ...b.icons, state: 'failed', problem: 'file', aspect: null } }));
+    if (await previews.count()) throw new Error('при отказе построения показаны превью — стандартные значки выданы за построенные');
+    const refusal = (await failed.innerText()).replace(/\s+/g, ' ');
+    for (const part of ['Значки из логотипа не построены.', 'Сохраните логотип в PNG и загрузите его.'])
+      if (!refusal.includes(part)) throw new Error(`в плашке отказа нет «${part}»: «${refusal}»`);
+    if (await elongated.count()) throw new Error('предупреждение о вытянутом логотипе стоит при непостроенных значках');
+
+    // 3) Логотипа нет: ни превью, ни слов о значках — только «нет» и «Загрузить».
+    await shown(b => ({ ...b, hasLogo: false, logoVersion: null,
+      icons: { ...b.icons, state: 'standard', problem: null, aspect: null } }));
+    if ((await previews.count()) || (await failed.count()) || (await elongated.count()))
+      throw new Error('без логотипа секция что-то говорит о значках из него');
+    if (!(await row.innerText()).includes('нет') || !(await row.getByRole('button', { name: 'Загрузить' }).count()))
+      throw new Error(`без логотипа в строке: «${(await row.innerText()).replace(/\s+/g, ' ')}»`);
+    if (await row.getByRole('button', { name: 'Убрать' }).count()) throw new Error('без логотипа предлагается его убрать');
+  } finally {
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
 } finally {
   await browser.close();
 }
