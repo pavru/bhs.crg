@@ -9,16 +9,18 @@ import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import {
   useModuleSettings, useSaveModuleSettings, type ModuleSettings,
 } from '@/shared/api/moduleSettings';
+import { ModuleMappingSignal } from './ModuleMappingSignal';
 import {
-  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, localRefusals, sentence, staleStored,
+  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, localRefusals, mappingNeedsAttention,
+  sentence, staleStored,
   unitOf,
   type SettingsDraft,
 } from './moduleSettings';
 
 /**
  * Настройки модулей на странице «Настройки» (issue #1070): по секции на включённый модуль, у
- * которого настройки есть. Модуль без настроек секции не получает — пустая секция была бы вопросом
- * «а где?»; сервер такие модули и не присылает.
+ * которого есть настройки или потребности в справочниках ядра (issue #1101). Модуль без того и
+ * другого секции не получает — пустая секция была бы вопросом «а где?»; сервер такие и не присылает.
  */
 export function ModuleSettingsSections() {
   const { data, isError, refetch } = useModuleSettings();
@@ -82,8 +84,12 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
   }
 
   return (
-    <CollapsibleSection title={`Модуль «${module.title}»`} storageKey={`module.${module.code}`} defaultOpen={false}
-      right={dirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
+    <CollapsibleSection title={`Модуль «${module.title}»`} storageKey={`module.${module.code}`}
+      defaultOpen={mappingNeedsAttention(module.mapping)}
+      right={dirty ? <span className="text-xs text-warning normal-case">не сохранено</span>
+        : mappingNeedsAttention(module.mapping)
+          ? <span className="text-xs text-warning normal-case">требует внимания</span> : undefined}>
+      {module.mapping && <ModuleMappingSignal signal={module.mapping} />}
       {module.settings.map(setting => {
         const stale = staleStored(setting);
         const reset = draft[setting.key] === null;
@@ -111,16 +117,19 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
         );
       })}
 
-      <div className="flex items-center gap-3">
-        <Button variant="filled" onClick={requestSave} disabled={!dirty || save.isPending}>
-          Сохранить
-        </Button>
-        {dirty && (
-          <Button variant="text" onClick={() => { setDraft({}); setErrors({}); }} disabled={save.isPending}>
-            Отменить
+      {/* У модуля без настроек сохранять нечего: секция пришла ради строки о справочниках. */}
+      {module.settings.length > 0 && (
+        <div className="flex items-center gap-3">
+          <Button variant="filled" onClick={requestSave} disabled={!dirty || save.isPending}>
+            Сохранить
           </Button>
-        )}
-      </div>
+          {dirty && (
+            <Button variant="text" onClick={() => { setDraft({}); setErrors({}); }} disabled={save.isPending}>
+              Отменить
+            </Button>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirming}

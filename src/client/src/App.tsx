@@ -24,6 +24,7 @@ import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
 import { ReconciliationsPage } from '@/features/reconciliations/ReconciliationsPage';
 import { PeriodsPage } from '@/features/periods/PeriodsPage';
+import { FieldMappingPage } from '@/features/settings/FieldMappingPage';
 import { UsersPage } from '@/features/settings/UsersPage';
 import { BugReportsPage } from '@/features/settings/BugReportsPage';
 import { ActivityPage } from '@/features/settings/ActivityPage';
@@ -139,6 +140,7 @@ function AppRoutes() {
             <Route path="composite-types/*" element={<DocumentTypesPage key="composite" kind="Composite" />} />
             <Route path="templates/*" element={<TemplatesPage />} />
             <Route path="field-types" element={<PrimitiveTypesPage />} />
+            <Route path="field-mapping" element={<FieldMappingPage />} />
             <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="roles" element={<RolesPage />} />

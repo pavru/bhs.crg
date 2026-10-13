@@ -17,6 +17,11 @@ export interface FieldRegistries {
   enumTypes: EnumTypeDef[];
   allDocTypes: DocumentType[];
   tagRegistry: TagDefinition[] | undefined;
+  /**
+   * Роли справочников, которые несёт правимый тип (сам или предком). По ним отбираются тэги полей:
+   * тэг справочника предлагается только его полю. Не названы — отбора нет (форма создания типа).
+   */
+  roles?: string[];
 }
 
 /** Краткая метка типа поля для свёрнутой карточки. */

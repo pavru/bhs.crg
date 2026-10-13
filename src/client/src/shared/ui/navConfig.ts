@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2 } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -51,6 +51,9 @@ export const settingsNav: NavItem[] = [
   { to: '/document-types',       label: 'Типы документов',       icon: BookOpen, permission: 'core.types.edit' },
   { to: '/composite-types',      label: 'Составные типы',        icon: Layers,   permission: 'core.types.edit' },
   { to: '/field-types',          label: 'Типы полей',            icon: Tag,      permission: 'core.types.edit' },
+  // «Сопоставление полей» (issue #1101) — рядом с типами и тем же правом: экран пишет схему типа
+  // (тэг типа, тэг поля) адресом редактора. Право на настройку системы его не открывает.
+  { to: '/field-mapping',        label: 'Сопоставление полей',   icon: Link2,    permission: 'core.types.edit' },
   { to: '/templates',            label: 'Шаблоны',               icon: FileText, permission: 'id.config.edit' },
   { to: '/recognition-profiles', label: 'Профили распознавания', icon: ScanText, permission: 'core.recognition.settings' },
   { to: '/users',                label: 'Пользователи',          icon: Users,    permission: 'core.users.manage' },

@@ -105,6 +105,23 @@ public class DirectoryRoleReleaseTests(InvoiceLineHost host) : InvoiceLineTestBa
     }
 
     /// <summary>
+    /// Справочники не делят записи (ревью PR #1318): подтип организаций номенклатурой не становится.
+    /// Здесь — что проверка стоит на пути сохранения; её правило держит <c>RoleOverlapTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Подтип_одного_справочника_не_становится_другим()
+    {
+        var organizations = await OrganizationsAsync();
+        var mark = Guid.NewGuid().ToString("N")[..8];
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(new CreateDocumentTypeCommand(
+            $"Поставщик-товар {mark}", $"ПоставщикТовар{mark}", DocumentTypeKind.Composite, organizations.Id,
+            JsonDocument.Parse($$"""{"tags":["{{FunctionalTag.RoleNomenclature}}"],"fields":[]}"""))));
+
+        Assert.Contains("вошли бы сразу в два справочника", refusal.Message);
+    }
+
+    /// <summary>
     /// Вторая дверь (ревью PR #1317): подтип, переставленный под другого родителя, уносит свои записи
     /// из справочника, хотя схему никто не трогал. Отказ — пока на запись ссылается счёт; подтип без
     /// ссылок уходит свободно — иначе правило заперло бы иерархию навсегда.

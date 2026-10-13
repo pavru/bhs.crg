@@ -80,6 +80,7 @@ internal static class EndpointMap
     app.MapObjectResolveEndpoints();
     app.MapSettingsEndpoints();
     app.MapModuleSettingsEndpoints();
+    app.MapFieldMappingEndpoints();
     app.MapAccountingCurrencyEndpoints();
     // Название и логотип (ТЗ CORE-25.1, issue #967). Чтение анонимно — оформление стоит на входе.
     app.MapBrandingEndpoints();

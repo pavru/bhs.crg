@@ -108,6 +108,13 @@ export interface TagDefinition {
   group?: string | null;
   /** Числовой параметр тэга — есть только у тех, кто его принимает (напр. «identity:1»). */
   parameter?: TagParameter | null;
+  /**
+   * Тэг ТИПА — роль справочника (issue #1101): тип с ним служит справочником организаций,
+   * номенклатуры… Модуль находит справочник по роли, а не по имени типа.
+   */
+  directory?: boolean;
+  /** Тэг ПОЛЯ относится к справочнику с этой ролью и вне его ничего не значит. */
+  role?: string | null;
 }
 
 export function useTagRegistry() {
@@ -118,8 +125,30 @@ export function useTagRegistry() {
   });
 }
 
-export function fieldTags(all: TagDefinition[] | undefined, fieldType: string): TagDefinition[] {
-  return (all ?? []).filter(t => t.scope === 'Field' && (t.appliesTo.length === 0 || t.appliesTo.includes(fieldType)));
+export function fieldTags(
+  all: TagDefinition[] | undefined, fieldType: string, roles?: string[], placed?: string[],
+): TagDefinition[] {
+  return offeredInRoles(
+    (all ?? []).filter(t => t.scope === 'Field' && (t.appliesTo.length === 0 || t.appliesTo.includes(fieldType))),
+    roles, placed);
+}
+
+/**
+ * Тэги поля, уместные в типе с этими ролями (ТЗ TYPE-23.1, issue #1101): тэг справочника
+ * («ИНН организации») предлагается только полю самого справочника. В другом типе его никто не
+ * читает, а поставленный там он выглядел бы назначением.
+ *
+ * Уже поставленный тэг остаётся в списке при любых ролях — иначе снять его было бы нечем.
+ * `roles` не названы — отбора нет: так живёт форма создания типа, где ролей ещё не знают.
+ */
+export function offeredInRoles(tags: TagDefinition[], roles?: string[], placed?: string[]): TagDefinition[] {
+  if (!roles) return tags;
+  return tags.filter(t => !t.role || roles.includes(t.role) || hasTag(placed, t.code));
+}
+
+/** Коды ролей справочников из реестра. */
+export function roleCodes(all: TagDefinition[] | undefined): string[] {
+  return (all ?? []).filter(t => t.directory).map(t => t.code);
 }
 
 export function typeTags(all: TagDefinition[] | undefined, kind: string): TagDefinition[] {

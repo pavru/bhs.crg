@@ -1,10 +1,13 @@
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Modules;
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Settings;
+using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Api.Endpoints.Settings;
 
@@ -33,24 +36,42 @@ public static class ModuleSettingsEndpoints
         string Value, string? Stored, string? Stale, string Default,
         decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning, bool Money = false);
 
-    public record ModuleSettingsView(string Code, string Title, IReadOnlyList<ModuleSettingView> Settings);
+    /// <summary>
+    /// Строка-сигнал о сопоставлении полей (ТЗ TYPE-23, issue #1101): сколько обязательного модуль
+    /// ждёт от справочников ядра, сколько из этого не назначено и что из-за этого не работает.
+    ///
+    /// <para>Только сводка: сам экран сопоставления закрыт правом на типы, а этот адрес — правом на
+    /// настройку системы. Тот, кто видит настройки, обязан узнать, что модуль работает не весь, —
+    /// даже если назначить поле не может.</para>
+    /// </summary>
+    public record ModuleMappingSignal(int Total, int Unmet, IReadOnlyList<string> NotWorking);
+
+    /// <param name="Mapping"><c>null</c> — модуль из справочников ядра ничего не читает.</param>
+    public record ModuleSettingsView(
+        string Code, string Title, IReadOnlyList<ModuleSettingView> Settings, ModuleMappingSignal? Mapping);
 
     public static void MapModuleSettingsEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/settings/modules")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
-        g.MapGet("/", async (ModuleRegistry registry, IAppSettingsStore store, CancellationToken ct) =>
+        g.MapGet("/", async (ModuleRegistry registry, IAppSettingsStore store, TagCatalog tags,
+            AppDbContext db, CancellationToken ct) =>
         {
-            // Модуль без настроек в ответ не попадает: пустая секция на экране — вопрос «а где?».
-            var modules = registry.Enabled.Where(m => m.Settings.Count > 0).ToList();
+            // Модуль без настроек И без потребностей в ответ не попадает: пустая секция на экране —
+            // вопрос «а где?». Модуль с одними потребностями попадает — ради строки-сигнала.
+            var modules = registry.Enabled.Where(m => m.Settings.Count > 0 || m.Needs.Count > 0).ToList();
             // Одним чтением на все модули: адрес общий, и запрос на настройку рос бы вместе с ними.
             var stored = await store.GetManyAsync([.. modules.SelectMany(m => m.Settings).Select(s => s.Key)], ct);
+            var types = modules.Any(m => m.Needs.Count > 0)
+                ? await db.DocumentTypes.AsNoTracking().ToListAsync(ct)
+                : [];
 
             return Results.Ok(new
             {
                 modules = modules.Select(m => new ModuleSettingsView(m.Code, m.Title,
-                    [.. m.Settings.Select(s => View(s, stored.GetValueOrDefault(s.Key)))])),
+                    [.. m.Settings.Select(s => View(s, stored.GetValueOrDefault(s.Key)))],
+                    Signal(m, tags, types))),
             });
         });
 
@@ -109,6 +130,14 @@ public static class ModuleSettingsEndpoints
             await tx.CommitAsync(ct);
             return Results.NoContent();
         });
+    }
+
+    private static ModuleMappingSignal? Signal(
+        IAppModule module, TagCatalog tags, IReadOnlyList<Domain.Documents.DocumentType> types)
+    {
+        if (module.Needs.Count == 0) return null;
+        var coverage = ModuleCoverage.Of(module, tags, types);
+        return new(coverage.Total, coverage.Unmet, coverage.NotWorking);
     }
 
     private static ModuleSettingView View(ModuleSetting setting, string? stored)

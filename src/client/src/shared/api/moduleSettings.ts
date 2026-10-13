@@ -33,15 +33,28 @@ export interface ModuleSetting {
   changeWarning: string | null;
 }
 
+/**
+ * Сводка сопоставления полей (issue #1101): сколько обязательного модуль ждёт от справочников,
+ * сколько не назначено и что из-за этого не работает. Сам экран — отдельная страница под правом
+ * на типы; сводку видит тот, кто видит настройки.
+ */
+export interface ModuleMappingSignal {
+  total: number;
+  unmet: number;
+  notWorking: string[];
+}
+
 export interface ModuleSettings {
   code: string;
   title: string;
   settings: ModuleSetting[];
+  /** `null` — модуль из справочников ничего не читает. */
+  mapping: ModuleMappingSignal | null;
 }
 
 export const MODULE_SETTINGS_KEY = ['settings', 'modules'] as const;
 
-/** Только модули, у которых настройки есть: модуль без настроек секции не получает. */
+/** Модули, у которых есть настройки или потребности в справочниках: остальные секции не получают. */
 export function useModuleSettings() {
   return useQuery<ModuleSettings[]>({
     queryKey: MODULE_SETTINGS_KEY,
