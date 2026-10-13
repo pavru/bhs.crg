@@ -3,7 +3,7 @@ import type { CoverageField, CoverageGroup, CoverageRow, CoverageType } from '@/
 import { offeredInRoles, type TagDefinition } from '@/shared/api/tags';
 import {
   NOT_ASSIGNED, changedRows, droppedNotice, fieldLabel, fullSentence, listedFields, missingKey, offeredFields,
-  reconciled, restoreTags, schemaWrites, selectedKey, unfitKey, withTagPlacements, withTypeTag,
+  reconciled, restoreTags, schemaWrites, selectedKey, unfitKey, withPick, withTagPlacements, withTypeTag,
 } from './fieldMapping';
 
 const ORG: CoverageType = { id: 'org', name: 'Организация', code: 'Организация', kind: 'Composite' };
@@ -140,6 +140,48 @@ describe('выбор, которого в списке полей больше �
 
   it('«Не назначено» у обязательной строки список не предлагает — это не выбор', () => {
     expect(changedRows(group(row()), { 'org.inn': null })).toHaveLength(0);
+  });
+});
+
+// «Выбрал другое и вернул прежнее» — не правка, и ключа в черновике оставлять не должно: спящий
+// ключ ожил бы «несохранённой правкой», стоило назначению смениться со стороны.
+describe('выбор в строке', () => {
+  it('отличный от действующего — ложится в черновик', () => {
+    const r = row();
+
+    expect(withPick(group(r), {}, r, 'Код')).toEqual({ 'org.inn': 'Код' });
+  });
+
+  it('вернули действующее — ключа в черновике нет, соседний на месте', () => {
+    const r = row();
+
+    expect(withPick(group(r), { 'org.inn': 'Код', 'org.name': 'Наим' }, r, 'ИНН')).toEqual({ 'org.name': 'Наим' });
+  });
+
+  // Главное: назначение тем временем сменили со стороны — отменённая правка его не перебивает.
+  it('возвращённый выбор не оживает, когда назначение сменили со стороны', () => {
+    const r = row();
+    const draft = withPick(group(r), withPick(group(r), {}, r, 'Код'), r, 'ИНН');
+    const moved = row({ key: 'Код', fields: [field('ИНН'), field('Код', { tagged: true })] });
+
+    expect(changedRows(group(moved), draft)).toHaveLength(0);
+    expect(selectedKey(moved, draft)).toBe('Код');
+  });
+
+  it('у нарушенной строки любой выбор — правка, и ключ остаётся', () => {
+    const twice = row({
+      state: 'violated', fault: 'Several', key: null,
+      fields: [field('ИНН', { tagged: true }), field('ИННСтарый', { tagged: true })],
+    });
+
+    expect(withPick(group(twice), {}, twice, 'ИНН')).toEqual({ 'org.inn': 'ИНН' });
+  });
+
+  it('«Не назначено» у неназначенной необязательной строки — не правка', () => {
+    const none = row({ required: false, state: 'absent', fault: 'Absent', key: null, fields: [field('Код')] });
+
+    expect(withPick(group(none), { 'org.inn': 'Код' }, none, null)).toEqual({});
+    expect(selectedKey(none, {})).toBe(NOT_ASSIGNED);
   });
 });
 

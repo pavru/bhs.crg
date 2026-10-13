@@ -141,9 +141,13 @@ await check('settings-carry-the-same-summary', async () => {
 // ⚠️ После такой проверки экран остаётся на подправленном ответе — следующая обязана начинаться
 // с `goto`.
 let change = body => body;
+// Адрес отвечает отказом — так выглядит перечитывание, попавшее на перезапуск сервера.
+let failing = false;
 async function withChangedAnswers(run) {
   const pattern = '**/api/field-mapping';
   await page.route(pattern, async route => {
+    if (failing)
+      return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"стенд перезапускается"}' });
     const response = await route.fetch();
     if (!response.ok()) return route.fulfill({ response });
     await route.fulfill({ response, json: change(await response.json()) });
@@ -151,6 +155,7 @@ async function withChangedAnswers(run) {
   try { await run(); } finally {
     await page.unroute(pattern);
     change = body => body;
+    failing = false;
   }
 }
 
@@ -215,6 +220,7 @@ if (!original) {
   skip('cancelled-pick-can-be-picked-again', 'ИНН на стенде не назначен — поле для выбора взять неоткуда');
   skip('dropped-pick-is-said-and-stays-dropped', 'ИНН на стенде не назначен — поле для выбора взять неоткуда');
   skip('vanished-type-leaves-no-pick', 'ИНН на стенде не назначен — перечитать экран без записи нечем');
+  skip('failed-reread-keeps-the-pick', 'ИНН на стенде не назначен — перечитать экран без записи нечем');
 } else {
   await check('cancelled-pick-can-be-picked-again', async () => {
     change = orgGroups(g => [unassigned(g)]);
@@ -309,6 +315,37 @@ if (!original) {
         throw new Error('снятый выбор типа ожил, когда тип вернулся в список');
       await pickType();
       if (!(await offersAssign())) throw new Error('вернувшийся тип не выбирается заново: кнопки «Назначить справочником» нет');
+    }));
+  });
+
+  // Перечитывание упало: сервер перезапускают, сеть моргнула. Экран с несохранённым выбором
+  // обязан остаться и сказать об отказе полосой. Раньше он сносил сам себя — вместе с выбором и
+  // со строкой отказа сохранения, — потому что упавший перезапрос оставляет прежний ответ, а
+  // состояние запроса уже «ошибка».
+  await check('failed-reread-keeps-the-pick', async () => {
+    change = orgGroups(g => [unassigned(g), twin(g)]);
+    await withChangedAnswers(() => withoutWrites(async () => {
+      await page.goto(`${BASE}/field-mapping`);
+      await settled(page);
+      await pick(original);
+      const kept = async () => (await offersSave()) && (await tableRow.innerText()).includes('не сохранено');
+      if (!(await kept())) throw new Error('после выбора поля строка не помечена — проверять нечего');
+
+      failing = true;
+      await rereadByTwin();
+      const strip = page.getByTestId('reread-failed');
+      // Запрос повторяется один раз, через секунду, — полоса появляется после второго отказа.
+      await strip.waitFor({ timeout: 15000 })
+        .catch(() => { throw new Error('перечитывание упало, а полосы об этом нет: экран промолчал либо снёс сам себя'); });
+      if (!(await kept())) throw new Error('упавшее перечитывание стёрло несохранённый выбор');
+
+      failing = false;
+      await strip.getByRole('button', { name: 'Повторить' }).click();
+      await strip.waitFor({ state: 'detached', timeout: 15000 })
+        .catch(() => { throw new Error('после удачного повтора полоса осталась'); });
+      if (!(await kept())) throw new Error('после удачного повтора несохранённый выбор пропал');
+      // Уходим без сохранения — иначе охрана ухода остановила бы закрытие страницы вопросом.
+      await orgGroup.getByRole('button', { name: 'Отменить' }).click();
     }));
   });
 }
