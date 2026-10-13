@@ -17,7 +17,7 @@ import {
 } from '@/shared/api/datasets';
 import { useListProcessingTemplates, useApplyProcessingTemplate } from '@/shared/api/datasetProcessing';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
@@ -52,11 +52,12 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
   return (
     <Modal
       open
-      onOpenChange={o => { if (!o && !isPending) onClose(); }}
+      onOpenChange={o => { if (!o) onClose(); }}
       title={title}
+      busy={isPending}
       footer={
         <div className="flex gap-2 justify-end">
-          <Button type="button" variant="text" size="sm" onClick={onClose} disabled={isPending}>Отмена</Button>
+          <ModalExit size="sm" />
           <Button type="button" variant="filled" size="sm" onClick={() => canSave && onSubmit(trimmed)}
             disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : confirmLabel}

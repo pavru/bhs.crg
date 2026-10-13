@@ -1,7 +1,7 @@
-import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
 import { ClipboardPaste } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import {
   PASTE_ROLES, fromTable, guessRoles, hasHeader, parseTable,
   type LineDraft, type PasteRole,
@@ -50,12 +50,22 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
   const rows = hasHeader(table) ? table.slice(1) : table;
 
   return (
-    <Dialog.Root open onOpenChange={o => { if (!o) onClose(); }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content className="fixed z-50 left-1/2 top-12 -translate-x-1/2 w-[min(64rem,94vw)]
-          rounded-xl border border-stroke bg-surface shadow-xl p-4 space-y-3">
-          <Dialog.Title className="text-sm font-medium text-fg2">Вставка строк из буфера</Dialog.Title>
+    // Общий `Modal`, а не свой Radix (issue #1236): вставленную таблицу и расставленные роли жалко
+    // так же, как любую форму, — а голый диалог закрывался промахом и Esc. Роли выбирают списком,
+    // вставка идёт из буфера — признак правок называем сами. Он — про таблицу: роли без неё ни к
+    // чему не относятся (и отбрасываются, стоит ширине смениться).
+    <Modal open extraWide onOpenChange={o => { if (!o) onClose(); }} title="Вставка строк из буфера"
+      isDirty={text.trim() !== ''}
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <ModalExit size="sm" />
+          <Button size="sm" variant="filled" disabled={rows.length === 0}
+            onClick={() => onAdd(fromTable(table, current))}>
+            Добавить строк: {rows.length}
+          </Button>
+        </div>
+      }>
+        <div className="space-y-3">
 
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
             aria-label="Таблица из буфера"
@@ -112,16 +122,8 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
             </>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="text" onClick={onClose}>Отмена</Button>
-            <Button size="sm" variant="filled" disabled={rows.length === 0}
-              onClick={() => onAdd(fromTable(table, current))}>
-              Добавить строк: {rows.length}
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </div>
+    </Modal>
   );
 }
 

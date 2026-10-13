@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Info, AlertTriangle } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
@@ -192,20 +193,25 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   // Не «проблема» (человек ничего не сделал не так), а просто не время сохранять.
   const typesPending = !!typeId && !selectedType;
 
+  // То, что уйдёт на сервер, — и оно же мерило «есть несохранённые правки» (ревью PR #1311).
+  // Сравнивать всё состояние диалога нельзя: запасы неактивных режимов (правила варианта после
+  // «включил и выключил», колонка Ид) правкой не являются, а окно спрашивало бы о их потере.
+  const setting = {
+    typeId: typeId || null,
+    // В режиме «по Ид» маппинга нет вовсе: строка целиком — ссылка. Отправить и то и другое
+    // значит сохранить две разные настройки одного и того же (сервер такое и не примет).
+    mapping: typeId && !useByIdMode ? mapping : {},
+    discriminator: typeId && useDiscriminator ? discriminator : null,
+    byIdColumn: typeId && useByIdMode ? byIdColumn : null,
+  };
+  // Тип, вариант и сопоставление выбирают списками и кнопками — окно этого не замечает.
+  const edited = useChangedSince(setting);
+
   function handleSave() {
     if (problem || typesPending) return;
     save.mutate(
-      {
-        sourceId: source.id,
-        // `source` — снимок, с которого диалог открыт (см. SourcesExpander): его версию и называем.
-        ifMatch: source.materializationVersion,
-        typeId: typeId || null,
-        // В режиме «по Ид» маппинга нет вовсе: строка целиком — ссылка. Отправить и то и другое
-        // значит сохранить две разные настройки одного и того же (сервер такое и не примет).
-        mapping: typeId && !useByIdMode ? mapping : {},
-        discriminator: typeId && useDiscriminator ? discriminator : null,
-        byIdColumn: typeId && useByIdMode ? byIdColumn : null,
-      },
+      // `source` — снимок, с которого диалог открыт (см. SourcesExpander): его версию и называем.
+      { sourceId: source.id, ifMatch: source.materializationVersion, ...setting },
       { onSuccess: onClose },
     );
   }
@@ -228,9 +234,10 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Материализация источника «${source.name}»`} wide
+      isDirty={edited} busy={save.isPending}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending}
             disabled={!!problem || typesPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}

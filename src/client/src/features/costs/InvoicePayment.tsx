@@ -155,7 +155,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
  * неактивна — иначе человек подтвердил бы расклад прежней даты. Сервер это ловит отметкой расклада,
  * но отказ после нажатия хуже кнопки, которая честно ждёт.</p>
  */
-function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
+export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
   const toast = useToast();
   const preview = usePaymentPreview();
   const pay = usePayInvoice();
@@ -165,6 +165,9 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   const [asked, setAsked] = useState<PaymentPosting | null>(null);
   const [date, setDate] = useState<string | null>(null);
   const [document, setDocument] = useState('');
+  // Признак правок — только выбор ЧЕЛОВЕКА. Само состояние `date` сюда не годится (ревью PR #1311):
+  // его ставит и ответ сервера на вопрос о раскладе, и окно без единой правки спрашивало бы о потере.
+  const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   const [changed, setChanged] = useState<ReadonlySet<string>>(new Set());
@@ -175,6 +178,8 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   // Ошибка первого вопроса жива, только пока на него не ответили позже: запрос больше не повторяется,
   // и без этого условия удачный повтор оставлял бы диалог в «расклад не получен» до закрытия.
   const failed = refused ?? (asked === null && first.error ? apiError(first.error, 'сервер не ответил') : null);
+  // Дата, вернувшаяся к предложенной сервером, — уже не правка.
+  const edited = document.trim() !== '' || (picked !== null && picked !== (first.data?.paidOn ?? ''));
 
   async function ask(date: string | null, after?: PaymentPosting) {
     const turn = ++turns.current;
@@ -226,9 +231,10 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
 
   return (
     <Modal open wide onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
+      isDirty={edited} busy={pay.isPending}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onDone}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" disabled={!payable} loading={pay.isPending} onClick={submit}>
             {posting && payable ? payLabel(posting.rows) : 'Отметить оплату'}
           </Button>
@@ -246,6 +252,7 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
             hint={posting?.dateRefusal ?? undefined}
             onChange={iso => {
               const next = iso ? iso.slice(0, 10) : '';
+              setPicked(next);
               setDate(next);
               if (next) void ask(next);
             }} />
@@ -281,7 +288,7 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
 }
 
 /** Отмена ошибочной отметки — с причиной: версий оплата не создаёт, и другого следа не остаётся. */
-function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
+export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
   const toast = useToast();
   const cancel = useCancelPayment();
   const [reason, setReason] = useState('');
@@ -289,9 +296,10 @@ function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Отменить оплату: ${invoiceTitle(view)}`}
+      busy={cancel.isPending}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onDone}>Не отменять</Button>
+          <ModalExit>Не отменять</ModalExit>
           <Button variant="filled" danger disabled={!reason.trim()} loading={cancel.isPending}
             onClick={async () => {
               setError(null);

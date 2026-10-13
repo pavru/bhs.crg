@@ -70,7 +70,10 @@ try {
   // Правило — по состоянию окна. Сама таблица проверена тестом `Modal`; здесь то, чего тест не
   // видит: настоящий щелчок по затемнению, настоящий фокус и слой, вложенный в диалог.
   const dialogs = () => page.locator('[role=dialog]').count();
-  const outside = () => page.mouse.click(6, 400);
+  // Щелчок — только по затихшей странице. Слой Radix начинает слушать нажатия не в момент
+  // появления окна, а таймером после него: щелчок, пришедший в этот зазор, окно не видит вовсе.
+  // На дев-стенде зазор не ловится, в CI поймался — «лёгкий диалог не закрылся» при исправном коде.
+  const outside = async () => { await settled(page); await page.mouse.click(6, 400); };
   const focusedText = () => page.evaluate(() => (document.activeElement?.textContent ?? '').trim());
   const hinted = () => page.evaluate(() => (document.querySelector('[data-modal-hint]')?.textContent ?? '').trim());
   const closed = () => until(async () => { if (await dialogs()) throw new Error('диалог не закрылся'); });

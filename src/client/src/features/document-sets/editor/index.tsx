@@ -10,7 +10,7 @@ import { STATUS_LABELS, STATUS_COLORS, BaseInstanceChip, ArchivedRefsProvider, t
 import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
 import { BrokenCountBadge } from './BrokenCountBadge';
@@ -291,13 +291,13 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       {pendingTab && (
         <Modal
           open
-          onOpenChange={o => { if (!o && !switching) setPendingTab(null); }}
+          onOpenChange={o => { if (!o) setPendingTab(null); }}
           title="Документ не сохранён"
+          // Вопрос: промах и Esc равны «Отмене» — безопасному ответу. Запрос сильнее.
+          nothingToLose busy={switching}
           footer={
             <div className="flex gap-2 justify-end flex-wrap">
-              <Button variant="text" size="sm" onClick={() => setPendingTab(null)} disabled={switching}>
-                Отмена
-              </Button>
+              <ModalExit size="sm" />
               <Button variant="text" size="sm" danger onClick={() => switchTo(pendingTab)} disabled={switching}>
                 Не сохранять
               </Button>

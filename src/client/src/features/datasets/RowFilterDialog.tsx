@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { FilterCondition, FilterGroup, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
 import {
@@ -253,6 +254,8 @@ export function RowFilterDialog({
   );
 
   const { saving, refusal, clearRefusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить отбор');
+  // Мерило — то, что уйдёт в `onSave`: черновик несёт служебное (личности узлов, пустые условия).
+  const edited = useChangedSince(cleanFilterNode(fromDraft(pruneDraft(root))));
 
   // На экране с этого момента — ровно то дерево, что уехало: пустые строки на сервер не идут, а он
   // называет условие номером по отправленному («условие 2.1»). Останься они, номер в отказе указывал
@@ -271,7 +274,7 @@ export function RowFilterDialog({
       open={true}
       onOpenChange={o => { if (!o) close(); }}
       title={words.title}
-      wide
+      wide isDirty={edited} busy={saving}
       footer={
         <div className="flex gap-2 items-center">
           <button
@@ -281,13 +284,7 @@ export function RowFilterDialog({
           >
             {saving ? words.saving : words.save}
           </button>
-          <button
-            onClick={close}
-            disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50"
-          >
-            Отмена
-          </button>
+          <ModalExit variant="tonal" />
           {hasAny && (
             <button
               onClick={handleReset}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
@@ -167,7 +167,9 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
   }
 
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) { reset(); onClose(); } }} title="Новый пользователь">
+    <Modal open={open} onOpenChange={o => { if (!o) { reset(); onClose(); } }} title="Новый пользователь"
+      // Роли выбирают в меню, которого окно не замечает, — признак правок явный.
+      isDirty={!!email.trim() || !!displayName.trim() || !!password || chosen.length > 0} busy={create.isPending}>
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
         <TextField label="Отображаемое имя" value={displayName} onChange={e => setDisplayName(e.target.value)} />
@@ -183,7 +185,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
+          <ModalExit />
           <Button type="submit" variant="filled" loading={create.isPending} disabled={chosen.length === 0}>
             {create.isPending ? 'Создание…' : 'Создать'}
           </Button>

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
@@ -205,10 +205,10 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
   const nothingToPick = picksCandidate && !initial && readyCandidates.length === 0;
 
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} title={dialogTitle} wide
+    <Modal open onOpenChange={open => { if (!open) onClose(); }} title={dialogTitle} wide busy={isPending}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button type="button" variant="filled" onClick={handleSave} loading={isPending}
             disabled={nothingToPick}>
             {isPending ? 'Сохранение…' : 'Сохранить'}

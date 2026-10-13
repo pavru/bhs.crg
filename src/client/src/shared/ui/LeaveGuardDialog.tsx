@@ -1,4 +1,4 @@
-import { Modal } from './Modal';
+import { Modal, ModalExit } from './Modal';
 import { Button } from './Button';
 
 /**
@@ -13,10 +13,13 @@ export function LeaveGuardDialog({ open, saving, onSave, onDiscard, onCancel }: 
   onSave: () => void; onDiscard: () => void; onCancel: () => void;
 }) {
   return (
-    <Modal open={open} onOpenChange={o => { if (!o && !saving) onCancel(); }} title="Несохранённые изменения"
+    // Вопрос ведёт себя как `ConfirmDialog`: промах и Esc равны «Отмене» — безопасному ответу.
+    // Идущее сохранение сильнее: `busy` гасит и их, и кнопку (issue #1236).
+    <Modal open={open} onOpenChange={o => { if (!o) onCancel(); }} title="Несохранённые изменения"
+      nothingToLose busy={saving}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onCancel} disabled={saving}>Отмена</Button>
+          <ModalExit />
           <Button variant="tonal" onClick={onDiscard} disabled={saving}>Не сохранять</Button>
           <Button variant="filled" onClick={onSave} loading={saving}>Сохранить и перейти</Button>
         </div>
