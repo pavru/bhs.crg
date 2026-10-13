@@ -105,6 +105,16 @@ await check('company-time-zone-names-what-is-in-force', async () => {
   if (unset && !text.includes(body.serverTimeZoneId)) throw new Error('пояс сервера не назван');
   if (await block.getByRole('button', { name: 'Сохранить пояс' }).isEnabled())
     throw new Error('«Сохранить пояс» доступна без правки');
+
+  // Выбор без сохранения пропадает, стоит свернуть раздел, — предупреждает о нём только пометка
+  // в шапке раздела. Выбираем любой пояс, кроме действующего, и бросаем.
+  const other = body.timeZones.find(z => z.id !== body.timeZoneId);
+  await block.getByRole('combobox').click();
+  await page.getByRole('option', { name: new RegExp(other.city) }).click();
+  const header = page.locator('button').filter({ hasText: 'КОМПАНИЯ' }).first();
+  if (!/не сохранено/.test(await header.innerText())) throw new Error('шапка раздела не говорит о несохранённом поясе');
+  await block.getByRole('button', { name: 'Отменить' }).click();
+  if (/не сохранено/.test(await header.innerText())) throw new Error('пометка осталась после отмены');
 });
 
 await check('backup-schedule-form-shows-saved-values', async () => {

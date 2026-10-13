@@ -3888,7 +3888,7 @@ POST   /api/tables/{модуль.таблица}/query   → то же тело�
                                     Та же таблица — системный набор `system:table:модуль.таблица`.
 
 GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved,
-                                              effectiveOffset, effectiveCity, serverOffset, effectiveNow,
+                                              effectiveOffset, serverOffset, effectiveNow,
                                               timeZones: [{ id, city, offset }] }
                                               — смещения и «сейчас у компании» считает сервер, своей базой
                                               поясов; timeZones — что экран предлагает на выбор (issue #1148)

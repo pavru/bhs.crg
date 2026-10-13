@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
@@ -13,7 +13,10 @@ import { SERVER_ZONE, companyNow, zoneChoices, zoneNotice } from './companySetti
  *
  * Подтверждения у смены нет: пояс ничего не пересчитывает и меняется обратно.
  */
-export function CompanyTimeZone() {
+export function CompanyTimeZone({ onDirty }: {
+  /** Есть ли несохранённый выбор — раздел пишет об этом в своей шапке, как о валюте. */
+  onDirty?: (dirty: boolean) => void;
+}) {
   const { data, isError, refetch } = useCompanyTimeZone();
   const save = useSaveCompanyTimeZone();
   const toast = useToast();
@@ -24,6 +27,9 @@ export function CompanyTimeZone() {
   const next = picked ?? stored;
   const dirty = !!data && next !== stored;
   const notice = data ? zoneNotice(data) : null;
+  // Свернутый раздел блок размонтирует, и выбор пропадёт: пометка в шапке — единственное, что об
+  // этом предупреждает. Размонтирование пометку снимает — вместе с выбором.
+  useEffect(() => { onDirty?.(dirty); return () => onDirty?.(false); }, [dirty, onDirty]);
 
   async function submit() {
     try {
@@ -53,7 +59,7 @@ export function CompanyTimeZone() {
       </Select>
       {notice && <p role="status" className="text-xs text-warning max-w-xl">{notice}</p>}
       <p className="text-xs text-fg3 max-w-xl">
-        Сейчас у компании: <span className="text-fg1">{companyNow(data.effectiveNow)}</span>. По этому
+        Сейчас у компании: <span data-testid="company-now" className="text-fg1">{companyNow(data.effectiveNow)}</span>. По этому
         поясу система считает сутки: от него зависят «Осталось дней» и «Просрочен» у счетов и то,
         какое число считается сегодняшним в учёте.
       </p>

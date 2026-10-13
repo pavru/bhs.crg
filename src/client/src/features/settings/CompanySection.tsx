@@ -26,6 +26,7 @@ export function CompanySection() {
 
   const next = picked ?? data?.currency;
   const dirty = !!data && next !== data.currency;
+  const [zoneDirty, setZoneDirty] = useState(false);
 
   /** Сменить. Отказ НЕ ловим: диалог показывает причину сам и остаётся открытым — она длинная
    *  («…счетов: 1440, накладных: 39…»), в исчезающем уведомлении её не прочитать. */
@@ -54,7 +55,7 @@ export function CompanySection() {
 
   return (
     <CollapsibleSection title="Компания" storageKey="company" defaultOpen={false}
-      right={dirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
+      right={dirty || zoneDirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
       {isError && (
         <div className="flex items-center gap-3">
           <span className="text-sm text-danger">Настройки компании не загрузились.</span>
@@ -110,7 +111,7 @@ export function CompanySection() {
       )}
 
       <div className="pt-4 mt-1 border-t border-stroke">
-        <CompanyTimeZone />
+        <CompanyTimeZone onDirty={setZoneDirty} />
       </div>
 
       <ConfirmDialog

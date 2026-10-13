@@ -39,10 +39,6 @@ public static class CompanyTimeZones
     public static IReadOnlyList<OfferedTimeZone> Offered() =>
         [.. All.Where(z => AppSettingKeys.IsKnownTimeZone(z.Id))];
 
-    /// <summary>Город пояса из списка; <c>null</c> — пояс вне списка, названия у нас для него нет.</summary>
-    public static string? City(string? id) =>
-        All.FirstOrDefault(z => string.Equals(z.Id, id, StringComparison.Ordinal))?.City;
-
     /// <summary>
     /// Смещение пояса в заданный момент: «UTC+03:00». Момент нужен, потому что смещение — свойство
     /// не пояса, а пояса в дату: летнее время и переводы стрелок его меняют.

@@ -37,14 +37,6 @@ public class CompanyTimeZonesTests
         Assert.Equal(offsets.OrderBy(o => o), offsets);
     }
 
-    [Fact]
-    public void A_zone_outside_the_list_has_no_city()
-    {
-        Assert.Equal("Владивосток", CompanyTimeZones.City("Asia/Vladivostok"));
-        Assert.Null(CompanyTimeZones.City("Asia/Novosibirsk"));
-        Assert.Null(CompanyTimeZones.City(null));
-    }
-
     [Theory]
     [InlineData("Europe/Moscow", "UTC+03:00")]
     [InlineData("Asia/Kamchatka", "UTC+12:00")]

@@ -118,7 +118,6 @@ public class ConstructionAttributesTests(IntegrationTestFixture fixture)
         // Экрану (issue #1148) сервер отдаёт и то, что предлагать, и то, чем проверить выбор:
         // смещения и «сейчас у компании» посчитаны здешней базой поясов, а не базой браузера.
         Assert.Equal("UTC+03:00", after.GetProperty("effectiveOffset").GetString());
-        Assert.Equal("Москва", after.GetProperty("effectiveCity").GetString());
         Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", after.GetProperty("effectiveNow").GetString()!);
         var offered = after.GetProperty("timeZones").EnumerateArray().ToList();
         var moscow = Assert.Single(offered, z => z.GetProperty("id").GetString() == "Europe/Moscow");
@@ -130,6 +129,19 @@ public class ConstructionAttributesTests(IntegrationTestFixture fixture)
 
         Assert.Equal(HttpStatusCode.BadRequest,
             (await client.PutAsJsonAsync("/api/settings/company", new { timeZoneId = "Mars/Olympus" })).StatusCode);
+
+        // Имя в другой записи (ревью PR #1314). Примет ли его машина, зависит от системы: Windows
+        // регистр не различает, Linux — различает. Но если приняла, то пояс ДЕЙСТВУЕТ — и экран не
+        // вправе называть его неизвестным, а в базу ложится имя, каким пояс называет система.
+        var odd = await client.PutAsJsonAsync("/api/settings/company", new { timeZoneId = "europe/moscow" });
+        if (odd.StatusCode == HttpStatusCode.NoContent)
+        {
+            var kept = await ReadJsonAsync(client, "/api/settings/company");
+            Assert.True(kept.GetProperty("resolved").GetBoolean());
+            Assert.Equal(kept.GetProperty("effectiveTimeZoneId").GetString(), kept.GetProperty("timeZoneId").GetString());
+        }
+        else Assert.Equal(HttpStatusCode.BadRequest, odd.StatusCode);
+        await client.PutAsJsonAsync("/api/settings/company", new { timeZoneId = "Europe/Moscow" });
 
         using var scope = fixture.Services.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IAppSettingsStore>();

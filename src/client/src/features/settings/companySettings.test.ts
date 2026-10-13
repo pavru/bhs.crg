@@ -14,7 +14,6 @@ const view = (over: Partial<CompanyTimeZoneView> = {}): CompanyTimeZoneView => (
   serverTimeZoneId: 'Etc/UTC',
   resolved: true,
   effectiveOffset: 'UTC+03:00',
-  effectiveCity: 'Москва',
   serverOffset: 'UTC+00:00',
   effectiveNow: '2026-10-13T14:32',
   timeZones: [
@@ -56,7 +55,7 @@ describe('что предложить на выбор', () => {
   // и первое же сохранение его стёрло бы.
   it('выбранный вне списка остаётся пунктом — со своим смещением', () => {
     const choices = zoneChoices(view({
-      timeZoneId: 'Asia/Novosibirsk', effectiveTimeZoneId: 'Asia/Novosibirsk', effectiveOffset: 'UTC+07:00', effectiveCity: null,
+      timeZoneId: 'Asia/Novosibirsk', effectiveTimeZoneId: 'Asia/Novosibirsk', effectiveOffset: 'UTC+07:00',
     }));
     expect(choices.map(c => c.value)).toEqual([SERVER_ZONE, 'Asia/Novosibirsk', 'Europe/Moscow', 'Asia/Vladivostok']);
     expect(choices[1].label).toBe('Asia/Novosibirsk (UTC+07:00)');
