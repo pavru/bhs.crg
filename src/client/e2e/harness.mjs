@@ -283,6 +283,33 @@ export async function settled(page, { timeout = 20_000 } = {}) {
  * перестанет что-либо стеречь. Такие ждут событие, после которого поломка возможна (`settled()`,
  * ответ на запрос), и читают значение один раз.
  */
+/**
+ * Закрыть верхний диалог с клавиатуры — и убедиться, что он закрылся (issue #1235).
+ *
+ * Голый `press('Escape')` закрывает только окно, в котором ничего не набирали. После ввода Esc
+ * ставит фокус на кнопку выхода, и окно остаётся — а прогон шёл дальше и узнавал об этом чужой
+ * ошибкой, если узнавал вообще (ревью PR #1310). Здесь путь тот же, каким идёт человек: Esc, при
+ * необходимости Enter на кнопке выхода, при вопросе о правках — Tab и Enter на «Закрыть».
+ */
+export async function closeDialog(page) {
+  const dialogs = page.locator('[role=dialog]');
+  const before = await dialogs.count();
+  if (!before) throw new Error('закрывать нечего: диалога на странице нет');
+  const gone = async () => {
+    try {
+      await until(async () => { if ((await dialogs.count()) >= before) throw new Error('ещё открыт'); }, { timeout: 1500 });
+      return true;
+    } catch { return false; }
+  };
+  await page.keyboard.press('Escape');
+  if (await gone()) return;
+  await page.keyboard.press('Enter');
+  if (await gone()) return;
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  if (!(await gone())) throw new Error('диалог не закрылся ни Esc, ни кнопкой выхода, ни ответом «Закрыть»');
+}
+
 export async function until(probe, { timeout = 10_000, every = 40 } = {}) {
   const deadline = Date.now() + timeout;
   for (;;) {

@@ -101,7 +101,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-stroke bg-surface px-2 py-1">
           <Search size={14} className="text-fg4" />
           <input value={typed} placeholder="Артикул или наименование у поставщика"
-            aria-label="Поиск по артикулу или наименованию у поставщика"
+            aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
             onChange={e => setTyped(e.target.value)}
             className="flex-1 bg-transparent text-sm text-fg outline-none" />
         </label>

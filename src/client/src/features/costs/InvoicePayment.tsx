@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Banknote, Lock, Undo2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
@@ -216,7 +216,7 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   if (posting?.refusal)
     return (
       <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
-        footer={<div className="flex justify-end"><Button variant="filled" onClick={onDone}>Понятно</Button></div>}>
+        acknowledge="Понятно">
         <p role="alert" className="text-[13px] text-fg1">
           Оплатить нельзя: {posting.refusal}.
           {posting.refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}
@@ -325,8 +325,8 @@ function PostedDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
   const { data, error, isLoading } = usePostedPayment(view.id, true);
 
   return (
-    <Modal open wide onOpenChange={o => { if (!o) onDone(); }} title={`Расклад оплаты: ${invoiceTitle(view)}`}
-      footer={<div className="flex justify-end"><Button variant="text" onClick={onDone}>Закрыть</Button></div>}>
+    <Modal open wide nothingToLose onOpenChange={o => { if (!o) onDone(); }} title={`Расклад оплаты: ${invoiceTitle(view)}`}
+      footer={<div className="flex justify-end"><ModalExit>Закрыть</ModalExit></div>}>
       {isLoading ? <p className="text-[13px] text-fg3">Читаем расклад…</p>
         : error || !data ? <p role="alert" className="text-[13px] text-danger">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
           : <PaymentPostingTable posting={data} expanded />}

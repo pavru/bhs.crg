@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Calculator, Check, Divide, Percent, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import type { InvoiceView } from '@/shared/api/invoices';
 import {
@@ -135,7 +135,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разноска по объектам" fullScreen
-      isDirty={dirty || preview !== null}
+      isDirty={dirty || preview !== null} busy={replace.isPending}
       footer={(
         <>
           <span className="text-xs text-fg4 mr-auto">
@@ -154,7 +154,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
             </>
           ) : (
             <>
-              <Button variant="text" onClick={onClose}>Закрыть</Button>
+              <ModalExit>Закрыть</ModalExit>
               {canEdit && (
                 <Button variant="filled" icon={<Save size={13} />} disabled={!dirty} loading={replace.isPending}
                   onClick={save}>

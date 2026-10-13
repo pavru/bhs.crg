@@ -43,7 +43,7 @@ function InstanceNameEditor({ instance, setId, docType }: {
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={save}
-        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') setEditing(false); }}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
         autoFocus
         placeholder={docType?.name ?? 'Название документа'}
         className="text-sm font-medium text-fg1 bg-transparent border-b border-brand outline-none w-full min-w-0"
@@ -185,7 +185,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       {/* MD3 top app bar: крестик слева, имя+подзаголовок, статус, действия справа */}
       <div className="shrink-0 bg-surface">
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
-          <button type="button" onClick={() => (requestClose ?? onClose)()} aria-label="Закрыть"
+          <button type="button" onClick={() => (requestClose ?? onClose)()} aria-label="Закрыть" data-modal-exit=""
             className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
             <X size={20} />
           </button>

@@ -159,7 +159,7 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
   }, [fileId, pageIndex]);
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} extraWide>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} extraWide nothingToLose>
       {failed ? (
         <p className="text-sm text-danger py-10 text-center">Не удалось загрузить изображение листа.</p>
       ) : !url ? (
@@ -286,10 +286,10 @@ function GroupSection({
           <div className="flex items-center gap-2 flex-1"
             onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
             <input value={codeVal} onChange={e => setCodeVal(e.target.value)} placeholder="Шифр"
-              autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+              autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
               className="text-sm font-medium border-b border-brand bg-transparent outline-none w-32" />
             <input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder="Наименование документа"
-              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
               className="text-sm border-b border-brand bg-transparent outline-none flex-1" />
           </div>
         ) : (

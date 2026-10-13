@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { useToast } from '@/shared/ui/Toast';
@@ -181,7 +181,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Завести организацию"
-      isDirty={name.trim() !== (party.name ?? '').trim()}>
+      isDirty={name.trim() !== (party.name ?? '').trim()} busy={create.isPending}>
       <div className="space-y-3">
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           invalid={tooLong}
@@ -199,7 +199,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <Button variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" loading={create.isPending} disabled={tooLong || !name.trim()} onClick={() => void submit()}>
             Завести
           </Button>

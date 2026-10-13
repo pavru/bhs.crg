@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import {
@@ -157,6 +157,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} wide isDirty={dirty}
+      busy={replace.isPending}
       footer={(
         <>
           <span className="text-xs text-fg4 mr-auto">
@@ -166,7 +167,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                 + '. Делится количество, сумма части считается.'
               : `Количества у строки нет — делится сумма ${formatMoney(line.amount ?? 0)}.`}
           </span>
-          <Button variant="text" onClick={onClose}>{canEdit ? 'Отмена' : 'Закрыть'}</Button>
+          <ModalExit>{canEdit ? 'Отмена' : 'Закрыть'}</ModalExit>
           {canEdit && !gone && (
             <Button variant="filled" icon={<Save size={13} />} loading={replace.isPending} onClick={save}>
               Сохранить разноску
