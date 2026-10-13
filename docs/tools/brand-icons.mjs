@@ -1,8 +1,10 @@
-// Сборка PNG-иконок приложения из знака BimHouse (issue #728).
+// Сборка СТАНДАРТНЫХ PNG-значков приложения из знака BimHouse (issue #728) — тех, что экземпляр
+// показывает, пока компания не загрузила свой логотип. Лежат они вшитыми в сервер (issue #1315):
+// значки отдаёт он, одним адресом и стандартные, и построенные из логотипа.
 //
-// Мастер — docs/brand/BimHouseLogoNoName.svg; в public/favicon.svg лежит его почищенный вариант
+// Мастер — docs/brand/BimHouseLogoNoName.svg; рядом с PNG лежит tab.svg — его почищенный вариант
 // (квадратный viewBox + переключение тёмной половины по prefers-color-scheme). PNG собираем из
-// САМОГО мастера, а не из favicon.svg: у того цвета живут в CSS-переменных, и рендер по ошибке в
+// САМОГО мастера, а не из tab.svg: у того цвета живут в CSS-переменных, и рендер по ошибке в
 // тёмной схеме дал бы светлый знак на белом фоне.
 //
 // Playwright, а не sharp/resvg: он уже стоит здесь ради сборки PDF, и браузерный рендер SVG
@@ -21,7 +23,7 @@ import { dirname, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const master = resolve(here, '../brand/BimHouseLogoNoName.svg');
-const outDir = resolve(here, '../../src/client/public');
+const outDir = resolve(here, '../../src/server/BHS.CRG.Infrastructure/Branding/Standard');
 
 /**
  * `scale` — доля стороны, которую занимает знак.
@@ -35,11 +37,11 @@ const outDir = resolve(here, '../../src/client/public');
  * системного дал бы обгрызенные углы.
  */
 const ICONS = [
-  { file: 'icon-192.png', size: 192, scale: 0.68, radius: 0.22 },
-  { file: 'icon-512.png', size: 512, scale: 0.68, radius: 0.22 },
-  { file: 'icon-maskable-512.png', size: 512, scale: 0.56, radius: 0 },
+  { file: 'app-192.png', size: 192, scale: 0.68, radius: 0.22 },
+  { file: 'app-512.png', size: 512, scale: 0.68, radius: 0.22 },
+  { file: 'maskable-512.png', size: 512, scale: 0.56, radius: 0 },
   // Прозрачность iOS заливает чёрным, поэтому фон обязателен и здесь — но радиус её собственный.
-  { file: 'apple-touch-icon.png', size: 180, scale: 0.62, radius: 0 },
+  { file: 'apple.png', size: 180, scale: 0.62, radius: 0 },
 ];
 
 const BG = '#ffffff';
@@ -79,5 +81,5 @@ for (const { file, size, scale, radius } of ICONS) {
 }
 
 await browser.close();
-console.log('Готово. Поднимите ?v= в src/client/index.html и public/manifest.webmanifest —');
-console.log('иначе у тех, кто уже заходил, останется прежняя иконка из кэша браузера.');
+console.log('Готово. Метку версии поднимать не нужно: сервер отдаёт значки с тегом по содержимому,');
+console.log('и браузер перечитает их сам, как только выйдет сборка с новыми картинками.');

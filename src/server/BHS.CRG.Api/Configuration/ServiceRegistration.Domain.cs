@@ -245,6 +245,11 @@ internal static class DomainRegistration
     // шаблонов, поэтому служба знает и о настройках, и о хранилище.
     builder.Services.AddScoped<BHS.CRG.Application.Branding.IBrandingService,
         BHS.CRG.Infrastructure.Branding.BrandingService>();
+    // Значки вкладки и приложения из логотипа (issue #1315). Синглтоны: построенный набор живёт в
+    // памяти процесса, один на всех, а растеризатор состояния не имеет.
+    builder.Services.AddSingleton<BHS.CRG.Infrastructure.Branding.ILogoRasterizer,
+        BHS.CRG.Infrastructure.Branding.TypstLogoRasterizer>();
+    builder.Services.AddSingleton<BHS.CRG.Infrastructure.Branding.BrandIconStore>();
     // Каталог моделей движков (issue #799). Сам он без состояния — кэш ответов живёт в IMemoryCache,
     // то есть переживает запрос, а HTTP-клиент берётся у фабрики, как у движков распознавания.
     // Клиентов у каталога три — по одному на движок: он спрашивает и Gemini, и Anthropic, и Ollama, а

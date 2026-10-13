@@ -47,6 +47,53 @@ await page.goto(`${BASE}/settings`);
 await settled(page);
 
 // ── Интеграции: пять кусков формы поверх одного ответа ─────────────────────────
+// Значок вкладки отдаёт сервер, но Chromium держит его в своей базе по АДРЕСУ значка до недели и
+// сервер не спрашивает (issue #1315). Свежесть даёт только адрес с меткой версии, и ставить её
+// обязано приложение — при каждой загрузке. Без этой проверки значок молча отставал бы от
+// логотипа на неделю, и заметить это можно было бы только глазами.
+await check('tab-icon-link-carries-the-icons-version', async () => {
+  const { status, body } = await callApi(page, 'GET', '/branding');
+  if (status !== 200) throw new Error(`адрес оформления ответил ${status}`);
+  const expected = `?v=${encodeURIComponent(body.icons.version)}`;
+
+  const links = () => page.evaluate(() => ({
+    tab: document.querySelector('link[rel="icon"]')?.getAttribute('href'),
+    apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'),
+    stored: localStorage.getItem('crg-brand-icons'),
+  }));
+  const now = await links();
+  if (now.tab !== `/api/branding/icons/tab${expected}`) throw new Error(`ссылка значка вкладки — «${now.tab}», метки версии в ней нет`);
+  if (now.apple !== `/api/branding/icons/apple${expected}`) throw new Error(`ссылка значка iPhone — «${now.apple}»`);
+  if (now.stored !== body.icons.version) throw new Error(`метка не запомнена для следующей загрузки: «${now.stored}»`);
+
+  // Следующая загрузка: ссылку ставит ранний скрипт — до приложения и до запроса оформления.
+  // Запрос оформления придерживаем, иначе не отличить скрипт от приложения.
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  await page.route('**/api/branding', async route => { await held; await route.continue(); });
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const early = await links();
+    if (early.tab !== `/api/branding/icons/tab${expected}`)
+      throw new Error(`до ответа об оформлении ссылка значка — «${early.tab}»: ранний скрипт её не поставил`);
+  } finally {
+    release();
+    // С ожиданием: придержанный запрос ещё в обработчике, и снятая под ним подмена обернулась бы
+    // необработанным «Route is already handled» — падением всего набора, а не одной проверки.
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+  await settled(page);
+
+  // И адрес с меткой — живой: отвечает картинкой и длинным кешем.
+  const served = await page.evaluate(async url => {
+    const res = await fetch(url);
+    return { status: res.status, cache: res.headers.get('cache-control'), type: res.headers.get('content-type') };
+  }, now.tab);
+  if (served.status !== 200 || !served.type?.startsWith('image/'))
+    throw new Error(`адрес значка ответил ${served.status} ${served.type}`);
+  if (!served.cache?.includes('max-age=604800')) throw new Error(`у адреса с действующей меткой кеш «${served.cache}»`);
+});
+
 await check('integrations-form-shows-saved-engines', async () => {
   const t = await openSection('ПОИСК И РАСПОЗНАВАНИЕ');
   for (const engine of ['Google Gemini', 'Anthropic Claude', 'Ollama']) {
