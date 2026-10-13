@@ -128,6 +128,52 @@ await check('settings-carry-the-same-summary', async () => {
   if (!page.url().endsWith('/field-mapping')) throw new Error(`ссылка увела на ${page.url()}`);
 });
 
+// Последней: ответ адреса подменён, в базу ничего не пишется. Строки «не назначено» на стенде нет
+// (посев заводит справочник с тэгами), а держит эта проверка поведение списка, которого тест логики
+// не видит: после «Отменить» список обязан вернуться к пустому, и тот же пункт — выбираться заново.
+// С `undefined` вместо пустой строки Radix помнил отменённый выбор сам и на повтор не отвечал.
+await check('cancelled-pick-can-be-picked-again', async () => {
+  const org = { id: 'o', name: 'Организация', code: 'Организация', kind: 'Composite' };
+  const f = key => ({ key, title: key, type: 'string', declaredIn: org, fits: true, tagged: false });
+  const fake = { modules: [{
+    code: 'costs', title: 'Счета и накладные', total: 2, unmet: 1, notWorking: [],
+    groups: [{
+      role: 'role.organization', label: 'Справочник организаций', purpose: 'Поставщик и плательщик счёта',
+      withoutIt: '', state: 'mapped', reason: null, type: org, candidates: [],
+      rows: [{
+        tag: TAX_ID, label: 'ИНН организации', description: '', required: true, withoutIt: 'Не ищется.',
+        state: 'absent', fault: 'Absent', reason: 'в справочнике не назначено поле «ИНН организации»', key: null,
+        kinds: ['string'], fields: [f('ИНН'), f('Код')],
+      }],
+    }],
+  }] };
+  await page.route('**/api/field-mapping', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fake) }));
+  try {
+    await page.goto(`${BASE}/field-mapping`);
+    await settled(page);
+    const group = page.locator('[data-role="role.organization"]');
+    const shown = async () => (await select.innerText()).trim();
+
+    if (!(await shown()).startsWith('Выберите поле')) throw new Error(`у неназначенной строки в списке «${await shown()}»`);
+    await pick({ title: 'Код' });
+    if (!(await shown()).startsWith('Код')) throw new Error(`после выбора в списке «${await shown()}»`);
+
+    await group.getByRole('button', { name: 'Отменить' }).click();
+    await settled(page);
+    if (!(await shown()).startsWith('Выберите поле')) throw new Error(`после «Отменить» в списке осталось «${await shown()}»`);
+    if (await group.getByRole('button', { name: 'Сохранить' }).count()) throw new Error('после «Отменить» кнопка «Сохранить» осталась');
+
+    await pick({ title: 'Код' });
+    if (!(await group.getByRole('button', { name: 'Сохранить' }).count()))
+      throw new Error('тот же пункт после «Отменить» не выбирается: кнопки «Сохранить» нет');
+    // Уходим без сохранения — иначе охрана ухода остановила бы закрытие страницы вопросом.
+    await group.getByRole('button', { name: 'Отменить' }).click();
+  } finally {
+    await page.unroute('**/api/field-mapping');
+  }
+});
+
 } finally {
   // Упали между двумя сохранениями — тэг остался бы на чужом поле, и у соседних прогонов
   // перестал бы находиться поставщик по ИНН.

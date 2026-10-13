@@ -35,12 +35,28 @@ export interface SchemaWrite {
 }
 
 /**
+ * Набранное в строке — единственное место, где читают черновик.
+ *
+ * Выбор действителен, пока поле есть в списке строки. Список перечитывается, и поле тем временем
+ * могли удалить; оставшийся в черновике ключ экран считал бы правкой, а запись — снятием тэга:
+ * поставить его некуда, снять с прежнего есть откуда. Повторное «Сохранить» после отказа «поля
+ * больше нет» молча снимало обязательное назначение и отвечало «сохранено» (проверка правок PR
+ * #1318). Тот же приём, что у выбранного типа справочника: выбор жив, пока есть из чего выбирать.
+ *
+ * `undefined` — строку не трогали; `null` — «Не назначено».
+ */
+function chosenKey(row: CoverageRow, draft: MappingDraft): string | null | undefined {
+  const chosen = draft[row.tag];
+  return chosen != null && !row.fields.some(f => f.key === chosen) ? undefined : chosen;
+}
+
+/**
  * Строки, в которых выбор отличается от действующего. Действующим считается только сопоставленное:
  * у нарушенной строки (два поля с тэгом) любой выбор — правка, даже если он совпал с одним из двух.
  */
 export function changedRows(group: CoverageGroup, draft: MappingDraft): CoverageRow[] {
   return group.rows.filter(row => {
-    const chosen = draft[row.tag];
+    const chosen = chosenKey(row, draft);
     if (chosen === undefined) return false;
     return row.state === 'mapped' ? chosen !== row.key : chosen !== null || row.fields.some(f => f.tagged);
   });
@@ -55,7 +71,7 @@ export function changedRows(group: CoverageGroup, draft: MappingDraft): Coverage
 export function schemaWrites(group: CoverageGroup, draft: MappingDraft): SchemaWrite[] {
   const writes = new Map<string, SchemaWrite>();
   for (const row of changedRows(group, draft)) {
-    const chosen = draft[row.tag] ?? null;
+    const chosen = chosenKey(row, draft) ?? null;
     const target = chosen === null ? undefined : row.fields.find(f => f.key === chosen);
     const touched = [...row.fields.filter(f => f.tagged), ...(target ? [target] : [])];
     for (const field of touched) {
@@ -188,7 +204,7 @@ export function listedFields(row: CoverageRow): CoverageField[] {
 
 /** Что стоит в списке строки: набранное, а если не трогали — действующее назначение. */
 export function selectedKey(row: CoverageRow, draft: MappingDraft): string | undefined {
-  const chosen = draft[row.tag];
+  const chosen = chosenKey(row, draft);
   if (chosen !== undefined) return chosen ?? NOT_ASSIGNED;
   if (row.key !== null) return row.key;
   // Одно негодное поле с тэгом — показываем его, с пометкой: пустой список скрыл бы, что тэг стоит.

@@ -263,7 +263,10 @@ function Row({ row, group, draft, disabled, onPick }: {
         ) : selectable ? (
           <Select
             aria-label={`Поле для «${row.label}»`}
-            value={selectedKey(row, draft)}
+            // Пустая строка, а не undefined: с undefined Radix считает список неуправляемым и помнит
+            // выбор сам — после «Отменить» показывал бы отменённое, и выбрать его заново было бы
+            // нельзя (значение «то же», событие не приходит). Пустая строка — «значения нет».
+            value={selectedKey(row, draft) ?? ''}
             onValueChange={v => onPick(v === NOT_ASSIGNED ? null : v)}
             placeholder={row.fault === 'Several' ? 'Выберите одно' : 'Выберите поле'}
             disabled={disabled}
@@ -364,7 +367,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-72">
               <Select aria-label={`Тип — ${group.label.toLowerCase()}`}
-                value={typeId} onValueChange={setPicked} placeholder="Выберите тип" disabled={saving}>
+                value={typeId ?? ''} onValueChange={setPicked} placeholder="Выберите тип" disabled={saving}>
                 {group.candidates.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </Select>
             </div>

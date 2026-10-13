@@ -75,6 +75,42 @@ describe('что уйдёт в схему', () => {
   });
 });
 
+// Список полей перечитывается, и выбранное поле тем временем могли удалить. Ключ, оставшийся в
+// черновике, — не выбор: иначе экран считал бы строку изменённой, а запись свелась бы к снятию тэга
+// с прежнего поля — повторное «Сохранить» после отказа молча снимало обязательное назначение.
+describe('выбор, которого в списке полей больше нет', () => {
+  const stale = { 'org.inn': 'Удалённое' };
+
+  it('у назначенной строки — не правка: назначение остаётся, писать нечего', () => {
+    const g = group(row());
+
+    expect(changedRows(g, stale)).toHaveLength(0);
+    expect(schemaWrites(g, stale)).toHaveLength(0);
+    expect(selectedKey(row(), stale)).toBe('ИНН');
+  });
+
+  it('у неназначенной — тоже: «сохранено» без единой записи не бывает', () => {
+    const none = row({ state: 'absent', fault: 'Absent', key: null, fields: [field('Код')] });
+
+    expect(changedRows(group(none), stale)).toHaveLength(0);
+    expect(selectedKey(none, stale)).toBeUndefined();
+  });
+
+  it('правки соседних строк при этом остаются', () => {
+    const name = row({ tag: 'org.name', key: 'Наим', fields: [field('Наим', { tagged: true }), field('Код')] });
+    const g = group(row(), name);
+
+    expect(changedRows(g, { ...stale, 'org.name': 'Код' }).map(r => r.tag)).toEqual(['org.name']);
+  });
+
+  it('«Не назначено» выбором остаётся: это не ключ поля', () => {
+    const optional = row({ required: false });
+
+    expect(changedRows(group(optional), { 'org.inn': null })).toHaveLength(1);
+    expect(selectedKey(optional, { 'org.inn': null })).toBe(NOT_ASSIGNED);
+  });
+});
+
 describe('правка сырой схемы', () => {
   const schema = {
     help: 'справка', excludedFields: ['Чужое'],
