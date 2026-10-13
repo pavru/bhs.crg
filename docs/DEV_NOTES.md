@@ -3627,6 +3627,26 @@ POST   /api/common-data/purge-batch         { records: [{ id, references }], ref
                                     с { error, preview } (свежий список). Не больше 200 записей.
                                     В журнал — core.record.purged на КАЖДУЮ запись. Все три адреса
                                     — право core.catalog.purge.
+DELETE /api/constructions/{id}, /api/sections/{id}, /api/document-sets/{id}
+                                    409 «держат данные модулей» несёт { error, purge, leaving }
+                                    (#1243): purge — как у записи; leaving = { sections, sets,
+                                    objects, qualityDocuments, workPlanItems } — что уйдёт вместе
+                                    (документы и записи общих данных считаются вместе: objects).
+                                    Без права core.catalog.purge — allowed:false, без разбивки и
+                                    без leaving. Прочие отказы уровня — как были, { error }.
+POST   /api/constructions/{id}/purge, /api/sections/{id}/purge, /api/document-sets/{id}/purge
+                                    { references } → { name, references, untraceable } — удалить
+                                    уровень, который держат ТОЛЬКО данные выключенных или снятых
+                                    модулей (#1243). ДВА права: правка уровня
+                                    (core.constructions.edit | id.document.edit) И
+                                    core.catalog.purge. references — ОБЩЕЕ число ссылок на всё
+                                    уходящее; не совпало — 409 со свежими purge и leaving. Отказы
+                                    ядра («ссылаются извне», чужой перечень работ) остаются и
+                                    стоят РАНЬШЕ вопроса к модулям — уровню с ними предложение не
+                                    приходит. Свободный уровень — 409 «удалите обычным путём».
+                                    В журнал — core.scope.purged, одно на уровень: держатели,
+                                    число ссылок и состав унесённого. Тело удаления одно на три
+                                    уровня и оба пути — ScopeDeletionHandlers.
 GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
 GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
 POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь

@@ -5,6 +5,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -46,6 +47,8 @@ export function ConstructionDetail() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameVal, setRenameVal] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  // Отказ «держат данные выключенного модуля» несёт выход — удалить, потеряв ссылки (issue #1243).
+  const purge = useScopePurge('construction', () => setDeleteConfirm(false), () => navigate('/document-sets'));
   const createSection = useCreateSection();
   const renameConstruction = useRenameConstruction();
   const deleteConstruction = useDeleteConstruction();
@@ -198,7 +201,9 @@ export function ConstructionDetail() {
           await deleteConstruction.mutateAsync(construction.id);
           navigate('/document-sets');
         }}
+        onRefused={purge.onRefused(construction)}
       />
+      {purge.dialog}
     </>
   );
 }

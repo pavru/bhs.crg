@@ -9,6 +9,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
@@ -75,6 +76,8 @@ export function SetDetail() {
   const [renameSetOpen, setRenameSetOpen] = useState(false);
   const [renameSetVal, setRenameSetVal] = useState('');
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
+  const purge = useScopePurge('set', () => setDeleteSetConfirm(false),
+    () => navigate(`/document-sets/${constructionId}/sections/${set?.sectionId}`));
   // DnD-порядок документов: dragIndex — перетаскиваемая строка; dropPos — позиция вставки 0..N
   // (перед instances[dropPos]; N = в конец). Стрелки ↑↓ остаются доступным фолбэком.
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -520,7 +523,9 @@ export function SetDetail() {
           await deleteSet.mutateAsync({ id: set.id, constructionId: constructionId! });
           navigate(`/document-sets/${constructionId}/sections/${set.sectionId}`);
         }}
+        onRefused={purge.onRefused(set)}
       />
+      {purge.dialog}
     </>
   );
 }
