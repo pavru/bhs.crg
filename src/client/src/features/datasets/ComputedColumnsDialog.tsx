@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { ComputedColumn } from '@/shared/api/types';
 import { columnAccessor } from './computedColumnAccess';
 import { useDialogSave } from './useDialogSave';
@@ -70,6 +71,7 @@ export function ComputedColumnsDialog({
 }) {
   const { saving, refusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить вычисляемые колонки');
   const [columns, setColumns] = useState<ComputedColumn[]>(initial ?? []);
+  const edited = useChangedSince(columns);
   // Куда вставлять по клику: последнее выражение, в котором стоял курсор.
   const active = useRef<{ el: HTMLInputElement; index: number } | null>(null);
 
@@ -119,7 +121,7 @@ export function ComputedColumnsDialog({
       open={true}
       onOpenChange={o => { if (!o) close(); }}
       title="Вычисляемые колонки"
-      wide
+      wide isDirty={edited} busy={saving}
       footer={
         <div className="flex gap-2">
           <button
@@ -129,13 +131,7 @@ export function ComputedColumnsDialog({
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
-          <button
-            onClick={close}
-            disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50"
-          >
-            Отмена
-          </button>
+          <ModalExit variant="tonal" />
           {columns.length > 0 && (
             <button
               onClick={() => void commit(() => onSave(null))}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
@@ -86,6 +86,9 @@ function PasteMappingModalBody({
   const coerceCtx: CoerceContext = { locale, primitiveTypes, enumTypes };
   const [step, setStep] = useState<'input' | 'map'>(initialText.trim() ? 'map' : 'input');
   const [rawText, setRawText] = useState(initialText);
+  // Три шага — три окна, и набранное жалко на каждом: вставленный текст и есть правка. Сопоставление
+  // колонок выбирают списками, которых окно не замечает, — поэтому признак явный, один на все шаги.
+  const pasted = rawText.trim() !== '';
   const [skipHeader, setSkipHeader] = useState(initial.skipHeader);
   // Сопоставление: ПОЛЕ таблицы → индекс колонки Excel-данных (источник). '' = пропустить.
   const [fieldCol, setFieldCol] = useState<Record<string, number>>(initial.fieldCol);
@@ -280,10 +283,10 @@ function PasteMappingModalBody({
 
   if (step === 'input') {
     return (
-      <Modal open onOpenChange={onOpenChange} title="Вставить из Excel" wide
+      <Modal open onOpenChange={onOpenChange} title="Вставить из Excel" wide isDirty={pasted}
         footer={
           <div className="flex justify-end gap-3">
-            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <ModalExit />
             <Button variant="filled" disabled={!rawText.trim()}
               onClick={() => { initMapping(rawText); setStep('map'); }}>
               Далее →
@@ -307,12 +310,12 @@ function PasteMappingModalBody({
   // step === 'map', промежуточная сводка перед вставкой (есть несопоставленные строки).
   if (pending) {
     return (
-      <Modal open onOpenChange={onOpenChange} title="Готово к вставке" wide
+      <Modal open onOpenChange={onOpenChange} title="Готово к вставке" wide isDirty={pasted} busy={applying}
         footer={
           <div className="flex justify-between">
             <Button variant="text" disabled={applying} onClick={() => setPending(null)}>← Изменить сопоставление</Button>
             <div className="flex gap-3">
-              <Button variant="text" disabled={applying} onClick={() => onOpenChange(false)}>Отмена</Button>
+              <ModalExit />
               <Button variant="filled" disabled={pending.rows.length === 0 || applying} loading={applying}
                 onClick={() => void applyPending()}>
                 Вставить {pending.rows.length} стр.
@@ -382,12 +385,12 @@ function PasteMappingModalBody({
 
   // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
   return (
-    <Modal open onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
+    <Modal open onOpenChange={onOpenChange} title="Сопоставление столбцов" wide isDirty={pasted}
       footer={
         <div className="flex justify-between">
           <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>
           <div className="flex gap-3">
-            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <ModalExit />
             <Button variant="filled" onClick={stage} loading={resolving} disabled={importCount === 0 || resolving}>
               Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
             </Button>

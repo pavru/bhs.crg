@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Plus, ShieldCheck, Trash2, Users as UsersIcon, Pencil } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ListDetailShell, NavSection } from '@/shared/ui/ListDetailShell';
 import { apiError } from '@/shared/utils/apiError';
@@ -260,14 +260,15 @@ function CreateRoleModal(
   }
 
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) { reset(); onClose(); } }} title="Новая роль">
+    <Modal open={open} onOpenChange={o => { if (!o) { reset(); onClose(); } }} title="Новая роль"
+      isDirty={!!title.trim() || !!summary.trim()} busy={create.isPending}>
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Название" value={title} onChange={e => setTitle(e.target.value)} required autoFocus />
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)}
           hint="Показывается рядом с названием — чтобы через полгода было понятно, кому её выдавать." />
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
+          <ModalExit />
           <Button type="submit" variant="filled" loading={create.isPending}>Создать</Button>
         </div>
       </form>

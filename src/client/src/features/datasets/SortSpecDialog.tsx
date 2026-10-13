@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
 import { useDialogSave } from './useDialogSave';
@@ -73,6 +74,7 @@ export function SortSpecDialog({
   const { saving, refusal, commit, close } = useDialogSave(onClose, 'Не удалось сохранить сортировку');
   // Личности строк (issue #517): без них повторный Enter по «Ниже» двигает уже другой уровень.
   const [levels, setLevels] = useState<SortColumn[]>(() => withRowUids(initial ?? []));
+  const edited = useChangedSince(levels);
 
   function addLevel() {
     setLevels(prev => [...prev, withRowUid({ column: '', direction: 'asc' as const })]);
@@ -103,17 +105,14 @@ export function SortSpecDialog({
       open={true}
       onOpenChange={o => { if (!o) close(); }}
       title="Сортировка строк"
-      wide
+      wide isDirty={edited} busy={saving}
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
             className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50">
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
-          <button onClick={close} disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted disabled:opacity-50">
-            Отмена
-          </button>
+          <ModalExit variant="tonal" />
           {levels.length > 0 && (
             <button
               onClick={() => void commit(() => onSave(null))}

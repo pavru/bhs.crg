@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useSetEmailRecipients } from '@/shared/api/documentSets';
 import { apiError } from '@/shared/utils/apiError';
@@ -66,9 +66,13 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
 
   return (
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setQueued(false); setError(''); } }} title={`Отправить: ${itemName}`}
+      // Письмо ушло в очередь — терять уже нечего. Подписчиков снимают галками (их окно видит),
+      // но признак явный: компонент смонтирован постоянно, и сам он знает точнее.
+      isDirty={!queued && (unchecked.size > 0 || !!external.trim() || !!subject.trim() || !!body.trim())}
+      busy={sending}
       footer={
         <div className="flex justify-end gap-3">
-          <Button variant="text" onClick={onClose}>Закрыть</Button>
+          <ModalExit>Закрыть</ModalExit>
           <Button variant="filled" onClick={handleSend} loading={sending}
             disabled={queued || !ready || to.length === 0}>
             Отправить ({to.length})

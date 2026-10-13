@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
@@ -21,6 +22,7 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
   const [kind, setKind] = useState<DecisionKind>(finding.decision?.kind ?? 'Accepted');
   const [note, setNote] = useState(finding.decision?.note ?? '');
   const [busy, setBusy] = useState(false);
+  const edited = useChangedSince([kind, note]);
   const toast = useToast();
 
   async function run(action: () => Promise<void>) {
@@ -40,13 +42,14 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор находки"
+      isDirty={edited} busy={busy}
       footer={
         <div className="flex items-center gap-2">
           {onRemove && (
             <Button danger disabled={busy} onClick={() => run(onRemove)}>Снять решение</Button>
           )}
           <span className="flex-1" />
-          <Button disabled={busy} onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" loading={busy}
             onClick={() => run(() => onSave(kind, note.trim() || null))}>
             Сохранить

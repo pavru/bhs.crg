@@ -2,7 +2,8 @@ import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { CalendarCheck, ChevronDown, ChevronRight, Lock, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useToast } from '@/shared/ui/Toast';
@@ -150,6 +151,8 @@ function CloseDialog({ state, name, today, onDone }: {
   const [through, setThrough] = useState(() => suggestThrough(today, state.closedThrough));
   // Начало первого закрытия называет человек; у следующих оно задано границей и не правится.
   const [firstFrom, setFirstFrom] = useState(() => suggestFirstFrom(suggestThrough(today, state.closedThrough)));
+  // Даты чаще выбирают в календаре, а его окно само не замечает: признак правок — явно.
+  const edited = useChangedSince([through, firstFrom]);
   const [error, setError] = useState<string | null>(null);
   // Перечень, который человек видел, когда сервер ответил «данные изменились», — и о каких датах он
   // был: новый перечень называет рядом с изменившимися строками прежние числа. Сменили даты —
@@ -180,6 +183,7 @@ function CloseDialog({ state, name, today, onDone }: {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Закрыть период: ${name}`}
+      isDirty={edited} busy={close.isPending}
       footer={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {unfinished && (
@@ -187,7 +191,7 @@ function CloseDialog({ state, name, today, onDone }: {
               Не завершено: <span className="font-medium text-fg1">{unfinished}</span>
             </span>
           )}
-          <Button variant="text" onClick={onDone}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" disabled={!ready} loading={close.isPending}
             onClick={async () => {
               setError(null);
@@ -265,7 +269,7 @@ function CloseDialog({ state, name, today, onDone }: {
   );
 }
 
-function ReopenDialog({ state, name, nameOf, onDone }: {
+export function ReopenDialog({ state, name, nameOf, onDone }: {
   state: PeriodContourState; name: string; nameOf: (id: string | null) => string; onDone: () => void;
 }) {
   const toast = useToast();
@@ -276,9 +280,10 @@ function ReopenDialog({ state, name, nameOf, onDone }: {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Отменить закрытие: ${name}`}
+      busy={reopen.isPending}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onDone}>Не отменять</Button>
+          <ModalExit>Не отменять</ModalExit>
           <Button variant="filled" danger disabled={!reason.trim()} loading={reopen.isPending}
             onClick={async () => {
               setError(null);

@@ -7,8 +7,9 @@
 import { useState, useRef } from 'react';
 import { Clipboard, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
@@ -56,6 +57,8 @@ function ArrayTableModalBody({
   setColWidths: React.Dispatch<React.SetStateAction<Record<string, number>>>;
 }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>(() => items.map(r => ({ ...r })));
+  // Строки добавляют, удаляют и двигают кнопками — окно этого не замечает: признак правок явный.
+  const edited = useChangedSince(rows);
   // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
   const [rowIds, setRowIds] = useState<string[]>(() => items.map(() => newLocalId()));
   // Личности строк, какими они были при ОТКРЫТИИ таблицы. Только по ним видно, КАКОЙ слот исчез
@@ -191,7 +194,7 @@ function ArrayTableModalBody({
   return (
     <Modal open onOpenChange={onOpenChange}
       title={`${compositeType?.name ?? field.title} — таблица`}
-      extraWide
+      extraWide isDirty={edited}
       footer={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
@@ -210,7 +213,7 @@ function ArrayTableModalBody({
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <ModalExit />
             <Button variant="filled" onClick={handleSave}>Применить</Button>
           </div>
         </div>

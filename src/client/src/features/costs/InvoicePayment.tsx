@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Banknote, Lock, Undo2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
@@ -165,6 +166,8 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   const [asked, setAsked] = useState<PaymentPosting | null>(null);
   const [date, setDate] = useState<string | null>(null);
   const [document, setDocument] = useState('');
+  // Дата приходит и из календаря, которого окно не замечает: признак правок — явно.
+  const edited = useChangedSince([date, document]);
   const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   const [changed, setChanged] = useState<ReadonlySet<string>>(new Set());
@@ -226,9 +229,10 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
 
   return (
     <Modal open wide onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
+      isDirty={edited} busy={pay.isPending}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onDone}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" disabled={!payable} loading={pay.isPending} onClick={submit}>
             {posting && payable ? payLabel(posting.rows) : 'Отметить оплату'}
           </Button>
@@ -281,7 +285,7 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
 }
 
 /** Отмена ошибочной отметки — с причиной: версий оплата не создаёт, и другого следа не остаётся. */
-function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
+export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
   const toast = useToast();
   const cancel = useCancelPayment();
   const [reason, setReason] = useState('');
@@ -289,9 +293,10 @@ function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Отменить оплату: ${invoiceTitle(view)}`}
+      busy={cancel.isPending}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onDone}>Не отменять</Button>
+          <ModalExit>Не отменять</ModalExit>
           <Button variant="filled" danger disabled={!reason.trim()} loading={cancel.isPending}
             onClick={async () => {
               setError(null);

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Info, AlertTriangle } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
@@ -49,6 +50,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   // в нём нет. Как и у режимов union'а, переключение недеструктивно — маппинг ждёт в стэше.
   const [byIdMode, setByIdMode] = useState(!!source.materializeByIdColumn);
   const [byIdColumn, setByIdColumn] = useState(source.materializeByIdColumn ?? '');
+  // Тип, вариант и сопоставление выбирают списками и кнопками — окно этого не замечает.
+  const edited = useChangedSince([typeId, rawMapping, byRowType, discriminator, byIdMode, byIdColumn]);
   const [mappingModeStash, setMappingModeStash] = useState<Record<string, string> | null>(null);
 
   const selectedType = allDocTypes.find(t => t.id === typeId);
@@ -228,9 +231,10 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Материализация источника «${source.name}»`} wide
+      isDirty={edited} busy={save.isPending}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending}
             disabled={!!problem || typesPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
