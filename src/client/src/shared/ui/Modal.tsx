@@ -88,11 +88,20 @@ export function Modal(props: ModalProps) {
 export function ModalExit({ children = 'Отмена', variant = 'text', disabled, ...rest }: Omit<ButtonProps, 'onClick' | 'type'>) {
   const { requestClose, busy } = useModalControl();
   return (
-    <Button {...rest} type="button" variant={variant} data-modal-exit="" disabled={busy || disabled} onClick={requestClose}>
+    <Button {...rest} type="button" variant={variant} data-modal-exit="" disabled={disabled}
+      aria-disabled={busy || undefined} className={`${rest.className ?? ''} ${busy ? BUSY_EXIT : ''}`}
+      onClick={requestClose}>
       {children}
     </Button>
   );
 }
+
+/**
+ * Выход при идущем запросе: виден, но не нажимается. `aria-disabled`, а не `disabled` (ревью PR
+ * #1310): настоящий `disabled` под фокусом — туда его ставит Esc — фокус теряет, браузер перестаёт
+ * слать элементу клавиши, и ловушка Tab диалога выпускает курсор на страницу под окном.
+ */
+const BUSY_EXIT = 'opacity-40 pointer-events-none';
 
 function ModalBody({
   onOpenChange, title, children, wide, extraWide, fullScreen, headerless, isDirty, flushBody, footer,
@@ -102,13 +111,30 @@ function ModalBody({
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hinted = useRef<HTMLElement | null>(null);
   useEffect(() => () => clearTimeout(hintTimer.current), []);
 
   const rule = DISMISSAL[modalState({ busy, acknowledge, isDirty, touched, nothingToLose })];
+  // Вопрос «Закрыть без сохранения?» живёт, только пока выход вообще возможен: начавшийся запрос
+  // снимает его вместе с кнопкой «Закрыть» — иначе она закрыла бы окно мимо `busy`. А пока вопрос
+  // показан, форма под ним недоступна (`inert`): фокус уходит в вопрос, и Enter не нажмёт
+  // «Сохранить» под затемнением.
+  const asking = confirmClose && rule.exit !== 'dead';
+  // «Продолжить редактирование» возвращает человека туда, откуда он спросил: кнопка вопроса,
+  // державшая фокус, исчезает, и без возврата он остался бы нигде.
+  const askedFrom = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (asking) return;
+    if (askedFrom.current?.isConnected) askedFrom.current.focus();
+    askedFrom.current = null;
+  }, [asking]);
 
   function requestClose() {
     if (rule.exit === 'dead') return;
-    if (rule.exit === 'ask') setConfirmClose(true);
+    if (rule.exit === 'ask') {
+      askedFrom.current ??= document.activeElement as HTMLElement | null;
+      setConfirmClose(true);
+    }
     else onOpenChange(false);
   }
 
@@ -125,8 +151,12 @@ function ModalBody({
     if (!exit) return;
     exit.scrollIntoView?.({ block: 'nearest' });
     if (focus) exit.focus();
-    exit.setAttribute('data-modal-hint', '');
+    // Кольцо снимается с ТОГО элемента, на который легло: выход между двумя промахами мог
+    // смениться («Отмена» стала недоступна — остался крестик), а таймер один.
     clearTimeout(hintTimer.current);
+    hinted.current?.removeAttribute('data-modal-hint');
+    hinted.current = exit;
+    exit.setAttribute('data-modal-hint', '');
     hintTimer.current = setTimeout(() => exit.removeAttribute('data-modal-hint'), HINT_MS);
   }
 
@@ -136,7 +166,10 @@ function ModalBody({
    * «тронуто» самой форме.
    */
   function noteInput(e: { target: EventTarget }) {
-    if (content.current?.contains(e.target as Node)) setTouched(true);
+    const field = e.target as Element;
+    // Запрос поиска — не правка: его не сохраняют, и очищенное поле ничего не теряет. Поле поиска
+    // называет себя само (`data-search`), иначе пикер с поиском переставал закрываться по Esc.
+    if (content.current?.contains(field) && !field.closest?.('[data-search]')) setTouched(true);
   }
 
   /**
@@ -193,9 +226,11 @@ function ModalBody({
           onEscapeKeyDown={e => {
             // Решает диалог сам и ПОЗЖЕ — см. `afterFields`. Radix закрыл бы окно прямо сейчас.
             e.preventDefault();
+            // Esc, которым отменяют набор в IME, — клавиша метода ввода, а не диалога.
+            if (e.isComposing) return;
             // Esc при показанном подтверждении = «Продолжить редактирование» (закрыть подтверждение,
             // остаться в редакторе), а не закрыть/no-op.
-            if (confirmClose) {
+            if (asking) {
               setConfirmClose(false);
               return;
             }
@@ -203,7 +238,7 @@ function ModalBody({
             else if (rule.escape === 'focusExit') afterFields(() => showExit(true));
           }}
           onPointerDownOutside={() => {
-            if (!confirmClose && rule.outside === 'hint') showExit(false);
+            if (!asking && rule.outside === 'hint') showExit(false);
           }}
           // Запрет — на `onInteractOutside`, а не на указателе: туда же приходит уход фокуса к
           // тостам и порталам, и закрывать диалог он не должен точно так же.
@@ -214,7 +249,7 @@ function ModalBody({
           <ModalControlContext.Provider value={{ requestClose, busy }}>
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           {!headerless && (
-            <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5">
+            <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5" inert={asking}>
               {/* truncate: заголовком бывает имя объекта (материал в пикере документа качества
                   доходит до сотни знаков) — без обрезки оно выдавливает крестик за край. */}
               <span className="text-base font-semibold text-fg1 truncate" title={title}>{title}</span>
@@ -224,10 +259,10 @@ function ModalBody({
                 <button
                   type="button"
                   onClick={requestClose}
-                  disabled={busy}
+                  aria-disabled={busy || undefined}
                   data-modal-cross=""
                   aria-label="Закрыть"
-                  className="flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40 disabled:pointer-events-none"
+                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${busy ? BUSY_EXIT : ''}`}
                 >
                   <X size={18} />
                 </button>
@@ -235,17 +270,17 @@ function ModalBody({
             </div>
           )}
           {flushBody ? (
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col" inert={asking}>
               {typeof children === 'function' ? children(requestClose) : children}
             </div>
           ) : (
-            <div className={`overflow-y-auto flex-1 px-6 pt-2 ${footer || acknowledge ? 'pb-4' : 'pb-6'}`}>
+            <div className={`overflow-y-auto flex-1 px-6 pt-2 ${footer || acknowledge ? 'pb-4' : 'pb-6'}`} inert={asking}>
               {typeof children === 'function' ? children(requestClose) : children}
             </div>
           )}
 
           {(footer || acknowledge) && (
-            <div className="shrink-0 px-6 py-3 border-t border-stroke bg-surface">
+            <div className="shrink-0 px-6 py-3 border-t border-stroke bg-surface" inert={asking}>
               {acknowledge ? (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">{typeof footer === 'function' ? footer(requestClose) : footer}</div>
@@ -255,7 +290,7 @@ function ModalBody({
             </div>
           )}
 
-          {confirmClose && (
+          {asking && (
             <div className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 ${fullScreen ? '' : 'rounded-[28px]'}`}>
               <div className="rounded-3xl p-5 w-80 bg-surface border border-stroke" style={{ boxShadow: 'var(--f-shadow28)' }}>
                 <p className="text-sm font-semibold mb-1 text-fg1">
@@ -265,7 +300,9 @@ function ModalBody({
                   Несохранённые изменения будут потеряны.
                 </p>
                 <div className="flex gap-2 justify-end">
-                  <Button variant="text" size="sm" onClick={() => setConfirmClose(false)}>
+                  {/* Фокус — на безопасном ответе: Enter, которым человек пришёл сюда с «Отмены»,
+                      повторным нажатием ничего не теряет. До «Закрыть» — один Tab. */}
+                  <Button variant="text" size="sm" autoFocus onClick={() => setConfirmClose(false)}>
                     Продолжить редактирование
                   </Button>
                   <Button variant="filled" danger size="sm"

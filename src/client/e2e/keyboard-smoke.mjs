@@ -114,15 +114,22 @@ try {
   });
 
   await check('exit-of-typed-form-asks-and-escape-continues', async () => {
+    // Весь путь — с клавиатуры, без мыши: вопрос обязан забрать фокус, иначе на него не ответить.
     const question = page.getByText('Закрыть без сохранения?');
     await page.keyboard.press('Enter');   // фокус на «Отмене» — выход идёт той же охраной, что крестик
     await question.waitFor({ state: 'visible', timeout: 3000 });
+    await until(async () => {
+      if ((await focusedText()) !== 'Продолжить редактирование') throw new Error('вопрос не забрал фокус на безопасный ответ');
+    });
     await page.keyboard.press('Escape');  // во внутреннем вопросе Esc — «Продолжить редактирование»
     await question.waitFor({ state: 'hidden', timeout: 3000 });
     if ((await page.locator('[role=dialog] textarea').first().inputValue()) !== 'набранное, которое жалко')
       throw new Error('набранное не уцелело');
-    await page.locator('[role=dialog]').getByRole('button', { name: 'Отмена' }).click();
-    await page.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+    await until(async () => { if ((await focusedText()) !== 'Отмена') throw new Error('фокус не вернулся на «Отмену»'); });
+    await page.keyboard.press('Enter');
+    await question.waitFor({ state: 'visible', timeout: 3000 });
+    await page.keyboard.press('Tab');     // с «Продолжить» на «Закрыть»
+    await page.keyboard.press('Enter');
     await closed();
   });
 

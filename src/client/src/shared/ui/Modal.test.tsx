@@ -165,11 +165,16 @@ describe('есть несохранённые правки (isDirty)', () => {
 
   it('крестик и «Отмена» подвала спрашивают', async () => {
     const onOpenChange = open({ isDirty: true });
+    cross()!.focus();   // `fireEvent.click` фокус сам не ставит
     fireEvent.click(cross()!);
     expect(asked()).toBe(true);
-    // Esc во внутреннем вопросе — «Продолжить редактирование».
+    // Вопрос забирает фокус на безопасный ответ, а форма под ним недоступна.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Продолжить редактирование' }));
+    expect(screen.getByLabelText('поле').closest('[inert]')).not.toBeNull();
+    // Esc во внутреннем вопросе — «Продолжить редактирование», и фокус возвращается на крестик.
     await escape();
     expect(asked()).toBe(false);
+    expect(document.activeElement).toBe(cross());
 
     fireEvent.click(cancel());
     expect(asked()).toBe(true);
@@ -258,8 +263,10 @@ describe('идёт запрос (busy)', () => {
     });
     await clickOutside();
     await escape();
-    expect((cross() as HTMLButtonElement).disabled).toBe(true);
-    expect((cancel() as HTMLButtonElement).disabled).toBe(true);
+    // Недоступны, но в фокусе остаться могут: `aria-disabled`, а не `disabled`.
+    expect(cross()!.getAttribute('aria-disabled')).toBe('true');
+    expect(cancel().getAttribute('aria-disabled')).toBe('true');
+    expect((cancel() as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(cross()!);
     fireEvent.click(cancel());
     // Выход, переданный в подвал своей кнопкой: вызывающий `disabled` не ставил.
@@ -268,6 +275,54 @@ describe('идёт запрос (busy)', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(asked()).toBe(false);
     expect(document.querySelector('[data-modal-hint]')).toBeNull();
+  });
+});
+
+describe('ревью PR #1310', () => {
+  it('начавшийся запрос снимает вопрос вместе с его кнопкой «Закрыть»', () => {
+    const onOpenChange = vi.fn();
+    const view = (busy: boolean) => (
+      <Modal open onOpenChange={onOpenChange} title="Окно" isDirty busy={busy}><input aria-label="поле" /></Modal>
+    );
+    const { rerender } = render(view(false));
+    fireEvent.click(cross()!);
+    expect(asked()).toBe(true);
+    rerender(view(true));
+    expect(asked()).toBe(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('запрос поиска правкой не считается', async () => {
+    const onOpenChange = open({}, <input aria-label="поле" data-search="" />);
+    type();
+    await escape();
+    expect(closed(onOpenChange)).toBe(true);
+  });
+
+  it('кольцо не остаётся на прежней кнопке, когда выход сменился', async () => {
+    const onOpenChange = vi.fn();
+    const view = (withCancel: boolean) => (
+      <Modal open onOpenChange={onOpenChange} title="Окно" footer={withCancel ? <ModalExit /> : <span>подвал</span>}>
+        <input aria-label="поле" />
+      </Modal>
+    );
+    const { rerender } = render(view(true));
+    await clickOutside();
+    const first = cancel();
+    expect(first.hasAttribute('data-modal-hint')).toBe(true);
+    // «Отмена» стала недоступна — выходом остался крестик; сама кнопка на месте.
+    first.setAttribute('disabled', '');
+    rerender(view(true));
+    await clickOutside();
+    expect(cross()!.hasAttribute('data-modal-hint')).toBe(true);
+    expect(first.hasAttribute('data-modal-hint')).toBe(false);
+  });
+
+  it('Esc при наборе через IME диалог не трогает', async () => {
+    const onOpenChange = open();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape', isComposing: true });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(closed(onOpenChange)).toBe(false);
   });
 });
 

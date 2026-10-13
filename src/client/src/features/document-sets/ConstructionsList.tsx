@@ -148,7 +148,7 @@ export function ConstructionsList() {
                   {editId === c.id ? (
                     <input value={editName} onChange={e => setEditName(e.target.value)}
                       onBlur={() => commitRename(c)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitRename(c); if (e.key === 'Escape') setEditId(null); }}
+                      onKeyDown={e => { if (e.key === 'Enter') commitRename(c); if (e.key === 'Escape') { e.stopPropagation(); setEditId(null); } }}
                       autoFocus onClick={e => e.stopPropagation()}
                       className="flex-1 text-base font-semibold border-b border-brand bg-transparent outline-none" />
                   ) : (

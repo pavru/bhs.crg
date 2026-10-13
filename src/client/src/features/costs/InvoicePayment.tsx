@@ -216,7 +216,7 @@ function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) 
   if (posting?.refusal)
     return (
       <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
-        footer={<div className="flex justify-end"><Button variant="filled" onClick={onDone}>Понятно</Button></div>}>
+        acknowledge="Понятно">
         <p role="alert" className="text-[13px] text-fg1">
           Оплатить нельзя: {posting.refusal}.
           {posting.refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}

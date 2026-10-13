@@ -28,6 +28,7 @@ export function SearchInput({
         placeholder={placeholder}
         aria-label={ariaLabel ?? 'Поиск'}
         autoFocus={autoFocus}
+        data-search=""
         className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4 ${rounded === 'full' ? 'rounded-full' : 'rounded-md'} ${className}`}
       />
       {value && (

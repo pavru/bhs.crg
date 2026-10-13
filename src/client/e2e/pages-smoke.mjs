@@ -12,7 +12,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/pages-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -183,7 +183,7 @@ await check('source-editor-name-can-be-cleared-and-typed', async () => {
   await settled(page);
   const typed = await field.inputValue();
   if (typed !== 'Мой источник') throw new Error(`набранное подменено: «${typed}»`);
-  await page.keyboard.press('Escape');
+  await closeDialog(page);
   await settled(page);
 });
 
