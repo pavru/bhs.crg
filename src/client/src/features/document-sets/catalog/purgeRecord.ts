@@ -99,14 +99,19 @@ const RECORD_WORDS: PurgeWords = {
   unknown: 'Удалена ли запись — неизвестно: закройте диалог и проверьте список. Если запись на месте, удаление можно повторить.',
 };
 
+/** Запись: слова и разбор предложения — свои, называть их не нужно. */
+export function purgeFailure(e: unknown, shown: PurgeOffer): PurgeFailure;
 /**
+ * Всё остальное обязано назвать и слова, и разбор (ревью PR #1309).
  * @param read Как достать свежее предложение из отказа. У уровня оно шире (едет состав уходящего),
- *   и прочитанное общим разбором потеряло бы его при пересчёте.
+ *   и прочитанное общим разбором потеряло бы его при пересчёте — молча, поэтому умолчания нет.
  */
-export function purgeFailure<O extends PurgeOffer = PurgeOffer>(
-  e: unknown, shown: O, words: PurgeWords = RECORD_WORDS,
-  read: (e: unknown) => O | null = purgeOffered as (e: unknown) => O | null,
-): PurgeFailure<O> {
+export function purgeFailure<O extends PurgeOffer>(
+  e: unknown, shown: O, words: PurgeWords, read: (e: unknown) => O | null): PurgeFailure<O>;
+export function purgeFailure(
+  e: unknown, shown: PurgeOffer, words: PurgeWords = RECORD_WORDS,
+  read: (e: unknown) => PurgeOffer | null = purgeOffered,
+): PurgeFailure {
   const fresh = read(e);
   if (fresh?.allowed)
     return {
@@ -117,8 +122,12 @@ export function purgeFailure<O extends PurgeOffer = PurgeOffer>(
         : `${apiError(e, 'Сервер не принял подтверждение.')} Сверьте разбивку и введите число заново.`,
     };
   if (isConflict(e)) return { kind: 'final', text: apiError(e, words.refused) };
-  if ((e as { response?: { status?: number } })?.response?.status === 404)
-    return { kind: 'final', text: words.gone };
+  const status = (e as { response?: { status?: number } })?.response?.status;
+  if (status === 404) return { kind: 'final', text: words.gone };
+  // Прочие 4xx — ответ по существу: ничего не удалено, и повтор даст то же (право отозвали, пока
+  // окно было открыто, — 403). «Исход неизвестен» здесь был бы отказом, переодетым в неизвестность.
+  if (status !== undefined && status >= 400 && status < 500)
+    return { kind: 'final', text: `${apiError(e, words.refused)} Ничего не удалено.` };
   return { kind: 'retry', text: `${apiError(e, 'Ответ от сервера не получен.')} ${words.unknown}` };
 }
 

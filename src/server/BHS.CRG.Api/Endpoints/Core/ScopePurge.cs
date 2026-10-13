@@ -31,19 +31,14 @@ public static class ScopePurge
             try { return Results.Ok(await m.Send(new PurgeHeldScopeCommand(level, id, req.References), ct)); }
             catch (NotFoundException) { return Results.NotFound(); }
             // Число не совпало или состав изменился — в отказе свежее предложение.
-            catch (ConflictException ex) { return await ConflictAsync(ex, user, permissions, ct); }
+            catch (ConflictException ex) { return await ConflictAsync(ex, user, permissions, ct, granted: true); }
             // У модуля счетов внешних ключей на таблицы ядра нет, но посторонняя схема может их
             // иметь: скан держателей такую колонку считает, а база удалить не даст.
             catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
                 when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.ForeignKeyViolation } pg)
             {
-                return Results.Conflict(new
-                {
-                    error = "Ничего не удалено: на удаляемое ссылается внешний ключ базы" +
-                        (pg.ConstraintName is null ? "" : $" ({pg.ConstraintName})") +
-                        ". Такую ссылку удаление оборвать не может — её убирают в самих данных.",
-                    purge = (PurgeOffer?)null,
-                });
+                return RecordRefusal.HeldByConstraint(
+                    pg.ConstraintName, "Ничего не удалено: на удаляемое ссылается внешний ключ базы");
             }
         });
 
@@ -51,28 +46,18 @@ public static class ScopePurge
     /// Отказ удаления уровня. Предложение есть, только если уровень держат одни выключенные или
     /// снятые модули: отказы ядра стоят раньше, и до этого места уровень с ними не доходит.
     ///
-    /// <para>Тому, у кого права нет, — без разбивки, без состава и с <c>allowed: false</c>: экран
-    /// говорит «может администратор», а не молчит о выходе, который есть.</para>
+    /// <para>Само предложение составляет то же место, что у записи (<see cref="RecordRefusal.OfferAsync" />):
+    /// правило «кому показывать разбивку» одно. Здесь добавляется только состав уходящего — и тоже
+    /// лишь тому, у кого право есть.</para>
     /// </summary>
+    /// <param name="granted">Право уже проверено группой адреса: читать его заново незачем.</param>
     public static async Task<IResult> ConflictAsync(
-        ConflictException refusal, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct)
+        ConflictException refusal, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct,
+        bool granted = false)
     {
-        if (refusal is not ScopeHeldException { Holdings.Release: { } release } held)
-            return Results.Conflict(new { error = refusal.Message, purge = (PurgeOffer?)null });
-
-        if (!(await permissions.ForAsync(user, ct)).Contains(CorePermissions.CatalogPurge))
-            return Results.Conflict(new
-            {
-                error = refusal.Message,
-                purge = new PurgeOffer(Allowed: false, release.References, Untraceable: 0, Holders: []),
-            });
-
-        return Results.Conflict(new
-        {
-            error = refusal.Message,
-            purge = new PurgeOffer(Allowed: true, release.References, release.Untraceable,
-                [.. release.Holders.Select(h => new PurgeHolder(h.Owner, h.What, h.Rows, h.Documents, h.Traceable))]),
-            leaving = held.Leaving,
-        });
+        var offer = await RecordRefusal.OfferAsync(refusal, user, permissions, ct, granted);
+        return offer is { Allowed: true } && refusal is ScopeHeldException held
+            ? Results.Conflict(new { error = refusal.Message, purge = offer, leaving = held.Leaving })
+            : Results.Conflict(new { error = refusal.Message, purge = offer });
     }
 }

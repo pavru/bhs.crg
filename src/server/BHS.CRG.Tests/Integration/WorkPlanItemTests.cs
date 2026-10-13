@@ -250,7 +250,9 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
             scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>(),
             referrer,
             scope.ServiceProvider.GetRequiredService<IReferenceIndex>(),
-            scope.ServiceProvider.GetRequiredService<IScopeSubtree>());
+            scope.ServiceProvider.GetRequiredService<IScopeSubtree>(),
+            scope.ServiceProvider.GetRequiredService<IRepository<Construction>>(),
+            scope.ServiceProvider.GetRequiredService<IRepository<DocumentSet>>());
 
     /// <summary>Стройка с разделом, запись классификатора и единица измерения — минимум для позиции.</summary>
     private async Task<(Guid Construction, Guid Section, Guid WorkType, Guid Unit)> SeedAsync()

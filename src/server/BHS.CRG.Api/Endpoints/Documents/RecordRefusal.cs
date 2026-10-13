@@ -38,10 +38,12 @@ public static class RecordRefusal
     /// держателей такую колонку видит и считает, но отпустить её принудительное удаление не может:
     /// база откажет. Отказ, а не внутренняя ошибка, — и без предложения: повтор дал бы то же.
     /// </summary>
-    public static IResult HeldByConstraint(string? constraint) =>
+    /// <param name="notDeleted">Что не удалено, началом фразы: у уровня слова свои (issue #1243).</param>
+    public static IResult HeldByConstraint(
+        string? constraint, string notDeleted = "Запись не удалена: на неё ссылается внешний ключ базы") =>
         Results.Conflict(new
         {
-            error = "Запись не удалена: на неё ссылается внешний ключ базы" +
+            error = notDeleted +
                 (constraint is null ? "" : $" ({constraint})") +
                 ". Такую ссылку удаление оборвать не может — её убирают в самих данных.",
             canArchive = false,
@@ -58,12 +60,17 @@ public static class RecordRefusal
     /// <para>Тому, у кого права нет, предложение приходит без разбивки и с <c>allowed: false</c>:
     /// экран говорит «может администратор», а не молчит о выходе, который есть.</para>
     /// </summary>
-    private static async Task<PurgeOffer?> OfferAsync(
-        ConflictException refusal, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct)
+    /// <param name="granted">
+    /// Право уже проверено группой адреса (отказ самого принудительного удаления уровня) — читать
+    /// его второй раз незачем.
+    /// </param>
+    public static async Task<PurgeOffer?> OfferAsync(
+        ConflictException refusal, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct,
+        bool granted = false)
     {
         if (refusal is not RecordHeldException { Holdings.Release: { } release }) return null;
 
-        if (!(await permissions.ForAsync(user, ct)).Contains(CorePermissions.CatalogPurge))
+        if (!granted && !(await permissions.ForAsync(user, ct)).Contains(CorePermissions.CatalogPurge))
             return new PurgeOffer(Allowed: false, release.References, Untraceable: 0, Holders: []);
 
         return new PurgeOffer(Allowed: true, release.References, release.Untraceable,

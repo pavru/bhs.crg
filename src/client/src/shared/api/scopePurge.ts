@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { purgeOffered, type PurgeOffer } from './recordPurge';
+import { invalidatePlans } from './plans';
 
 /**
  * Принудительное удаление уровня — стройки, раздела или комплекта (issue #1243): на его содержимое
@@ -50,8 +51,18 @@ export function usePurgeScope(level: PurgeLevel) {
     mutationFn: ({ id, references }: { id: string; references: number }) =>
       apiClient.post<{ name: string; references: number; untraceable: number }>(
         `${ADDRESS[level]}/${id}/purge`, { references }).then(r => r.data),
-    // Сбрасывается ВСЁ, и после отказа тоже: с уровнем уходят разделы, комплекты, документы, записи
-    // общих данных и планы — перечислять ключи значило бы однажды забыть новый.
-    onSettled: () => qc.invalidateQueries(),
+    // Прицельно и БЕЗ ожидания (ревью PR #1309). Сброс всего кеша с возвратом промиса держал
+    // `mutateAsync`, пока не перезапросится каждый запрос приложения — в том числе запросы только
+    // что удалённого уровня, которые получали 404 и повторялись: кнопка крутилась, а страница
+    // раздела успевала размонтировать окно раньше тоста. Обычное удаление уходит со страницы сразу.
+    // С уровнем уходят стройки (в их ответе — разделы и комплекты), планы и записи общих данных.
+    onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: ['constructions'] });
+        void qc.invalidateQueries({ queryKey: ['common-data'] });
+        invalidatePlans(qc);
+    },
+    // После отказа на сервере ничего не изменилось — кроме случая «уровня уже нет»: список строек
+    // тогда устарел. Тоже без ожидания: сообщение об отказе не должно ждать перезапроса.
+    onError: () => { void qc.invalidateQueries({ queryKey: ['constructions'] }); },
   });
 }

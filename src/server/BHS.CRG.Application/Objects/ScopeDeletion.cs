@@ -46,17 +46,25 @@ public sealed class ScopeDeletionHandlers(
     IRequestHandler<PurgeHeldScopeCommand, PurgedScope>
 {
     public Task Handle(DeleteConstructionCommand cmd, CancellationToken ct) =>
-        DeleteAsync(CatalogScope.Construction, cmd.Id, confirmed: null, ct);
+        DeleteAsync(CatalogScope.Construction, cmd.Id, Plain, ct);
 
     public Task Handle(DeleteSectionCommand cmd, CancellationToken ct) =>
-        DeleteAsync(CatalogScope.Section, cmd.Id, confirmed: null, ct);
+        DeleteAsync(CatalogScope.Section, cmd.Id, Plain, ct);
 
     public Task Handle(DeleteDocumentSetCommand cmd, CancellationToken ct) =>
-        DeleteAsync(CatalogScope.Set, cmd.Id, confirmed: null, ct);
+        DeleteAsync(CatalogScope.Set, cmd.Id, Plain, ct);
+
+    /// <summary>Обычное удаление: любые держатели в модулях — отказ, терять нечего.</summary>
+    private bool Plain(ScopeCascadePlan plan, string what)
+    {
+        cascade.EnsureDeletable(plan, what);
+        return true;
+    }
 
     public async Task<PurgedScope> Handle(PurgeHeldScopeCommand cmd, CancellationToken ct)
     {
-        var (name, plan, release) = await DeleteAsync(cmd.Level, cmd.Id, cmd.References, ct);
+        var (name, plan, release) = await DeleteAsync(
+            cmd.Level, cmd.Id, (found, what) => cascade.EnsureReleasable(found, what, cmd.References), ct);
 
         // Журнал — после удаления и без токена отмены запроса (см. IActivityLog): уровень уже
         // удалён, и оборванный запрос не должен оставить потерянные ссылки без следа. Адрес колонки
@@ -64,7 +72,7 @@ public sealed class ScopeDeletionHandlers(
         // масштаб удаления из журнала не восстановить, а больше ему записаться негде.
         await journal.RecordAsync(
             ActivityActions.ScopePurged, cmd.Id.ToString(), $"{Words(cmd.Level).Title}: {name}",
-            before: string.Join("; ", release!.Holders.Select(h =>
+            before: string.Join("; ", release.Holders.Select(h =>
                 $"{h.Owner}: {h.What} — {h.Rows}" + (h.Traceable ? "" : $" ({h.Address})"))),
             after: $"потеряно ссылок: {release.References}; удалено вместе: {plan.Leaving.Describe()}",
             ct: CancellationToken.None);
@@ -72,12 +80,12 @@ public sealed class ScopeDeletionHandlers(
         return new PurgedScope(name, release.References, release.Untraceable);
     }
 
-    /// <param name="confirmed">
-    /// Число ссылок, подтверждённое человеком, — или <c>null</c>: обычное удаление, которому любые
-    /// держатели в модулях — отказ.
+    /// <param name="gate">
+    /// Вопрос к плану — единственное, чем пути различаются: обычному любые держатели в модулях —
+    /// отказ, принудительный пропускает выключенные, сверив число. Действием, а не признаком.
     /// </param>
-    private async Task<(string Name, ScopeCascadePlan Plan, DormantRelease? Release)> DeleteAsync(
-        CatalogScope level, Guid id, int? confirmed, CancellationToken ct)
+    private async Task<(string Name, ScopeCascadePlan Plan, T Passed)> DeleteAsync<T>(
+        CatalogScope level, Guid id, Func<ScopeCascadePlan, string, T> gate, CancellationToken ct)
     {
         var (name, remove) = level switch
         {
@@ -91,17 +99,14 @@ public sealed class ScopeDeletionHandlers(
         };
 
         var plan = await cascade.PlanAsync(level, id, ct);
-        var what = Words(level).Accusative;
-        var release = confirmed is { } seen
-            ? cascade.EnsureReleasable(plan, what, seen)
-            : cascade.EnsureDeletable(plan, what);
+        var passed = gate(plan, Words(level).Accusative);
 
         cascade.Remove(plan);
         remove();
         // Хранилища делят один контекст: сохранение уносит и содержимое, и сам уровень одной
         // транзакцией — отказ на второй половине не оставит стройку без документов.
         await setRepo.SaveChangesAsync(ct);
-        return (name, plan, release);
+        return (name, plan, passed);
     }
 
     private static (string Title, string Accusative) Words(CatalogScope level) => level switch

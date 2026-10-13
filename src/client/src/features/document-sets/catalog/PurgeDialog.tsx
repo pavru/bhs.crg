@@ -45,7 +45,6 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   /** После успеха, вместо `onClose`: уровень удалён — со страницы надо уйти. */
   onDone?: () => void;
 }) {
-  const purge = { isPending: pending };
   const toast = useToast();
   const [offer, setOffer] = useState(offered);
   const [input, setInput] = useState('');
@@ -63,7 +62,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSettled(true);
-    if (!matches || purge.isPending) return;
+    if (!matches || pending) return;
     setFailed(null);
     try {
       const done = await subject.run(offer.references);
@@ -86,7 +85,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   }
 
   return (
-    <Dialog.Root open onOpenChange={o => { if (!o && !purge.isPending) onClose(); }}>
+    <Dialog.Root open onOpenChange={o => { if (!o && !pending) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         {/* На узком экране — у верха: по центру клавиатура закрыла бы и поле, и кнопки. */}
@@ -149,7 +148,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
                 {/* type=text, а не number: без стрелок и прокрутки колесом; на телефоне цифровую
                     клавиатуру даёт inputMode. Шрифт 16px — иначе iOS увеличит страницу при фокусе. */}
                 <input id={fieldId} type="text" inputMode="numeric" autoComplete="off" autoFocus
-                  value={input} disabled={purge.isPending}
+                  value={input} disabled={pending}
                   onChange={e => { setInput(e.target.value); setSettled(false); }}
                   onBlur={() => setSettled(true)}
                   // Кнопка при несовпадении выключена, и Enter форму не отправит: без этого нажатие
@@ -164,9 +163,9 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
               </div>
 
               <div className="flex gap-2 justify-end items-start mt-4">
-                <Button type="button" variant="text" size="sm" className="shrink-0" disabled={purge.isPending} onClick={onClose}>Отмена</Button>
+                <Button type="button" variant="text" size="sm" className="shrink-0" disabled={pending} onClick={onClose}>Отмена</Button>
                 <Button type="submit" variant="filled" danger size="sm" multiline className="min-w-0"
-                  disabled={!matches} loading={purge.isPending}>
+                  disabled={!matches} loading={pending}>
                   {subject.submit}
                 </Button>
               </div>

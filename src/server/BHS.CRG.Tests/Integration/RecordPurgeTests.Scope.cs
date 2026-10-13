@@ -5,6 +5,8 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using BHS.CRG.Modules.Costs;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +32,19 @@ public partial class RecordPurgeTests
         var (site, sections) = await SiteAsync($"Пробная {Guid.NewGuid().ToString()[..8]}", "1 эт.", "2 эт.");
         var set = await SetInAsync(client, sections[0]);
         var inside = await RecordAtAsync(CatalogScope.Section, sections[1]);
+        // Профили уровней — служебные объекты на той же оси: уходят со стройкой, но в счёт
+        // «документов и записей» не входят (ревью PR #1309) — человек их не заводил.
+        // Тип профиля на тестовом хосте не настроен, поэтому профиль назначается напрямую — тем же
+        // полем, которое проставляет служба профилей.
+        var siteProfile = await RecordAtAsync(CatalogScope.Construction, site);
+        var sectionProfile = await RecordAtAsync(CatalogScope.Section, sections[0]);
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Constructions.SingleAsync(c => c.Id == site)).SetProfileObject(siteProfile);
+            (await db.Sections.SingleAsync(s => s.Id == sections[0])).SetProfileObject(sectionProfile);
+            await db.SaveChangesAsync();
+        }
         await using var onSite = await HeldByProbeAsync(site, rows: 2);
         await using var onRecord = await HeldByProbeAsync(inside, rows: 1);
 

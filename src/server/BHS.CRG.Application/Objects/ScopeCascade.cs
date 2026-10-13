@@ -40,8 +40,7 @@ public interface IScopeCascade
 
     /// <summary>Отказ, если на содержимое ссылаются извне. <paramref name="levelAccusative"/> —
     /// «комплект», «раздел», «стройку».</summary>
-    /// <returns>Всегда <c>null</c>: обычное удаление ссылок не теряет.</returns>
-    DormantRelease? EnsureDeletable(ScopeCascadePlan plan, string levelAccusative);
+    void EnsureDeletable(ScopeCascadePlan plan, string levelAccusative);
 
     /// <summary>
     /// То же для принудительного удаления (issue #1243): отказы ядра остаются все, а держатели в
@@ -55,6 +54,10 @@ public interface IScopeCascade
 /// Что уходит вместе с уровнем — числами, для диалога и журнала (issue #1243). Документы и записи
 /// общих данных считаются вместе: каскад читает объекты без документной фасеты и различить их не
 /// может, а отдельный запрос ради подписи не нужен.
+///
+/// <para>Объекты-профили уровней в счёт НЕ входят (ревью PR #1309): их заводит система при первом
+/// открытии «Общих данных» уровня, человек их не создавал и в списках не видит — «записей — 3» у
+/// стройки, где нет ни одной записи, читалось бы как ошибка, и в журнале тоже.</para>
 /// </summary>
 public sealed record ScopeLeaving(int Sections, int Sets, int Objects, int QualityDocuments, int WorkPlanItems)
 {
@@ -131,7 +134,9 @@ public class ScopeCascade(
     IRepository<WorkPlanItem> planRepo,
     IRecordHolders holders,
     IReferenceIndex refIndex,
-    IScopeSubtree subtree) : IScopeCascade
+    IScopeSubtree subtree,
+    IRepository<Construction> constructionRepo,
+    IRepository<DocumentSet> setRepo) : IScopeCascade
 {
     /// <summary>
     /// План удаления уровня.
@@ -206,13 +211,23 @@ public class ScopeCascade(
                     p => objectIds.Contains(p.WorkTypeId) || objectIds.Contains(p.UnitId), ct))
                 .Count(p => !itemIds.Contains(p.Id));
 
+        // Профили уровней поддерева — они уходят вместе со всеми объектами, но человеку о них
+        // говорить нечего: это служебные записи (см. ScopeLeaving).
+        var profiles = (await constructionRepo.FindAsync(
+                c => constructionIds.Contains(c.Id) && c.ProfileObjectId != null, ct)).Select(c => c.ProfileObjectId)
+            .Concat((await sectionRepo.FindAsync(
+                s => sectionIds.Contains(s.Id) && s.ProfileObjectId != null, ct)).Select(s => s.ProfileObjectId))
+            .Concat((await setRepo.FindAsync(
+                s => setIds.Contains(s.Id) && s.ProfileObjectId != null, ct)).Select(s => s.ProfileObjectId))
+            .ToHashSet();
+
         return new ScopeCascadePlan(objects, quality, links, referrers, items, moduleHolders, held)
         {
             // Комплект — сам себе поддерево (см. IScopeSubtree): себя он «уходящим» не считает.
             Leaving = new ScopeLeaving(
                 Sections: scope == CatalogScope.Construction ? sectionIds.Count : 0,
                 Sets: scope == CatalogScope.Set ? 0 : setIds.Count,
-                objects.Count, quality.Count, items.Count),
+                objects.Count(o => !profiles.Contains(o.Id)), quality.Count, items.Count),
         };
     }
 
@@ -234,19 +249,19 @@ public class ScopeCascade(
     }
 
     /// <inheritdoc />
-    public DormantRelease? EnsureDeletable(ScopeCascadePlan plan, string levelAccusative) =>
-        Ensure(plan, levelAccusative, found => { found.EnsureNone(levelAccusative, forcedExit: true); return null; });
+    public void EnsureDeletable(ScopeCascadePlan plan, string levelAccusative) =>
+        Ensure(plan, levelAccusative, found => { found.EnsureNone(levelAccusative, forcedExit: true); return true; });
 
     /// <inheritdoc />
     public DormantRelease EnsureReleasable(ScopeCascadePlan plan, string levelAccusative, int confirmed) =>
-        Ensure(plan, levelAccusative, found => found.EnsureOnlyDormant(levelAccusative, confirmed))!;
+        Ensure(plan, levelAccusative, found => found.EnsureOnlyDormant(levelAccusative, confirmed));
 
     /// <summary>
     /// Одно тело на оба пути: различаются они ТОЛЬКО вопросом к держателям в модулях, и передаётся
     /// он действием, а не признаком, — отказ ядра, дописанный сюда позже, встаёт на оба пути сам.
     /// </summary>
-    private static DormantRelease? Ensure(
-        ScopeCascadePlan plan, string levelAccusative, Func<RecordHoldings, DormantRelease?> moduleGate)
+    private static T Ensure<T>(
+        ScopeCascadePlan plan, string levelAccusative, Func<RecordHoldings, T> moduleGate)
     {
         EnsureCoreFree(plan, levelAccusative);
         // ⚠️ Данные модулей — ПОСЛЕДНИМ из отказов (issue #1243; до него стояли первыми): по этому
