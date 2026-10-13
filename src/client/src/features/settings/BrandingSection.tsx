@@ -172,21 +172,28 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   // Файл логотипа сохранён, а браузер его не показывает — не изображение под верным расширением
   // либо не читается из хранилища. Говорим словом, а не битой рамкой с alt-текстом: шапка в этом
   // случае молча рисует общий значок (`BrandLogo`), и узнать, что логотипа на экране нет, больше
-  // неоткуда. Отказ помнится по адресу: заменённый логотип не остаётся «нечитаемым».
+  // неоткуда.
+  //
+  // Отказ помнится по адресу логотипа ВМЕСТЕ с меткой значков. По адресу — чтобы заменённый логотип
+  // не оставался «нечитаемым». С меткой — потому что отказ картинки не должен пережить свою причину:
+  // хранилище не отвечало, значки не построились, рамка сказала «не читается»; хранилище поднялось,
+  // опрос принёс построенные значки — а адрес логотипа прежний, и без метки рамка стояла бы со
+  // словами «не читается» рядом с превью, построенными из этого самого логотипа (проверка перед PR).
+  const mark = `${logo}|${data.icons.version}`;
   const [unread, setUnread] = useState<string | null>(null);
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
       <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
         {!logo && <span className="text-[11px] text-fg4">нет</span>}
-        {logo && unread === logo && (
+        {logo && unread === mark && (
           <span className="text-[11px] leading-tight text-center text-warning" data-testid="branding-logo-unread">
             {/* Перенос задан явно: в одну строку слова встают в рамку впритык, от края до края. */}
             не<br />читается
           </span>
         )}
-        {logo && unread !== logo && (
+        {logo && unread !== mark && (
           <img src={logo} alt="Логотип компании" className="max-w-full max-h-full object-contain"
-            onError={() => setUnread(logo)} />
+            onError={() => setUnread(mark)} />
         )}
       </div>
 

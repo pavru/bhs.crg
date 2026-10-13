@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 /**
@@ -67,12 +67,26 @@ export function logoUrl(branding: Branding | undefined): string | null {
   return `/api/branding/logo?v=${encodeURIComponent(branding.logoVersion ?? '')}`;
 }
 
+/**
+ * Ответ правки — в кеш; запрос оформления, который в эту минуту в полёте, отменяется.
+ *
+ * Без отмены его ответ лёг бы в кеш ПОСЛЕ ответа правки и затёр бы её снимком, снятым до неё: тост
+ * «Логотип убран.», а строка логотипа возвращается на экран. Раньше запрос в полёте во время
+ * правки был редкостью, теперь экран настройки сам шлёт его раз в минуту (`rebuildPoll`), и именно
+ * такой запрос запускает на сервере самое долгое — перестроение значков, до пятнадцати секунд
+ * (проверка перед PR). Новую мутацию оформления заводите через эту же запись.
+ */
+async function remember(qc: QueryClient, data: Branding) {
+  await qc.cancelQueries({ queryKey: BRANDING_KEY });
+  qc.setQueryData(BRANDING_KEY, data);
+}
+
 export function useSaveProductName() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (productName: string | null) =>
       apiClient.put('/branding', { productName }).then(r => withIcons(r.data)),
-    onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
+    onSuccess: data => remember(qc, data),
   });
 }
 
@@ -84,7 +98,7 @@ export function useUploadLogo() {
       form.append('file', file);
       return apiClient.post('/branding/logo', form).then(r => withIcons(r.data));
     },
-    onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
+    onSuccess: data => remember(qc, data),
   });
 }
 
@@ -92,7 +106,7 @@ export function useRemoveLogo() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => apiClient.delete('/branding/logo').then(r => withIcons(r.data)),
-    onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
+    onSuccess: data => remember(qc, data),
   });
 }
 

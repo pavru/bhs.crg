@@ -395,16 +395,35 @@ await check('branding-says-what-came-of-the-logo', async () => {
     // 5) Сбой построителя сервер повторяет сам — и секция спрашивает оформление снова: плашка
     //    уходит без перезагрузки страницы. Минуту не ждём: часы страницы подменены и переведены.
     //    Шаг последний, после него страница не нужна — подменённые часы никому не мешают.
+    //
+    //    Сбой здесь тот, что бывает после перезапуска: хранилище не отвечает, поэтому и картинка
+    //    логотипа не читается. Когда оно поднялось, уйти обязаны ОБА отказа — и плашка, и «не
+    //    читается» в рамке: адрес логотипа при этом прежний, и рамка, помнящая отказ по одному
+    //    адресу, стояла бы со своими словами рядом с превью из этого самого логотипа.
+    let storageUp = false;
+    await page.route('**/api/branding/logo*', async route => {
+      if (!storageUp) return route.fulfill({ status: 404, body: '' });
+      // Картинкой логотипа служит значок приложения: он есть на любом стенде, а логотипа в CI нет.
+      const picture = await page.request.get(`${BASE}/api/branding/icons/apple`);
+      await route.fulfill({ status: 200, contentType: 'image/png', body: await picture.body() });
+    });
     await page.clock.install();
     await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
-      icons: { ...b.icons, state: 'failed', problem: 'builder', aspect: null } }));
+      icons: { ...b.icons, state: 'failed', version: `${b.icons.version}-до`, problem: 'builder', aspect: null } }));
     if (!(await failed.count())) throw new Error('при сбое построителя плашки отказа нет');
+    await unread.waitFor({ timeout: 8000 })
+      .catch(() => { throw new Error('хранилище не отвечает, а рамка логотипа об этом не говорит'); });
+    storageUp = true;
     change = b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
       icons: { ...b.icons, state: 'custom', problem: null, aspect: 1 } });
     await page.clock.fastForward(61_000);
     await previews.waitFor({ timeout: 8000 })
       .catch(() => { throw new Error('значки достроены, а минуту спустя секция их не показывает — оформление не переспрошено'); });
     if (await failed.count()) throw new Error('значки достроены, а плашка «не построены» осталась');
+    await unread.waitFor({ state: 'detached', timeout: 8000 })
+      .catch(() => { throw new Error('значки построены из логотипа, а рамка рядом всё ещё говорит «не читается»'); });
+    const logoShown = await row.locator('img[alt="Логотип компании"]').evaluate(i => i.complete && i.naturalWidth > 0).catch(() => false);
+    if (!logoShown) throw new Error('хранилище поднялось, а логотип в рамке так и не показан');
   } finally {
     await page.unrouteAll({ behavior: 'wait' });
   }
