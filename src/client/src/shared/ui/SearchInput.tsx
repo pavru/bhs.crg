@@ -24,7 +24,7 @@ export function SearchInput({
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Escape' && value) { e.preventDefault(); onChange(''); } }}
+        onKeyDown={e => { if (e.key === 'Escape' && value) { e.preventDefault(); e.stopPropagation(); onChange(''); } }}
         placeholder={placeholder}
         aria-label={ariaLabel ?? 'Поиск'}
         autoFocus={autoFocus}

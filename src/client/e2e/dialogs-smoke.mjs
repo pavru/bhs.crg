@@ -241,7 +241,8 @@ await check('materialize-type-change-resets-chosen-variant', async () => {
   if (on !== 'Материалы') throw new Error(`после смены типа активен «${on}» — пометка пережила смену`);
 });
 
-await page.keyboard.press('Escape');
+// В диалоге переключали варианты — Esc его больше не закрывает (issue #1235): выход названный.
+await page.locator('[role=dialog]').last().getByRole('button', { name: 'Отмена' }).click();
 await settled(page);
 
 // ── Обработка источника: правка с устаревшей копии (issue #1141) ───────────────

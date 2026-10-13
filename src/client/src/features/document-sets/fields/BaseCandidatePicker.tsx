@@ -64,7 +64,7 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
   };
 
   return (
-    <Modal open onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
+    <Modal open onOpenChange={onOpenChange} title="Базовый экземпляр / роль" nothingToLose>
       <div className="space-y-4">
         {/* Подсветка возвращается на первую строку в ОБРАБОТЧИКЕ ввода, а не эффектом (issue #858):
             сброс — следствие набора текста, а не состояния, которое надо с чем-то синхронизировать.

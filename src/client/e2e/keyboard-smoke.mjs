@@ -3,14 +3,15 @@
 //   • видимый фокус после Tab (:focus-visible) на ключевых экранах;
 //   • командная палитра Ctrl/⌘+K открывается и закрывается по Esc;
 //   • шпаргалка «?» открывается на неполевом фокусе и закрывается по Esc;
-//   • Radix-диалоги возвращают фокус и ловятся Esc.
+//   • Radix-диалоги возвращают фокус и ловятся Esc;
+//   • чем закрывается модальный диалог — по его состоянию (issue #1235).
 //
 // Требует поднятых фронта (:5173) и бэка (:5000) — см. e2e/README.md.
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/keyboard-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 
 const PALETTE_INPUT = 'input[placeholder="Перейти к разделу…"]';
 const { check, summarize } = createChecks();
@@ -63,6 +64,84 @@ try {
   await check('esc-closes-help', async () => {
     await page.keyboard.press('Escape');
     await page.getByText('Горячие клавиши').first().waitFor({ state: 'hidden', timeout: 3000 });
+  });
+
+  // ── Чем закрывается диалог (issue #1235) ────────────────────────────────────
+  // Правило — по состоянию окна. Сама таблица проверена тестом `Modal`; здесь то, чего тест не
+  // видит: настоящий щелчок по затемнению, настоящий фокус и слой, вложенный в диалог.
+  const dialogs = () => page.locator('[role=dialog]').count();
+  const outside = () => page.mouse.click(6, 400);
+  const focusedText = () => page.evaluate(() => (document.activeElement?.textContent ?? '').trim());
+  const hinted = () => page.evaluate(() => (document.querySelector('[data-modal-hint]')?.textContent ?? '').trim());
+  const closed = () => until(async () => { if (await dialogs()) throw new Error('диалог не закрылся'); });
+  const openBugReport = async () => {
+    await page.getByText('Сообщить об ошибке', { exact: true }).first().click();
+    await page.locator('[role=dialog] textarea').first().waitFor({ state: 'visible', timeout: 5000 });
+  };
+
+  await check('light-dialog-closes-on-outside-click', async () => {
+    await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+    await page.keyboard.press('?');
+    await page.getByText('Горячие клавиши').first().waitFor({ state: 'visible', timeout: 3000 });
+    await outside();
+    await closed();
+  });
+
+  await check('empty-form-survives-outside-click-and-shows-exit', async () => {
+    await openBugReport();
+    await outside();
+    await until(async () => { if ((await hinted()) !== 'Отмена') throw new Error('кнопка выхода не обведена'); });
+    if (!(await dialogs())) throw new Error('пустая форма закрылась щелчком мимо');
+  });
+
+  await check('empty-form-closes-on-escape', async () => {
+    await page.keyboard.press('Escape');
+    await closed();
+  });
+
+  await check('typed-form-survives-outside-click-and-escape', async () => {
+    await openBugReport();
+    const field = page.locator('[role=dialog] textarea').first();
+    await field.fill('набранное, которое жалко');
+    await outside();
+    await settled(page);
+    if (!(await dialogs())) throw new Error('форма с набранным закрылась щелчком мимо');
+    // Щелчок мимо курсор из поля не выносит: следующий пробел не должен стать «Отменой».
+    if (!(await field.evaluate(el => el === document.activeElement))) throw new Error('щелчок мимо увёл фокус из поля');
+    await page.keyboard.press('Escape');
+    await until(async () => { if ((await focusedText()) !== 'Отмена') throw new Error('Esc не перенёс фокус на «Отмену»'); });
+    if (!(await dialogs())) throw new Error('форма с набранным закрылась по Esc');
+  });
+
+  await check('exit-of-typed-form-asks-and-escape-continues', async () => {
+    const question = page.getByText('Закрыть без сохранения?');
+    await page.keyboard.press('Enter');   // фокус на «Отмене» — выход идёт той же охраной, что крестик
+    await question.waitFor({ state: 'visible', timeout: 3000 });
+    await page.keyboard.press('Escape');  // во внутреннем вопросе Esc — «Продолжить редактирование»
+    await question.waitFor({ state: 'hidden', timeout: 3000 });
+    if ((await page.locator('[role=dialog] textarea').first().inputValue()) !== 'набранное, которое жалко')
+      throw new Error('набранное не уцелело');
+    await page.locator('[role=dialog]').getByRole('button', { name: 'Отмена' }).click();
+    await page.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+    await closed();
+  });
+
+  // Слой внутри диалога. Календарь и диалог — разные пакеты Radix; пока у них были разные копии
+  // общей стопки слоёв, оба считали себя верхними, и Esc закрывал сразу оба.
+  await check('escape-in-nested-calendar-closes-only-it', async () => {
+    await page.goto(`${BASE}/periods`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Закрыть период' }).first().click();
+    const dlg = page.locator('[role=dialog]').last();
+    await dlg.getByRole('button', { name: /календар/i }).last().click();
+    const calendar = page.locator('[data-radix-popper-content-wrapper]');
+    await calendar.waitFor({ state: 'visible', timeout: 3000 });
+    await page.keyboard.press('Escape');
+    await calendar.waitFor({ state: 'hidden', timeout: 3000 });
+    await settled(page);
+    if (!(await dialogs())) throw new Error('Esc в календаре закрыл и диалог');
+    await page.keyboard.press('Escape');   // в самом диалоге ничего не набрано — теперь закрывается он
+    await closed();
   });
 } finally {
   await browser.close();

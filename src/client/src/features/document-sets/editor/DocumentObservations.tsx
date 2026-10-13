@@ -41,7 +41,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
         )}
       </Button>
 
-      <Modal open={open} onOpenChange={setOpen} wide title="Замечания, упоминающие этот документ">
+      <Modal open={open} onOpenChange={setOpen} wide nothingToLose title="Замечания, упоминающие этот документ">
         <div className="space-y-3">
           {/* Происхождение рядом с данными: это утверждения, а не результат проверки системы. */}
           <p className="text-[11px] text-fg4">

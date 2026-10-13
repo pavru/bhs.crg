@@ -24,7 +24,7 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
   const data = materials.data;
 
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Материалы на объекте" wide>
+    <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Материалы на объекте" wide nothingToLose>
       <div className="space-y-3">
         <label className="block space-y-1">
           <span className="text-xs text-fg3">Стройка</span>

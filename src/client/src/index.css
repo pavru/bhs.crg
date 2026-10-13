@@ -208,3 +208,10 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* Кнопка выхода диалога, показанная после клика мимо или Esc (issue #1235): кольцо на ~600 мс,
+   без движения — проходит и при prefers-reduced-motion. Вне слоёв, чтобы не спорить с утилитами. */
+[data-modal-hint] {
+  outline: 2px solid var(--f-brand);
+  outline-offset: 2px;
+}

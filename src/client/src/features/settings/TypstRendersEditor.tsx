@@ -7,7 +7,7 @@ import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { markTypeBlockModel } from '@/shared/ui/typstDispatchCompletion';
 import { Plus, Trash2, Maximize2, Code, AlertCircle, AlertTriangle } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField, type TypstRender } from '@/shared/api/schema';
@@ -122,7 +122,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
       isDirty={isDirty}
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" onClick={() => { onSave(draft); onClose(); }}>Применить</Button>
         </div>
       }

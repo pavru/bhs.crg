@@ -6,13 +6,13 @@ const SHORTCUTS: [string, string][] = [
   ['?', 'Эта справка по горячим клавишам'],
   ['↑ ↓ + Enter', 'Навигация по спискам и пикерам (палитра, выбор объекта)'],
   ['← →', 'Переключение вкладок в редакторе документа'],
-  ['Esc', 'Закрыть диалог или палитру'],
+  ['Esc', 'Закрыть палитру, просмотр или пустой диалог; в форме с набранным — перейти к кнопке выхода'],
   ['Tab', 'Переход между полями формы'],
 ];
 
 export function ShortcutsHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Горячие клавиши">
+    <Modal open={open} onOpenChange={onOpenChange} title="Горячие клавиши" nothingToLose>
       <div className="divide-y divide-muted">
         {SHORTCUTS.map(([keys, desc]) => (
           <div key={keys} className="flex items-center gap-4 py-2">

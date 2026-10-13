@@ -28,7 +28,7 @@ export function FilePreviewModal({ open, onOpenChange, attachment }: {
   open: boolean; onOpenChange: (o: boolean) => void; attachment: FileAttachment;
 }) {
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={attachment.fileName}>
+    <Modal open={open} onOpenChange={onOpenChange} title={attachment.fileName} nothingToLose>
       {/* Тело заводится заново на каждое открытие и на каждый новый файл (issue #858): ключ вместо
           эффекта, гасившего прошлую загрузку тремя setState на старте. Так «идёт загрузка» — это
           начальное состояние свежего компонента, а не состояние, в которое его надо возвращать. */}

@@ -58,7 +58,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
   const { groups, isExpanded, toggle } = useScopeGroups(filteredCatalog, search.trim().length > 0);
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Выбрать документ">
+    <Modal open={open} onOpenChange={onOpenChange} title="Выбрать документ" nothingToLose>
       <div className="space-y-4">
         <input
           value={search} onChange={e => setSearch(e.target.value)}

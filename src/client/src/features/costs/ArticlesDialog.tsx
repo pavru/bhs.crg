@@ -89,7 +89,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
         <>
           <input value={editing.name} autoFocus aria-label={`Название статьи «${article.name}»`}
             onChange={e => setEditing({ ...editing, name: e.target.value })}
-            onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') setEditing(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }}
             className={FIELD} />
           <button type="button" title="Сохранить название" onClick={() => void rename()}
             className="text-fg3 hover:text-primary p-1"><Check size={14} /></button>

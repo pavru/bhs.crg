@@ -368,7 +368,7 @@ function RefPickerModalBody({
   if (askVariantFor) {
     const keys = askVariantFor.placement.kind === 'ambiguous' ? askVariantFor.placement.variantKeys : [];
     return (
-      <Modal open onOpenChange={onOpenChange} title="В какой вариант поместить?">
+      <Modal open onOpenChange={onOpenChange} title="В какой вариант поместить?" nothingToLose>
         <div className="space-y-4">
           <p className="text-sm text-fg2">
             <span className="font-medium">{askVariantFor.label}</span> подходит нескольким
@@ -384,7 +384,7 @@ function RefPickerModalBody({
   }
 
   return (
-    <Modal open onOpenChange={onOpenChange} title="Выбрать объект">
+    <Modal open onOpenChange={onOpenChange} title="Выбрать объект" nothingToLose>
       <div className="space-y-4">
         {/* Подсветку на первую строку возвращает сам ввод (issue #858): это следствие набора
             текста, а не состояние, которое надо чем-то догонять. */}

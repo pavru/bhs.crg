@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Monitor, Paperclip, X } from 'lucide-react';
-import { Modal } from './Modal';
+import { Modal, ModalExit } from './Modal';
 import { Button } from './Button';
 import { TextAreaField } from './TextAreaField';
 import { useToast } from './Toast';
@@ -129,10 +129,11 @@ export function BugReportDialog({ open, prefill, onClose }: {
       onOpenChange={o => { if (!o) onClose(); }}
       title="Сообщить об ошибке"
       wide
-      isDirty={message.trim().length > 0 && !sending}
+      isDirty={message.trim().length > 0}
+      busy={sending}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onClose} disabled={sending}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" onClick={() => void send()} disabled={sending}>
             {sending && <Loader2 size={15} className="animate-spin" />} Отправить
           </Button>
