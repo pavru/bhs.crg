@@ -3,11 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BRANDING_KEY, type Branding } from '@/shared/api/branding';
+import { apiClient } from '@/shared/api/client';
 import { BrandIconLinks } from './BrandIconLinks';
 import { BRAND_ICONS_KEY } from './brandIcons';
 
-// Запрос оформления не отвечает никогда: всё, что компонент узнаёт, тест кладёт в кеш сам — как
-// это делают мутации экрана настройки.
+// Запрос оформления сам не отвечает: всё, что компонент узнаёт, тест кладёт в кеш — как это делают
+// мутации экрана настройки. Ответить запросу велит себе только тест об ответе сервера прежней версии.
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(() => new Promise(() => {})) } }));
 
 const branding = (version: string): Branding => ({
@@ -67,5 +68,28 @@ describe('ссылка значка следует за оформлением',
 
     expect(tabHref()).toBe('/api/branding/icons/tab?v=B');
     expect(localStorage.getItem(BRAND_ICONS_KEY)).toBe('B');
+  });
+
+  // Окно обновления: клиент уже новый, сервер ещё прежний и поля `icons` не знает. Компонент стоит
+  // под корневой границей ошибок — упав на таком ответе, он снял бы всё приложение вместе со
+  // страницей входа. Кеш здесь НЕ сеется: ответ идёт настоящим путём запроса, тем же, что в шапке.
+  it('ответ сервера прежней версии, без значков, ссылку не трогает и ничего не запоминает', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce(
+      { data: { productName: 'Пример', isCustom: true, hasLogo: true, logoVersion: '1' } } as never);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    await settled(() => { render(<QueryClientProvider client={client}><BrandIconLinks /></QueryClientProvider>); });
+    // Ответ в кеше уже есть, а компонент о нём узнаёт следующим тактом. Без этого ожидания проверки
+    // ниже шли бы до его перерисовки и проходили при любой поломке (так и было: проверено поломкой).
+    await settled(() => {});
+
+    // Ответ дошёл — иначе «ссылка не тронута» подтвердил бы и запрос, на который не ответили.
+    expect(client.getQueryData<Branding>(BRANDING_KEY)?.productName).toBe('Пример');
+    expect(tabHref()).toBe('/api/branding/icons/tab');
+    expect(localStorage.getItem(BRAND_ICONS_KEY)).toBeNull();
+
+    // И компонент жив: упав на ответе без значков, следующую метку до ссылки он бы не донёс.
+    await settled(() => client.setQueryData(BRANDING_KEY, branding('B')));
+    expect(tabHref()).toBe('/api/branding/icons/tab?v=B');
   });
 });

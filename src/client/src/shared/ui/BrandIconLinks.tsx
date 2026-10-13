@@ -24,9 +24,8 @@ export function BrandIconLinks() {
     if (event.type === 'removed' && event.query.queryKey[0] === BRANDING_KEY[0]) rebind();
   }), [queryClient]);
 
-  // `icons?.` вопреки типу: пока идёт обновление, клиент новой версии может получить ответ от
-  // сервера прежней, где этого поля ещё нет, — и значок не повод ронять всё приложение.
-  const version = (useBranding().data?.icons as { version?: string } | undefined)?.version;
+  // Пустая метка — ответ сервера прежней версии (см. `useBranding`): ссылку тогда не трогаем.
+  const version = useBranding().data?.icons.version;
 
   useEffect(() => {
     if (!version) return;
