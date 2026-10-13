@@ -183,9 +183,13 @@ async function rereadByTwin() {
   const twinGroup = page.locator(`[data-role="${TWIN}"]`);
   await twinGroup.locator(`[data-tag="${TAX_ID}"]`).getByRole('combobox').click();
   await page.getByRole('option').filter({ hasText: original.title }).first().click();
-  const reread = page.waitForResponse(r => r.url().endsWith('/api/field-mapping'));
-  await twinGroup.getByRole('button', { name: 'Сохранить' }).click();
-  await reread;
+  // Вместе, а не «сначала подписаться, потом нажать»: не нажмись кнопка, оставшееся без присмотра
+  // ожидание ответа истекло бы позже необработанным отказом — и уронило бы весь набор, а не одну
+  // проверку.
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/api/field-mapping')),
+    twinGroup.getByRole('button', { name: 'Сохранить' }).click(),
+  ]);
   await settled(page);
 }
 
