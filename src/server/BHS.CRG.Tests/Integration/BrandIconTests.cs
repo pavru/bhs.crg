@@ -198,8 +198,7 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Длинный_кеш_достаётся_только_адресу_с_действующей_меткой()
     {
         var admin = await SignInAsync(SystemRoles.Admin);
-        var version = (await UploadedAsync(admin, "logo.png", Logo(800, 200)))
-            .GetProperty("icons").GetProperty("version").GetString();
+        var version = (await BuiltAsync(admin, "logo.png", Logo(800, 200))).GetProperty("version").GetString();
         var anonymous = fixture.CreateClient();
 
         async Task<string?> CacheOf(string query) =>
@@ -223,8 +222,7 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
             i => Assert.EndsWith("?v=" + StandardBrandIcons.Version, i.GetProperty("src").GetString()));
 
         (await admin.PutAsJsonAsync("/api/branding", new { productName = "Пример-Строй" })).EnsureSuccessStatusCode();
-        var version = (await UploadedAsync(admin, "logo.png", Logo(800, 200)))
-            .GetProperty("icons").GetProperty("version").GetString();
+        var version = (await BuiltAsync(admin, "logo.png", Logo(800, 200))).GetProperty("version").GetString();
 
         var response = await anonymous.GetAsync("/api/branding/manifest.webmanifest");
         Assert.Equal(BrandManifest.ContentType, response.Content.Headers.ContentType?.MediaType);
@@ -355,6 +353,18 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
     private static async Task<JsonElement> ManifestAsync(HttpClient client) =>
         JsonDocument.Parse(await client.GetStringAsync("/api/branding/manifest.webmanifest")).RootElement;
+
+    /// <summary>
+    /// Загрузить логотип и получить сведения о значках — ПОСТРОЕННЫХ. Без этой сверки тест про
+    /// метку и кеш прошёл бы и на стандартных значках, то есть и без Typst вовсе: у стандартных
+    /// тоже есть метка, и длинный кеш ей положен так же.
+    /// </summary>
+    private static async Task<JsonElement> BuiltAsync(HttpClient client, string fileName, byte[] bytes)
+    {
+        var icons = (await UploadedAsync(client, fileName, bytes)).GetProperty("icons");
+        Assert.Equal(BrandIconsState.Custom, icons.GetProperty("state").GetString());
+        return icons;
+    }
 
     private static async Task<JsonElement> UploadedAsync(HttpClient client, string fileName, byte[] bytes)
     {
