@@ -79,10 +79,17 @@ describe('ссылка значка следует за оформлением',
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     await settled(() => { render(<QueryClientProvider client={client}><BrandIconLinks /></QueryClientProvider>); });
+    // Ответ в кеше уже есть, а компонент о нём узнаёт следующим тактом. Без этого ожидания проверки
+    // ниже шли бы до его перерисовки и проходили при любой поломке (так и было: проверено поломкой).
+    await settled(() => {});
 
     // Ответ дошёл — иначе «ссылка не тронута» подтвердил бы и запрос, на который не ответили.
     expect(client.getQueryData<Branding>(BRANDING_KEY)?.productName).toBe('Пример');
     expect(tabHref()).toBe('/api/branding/icons/tab');
     expect(localStorage.getItem(BRAND_ICONS_KEY)).toBeNull();
+
+    // И компонент жив: упав на ответе без значков, следующую метку до ссылки он бы не донёс.
+    await settled(() => client.setQueryData(BRANDING_KEY, branding('B')));
+    expect(tabHref()).toBe('/api/branding/icons/tab?v=B');
   });
 });
