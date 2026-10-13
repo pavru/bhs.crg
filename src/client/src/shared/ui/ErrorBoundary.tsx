@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight, Bug } from 'lucide-react';
+import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight, Bug, X } from 'lucide-react';
 import { canOpenBugReport, openBugReport } from './bugReportBus';
 import { getToken } from '@/shared/api/token';
 
@@ -23,6 +23,11 @@ export class ErrorBoundary extends Component<
     variant?: 'inline' | 'page';
     /** Показать кнопку «Перезагрузить страницу» (для корневой границы). */
     allowReload?: boolean;
+    /**
+     * Выход из того, что упало (issue #1237), — кнопка «Закрыть». Нужен границе внутри окна без
+     * шапки: крестика там нет, и без кнопки выйти можно только клавишей Esc или перезагрузкой.
+     */
+    onClose?: () => void;
   },
   { error: Error | null; expanded: boolean }
 > {
@@ -50,7 +55,7 @@ export class ErrorBoundary extends Component<
     const { error, expanded } = this.state;
     if (!error) return this.props.children;
 
-    const { title = 'Что-то пошло не так', variant = 'inline', allowReload } = this.props;
+    const { title = 'Что-то пошло не так', variant = 'inline', allowReload, onClose } = this.props;
     const isPage = variant === 'page';
 
     return (
@@ -94,6 +99,12 @@ export class ErrorBoundary extends Component<
                   <button type="button" onClick={() => window.location.reload()}
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
                     <RefreshCw size={14} /> Перезагрузить страницу
+                  </button>
+                )}
+                {onClose && (
+                  <button type="button" onClick={onClose}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
+                    <X size={14} /> Закрыть
                   </button>
                 )}
               </div>

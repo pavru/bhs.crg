@@ -135,6 +135,11 @@ function ConfirmDialogBody({
         <Dialog.Content
           className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
+          // Отказ читают (issue #1237): причина не должна исчезать от промаха мимо окна и от Esc,
+          // нажатого по привычке, — закрывает её только названный выход. В состоянии вопроса всё
+          // остаётся как было: Esc и клик мимо равны «Отмена».
+          onEscapeKeyDown={e => { if (blockedView) e.preventDefault(); }}
+          onInteractOutside={e => { if (blockedView) e.preventDefault(); }}
         >
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">
             {blockedView ? (exitFailed ?? errorTitle) : title}
@@ -185,14 +190,16 @@ function ConfirmDialogBody({
             {blockedView ? (
               exit?.action ? (
                 <>
-                  <Button variant="text" size="sm" className="shrink-0" disabled={busy} onClick={() => onOpenChange(false)}>Понятно</Button>
+                  <Button variant="text" size="sm" className="shrink-0" disabled={busy} autoFocus onClick={() => onOpenChange(false)}>Понятно</Button>
                   <Button variant="filled" size="sm" multiline className="min-w-0" loading={busy}
                     onClick={() => handleExit(exit.action!)}>
                     {exit.action.label}
                   </Button>
                 </>
               ) : (
-                <Button variant="tonal" size="sm" onClick={() => onOpenChange(false)}>Понятно</Button>
+                // Фокус — на выход: кнопка подтверждения, на которой он стоял, с отказом исчезла, а Esc
+                // здесь больше не закрывает — без фокуса человеку с клавиатурой пришлось бы искать выход.
+                <Button variant="tonal" size="sm" autoFocus onClick={() => onOpenChange(false)}>Понятно</Button>
               )
             ) : (
               <>
