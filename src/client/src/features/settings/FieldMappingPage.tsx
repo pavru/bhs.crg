@@ -15,7 +15,8 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  NOT_ASSIGNED, changedRows, fieldLabel, fullSentence, kindsText, listedFields, selectedKey, withTypeTag,
+  NOT_ASSIGNED, changedRows, droppedNotice, fieldLabel, fullSentence, kindsText, listedFields, offeredFields,
+  reconciled, selectedKey, withTypeTag,
   type MappingDraft, type RawSchema,
 } from './fieldMapping';
 import { saveGroup } from './fieldMappingSave';
@@ -81,6 +82,34 @@ function Mapping({ data }: { data: ModuleCoverage[] }) {
   const [saving, setSaving] = useState(false);
   const [leave, setLeave] = useState<(() => void) | null>(null);
 
+  // Пришёл другой ответ — сверяем с ним черновики: выбор, которого список больше не предлагает,
+  // снимается из состояния, а не прячется при чтении, и группа говорит об этом словами. Сверка идёт
+  // прямо в рендере (приём «состояние по смене входа»): так кадра с недействительным выбором на
+  // экране не бывает вовсе. Перечитывание приходит не только после сохранения — ещё с возвратом
+  // в окно и после правок соседней группы.
+  const [seen, setSeen] = useState(data);
+  if (seen !== data) {
+    setSeen(data);
+    const next = { ...edits };
+    let lost = false;
+    for (const module of data) for (const group of module.groups) {
+      const id = groupId(module, group);
+      const edit = edits[id];
+      if (!edit) continue;
+      const { draft, dropped } = reconciled(group, edit.draft);
+      if (draft === edit.draft) continue;
+      lost = true;
+      // Отказ сохранения, если он уже стоит, остаётся: он называет ту же причину подробнее.
+      next[id] = { draft, refusal: edit.refusal ?? droppedNotice(group, dropped) };
+    }
+    if (lost) {
+      setEdits(next);
+      // Диалог ухода закрываем: он предлагал сохранить то, чего больше нет, и «Сохранить» в нём
+      // прошло бы по пустому списку и увело со страницы, не сохранив ничего и ничего не сказав.
+      setLeave(null);
+    }
+  }
+
   const dirty = data.flatMap(m => m.groups.map(g => ({ id: groupId(m, g), group: g })))
     .filter(x => changedRows(x.group, edits[x.id]?.draft ?? {}).length > 0);
   useLeaveGuard(dirty.length > 0, proceed => setLeave(() => proceed));
@@ -111,9 +140,14 @@ function Mapping({ data }: { data: ModuleCoverage[] }) {
       // Постоянной строкой, а не только тостом: тост исчезает, а причина нужна, пока её не устранили.
       // Сохранилось частично — черновик сбрасываем: он собран по состоянию, которого больше нет.
       const reason = fullSentence(apiError(outcome.error, 'Сервер не ответил'));
-      set(id, outcome.partial
-        ? { draft: {}, refusal: `Сохранено не всё, и вернуть прежнее назначение не удалось. ${reason} Проверьте строки ниже.` }
-        : { draft: edits[id]?.draft ?? {}, refusal: `Не сохранено, назначение осталось прежним. ${reason}` });
+      // Черновик берём из состояния на этот миг, а не из замыкания: пока шла запись, экран мог
+      // перечитаться и снять из него выбор, которого больше нет, — замыкание вернуло бы его обратно.
+      setEdits(all => ({
+        ...all,
+        [id]: outcome.partial
+          ? { draft: {}, refusal: `Сохранено не всё, и вернуть прежнее назначение не удалось. ${reason} Проверьте строки ниже.` }
+          : { draft: all[id]?.draft ?? {}, refusal: `Не сохранено, назначение осталось прежним. ${reason}` },
+      }));
       return false;
     } finally {
       setSaving(false);
@@ -182,7 +216,9 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
 }) {
   const go = useGuardedNavigate();
   const { draft, refusal } = edit;
-  const dirty = changedRows(group, draft).length > 0;
+  // Считаем раз на группу и раздаём строкам признаком: каждая строка пересчитывала бы всю группу.
+  const changed = new Set(changedRows(group, draft));
+  const dirty = changed.size > 0;
 
   return (
     <div className="space-y-2" data-role={group.role}>
@@ -218,13 +254,20 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
             <span>Что нужно модулю</span><span>Поле</span><span>Состояние</span>
           </div>
           {group.rows.map(row => (
-            <Row key={row.tag} row={row} group={group} draft={draft} disabled={saving}
+            <Row key={row.tag} row={row} typeName={group.type?.name ?? ''} draft={draft}
+              changed={changed.has(row)} disabled={saving}
               onPick={key => onEdit({ draft: { ...draft, [row.tag]: key }, refusal: null })} />
           ))}
         </div>
       )}
 
-      {refusal && <p className="text-sm text-danger max-w-3xl" role="alert">{refusal}</p>}
+      {refusal && (
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 max-w-3xl">
+          <p className="text-sm text-danger" role="alert">{refusal}</p>
+          {/* Правок нет — «Отменить» скрыта, и убрать прочитанное сообщение было бы нечем. */}
+          {!dirty && <Button variant="text" size="sm" onClick={() => onEdit(UNTOUCHED)}>Понятно</Button>}
+        </div>
+      )}
 
       {/* Кнопки — только когда есть что сохранять: недоступное действие не показываем. */}
       {dirty && (
@@ -237,14 +280,14 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
   );
 }
 
-function Row({ row, group, draft, disabled, onPick }: {
-  row: CoverageRow; group: CoverageGroup; draft: MappingDraft; disabled: boolean;
+function Row({ row, typeName, draft, changed, disabled, onPick }: {
+  row: CoverageRow; typeName: string; draft: MappingDraft; changed: boolean; disabled: boolean;
   onPick: (key: string | null) => void;
 }) {
   const listed = listedFields(row);
-  const selectable = listed.some(f => f.fits);
-  const changed = changedRows(group, draft).includes(row);
-  const typeName = group.type?.name ?? '';
+  // Тем же расчётом, которым логика решает, действителен ли выбор: список есть ровно тогда, когда
+  // в нём есть что выбрать.
+  const selectable = offeredFields(row).length > 0;
 
   return (
     <div className="grid grid-cols-[minmax(0,35fr)_minmax(0,30fr)_minmax(0,35fr)] gap-x-4 py-2.5 border-t border-stroke items-start"
@@ -263,10 +306,7 @@ function Row({ row, group, draft, disabled, onPick }: {
         ) : selectable ? (
           <Select
             aria-label={`Поле для «${row.label}»`}
-            // Пустая строка, а не undefined: с undefined Radix считает список неуправляемым и помнит
-            // выбор сам — после «Отменить» показывал бы отменённое, и выбрать его заново было бы
-            // нельзя (значение «то же», событие не приходит). Пустая строка — «значения нет».
-            value={selectedKey(row, draft) ?? ''}
+            value={selectedKey(row, draft)}
             onValueChange={v => onPick(v === NOT_ASSIGNED ? null : v)}
             placeholder={row.fault === 'Several' ? 'Выберите одно' : 'Выберите поле'}
             disabled={disabled}
@@ -329,11 +369,12 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
   const go = useGuardedNavigate();
   const update = useUpdateDocumentTypeSchema();
   const toast = useToast();
-  const [picked, setPicked] = useState<string | undefined>(undefined);
+  const [typeId, setTypeId] = useState<string | undefined>(undefined);
   // Выбор действителен, пока тип есть среди предлагаемых: список перечитывается, и тип, только что
   // назначенный другим справочником, из него уходит. Запомненный выбор оставил бы кнопку, которая
-  // поставила бы ему вторую роль (ревью PR #1318).
-  const typeId = group.candidates.some(c => c.id === picked) ? picked : undefined;
+  // поставила бы ему вторую роль (ревью PR #1318). Снимаем его из состояния, а не прячем при
+  // чтении — как и выбор поля: спрятанный ожил бы, вернись тип в список.
+  if (typeId !== undefined && !group.candidates.some(c => c.id === typeId)) setTypeId(undefined);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -367,7 +408,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-72">
               <Select aria-label={`Тип — ${group.label.toLowerCase()}`}
-                value={typeId ?? ''} onValueChange={setPicked} placeholder="Выберите тип" disabled={saving}>
+                value={typeId} onValueChange={setTypeId} placeholder="Выберите тип" disabled={saving}>
                 {group.candidates.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </Select>
             </div>

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { CoverageField, CoverageGroup, CoverageRow, CoverageType } from '@/shared/api/fieldMapping';
 import { offeredInRoles, type TagDefinition } from '@/shared/api/tags';
 import {
-  NOT_ASSIGNED, changedRows, fieldLabel, fullSentence, listedFields, missingKey, restoreTags, schemaWrites,
-  selectedKey, unfitKey, withTagPlacements, withTypeTag,
+  NOT_ASSIGNED, changedRows, droppedNotice, fieldLabel, fullSentence, listedFields, missingKey, offeredFields,
+  reconciled, restoreTags, schemaWrites, selectedKey, unfitKey, withTagPlacements, withTypeTag,
 } from './fieldMapping';
 
 const ORG: CoverageType = { id: 'org', name: 'Организация', code: 'Организация', kind: 'Composite' };
@@ -108,6 +108,87 @@ describe('выбор, которого в списке полей больше �
 
     expect(changedRows(group(optional), { 'org.inn': null })).toHaveLength(1);
     expect(selectedKey(optional, { 'org.inn': null })).toBe(NOT_ASSIGNED);
+  });
+
+  // Поле на месте, но выбрать его уже нельзя: ему сменили вид или сделали расчётным. Сервер такое
+  // поле присылает (оно может нести тэг), поэтому сверка «есть ли поле в строке» его пропускала —
+  // строка оставалась «не сохранено», а запись отказывала при каждом нажатии (ревью PR #1319).
+  it('поле осталось, но перестало подходить — выбор тоже недействителен', () => {
+    const unfit = row({ fields: [field('ИНН', { tagged: true }), field('Код', { fits: false })] });
+    const draft = { 'org.inn': 'Код' };
+
+    expect(changedRows(group(unfit), draft)).toHaveLength(0);
+    expect(schemaWrites(group(unfit), draft)).toHaveLength(0);
+    expect(selectedKey(unfit, draft)).toBe('ИНН');
+  });
+
+  // У такой строки списка нет вовсе — она чинится в редакторе типа. Оставшийся выбор держал бы
+  // «не сохранено» и кнопку «Сохранить» у строки, в которой выбирать нечем.
+  it('строка стала «расходится в подтипе» — выбирать нечем, выбор недействителен', () => {
+    const differs = row({ state: 'violated', fault: 'DiffersInSubtype', key: null });
+
+    expect(offeredFields(differs)).toHaveLength(0);
+    expect(changedRows(group(differs), { 'org.inn': 'Код' })).toHaveLength(0);
+  });
+
+  it('справочник перестал быть назначенным — строк на экране нет, и правок в них тоже', () => {
+    const lost: CoverageGroup = { ...group(row()), state: 'violated' };
+
+    expect(changedRows(lost, { 'org.inn': 'Код' })).toHaveLength(0);
+    expect(schemaWrites(lost, { 'org.inn': 'Код' })).toHaveLength(0);
+  });
+
+  it('«Не назначено» у обязательной строки список не предлагает — это не выбор', () => {
+    expect(changedRows(group(row()), { 'org.inn': null })).toHaveLength(0);
+  });
+});
+
+// Недействительный выбор мало не читать: спящий ключ оживает, стоит полю с тем же ключом появиться
+// снова. Поэтому экран вычищает его из черновика с приходом ответа — и говорит об этом словами.
+describe('сверка черновика с пришедшим ответом', () => {
+  it('действительный выбор остаётся, и объект черновика тот же', () => {
+    const draft = { 'org.inn': 'Код' };
+
+    const result = reconciled(group(row()), draft);
+
+    expect(result.draft).toBe(draft);
+    expect(result.dropped).toHaveLength(0);
+  });
+
+  it('недействительный снимается, соседний остаётся, строка названа', () => {
+    const name = row({ tag: 'org.name', label: 'Название организации', key: 'Наим',
+      fields: [field('Наим', { tagged: true }), field('Код')] });
+    const g = group(row(), name);
+
+    const result = reconciled(g, { 'org.inn': 'Удалённое', 'org.name': 'Код' });
+
+    expect(result.draft).toEqual({ 'org.name': 'Код' });
+    expect(result.dropped.map(r => r.tag)).toEqual(['org.inn']);
+  });
+
+  // Главное, ради чего чистка: после неё вернувшееся поле с тем же ключом правкой не становится.
+  it('снятый выбор не оживает, когда поле с тем же ключом появляется снова', () => {
+    const without = group(row({ fields: [field('ИНН', { tagged: true })] }));
+    const { draft } = reconciled(without, { 'org.inn': 'Код' });
+
+    expect(changedRows(group(row()), draft)).toHaveLength(0);
+    expect(selectedKey(row(), draft)).toBe('ИНН');
+  });
+
+  it('строки больше нет или справочник не назначен — выбор снимается весь', () => {
+    expect(reconciled(group(), { 'org.inn': 'Код' }).draft).toEqual({});
+    const lost: CoverageGroup = { ...group(row()), state: 'absent' };
+    expect(reconciled(lost, { 'org.inn': 'Код' }).draft).toEqual({});
+  });
+
+  it('сообщение называет строку и зовёт выбрать заново, только если есть из чего', () => {
+    const g = group(row());
+    expect(droppedNotice(g, [row()]))
+      .toBe('Выбор для «ИНН организации» отменён: тип тем временем изменили, и список этого больше не предлагает. Выберите заново.');
+
+    const nothing = row({ fields: [field('ИНН', { tagged: true, fits: false })] });
+    expect(droppedNotice(group(nothing), [nothing])).not.toContain('Выберите заново');
+    expect(droppedNotice(g, [])).toBe('Несохранённый выбор отменён: справочник тем временем изменили.');
   });
 });
 
