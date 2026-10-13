@@ -116,16 +116,20 @@ public class RecordDeletionInventoryTests
     /// Команда, созданная вторым местом, дала бы потерю ссылок тому, у кого права нет: порту модуля,
     /// фоновой уборке, соседнему адресу под правом обычной правки.
     /// </summary>
-    [Fact]
-    public void Принудительное_удаление_отправляет_один_адрес()
+    [Theory]
+    [InlineData("new PurgeHeldRecordCommand(", "BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs")]
+    // Уровень — стройка, раздел, комплект (issue #1243): три адреса, но отправитель один, и стоит
+    // он за двумя правами.
+    [InlineData("new PurgeHeldScopeCommand(", "BHS.CRG.Api/Endpoints/Core/ScopePurge.cs")]
+    public void Принудительное_удаление_отправляет_один_адрес(string command, string sender)
     {
         var senders = Projects.SelectMany(SourceTree.Files)
-            .Where(file => Code(File.ReadAllText(file)).Contains("new PurgeHeldRecordCommand("))
+            .Where(file => Code(File.ReadAllText(file)).Contains(command))
             .Select(SourceTree.Relative)
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs"], senders);
+        Assert.Equal([sender], senders);
     }
 
     /// <summary>

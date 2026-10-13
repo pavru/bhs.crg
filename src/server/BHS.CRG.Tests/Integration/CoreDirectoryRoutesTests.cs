@@ -30,6 +30,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
     private static readonly string[] Expected =
     [
         "DELETE /api/constructions/{id:guid}",
+        "POST /api/constructions/{id:guid}/purge",
         "GET /api/constructions/",
         "GET /api/constructions/{id:guid}",
         "POST /api/constructions/",
@@ -39,6 +40,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "PUT /api/constructions/{id:guid}/timezone",
         "PUT /api/constructions/{id:guid}/external-id",
         "DELETE /api/sections/{id:guid}",
+        "POST /api/sections/{id:guid}/purge",
         "PUT /api/sections/{id:guid}",
 
         // ── Каталог организаций и лиц (ТЗ CORE-6) ──────────────────────────────

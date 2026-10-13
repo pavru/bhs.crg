@@ -5,6 +5,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -52,6 +53,8 @@ export function SectionDetail() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameVal, setRenameVal] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const purge = useScopePurge('section', () => setDeleteConfirm(false),
+    () => navigate(`/document-sets/${constructionId}`));
   const createSet = useCreateDocumentSet();
   const renameSection = useRenameSection();
   const deleteSection = useDeleteSection();
@@ -211,7 +214,9 @@ export function SectionDetail() {
           await deleteSection.mutateAsync({ id: section.id, constructionId: constructionId! });
           navigate(`/document-sets/${constructionId}`);
         }}
+        onRefused={purge.onRefused(section)}
       />
+      {purge.dialog}
     </>
   );
 }

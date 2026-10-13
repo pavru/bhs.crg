@@ -90,6 +90,14 @@ public static class ActivityActions
         new("core.record.purged", "Запись справочника удалена вместе со ссылками выключенных модулей");
 
     /// <summary>
+    /// Стройка, раздел или комплект удалены, хотя на их содержимое ссылались данные выключенного или
+    /// снятого модуля (issue #1243). «До» — кто держал и сколько, «после» — сколько ссылок потеряно
+    /// и что ушло вместе с уровнем.
+    /// </summary>
+    public static readonly ActivityAction ScopePurged =
+        new("core.scope.purged", "Стройка, раздел или комплект удалены вместе со ссылками выключенных модулей");
+
+    /// <summary>
     /// Изменена настройка модуля (issue #1070). «До» и «после» — действующие значения. В журнал —
     /// потому что настройка действует на уже записанные данные: после смены допуска суммы по
     /// стройкам меняются без единой правки счёта, и спросить «с какого дня» больше не у кого.
@@ -115,7 +123,7 @@ public static class ActivityActions
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
-         RecordArchived, RecordUnarchived, RecordPurged, ModuleSettingChanged, NomenclatureCreated,
+         RecordArchived, RecordUnarchived, RecordPurged, ScopePurged, ModuleSettingChanged, NomenclatureCreated,
          AccountingCurrencyChanged];
 
     /// <summary>

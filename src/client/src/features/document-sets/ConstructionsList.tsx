@@ -6,6 +6,7 @@ import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { useScopePurge } from './useScopePurge';
 import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
 import { usePlanSummary, planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -98,6 +99,7 @@ export function ConstructionsList() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Construction | null>(null);
+  const purge = useScopePurge('construction', () => setDeleteTarget(null));
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -249,7 +251,9 @@ export function ConstructionsList() {
           // mutateAsync ради видимости отказа 409 (issue #739) — см. ConstructionDetail.
           if (deleteTarget) await deleteMutation.mutateAsync(deleteTarget.id);
         }}
+        onRefused={purge.onRefused(deleteTarget)}
       />
+      {purge.dialog}
     </div>
   );
 }

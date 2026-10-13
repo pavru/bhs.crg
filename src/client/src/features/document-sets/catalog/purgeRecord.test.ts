@@ -117,6 +117,9 @@ describe('неудачная попытка', () => {
     expect(purgeFailure(answer(409, { error: 'Держит включённый модуль.', purge: null }), offer(3)))
       .toEqual({ kind: 'final', text: 'Держит включённый модуль.' });
     expect(purgeFailure(answer(404, ''), offer(3)).kind).toBe('final');
+    // 403 — право отозвали, пока окно было открыто: это отказ, а не «исход неизвестен».
+    expect(purgeFailure(answer(403, ''), offer(3)))
+      .toEqual({ kind: 'final', text: 'Удалить запись нельзя. Ничего не удалено.' });
   });
 
   it('сбой сервера или сети — не «удаление невозможно»: судьба записи неизвестна, можно повторить', () => {

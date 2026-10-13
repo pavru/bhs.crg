@@ -70,11 +70,24 @@ public static class DocumentSetEndpoints
         gEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
             => Results.Ok(await m.Send(new RenameDocumentSetCommand(id, req.Name))));
 
-        gEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        // Отказ «держат данные модулей» несёт предложение принудительного удаления (issue #1243).
+        gEdit.MapDelete("/{id:guid}", async (
+            Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct) =>
         {
-            await m.Send(new DeleteDocumentSetCommand(id));
+            try { await m.Send(new DeleteDocumentSetCommand(id), ct); }
+            catch (BHS.CRG.Application.Objects.RecordHeldException ex)
+            {
+                return await Core.ScopePurge.ConflictAsync(ex, user, permissions, ct);
+            }
             return Results.NoContent();
         });
+
+        // Принудительное удаление — под двумя правами: правка документов И право терять ссылки.
+        Core.ScopePurge.Map(
+            app.MapGroup("/api/document-sets")
+                .RequireAuthorization(AppPolicies.Permission("id.document.edit"))
+                .RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogPurge)),
+            CatalogScope.Set);
 
         // ── DocumentInstances ──────────────────────────────────────────────────
         g.MapGet("/{id:guid}/available-instances", async (Guid id, IMediator m)

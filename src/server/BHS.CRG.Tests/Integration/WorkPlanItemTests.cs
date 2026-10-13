@@ -188,12 +188,12 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var cascade = CascadeWith(scope, new FakeReferrer("строки отчётов монтажников", 7));
 
         var plan = await cascade.PlanAsync(CatalogScope.Construction, construction);
-        var refusal = Assert.Throws<RecordHeldException>(() => cascade.EnsureDeletable(plan, "стройку"));
+        var refusal = Assert.ThrowsAny<RecordHeldException>(() => cascade.EnsureDeletable(plan, "стройку"));
         Assert.Contains("строки отчётов монтажников: 7", refusal.Message);
 
         // Раздел — тот же вопрос: позиция раздела уйдёт с ним, и держатель об этом не узнает.
         var forSection = await cascade.PlanAsync(CatalogScope.Section, section);
-        Assert.Throws<RecordHeldException>(() => cascade.EnsureDeletable(forSection, "раздел"));
+        Assert.ThrowsAny<RecordHeldException>(() => cascade.EnsureDeletable(forSection, "раздел"));
     }
 
     /// <summary>
@@ -250,7 +250,9 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
             scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>(),
             referrer,
             scope.ServiceProvider.GetRequiredService<IReferenceIndex>(),
-            scope.ServiceProvider.GetRequiredService<IScopeSubtree>());
+            scope.ServiceProvider.GetRequiredService<IScopeSubtree>(),
+            scope.ServiceProvider.GetRequiredService<IRepository<Construction>>(),
+            scope.ServiceProvider.GetRequiredService<IRepository<DocumentSet>>());
 
     /// <summary>Стройка с разделом, запись классификатора и единица измерения — минимум для позиции.</summary>
     private async Task<(Guid Construction, Guid Section, Guid WorkType, Guid Unit)> SeedAsync()

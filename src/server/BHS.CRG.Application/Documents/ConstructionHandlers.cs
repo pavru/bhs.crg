@@ -8,19 +8,16 @@ namespace BHS.CRG.Application.Documents;
 
 public class ConstructionHandlers(
     IRepository<Construction> constructionRepo,
-    IRepository<Section> sectionRepo,
-    IScopeCascade cascade) :
+    IRepository<Section> sectionRepo) :
     IRequestHandler<CreateConstructionCommand, Construction>,
     IRequestHandler<RenameConstructionCommand, Construction>,
     IRequestHandler<SetConstructionTimeZoneCommand, Construction>,
     IRequestHandler<SetConstructionExternalIdCommand, Construction>,
-    IRequestHandler<DeleteConstructionCommand>,
     IRequestHandler<GetConstructionQuery, Construction?>,
     IRequestHandler<ListConstructionsQuery, IReadOnlyList<Construction>>,
     IRequestHandler<GetSectionQuery, Section?>,
     IRequestHandler<CreateSectionCommand, Section>,
-    IRequestHandler<RenameSectionCommand, Section>,
-    IRequestHandler<DeleteSectionCommand>
+    IRequestHandler<RenameSectionCommand, Section>
 {
     public async Task<Construction> Handle(CreateConstructionCommand cmd, CancellationToken ct)
     {
@@ -92,20 +89,7 @@ public class ConstructionHandlers(
         return c;
     }
 
-    /// <summary>
-    /// Удаление стройки. Разделы и комплекты уносит каскад базы, объекты на полиморфной оси — нет:
-    /// их удаляем прикладно, иначе документы и общие данные всего поддерева остаются сиротами
-    /// (issue #739). Guard тот же, что у поштучного удаления: держатели ссылок ИЗВНЕ поддерева.
-    /// </summary>
-    public async Task Handle(DeleteConstructionCommand cmd, CancellationToken ct)
-    {
-        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
-        var plan = await cascade.PlanAsync(CatalogScope.Construction, cmd.Id, ct);
-        cascade.EnsureDeletable(plan, "стройку");
-        cascade.Remove(plan);
-        constructionRepo.Remove(c);
-        await constructionRepo.SaveChangesAsync(ct);
-    }
+    // Удаление стройки и раздела — в ScopeDeletionHandlers: одно тело на три уровня (issue #1243).
 
     public Task<Construction?> Handle(GetConstructionQuery q, CancellationToken ct)
         => constructionRepo.GetByIdAsync(q.Id, ct);
@@ -133,16 +117,5 @@ public class ConstructionHandlers(
         sectionRepo.Update(s);
         await sectionRepo.SaveChangesAsync(ct);
         return s;
-    }
-
-    /// <inheritdoc cref="Handle(DeleteConstructionCommand, CancellationToken)" />
-    public async Task Handle(DeleteSectionCommand cmd, CancellationToken ct)
-    {
-        var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
-        var plan = await cascade.PlanAsync(CatalogScope.Section, cmd.Id, ct);
-        cascade.EnsureDeletable(plan, "раздел");
-        cascade.Remove(plan);
-        sectionRepo.Remove(s);
-        await sectionRepo.SaveChangesAsync(ct);
     }
 }
