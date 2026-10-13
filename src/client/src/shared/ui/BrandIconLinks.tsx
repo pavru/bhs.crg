@@ -10,7 +10,9 @@ import { BRAND_ICONS_KEY, applyBrandIcons } from './brandIcons';
  * метке прошлого захода, либо адрес без метки из `index.html`.
  */
 export function BrandIconLinks() {
-  const version = useBranding().data?.icons.version;
+  // `icons?.` вопреки типу: пока идёт обновление, клиент новой версии может получить ответ от
+  // сервера прежней, где этого поля ещё нет, — и значок не повод ронять всё приложение.
+  const version = (useBranding().data?.icons as { version?: string } | undefined)?.version;
 
   useEffect(() => {
     if (!version) return;
