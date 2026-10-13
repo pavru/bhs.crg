@@ -1,8 +1,9 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 import { apiError } from '@/shared/utils/apiError';
+import { DISMISSAL, pointAtExit } from './modalDismissal';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -94,6 +95,11 @@ function ConfirmDialogBody({
   const canConfirm = !requireCheckbox || checked;
   // Состояние «нельзя»: проактивная блокировка (blocked) ИЛИ реактивная ошибка после попытки (error).
   const blockedView = error != null || blocked != null;
+  // Отказ читают (issue #1237) — это то же состояние «результат», что у `Modal`, и правило берётся
+  // из той же таблицы, а не пишется здесь вторым. В состоянии вопроса правила нет: Esc и клик мимо
+  // равны «Отмена», как было.
+  const rule = blockedView ? DISMISSAL.result : null;
+  const content = useRef<HTMLDivElement>(null);
 
   async function handleConfirm() {
     setBusy(true);
@@ -135,6 +141,19 @@ function ConfirmDialogBody({
         <Dialog.Content
           className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
+          ref={content}
+          // Причина не должна исчезать от промаха мимо окна и от Esc, нажатого по привычке, — но и
+          // молчать окно не должно: Esc переносит фокус на выход, промах обводит его кольцом.
+          onEscapeKeyDown={e => {
+            if (!rule || rule.escape === 'close') return;
+            e.preventDefault();
+            if (rule.escape === 'focusExit') pointAtExit(content.current, true);
+          }}
+          onInteractOutside={e => {
+            if (!rule || rule.outside === 'close') return;
+            e.preventDefault();
+            if (rule.outside === 'hint') pointAtExit(content.current, false);
+          }}
         >
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">
             {blockedView ? (exitFailed ?? errorTitle) : title}
@@ -185,14 +204,16 @@ function ConfirmDialogBody({
             {blockedView ? (
               exit?.action ? (
                 <>
-                  <Button variant="text" size="sm" className="shrink-0" disabled={busy} onClick={() => onOpenChange(false)}>Понятно</Button>
+                  <Button variant="text" size="sm" className="shrink-0" disabled={busy} autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
                   <Button variant="filled" size="sm" multiline className="min-w-0" loading={busy}
                     onClick={() => handleExit(exit.action!)}>
                     {exit.action.label}
                   </Button>
                 </>
               ) : (
-                <Button variant="tonal" size="sm" onClick={() => onOpenChange(false)}>Понятно</Button>
+                // Фокус — на выход: кнопка подтверждения, на которой он стоял, с отказом исчезла, а Esc
+                // здесь больше не закрывает — без фокуса человеку с клавиатурой пришлось бы искать выход.
+                <Button variant="tonal" size="sm" autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
               )
             ) : (
               <>

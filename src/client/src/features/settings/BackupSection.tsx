@@ -526,8 +526,10 @@ function BackupFilesPanel() {
         onOpenChange={o => { if (!o) setResult(null); }}
         title={result?.success ? 'Восстановление завершено' : 'Ошибка восстановления'}
         flushBody
+        // Итог читают (issue #1237): промах и Esc его не закрывают, выход один — и рисует его окно.
+        acknowledge="Закрыть"
       >
-        {result && <RestoreResultModal report={result} onClose={() => setResult(null)} />}
+        {result && <RestoreResultModal report={result} />}
       </Modal>
     </div>
   );
@@ -558,7 +560,7 @@ function IconAction({ title, onClick, danger, disabled, children }: {
 
 // ─── Итог восстановления ──────────────────────────────────────────────────────
 
-function RestoreResultModal({ report, onClose }: { report: RestoreReport; onClose: () => void }) {
+function RestoreResultModal({ report }: { report: RestoreReport }) {
   const total =
     (report.primitiveTypesCreated ?? 0) + (report.primitiveTypesUpdated ?? 0) +
     (report.enumTypesCreated ?? 0) + (report.enumTypesUpdated ?? 0) +
@@ -668,9 +670,6 @@ function RestoreResultModal({ report, onClose }: { report: RestoreReport; onClos
             ))}
           </div>
         )}
-      </div>
-      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end">
-        <Button variant="filled" onClick={onClose}>Закрыть</Button>
       </div>
     </div>
   );

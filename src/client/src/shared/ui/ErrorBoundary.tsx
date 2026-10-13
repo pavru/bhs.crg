@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight, Bug } from 'lucide-react';
+import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight, Bug, X } from 'lucide-react';
 import { canOpenBugReport, openBugReport } from './bugReportBus';
 import { getToken } from '@/shared/api/token';
 
@@ -23,6 +23,13 @@ export class ErrorBoundary extends Component<
     variant?: 'inline' | 'page';
     /** Показать кнопку «Перезагрузить страницу» (для корневой границы). */
     allowReload?: boolean;
+    /**
+     * Выход из того, что упало (issue #1237), — кнопка «Закрыть». Нужен границе внутри окна без
+     * шапки: крестика там нет, и без кнопки выйти можно только клавишей Esc (а при несохранённых
+     * правках Esc не закрывает) или перезагрузкой. Передавайте выход окна (`requestClose`), а не
+     * голое закрытие: о несохранённом обязан спросить тот, кто о нём знает.
+     */
+    onClose?: () => void;
   },
   { error: Error | null; expanded: boolean }
 > {
@@ -50,7 +57,7 @@ export class ErrorBoundary extends Component<
     const { error, expanded } = this.state;
     if (!error) return this.props.children;
 
-    const { title = 'Что-то пошло не так', variant = 'inline', allowReload } = this.props;
+    const { title = 'Что-то пошло не так', variant = 'inline', allowReload, onClose } = this.props;
     const isPage = variant === 'page';
 
     return (
@@ -63,8 +70,8 @@ export class ErrorBoundary extends Component<
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-medium text-fg1">{title}</h2>
               <p className="text-sm text-fg3 mt-1">
-                Произошла ошибка при отображении. Данные не потеряны — можно попробовать снова или
-                перезагрузить страницу.
+                Произошла ошибка при отображении. Сохранённые данные целы — можно попробовать снова
+                или перезагрузить страницу.
               </p>
 
               <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -94,6 +101,14 @@ export class ErrorBoundary extends Component<
                   <button type="button" onClick={() => window.location.reload()}
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
                     <RefreshCw size={14} /> Перезагрузить страницу
+                  </button>
+                )}
+                {onClose && (
+                  // `data-modal-exit` — договор окна без шапки: по этой метке Esc и клик мимо
+                  // находят выход, когда закрыть сразу нельзя (в редакторе остались правки).
+                  <button type="button" onClick={onClose} data-modal-exit=""
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
+                    <X size={14} /> Закрыть
                   </button>
                 )}
               </div>

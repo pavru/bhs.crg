@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, type ButtonProps } from './Button';
 import { ModalControlContext, useModalControl } from './modalControl';
-import { DISMISSAL, HINT_MS, modalState } from './modalDismissal';
+import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
 
 interface ModalBaseProps {
   open: boolean;
@@ -110,9 +110,6 @@ function ModalBody({
   const [confirmClose, setConfirmClose] = useState(false);
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
-  const hintTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const hinted = useRef<HTMLElement | null>(null);
-  useEffect(() => () => clearTimeout(hintTimer.current), []);
 
   const rule = DISMISSAL[modalState({ busy, acknowledge, isDirty, touched, nothingToLose })];
   // Вопрос «Закрыть без сохранения?» живёт, только пока выход вообще возможен: начавшийся запрос
@@ -138,27 +135,8 @@ function ModalBody({
     else onOpenChange(false);
   }
 
-  /**
-   * Показать выход: «Отмена» (кнопка, помеченная `data-modal-exit`), иначе крестик. Кольцом, без
-   * движения: тишина неотличима от зависшего окна, а встряхивание читается как ошибка.
-   *
-   * @param focus Esc ещё и переносит туда фокус — закрывает уже Enter. Клик мимо фокус не трогает:
-   *   уведённый из поля щелчком, он превратил бы следующий пробел в «Отмену».
-   */
-  function showExit(focus: boolean) {
-    const exit = content.current?.querySelector<HTMLElement>('[data-modal-exit]:not([disabled])')
-      ?? content.current?.querySelector<HTMLElement>('[data-modal-cross]');
-    if (!exit) return;
-    exit.scrollIntoView?.({ block: 'nearest' });
-    if (focus) exit.focus();
-    // Кольцо снимается с ТОГО элемента, на который легло: выход между двумя промахами мог
-    // смениться («Отмена» стала недоступна — остался крестик), а таймер один.
-    clearTimeout(hintTimer.current);
-    hinted.current?.removeAttribute('data-modal-hint');
-    hinted.current = exit;
-    exit.setAttribute('data-modal-hint', '');
-    hintTimer.current = setTimeout(() => exit.removeAttribute('data-modal-hint'), HINT_MS);
-  }
+  /** Показать выход — см. `pointAtExit`. */
+  const showExit = (focus: boolean) => pointAtExit(content.current, focus);
 
   /**
    * Ввод считается, только если поле лежит в ЭТОМ окне. События React всплывают по дереву

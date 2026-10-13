@@ -441,10 +441,12 @@ export function SetDetail() {
             fullScreen headerless isDirty={editDirty} flushBody>
             {requestClose => (
               // Граница ошибок (issue #305): краш рендера редактора изолирован в панель ошибки
-              // вместо немого пустого экрана; Esc/закрытие живут на уровне Modal (вне границы).
-              // resetKeys=[id] — смена документа сбрасывает пойманную ошибку.
+              // вместо немого пустого экрана. Шапки у окна нет, поэтому выход из панели — её же
+              // кнопка «Закрыть» (issue #1237). Идёт она путём окна, через вопрос о правках: упавший
+              // редактор признак правок уже не снимет, и набранное пропало бы без единого слова
+              // (ревью PR #1312). resetKeys=[id] — смена документа сбрасывает ошибку.
               <ErrorBoundary variant="inline" allowReload resetKeys={[liveInstance.id]}
-                title="Не удалось открыть документ">
+                title="Не удалось открыть документ" onClose={requestClose}>
                 <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
                   allDocTypes={docTypes} otherInstances={otherInstances}
                   onClose={closeEditor} onDirtyChange={onEditorDirtyChange}
