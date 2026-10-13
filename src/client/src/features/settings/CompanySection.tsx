@@ -6,10 +6,11 @@ import { useToast } from '@/shared/ui/Toast';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useAccountingCurrency, useSaveAccountingCurrency } from '@/shared/api/accountingCurrency';
 import { currencyTitle } from './companySettings';
+import { CompanyTimeZone } from './CompanyTimeZone';
 
 /**
- * Настройки компании (ТЗ CORE-25.3). Пока одна — валюта учёта (ТЗ COST-7.2, issue #1248); часовой
- * пояс компании встанет сюда же своей задачей.
+ * Настройки компании (ТЗ CORE-25.3): валюта учёта (ТЗ COST-7.2, issue #1248) и часовой пояс —
+ * он своим блоком, `CompanyTimeZone`: у него свой запрос и своё сохранение.
  *
  * Валюту меняют, пока документов с суммами нет: суммы при смене не пересчитываются. Когда
  * документы есть, выбора на экране НЕТ вовсе — валюта названа текстом, причина под ней. Поле с
@@ -25,6 +26,7 @@ export function CompanySection() {
 
   const next = picked ?? data?.currency;
   const dirty = !!data && next !== data.currency;
+  const [zoneDirty, setZoneDirty] = useState(false);
 
   /** Сменить. Отказ НЕ ловим: диалог показывает причину сам и остаётся открытым — она длинная
    *  («…счетов: 1440, накладных: 39…»), в исчезающем уведомлении её не прочитать. */
@@ -53,7 +55,7 @@ export function CompanySection() {
 
   return (
     <CollapsibleSection title="Компания" storageKey="company" defaultOpen={false}
-      right={dirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
+      right={dirty || zoneDirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
       {isError && (
         <div className="flex items-center gap-3">
           <span className="text-sm text-danger">Настройки компании не загрузились.</span>
@@ -107,6 +109,10 @@ export function CompanySection() {
           </Button>
         </div>
       )}
+
+      <div className="pt-4 mt-1 border-t border-stroke">
+        <CompanyTimeZone onDirty={setZoneDirty} />
+      </div>
 
       <ConfirmDialog
         open={confirming}

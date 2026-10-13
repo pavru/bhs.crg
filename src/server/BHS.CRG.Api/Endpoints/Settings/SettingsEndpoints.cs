@@ -36,10 +36,17 @@ public static class SettingsEndpoints
         var company = app.MapGroup("/api/settings/company")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
-        company.MapGet("/", async (IAppSettingsStore store, CancellationToken ct) =>
+        company.MapGet("/", async (IAppSettingsStore store, TimeProvider clock, CancellationToken ct) =>
         {
             var stored = await store.GetAsync(AppSettingKeys.CompanyTimeZone, ct);
             var effective = await store.GetCompanyTimeZoneAsync(ct);
+            var now = clock.GetUtcNow();
+            object Named(OfferedTimeZone z) => new
+            {
+                id = z.Id,
+                city = z.City,
+                offset = CompanyTimeZones.Offset(TimeZoneInfo.FindSystemTimeZoneById(z.Id), now),
+            };
             // Три значения, а не одно, и это не избыточность: «что выбрали», «что действует» и «что
             // на сервере». Совпадать они перестают ровно тогда, когда базу перенесли на машину, где
             // выбранного пояса нет, — и администратор обязан увидеть это здесь, а не по сдвинутым
@@ -49,7 +56,22 @@ public static class SettingsEndpoints
                 timeZoneId = stored,
                 effectiveTimeZoneId = effective.Id,
                 serverTimeZoneId = TimeZoneInfo.Local.Id,
-                resolved = stored is null || string.Equals(stored, effective.Id, StringComparison.Ordinal),
+                // «Найден и действует», а не «записан буква в букву как действующий» (ревью PR #1314):
+                // пояс, сохранённый в другой записи того же имени, машине известен и действует, а
+                // экран называл бы его неизвестным. Запись теперь приводит имя к каноническому, но в
+                // базе могут лежать значения, сохранённые до этого.
+                resolved = stored is null
+                    || (TimeZoneInfo.TryFindSystemTimeZoneById(stored, out var found) && found.Equals(effective)),
+                // Для экрана (issue #1148). Смещения и «сейчас» считает сервер: клиент посчитал бы их
+                // по своей базе поясов, а действует здешняя — и расходятся они ровно в тот день, когда
+                // это важно. «Сейчас» — то, чем администратор проверяет выбор: число и час у компании.
+                effectiveOffset = CompanyTimeZones.Offset(effective, now),
+                serverOffset = CompanyTimeZones.Offset(TimeZoneInfo.Local, now),
+                // С неизменной культурой: «:» в формате — разделитель времени КУЛЬТУРЫ, а год берётся
+                // из её календаря. На сервере с другой культурой контракт молча стал бы «14.32».
+                effectiveNow = TimeZoneInfo.ConvertTime(now, effective)
+                    .ToString("yyyy-MM-dd'T'HH:mm", System.Globalization.CultureInfo.InvariantCulture),
+                timeZones = CompanyTimeZones.Offered().Select(Named),
             });
         });
 
@@ -59,8 +81,12 @@ public static class SettingsEndpoints
             if (!string.IsNullOrWhiteSpace(req.TimeZoneId) && !AppSettingKeys.IsKnownTimeZone(req.TimeZoneId))
                 return Results.BadRequest(new { error = $"Часовой пояс «{req.TimeZoneId}» этой системе неизвестен." });
 
+            // Сохраняется имя, каким пояс называет сама система, а не каким его набрали: поиск пояса
+            // на части машин не различает регистр, и «europe/moscow» легло бы в базу как есть.
             await store.SetAsync(AppSettingKeys.CompanyTimeZone,
-                string.IsNullOrWhiteSpace(req.TimeZoneId) ? null : req.TimeZoneId.Trim(), ct);
+                string.IsNullOrWhiteSpace(req.TimeZoneId)
+                    ? null
+                    : TimeZoneInfo.FindSystemTimeZoneById(req.TimeZoneId.Trim()).Id, ct);
             return Results.NoContent();
         });
 
