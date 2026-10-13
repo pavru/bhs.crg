@@ -15,9 +15,6 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// </summary>
 public class TypstSyntaxChecker(ILogger<TypstSyntaxChecker> logger) : ITypstSyntaxChecker
 {
-    private static readonly string TypstPath =
-        Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
-
     private const string ProbeName = "check.typ";
 
     public async Task<IReadOnlyList<TypstSyntaxError>> CheckAsync(
@@ -76,7 +73,7 @@ public class TypstSyntaxChecker(ILogger<TypstSyntaxChecker> logger) : ITypstSynt
 
         var psi = new ProcessStartInfo
         {
-            FileName = TypstPath,
+            FileName = TypstProcess.ExecutablePath,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

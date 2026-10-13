@@ -62,4 +62,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Стандартные значки экземпляра (issue #1315) — см. Branding/StandardBrandIcons.cs. Имя
+         ресурса задано явно: выведенное из папок зависит от пространства имён проекта и молча
+         меняется при переносе файла, а читают его по имени. -->
+    <EmbeddedResource Include="Branding\Standard\*" LogicalName="brand-icons/%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

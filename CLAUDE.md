@@ -132,6 +132,8 @@ cd src/client && npx tsc -b
 cd src/server && dotnet build BHS.CRG.slnx
 
 # Backend тесты (xUnit, проект BHS.CRG.Tests)
+# ⚠️ Нужен настоящий Typst CLI — в PATH либо переменной TYPST_PATH: тесты значков из логотипа
+# (issue #1315) растрируют им и без него красные, с названной причиной.
 cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
 
 # Те же тесты ДВУМЯ ПОТОКАМИ, как в CI (issue #1164): два процесса на своих базах,

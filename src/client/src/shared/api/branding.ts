@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 /**
@@ -14,17 +14,50 @@ export interface Branding {
   hasLogo: boolean;
   /** Метка версии файла — едет в адрес картинки, иначе заменённый логотип останется старым. */
   logoVersion: string | null;
+  icons: BrandIcons;
+}
+
+/** Значки вкладки и приложения (issue #1315): чьи они сейчас — и почему, если не из логотипа. */
+export interface BrandIcons {
+  /** `failed` — логотип есть, а значки из него не построены: отдаются стандартные. */
+  state: 'standard' | 'custom' | 'failed';
+  /** Метка версии значков — в адрес как `?v=`. Строка непрозрачная: разбирать её нельзя. */
+  version: string;
+  /** Почему не построены: `file`, `size`, `builder`, `timeout`; null, пока отказа нет. */
+  problem: string | null;
+  /** Ширина к высоте того, что вписано в значок; null, пока значки не построены. */
+  aspect: number | null;
 }
 
 export const BRANDING_KEY = ['branding'] as const;
 
-export function useBranding() {
+/**
+ * Ответ сервера — с полем `icons` в любом случае. Пока идёт обновление, клиент новой версии может
+ * получить ответ от сервера прежней, где этого поля ещё нет; значки не повод ронять ни шапку, ни
+ * экран настройки. Подставляется «стандартные, метки нет»: ссылку значка без метки никто не тронет,
+ * превью и предупреждений не будет.
+ */
+export function withIcons(raw: Branding): Branding {
+  return (raw as Partial<Branding>).icons
+    ? raw
+    : { ...raw, icons: { state: 'standard', version: '', problem: null, aspect: null } };
+}
+
+/**
+ * @param follow через сколько спросить снова по тому, что получено, — или `false`. Задаёт его ТОЛЬКО
+ *   экран настройки (см. `rebuildPoll`), и это не случайность: хук зовут шапка и страница входа, то
+ *   есть каждая открытая вкладка каждого пользователя. Опрос отсюда при вечном отказе построителя
+ *   (на сервере нет Typst) слал бы запрос в минуту с каждой вкладки без конца — а корзина запросов
+ *   оформления одна на адрес, и офис за одним адресом сам довёл бы себя до 429.
+ */
+export function useBranding(follow?: (branding: Branding | undefined) => number | false) {
   return useQuery<Branding>({
     queryKey: BRANDING_KEY,
-    queryFn: () => apiClient.get('/branding').then(r => r.data),
+    queryFn: () => apiClient.get('/branding').then(r => withIcons(r.data)),
     // Оформление меняют раз в жизни экземпляра, а спрашивают на каждом экране: без длинного
     // «свежего» окна имя мигало бы умолчанием при каждом переходе.
     staleTime: 10 * 60 * 1000,
+    refetchInterval: follow ? query => follow(query.state.data) : false,
   });
 }
 
@@ -34,12 +67,27 @@ export function logoUrl(branding: Branding | undefined): string | null {
   return `/api/branding/logo?v=${encodeURIComponent(branding.logoVersion ?? '')}`;
 }
 
+/**
+ * Ответ правки — в кеш; запрос оформления, который в эту минуту в полёте, отменяется.
+ *
+ * Без отмены его ответ лёг бы в кеш ПОСЛЕ ответа правки и затёр бы её снимком, снятым до неё: тост
+ * «Логотип убран.», а строка логотипа возвращается на экран. Раньше запрос в полёте во время
+ * правки был редкостью, теперь экран настройки сам шлёт его дважды в минуту (`rebuildPoll`). Окно
+ * гонки — обычная длительность чтения: повторное построение значков сервер ведёт в фоне, и опрос
+ * его не ждёт. Долгим бывает только первое чтение после перезапуска сервера — оно значки строит и
+ * ждёт до пятнадцати секунд. Новую мутацию оформления заводите через эту же запись.
+ */
+async function remember(qc: QueryClient, data: Branding) {
+  await qc.cancelQueries({ queryKey: BRANDING_KEY });
+  qc.setQueryData(BRANDING_KEY, data);
+}
+
 export function useSaveProductName() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (productName: string | null) =>
-      apiClient.put('/branding', { productName }).then(r => r.data as Branding),
-    onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
+      apiClient.put('/branding', { productName }).then(r => withIcons(r.data)),
+    onSuccess: data => remember(qc, data),
   });
 }
 
@@ -49,17 +97,17 @@ export function useUploadLogo() {
     mutationFn: (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      return apiClient.post('/branding/logo', form).then(r => r.data as Branding);
+      return apiClient.post('/branding/logo', form).then(r => withIcons(r.data));
     },
-    onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
+    onSuccess: data => remember(qc, data),
   });
 }
 
 export function useRemoveLogo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.delete('/branding/logo').then(r => r.data as Branding),
-    onSuccess: data => qc.setQueryData(BRANDING_KEY, data),
+    mutationFn: () => apiClient.delete('/branding/logo').then(r => withIcons(r.data)),
+    onSuccess: data => remember(qc, data),
   });
 }
 

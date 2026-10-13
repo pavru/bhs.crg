@@ -10,7 +10,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { useOpenRecord } from './openRecord';
-import { RereadFailedNotice } from './RereadFailedNotice';
+import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {

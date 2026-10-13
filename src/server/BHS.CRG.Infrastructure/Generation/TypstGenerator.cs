@@ -18,9 +18,6 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
     public const string AssetsSubdir = "assets";
     public const string FontsSubdir = "fonts";
 
-    private static readonly string TypstPath =
-        Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
-
     public async Task<byte[]> GenerateAsync(GenerationRequest request, CancellationToken ct = default)
     {
         if (request.Format != OutputFormat.Pdf)
@@ -111,7 +108,7 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = TypstPath,
+                FileName = TypstProcess.ExecutablePath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

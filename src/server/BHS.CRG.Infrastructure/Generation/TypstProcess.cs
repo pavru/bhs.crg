@@ -22,6 +22,14 @@ namespace BHS.CRG.Infrastructure.Generation;
 public static class TypstProcess
 {
     /// <summary>
+    /// Чем запускать Typst: переменная <c>TYPST_PATH</c> либо <c>typst</c> из PATH. Одно место на
+    /// всех, кто его зовёт (генерация, две проверки, значки из логотипа): текст отказа «Typst
+    /// недоступен» называет именно эту переменную, и четыре копии её чтения разошлись бы молча.
+    /// </summary>
+    public static readonly string ExecutablePath =
+        Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
+
+    /// <summary>
     /// Срок на один запуск. Взят с большим запасом: тяжёлый комплект со сканами верстается единицы
     /// секунд, а всё, что не уложилось в минуту, — это уже не «медленно», а «не закончится».
     /// </summary>

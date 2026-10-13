@@ -19,9 +19,6 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// </summary>
 public class UserLibChecker : IUserLibChecker
 {
-    private static readonly string TypstPath =
-        Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
-
     public async Task<UserLibCheckResult> CheckAsync(
         string entrypointContent, IReadOnlyList<UserLibFile> files, CancellationToken ct)
     {
@@ -79,7 +76,7 @@ public class UserLibChecker : IUserLibChecker
 
             var psi = new ProcessStartInfo
             {
-                FileName = TypstPath,
+                FileName = TypstProcess.ExecutablePath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

@@ -38,8 +38,10 @@ jobs:
     # 127.0.0.1:5433 с postgres/xxsystem, имя базы берётся из BHS_TEST_DB. Порт 5433, а не 5432 —
     # см. комментарий у фикстуры: на машине разработчика 5432 занимает нативная служба, и значение
     # держится одно на все окружения, чтобы «локально прошло, в CI упало» не случалось из-за порта. Базу заводить не нужно —
-    # приложение мигрирует при старте, а миграция создаёт её сама. MinIO подменён фейком, Typst
-    # тестам не нужен (пропусков по его отсутствию в наборе нет).
+    # приложение мигрирует при старте, а миграция создаёт её сама. MinIO подменён фейком. Typst —
+    # НАСТОЯЩИЙ (шаг ниже): им растрируется логотип для значков (issue #1315), и подмена сделала бы
+    # зелёным ровно то, что тесты обещают проверить. Пропусков по его отсутствию в наборе нет —
+    # без Typst эти тесты красные.
     services:
       postgres:
         image: postgres:18.6-alpine
@@ -176,6 +178,10 @@ jobs:
           SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build BHS.CRG.slnx -c Debug
 
+      # Версия — та же, что в образе API; почему скриптом и почему читается из Dockerfile — в нём.
+      - name: Typst CLI
+        run: bash scripts/ci-install-typst.sh
+
       # Двумя потоками — двумя процессами `dotnet test` на своих базах (issue #1164): интеграционные
       # тесты идут строго по очереди, и одному потоку из четырёх ядер раннера доставалось одно.
       # Как тесты делятся, почему поделить их неправильно нельзя и что печатает итог — в самом
@@ -185,6 +191,7 @@ jobs:
       - name: Тесты
         env:
           BHS_TEST_DB: bhs_crg_ci
+          TYPST_PATH: /usr/local/bin/typst
         run: bash scripts/backend-tests.sh --no-build -c Debug
 
   frontend:
@@ -473,24 +480,10 @@ jobs:
 
       # Проверка Typst-блоков в редакторе типов зовёт компилятор на сервере. Без него эндпоинт
       # отвечает ошибкой, и проверка краснеет — не из-за регресса, а из-за отсутствия бинаря.
-      #
-      # Версию ЧИТАЕМ из deploy/Dockerfile.api, а не дублируем числом. Два независимых литерала
-      # разъезжаются молча: подняли версию в образе — CI продолжил бы проверять блоки прежним
-      # Typst, и шаблон с новым синтаксисом зеленел бы здесь и падал в поставке (а убранный
-      # синтаксис — наоборот). Проверять надо ТЕМ ЖЕ компилятором, что поедет в продакшн.
+      # Проверять надо ТЕМ ЖЕ компилятором, что поедет в продакшн: версию скрипт читает из
+      # deploy/Dockerfile.api (почему — в нём самом).
       - name: Typst CLI
-        run: |
-          TYPST_VERSION=$(sed -n 's/^ARG TYPST_VERSION=//p' deploy/Dockerfile.api | head -1)
-          if [ -z "$TYPST_VERSION" ]; then
-            echo "::error::В deploy/Dockerfile.api не нашлась строка ARG TYPST_VERSION= — версию Typst взять неоткуда"
-            exit 1
-          fi
-          echo "версия из образа API: $TYPST_VERSION"
-          curl -fsSL --retry 3 --retry-delay 2 "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" -o /tmp/typst.tar.xz
-          tar -xJf /tmp/typst.tar.xz -C /tmp
-          sudo mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
-          sudo chmod +x /usr/local/bin/typst
-          typst --version
+        run: bash scripts/ci-install-typst.sh
 
       - name: Кеш пакетов NuGet
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

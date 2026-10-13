@@ -8,6 +8,7 @@ import { DEFAULT_CURRENCY, setFormatCurrency } from '@/shared/format/format';
 import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
+import { BrandIconLinks } from '@/shared/ui/BrandIconLinks';
 import { DocumentTitleManager } from '@/shared/ui/DocumentTitleManager';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { BugReportProvider } from '@/shared/ui/BugReportProvider';
@@ -65,6 +66,7 @@ export default function App() {
           <ErrorBoundary variant="page" allowReload>
           <NavigationGuardProvider>
           <DocumentTitleManager>
+          <BrandIconLinks />
           <AppRoutes />
           </DocumentTitleManager>
           </NavigationGuardProvider>
