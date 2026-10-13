@@ -17,7 +17,42 @@ public sealed record RasterizedLogo(byte[]? Png, string? Problem);
 /// </summary>
 public interface ILogoRasterizer
 {
-    Task<RasterizedLogo> RasterizeAsync(byte[] logo, CancellationToken ct);
+    /// <param name="view">
+    /// Какую часть холста растрировать и во сколько раз крупнее; <c>null</c> — холст целиком, в
+    /// квадрат <see cref="TypstLogoRasterizer.Side" />.
+    /// </param>
+    Task<RasterizedLogo> RasterizeAsync(byte[] logo, LogoView? view, CancellationToken ct);
+}
+
+/// <summary>
+/// Часть холста логотипа, растрируемая крупнее (второй проход, ревью PR #1320). Координаты — в
+/// точках первого растра (квадрат <see cref="TypstLogoRasterizer.Side" />).
+///
+/// <para>Зачем. Первый растр — весь холст файла вместе с пустыми полями. У знака, занимающего
+/// восьмую часть холста, видимая часть выходит в сотню точек, а значку нужно почти четыреста:
+/// векторный логотип растягивался бы втрое и выходил мутным. Вторым проходом Typst рисует только
+/// найденный прямоугольник — страница размером с него, а не с увеличенный холст.</para>
+/// </summary>
+public sealed record LogoView(int Left, int Top, int Width, int Height, double Scale);
+
+/// <summary>Что за файл лежит под именем логотипа — по содержимому, а не по расширению.</summary>
+public static class LogoFormat
+{
+    /// <summary>
+    /// Похоже ли содержимое на SVG: первый значащий знак — «&lt;». Три растровых формата начинаются
+    /// с двоичной подписи и под это не попадают.
+    /// </summary>
+    public static bool IsVector(ReadOnlySpan<byte> logo)
+    {
+        if (logo.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF])) logo = logo[3..];
+        foreach (var b in logo)
+        {
+            if (b is 0x20 or 0x09 or 0x0D or 0x0A) continue;
+            return b == (byte)'<';
+        }
+
+        return false;
+    }
 }
 
 /// <summary>
@@ -49,23 +84,52 @@ public sealed class TypstLogoRasterizer(ILogger<TypstLogoRasterizer> logger) : I
     private const string OutputFile = "logo.png";
 
     /// <summary>
-    /// Страница — квадрат в пунктах; при <c>--ppi 72</c> пункт равен точке. Логотип читается
-    /// БАЙТАМИ, без расширения: формат Typst определяет по содержимому. Расширению верить нельзя —
-    /// загрузка сверяет только его, а через экран ассетов шаблонов логотип заменяется файлом с любым
-    /// именем; JPEG под именем «.png» дал бы отказ там, где браузер картинку показывает.
+    /// Страница в пунктах; при <c>--ppi 72</c> пункт равен точке. Логотип читается БАЙТАМИ, без
+    /// расширения: формат Typst определяет по содержимому. Расширению верить нельзя — загрузка
+    /// сверяет только его, а через экран ассетов шаблонов логотип заменяется файлом с любым именем;
+    /// JPEG под именем «.png» дал бы отказ там, где браузер картинку показывает.
+    ///
+    /// <para>⚠️ SVG называем САМИ. Typst узнаёт его по строке пространства имён в первых двух
+    /// килобайтах файла; SVG с длинным прологом (комментарий редактора, лицензия, DOCTYPE) он
+    /// отвергал как «unknown image format» — при том, что браузер такой файл показывает в шапке, а
+    /// печатная форма ставит по расширению (ревью PR #1320, проверено на Typst 0.15.1).</para>
+    ///
+    /// <para>Холст — квадрат со стороной <see cref="Side" />, логотип вписан в него целиком. Без
+    /// <paramref name="view" /> страница — весь холст; с ним — только названный прямоугольник,
+    /// увеличенный: холст сдвинут так, что прямоугольник встаёт в начало страницы, а остальное
+    /// остаётся за её краями и не рисуется.</para>
     /// </summary>
-    private static readonly string Page =
-        $"#set page(width: {Side}pt, height: {Side}pt, margin: 0pt, fill: none)\n" +
-        $"#place(center + horizon, image(read(\"{LogoFile}\", encoding: none), width: 100%, height: 100%, fit: \"contain\"))\n";
+    public static string PageOf(bool vector, LogoView? view)
+    {
+        var format = vector ? ", format: \"svg\"" : "";
+        var scale = view?.Scale ?? 1;
+        static string Pt(double value) => FormattableString.Invariant($"{value:0.###}pt");
 
-    public async Task<RasterizedLogo> RasterizeAsync(byte[] logo, CancellationToken ct)
+        var (width, height) = view is null ? (Side, Side) : (view.Width * scale, view.Height * scale);
+        var (dx, dy) = view is null ? (0d, 0d) : (-view.Left * scale, -view.Top * scale);
+        return
+            $"#set page(width: {Pt(Math.Ceiling(width))}, height: {Pt(Math.Ceiling(height))}, margin: 0pt, fill: none)\n" +
+            $"#place(top + left, dx: {Pt(dx)}, dy: {Pt(dy)}, image(read(\"{LogoFile}\", encoding: none){format}, " +
+            $"width: {Pt(Side * scale)}, height: {Pt(Side * scale)}, fit: \"contain\"))\n";
+    }
+
+    /// <summary>
+    /// Чей отказ — по коду возврата. Единица — Typst разобрал запуск и отказал самому файлу: тот же
+    /// файл даст тот же отказ, и повторять его незачем. Любой другой код — процесс до ответа не
+    /// дожил: убит по памяти (137), упал паникой (101). Это сбой сервера, он проходит сам — а
+    /// записанный «файлом», он остался бы до перезапуска, с советом пересохранить исправный логотип.
+    /// </summary>
+    public static string ProblemOf(int exitCode) =>
+        exitCode == 1 ? BrandIconProblem.File : BrandIconProblem.Builder;
+
+    public async Task<RasterizedLogo> RasterizeAsync(byte[] logo, LogoView? view, CancellationToken ct)
     {
         var dir = Path.Combine(Path.GetTempPath(), "brand-icons-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {
             await File.WriteAllBytesAsync(Path.Combine(dir, LogoFile), logo, ct);
-            await File.WriteAllTextAsync(Path.Combine(dir, PageFile), Page, ct);
+            await File.WriteAllTextAsync(Path.Combine(dir, PageFile), PageOf(LogoFormat.IsVector(logo), view), ct);
 
             var psi = new ProcessStartInfo
             {
@@ -106,8 +170,8 @@ public sealed class TypstLogoRasterizer(ILogger<TypstLogoRasterizer> logger) : I
             if (exitCode != 0)
             {
                 // В журнал — целиком: там пути временного каталога, наружу им нельзя.
-                logger.LogWarning("Typst не разобрал логотип как изображение: {StdErr}", stderr);
-                return new(null, BrandIconProblem.File);
+                logger.LogWarning("Typst не построил картинку логотипа, код {ExitCode}: {StdErr}", exitCode, stderr);
+                return new(null, ProblemOf(exitCode));
             }
 
             if (!File.Exists(output))

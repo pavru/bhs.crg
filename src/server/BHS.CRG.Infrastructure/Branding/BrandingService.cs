@@ -42,7 +42,7 @@ public class BrandingService(
     public async Task<BrandingInfo> GetAsync(CancellationToken ct = default)
     {
         var name = await settings.GetAsync(AppSettingKeys.ProductName, ct);
-        var logo = await LogoAssetAsync(ct);
+        var logo = await LogoAssetAsync(ct, tracked: false);
         return new BrandingInfo(
             string.IsNullOrWhiteSpace(name) ? BrandingDefaults.ProductName : name,
             IsCustom: !string.IsNullOrWhiteSpace(name),
@@ -53,7 +53,7 @@ public class BrandingService(
 
     public async Task<BrandIcon> GetIconAsync(BrandIconKind kind, CancellationToken ct = default)
     {
-        var logo = await LogoAssetAsync(ct);
+        var logo = await LogoAssetAsync(ct, tracked: false);
         if (logo is null || (await IconsOfAsync(logo, ct))?.Set is not { } set)
             return StandardBrandIcons.Get(kind);
 
@@ -79,6 +79,8 @@ public class BrandingService(
                 // Версии одной мало: ассет логотипа могли завести заново с той же меткой времени
                 // (восстановление копии) — а строка и файл у него будут другие.
                 $"{logo.Id:N}:{Version(logo)}:{logo.BlobPath}",
+                // ⚠️ Чтение может пережить этот запрос (повтор после сбоя идёт в фоне): оно
+                // держится только за хранилище, кеш и саму строку ассета — контекст базы ему нельзя.
                 async c => (await ContentAsync(logo, c))?.Content, ct);
 
     private static BrandIconsInfo IconsInfo(TemplateAsset? logo, BrandIconBuild? build)
@@ -97,7 +99,7 @@ public class BrandingService(
 
     public async Task<BrandingLogo?> GetLogoAsync(CancellationToken ct = default)
     {
-        var asset = await LogoAssetAsync(ct);
+        var asset = await LogoAssetAsync(ct, tracked: false);
         return asset is null ? null : await ContentAsync(asset, ct);
     }
 
@@ -187,9 +189,15 @@ public class BrandingService(
     /// Ассет логотипа — системного уровня и с зарезервированным именем. Берём ПЕРВЫЙ по дате
     /// обновления: имя в таблице ничем не уникально, и два ассета с ним завести можно руками через
     /// экран шаблонов. Выбирать «какой-нибудь» нельзя — логотип менялся бы от запроса к запросу.
+    ///
+    /// <para><paramref name="tracked" /> — только замене и удалению: им строку менять. Чтения идут
+    /// без отслеживания — адреса значков и манифеста анонимные и зовутся каждой загрузкой страницы.
+    /// Запоминать сам ответ на секунды не стали нарочно: логотип меняется и мимо этой службы (экран
+    /// ассетов шаблонов, восстановление копии), и запомненная строка отдавала бы прежние значки под
+    /// прежней меткой — ровно то, от чего ключ значков с версией и защищает.</para>
     /// </summary>
-    private Task<TemplateAsset?> LogoAssetAsync(CancellationToken ct) =>
-        db.TemplateAssets
+    private Task<TemplateAsset?> LogoAssetAsync(CancellationToken ct, bool tracked = true) =>
+        (tracked ? db.TemplateAssets : db.TemplateAssets.AsNoTracking())
             .Where(a => a.Scope == TemplateAssetScope.System
                         && a.Kind == TemplateAssetKind.Image
                         && a.Name == BrandingDefaults.LogoAssetName)

@@ -99,6 +99,8 @@ public class BrandIconStoreTests
 
         var failed = await store.EnsureAsync("logo:1", Bytes, default);
         rasterizer.Answer = null;
+        await store.EnsureAsync("logo:1", Bytes, default);
+        await store.Retry;
         var built = await store.EnsureAsync("logo:1", Bytes, default);
 
         Assert.Equal(BrandIconProblem.Builder, failed.Problem);
@@ -107,10 +109,83 @@ public class BrandIconStoreTests
     }
 
     /// <summary>
-    /// Повтор не бесплатен: пока он идёт, за ним стоят все, кому нужно оформление. Поэтому пауза
-    /// растёт — минута, две, четыре… до предела, — а с постоянной минутой логотип, на котором Typst
-    /// не укладывается в срок, задерживал бы название в шапке на десять секунд каждую минуту,
-    /// бессрочно.
+    /// Повтор идёт в фоне, а спросивший получает запомненный отказ сразу. Построения ждёт название
+    /// в шапке каждого экрана: логотип, на котором Typst не укладывается в срок, иначе задерживал бы
+    /// его на весь срок при каждом повторе.
+    /// </summary>
+    [Fact]
+    public async Task Повтор_после_сбоя_не_задерживает_спросившего()
+    {
+        var rasterizer = new Counting { Answer = new RasterizedLogo(null, BrandIconProblem.Timeout) };
+        var store = Store(rasterizer, retry: TimeSpan.Zero);
+        var failed = await store.EnsureAsync("logo:1", Bytes, default);
+
+        // Повтор начат и стоит: растеризатор не отвечает, пока тест его не отпустит.
+        rasterizer.Answer = null;
+        rasterizer.Hold = new TaskCompletionSource();
+        var asked = await store.EnsureAsync("logo:1", Bytes, default).WaitAsync(TimeSpan.FromSeconds(20));
+        var again = await store.EnsureAsync("logo:1", Bytes, default).WaitAsync(TimeSpan.FromSeconds(20));
+
+        Assert.Same(failed, asked);
+        Assert.Same(failed, again);
+
+        rasterizer.Hold.SetResult();
+        await store.Retry;
+
+        Assert.NotNull((await store.EnsureAsync("logo:1", Bytes, default)).Set);
+        // Второй спросивший своего повтора не начал: идёт один.
+        Assert.Equal(2, rasterizer.Calls);
+    }
+
+    /// <summary>
+    /// Векторный логотип с пустыми полями растрируется вторым проходом — только видимая часть,
+    /// крупнее: иначе знак в восьмую часть холста растягивался бы втрое и выходил мутным.
+    /// </summary>
+    [Fact]
+    public async Task Векторный_логотип_с_полями_растрируется_вторым_проходом()
+    {
+        // Знак 100×100 посреди холста 1000×1000 — таким отдал бы его первый проход.
+        var rasterizer = new Counting { Raster = Logo(100, 100, margin: 450) };
+        var store = Store(rasterizer);
+
+        var build = await store.EnsureAsync("logo:1", _ => Task.FromResult<byte[]?>(Svg(100, 100)), default);
+
+        Assert.NotNull(build.Set);
+        Assert.Equal(2, rasterizer.Calls);
+        Assert.Null(rasterizer.Views[0]);
+        var view = Assert.IsType<LogoView>(rasterizer.Views[1]);
+        // Видимая часть с запасом в две точки, увеличенная до упора — вчетверо.
+        Assert.Equal((448, 448, 104, 104, 4.0), (view.Left, view.Top, view.Width, view.Height, view.Scale));
+    }
+
+    /// <summary>Растровому логотипу второй проход точек не прибавит — его и нет.</summary>
+    [Fact]
+    public async Task Растровый_логотип_с_полями_вторым_проходом_не_растрируется()
+    {
+        var rasterizer = new Counting { Raster = Logo(100, 100, margin: 450) };
+
+        var build = await Store(rasterizer).EnsureAsync("logo:1", Bytes, default);
+
+        Assert.NotNull(build.Set);
+        Assert.Equal(1, rasterizer.Calls);
+    }
+
+    /// <summary>Второй проход не удался — значки строятся из первого: мягче, но строятся.</summary>
+    [Fact]
+    public async Task Отказ_второго_прохода_оставляет_значки_из_первого()
+    {
+        var rasterizer = new Counting { Raster = Logo(100, 100, margin: 450), FailCloser = true };
+
+        var build = await Store(rasterizer).EnsureAsync(
+            "logo:1", _ => Task.FromResult<byte[]?>(Svg(100, 100)), default);
+
+        Assert.NotNull(build.Set);
+        Assert.Equal(2, rasterizer.Calls);
+    }
+
+    /// <summary>
+    /// Повтор не бесплатен: это процесс Typst и чтение хранилища по запросу кого угодно. Поэтому
+    /// пауза растёт — минута, две, четыре… до предела.
     /// </summary>
     [Theory]
     [InlineData(BrandIconProblem.Builder)]
@@ -129,6 +204,7 @@ public class BrandIconStoreTests
         {
             hands.Now += (long)passed.TotalMilliseconds;
             await store.EnsureAsync("logo:1", Bytes, default);
+            await store.Retry;
             return rasterizer.Calls;
         }
 
@@ -154,9 +230,11 @@ public class BrandIconStoreTests
         await store.EnsureAsync("logo:1", Bytes, default);
         hands.Now += 60_000;
         await store.EnsureAsync("logo:1", Bytes, default);              // второй отказ: пауза уже две минуты
+        await store.Retry;
         await store.EnsureAsync("logo:2", Bytes, default);              // другой логотип
         hands.Now += 60_000;
         await store.EnsureAsync("logo:2", Bytes, default);
+        await store.Retry;
 
         Assert.Equal(4, rasterizer.Calls);
     }
@@ -323,12 +401,26 @@ public class BrandIconStoreTests
         public TimeSpan Delay { get; set; }
         public bool Throw { get; init; }
 
-        public async Task<RasterizedLogo> RasterizeAsync(byte[] logo, CancellationToken ct)
+        /// <summary>Растр вместо самого логотипа — когда логотип векторный и растром быть не может.</summary>
+        public byte[]? Raster { get; init; }
+
+        /// <summary>Второй проход (с видом) отказывает.</summary>
+        public bool FailCloser { get; init; }
+
+        /// <summary>Пока не завершена — растеризатор не отвечает.</summary>
+        public TaskCompletionSource? Hold { get; set; }
+
+        public List<LogoView?> Views { get; } = [];
+
+        public async Task<RasterizedLogo> RasterizeAsync(byte[] logo, LogoView? view, CancellationToken ct)
         {
             Interlocked.Increment(ref calls);
+            lock (Views) Views.Add(view);
             if (Delay > TimeSpan.Zero) await Task.Delay(Delay, ct);
+            if (Hold is { } hold) await hold.Task.WaitAsync(ct);
             if (Throw) throw new IOException("диск переполнен");
-            return Answer ?? new RasterizedLogo(logo, null);
+            if (view is not null && FailCloser) return new RasterizedLogo(null, BrandIconProblem.Builder);
+            return Answer ?? new RasterizedLogo(Raster ?? logo, null);
         }
     }
 }
