@@ -109,13 +109,13 @@ public static class ModuleTypeProjector
             // нарисуется. Поэтому предупреждение, а не строчка в журнале наравне с прочими.
             if (all.Any(t => string.Equals(t.Code, spec.Code, StringComparison.OrdinalIgnoreCase)))
                 log.LogWarning(
-                    "Тип «{Code}» остался без типа «{Target}», на который ссылается его поле: " +
+                    "Тип «{Code}» остался без {Target}, на который ссылается его поле: " +
                     "поле не нарисуется и не заполнится. Заведите тип-цель заново или укажите полю " +
                     "другую цель — до тех пор тип работает без этого поля.",
                     spec.Code, target);
             else
                 log.LogInformation(
-                    "Тип «{Code}» не заведён: нет типа «{Target}», на который ссылается его " +
+                    "Тип «{Code}» не заведён: нет {Target}, на который ссылается его " +
                     "поле. Так и должно быть на новой установке — тип появится, как только " +
                     "появится тип-цель.",
                     spec.Code, target);
@@ -134,7 +134,7 @@ public static class ModuleTypeProjector
     private static ModuleTypeSpec Translate(string moduleCode, ModuleRecordType declared) => new(
         moduleCode, declared.Code, declared.Name, Level(declared.Level),
         [.. declared.Fields.Select(f =>
-            new ModuleFieldSpec(f.Key, f.Title, f.Type, f.Tags, f.Required, f.Locked, f.Target))],
+            new ModuleFieldSpec(f.Key, f.Title, f.Type, f.Tags, f.Required, f.Locked, f.Target, f.TargetRole))],
         declared.Group, Storage: Storage(declared.Storage),
         SkipWhenBlocked: declared.SkipWhenBlocked);
 

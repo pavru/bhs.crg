@@ -276,15 +276,18 @@ public class InvoicePartiesTests
     /// Сторож: поле ИНН ведёт человек. Переименовали — отказ с названием поля, а не «организаций нет».
     /// </summary>
     [Fact]
-    public async Task Нет_поля_ИНН_в_схеме_или_самого_типа_это_не_отсутствие_организации()
+    public async Task Несопоставленный_ИНН_и_неназначенный_справочник_это_не_отсутствие_организации()
     {
         var renamed = await SupplierAsync(new FakeCatalog(new ModuleCatalogFieldValues(false, [])), "Поставщик", Valid);
         Assert.Equal("unavailable", renamed.State);
-        Assert.Contains("«ИНН»", renamed.Why);
+        Assert.Contains("не назначено поле «ИНН организации»", renamed.Why);
 
         var noType = await SupplierAsync(new FakeCatalog(null), "Поставщик", Valid);
         Assert.Equal("unavailable", noType.State);
-        Assert.Contains("не заведён", noType.Why);
+        Assert.Contains("Справочник организаций не назначен", noType.Why);
+        // Оба отказа говорят, кто это чинит: тот, кто вводит счёт, сам назначить не может.
+        Assert.Contains("Назначает администратор", renamed.Why);
+        Assert.Contains("Назначает администратор", noType.Why);
     }
 
     [Fact]
@@ -321,7 +324,7 @@ public class InvoicePartiesTests
 
     private static ModuleCatalogFieldValue Record(
         string name, string? taxId, bool archived = false, Guid? inheritedFrom = null, bool unreadable = false) =>
-        new(new ModuleCatalogRef(Guid.NewGuid(), CostsRecordTypes.OrganizationCode, name, archived),
+        new(new ModuleCatalogRef(Guid.NewGuid(), "Организация", name, archived),
             taxId, inheritedFrom, unreadable);
 
     private static FakeCatalog Catalog(params ModuleCatalogFieldValue[] records) =>
@@ -334,8 +337,8 @@ public class InvoicePartiesTests
         public Task<ModuleCatalogFieldValues?> FieldValuesAsync(
             string entityType, string fieldKey, RecordsFor purpose, CancellationToken ct = default)
         {
-            Assert.Equal(CostsRecordTypes.OrganizationCode, entityType);
-            Assert.Equal("ИНН", fieldKey);
+            Assert.Equal(CostsDirectories.Organization, entityType);
+            Assert.Equal(CostsDirectories.TaxId, fieldKey);
             // Сопоставление обязано видеть архив: иначе «в архиве» выглядело бы как «нет».
             Assert.Equal(RecordsFor.Display, purpose);
             Asked++;

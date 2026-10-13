@@ -28,6 +28,9 @@ public sealed class TagCatalog
 
     public TagDefinition? Find(string code) => _byCode.GetValueOrDefault(code);
 
+    /// <summary>Роль справочника (issue #1101) — см. <see cref="TagDefinition.Directory" />.</summary>
+    public bool IsRole(string code) => Find(code) is { Directory: true };
+
     /// <summary>
     /// Собирает реестр из тэгов ядра и тэгов включённых модулей.
     /// </summary>
@@ -57,6 +60,30 @@ public sealed class TagCatalog
                 "Код функционального тэга объявлен дважды: " + string.Join("; ", duplicates) + ". " +
                 "Кодом тэга код находит поле, и второе объявление молча вытеснило бы первое — " +
                 "вместе с его подписью, областью применения и кратностью.");
+
+        // Роль тэга поля обязана быть настоящей ролью (issue #1101): по ней редактор отбирает тэги,
+        // а порт находит поле. Опечатка здесь дала бы тэг, который не предлагается нигде и не
+        // читается никем, — без единого отказа.
+        var orphans = all
+            .Where(t => t.Role is not null
+                && !(t.Scope == TagScope.Field && all.Any(r => r.Code == t.Role && r.Directory)))
+            .Select(t => $"«{t.Code}» → «{t.Role}»")
+            .ToList();
+        if (orphans.Count > 0)
+            throw new InvalidOperationException(
+                "Тэг назван тэгом роли, которой нет: " + string.Join("; ", orphans) + ". " +
+                "Роль — тэг ТИПА с признаком справочника, а относить к ней можно только тэг поля.");
+
+        // Роль читают как «единственный справочник»: без потолка носителей коду пришлось бы
+        // выбирать между двумя типами молча.
+        var loose = all
+            .Where(t => t.Directory && !(t.Scope == TagScope.Type && t.Restriction?.MaxBearers == 1))
+            .Select(t => $"«{t.Code}»")
+            .ToList();
+        if (loose.Count > 0)
+            throw new InvalidOperationException(
+                "Роль справочника объявлена без потолка «один носитель» или не тэгом типа: " +
+                string.Join(", ", loose) + ".");
 
         return new TagCatalog(all);
     }

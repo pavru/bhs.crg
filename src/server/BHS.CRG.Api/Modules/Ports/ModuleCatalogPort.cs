@@ -25,25 +25,27 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// Порт, читавший прежнюю таблицу, отвечал на вопрос «как называется эта организация» пустотой для
 /// КАЖДОГО настоящего поставщика, а в реестре счетов это выглядело бы как «ссылка есть, названия
 /// нет» — то есть как потеря данных. Поймано на форме счёта (issue #1076), прожило один PR.</para>
+///
+/// <para><b>Справочник находится по РОЛИ</b> (ТЗ CORE-20.4, issue #1101), и находит его
+/// <see cref="RoleResolution" /> — тот же расчёт, которым покрытие считает экран сопоставления.
+/// Своего поиска типа здесь быть не должно: два счёта однажды разойдутся, и экран скажет
+/// «сопоставлено» про справочник, который порт не видит.</para>
 /// </summary>
-public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentType> types) : IModuleCatalog
+public sealed class ModuleCatalogPort(
+    IMediator mediator, IRepository<DocumentType> types, ModuleNeeds needs, TagCatalog tags) : IModuleCatalog
 {
     public async Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
-        string entityType, RecordsFor purpose, CancellationToken ct = default)
+        string role, RecordsFor purpose, CancellationToken ct = default)
     {
         var records = Core(purpose);
-        var all = await types.GetAllAsync(ct);
 
-        // Вида нет — ноль, а не пустой список: «типа с таким кодом не заведено» и «записей такого
-        // вида ещё нет» — разные ответы, и выбирает между ними модуль. Отказом отсюда отвечать
+        // Роль не обеспечена — ноль, а не пустой список: «справочник не назначен» и «записей в нём
+        // ещё нет» — разные ответы, и выбирает между ними модуль. Отказом отсюда отвечать
         // нельзя и по букве: слой API отвечает кодами, доменные отказы бросает тот, кто знает, что
         // они означают на экране (`DomainExceptionPolicyTests`).
-        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
-        if (root is null) return null;
-
-        // Вид — это тип И его подтипы: подтип организации остаётся организацией, и поставщиком
-        // заказчика может быть любой из них. Считаем так же, как ядро в `isSubtypeOf`.
-        var codes = Family(root, all);
+        // Справочник — это носитель роли И его подтипы: подтип организации остаётся организацией, и
+        // поставщиком заказчика может быть любой из них. Считаем так же, как ядро в `isSubtypeOf`.
+        if (await FamilyAsync(role, ct) is not { } codes) return null;
         var entries = new List<DomainObject>();
         foreach (var id in codes.Keys)
             entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));
@@ -64,40 +66,47 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
     }
 
     public async Task<ModuleCatalogChoice?> SearchAsync(
-        string entityType, string? query, int limit, CancellationToken ct = default)
+        string role, string? query, int limit, CancellationToken ct = default)
     {
-        if (await FamilyAsync(entityType, ct) is not { } codes) return null;
+        if (await FamilyAsync(role, ct) is not { } codes) return null;
 
-        var found = await mediator.Send(new SearchCommonDataForChoiceQuery(codes.Keys, query, limit), ct);
+        var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. codes.Keys], query, limit), ct);
         return new ModuleCatalogChoice(Refs(found.Items, codes), found.InArchive);
     }
 
     public async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
-        string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+        string role, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
-        // Спрашивать нечего — и вид выяснять незачем: пустой перечень не повод отвечать «вида нет».
+        // Спрашивать нечего — и справочник выяснять незачем: пустой перечень не повод отвечать
+        // «роль не обеспечена». Но объявлена ли роль, проверяем и тут: дефект кода не должен
+        // зависеть от того, пуст ли список.
+        needs.EnsureDeclared(role);
         if (ids.Count == 0) return [];
-        if (await FamilyAsync(entityType, ct) is not { } codes) return null;
+        if (await FamilyAsync(role, ct) is not { } codes) return null;
 
-        return Refs(await mediator.Send(new CommonDataRefsByIdsQuery(codes.Keys, ids), ct), codes);
+        return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. codes.Keys], ids), ct), codes);
     }
 
     public async Task<ModuleCatalogFieldValues?> FieldValuesAsync(
-        string entityType, string fieldKey, RecordsFor purpose, CancellationToken ct = default)
+        string role, string fieldTag, RecordsFor purpose, CancellationToken ct = default)
     {
         var records = Core(purpose);
+        needs.EnsureDeclared(role, fieldTag);
+
         var all = await types.GetAllAsync(ct);
-        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
-        if (root is null) return null;
+        var resolved = RoleResolution.Role(role, all);
+        if (resolved.Root is null) return null;
 
-        // Поле сверяем со СХЕМОЙ, а не с данными: схему ведёт человек, и переименованный «ИНН» в
-        // данных выглядел бы как «ни у одной организации его нет» — то есть как «не совпало ни с кем».
-        var declared = DocumentTypeSchemaReader.EffectiveFields(root.Id, all.ToDictionary(t => t.Id))
-            .Any(f => f.Key == fieldKey && !f.Computed && SchemaFieldKinds.IsScalar(f.Type));
-        if (!declared) return new ModuleCatalogFieldValues(false, []);
+        // Поле сверяем со СХЕМОЙ, а не с данными: схему ведёт человек, и снятый тэг в данных
+        // выглядел бы как «ни у одной организации ИНН нет» — то есть как «не совпало ни с кем».
+        // Простое — сверх того, что допускает сам тэг: значение одного поля читается скаляром.
+        // Тэг в реестре есть наверняка: потребность с неизвестным тэгом не пережила бы старт.
+        var field = RoleResolution.Field(resolved, tags.Find(fieldTag)!, all);
+        if (field.Key is not { } fieldKey || !SchemaFieldKinds.IsScalar(field.Field!.Type))
+            return new ModuleCatalogFieldValues(false, []);
 
-        var codes = Family(root, all);
-        var values = await mediator.Send(new CommonDataFieldValuesQuery(codes.Keys, fieldKey, records), ct);
+        var codes = resolved.Family;
+        var values = await mediator.Send(new CommonDataFieldValuesQuery([.. codes.Keys], fieldKey, records), ct);
         return new ModuleCatalogFieldValues(true,
             [.. values
                 .Select(v => new ModuleCatalogFieldValue(
@@ -136,12 +145,15 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
                 r.Archived, r.MatchedAlias))
             .OrderBy(r => r.DisplayName, StringComparer.CurrentCulture)];
 
-    /// <summary>Вид и его подтипы; <c>null</c> — вида с таким кодом в системе нет.</summary>
-    private async Task<Dictionary<Guid, string>?> FamilyAsync(string entityType, CancellationToken ct)
+    /// <summary>
+    /// Носитель роли и его подтипы; <c>null</c> — роль не обеспечена. Необъявленная роль — отказ:
+    /// это дефект вызывающего кода, а не состояние установки.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, string>?> FamilyAsync(string role, CancellationToken ct)
     {
-        var all = await types.GetAllAsync(ct);
-        var root = all.FirstOrDefault(t => string.Equals(t.Code, entityType, StringComparison.OrdinalIgnoreCase));
-        return root is null ? null : Family(root, all);
+        needs.EnsureDeclared(role);
+        var resolved = RoleResolution.Role(role, await types.GetAllAsync(ct));
+        return resolved.Root is null ? null : resolved.Family;
     }
 
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)
@@ -156,27 +168,6 @@ public sealed class ModuleCatalogPort(IMediator mediator, IRepository<DocumentTy
 
         var all = await types.GetAllAsync(ct);
         return Map(entry, all.ToDictionary(t => t.Id, t => t.Code));
-    }
-
-    /// <summary>
-    /// Тип и все его потомки: идентификатор → код. Обход итеративный и слоями — цепочка родителей в
-    /// базе ничем не мешает циклу, а рекурсия по ней кончилась бы переполнением стека вместо отказа
-    /// (та же причина, что у <c>isSubtypeOf</c> на клиенте).
-    /// </summary>
-    private static Dictionary<Guid, string> Family(DocumentType root, IReadOnlyList<DocumentType> all)
-    {
-        var family = new Dictionary<Guid, string> { [root.Id] = root.Code };
-        var frontier = new List<Guid> { root.Id };
-
-        while (frontier.Count > 0)
-        {
-            var children = all.Where(t => t.ParentId is { } p && frontier.Contains(p) && !family.ContainsKey(t.Id))
-                .ToList();
-            foreach (var child in children) family[child.Id] = child.Code;
-            frontier = [.. children.Select(t => t.Id)];
-        }
-
-        return family;
     }
 
     /// <summary>

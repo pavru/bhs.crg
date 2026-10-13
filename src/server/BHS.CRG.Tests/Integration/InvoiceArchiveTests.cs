@@ -246,11 +246,11 @@ public class InvoiceArchiveTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
             .Single(a => a.GetProperty("id").GetGuid() == article).GetProperty("archived").GetBoolean();
 
     private async Task<Guid> OrganizationAsync() =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+        await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             $"ООО «Архив {Guid.NewGuid().ToString("N")[..6]}»");
 
     private async Task<Guid> PositionAsync() =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Автомат архивный {Guid.NewGuid().ToString("N")[..6]}");
 
     private async Task ArchiveAsync(Guid id)

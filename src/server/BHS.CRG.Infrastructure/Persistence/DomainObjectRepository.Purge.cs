@@ -21,6 +21,17 @@ public partial class DomainObjectRepository
             .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName, false, null))
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Guid>> RecordIdsOfTypesAsync(
+        IReadOnlyCollection<Guid> typeIds, CancellationToken ct = default)
+    {
+        if (typeIds.Count == 0) return [];
+        // Архивные — тоже: ссылка на архивную запись держит её так же, как на действующую.
+        return await Db.Set<DomainObject>().AsNoTracking()
+            .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId))
+            .Select(o => o.Id)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<CommonDataRef>> RefsAmongAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {

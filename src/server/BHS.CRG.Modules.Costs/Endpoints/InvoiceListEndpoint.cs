@@ -234,7 +234,7 @@ public static class InvoiceListEndpoint
         // правда: тип, на который он ссылается, из системы исчез.
         // Показ: это названия поставщиков УЖЕ заведённых счетов. Архивный поставщик у счёта
         // закрытого периода обязан читаться по имени, а признак реестр ставит значком (issue #1185).
-        var organizations = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, RecordsFor.Display, ct);
+        var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct);
         return organizations?.ToDictionary(o => o.Id) ?? [];
     }
 }

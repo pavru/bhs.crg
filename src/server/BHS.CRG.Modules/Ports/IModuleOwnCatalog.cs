@@ -31,6 +31,20 @@ public sealed record ModuleArchiveResult(ModuleCatalogRef Record, bool Changed);
 public interface IModuleOwnCatalog
 {
     /// <summary>
+    /// Записи своего справочника, по названию; <c>null</c> — типа нет (проекция при старте его
+    /// пропустила). Ссылками, без данных: своих полей у такого справочника модуль не объявляет.
+    ///
+    /// <para>Чтение живёт ЗДЕСЬ, а не в <see cref="IModuleCatalog" />, с issue #1101: тот читает
+    /// справочники ядра и находит их по роли, которую назначает человек. Свой справочник модуль
+    /// заводит сам и знает по коду — сопоставлять его не с чем.</para>
+    ///
+    /// <para><paramref name="purpose" /> обязателен, как у справочников ядра: выбор архивные записи
+    /// скрывает, показ — отдаёт с признаком.</para>
+    /// </summary>
+    Task<IReadOnlyList<ModuleCatalogRef>?> ListAsync(
+        string typeCode, RecordsFor purpose, CancellationToken ct = default);
+
+    /// <summary>
     /// Завести запись с этим названием (уровень — вся система). <c>null</c> — типа нет: проекция при старте
     /// его пропустила. Отказ с объяснением говорит модуль — слой ядра доменных отказов не бросает.
     /// </summary>

@@ -53,12 +53,11 @@ public static class OrganizationEndpoints
                 "месте с признаком)."),
         };
 
-        var entries = await catalog.ListAsync(CostsRecordTypes.OrganizationCode, records, ct)
+        var entries = await catalog.ListAsync(CostsDirectories.Organization, records, ct)
+            // Пустой список здесь означал бы «организаций ещё не завели», а это другое.
             ?? throw new ConflictException(
-                $"Тип «{CostsRecordTypes.OrganizationCode}» в системе не заведён, поэтому выбрать " +
-                "поставщика не из чего. Этот тип ведёт человек — заведите его в разделе типов, и " +
-                "счета заработают со следующего запуска приложения. Пустой список здесь означал бы " +
-                "«организаций ещё не завели», а это другое.");
+                CostsDirectories.NoOrganizations("выбрать поставщика не из чего") +
+                " Тип счёта появится со следующего запуска приложения.");
 
         return TypedResults.Ok<IReadOnlyList<CostsOrganization>>(
             [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType, e.Archived))]);

@@ -271,7 +271,7 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
     {
         using var scope = host.Services.CreateScope();
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
-        var type = (await types.FindAsync(t => t.Code == CostsRecordTypes.OrganizationCode)).Single();
+        var type = (await types.FindAsync(t => t.Code == TestDirectories.OrganizationCode)).Single();
         if (!type.Schema.RootElement.GetRawText().Contains("\"ИНН\""))
         {
             type.UpdateSchema(JsonDocument.Parse(
@@ -280,6 +280,10 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
             await types.SaveChangesAsync();
         }
 
+        // Новая схема роли не несёт, а поля — тэгов: назначаем их тем же правилом, каким их получает
+        // установка заказчика при обновлении (issue #1101). Без этого сопоставление отвечало бы
+        // «справочник не назначен» — и соседним классам общей базы тоже.
+        await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
         return type.Id;
     }
 

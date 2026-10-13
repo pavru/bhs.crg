@@ -400,7 +400,7 @@ public static class InvoiceEndpoints
         var ids = lines.Select(l => l.NomenclatureId).OfType<Guid>().Distinct().ToList();
         if (ids.Count == 0) return new Dictionary<Guid, string?>();
 
-        var refs = await catalog.RefsAsync(CostsRecordTypes.NomenclatureCode, ids, ct);
+        var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct);
         return refs?.ToDictionary(r => r.Id, r => r.DisplayName);
     }
 
@@ -438,7 +438,7 @@ public static class InvoiceEndpoints
         // пустым полем, реестр — счётом без поставщика (ревью PR #1211). Типа «Организация» в установке
         // нет — сверять не с чем, и это не повод отказывать в записи.
         if (await NewReferences.JudgeAsync(
-                catalog, CostsRecordTypes.OrganizationCode, [.. named.Select(p => p.Id!.Value)], ct) is not { } verdicts)
+                catalog, CostsDirectories.Organization, [.. named.Select(p => p.Id!.Value)], ct) is not { } verdicts)
             return;
         foreach (var party in named)
             switch (verdicts[party.Id!.Value])

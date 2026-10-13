@@ -219,11 +219,15 @@ public sealed class NomenclatureIntakeService(
         CancellationToken ct)
     {
         var all = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        var root = all.Values.FirstOrDefault(t => t.Code == CoreRecordTypes.NomenclatureCode)
+        // По РОЛИ, а не по коду типа (issue #1101) — тем же расчётом, каким номенклатуру находит порт
+        // модулей. Иначе у одного справочника было бы два адреса, и разошлись бы они в день, когда
+        // роль назначат типу с другим кодом: строка счёта выбирала бы позиции одного типа, а окно
+        // заведения клало бы новую в другой.
+        var root = RoleResolution.Role(FunctionalTag.RoleNomenclature, [.. all.Values]).Root
             ?? throw new ConflictException(
-                $"Тип «{CoreRecordTypes.NomenclatureCode}» в системе не заведён, поэтому заводить позицию " +
-                "некуда. Справочник появляется вместе с материалами: миграция ядра поднимает «Номенклатуру» " +
-                "над «Материалом» там, где материалы есть.");
+                "Справочник номенклатуры не назначен, поэтому заводить позицию некуда: роль «Справочник " +
+                "номенклатуры» не несёт ни один тип либо несут несколько. Назначает её администратор — " +
+                "тэгом типа в редакторе типов.");
         return (all, [.. all.Values.Where(t => DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, root.Id, all))]);
     }
 

@@ -340,11 +340,11 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
     }
 
     private async Task<Guid> VendorAsync(string word = "Поставщик") =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация"),
+        await EntryAsync(await TypeAsync(TestDirectories.OrganizationCode, "Организация"),
             $"ООО «{word} {Guid.NewGuid().ToString("N")[..6]}»");
 
     private async Task<Guid> PositionAsync() =>
-        await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция {Guid.NewGuid().ToString("N")[..6]}");
 
     private async Task<int> CountAsync(BHS.CRG.Modules.Ports.ModuleActivityAction action)

@@ -77,7 +77,10 @@ public sealed record ModuleTag(
     IReadOnlyList<string>? AppliesTo = null,
     bool Multiple = false,
     string? Group = null,
-    bool Money = false)
+    bool Money = false,
+    // Для тэга поля — код тэга-роли типа, в справочнике которой он осмыслен (issue #1101). Пусто —
+    // тэг общий. Роль обязана быть в реестре этого экземпляра, иначе отказ при старте.
+    string? Role = null)
 {
     public IReadOnlyList<string> AppliesTo { get; init; } = AppliesTo ?? [];
 }

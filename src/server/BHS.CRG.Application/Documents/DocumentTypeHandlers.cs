@@ -399,6 +399,8 @@ public class DocumentTypeHandlers(
         // подмена схемы у отслеживаемой записала бы черновик чужим SaveChanges в том же запросе).
         var all = await repo.GetAllAsync(ct);
         ValidateTagRestrictions(dt.WithSchema(cmd.Schema), all);
+        // Роль справочника не снимается, пока на его записи ссылаются документы модулей (issue #1101).
+        await DirectoryRoleRelease.EnsureAllowedAsync(tags, objectRepo, holders, dt, cmd.Schema, all, ct);
 
         // Уровень правки (ТЗ CORE-19.1): что администратору можно сделать со схемой ЭТОГО типа.
         // Проверка идёт ДО записи и сравнивает старую схему с новой по полям модуля.

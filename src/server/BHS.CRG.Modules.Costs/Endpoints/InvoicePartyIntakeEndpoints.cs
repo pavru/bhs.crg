@@ -88,12 +88,11 @@ public static class InvoicePartyIntakeEndpoints
                 $"Название организации длиннее {NameLength} знаков ({name.Length}) — похоже, в поле прочитан не " +
                 "только он. Сократите название до самого названия организации.");
 
-        var result = await intake.CreateAsync(CostsRecordTypes.OrganizationCode, name, taxId, ct)
-            ?? throw new ConflictException(
-                $"Типа «{CostsRecordTypes.OrganizationCode}» в системе нет — организацию завести нечем.");
+        var result = await intake.CreateAsync(CostsDirectories.Organization, name, taxId, ct)
+            ?? throw new ConflictException(CostsDirectories.NoOrganizations("организацию завести некуда"));
         if (result.Refusals.Count > 0)
             throw new ConflictException(
-                "Организацию из файла счёта завести не удалось — мешает схема типа «Организация»: " +
+                "Организацию из файла счёта завести не удалось — мешает схема справочника организаций: " +
                 string.Join("; ", result.Refusals) + ". Заведите организацию в справочнике.");
 
         if (result.Created is { } created)

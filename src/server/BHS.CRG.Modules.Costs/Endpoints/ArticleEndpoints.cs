@@ -65,14 +65,14 @@ public static class ArticleEndpoints
             .WithTags("Счета на оплату");
     }
 
-    private static async Task<Ok<IReadOnlyList<CostsArticle>>> ListAsync(IModuleCatalog catalog, CancellationToken ct) =>
+    private static async Task<Ok<IReadOnlyList<CostsArticle>>> ListAsync(IModuleOwnCatalog catalog, CancellationToken ct) =>
         TypedResults.Ok(await AllocationPlacesSource.ArticlesAsync(catalog, ct) ?? throw NoType());
 
     private static async Task<Ok<CostsArticle>> CreateAsync(
-        ArticleRequest body, IModuleCatalog catalog, IModuleOwnCatalog own, IModuleActivityLog log, CancellationToken ct)
+        ArticleRequest body, IModuleOwnCatalog own, IModuleActivityLog log, CancellationToken ct)
     {
         var name = Name(body);
-        await EnsureUniqueAsync(catalog, name, except: null, ct);
+        await EnsureUniqueAsync(own, name, except: null, ct);
 
         var created = await own.CreateAsync(CostsRecordTypes.ArticleCode, name, ct) ?? throw NoType();
         await log.RecordAsync(InvoiceActions.ArticleCreated, created.Id.ToString(), name, after: name, ct: ct);
@@ -80,13 +80,13 @@ public static class ArticleEndpoints
     }
 
     private static async Task<Ok<CostsArticle>> RenameAsync(
-        Guid id, ArticleRequest body, IModuleCatalog catalog, IModuleOwnCatalog own, IModuleActivityLog log,
+        Guid id, ArticleRequest body, IModuleOwnCatalog own, IModuleActivityLog log,
         CancellationToken ct)
     {
         var name = Name(body);
-        var articles = await AllocationPlacesSource.ArticlesAsync(catalog, ct) ?? throw NoType();
+        var articles = await AllocationPlacesSource.ArticlesAsync(own, ct) ?? throw NoType();
         var was = articles.FirstOrDefault(a => a.Id == id) ?? throw Missing();
-        await EnsureUniqueAsync(catalog, name, except: id, ct);
+        await EnsureUniqueAsync(own, name, except: id, ct);
 
         _ = await own.RenameAsync(CostsRecordTypes.ArticleCode, id, name, ct) ?? throw Missing();
         if (was.Name != name)
@@ -120,10 +120,10 @@ public static class ArticleEndpoints
     /// скольких счетах, и выход: перенести разноску — либо отправить статью в архив.
     /// </summary>
     private static async Task<NoContent> DeleteAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleOwnCatalog own, IModuleActivityLog log,
+        Guid id, CostsDbContext db, IModuleOwnCatalog own, IModuleActivityLog log,
         CancellationToken ct)
     {
-        var articles = await AllocationPlacesSource.ArticlesAsync(catalog, ct) ?? throw NoType();
+        var articles = await AllocationPlacesSource.ArticlesAsync(own, ct) ?? throw NoType();
         var article = articles.FirstOrDefault(a => a.Id == id) ?? throw Missing();
 
         var used = await db.InvoiceAllocations.AsNoTracking()
@@ -157,7 +157,7 @@ public static class ArticleEndpoints
     /// Две статьи с одним названием — отказ: в выборе цели они неразличимы, и затраты расходились бы по двум
     /// «Складам» случайно. Сравнение без учёта регистра — «склад» и «Склад» человек читает одинаково.
     /// </summary>
-    private static async Task EnsureUniqueAsync(IModuleCatalog catalog, string name, Guid? except, CancellationToken ct)
+    private static async Task EnsureUniqueAsync(IModuleOwnCatalog catalog, string name, Guid? except, CancellationToken ct)
     {
         var articles = await AllocationPlacesSource.ArticlesAsync(catalog, ct) ?? throw NoType();
         if (articles.FirstOrDefault(a => a.Id != except

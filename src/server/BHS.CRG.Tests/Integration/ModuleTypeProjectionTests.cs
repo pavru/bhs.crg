@@ -333,6 +333,58 @@ public class ModuleTypeProjectionTests(IntegrationTestFixture fixture) : IAsyncL
         Assert.Equal(unit.Id.ToString(), field.GetProperty("typeId").GetString());
     }
 
+    // ── Цель РОЛЬЮ (issue #1101) ──────────────────────────────────────────────
+    // Что цель по роли РАЗРЕШАЕТСЯ в тип-носитель, держит `InvoiceRecordTests`: «Поставщик» счёта
+    // целится в справочник организаций. Здесь — отказы и слова для журнала запуска.
+
+    [Fact]
+    public async Task Цель_ролью_которой_нет_в_реестре_останавливает_старт()
+    {
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(
+            new ProjectModuleTypeCommand(Spec("WORK_ROLE_TYPO",
+                new ModuleFieldSpec("Поставщик", "Поставщик", "complex", TargetRole: "role.organisation")))));
+
+        Assert.Contains("role.organisation", refusal.Message);
+        Assert.Contains("в реестре тэгов нет", refusal.Message);
+    }
+
+    /// <summary>Цель у поля одна: какая из двух победит, решал бы порядок проверок.</summary>
+    [Fact]
+    public async Task Цель_и_кодом_и_ролью_останавливает_старт()
+    {
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(
+            new ProjectModuleTypeCommand(Spec("WORK_ROLE_TWICE",
+                new ModuleFieldSpec("Поставщик", "Поставщик", "complex",
+                    Target: "Организация", TargetRole: FunctionalTag.RoleOrganization)))));
+
+        Assert.Contains("дважды", refusal.Message);
+    }
+
+    /// <summary>
+    /// Роль не назначена ни одному типу — журнал запуска говорит это словами о роли, а не «нет типа»:
+    /// типа с кодом роли никто заводить не должен.
+    /// </summary>
+    [Fact]
+    public void Причина_пропуска_называет_роль_а_не_тип()
+    {
+        var spec = Spec("WORK_ROLE_FREE",
+            new ModuleFieldSpec("Поставщик", "Поставщик", "complex", TargetRole: FunctionalTag.RoleOrganization));
+        var bearer = DocumentType.Create("Контрагент", "Контрагент", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse($$"""{"tags":["{{FunctionalTag.RoleOrganization}}"],"fields":[]}"""),
+            TypeOwner.Core, TypeVisibility.Shared);
+
+        var missing = ModuleTypeProjectionHandler.MissingTargetOf(spec, []);
+
+        Assert.Contains("справочника с ролью «role.organization»", missing);
+        // Носитель есть — причины нет, как бы тип ни назывался.
+        Assert.Null(ModuleTypeProjectionHandler.MissingTargetOf(spec, [bearer]));
+        // Два носителя — роль не обеспечена: выбирать между ними проекция не станет.
+        var second = DocumentType.Create("Организация", "Организация", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse($$"""{"tags":["{{FunctionalTag.RoleOrganization}}"],"fields":[]}"""),
+            TypeOwner.Core, TypeVisibility.Shared);
+        Assert.NotNull(ModuleTypeProjectionHandler.MissingTargetOf(spec, [bearer, second]));
+    }
+
     /// <summary>
     /// Цель из ЧУЖОГО модуля запрещена и модулю (ТЗ CORE-30): при выключении того модуля поле
     /// указывало бы в пустоту, а починить его в схеме модуля администратору не дадут.

@@ -184,11 +184,17 @@ public sealed class CostsModule : IAppModule
     public IReadOnlyList<ModuleRecordType> RecordTypes => CostsRecordTypes.All;
 
     /// <summary>
+    /// Справочники ядра, которые модуль читает (issue #1101): организации и номенклатура — ролями,
+    /// поля организаций — тэгами. Подробнее — в <see cref="CostsDirectories" />.
+    /// </summary>
+    public IReadOnlyList<ModuleRoleNeed> Needs => CostsDirectories.Needs;
+
+    /// <summary>
     /// В справочники ядра модуль заводит одно — организацию из скана счёта (issue #1077): название и
-    /// ИНН. Ключи полей типа ведёт человек; переименует — заведение откажет названной причиной.
+    /// ИНН. Поля — по тэгам; снимет администратор тэг — заведение откажет названной причиной.
     /// </summary>
     public IReadOnlyList<ModuleIntakeType> IntakeTypes =>
-        [new(CostsRecordTypes.OrganizationCode, Endpoints.InvoiceParties.NameField, Endpoints.InvoiceParties.TaxIdField)];
+        [new(CostsDirectories.Organization, CostsDirectories.OrganizationName, CostsDirectories.TaxId)];
 
     /// <summary>
     /// Тэги модуля (ТЗ TYPE-21): контрагент, плательщик, итог и НДС документа. Подробнее — в

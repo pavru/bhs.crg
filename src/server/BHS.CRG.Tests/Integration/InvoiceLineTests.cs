@@ -271,7 +271,7 @@ public class InvoiceLineTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         using (var scope = host.Services.CreateScope())
         {
             var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
-            var typeId = (await types.FindAsync(t => t.Code == CostsRecordTypes.NomenclatureCode)).Single().Id;
+            var typeId = (await types.FindAsync(t => t.Code == TestDirectories.NomenclatureCode)).Single().Id;
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
             // Двадцать шесть — на одну больше, чем отдаёт адрес: ровно столько, чтобы «есть ещё» стало
@@ -392,7 +392,7 @@ public class InvoiceLineTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
     public async Task Удалённая_позиция_названа_потерянной()
     {
         var (client, _) = await SignInAsync("Admin");
-        var doomed = await EntryAsync(await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура"),
+        var doomed = await EntryAsync(await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура"),
             $"Позиция под удаление {Guid.NewGuid().ToString()[..6]}");
         var invoice = await CreateAsync(client);
         await LinesAsync(client, invoice, [Line(doomed, quantity: 1, price: 10m)]);

@@ -43,6 +43,9 @@ public static class ModulePorts
         services.AddScoped<IModuleNotifications, ModuleNotificationsPort>();
         services.AddScoped<IModuleJobs, ModuleJobsPort>();
         services.AddScoped<IModuleUser, ModuleUserPort>();
+        // Потребности модулей в справочниках ядра (issue #1101). Одиночка по той же причине, что
+        // каталог действий: состав модулей не меняется, а объявления проверяются при старте.
+        services.AddSingleton<ModuleNeeds>();
         services.AddScoped<IModuleCatalog, ModuleCatalogPort>();
         services.AddScoped<IModuleOwnCatalog, ModuleOwnCatalogPort>();
         // Заведение записи справочника ЯДРА модулем (issue #1077): только создание, только объявленные типы.

@@ -49,7 +49,7 @@ public sealed record AllocationPlaces(
 }
 
 /// <summary>Читает <see cref="AllocationPlaces" /> из ядра: стройки — одним портом, статьи — другим.</summary>
-public sealed class AllocationPlacesSource(IModuleConstructions sites, IModuleCatalog catalog)
+public sealed class AllocationPlacesSource(IModuleConstructions sites, IModuleOwnCatalog catalog)
 {
     public async Task<AllocationPlaces> LoadAsync(CancellationToken ct)
     {
@@ -68,7 +68,7 @@ public sealed class AllocationPlacesSource(IModuleConstructions sites, IModuleCa
     /// отвергает (<see cref="InvoiceAllocations.EnsureTargets" />); выбор её не предлагает — статей
     /// горстка, и отбирает их экран по тому же признаку.
     /// </remarks>
-    public static async Task<IReadOnlyList<CostsArticle>?> ArticlesAsync(IModuleCatalog catalog, CancellationToken ct) =>
+    public static async Task<IReadOnlyList<CostsArticle>?> ArticlesAsync(IModuleOwnCatalog catalog, CancellationToken ct) =>
         await catalog.ListAsync(CostsRecordTypes.ArticleCode, RecordsFor.Display, ct) is { } entries
             ? [.. entries.Select(e => new CostsArticle(e.Id, e.DisplayName, e.Archived))]
             : null;

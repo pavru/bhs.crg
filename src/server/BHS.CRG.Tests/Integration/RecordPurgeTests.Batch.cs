@@ -150,7 +150,7 @@ public partial class RecordPurgeTests
     public async Task Готовый_отбор_находит_действующие_записи_типа_занятые_снятым_модулем()
     {
         var (client, _) = await SignInAsync(SystemRoles.Admin);
-        var type = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var type = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         var (held, free, archived) = (await OwnPositionAsync(), await OwnPositionAsync(), await OwnPositionAsync());
         await using var probe = await HeldTogetherAsync((held, 2), (archived, 1));
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/common-data/{archived}/archive", null)).StatusCode);

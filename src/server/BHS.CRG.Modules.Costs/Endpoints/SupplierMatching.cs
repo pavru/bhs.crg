@@ -154,7 +154,7 @@ public static class SupplierMatching
         CancellationToken ct)
     {
         var found = await FindAsync(db, supplierId, [.. rows.Select(r => (r.SupplierCode, r.SupplierText))], ct);
-        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode,
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsDirectories.Nomenclature,
             [.. found.OfType<SupplierMatch>().Select(m => m.NomenclatureId).Distinct()], ct);
 
         RecalledPosition?[] lines =
@@ -187,7 +187,7 @@ public static class SupplierMatching
     {
         if (chosen.Count == 0) return chosen;
 
-        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode,
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsDirectories.Nomenclature,
             [.. chosen.Select(c => c.NomenclatureId).Distinct()], ct);
         return verdicts is null
             ? []

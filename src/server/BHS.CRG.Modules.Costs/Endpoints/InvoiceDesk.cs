@@ -260,7 +260,7 @@ public sealed class InvoiceDesk(
             .Where(id => records[id] == ReferenceState.Archived).ToList();
         var organizations = parties.Count == 0
             ? null
-            : await catalog.RefsAsync(CostsRecordTypes.OrganizationCode, parties, ct);
+            : await catalog.RefsAsync(CostsDirectories.Organization, parties, ct);
         string? Name(Guid? id) => organizations?.FirstOrDefault(o => o.Id == id)?.DisplayName;
 
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),

@@ -358,12 +358,10 @@ public static class InvoiceLineEndpoints
 
         if (referenced.Count == 0) return;
 
-        var verdicts = await NewReferences.JudgeAsync(catalog, CostsRecordTypes.NomenclatureCode, referenced, ct)
+        var verdicts = await NewReferences.JudgeAsync(catalog, CostsDirectories.Nomenclature, referenced, ct)
             ?? throw new ConflictException(
-                $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, поэтому ссылаться " +
-                "строкам не на что. Этот тип появляется вместе со справочником материалов: он либо " +
-                "приехал миграцией ядра, либо его заводит человек в разделе типов. Строки без позиции " +
-                "при этом сохраняются — счёт остаётся черновиком и ждёт в отборе «Разобрать».");
+                CostsDirectories.NoNomenclature("ссылаться строкам не на что") +
+                " Строки без позиции при этом сохраняются — счёт остаётся черновиком и ждёт в отборе «Разобрать».");
 
         var rows = parsed.Select((p, index) => (Number: index + 1, Id: p.Values.NomenclatureId)).ToList();
         var lost = NewReferences.Rows(rows, verdicts, NewReference.Missing);

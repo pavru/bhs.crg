@@ -169,6 +169,7 @@ public partial class BackupService
                 q.CreatedAt, q.UpdatedAt)).ToArray(),
             IncludesProjectData: full,
             KnowsRecordArchive: true,
+            KnowsDirectoryRoles: true,
             Constructions: full ? constructions.Select(c => new BackupConstruction(
                 c.Id, c.Name, c.CreatedByUserId, c.ProfileObjectId, c.CreatedAt, c.UpdatedAt,
                 c.TimeZoneId, c.ExternalSystem, c.ExternalCode)).ToArray() : null,

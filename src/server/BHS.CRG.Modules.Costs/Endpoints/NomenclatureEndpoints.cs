@@ -40,12 +40,9 @@ public static class NomenclatureEndpoints
     private static async Task<Ok<NomenclatureSearchResult>> SearchAsync(
         IModuleCatalog catalog, CancellationToken ct, string? query = null)
     {
-        var found = await catalog.SearchAsync(CostsRecordTypes.NomenclatureCode, query, Limit + 1, ct)
-            ?? throw new ConflictException(
-                $"Тип «{CostsRecordTypes.NomenclatureCode}» в системе не заведён, поэтому выбирать " +
-                "позицию не из чего. Этот справочник ведёт человек, а появляется он вместе с материалами " +
-                "(миграция ядра поднимает «Номенклатуру» над «Материалом» там, где материалы есть). " +
-                "Пустой список здесь означал бы «позиций ещё не завели», а это другое.");
+        var found = await catalog.SearchAsync(CostsDirectories.Nomenclature, query, Limit + 1, ct)
+            // Пустой список здесь означал бы «позиций ещё не завели», а это другое.
+            ?? throw new ConflictException(CostsDirectories.NoNomenclature("выбирать позицию не из чего"));
 
         // Спросили на одну больше, чем отдаём: так «есть ли ещё» — это факт, а не догадка по тому,
         // что список заполнился до предела. Полный список ровно в Limit позиций иначе всегда сообщал бы

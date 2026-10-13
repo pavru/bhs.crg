@@ -59,8 +59,8 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         {
             if (supplier != Guid.Empty) return;
 
-            var organizations = await TypeAsync(CostsRecordTypes.OrganizationCode, "Организация");
-            var nomenclature = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+            var organizations = await TypeAsync(TestDirectories.OrganizationCode, "Организация");
+            var nomenclature = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
 
             using (var scope = host.Services.CreateScope())
                 await scope.ServiceProvider.ProjectModuleTypesAsync();
@@ -235,13 +235,18 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
 
         var found = await types.FindAsync(t => t.Code == code);
-        if (found.Count > 0) return found[0].Id;
+        if (found.Count == 0)
+        {
+            found = [DocumentType.Create(name, code, DocumentTypeKind.Composite, null,
+                JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared)];
+            await types.AddAsync(found[0]);
+            await types.SaveChangesAsync();
+        }
 
-        var created = DocumentType.Create(name, code, DocumentTypeKind.Composite, null,
-            JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
-        await types.AddAsync(created);
-        await types.SaveChangesAsync();
-        return created.Id;
+        // Тип — ещё не справочник: код находит организации и номенклатуру по роли (issue #1101).
+        // И для найденного тоже: его мог завести тест, который о ролях не знал.
+        await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
+        return found[0].Id;
     }
 
     /// <summary>
@@ -251,7 +256,7 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     /// </summary>
     protected async Task<Guid> NamelessAsync()
     {
-        var type = await TypeAsync(CostsRecordTypes.NomenclatureCode, "Номенклатура");
+        var type = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
         var id = await EntryAsync(type, $"Позиция без имени {Guid.NewGuid().ToString()[..6]}");
 
         using var scope = host.Services.CreateScope();
