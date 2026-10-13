@@ -13,7 +13,7 @@ import { useAccess } from '@/shared/api/access';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { similarKeyOf } from './schemaKeyChecks';
 import {
-  useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder, unknownTagCodes,
+  useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes,
 } from '@/shared/api/tags';
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
@@ -298,9 +298,9 @@ export function FieldCard({
     if (field.type === 'primitive') {
       const pt = primitiveTypes.find(p => p.id === field.typeId);
       const codes = new Set(pt?.allowedTags ?? []);
-      return (tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code));
+      return offeredInRoles((tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code)), reg.roles, tags);
     }
-    return fieldTags(tagRegistry, field.type);
+    return fieldTags(tagRegistry, field.type, reg.roles, tags);
   })();
   // Легаси enum-поле (issue #59): options инлайн, typeId не выбран.
   const isLegacyEnum = field.type === 'enum' && !field.typeId && (field.options?.length ?? 0) > 0;

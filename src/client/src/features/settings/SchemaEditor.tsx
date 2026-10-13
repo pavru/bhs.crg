@@ -17,13 +17,13 @@ import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import type { DocumentType } from '@/shared/api/types';
-import { chainFieldKeys, parseSchemaFields, resolveEffectiveFields, type SchemaField, type SchemaDefinition, type FieldGroup, type TypstRender } from '@/shared/api/schema';
+import { chainFieldKeys, parseSchemaFields, resolveEffectiveFields, typeHasTag, type SchemaField, type SchemaDefinition, type FieldGroup, type TypstRender } from '@/shared/api/schema';
 import { danglingKeyRefs, danglingRefPlaces } from './schemaKeyChecks';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { TypstBlocksPanel } from './TypstBlocksCheck';
 import { useTypstBlocksCheck, blocksCheckProblemsByFn } from './useTypstBlocksCheck';
 import { schemaToJson, validateFields } from './schemaConstants';
-import { useTagRegistry, typeTags as typeTagDefs, unknownTagCodes, FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { useTagRegistry, typeTags as typeTagDefs, unknownTagCodes, hasTag, roleCodes, FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
 import { JsonPreview } from './FieldBuilder';
 import type { FieldRegistries } from './fieldTypeOptions';
@@ -111,7 +111,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
     setDirty(true);
   };
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
-  const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry };
+  // Роли считаются по ЧЕРНОВИКУ тэгов типа: поставили тэг справочника — тэги его полей предлагаются
+  // сразу, до сохранения. У предков — по сохранённому: их черновика здесь нет.
+  const roles = roleCodes(tagRegistry).filter(code =>
+    hasTag(docTypeTags, code) || (!!parentType && typeHasTag(parentType, code, allDocTypes)));
+  const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry, roles };
   // Унаследованные поля для группировки — активные (исключённые не показываем в раскладке).
   const activeInheritedFields = parentEffectiveFields.filter(f => !excludedFields.includes(f.key));
 

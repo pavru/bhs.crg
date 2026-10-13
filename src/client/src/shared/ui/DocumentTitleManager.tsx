@@ -23,6 +23,7 @@ const SECTION_TITLES: Record<string, string> = {
   'document-types': 'Типы документов',
   'composite-types': 'Составные типы',
   'field-types': 'Типы полей',
+  'field-mapping': 'Сопоставление полей',
   'users': 'Пользователи',
   'recognition-profiles': 'Профили распознавания',
   'bug-reports': 'Сообщения об ошибках',

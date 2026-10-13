@@ -1,4 +1,4 @@
-import type { ModuleSetting } from '@/shared/api/moduleSettings';
+import type { ModuleMappingSignal, ModuleSetting } from '@/shared/api/moduleSettings';
 import { currencySign } from '@/shared/format/format';
 
 /**
@@ -8,6 +8,11 @@ import { currencySign } from '@/shared/format/format';
  * «вернуть умолчание».
  */
 export type SettingsDraft = Record<string, string | null>;
+
+/** Требует ли раздел модуля внимания: есть обязательное поле справочника, которое не назначено. */
+export function mappingNeedsAttention(signal: ModuleMappingSignal | null): boolean {
+  return !!signal && signal.unmet > 0;
+}
 
 /** Число для человека: с запятой. На сервере и в хранении — с точкой. */
 export function shown(value: string): string {

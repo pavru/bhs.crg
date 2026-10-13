@@ -3971,9 +3971,24 @@ PUT    /api/settings/company/currency       { currency }  — код из спи
                                     вошедшему действующую валюту отдаёт GET /api/account/access
                                     (accounting.currency).
 
+GET    /api/field-mapping                   → { modules: [{ code, title, total, unmet, notWorking,
+                                    groups: [{ role, label, purpose, withoutIt, state, reason, type,
+                                    candidates, rows: [{ tag, label, required, withoutIt, state,
+                                    fault, reason, key, kinds, fields }] }] }] }
+                                    Экран «Сопоставление полей» (issue #1101): что включённые модули
+                                    читают из справочников ядра (IAppModule.Needs) и чем это
+                                    обеспечено. state — mapped | absent | violated; считает тот же
+                                    расчёт, которым справочник читает порт модуля (RoleResolution).
+                                    fields — поля справочника с типом, где каждое объявлено
+                                    (declaredIn): тэг лежит там. Адрес только читает — назначение идёт
+                                    PUT /api/document-types/{id}/schema. Право core.types.edit.
+
 GET    /api/settings/modules                → { modules: [{ code, title, settings: [{ key, title, effect,
                                     kind, value, stored, stale, default, min, max, scale, unit,
-                                    changeWarning, money }] }] }
+                                    changeWarning, money }], mapping }] }
+                                    mapping — сводка сопоставления полей { total, unmet, notWorking }
+                                    либо null, если модуль из справочников ничего не читает; модуль
+                                    с одними потребностями в ответ попадает тоже (issue #1101).
                                     Настройки ВКЛЮЧЁННЫХ модулей, у которых они объявлены
                                     (IAppModule.Settings, issue #1070). value — действующее; stored —
                                     сохранённое годное в хранимом виде (null — действует умолчание);
