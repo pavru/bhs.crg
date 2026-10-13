@@ -53,6 +53,10 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
     /// которое приняло соединение и молчит, держало бы за общим замком всех, а оборванный запрос не
     /// запоминался бы — следующий в очереди повторял бы то же. Истёкший срок — сбой построителя: он
     /// запоминается, и очередь получает готовый ответ.</para>
+    ///
+    /// <para>Срок НЕ полагается на то, что чтение отзовётся на отмену. Тело файла клиент хранилища
+    /// читает синхронно, без токена: хранилище, отдавшее заголовки и замершее посреди тела, отмену
+    /// не услышит. Поэтому чтение ждут не дольше срока и бросают — см. <c>BuildAsync</c>.</para>
     /// </summary>
     public TimeSpan BuildDeadline { get; init; } = TimeSpan.FromSeconds(15);
 
@@ -108,7 +112,13 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
         var ct = deadline.Token;
         try
         {
-            if (await readLogo(ct) is not { } logo) return new(null, BrandIconProblem.Builder);
+            // WaitAsync, а не голое ожидание: срок обязан истечь, даже если чтение отмену не
+            // наблюдает. Брошенное чтение доживёт само — когда хранилище ответит или оборвёт
+            // соединение; его отказ к тому времени никому не нужен, но оставить его без присмотра
+            // нельзя: необработанное исключение всплыло бы позже, уже без связи с этим местом.
+            var reading = readLogo(ct);
+            _ = reading.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            if (await reading.WaitAsync(ct) is not { } logo) return new(null, BrandIconProblem.Builder);
 
             // Предел в байтах размеров не ограничивает: PNG на пять мегабайт разворачивается в памяти в
             // гигабайты, а строится значок по запросу без входа.

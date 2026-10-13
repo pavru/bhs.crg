@@ -192,6 +192,35 @@ public class BrandIconStoreTests
     }
 
     /// <summary>
+    /// То же, но чтение отмену НЕ СЛЫШИТ — так читает тело файла клиент хранилища, замершего
+    /// посреди ответа. Срок, полагающийся на сговорчивость чтения, здесь не истёк бы никогда, и за
+    /// общим замком стояли бы все запросы оформления.
+    /// </summary>
+    [Fact]
+    public async Task Чтение_глухое_к_отмене_срок_всё_равно_обрывает()
+    {
+        var reads = 0;
+        var deaf = new TaskCompletionSource<byte[]?>();
+        var store = new BrandIconStore(new Counting(), NullLogger<BrandIconStore>.Instance)
+        {
+            BuildDeadline = TimeSpan.FromMilliseconds(100),
+        };
+
+        Task<byte[]?> Deaf(CancellationToken _)
+        {
+            reads++;
+            return deaf.Task;
+        }
+
+        var first = await store.EnsureAsync("logo:1", Deaf, default).WaitAsync(TimeSpan.FromSeconds(20));
+        var second = await store.EnsureAsync("logo:1", Deaf, default).WaitAsync(TimeSpan.FromSeconds(20));
+
+        Assert.Equal((null, BrandIconProblem.Builder), (first.Set, first.Problem));
+        Assert.Same(first, second);
+        Assert.Equal(1, reads);
+    }
+
+    /// <summary>
     /// Ушёл человек — это отмена, а не сбой: запомненная, она оставила бы без значков следующего,
     /// у которого всё построилось бы.
     /// </summary>

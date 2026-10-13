@@ -142,6 +142,11 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
     /// Свой фон логотипа — на растре, который отдал Typst, а не на исходных точках: правило требует
     /// залитого прямоугольника и одноцветных углов, и пересчёт картинки мог бы нарушить оба. Фон
     /// цветной нарочно: белый дал бы белую плитку и без этого правила.
+    ///
+    /// <para>Размеры — 700×300, и тоже нарочно: на страницу 1024 такой логотип ложится НЕ по целым
+    /// точкам (1024×438,86), и крайние ряды растра выходят полупрозрачными. Ради них правило
+    /// читает углы и считает залитость с отступом от края; образец 800×200 ложится ровно, кромки у
+    /// него нет — и поломку отступа он бы не заметил.</para>
     /// </summary>
     [Fact]
     public async Task Цветной_фон_логотипа_плитка_продолжает_и_после_растеризации()
@@ -149,7 +154,7 @@ public class BrandIconTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var admin = await SignInAsync(SystemRoles.Admin);
         var fill = new SKColor(0x10, 0x9e, 0x92);
 
-        await UploadedAsync(admin, "logo.jpg", Logo(800, 200, SKEncodedImageFormat.Jpeg, background: fill, body: SKColors.White));
+        await UploadedAsync(admin, "logo.jpg", Logo(700, 300, SKEncodedImageFormat.Jpeg, background: fill, body: SKColors.White));
 
         // Угол значка iPhone — плитка: логотип занимает середину. Допуск — на сжатие JPEG.
         var corner = Pixel(await fixture.CreateClient().GetByteArrayAsync("/api/branding/icons/apple"), 4, 4);

@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
-import { useBranding } from '@/shared/api/branding';
+import { useEffect, useReducer } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { BRANDING_KEY, useBranding } from '@/shared/api/branding';
 import { BRAND_ICONS_KEY, applyBrandIcons } from './brandIcons';
 
 /**
@@ -10,6 +11,19 @@ import { BRAND_ICONS_KEY, applyBrandIcons } from './brandIcons';
  * метке прошлого захода, либо адрес без метки из `index.html`.
  */
 export function BrandIconLinks() {
+  // Выход из системы выбрасывает весь кеш ответов (AuthProvider), а наблюдатель запроса переходит на
+  // новый запрос только при перерисовке своего компонента. Этот компонент создан в App и сам не
+  // перерисовывается никогда — ни пропсов, ни меняющегося контекста у него нет. Без этой подписки
+  // он остался бы на удалённом запросе: во вкладке, где хоть раз выходили, новая метка значков не
+  // дошла бы до ссылки до перезагрузки страницы, хотя шапка логотип уже сменила (проверка правок
+  // перед PR). Подписка на сам кеш, а не на сессию: причина — удаление запроса, каким бы путём
+  // оно ни случилось.
+  const queryClient = useQueryClient();
+  const [, rebind] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => queryClient.getQueryCache().subscribe(event => {
+    if (event.type === 'removed' && event.query.queryKey[0] === BRANDING_KEY[0]) rebind();
+  }), [queryClient]);
+
   // `icons?.` вопреки типу: пока идёт обновление, клиент новой версии может получить ответ от
   // сервера прежней, где этого поля ещё нет, — и значок не повод ронять всё приложение.
   const version = (useBranding().data?.icons as { version?: string } | undefined)?.version;
