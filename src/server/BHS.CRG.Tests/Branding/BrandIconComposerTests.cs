@@ -291,6 +291,50 @@ public class BrandIconComposerTests
         Assert.Equal(0.333, Compose(Logo(200, 600)).Aspect, 2);
     }
 
+    /// <summary>
+    /// Край цветного знака на белой плитке — смесь его цвета с белым, без серой каймы. У
+    /// оранжевого и у белого красный канал один — 255, и в любой их смеси он обязан остаться таким;
+    /// сглаживание до умножения на прозрачность подмешивало к краю чёрный цвет прозрачных точек, и
+    /// канал падал до 195–215 (ревью PR #1320).
+    /// </summary>
+    [Fact]
+    public void Край_цветного_знака_на_белой_плитке_без_серой_каймы()
+    {
+        using var surface = SKSurface.Create(new SKImageInfo(1024, 1024, SKColorType.Rgba8888, SKAlphaType.Premul));
+        surface.Canvas.Clear(SKColors.Transparent);
+        using (var paint = new SKPaint { Color = new SKColor(0xff, 0x8c, 0x00), IsAntialias = true })
+            surface.Canvas.DrawCircle(512, 512, 300, paint);
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+
+        var set = Compose(data.ToArray());
+
+        Assert.Equal(BrandIconComposer.LightTile, set.Tile);
+        using var icon = Decode(set.Icons[BrandIconKind.App512]);
+        var lowest = 255;
+        // Середина плитки, без её скруглённых углов: там прозрачно, и красного нет законно.
+        for (var y = 64; y < 448; y++)
+        for (var x = 64; x < 448; x++)
+            lowest = Math.Min(lowest, icon.GetPixel(x, y).Red);
+        Assert.InRange(lowest, 250, 255);
+    }
+
+    /// <summary>
+    /// Знаку с пустыми полями точек не хватает — и сборщик называет, что растрировать заново; знаку
+    /// во весь холст — нет.
+    /// </summary>
+    [Fact]
+    public void Вид_крупнее_назван_только_знаку_с_пустыми_полями()
+    {
+        Assert.Null(BrandIconComposer.CloserView(Logo(800, 200)));
+        Assert.Null(BrandIconComposer.CloserView("не картинка"u8.ToArray()));
+
+        var view = BrandIconComposer.CloserView(Logo(200, 100, margin: 400));
+
+        // Видимая часть 200×100 с запасом в две точки; до 512 по большей стороне — в 2,56 раза.
+        Assert.Equal(new LogoView(398, 398, 204, 104, 2.56), view);
+    }
+
     /// <summary>Пустая картинка значков не даёт — и это отказ, а не пять пустых плиток.</summary>
     [Fact]
     public void Картинка_без_единой_видимой_точки_значков_не_даёт()

@@ -38,7 +38,14 @@ public static class BrandIconKinds
             ["maskable-512"] = BrandIconKind.Maskable512,
         };
 
-    public static string Route(BrandIconKind kind) => ByRoute.Single(p => p.Value == kind).Key;
+    /// <summary>
+    /// Обратная таблица — собрана один раз. Заодно вид значка, которому забыли дать имя, падает
+    /// здесь, при первом обращении к типу, а не на запросе этого значка.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<BrandIconKind, string> Routes =
+        Enum.GetValues<BrandIconKind>().ToDictionary(kind => kind, kind => ByRoute.Single(p => p.Value == kind).Key);
+
+    public static string Route(BrandIconKind kind) => Routes[kind];
 
     /// <summary>Адрес значка с меткой версии — таким его называют манифест и открытая вкладка.</summary>
     public static string Url(BrandIconKind kind, string version) =>

@@ -34,10 +34,9 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
     /// значки остались бы стандартными до перезапуска.
     ///
     /// <para>Пауза РАСТЁТ: каждый следующий отказ подряд удваивает её, до
-    /// <see cref="RetryCeiling" />. Повтор не бесплатен — пока он идёт, за ним стоят все, кому
-    /// нужно оформление (см. <see cref="BuildDeadline" />). С постоянной минутой логотип, на
-    /// котором Typst не укладывается в срок, или молчащее хранилище задерживали бы название в шапке
-    /// на десять секунд каждую минуту — бессрочно (проверка перед PR).</para>
+    /// <see cref="RetryCeiling" />. Повтор не бесплатен: это процесс Typst и чтение хранилища, а
+    /// запускает его запрос без входа. Ждать его при этом никому не приходится — он идёт в фоне,
+    /// см. <see cref="EnsureAsync" />.</para>
     /// </summary>
     public TimeSpan RetryAfterFailure { get; init; } = TimeSpan.FromMinutes(1);
 
@@ -76,6 +75,17 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
     {
         if (Fresh(key) is { } ready) return ready;
 
+        // Повтор после сбоя идёт В ФОНЕ, а спросивший получает запомненный отказ сразу. Ждут
+        // построения только те, кому отвечать ещё нечем: первое обращение после перезапуска и
+        // загрузка логотипа (у неё новый ключ). Иначе логотип, на котором Typst не укладывается в
+        // срок, задерживал бы название в шапке на весь срок при каждом повторе — бессрочно, пусть и
+        // всё реже (ревью PR #1320).
+        if (slot is { } failed && failed.Key == key)
+        {
+            RetryInBackground(key, readLogo);
+            return failed.Build;
+        }
+
         await gate.WaitAsync(ct);
         try
         {
@@ -89,6 +99,46 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
         {
             gate.Release();
         }
+    }
+
+    private int retrying;
+
+    /// <summary>Идущий фоновый повтор; завершённая задача, когда его нет. Тестам — дождаться.</summary>
+    public Task Retry { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// ⚠️ Повтор переживает запрос, который его начал: <paramref name="readLogo" /> не вправе
+    /// держаться за то, что живёт до конца запроса (контекст базы).
+    /// </summary>
+    private void RetryInBackground(string key, Func<CancellationToken, Task<byte[]?>> readLogo)
+    {
+        if (Interlocked.CompareExchange(ref retrying, 1, 0) != 0) return;
+
+        Retry = Task.Run(async () =>
+        {
+            try
+            {
+                await gate.WaitAsync();
+                try
+                {
+                    // Пока ждали замок, логотип могли сменить или построить: тогда повторять нечего.
+                    if (slot is { } s && s.Key == key && Fresh(key) is null)
+                        slot = Remembered(key, await BuildAsync(readLogo, CancellationToken.None));
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Повторное построение значков из логотипа сорвалось");
+            }
+            finally
+            {
+                Volatile.Write(ref retrying, 0);
+            }
+        });
     }
 
     private BrandIconBuild? Fresh(string key) =>
@@ -128,8 +178,14 @@ public sealed class BrandIconStore(ILogoRasterizer rasterizer, ILogger<BrandIcon
                 return new(null, BrandIconProblem.Size);
             }
 
-            var raster = await rasterizer.RasterizeAsync(logo, ct);
+            var raster = await rasterizer.RasterizeAsync(logo, null, ct);
             if (raster.Png is null) return new(null, raster.Problem ?? BrandIconProblem.Builder);
+
+            // Второй проход — векторному логотипу с пустыми полями: см. LogoView. Не удался —
+            // остаёмся с первым растром: значок выйдет мягче, но выйдет.
+            if (LogoFormat.IsVector(logo) && BrandIconComposer.CloserView(raster.Png) is { } view
+                && (await rasterizer.RasterizeAsync(logo, view, ct)).Png is { } closer)
+                raster = new(closer, null);
 
             if (BrandIconComposer.Compose(raster.Png) is not { } set)
             {

@@ -10,13 +10,17 @@
 //
 // Отдельным файлом, а не инлайном, и синхронно в <head> — по тем же причинам, что theme-init.js.
 // ⚠️ Адреса и ключ продублированы из shared/ui/brandIcons.ts: модуль сюда не подключить.
-try {
-  var v = localStorage.getItem('crg-brand-icons');
-  if (v) {
+//
+// В функции: скрипт не модуль, и без неё его переменные стали бы глобальными — рядом с переменными
+// theme-init.js, где совпадение имён молча перезаписало бы значение.
+(function () {
+  try {
+    var v = localStorage.getItem('crg-brand-icons');
+    if (!v) return;
     var q = '?v=' + encodeURIComponent(v);
     var tab = document.querySelector('link[rel="icon"]');
     var apple = document.querySelector('link[rel="apple-touch-icon"]');
     if (tab) tab.setAttribute('href', '/api/branding/icons/tab' + q);
     if (apple) apple.setAttribute('href', '/api/branding/icons/apple' + q);
-  }
-} catch (e) { /* приватный режим без localStorage — остаются адреса без метки */ }
+  } catch (e) { /* приватный режим без localStorage — остаются адреса без метки */ }
+})();

@@ -103,12 +103,8 @@ public static class BrandIconComposer
     /// </summary>
     public static BrandIconSet? Compose(byte[] raster)
     {
-        using var codec = SKCodec.Create(new MemoryStream(raster));
-        if (codec is null) return null;
-
         // Без предумножения: цвет точки нужен как он есть, а не умноженным на прозрачность.
-        var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
-        using var plain = SKBitmap.Decode(codec, info);
+        using var plain = Decoded(raster, SKAlphaType.Unpremul);
         if (plain is null) return null;
 
         var pixels = plain.GetPixelSpan();
@@ -116,14 +112,70 @@ public static class BrandIconComposer
 
         var tile = TileFor(pixels, plain.RowBytes, box);
 
+        // ⚠️ Рисуется логотип из ДРУГОГО растра — предумноженного. Непредумноженный Skia сглаживает
+        // до умножения на прозрачность: край знака смешивается с цветом прозрачных точек (у растра
+        // от Typst это чёрный, 0-0-0-0), и вокруг цветного логотипа на белой плитке встаёт серая
+        // кайма в две-три точки (ревью PR #1320: у оранжевого круга на краю выходило 215-192-163
+        // вместо красного канала 255). Разбор цвета выше остаётся на непредумноженном.
+        using var drawn = Decoded(raster, SKAlphaType.Premul);
+        if (drawn is null) return null;
+
         // Прозрачные края срезаются до вписывания. Это не обрезка логотипа: файл с пустым холстом
         // вокруг знака иначе дал бы мелкий значок.
         using var trimmed = new SKBitmap();
-        if (!plain.ExtractSubset(trimmed, box)) return null;
+        if (!drawn.ExtractSubset(trimmed, box)) return null;
         using var logo = SKImage.FromBitmap(trimmed);
 
         var icons = Specs.ToDictionary(spec => spec.Kind, spec => Draw(spec, logo, tile));
         return new BrandIconSet(icons, box.Width / (double)box.Height, tile, StampOf(icons));
+    }
+
+    private static SKBitmap? Decoded(byte[] raster, SKAlphaType alpha)
+    {
+        using var codec = SKCodec.Create(new MemoryStream(raster));
+        return codec is null
+            ? null
+            : SKBitmap.Decode(codec, new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, alpha));
+    }
+
+    /// <summary>Меньше этого по большей стороне видимой части — значку не хватает точек.</summary>
+    private const int EnoughSide = 400;
+
+    /// <summary>До какой большей стороны доводит видимую часть второй проход: самый крупный значок.</summary>
+    private const int WantedSide = 512;
+
+    /// <summary>
+    /// Предел увеличения — осторожность, а не замер: рисует ли Typst только попавшее на страницу
+    /// или весь SVG в размере показа, не проверялось, а во втором случае вчетверо — это уже холст
+    /// 4096 точек внутри его процесса, и дальше расход памяти растёт квадратом. Знак мельче восьмой
+    /// части холста остаётся растянутым — но уже не втрое.
+    /// </summary>
+    private const double LargestScale = 4;
+
+    /// <summary>
+    /// Какую часть холста стоит растрировать заново, крупнее; <c>null</c> — точек хватает (или
+    /// картинка не читается: тогда отказ назовёт <see cref="Compose" />).
+    ///
+    /// <para>Самому крупному значку нужно 389 точек по большей стороне логотипа (76 % от 512). У
+    /// логотипа с пустыми полями видимая часть первого растра меньше — см. <see cref="LogoView" />.
+    /// Спрашивать это имеет смысл только у векторного логотипа: растровому второй проход точек не
+    /// прибавит.</para>
+    /// </summary>
+    public static LogoView? CloserView(byte[] raster)
+    {
+        using var plain = Decoded(raster, SKAlphaType.Unpremul);
+        if (plain is null) return null;
+        if (VisibleBox(plain.GetPixelSpan(), plain.RowBytes, plain.Width, plain.Height) is not { } box) return null;
+
+        var larger = Math.Max(box.Width, box.Height);
+        if (larger >= EnoughSide) return null;
+
+        // С запасом в две точки: крайний ряд знака при растрировании полупрозрачен, и ровно по
+        // границе страницы он срезался бы пополам.
+        const int pad = 2;
+        int left = Math.Max(0, box.Left - pad), top = Math.Max(0, box.Top - pad);
+        int right = Math.Min(plain.Width, box.Right + pad), bottom = Math.Min(plain.Height, box.Bottom + pad);
+        return new LogoView(left, top, right - left, bottom - top, Math.Min(LargestScale, WantedSide / (double)larger));
     }
 
     private static string StampOf(IReadOnlyDictionary<BrandIconKind, byte[]> icons)
