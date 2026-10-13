@@ -338,6 +338,7 @@ await check('branding-says-what-came-of-the-logo', async () => {
     }
     // Значок приложения — PNG: по нему и видно, что адрес с меткой отдаёт картинку.
     if (!sources[2].loaded) throw new Error('картинка значка приложения в превью не загрузилась');
+    if (!(await elongated.count())) throw new Error('логотип вчетверо шире высоты, а предупреждения о вытянутом логотипе нет');
     const warning = (await elongated.innerText()).replace(/\s+/g, ' ');
     if (!warning.includes('занимает 4 из 16 точек по высоте')) throw new Error(`предупреждение о вытянутом логотипе: «${warning}»`);
     if (!warning.includes('Название тогда задайте выше')) throw new Error('при незаданном названии предупреждение не зовёт его задать');
@@ -347,6 +348,7 @@ await check('branding-says-what-came-of-the-logo', async () => {
     await shown(b => ({ ...b, hasLogo: true, logoVersion: b.logoVersion ?? '1',
       icons: { ...b.icons, state: 'failed', problem: 'file', aspect: null } }));
     if (await previews.count()) throw new Error('при отказе построения показаны превью — стандартные значки выданы за построенные');
+    if (!(await failed.count())) throw new Error('значки не построены, а слов об этом под логотипом нет');
     const refusal = (await failed.innerText()).replace(/\s+/g, ' ');
     for (const part of ['Значки из логотипа не построены.', 'Сохраните логотип в PNG и загрузите его.'])
       if (!refusal.includes(part)) throw new Error(`в плашке отказа нет «${part}»: «${refusal}»`);
