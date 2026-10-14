@@ -19,12 +19,18 @@ export interface NavItem {
   permission?: string;
   /** Модуль, без доступа к которому пункт не показывается. */
   module?: string;
+  /**
+   * Раздел ЯДРА, которому принадлежит пункт (issue #1001): рабочее пространство показывает его, если
+   * раздел объявил хоть один модуль пространства (`CoreSections` на сервере, те же коды). Пункт
+   * модуля раздела не называет — он входит в пространство своим модулем.
+   */
+  section?: string;
 }
 
 export const workNav: NavItem[] = [
-  { to: '/document-sets',   label: 'Стройки',            icon: FolderOpen,  permission: 'core.constructions.read' },
-  { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read' },
-  { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read' },
+  { to: '/document-sets',   label: 'Стройки',            icon: FolderOpen,  permission: 'core.constructions.read', section: 'constructions' },
+  { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog' },
+  { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read', section: 'datasets' },
   { to: '/quality-docs',    label: 'Документы качества',  icon: ShieldCheck, module: 'id' },
   // Право И модуль: доступ к модулю и право заводить счета — разные вещи (у бухгалтера есть первое
   // без второго), а пункт обязан закрываться тем же правом, что стоит на группе адресов экрана.
@@ -43,8 +49,32 @@ export const workNav: NavItem[] = [
     permission: 'costs.report.read' },
   // Закрытие периода — служба ядра (ТЗ CORE-35): пункт не зависит от модулей. Право то же, что на
   // адресах закрытия и отмены; сами границы читает любой вошедший, но экран существует ради действия.
-  { to: '/periods',         label: 'Учётный период',      icon: CalendarCheck, permission: 'core.period.close' },
-  { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run' },
+  { to: '/periods',         label: 'Учётный период',      icon: CalendarCheck, permission: 'core.period.close',
+    section: 'periods' },
+  { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run',
+    section: 'reconciliations' },
+];
+
+/**
+ * Страницы под адресом «Строек», принадлежащие ДРУГОМУ модулю или разделу (issue #1001, ревью PR
+ * #1330): комплект лежит под `/document-sets`, но это модуль ИД; панель «Наборы данных» стройки и
+ * раздела — раздел ядра `datasets`. По одному префиксу пункта меню они считались бы «Стройками» и в
+ * пространстве без них открывались бы без плашки «вне пространства».
+ *
+ * ⚠️ Список повторяет маршруты `DocumentSetsPage`. Разойтись им не даёт тест
+ * (`workspaceRoutes.test.ts`): каждый маршрут комплекта обязан найтись здесь, а маршрут стройки и
+ * раздела — нет.
+ */
+export interface PageOwner {
+  match: RegExp;
+  label: string;
+  module?: string;
+  section?: string;
+}
+
+export const pageOwners: PageOwner[] = [
+  { match: /^\/document-sets\/[^/]+\/sets\/[^/]+/, label: 'Комплект документов', module: 'id' },
+  { match: /^\/document-sets\/[^/]+(\/sections\/[^/]+)?\/datasets$/, label: 'Наборы данных стройки', section: 'datasets' },
 ];
 
 export const settingsNav: NavItem[] = [

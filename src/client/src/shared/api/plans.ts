@@ -58,14 +58,15 @@ export function invalidatePlans(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: KEY });
 }
 
-export function usePlanSummary(scope: PlanScope, scopeId?: string) {
+/** `shown` — показ разрешён пространством (issue #1001): скрытое не запрашивается вовсе. */
+export function usePlanSummary(scope: PlanScope, scopeId?: string, shown = true) {
   // План — часть модуля исполнительной документации: его адреса стоят за воротами модуля `id` (issue
   // #1125). Список строек открывает и тот, у кого этого модуля нет («Бухгалтер»), — без проверки
   // каждый вход приносил бы ему 403 фоном.
   const { data: access = NO_ACCESS } = useAccess();
   return useQuery({
     queryKey: [...KEY, 'summary', scope, scopeId ?? null],
-    enabled: hasModule(access, 'id') && (scope === 'System' || !!scopeId),
+    enabled: shown && hasModule(access, 'id') && (scope === 'System' || !!scopeId),
     queryFn: async () => (await apiClient.get<PlanSummary>('/plans/summary', {
       params: { scope, scopeId },
     })).data,

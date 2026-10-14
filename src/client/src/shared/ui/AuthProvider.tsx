@@ -6,6 +6,7 @@ import {
   getToken, getRefreshToken, setTokens, clearToken, replaceTokens, onTokenChanged,
 } from '@/shared/api/token';
 import { AuthContext, type AuthUser } from '@/shared/hooks/useAuth';
+import { forgetTabWorkspaces } from './workspaceTab';
 
 function decodeUser(token: string): AuthUser {
   // Роли из токена не читаются вовсе (issue #984). Раньше отсюда брали ПЕРВУЮ — и у человека с
@@ -34,7 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // не в кнопке «Выйти»: сессия кончается и сама — отказом refresh, — и кнопка про это не знает.
   useEffect(() => onTokenChanged(token => {
     setUser(token ? decodeUser(token) : null);
-    if (!token) queryClient.clear();
+    if (!token) {
+      queryClient.clear();
+      // И выбор рабочего пространства, который помнила вкладка (ревью PR #1330): иначе повторный
+      // вход в той же вкладке не открыл бы умолчание из профиля.
+      forgetTabWorkspaces();
+    }
   }), [queryClient]);
 
   const login = useCallback(async (email: string, password: string, remember = true) => {

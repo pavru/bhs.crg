@@ -79,6 +79,21 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
         Assert.Equal(HttpStatusCode.Forbidden, (await accountant.GetAsync("/api/quality-docs")).StatusCode);
     }
 
+    /// <summary>
+    /// Каждый модуль называет разделы ядра, которыми пользуется (issue #1001): из них клиент собирает
+    /// навигацию рабочего пространства. Ответ отдаёт объявление модуля как есть; что объявления
+    /// годны и у счетов не пусты — <c>CoreSectionsTests</c> (модуль счетов здесь не включён).
+    /// </summary>
+    [Fact]
+    public async Task Модули_называют_разделы_ядра_для_пространств()
+    {
+        var access = await AccessAsync(await SignInAsync("Admin"));
+
+        var id = Assert.Single(access.Modules, m => m.Code == "id");
+        Assert.Equal(new BHS.CRG.Api.Modules.IdModule().UsesSections, id.Sections);
+        Assert.Contains("constructions", id.Sections);
+    }
+
     /// <summary>Без входа адрес не отвечает: он рассказывает о конкретном пользователе.</summary>
     [Fact]
     public async Task Anonymous_gets_nothing()
@@ -149,7 +164,7 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
             new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
     }
 
-    private sealed record ModuleDto(string Code, string Title, bool Available);
+    private sealed record ModuleDto(string Code, string Title, bool Available, string[] Sections);
     private sealed record AccessDto(string[] Permissions, ModuleDto[] Modules);
 
     private static async Task<AccessDto> AccessAsync(HttpClient client)

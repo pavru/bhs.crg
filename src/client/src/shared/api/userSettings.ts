@@ -16,10 +16,14 @@ export const USER_SETTINGS_KEY = ['account', 'settings'] as const;
  * ⚠️ Запрос идёт только вошедшему: настройки принадлежат человеку, а на странице входа человека
  * ещё нет. Поэтому `enabled` — не оптимизация, а условие осмысленности.
  */
+export function fetchUserSettings(): Promise<UserSettings> {
+  return apiClient.get<UserSettings>('/account/settings').then(r => r.data);
+}
+
 export function useUserSettings(enabled: boolean) {
   return useQuery({
     queryKey: USER_SETTINGS_KEY,
-    queryFn: () => apiClient.get<UserSettings>('/account/settings').then(r => r.data),
+    queryFn: fetchUserSettings,
     enabled,
     staleTime: 5 * 60_000,
   });

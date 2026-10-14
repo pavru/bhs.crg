@@ -14,6 +14,12 @@ export interface ModuleAccess {
   title: string;
   /** Есть ли у пользователя хотя бы одно право этого модуля. Считает сервер (AUTH-8.1). */
   available: boolean;
+  /**
+   * Разделы ядра, которыми модуль пользуется (`IAppModule.UsesSections`, issue #1001): рабочее
+   * пространство показывает их вместе с разделами модуля. Коды — те же, что у `NavItem.section`.
+   * Необязательное: ответ старого сервера их не несёт — тогда пространство модуля без разделов ядра.
+   */
+  sections?: string[];
 }
 
 export interface AccessInfo {

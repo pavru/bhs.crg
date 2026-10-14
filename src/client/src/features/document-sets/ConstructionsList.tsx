@@ -7,12 +7,14 @@ import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useScopePurge } from './useScopePurge';
-import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
-import { usePlanSummary, planOf } from '@/shared/api/plans';
+import { problemOf } from '@/shared/api/reconciliations';
+import { planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
 import { useCan } from '@/shared/api/access';
+import { useIdIndicators } from './useIdIndicators';
+import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 
@@ -85,8 +87,9 @@ export function ConstructionsList() {
   const [createError, setCreateError] = useState('');
 
   const { data: constructions = [], isLoading } = useListConstructions();
-  const { data: problems } = useProblemSummary('System');
-  const { data: plans } = usePlanSummary('System');
+  // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
+  // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
+  const { shown: idOn, plan: plans, problems } = useIdIndicators('System');
   // Поиск идёт по комплектам — это модуль ИД (issue #1125). Без модуля поле отвечало бы
   // «Ничего не найдено» на любой запрос: отказ сервера выглядел бы пустым результатом.
   // Правка строек — своё право (issue #1128): «Бухгалтер» видит стройки, но не правит их, и каждая
@@ -129,7 +132,7 @@ export function ConstructionsList() {
         )}
       </div>
 
-      {can.module('id') && <DocumentSearchPanel />}
+      {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
 
       {isLoading ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
@@ -168,7 +171,7 @@ export function ConstructionsList() {
                 <div className="flex items-center gap-4 text-xs text-fg4">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
                   {/* Комплекты — модуль ИД (issue #1128): без него счётчика нет, а не «0 комплектов». */}
-                  {can.module('id') && <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>}
+                  {idOn && <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>}
                   {/* Строкой, а не пилюлей: красные пилюли на карточках дают «ёлку» раньше всего.
                       Готовность — там же и тем же тоном: это соседняя по смыслу цифра, а не бейдж. */}
                   {/* Оговорка «без плана» обязательна ВЕЗДЕ, где показан процент: стройка, где

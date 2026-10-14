@@ -9,6 +9,7 @@ import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { apiError } from '@/shared/utils/apiError';
 import { AppearanceSection } from './AppearanceSection';
 import { MyPermissionsSection } from './MyPermissionsSection';
+import { DefaultWorkspaceSection } from './DefaultWorkspaceSection';
 import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2, Palette, ShieldCheck } from 'lucide-react';
 
 /** Ответ сервера → имя в форме. Пока учётка не загружена — пусто, как и раньше. */
@@ -172,6 +173,9 @@ export function ProfilePage() {
         </h2>
         <AppearanceSection />
       </div>
+
+      {/* Пространство по умолчанию (ТЗ AUTH-16.5, issue #1001): секция сама решает, видна ли она. */}
+      <DefaultWorkspaceSection />
 
       {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
           этого раздела», который иначе задают администратору. */}

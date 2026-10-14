@@ -190,6 +190,14 @@ public sealed class CostsModule : IAppModule
     public IReadOnlyList<ModuleRoleNeed> Needs => CostsDirectories.Needs;
 
     /// <summary>
+    /// Разделы ядра, которыми пользуются счета (issue #1001): стройки — на них разносят счета,
+    /// справочники — поставщики и номенклатура, учётный период — его закрытие запирает счета и
+    /// накладные (ТЗ COST-16).
+    /// </summary>
+    public IReadOnlyList<string> UsesSections =>
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Periods];
+
+    /// <summary>
     /// В справочники ядра модуль заводит одно — организацию из скана счёта (issue #1077): название и
     /// ИНН. Поля — по тэгам; снимет администратор тэг — заведение откажет названной причиной.
     /// </summary>

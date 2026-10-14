@@ -7,6 +7,7 @@ import { workNav, settingsNav } from './navConfig';
 import { visibleNav } from './navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedLeave, useGuardedNavigate } from './NavigationGuard';
+import { useWorkspace } from './workspaceContext';
 
 interface Cmd { id: string; label: string; section: string; icon: LucideIcon; run: () => void }
 
@@ -37,10 +38,13 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
   const { data: access } = useAccess();
   const work = visibleNav(workNav, access ?? NO_ACCESS);
   const settings = visibleNav(settingsNav, access ?? NO_ACCESS);
+  // Палитра ищет разделы ВСЕХ доступных модулей, а не только пространства (ТЗ AUTH-16.1, issue
+  // #1001): иначе скрытый раздел недостижим ни меню, ни палитрой. Найденное вне пространства помечено.
+  const { inside } = useWorkspace();
 
   const items = useMemo<Cmd[]>(() => {
     const nav = [
-      ...work.map(n => ({ ...n, section: 'Документы и данные' })),
+      ...work.map(n => ({ ...n, section: inside(n) ? 'Документы и данные' : 'Вне пространства' })),
       ...settings.map(n => ({ ...n, section: 'Настройка системы' })),
     ].map(n => ({ id: n.to, label: n.label, section: n.section, icon: n.icon, run: () => navigate(n.to) }));
     const actions: Cmd[] = [
@@ -50,7 +54,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
       { id: 'logout',       label: 'Выйти',           section: 'Действия', icon: LogOut,  run: () => leave(logout) },
     ];
     return [...nav, ...actions];
-  }, [work, settings, navigate, leave, setTheme, logout]);
+  }, [work, settings, inside, navigate, leave, setTheme, logout]);
 
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);

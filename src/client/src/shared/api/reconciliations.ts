@@ -274,13 +274,14 @@ export interface ProblemSummary {
   children: ProblemCount[];
 }
 
+/** `shown` — показ разрешён пространством (issue #1001): скрытое не запрашивается вовсе. */
 export function useProblemSummary(
-  scope: 'System' | 'Construction' | 'Section' | 'Set', scopeId?: string,
+  scope: 'System' | 'Construction' | 'Section' | 'Set', scopeId?: string, shown = true,
 ) {
   const allowed = useCanReconcile();
   return useQuery({
     queryKey: [...KEY, 'summary', scope, scopeId ?? null],
-    enabled: allowed && (scope === 'System' || !!scopeId),
+    enabled: shown && allowed && (scope === 'System' || !!scopeId),
     queryFn: async () => (await apiClient.get<ProblemSummary>('/reconciliations/summary', {
       params: { scope, scopeId },
     })).data,

@@ -57,6 +57,9 @@ public static class AccountEndpoints
                     code = m.Code,
                     title = m.Title,
                     available = ModuleAccess.IsOpen(m.Code, granted),
+                    // Разделы ядра, которыми модуль пользуется (issue #1001): из них клиент собирает
+                    // навигацию рабочего пространства. Доступа они не дают — пункт закрыт своим правом.
+                    sections = m.UsesSections,
                 }).ToArray(),
             });
         });

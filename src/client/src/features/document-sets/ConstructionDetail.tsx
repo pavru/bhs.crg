@@ -11,14 +11,16 @@ import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShel
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
-import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
-import { usePlanSummary, planOf, planTitle } from '@/shared/api/plans';
+import { problemOf } from '@/shared/api/reconciliations';
+import { planOf, planTitle } from '@/shared/api/plans';
 import { PlanProgressBadge } from './PlanProgressBadge';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCreateSection } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
+import { useIdIndicators } from './useIdIndicators';
+import { useWorkspace } from '@/shared/ui/workspaceContext';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -34,12 +36,13 @@ export function ConstructionDetail() {
   const activePanel: ConstructionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as ConstructionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
-  const { data: problems } = useProblemSummary('Construction', constructionId);
-  const { data: plan } = usePlanSummary('Construction', constructionId);
+  // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
+  // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
+  const datasetsShown = useWorkspace().showsSection('datasets');
+  const { shown: idOn, plan, problems } = useIdIndicators('Construction', constructionId);
   // Счётчик комплектов у раздела — число модуля ИД (issue #1128): без модуля его нет, а не ноль.
   // Правка стройки и её разделов — право core.constructions.edit: без него кнопки отвечали бы 403.
   const can = useCan();
-  const idOn = can.module('id');
   const canEdit = can.permission('core.constructions.edit');
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
@@ -101,7 +104,11 @@ export function ConstructionDetail() {
       )}
       <NavSection label="Эта стройка" />
       <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
-      <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      {/* Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не
+          объявило, пункта нет, как и в главном меню; открытая по ссылке панель получает плашку. */}
+      {datasetsShown && (
+        <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      )}
       <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
     </div>
   );

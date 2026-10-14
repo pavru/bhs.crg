@@ -23,6 +23,11 @@ public sealed class ModuleRegistry : IEnabledModules
         Enabled = enabled;
         Disabled = disabled;
         _byCode = enabled.ToDictionary(m => m.Code, StringComparer.OrdinalIgnoreCase);
+
+        // Разделы ядра проверяются здесь, при сборке реестра: опечатка в коде раздела тихо убрала бы
+        // его из рабочего пространства (issue #1001). Объявления у выключенных — тоже: включат модуль
+        // обратно, и негодное объявление всплыло бы у заказчика, а не при сборке поставки.
+        foreach (var module in enabled.Concat(disabled)) CoreSections.Validate(module);
     }
 
     /// <summary>Включённые модули в том порядке, в каком их перечислил оператор.</summary>
