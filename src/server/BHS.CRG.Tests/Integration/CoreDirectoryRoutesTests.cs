@@ -33,6 +33,10 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/constructions/{id:guid}/purge",
         "GET /api/constructions/",
         "GET /api/constructions/{id:guid}",
+        // Лёгкий справочник строек — только id и имя (issue #1218): его берёт шапка «Избранных
+        // строек» на каждом экране, в том числе на экранах модулей. Это чтение самого справочника,
+        // и при выключенном модуле он обязан оставаться на месте.
+        "GET /api/constructions/directory",
         "POST /api/constructions/",
         "POST /api/constructions/{constructionId:guid}/sections",
         "PUT /api/constructions/{id:guid}",
