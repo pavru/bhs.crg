@@ -12,6 +12,8 @@ import {
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { WaybillDeleteMenu } from './WaybillDeleteDialog';
 import { withArchiveWord } from '@/shared/ui/archive';
+import { pickNative, useSiteChoices } from '@/shared/siteFilter/siteReveal';
+import { RevealOption, SiteOptions } from '@/shared/siteFilter/SiteOptions';
 import { formatDate } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import {
@@ -171,6 +173,8 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
 
   // Стройку, которой больше нет, в списке не найти — но показать, что она была названа, надо.
   const orphan = draft.construction && !sites.some(s => s.id === draft.construction);
+  // Живая неизбранная стройка — не потеря: она стоит группой «Не в избранном» (issue #1219).
+  const choices = useSiteChoices(sites, draft.construction);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -285,10 +289,12 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
             problem={view.constructionLost && orphan ? 'Стройки больше нет — выберите заново'
               : sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список' : undefined}>
             <select className={input} value={draft.construction} disabled={locked}
-              aria-label="Получатель — стройка" onChange={e => edit({ construction: e.target.value })}>
+              aria-label="Получатель — стройка"
+              onChange={e => pickNative(e.currentTarget, choices.reveal, construction => edit({ construction }))}>
               <option value="">не выбрана</option>
               {orphan && <option value={draft.construction}>{view.constructionName ?? MISSING.construction}</option>}
-              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <SiteOptions choices={choices} valueOf={id => id} />
+              <RevealOption hidden={choices.hidden} />
             </select>
           </Field>
           <Field label="Получил">

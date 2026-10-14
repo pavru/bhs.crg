@@ -2,7 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ArrowUpRight, ChartNoAxesColumn } from 'lucide-react';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { Select, SelectItem } from '@/shared/ui/Select';
+import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
+import { revealText } from '@/shared/siteFilter/siteChoices';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
@@ -37,6 +39,8 @@ export function SiteCostsPage() {
   const query = { site, from: params.get('from'), to: params.get('to'), withVat };
 
   const sites = useCostsConstructions();
+  // Выбор стройки урезан избранным, выход — последним пунктом (issue #1219). Сам отчёт считает все.
+  const choices = useSiteChoices(sites.data, site);
   const report = useSiteCosts(query);
   const data = report.data;
 
@@ -72,9 +76,15 @@ export function SiteCostsPage() {
           <div>
             <span className="block text-xs text-fg3 mb-1">Стройка</span>
             <Select aria-label="Стройка" className="w-64 h-8 rounded-md border border-stroke bg-surface px-2 text-sm"
-              value={site ?? ALL} onValueChange={value => set({ site: value === ALL ? null : value })}>
+              value={site ?? ALL} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
+                : set({ site: value === ALL ? null : value })}>
               <SelectItem value={ALL}>Все стройки</SelectItem>
-              {(sites.data ?? []).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              {choices.groups.map(g => (
+                <SelectGroup key={g.label} label={g.label}>
+                  {g.sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectGroup>
+              ))}
+              {choices.hidden > 0 && <SelectItem value={REVEAL_CHOICE}>{revealText(choices.hidden)}</SelectItem>}
             </Select>
           </div>
 

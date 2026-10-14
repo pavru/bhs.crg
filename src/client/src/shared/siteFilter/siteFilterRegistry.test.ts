@@ -26,7 +26,7 @@ const REGISTRY: Record<string, Entry> = {
     filters: false, because: 'это и есть справочник, с которым пересекается избранное',
   },
   '/src/features/document-sets/SetDetail.tsx': {
-    filters: false, because: 'справочник уходит в выбор цели переноса и копирования — общий компонент выбора стройки, #1219',
+    filters: false, because: 'справочник уходит в выбор цели переноса и копирования — урезает его useSetTargets (#1219)',
   },
   '/src/features/periods/PeriodsPage.tsx': {
     filters: false, because: 'имена строек из полного справочника; таблица периода урезается шагом #1220',
@@ -35,19 +35,19 @@ const REGISTRY: Record<string, Entry> = {
     filters: false, because: 'обёртка: справочник целей разноски; сама ничего не рисует', carries: ['usePlaces'],
   },
   '/src/features/costs/AllocationMatrix.tsx': {
-    filters: false, because: 'варианты разноски — общий компонент выбора стройки, #1219',
+    filters: false, because: 'варианты разноски урезает PlaceSelect (useSiteChoices, #1219)',
   },
   '/src/features/costs/LineAllocation.tsx': {
-    filters: false, because: 'варианты разноски — общий компонент выбора стройки, #1219',
+    filters: false, because: 'варианты разноски урезает PlaceSelect (useSiteChoices, #1219)',
   },
   '/src/features/costs/InvoiceObject.tsx': {
-    filters: false, because: 'объект счёта — общий компонент выбора стройки, #1219',
+    filters: false, because: 'объект счёта урезает PlaceSelect (useSiteChoices, #1219)',
   },
   '/src/features/costs/WaybillsPage.tsx': {
     filters: false, because: 'список накладных страничный — отбор параметром sites, #1222',
   },
   '/src/features/costs/SiteCostsPage.tsx': {
-    filters: false, because: 'отчёт сворачивает неизбранные строкой, не меняя чисел, — #1223',
+    filters: false, because: 'выбор стройки урезает useSiteChoices (#1219); отчёт сворачивает неизбранные строкой, не меняя чисел, — #1223',
   },
   '/src/features/reconciliations/ReconciliationsPage.tsx': {
     filters: false, because: 'сверка — вне первой версии (#1217): справочник только для имён',

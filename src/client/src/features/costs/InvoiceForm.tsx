@@ -39,6 +39,7 @@ import { deferralNote, hints, shippedBeforeIssued } from './invoiceDue';
 import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart } from './InvoiceRecognitionNote';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
+import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -179,7 +180,10 @@ export function InvoiceForm({
     catch (e) { toast.apiError(e, 'Метки не сняты'); }
   }
 
+  // Граница формы для «Показать все стройки» (issue #1219): объект счёта, разноска строк и матрица —
+  // одна форма; раскрыли в одном списке — раскрыты все, до ухода к другому счёту (форма с ключом).
   return (
+    <SiteRevealScope>
     <RecognitionContext.Provider value={locked ? undefined : watch.recognition}>
     <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty || linesDirty} reading={watch.running}
       organizations={organizations} onDeleted={onClose}>
@@ -297,6 +301,7 @@ export function InvoiceForm({
     </div>
     </InvoiceDeleteProvider>
     </RecognitionContext.Provider>
+    </SiteRevealScope>
   );
 }
 
