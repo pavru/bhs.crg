@@ -10,16 +10,20 @@ namespace BHS.CRG.Application.Settings;
 /// <param name="MaxLength">Предел длины значения. Не украшение: значение приходит снаружи.</param>
 /// <param name="OneOf">Допустимые значения, если их список закрыт. null — проверяется только форма.</param>
 /// <param name="Shape">Форма значения, когда список открыт (язык). null — любая строка в пределах длины.</param>
+/// <param name="Valid">Проверка значения, которую регулярным выражением не записать (список своих
+/// рабочих пространств — JSON). null — хватает остального.</param>
 public sealed record UserSettingKey(
     string Code,
     int MaxLength,
     IReadOnlyList<string>? OneOf = null,
-    Regex? Shape = null)
+    Regex? Shape = null,
+    Func<string, bool>? Valid = null)
 {
     public bool Accepts(string value) =>
         value.Length <= MaxLength
         && (OneOf is null || OneOf.Contains(value, StringComparer.Ordinal))
-        && (Shape is null || Shape.IsMatch(value));
+        && (Shape is null || Shape.IsMatch(value))
+        && (Valid is null || Valid(value));
 }
 
 /// <summary>
@@ -29,9 +33,9 @@ public sealed record UserSettingKey(
 /// принимает ТОЛЬКО объявленный ключ. Иначе опечатка (<c>them</c> вместо <c>theme</c>) сохранилась
 /// бы успешно и молча, а потом настройка «не приезжала» — отказ, переодетый в удавшуюся запись.
 ///
-/// ⚠️ Здесь объявлено ровно то, у чего УЖЕ есть потребитель. Рабочие пространства (`AUTH-16.1`) и
-/// закреплённые разделы (`AUTH-16.4`) хранятся этим же механизмом и приедут своими работами — ключ
-/// заводится вместе с тем, кто его читает. Ключ без потребителя проверить нечем: он выглядит
+/// ⚠️ Здесь объявлено ровно то, у чего УЖЕ есть потребитель. Рабочие пространства (`AUTH-16.1`)
+/// приехали с переключателем (issue #1001); закреплённые разделы (`AUTH-16.4`) хранятся этим же
+/// механизмом и приедут своей работой — ключ заводится вместе с тем, кто его читает. Ключ без потребителя проверить нечем: он выглядит
 /// работающим ровно до первого чтения.
 ///
 /// Сохранённые представления таблиц (`CORE-33`) сюда НЕ легли, хотя ТЗ это обещало (issue #1095):
@@ -59,7 +63,27 @@ public static class UserSettingKeys
     public static readonly UserSettingKey Locale = new("locale", 35,
         Shape: new Regex("^(system|[A-Za-z]{2,8}(-[A-Za-z0-9]{2,8})*)$", RegexOptions.Compiled));
 
-    public static readonly IReadOnlyList<UserSettingKey> All = [Theme, Locale];
+    /// <summary>
+    /// Свои рабочие пространства (ТЗ AUTH-16.1, AUTH-16.5; issue #1001) — JSON-список
+    /// <c>{ id, name, modules }</c>. Только личные: общие и назначение роли отложены (STG-14).
+    /// </summary>
+    public static readonly UserSettingKey Workspaces = new("workspaces", 16_000,
+        Valid: WorkspaceSettingValues.IsOwnList);
+
+    /// <summary>
+    /// Пространство, выбранное последним (AUTH-16.1): в него человек возвращается после входа, если
+    /// умолчание не задано. Вычисляемые системные — тоже кодом (<c>all</c>, <c>module:costs</c>).
+    /// </summary>
+    public static readonly UserSettingKey Workspace = new("workspace", 64, Shape: WorkspaceSettingValues.Choice);
+
+    /// <summary>
+    /// Пространство по умолчанию (AUTH-16.5): открывается при входе. Ключа нет — «открывать последнее
+    /// выбранное»; так умолчание и снимается.
+    /// </summary>
+    public static readonly UserSettingKey DefaultWorkspace = new("workspace.default", 64,
+        Shape: WorkspaceSettingValues.Choice);
+
+    public static readonly IReadOnlyList<UserSettingKey> All = [Theme, Locale, Workspaces, Workspace, DefaultWorkspace];
 
     /// <summary>Объявленный ключ или null — и тогда адрес отвечает отказом, а не записью.</summary>
     public static UserSettingKey? Find(string code) =>

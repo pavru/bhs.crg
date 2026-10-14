@@ -162,6 +162,14 @@ public sealed class IdModule : IAppModule
     public IReadOnlyList<string> RoutePrefixes =>
         ["/api/quality-docs", "/api/plans", "/api/document-sets"];
 
+    /// <summary>
+    /// Разделы ядра, без которых исполнительной документации нет (issue #1001): стройки с комплектами,
+    /// справочники, из которых документ берёт организации и людей, наборы данных и сверка документов
+    /// между собой.
+    /// </summary>
+    public IReadOnlyList<string> UsesSections =>
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Datasets, CoreSections.Reconciliations];
+
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapDocumentSetEndpoints();

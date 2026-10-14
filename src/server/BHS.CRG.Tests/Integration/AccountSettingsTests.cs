@@ -123,6 +123,68 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
         Assert.Empty(await SettingsAsync(client));
     }
 
+    /// <summary>
+    /// Признак готовности рабочих пространств (issue #1001): своё пространство, выбор и умолчание
+    /// хранит сервер — с другого компьютера человек возвращается в то же пространство.
+    /// </summary>
+    [Fact]
+    public async Task Своё_пространство_и_умолчание_приезжают_на_другую_машину()
+    {
+        var email = await CreateUserAsync();
+        const string own = """[{"id":"w1","name":"Снабжение","modules":["costs","id"]}]""";
+        (await (await SignInAsync(email)).PutAsJsonAsync("/api/account/settings", new Dictionary<string, string?>
+        {
+            ["workspaces"] = own, ["workspace"] = "module:costs", ["workspace.default"] = "own:w1",
+        })).EnsureSuccessStatusCode();
+
+        var settings = await SettingsAsync(await SignInAsync(email));
+
+        Assert.Equal(own, settings["workspaces"]);
+        Assert.Equal("module:costs", settings["workspace"]);
+        Assert.Equal("own:w1", settings["workspace.default"]);
+    }
+
+    /// <summary>
+    /// Список своих пространств — JSON, и каша в нём отвергается: сохранённая, она не прочиталась бы
+    /// клиентом на другом компьютере, где исправить её уже нечем. Повтор имени — тоже отказ (ТЗ
+    /// AUTH-16.5: имя единственное среди своих), как и пространство без модулей.
+    /// </summary>
+    [Theory]
+    [InlineData("не json")]
+    [InlineData("""{"id":"w1"}""")]
+    [InlineData("""[{"id":"w1","name":"Снабжение","modules":[]}]""")]
+    [InlineData("""[{"id":"w1","name":"  ","modules":["costs"]}]""")]
+    [InlineData("""[{"id":"w1","name":"Снабжение","modules":["costs"]},{"id":"w2","name":"снабжение ","modules":["id"]}]""")]
+    [InlineData("""[{"id":"w1","name":"А","modules":["costs"]},{"id":"w1","name":"Б","modules":["id"]}]""")]
+    [InlineData("""[{"id":"w1","name":"А","modules":["costs","costs"]}]""")]
+    [InlineData("""[{"id":"w1","name":"А","modules":["Costs!"]}]""")]
+    public async Task Негодный_список_пространств_отвергается(string value)
+    {
+        var client = await SignInAsync(await CreateUserAsync());
+
+        var response = await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { ["workspaces"] = value });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(await SettingsAsync(client));
+    }
+
+    /// <summary>Выбор пространства — код из трёх видов; остальное — отказ, а не тихая запись.</summary>
+    [Theory]
+    [InlineData("workspace", "costs")]
+    [InlineData("workspace", "own:")]
+    [InlineData("workspace.default", "module:")]
+    [InlineData("workspace.default", "все")]
+    public async Task Негодный_выбор_пространства_отвергается(string key, string value)
+    {
+        var client = await SignInAsync(await CreateUserAsync());
+
+        var response = await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { [key] = value });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     /// <summary>Без входа адрес не отвечает: настройки принадлежат конкретному человеку.</summary>
     [Fact]
     public async Task Без_входа_настроек_нет()
