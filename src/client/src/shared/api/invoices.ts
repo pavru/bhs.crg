@@ -273,7 +273,8 @@ export interface InvoiceView {
    * трогает; `byRule` — что дало бы правило сейчас (`null` — считать не из чего). Сам срок — реквизит
    * «Срок». Старый сервер поля не присылает.
    */
-  due?: { manual: boolean; byRule: string | null };
+  /** Срок по правилу (C4, issue #1080); `supplierDeferral` — отсрочка в условиях поставщика счёта. */
+  due?: { manual: boolean; byRule: string | null; supplierDeferral?: number | null };
   createdAt: string;
   updatedAt: string;
   /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */
@@ -330,6 +331,13 @@ export interface InvoiceListItem {
    * прежний. ⚠️ Это не «всё готово».
    */
   readiness?: string[] | null;
+  /**
+   * Дней до срока «оплатить до» от сегодня в поясе компании (C4, issue #1080); у просроченного —
+   * отрицательное. `null` — счёт оплаты не ждёт либо срок не определён.
+   */
+  daysLeft?: number | null;
+  /** Срок прошёл, а счёт оплаты ждёт. Считает сервер — признак нигде не хранится. */
+  overdue?: boolean;
 }
 
 /** Где в счёте стоят ссылки не на месте. `count` — ссылок, а не мест формы. */
@@ -394,6 +402,14 @@ export interface NomenclatureSearchResult {
 export const QK = 'costs-invoices';
 
 export const INVOICES_KEY = [QK] as const;
+
+/**
+ * Ключ вида одного счёта — `[QK, id]`. Рядом под тем же QK лежат списки (`'list'`) и числа очередей
+ * (`'queues'`); перечитать только виды открытых счетов значит отобрать по этому признаку.
+ */
+export function isInvoiceView(key: readonly unknown[]): boolean {
+  return key.length === 2 && key[0] === QK && key[1] !== 'list' && key[1] !== 'queues';
+}
 
 /**
  * Реестр счетов. Очередь: «Разобрать» — все недоведённые счета, то есть черновики; «удалённые записи»

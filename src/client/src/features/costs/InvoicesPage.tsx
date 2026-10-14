@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
-import { FileText, Link2, Plus, ScanLine, Tags } from 'lucide-react';
+import { CalendarClock, FileText, Link2, Plus, ScanLine, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -23,6 +23,7 @@ import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/f
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ArticlesDialog } from './ArticlesDialog';
 import { SupplierMatchesDialog } from './SupplierMatchesDialog';
+import { SupplierTermsDialog } from './SupplierTermsDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
@@ -76,6 +77,7 @@ export function InvoicesPage() {
   const { data: access = NO_ACCESS } = useAccess();
   const [articlesOpen, setArticlesOpen] = useState(false);
   const [matchesOpen, setMatchesOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
 
   const invoices = useInvoices(queue);
   // Числа чипов «наведите порядок» — тому, кто счёт может исправить: остальным число было бы упрёком
@@ -330,6 +332,11 @@ export function InvoicesPage() {
               <Button variant="outlined" icon={<Link2 size={16} />} onClick={() => setMatchesOpen(true)}>
                 Соответствия
               </Button>
+              {/* Условия поставщиков (C4, #1080) — рядом с соответствиями и у того же человека: отсрочку
+                  в счёт подставляют они, и видит, что подставлять нечего, тот, кто вводит счета. */}
+              <Button variant="outlined" icon={<CalendarClock size={16} />} onClick={() => setTermsOpen(true)}>
+                Условия поставщиков
+              </Button>
               <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
                 Новый счёт
               </Button>
@@ -350,6 +357,7 @@ export function InvoicesPage() {
           )}
           {articlesOpen && <ArticlesDialog onClose={() => setArticlesOpen(false)} />}
           {matchesOpen && <SupplierMatchesDialog onClose={() => setMatchesOpen(false)} />}
+          {termsOpen && <SupplierTermsDialog onClose={() => setTermsOpen(false)} />}
         </div>
       }
       nav={

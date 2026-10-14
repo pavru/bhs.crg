@@ -38,6 +38,9 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public DbSet<SupplierMatch> SupplierMatches => Set<SupplierMatch>();
 
+    /// <summary>Условия поставщиков — отсрочка платежа (C4, issue #1080, ТЗ COST-9.2).</summary>
+    public DbSet<SupplierTerms> SupplierTerms => Set<SupplierTerms>();
+
     public DbSet<InvoiceAllocation> InvoiceAllocations => Set<InvoiceAllocation>();
 
     public DbSet<InvoiceRecognition> InvoiceRecognitions => Set<InvoiceRecognition>();
@@ -108,6 +111,9 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// </summary>
     public string VersionOf(SupplierMatch match) => Version(match);
 
+    /// <summary>Версия условий поставщика (issue #1080) — её называет правка из окна условий.</summary>
+    public string VersionOf(SupplierTerms terms) => Version(terms);
+
     /// <summary>
     /// Версия счёта, как она лежит в базе, — без чтения самого счёта и без отслеживания; <c>null</c> —
     /// счёта нет. Для проверки ДО связки записи (<c>InvoiceDesk.EnsureSeenAsync</c>).
@@ -127,6 +133,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
             return new ConflictException(
                 "Соответствие наименований изменили одновременно с этой правкой, и она не записана. " +
                 "Перечитайте список соответствий и повторите: записанная поверх, она затёрла бы чужую правку.",
+                e);
+
+        if (e.Entries.Any(entry => entry.Entity is SupplierTerms))
+            return new ConflictException(
+                "Условия поставщика изменили одновременно с этой правкой, и она не записана. " +
+                "Перечитайте условия поставщиков и повторите: записанная поверх, она затёрла бы чужую правку.",
                 e);
 
         var waybill = e.Entries.Any(entry => entry.Entity is Waybill or WaybillLine);
@@ -160,6 +172,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
         invoice.Property(i => i.ShippedOn).HasColumnName("shipped_on");
         invoice.Property(i => i.DeferralDays).HasColumnName("deferral_days");
+        invoice.Property(i => i.DeferralFromTerms).HasColumnName("deferral_from_terms");
         invoice.Property(i => i.DueDate).HasColumnName("due_date");
         invoice.Property(i => i.DueDateManual).HasColumnName("due_date_manual");
 
@@ -235,6 +248,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
         MapLines(builder);
         SupplierMatch.Map(builder);
+        Data.SupplierTerms.Map(builder);
         MapAllocations(builder);
         MapWaybills(builder);
     }

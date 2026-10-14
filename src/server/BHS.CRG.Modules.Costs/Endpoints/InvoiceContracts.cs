@@ -138,7 +138,12 @@ public sealed record InvoiceListItem(
     // Что со сканом: читается либо счёт стоит под «Не распознано» (определение — в
     // InvoiceListRecognition); пусто — сказать нечего.
     InvoiceListScan? Recognition = null,
-    IReadOnlyList<string>? Readiness = null);
+    IReadOnlyList<string>? Readiness = null,
+    // «Осталось дней» и «просрочен» (ТЗ COST-9.1; C4, issue #1080) — от сегодня в поясе компании, тем
+    // же правилом, что колонки таблицы счетов (InvoiceDue). Пусто — счёт оплаты не ждёт либо срок не
+    // определён: у оплаченного «осталось дней» не показывается.
+    int? DaysLeft = null,
+    bool Overdue = false);
 
 /// <summary>
 /// Срок «оплатить до» глазами правила (C4, issue #1080): сам срок едет реквизитом «Срок», а здесь — то,
@@ -148,7 +153,13 @@ public sealed record InvoiceListItem(
 /// <param name="ByRule">Что дало бы правило сейчас; <c>null</c> — считать не из чего. Форма показывает
 /// «По правилу», когда нажатие что-то изменит: срок правлен руками либо записан по прежнему правилу —
 /// смена настройки записанные сроки не пересчитывает (решение владельца 14.10.2026).</param>
-public sealed record InvoiceDueView(bool Manual, DateOnly? ByRule);
+/// <param name="SupplierDeferral">Отсрочка в условиях поставщика счёта (ТЗ COST-9.2); <c>null</c> —
+/// условий нет. Форма говорит у поля «Отсрочка», взята ли она из условий или отличается от них.</param>
+public sealed record InvoiceDueView(bool Manual, DateOnly? ByRule, int? SupplierDeferral = null)
+{
+    public static InvoiceDueView Of(Invoice invoice, InvoiceDueRule rule, int? supplierDeferral) =>
+        new(invoice.DueDateManual, rule.DueOf(invoice.ShippedOn, invoice.DeferralDays), supplierDeferral);
+}
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
 public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);
@@ -164,7 +175,7 @@ public static class InvoiceViews
         IReadOnlyList<InvoiceSameFile> sameFile, IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment,
         InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived,
-        InvoiceReadiness readiness, InvoiceDueRule rule, IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
+        InvoiceReadiness readiness, InvoiceDueView due, IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
         invoice.Id,
         version,
         invoice.DocumentTypeId,
@@ -183,7 +194,7 @@ public static class InvoiceViews
         // «всё готово» рядом с таким отказом было бы неправдой (ревью PR #1301).
         new InvoiceReadinessView(InvoiceReadiness.Required,
             invoice.State == InvoiceState.Draft && payment.LockedBy is null ? readiness.Gaps : null),
-        new InvoiceDueView(invoice.DueDateManual, rule.DueOf(invoice.ShippedOn, invoice.DeferralDays)),
+        due,
         invoice.CreatedAt,
         invoice.UpdatedAt);
 
@@ -232,7 +243,8 @@ public static class InvoiceViews
         : null;
 
     public static InvoiceListItem Item(
-        Invoice invoice, string? supplierName, bool supplierArchived, int lines, int withoutNomenclature) => new(
+        Invoice invoice, string? supplierName, bool supplierArchived, int lines, int withoutNomenclature,
+        DateOnly today) => new(
         invoice.Id,
         invoice.Number,
         invoice.IssuedOn,
@@ -248,7 +260,9 @@ public static class InvoiceViews
         invoice.ScanBlobPath is not null,
         lines,
         withoutNomenclature,
-        ScanFileName: invoice.ScanFileName);
+        ScanFileName: invoice.ScanFileName,
+        DaysLeft: (int?)InvoiceDue.DaysLeftOf(invoice, today),
+        Overdue: InvoiceDue.OverdueOf(invoice, today) == true);
 
     public static InvoiceDuplicate Duplicate(Invoice invoice) =>
         new(invoice.Id, invoice.Number, invoice.IssuedOn, invoice.Total);

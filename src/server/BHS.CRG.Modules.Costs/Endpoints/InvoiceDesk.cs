@@ -46,6 +46,32 @@ public sealed class InvoiceDesk(
         new(await settings.GetAsync(CostsSettings.ShippingDayCounts, ct));
 
     /// <summary>
+    /// Колонки записи с отсрочкой из условий поставщика (ТЗ COST-9.2; C4, issue #1080), если запись её
+    /// получает — когда, решает <see cref="SupplierTerms.Substituted" />. Здесь, а не у каждого
+    /// обработчика: пишут шапку трое — создание, правка и распознавание, — и подстановка у всех одна.
+    /// </summary>
+    /// <returns>Колонки и признак «отсрочка подставлена»: по нему снимается метка «распознано» с поля
+    /// и журнал называет отсрочку среди изменённого.</returns>
+    public async Task<(InvoiceColumns Columns, bool Termed)> WithTermsAsync(
+        InvoiceColumns columns, Invoice? was, CancellationToken ct)
+    {
+        // Поставщик не сменился — условия не читаются вовсе: таких записей большинство.
+        if (columns.SupplierId is not { } supplier || supplier == was?.SupplierId) return (columns, false);
+
+        var terms = await SupplierDeferralAsync(supplier, ct);
+        return SupplierTerms.Substituted(
+                columns, (was?.SupplierId, was?.DeferralDays, was?.DeferralFromTerms ?? false), terms) is { } deferral
+            ? (columns with { DeferralDays = deferral, DeferralFromTerms = true }, true)
+            : (columns, false);
+    }
+
+    /// <summary>Отсрочка в условиях поставщика — для подсказки у поля формы; нет поставщика или условий — пусто.</summary>
+    private async Task<int?> SupplierDeferralAsync(Guid? supplierId, CancellationToken ct) =>
+        supplierId is not { } id ? null
+        : await db.SupplierTerms.AsNoTracking().Where(t => t.SupplierId == id).Select(t => (int?)t.DeferralDays)
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>
     /// Выполнить правку счёта.
     /// </summary>
     /// <param name="evenLocked">Путь, которому запертый счёт не отказ сам по себе, — он решает по
@@ -277,7 +303,7 @@ public sealed class InvoiceDesk(
             lost,
             records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet(),
             readiness,
-            await DueRuleAsync(ct),
+            InvoiceDueView.Of(invoice, await DueRuleAsync(ct), await SupplierDeferralAsync(invoice.SupplierId, ct)),
             await SupplierMatching.MarkedAsync(db, lines, ct)), readiness);
     }
 

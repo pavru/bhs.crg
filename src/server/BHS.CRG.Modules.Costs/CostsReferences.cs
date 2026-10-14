@@ -86,6 +86,13 @@ public static class CostsReferences
         ModuleReference.Remembering("supplier_matches", "updated_by", ReferenceTarget.User,
             "кто запомнил соответствие — справочное поле; удаление учётной записи соответствий не касается"),
 
+        // Условия поставщика (C4, issue #1080). Держат поставщика — как соответствия: условия удалённой
+        // записи — мусор, который никто не увидит, а снять их можно в том же окне, где их завели.
+        ModuleReference.Holding("supplier_terms", "supplier_id", ReferenceTarget.Record,
+            "условия оплаты этого поставщика (их снимают в окне «Условия поставщиков» на странице счетов)"),
+        ModuleReference.Remembering("supplier_terms", "updated_by", ReferenceTarget.User,
+            "кто записал условия поставщика — справочное поле; удаление учётной записи условий не касается"),
+
         ModuleReference.Holding("invoice_allocations", "construction_id", ReferenceTarget.Construction,
             "части разноски счетов на эту стройку", Invoice("invoice_id")),
         ModuleReference.Holding("invoice_allocations", "section_id", ReferenceTarget.Section,

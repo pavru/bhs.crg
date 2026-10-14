@@ -1,4 +1,4 @@
-import type { InvoiceView } from '@/shared/api/invoices';
+import type { InvoiceListItem, InvoiceView } from '@/shared/api/invoices';
 import { formatDate } from '@/shared/format/format';
 import { K } from './invoiceFields';
 
@@ -47,10 +47,6 @@ export function dueState(view: InvoiceView, edits: Record<string, unknown>, lock
 }
 
 /**
- * Отгрузка раньше даты счёта (ТЗ COST-9.1): предупреждение у поля, а не отказ — бывает и так
- * (отгрузили до выставления счёта), но чаще это опечатка в годе или месяце, и срок от неё уедет.
- */
-/**
  * Подсказки под полем — все, а не первая (ревью PR #1328): метка «распознано, не подтверждено» и
  * предупреждение о дате говорят о разном, и одна не вправе затирать другую.
  */
@@ -59,7 +55,56 @@ export function hints(...parts: (string | null | undefined)[]): string | undefin
   return shown.length > 0 ? shown.join(' · ') : undefined;
 }
 
+/**
+ * Что сказать у поля «Отсрочка» об условиях поставщика (ТЗ COST-9.2; решение владельца 14.10.2026):
+ * взята ли она из условий или отличается от них. `null` — у поставщика условий нет.
+ *
+ * Подставляет отсрочку СЕРВЕР — при сохранении, когда сменился поставщик; форма только говорит.
+ * Поставщика сменили и не сохранили — молчит: условия в виде счёта принадлежат прежнему поставщику.
+ */
+export function deferralNote(view: InvoiceView, edits: Record<string, unknown>): string | null {
+  const terms = view.due?.supplierDeferral ?? null;
+  if (terms === null) return null;
+  if (K.supplier in edits && JSON.stringify(edits[K.supplier]) !== JSON.stringify(view.requisites[K.supplier] ?? null))
+    return null;
+
+  const value = K.deferral in edits ? edits[K.deferral] : view.requisites[K.deferral];
+  const days = typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value)
+    : null;
+  return days === terms ? 'Из условий поставщика' : `В условиях поставщика — ${terms} дн.`;
+}
+
+/**
+ * Отгрузка раньше даты счёта (ТЗ COST-9.1): предупреждение у поля, а не отказ — бывает и так
+ * (отгрузили до выставления счёта), но чаще это опечатка в годе или месяце, и срок от неё уедет.
+ */
 export function shippedBeforeIssued(shipped: unknown, issued: unknown): boolean {
   return typeof shipped === 'string' && typeof issued === 'string' && shipped !== '' && issued !== ''
     && shipped.slice(0, 10) < issued.slice(0, 10);
+}
+
+/** За сколько дней до срока строка списка начинает звать платить. */
+export const DUE_SOON = 3;
+
+/**
+ * Отметка срока в строке списка счетов (ТЗ COST-9.1; C4, issue #1080): «просрочен» либо сколько дней
+ * осталось. Числа считает СЕРВЕР — от сегодня в поясе компании, тем же правилом, что колонки таблицы
+ * счетов; строка только выбирает слова. `null` — счёт оплаты не ждёт либо срок не определён: у
+ * оплаченного «осталось дней» не показывается.
+ */
+export function rowDue(item: Pick<InvoiceListItem, 'daysLeft' | 'overdue' | 'dueDate'>):
+  { text: string; title: string; tone: 'danger' | 'warning' | 'quiet' } | null {
+  const days = item.daysLeft;
+  if (days === null || days === undefined) return null;
+  const on = item.dueDate ? ` (${formatDate(item.dueDate)})` : '';
+
+  if (item.overdue)
+    return { text: 'просрочен', tone: 'danger', title: `Срок оплаты прошёл ${-days} дн. назад${on}` };
+  if (days === 0) return { text: 'сегодня', tone: 'warning', title: `Срок оплаты сегодня${on}` };
+  return {
+    text: `${days} дн.`,
+    tone: days <= DUE_SOON ? 'warning' : 'quiet',
+    title: `Осталось дней до срока оплаты: ${days}${on}`,
+  };
 }

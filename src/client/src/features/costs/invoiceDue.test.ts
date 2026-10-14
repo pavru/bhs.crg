@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceView } from '@/shared/api/invoices';
-import { dueState, hints, shippedBeforeIssued } from './invoiceDue';
+import { deferralNote, dueState, hints, rowDue, shippedBeforeIssued } from './invoiceDue';
 
 function view(due: string | null, manual: boolean, byRule: string | null): InvoiceView {
   return { requisites: { Срок: due }, due: { manual, byRule } } as unknown as InvoiceView;
@@ -60,5 +60,58 @@ describe('shippedBeforeIssued', () => {
     expect(shippedBeforeIssued('2026-09-03', '2026-09-03')).toBe(false);
     expect(shippedBeforeIssued(null, '2026-09-03')).toBe(false);
     expect(shippedBeforeIssued('2026-09-01', '')).toBe(false);
+  });
+});
+
+describe('deferralNote', () => {
+  const supplier = { $ref: 'catalog', entryId: 'v1' };
+  function termed(deferral: number | null, terms: number | null): InvoiceView {
+    return {
+      requisites: { Поставщик: supplier, Отсрочка: deferral },
+      due: { manual: false, byRule: null, supplierDeferral: terms },
+    } as unknown as InvoiceView;
+  }
+
+  it('отсрочка как в условиях — «из условий поставщика»', () => {
+    expect(deferralNote(termed(30, 30), {})).toBe('Из условий поставщика');
+  });
+
+  it('отсрочка отличается или пуста — названы условия', () => {
+    expect(deferralNote(termed(45, 30), {})).toBe('В условиях поставщика — 30 дн.');
+    expect(deferralNote(termed(null, 30), {})).toBe('В условиях поставщика — 30 дн.');
+  });
+
+  it('набранное в форме сравнивается с условиями', () => {
+    expect(deferralNote(termed(45, 30), { Отсрочка: '30' })).toBe('Из условий поставщика');
+  });
+
+  it('условий нет — молчит', () => {
+    expect(deferralNote(termed(30, null), {})).toBeNull();
+  });
+
+  it('поставщика сменили и не сохранили — молчит: условия прежнего', () => {
+    expect(deferralNote(termed(30, 30), { Поставщик: { $ref: 'catalog', entryId: 'v2' } })).toBeNull();
+    expect(deferralNote(termed(30, 30), { Поставщик: supplier })).toBe('Из условий поставщика');
+  });
+});
+
+describe('rowDue', () => {
+  it('просроченный помечен словом', () => {
+    expect(rowDue({ daysLeft: -3, overdue: true, dueDate: '2026-10-11' }))
+      .toEqual({ text: 'просрочен', tone: 'danger', title: 'Срок оплаты прошёл 3 дн. назад (11.10.2026)' });
+  });
+
+  it('в день срока — «сегодня»', () => {
+    expect(rowDue({ daysLeft: 0, overdue: false, dueDate: '2026-10-14' })?.text).toBe('сегодня');
+  });
+
+  it('срок близко — предупреждение, далеко — тихо', () => {
+    expect(rowDue({ daysLeft: 3, overdue: false, dueDate: null })?.tone).toBe('warning');
+    expect(rowDue({ daysLeft: 20, overdue: false, dueDate: null })).toMatchObject({ text: '20 дн.', tone: 'quiet' });
+  });
+
+  it('счёт оплаты не ждёт либо срока нет — отметки нет', () => {
+    expect(rowDue({ daysLeft: null, overdue: false, dueDate: '2026-10-14' })).toBeNull();
+    expect(rowDue({ daysLeft: undefined, overdue: undefined, dueDate: null })).toBeNull();
   });
 });

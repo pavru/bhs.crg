@@ -4430,6 +4430,9 @@ GET    /api/costs/invoices/queues/parsing → { count } — число у чип
                                       сканом без строк, чей скан сейчас не читается.
                                       У строки — scanFileName и recognition: { state: running | failed |
                                       done | none, reason } — что со сканом; null — сказать нечего
+                                      daysLeft и overdue (#1080) — от сегодня в поясе компании, тем же
+                                      правилом, что колонки таблицы (InvoiceDue); daysLeft null — счёт
+                                      оплаты не ждёт либо срок не определён
 GET    /api/costs/invoices/queues   → числа чипов над списком: { lost, archived, locked, doubt,
                                       unrecognized } — lost и archived равны числам готовых отборов
                                       таблицы costs.invoices; unrecognized — числу строк под
@@ -4561,6 +4564,13 @@ DELETE /api/costs/supplier-matches?supplierId=  забыть ВСЕ соотве
 PUT    /api/costs/supplier-matches/{id}  { nomenclatureId }   направить на другую позицию; If-Match —
                                       версия записи (без неё 400, с устаревшей 409); архивная — 400
 DELETE /api/costs/supplier-matches/{id}  забыть соответствие; If-Match — версия записи
+GET    /api/costs/supplier-terms     → условия поставщиков (costs.invoice.edit, #1080): [{ supplierId,
+                                      version, supplierName, supplierArchived, supplierLost,
+                                      deferralDays, updatedAt, updatedBy }], по названию поставщика
+PUT    /api/costs/supplier-terms/{supplierId}  { deferralDays: 0…3650 }  БЕЗ If-Match — завести новые
+                                      (уже есть — 409; архивная или чужая запись — 400); С If-Match —
+                                      изменить (устаревшая версия — 409). Заведённые счета не меняются
+DELETE /api/costs/supplier-terms/{supplierId}  снять условия; If-Match обязателен (без него 400)
 GET    /api/nomenclature/intake      → виды позиций и что о каждом спросить (core.nomenclature.edit):
                                       kinds [{ typeId, code, name, refusals, fields [{ key, title,
                                       required, identity, options }] }]. «options: null» — текст,
