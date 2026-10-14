@@ -1,13 +1,12 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
+import { TypePicker } from '@/shared/ui/TypePicker';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
 import { usePreviewMoveDocument, useMoveDocument, type CopyWarning } from '@/shared/api/documentSets';
 import { CopyWarnings } from './CopyWarnings';
 import type { Construction } from '@/shared/api/types';
-
-interface TargetSet { id: string; name: string; constructionId: string }
+import { useSetTargets, type TargetSet } from './setTargets';
 
 interface MoveDocumentDialogProps {
   open: boolean;
@@ -37,15 +36,7 @@ function MoveDocumentDialogBody({ onClose, setId, currentSetName, instance, cons
   const [target, setTarget] = useState<TargetSet | null>(null);
   const targetRef = useRef<TargetSet | null>(null);
 
-  const options: PickType[] = [];
-  const meta = new Map<string, TargetSet>();
-  for (const c of constructions)
-    for (const s of c.sections)
-      for (const ds of s.documentSets) {
-        if (ds.id === setId) continue;
-        options.push({ id: ds.id, name: ds.name, code: s.name, section: c.name });
-        meta.set(ds.id, { id: ds.id, name: ds.name, constructionId: c.id });
-      }
+  const { options, meta, aside } = useSetTargets(constructions, setId);
 
   function handleSelect(id: string) {
     const t = meta.get(id) ?? null;
@@ -75,6 +66,7 @@ function MoveDocumentDialogBody({ onClose, setId, currentSetName, instance, cons
         title="Перенести в комплект"
         recentKey="copy-target-set"
         types={options}
+        aside={aside}
         onSelect={handleSelect}
       />
 

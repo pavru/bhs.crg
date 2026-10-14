@@ -52,8 +52,14 @@
 
     <!-- Кодом не используется: NPOI тянет этот пакет за собой, а версия из его зависимостей (8.0.2)
          числится в известных уязвимостях (NU1903). Прямая ссылка поднимает разрешённую версию до
-         исправленной — убрать её можно будет, когда NPOI сам перейдёт на 10.0.10+. -->
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
+         исправленной — убрать её можно будет, когда NPOI сам перейдёт на 10.0.13+. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
+
+    <!-- Тоже кодом не используется: MimeKit (через MailKit) тянет 10.0.0, а она в известных
+         уязвимостях (NU1903) по 10.0.12 включительно. Транзитивно через Xml исправленная версия до API
+         не доходит: в веб-проекте Xml входит в общий фреймворк ASP.NET Core и вычищается вместе со своими
+         зависимостями — проверено по project.assets.json API. Убрать, когда MimeKit перейдёт на 10.0.13+. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
   <PropertyGroup>

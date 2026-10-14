@@ -30,6 +30,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { sitePickerChecks } from './site-picker-checks.mjs';
 
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
 const ACCOUNTANT_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
@@ -265,6 +266,10 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
   const offered = await outside(await open(other));
   if (offered.some(o => o.startsWith(name))) throw new Error(`архивная статья предлагается на выбор: ${JSON.stringify(offered)}`);
 });
+
+// ── 3c. Выбор стройки под фильтром избранного (issue #1219) ── см. site-picker-checks.mjs ──────────
+await page.setViewportSize({ width: 1500, height: 1000 });
+await sitePickerChecks({ page, check, api, invoice, openMatrix, sites, stamp });
 
 // ── 4. Бухгалтер: матрица только для чтения, и ни одного отказа ───────────────────────────────────
 await check('matrix-under-read-only-right', async () => {

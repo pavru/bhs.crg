@@ -127,6 +127,13 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
     return () => setConsumers(n => n - 1);
   }, []);
 
+  // Состояние фильтра — отдельно от счётчика потребителей: каждый смонтированный список выбора
+  // регистрируется, и пересчитывай его `value` целиком — `favorites` выходило бы новым множеством на
+  // каждую регистрацию, сбрасывая мемоизацию у всех списков (ревью PR #1332).
+  const on = filterOn(settings.data?.[FILTER_KEY]);
+  const state = useMemo(
+    () => filterState(parseFavorites(settings.data?.[FAVORITES_KEY]), on, live), [settings.data, on, live]);
+
   const value = useMemo<SiteFilterValue>(() => {
     // Ошибка — только когда ответа НЕТ: неудачное перечитывание при уже полученных данных фильтр
     // не роняет, он работает по последнему известному.
@@ -134,8 +141,6 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
       !user || (access.data && !allowed) ? 'unavailable'
         : access.data && settings.data && directory.data ? 'ready'
           : access.isError || settings.isError || directory.isError ? 'error' : 'loading';
-    const on = filterOn(settings.data?.[FILTER_KEY]);
-    const state = filterState(parseFavorites(settings.data?.[FAVORITES_KEY]), on, live);
     const active = status === 'ready' && state.active;
     return {
       status,
@@ -157,7 +162,7 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
       register,
     };
   }, [user, access.data, access.isError, allowed, settings.data, settings.isError, directory.data, directory.isError,
-    live, sites, write, changeFavorites, consumers, register, toast]);
+    on, state, sites, write, changeFavorites, consumers, register, toast]);
 
   return <SiteFilterContext.Provider value={value}>{children}</SiteFilterContext.Provider>;
 }

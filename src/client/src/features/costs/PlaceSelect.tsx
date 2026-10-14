@@ -1,4 +1,6 @@
 import { withArchiveWord } from '@/shared/ui/archive';
+import { pickNative, useSiteChoices } from '@/shared/siteFilter/siteReveal';
+import { RevealOption, SiteOptions } from '@/shared/siteFilter/SiteOptions';
 import { choiceOf, fromChoice, placeName, type Place, type Places } from './places';
 
 /**
@@ -13,6 +15,10 @@ import { choiceOf, fromChoice, placeName, type Place, type Places } from './plac
  * пунктом «Склад — в архиве». Сменили цель — пункт исчезает. Помнить прежнее значение поле не
  * берётся: часть полей сохраняет выбор сразу, и после сохранения архивная статья у счёта уже не
  * стоит — вернуть её значило бы предложить то, что сервер отвергнет (ревью PR #1227).</p>
+ *
+ * <p>Стройки урезаны фильтром «Избранные стройки» (issue #1219): выход «Показать все стройки» —
+ * последним пунктом, после статей. Стоящая неизбранная стройка — группой «Не в избранном», а НЕ веткой
+ * потери: потеря значит «нет в справочнике», а эта стройка в нём есть. Статьи не фильтруются.</p>
  */
 export function PlaceSelect({ value, places, label, placeholder = '— выберите —', disabled, className, onChange }: {
   value: Place;
@@ -27,6 +33,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
   const articles = places.articles?.filter(a => !a.archived || a.id === value.article);
   const list = value.article ? places.articles : places.sites;
   const id = value.article ?? value.construction;
+  const sites = useSiteChoices(places.sites, value.article ? null : value.construction);
   // Список ещё не пришёл — «удалена» было бы неправдой: «ещё не знаем» не то же, что «нет».
   const orphan = current === '' ? null
     : list === undefined ? '…'
@@ -34,14 +41,10 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
 
   return (
     <select value={current} aria-label={label} disabled={disabled} className={className}
-      onChange={e => onChange(fromChoice(e.target.value))}>
+      onChange={e => pickNative(e.currentTarget, sites.reveal, choice => onChange(fromChoice(choice)))}>
       <option value="">{placeholder}</option>
       {orphan !== null && <option value={current}>{orphan}</option>}
-      {!!places.sites?.length && (
-        <optgroup label="Стройки">
-          {places.sites.map(s => <option key={s.id} value={choiceOf({ construction: s.id, section: null, article: null })}>{s.name}</option>)}
-        </optgroup>
-      )}
+      <SiteOptions choices={sites} valueOf={site => choiceOf({ construction: site, section: null, article: null })} />
       {!!articles?.length && (
         <optgroup label="Вне строек">
           {articles.map(a => (
@@ -51,6 +54,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
           ))}
         </optgroup>
       )}
+      <RevealOption hidden={sites.hidden} />
     </select>
   );
 }
