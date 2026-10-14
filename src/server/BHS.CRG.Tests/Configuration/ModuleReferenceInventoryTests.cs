@@ -99,7 +99,10 @@ public class ModuleReferenceInventoryTests
                      && r.Target is not (null or ReferenceTarget.DocumentType or ReferenceTarget.User)))
         {
             var entity = model.GetEntityTypes().Single(e => e.GetTableName() == r.Table);
-            var leads = entity.GetIndexes().Any(i => i.Properties[0].GetColumnName() == r.Column);
+            // Первичный ключ — тоже индекс: база строит под него уникальный. У условий поставщика
+            // (issue #1080) держащая колонка и есть ключ, и второй индекс по ней был бы дублем.
+            var leads = entity.GetIndexes().Any(i => i.Properties[0].GetColumnName() == r.Column)
+                || entity.FindPrimaryKey()?.Properties[0].GetColumnName() == r.Column;
             if (!leads) bare.Add($"{module.Code}: {r.Table}.{r.Column}");
         }
 

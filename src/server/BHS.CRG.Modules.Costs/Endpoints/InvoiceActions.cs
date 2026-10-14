@@ -173,8 +173,20 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction DueByRule =
         new("costs.invoice.due-by-rule", "Срок оплаты возвращён к правилу", InvoiceRead);
 
+    /// <summary>
+    /// Условия поставщика записаны или изменены (ТЗ COST-9.2; C4, issue #1080) — «было → стало» в днях.
+    /// Заведённые счета от этого не меняются, и запись нужна, чтобы ответить, откуда у нового счёта
+    /// такая отсрочка.
+    /// </summary>
+    public static readonly ModuleActivityAction TermsSet =
+        new("costs.supplier-terms.set", "Условия поставщика изменены", InvoiceRead);
+
+    /// <summary>Условия поставщика сняты: новые счета этого поставщика отсрочку от них не получают.</summary>
+    public static readonly ModuleActivityAction TermsRemoved =
+        new("costs.supplier-terms.removed", "Условия поставщика сняты", InvoiceRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, DueByHand, DueByRule, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, Rejected, Deleted, AllocationChanged,
+        [Created, Changed, Confirmed, DueByHand, DueByRule, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, TermsSet, TermsRemoved, Parsed, Draft, Rejected, Deleted, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

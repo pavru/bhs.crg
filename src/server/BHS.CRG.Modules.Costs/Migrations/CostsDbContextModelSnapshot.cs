@@ -508,6 +508,40 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.ToTable("supplier_matches", "costs");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.SupplierTerms", b =>
+                {
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<int>("DeferralDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("deferral_days");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by_name");
+
+                    b.HasKey("SupplierId");
+
+                    b.ToTable("supplier_terms", "costs");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.Waybill", b =>
                 {
                     b.Property<Guid>("Id")

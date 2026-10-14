@@ -39,7 +39,7 @@ public static class InvoiceListEndpoint
     /// чей скан сейчас не читается. Определение — в <see cref="InvoiceListRecognition" />.</param>
     public static async Task<Ok<IReadOnlyList<InvoiceListItem>>> ListAsync(
         CostsDbContext db, IModuleCatalog catalog, InvoiceReferenceTrouble trouble, ILoggerFactory logs,
-        InvoiceListRecognition recognition, InvoiceSnapshots snapshots, IModulePeriods periods,
+        InvoiceListRecognition recognition, InvoiceSnapshots snapshots, IModulePeriods periods, IModuleClock clock,
         CancellationToken ct, bool needsParsing = false, string? fix = null, bool unrecognized = false)
     {
         if (fix is not (null or InvoiceListReferences.FixLost or InvoiceListReferences.FixArchived))
@@ -107,6 +107,8 @@ public static class InvoiceListEndpoint
         var lines = counters.ToDictionary(c => c.InvoiceId, c => (Count: c.Count, Unmatched: c.Unmatched));
 
         var names = await SupplierNamesAsync(catalog, invoices, ct);
+        // «Сегодня» — один раз на список и в поясе компании: строки одного ответа считают сроки от одного дня.
+        var today = await clock.TodayAsync(ct);
         var gaps = await ReadinessAsync(invoices, snapshots, periods, required: needsParsing,
             logs.CreateLogger(typeof(InvoiceListEndpoint)), ct);
 
@@ -116,7 +118,8 @@ public static class InvoiceListEndpoint
                 i.SupplierId is { } id && names.TryGetValue(id, out var supplier) ? supplier.DisplayName : null,
                 i.SupplierId is { } key && names.TryGetValue(key, out var found) && found.Archived,
                 lines.TryGetValue(i.Id, out var total) ? total.Count : 0,
-                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0) with
+                lines.TryGetValue(i.Id, out var waiting) ? waiting.Unmatched : 0,
+                today) with
                 {
                     References = marks?.Of(i),
                     Recognition = scans.GetValueOrDefault(i.Id),

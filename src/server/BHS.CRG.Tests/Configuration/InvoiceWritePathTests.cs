@@ -45,6 +45,9 @@ public class InvoiceWritePathTests
         ["Endpoints/SupplierMatchListEndpoints.cs"] =
             (3, "правка и удаление соответствий из списка: пишется только supplier_matches, счёт не меняется. " +
                 "Защита от устаревшей формы у соответствия своя — версия записи в If-Match (issue #1079)"),
+        ["Endpoints/SupplierTermsEndpoints.cs"] =
+            (2, "условия поставщика, а не счёт: пишется только supplier_terms, заведённые счета не меняются. " +
+                "Защита от устаревшей формы своя — версия записи в If-Match (issue #1080)"),
     };
 
     /// <summary>Кто вправе считать учётную дату и спрашивать «закрыт ли день».</summary>

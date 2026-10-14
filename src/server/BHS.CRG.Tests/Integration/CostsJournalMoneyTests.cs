@@ -217,6 +217,16 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             [Line(cable, quantity: 1, price: Price, text: "Кабель для журнала")]);
         await OkAsync(await client.DeleteAsync($"/api/costs/supplier-matches?supplierId={vendor}"));
 
+        // Условия поставщика (C4, issue #1080) — тем же своим поставщиком: завести и снять.
+        var terms = await client.PutAsJsonAsync($"/api/costs/supplier-terms/{vendor}", new { deferralDays = 30 });
+        await OkAsync(terms);
+        using (var removal = new HttpRequestMessage(HttpMethod.Delete, $"/api/costs/supplier-terms/{vendor}"))
+        {
+            removal.Headers.TryAddWithoutValidation("If-Match",
+                (await terms.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetString());
+            await OkAsync(await client.SendAsync(removal));
+        }
+
         // Удаление — последним (issue #1282): счёт снова черновик без оплаты. Запись о нём называет
         // поставщика и файл — и не называет сумму.
         await OkAsync(await client.DeleteAsync($"/api/costs/invoices/{invoice}"));
