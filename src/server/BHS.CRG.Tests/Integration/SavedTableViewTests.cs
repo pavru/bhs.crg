@@ -342,7 +342,9 @@ public sealed class SavedTableViewTests(InvoiceLineHost host) : ModuleTableSeede
             using (var scope = host.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                db.SavedTableViews.AddRange(Enumerable.Range(0, BHS.CRG.Api.Modules.Tables.SavedTableViewService.SharedMax)
+                // На одно больше предела — как принесла бы копия: правимое в счёт группы не входит, и
+                // ровно с пределом проверка при правке прошла бы и без правила «только на входе».
+                db.SavedTableViews.AddRange(Enumerable.Range(0, BHS.CRG.Api.Modules.Tables.SavedTableViewService.SharedMax + 1)
                     .Select(i => BHS.CRG.Domain.Tables.SavedTableView.Create(Address, null, null, $"{mark} {i}", true, "{}")));
                 await db.SaveChangesAsync();
             }
