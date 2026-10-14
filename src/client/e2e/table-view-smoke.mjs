@@ -62,6 +62,7 @@ import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until } fr
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
+import { bridgeCopiesTheScreen } from './table-bridge.mjs';
 
 const TABLE = `${BASE}/tables/costs.invoices`;
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || PASSWORD;
@@ -429,6 +430,12 @@ try {
     if (cells !== TABLE_SEED.count) throw new Error(`в листе ${cells} строк посева, а в отборе ${TABLE_SEED.count}`);
     if (!xml.includes(`Строк: ${TABLE_SEED.count}<`)) throw new Error('в шапке файла нет «Строк: N» отбора');
     if (!xml.includes(`«${TABLE_SEED.purpose}»`)) throw new Error('отбор не назван в шапке файла словами');
+  });
+
+  await check('bridge-copies-the-screen: источник из экрана несёт его отбор, доля названа до нажатия', async () => {
+    await open(page, { filter: seeded, size: '50' });
+    await rowsBecome(page, 50, 'страница из пятидесяти строк');
+    await bridgeCopiesTheScreen(page);
   });
 
   // ── 5. Негодный отбор ─────────────────────────────────────────────────────────────────────────

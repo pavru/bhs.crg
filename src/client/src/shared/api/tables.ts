@@ -278,6 +278,28 @@ export async function exportTable(address: string, body: TableExportBody): Promi
     response.headers['content-disposition'] as string | undefined, 'Таблица.xlsx'));
 }
 
+/** Созданный мостом источник; `dropped` — подписи колонок экрана, не попавших в него. */
+export interface TableDataSetResult {
+  fileId: string;
+  sourceId: string;
+  name: string;
+  dropped: string[];
+}
+
+/**
+ * Мост «Сделать источником данных» (задача G3b, issue #1096): колонки, отбор и сортировка экрана —
+ * в источник системного набора уровня системы. Тело — то же, что у выгрузки, без итогов и названия
+ * представления: источник — копия состояния экрана, представления он не знает.
+ */
+export async function createTableDataSet(
+  address: string, name: string, body: TableExportBody,
+): Promise<TableDataSetResult> {
+  const { filter, columns, sort } = body;
+  const response = await apiClient.post<TableDataSetResult>(
+    `/tables/${encodeURIComponent(address)}/dataset`, { name, filter, columns, sort });
+  return response.data;
+}
+
 function filterText(filter: FilterNode | string | null): string | null {
   if (filter === null) return null;
   if (typeof filter === 'string') return filter.trim() ? filter : null;

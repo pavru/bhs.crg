@@ -2,6 +2,7 @@
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
@@ -126,7 +127,11 @@ public class DataSetFileService(
 
         Guid? scopeId = scope != CatalogScope.System && Guid.TryParse(input.ScopeId, out var sid) ? sid : null;
 
-        var existing = await db.DataSetFiles.Include(f => f.Sources)
+        // Под тем же замком, что мост из таблицы (AdvisoryLockKeys.SystemDataSetFile): иначе два первых
+        // обращения — кнопка здесь и мост там — завели бы два набора одного уровня (ревью PR #1327).
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({AdvisoryLockKeys.SystemDataSetFile})", ct);
+        var existing = await db.DataSetFiles.Include(f => f.Sources).OrderBy(f => f.CreatedAt).ThenBy(f => f.Id)
             .FirstOrDefaultAsync(f => f.Format == DataSetFormat.System && f.Scope == scope && f.ScopeId == scopeId, ct);
         if (existing != null) return DataSetDtoMapper.MapFile(existing);
 
@@ -134,6 +139,7 @@ public class DataSetFileService(
         var file = DataSetFile.CreateSystem(name, scope, scopeId);
         db.DataSetFiles.Add(file);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return DataSetDtoMapper.MapFile(file);
     }
 

@@ -34,7 +34,7 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.ToTable("dataset_sources");
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(256).IsRequired();
-        b.Property(e => e.SheetOrPath).HasMaxLength(1024).IsRequired();
+        b.Property(e => e.SheetOrPath).HasMaxLength(DataSetSource.SheetOrPathMaxLength).IsRequired();
         b.Property(e => e.ColumnExpressions).HasColumnType("jsonb");
         b.Property(e => e.CachedSchema).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.CachedRowCount).IsRequired();

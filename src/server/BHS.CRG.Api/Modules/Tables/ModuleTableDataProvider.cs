@@ -40,8 +40,13 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
     /// <summary>Адрес таблицы — для сторожа объявлений: имя класса у всех таблиц одно.</summary>
     public string Address => entry.Address;
 
-    /// <summary>Без учёта регистра — как <see cref="ModuleTableCatalog.Find" />: один адрес на обоих путях.</summary>
-    public bool Handles(string marker) => string.Equals(marker, MarkerOf(entry), StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Без учёта регистра — как <see cref="ModuleTableCatalog.Find" />: один адрес на обоих путях.
+    /// Маркер с колонками (источник из моста, G3b) — тоже наш: колонки не меняют, чья это таблица.
+    /// </summary>
+    public bool Handles(string marker) =>
+        SystemDataSets.TryParseTableMarker(marker, out var address, out _)
+        && string.Equals(address, entry.Address, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Таблица модуля живёт на уровне системы: её строки не зависят от места набора. Предлагать её
@@ -64,7 +69,10 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
 
         // Отказ здесь — дефект, а не ответ пользователю: до поставщика доходят только через ворота
         // набора (SystemDataSetGate), а они проверяют то же самое — систему, модуль и ключ таблицы.
-        var (table, refusal) = await tables.ReadAsync(entry.Address, access, new TableRequest(), ct);
+        // Колонки — из маркера, если их выбрал мост (G3b, issue #1096); иначе все. Колонку, которой
+        // в таблице больше нет, служба таблиц отдаёт закрытой с причиной — источник не отказывает.
+        SystemDataSets.TryParseTableMarker(marker, out _, out var wanted);
+        var (table, refusal) = await tables.ReadAsync(entry.Address, access, new TableRequest(Columns: wanted), ct);
         if (table is null)
             throw new InvalidOperationException(
                 $"Ворота набора пропустили к таблице «{entry.Address}», а служба таблиц отказала: {refusal!.Error}");

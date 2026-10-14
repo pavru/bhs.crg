@@ -386,18 +386,6 @@ public sealed class SavedTableViewTests(InvoiceLineHost host) : ModuleTableSeede
         Assert.Contains("IX_table_views_shared_title", refused.InnerException!.Message);
     }
 
-    /// <summary>Своя роль с несколькими правами.</summary>
-    private async Task<string> RoleAsync(string first, string second)
-    {
-        var name = await RoleAsync(first);
-        using var scope = host.Services.CreateScope();
-        var roles = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole<Guid>>>();
-        var role = await roles.FindByNameAsync(name);
-        Assert.True((await roles.AddClaimAsync(role!, new System.Security.Claims.Claim(
-            BHS.CRG.Api.Auth.RoleSynchronizer.PermissionClaim, second))).Succeeded);
-        return name;
-    }
-
     private async Task<BHS.CRG.Domain.Activity.ActivityRecord?> LastAsync(ActivityAction action, JsonElement view)
     {
         using var scope = host.Services.CreateScope();

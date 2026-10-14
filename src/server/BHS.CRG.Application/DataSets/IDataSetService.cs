@@ -42,6 +42,12 @@ public interface IDataSetService
     /// <summary>Ручное создание источника (для XML — единственный способ, авто-детект не используется).</summary>
     Task<DataSetSourceDto> CreateSourceAsync(
         Guid fileId, CreateSourceInput input, DataAccess access, CancellationToken ct);
+    /// <summary>
+    /// Источник из экрана таблицы (мост G3b, issue #1096): в системном наборе уровня системы, с отбором
+    /// и сортировкой значениями. Отбор, который источник не выполнит, — отказ до записи.
+    /// </summary>
+    Task<DataSetSourceDto> CreateTableCopyAsync(
+        string name, string marker, string? rowFilter, string? sortSpec, DataAccess access, CancellationToken ct);
     /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает;
     /// маппинг, правило выбора варианта (issue #716) и колонка режима «по Ид» (issue #725) задаются
     /// целиком, замещением. <paramref name="ifMatch" /> — версия материализации, которую показывала

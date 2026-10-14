@@ -220,7 +220,9 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               <span>{src.warning}</span>
             </p>
           )}
-          <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
+          {/* В одну строку: маркер источника из таблицы несёт список колонок и вылез бы за карточку.
+              Колонки и так названы строкой ниже; маркер целиком — в подсказке. */}
+          <div className="font-mono text-fg4 mt-0.5 truncate" title={src.sheetOrPath}>{src.sheetOrPath}</div>
           {cols.length > 0 && (
             <div className="text-fg3 mt-0.5">
               {cols.slice(0, maxColumns).join(', ')}{cols.length > maxColumns ? ` +${cols.length - maxColumns}` : ''}

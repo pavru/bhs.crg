@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
-import { NO_ACCESS, useAccess } from '@/shared/api/access';
+import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import {
   defaultColumnKeys, tableExportBody, tableFilterColumns, useTable, useTableDeclaration, type TableData,
 } from '@/shared/api/tables';
@@ -151,6 +151,15 @@ export function TablePage() {
   const data = table.data;
   const grid = data ? gridColumns(data.columns) : [];
   const screen = recordScreen(decl.recordType, access);
+  const canXlsx = !!data && data.count <= (decl.exportMax ?? 0);
+  // Колонки моста — показанные экраном, по порядку: у источника они те же, что у таблицы перед глазами.
+  // Пункта нет и тогда, когда переносить нечего: на экране только колонки доли — сервер откажет.
+  const byKey = new Map(decl.columns.map(c => [c.key, c]));
+  const bridgeColumns = (view.columns?.length ? view.columns : allKeys).flatMap(k => byKey.get(k) ?? []);
+  const bridge = hasPermission(access, 'core.datasets.edit') && !stored?.withheld
+    && bridgeColumns.some(c => !c.dependsOnFilter)
+    ? { name: exportTitle ?? decl.title, columns: bridgeColumns, all: decl.columns }
+    : undefined;
   // Подпись ссылки называет строку значением первой показанной колонки — ею строки и различают.
   const nameOf = (row: Record<string, unknown>) => (grid[0] ? cellText(row[grid[0].key], kinds.get(grid[0].key)) : '');
 
@@ -182,10 +191,11 @@ export function TablePage() {
           )}
           {/* Выгружать есть что, только когда пришли строки ЭТОГО отбора. При отказе файл повторил бы
               отказ, а прежние строки, оставленные на экране на время запроса, назвали бы в пункте меню
-              число чужого отбора (ревью PR #1326). Отбор больше потолка выгрузки сервер отвергнет —
-              такого пункта нет вовсе: невыполнимое действие скрывают (решение владельца 11.10.2026). */}
-          {!off && data && !table.isError && !table.isPlaceholderData && data.count <= (decl.exportMax ?? 0) && (
-            <ExportMenu address={address} count={data.count} body={tableExportBody(
+              число чужого отбора (ревью PR #1326). Невыполнимые пункты скрыты (решение владельца
+              11.10.2026): XLSX — сверх потолка выгрузки, мост — без права настройки наборов и при
+              отборе автора, который читателю не отдан: источник получил бы не тот отбор. */}
+          {!off && data && !table.isError && !table.isPlaceholderData && (canXlsx || bridge) && (
+            <ExportMenu address={address} count={data.count} xlsx={canXlsx} dataset={bridge} body={tableExportBody(
               { filter, columns: view.columns, sort: view.sort, totals: view.totals }, exportTitle)} />
           )}
         </div>

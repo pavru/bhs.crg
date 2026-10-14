@@ -4306,6 +4306,16 @@ POST   /api/tables/{модуль.таблица}/export  → XLSX «того, ч
                                                поле exportMax) — экран сверх него кнопки не показывает. Отбор словами в шапке собирает сервер. В журнал
                                                действий — core.table.exported: таблица и число строк,
                                                без сумм и условий отбора
+POST   /api/tables/{модуль.таблица}/dataset → мост «Сделать источником данных» (CORE-33, COST-22, #1096):
+                                               тело {name, columns, filter, sort} → {fileId, sourceId, name,
+                                               dropped}. Право core.datasets.edit у адреса, ключ таблицы —
+                                               у службы. Источник — в системном наборе уровня системы
+                                               (заводится, если его нет); колонки — параметром маркера
+                                               system:table:{адрес}?columns=…, отбор и сортировка —
+                                               обработкой источника. Представления источник не знает.
+                                               Колонки, зависящие от отбора, не едут (dropped — их подписи);
+                                               отбор и сортировку по ним, как и по закрытой колонке, отвергает
+                                               экранный путь таблицы (409/403)
 
 GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved,
                                               effectiveOffset, serverOffset, effectiveNow,

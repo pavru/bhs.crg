@@ -24,6 +24,13 @@ public class DataSetSource : Entity
     public string Name { get; private set; } = null!;
     /// <summary>Internal locator: sheet name, XPath (/root/items), JSON path ($.key), "default".</summary>
     public string SheetOrPath { get; private set; } = null!;
+
+    /// <summary>
+    /// Предел длины <see cref="SheetOrPath" /> — колонкой базы. Константой здесь, а не только в настройке
+    /// базы: маркер источника из таблицы несёт список колонок и может его перерасти, и мост обязан
+    /// отказать словами раньше, чем база ответит ошибкой (ревью PR #1327).
+    /// </summary>
+    public const int SheetOrPathMaxLength = 1024;
     /// <summary>
     /// Для XML (опционально): JSON-массив явных относительных колонок вида
     /// [{"name":"Артикул","expr":"@id"}]. Вычисляются относительно узла строки (SheetOrPath).

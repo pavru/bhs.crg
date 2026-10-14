@@ -88,6 +88,17 @@ public static class TableEndpoints
                 : Refused(refusal!);
         });
 
+        // Мост «Сделать источником данных» (G3b, issue #1096): экран таблицы — в источник системного
+        // набора уровня системы. Право настройки наборов — у адреса: источник заводится в наборах данных,
+        // и без этого права человек не может создать его и там. Ключ таблицы проверяет служба, как везде.
+        g.MapPost("/{address}/dataset", async (
+            string address, TableDataSetBody body,
+            ClaimsPrincipal user, DataAccessResolver access, ModuleTableBridge bridge, CancellationToken ct) =>
+        {
+            var (created, refusal) = await bridge.CreateAsync(address, await access.ForAsync(user, ct), body, ct);
+            return created is not null ? Results.Ok(created) : Refused(refusal!);
+        }).RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsEdit));
+
         MapSavedViews(g);
     }
 

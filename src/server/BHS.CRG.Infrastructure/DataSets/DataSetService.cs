@@ -61,6 +61,9 @@ public class DataSetService(
     public Task<DataSetSourceDto> CreateSourceAsync(
         Guid fileId, CreateSourceInput input, DataAccess access, CancellationToken ct) =>
         sources.CreateSourceAsync(fileId, input, access, ct);
+    public Task<DataSetSourceDto> CreateTableCopyAsync(
+        string name, string marker, string? rowFilter, string? sortSpec, DataAccess access, CancellationToken ct) =>
+        sources.CreateTableCopyAsync(name, marker, rowFilter, sortSpec, access, ct);
     public Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
         Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator,
         string? byIdColumn, CancellationToken ct, string? ifMatch = null) =>

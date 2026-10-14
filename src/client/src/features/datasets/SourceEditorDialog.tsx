@@ -136,6 +136,10 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
   const selectedCandidate = candidates.find(c => c.sheetOrPath === sheetOrPath);
+  const ownBase = initial && !candidates.some(c => c.sheetOrPath === initial.sheetOrPath)
+    ? candidates.find(c => initial.sheetOrPath.startsWith(`${c.sheetOrPath}?`))
+    : undefined;
+  const ownMarker = initial && ownBase ? { sheetOrPath: initial.sheetOrPath, name: ownBase.name } : null;
 
   // Полный row-selector с учётом ZIP-адресации — для предпросмотра (null = ещё не готов, напр.
   // архив без выбранного файла). Колонки предпросматриваются относительно него же.
@@ -260,6 +264,11 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                         {c.name} · {c.rowCount} строк{c.warning ? ' · с оговоркой' : ''}
                       </SelectItem>
                     ))}
+                    {/* Источник из таблицы со своими колонками (мост G3b, issue #1096): такого кандидата
+                        нет, и без этой строки поле стояло бы пустым, будто данные не выбраны. */}
+                    {ownMarker && (
+                      <SelectItem value={ownMarker.sheetOrPath}>{ownMarker.name} · свои колонки</SelectItem>
+                    )}
                   </Select>
                 </div>
                 {shownCandidates.length === 0 && (
