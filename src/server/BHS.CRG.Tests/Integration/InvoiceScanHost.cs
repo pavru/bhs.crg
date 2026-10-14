@@ -36,6 +36,12 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     public Func<Task>? BetweenReadAndSave { get; set; }
 
     /// <summary>
+    /// Что видела охрана записи — присланные ей реквизиты, по порядку; <c>null</c> — не записывать. Так
+    /// тест узнаёт, судила ли охрана то, что легло в счёт (ревью PR #1329: отсрочка из условий).
+    /// </summary>
+    public List<string>? GuardSaw { get; set; }
+
+    /// <summary>
     /// Отказ справочника на вопрос «что это за записи» (<see cref="IModuleCatalog.RefsAsync" />) — пока
     /// стоит. Так тест проверяет, что необязательный вопрос о запомненном не губит распознавание. Тест
     /// ставит и обязан снять: хост у класса общий.
@@ -203,6 +209,7 @@ public sealed class InvoiceScanHost : InvoiceLineHost
                 await interference();
             }
 
+            host.GuardSaw?.Add(incomingJson);
             return await inner.RefusalsAsync(typeId, storedJson, incomingJson, ct);
         }
     }

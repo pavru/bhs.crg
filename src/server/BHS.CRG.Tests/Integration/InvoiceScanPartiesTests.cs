@@ -68,6 +68,7 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
 
         var (client, _) = await SignInAsync("Supplier");
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/supplier-terms/{seller}", new { deferralDays = 30 }));
+        host.GuardSaw = [];
         var scan = Scan();
         host.Recognition.On(scan, () => Task.FromResult(Read(Header(
             number: "СЧ-30", supplier: "Условия-Опт, ООО", supplierTaxId: sellerTaxId))));
@@ -78,6 +79,19 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
         var view = await ReadAsync(client, id);
         Assert.Equal(30, view.GetProperty("requisites").GetProperty("Отсрочка").GetInt32());
         Assert.Contains("Отсрочка", Unconfirmed(view));
+
+        // Охрана записи судила ту отсрочку, что легла в счёт, — и при распознавании, и при заведении
+        // счёта рукой: подставленная после охраны прошла бы мимо её правил (ревью PR #1329).
+        var created = await client.PostAsJsonAsync("/api/costs/invoices", new
+        {
+            requisites = new Dictionary<string, object?> { ["Номер"] = "СЧ-31", ["Поставщик"] = Reference(seller) },
+        });
+        await OkAsync(created);
+        var seen = host.GuardSaw.Select(json => JsonDocument.Parse(json).RootElement).ToList();
+        host.GuardSaw = null;
+        Assert.True(seen.Count(r => r.TryGetProperty("Отсрочка", out var days)
+            && days.ValueKind == JsonValueKind.Number && days.GetInt32() == 30) >= 2,
+            "Охрана не видела подставленную отсрочку: " + string.Join(" | ", seen.Select(r => r.GetRawText())));
     }
 
     /// <summary>
