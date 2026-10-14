@@ -28,9 +28,8 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/SetDetail.tsx': {
     filters: false, because: 'справочник уходит в выбор цели переноса и копирования — урезает его useSetTargets (#1219)',
   },
-  '/src/features/periods/PeriodsPage.tsx': {
-    filters: false, because: 'имена строек из полного справочника; таблица периода урезается шагом #1220',
-  },
+  // Урезана таблица границ (#1220); имена — из полного справочника, закрытие и история — по всем стройкам.
+  '/src/features/periods/PeriodsPage.tsx': { filters: true },
   '/src/features/costs/places.ts': {
     filters: false, because: 'обёртка: справочник целей разноски; сама ничего не рисует', carries: ['usePlaces'],
   },

@@ -11,6 +11,8 @@ import { apiError } from '@/shared/utils/apiError';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useCan } from '@/shared/api/access';
 import { useListConstructions } from '@/shared/api/constructions';
+import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
+import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import {
   usePeriods, usePeriodHistory, useClosePeriod, useReopenPeriod, useClosingPreview, inverted,
   type PeriodContourState, type PeriodClosureRecord, type ClosingSection,
@@ -18,6 +20,7 @@ import {
 import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 import { ClosingSections } from './ClosingSections';
 import { unfinishedSummary, visiblyChanged } from './closing';
+import { companyClosingNote, companyReopenNote, shownSitesCount, type PeriodSites } from './periodSites';
 
 /**
  * Учётный период (ТЗ CORE-35, issue #1081): до какой даты закрыт учёт компании и каждой стройки,
@@ -46,6 +49,9 @@ export function PeriodsPage() {
   const namesAllowed = can.permission('core.constructions.read');
   const { data: constructions } = useListConstructions(namesAllowed);
   const [dialog, setDialog] = useState<Dialog>(null);
+  // Избранные стройки (#1220) урезают ТАБЛИЦУ, и только её: закрытие, отмена, перечень и история
+  // работают со всеми стройками, как без фильтра. Компания видна всегда.
+  const filter = useSiteFilter();
 
   const nameOf = (id: string | null) => {
     if (!id) return 'Компания';
@@ -61,7 +67,24 @@ export function PeriodsPage() {
   }
 
   const rows = [data.company, ...data.constructions];
+  // Диалог ищет контур среди ВСЕХ: фильтр, включённый под открытым диалогом, не должен его гасить.
   const current = dialog && rows.find(r => r.constructionId === dialog.constructionId);
+  // Пока фильтр не известен, строк строек нет: ни полных, ни урезанных (см. SiteFilterValue). Компания
+  // и её кнопки — сразу: сбой настроек с повторами держал бы «загрузку» всей страницы (ревью PR #1333).
+  const sitesKnown = filter.status !== 'loading';
+  // Строка периода — сама стройка, и живая: сервер отдаёт границы только существующих. Поэтому здесь
+  // «в избранном ли», а не правило объекта со ссылкой (`visible`): там стройка, которой нет в кэше
+  // справочника, считается потерянной ссылкой и видна — а новая, заведённая с другого компьютера,
+  // встала бы в таблицу мимо фильтра и занизила число скрытых (ревью PR #1333).
+  const hiddenIds = new Set(filter.active
+    ? data.constructions.map(s => s.constructionId!).filter(id => !filter.favorites.has(id)) : []);
+  const shownSites = sitesKnown ? data.constructions.filter(s => !hiddenIds.has(s.constructionId!)) : [];
+  const sitesOf = (states: PeriodContourState[]): PeriodSites =>
+    ({ total: states.length, hidden: states.filter(s => hiddenIds.has(s.constructionId!)).length });
+  const sites = sitesOf(data.constructions);
+  // Отмена закрытия компании открывает дни всем стройкам, кроме закрытых своим закрытием.
+  const kept = new Set(current?.reopenable?.keptClosed ?? []);
+  const reopened = sitesOf(data.constructions.filter(s => !kept.has(s.constructionId!)));
 
   return (
     <div className="px-6 py-4 max-w-5xl">
@@ -79,13 +102,21 @@ export function PeriodsPage() {
         <table className="w-full text-sm">
           <thead className="bg-base border-b border-stroke">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-fg2">Контур</th>
+              <th className="text-left px-4 py-2.5 font-medium text-fg2">
+                Контур
+                {/* Число — и в шапке: строка под таблицей уходит за сгиб, а урезанную таблицу видно сразу. */}
+                {sites.hidden > 0 && (
+                  <span className="ml-2 font-normal text-fg3" data-testid="period-sites-count">
+                    {shownSitesCount(shownSites.length, sites.total)}
+                  </span>
+                )}
+              </th>
               <th className="text-left px-4 py-2.5 font-medium text-fg2 w-72">Закрыто</th>
               <th className="px-4 py-2.5 w-72" />
             </tr>
           </thead>
           <tbody className="divide-y divide-muted">
-            {rows.map(state => {
+            {[data.company, ...shownSites].map(state => {
               const name = nameOf(state.constructionId);
               return (
                 <tr key={state.constructionId ?? 'company'} className="hover:bg-base">
@@ -110,20 +141,24 @@ export function PeriodsPage() {
                 </tr>
               );
             })}
+            {!sitesKnown && (
+              <tr><td colSpan={3} className="px-4 py-2 text-fg4">Загрузка строек...</td></tr>
+            )}
           </tbody>
         </table>
       </div>
+      {sites.hidden > 0 && <div className="mt-2"><SiteFilterNote hidden={sites.hidden} /></div>}
 
       <History records={history} nameOf={nameOf} />
 
       {dialog?.kind === 'close' && current && (
         <CloseDialog state={current} name={nameOf(current.constructionId)} today={data.today}
-          onDone={() => setDialog(null)} />
+          sites={sites} onDone={() => setDialog(null)} />
       )}
       {/* Отменять стало нечего (закрытие отменил кто-то другой) — диалог исчезает сам. */}
       {dialog?.kind === 'reopen' && current?.reopenable && (
         <ReopenDialog state={current} name={nameOf(current.constructionId)} nameOf={nameOf}
-          onDone={() => setDialog(null)} />
+          sites={reopened} onDone={() => setDialog(null)} />
       )}
     </div>
   );
@@ -143,8 +178,11 @@ function Closed({ state }: { state: PeriodContourState }) {
   );
 }
 
-export function CloseDialog({ state, name, today, onDone }: {
-  state: PeriodContourState; name: string; today: string; onDone: () => void;
+export function CloseDialog({ state, name, today, sites, onDone }: {
+  state: PeriodContourState; name: string; today: string;
+  /** Сколько строек закроет закрытие компании и сколько из них скрыто фильтром; нет — число не называется. */
+  sites?: PeriodSites;
+  onDone: () => void;
 }) {
   const toast = useToast();
   const close = useClosePeriod();
@@ -233,7 +271,7 @@ export function CloseDialog({ state, name, today, onDone }: {
           {through
             ? <>Будет закрыто всё по {ruDate(through)} включительно.</>
             : <>Назовите последний день периода.</>}
-          {!state.constructionId && ' Закрытие компании закрывает и все стройки.'}
+          {!state.constructionId && ` ${companyClosingNote(sites)}`}
         </p>
         {backwards ? (
           <p role="alert" className="text-[13px] text-danger">
@@ -269,14 +307,19 @@ export function CloseDialog({ state, name, today, onDone }: {
   );
 }
 
-export function ReopenDialog({ state, name, nameOf, onDone }: {
-  state: PeriodContourState; name: string; nameOf: (id: string | null) => string; onDone: () => void;
+export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
+  state: PeriodContourState; name: string; nameOf: (id: string | null) => string;
+  /** Скольким стройкам отмена закрытия компании откроет дни и сколько из них скрыто фильтром. */
+  sites?: PeriodSites;
+  onDone: () => void;
 }) {
   const toast = useToast();
   const reopen = useReopenPeriod();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const target = state.reopenable!;
+  // Отмена закрытия компании открывает дни и скрытым фильтром стройкам — как закрытие их закрывало.
+  const reopens = !state.constructionId && sites ? companyReopenNote(sites) : null;
 
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Отменить закрытие: ${name}`}
@@ -304,6 +347,7 @@ export function ReopenDialog({ state, name, nameOf, onDone }: {
           Отменяется последнее закрытие — с {ruDate(target.from)} по {ruDate(target.through)}. Эти
           дни снова станут открытыми. Учётные даты, записанные, пока период был закрыт, останутся как
           легли. Запись о закрытии не стирается: отмена записывается рядом, с причиной.
+          {reopens && ` ${reopens}`}
         </p>
         {target.keptClosed.length > 0 && (
           <p role="note" className="text-[13px] text-warning">
