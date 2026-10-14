@@ -36,10 +36,36 @@ describe('TypePicker: пункты в стороне (#1219)', () => {
     expect(screen.queryByText('Ничего не найдено')).toBeNull();
   });
 
-  it('выход раскрывает список и исчезает', () => {
+  it('выход раскрывает список и исчезает, а фокус возвращается в поиск', () => {
     open();
     fireEvent.click(screen.getByRole('button', { name: ASIDE.reveal }));
     expect(screen.getByText('Комплект ЭМ')).toBeTruthy();
     expect(screen.queryByRole('button', { name: ASIDE.reveal })).toBeNull();
+    // Кнопка исчезла — фокус не должен уйти с ней: стрелки и Enter живут в поле поиска.
+    expect(document.activeElement).toBe(screen.getByLabelText('Поиск типа'));
+  });
+
+  it('пустой список и выход: Enter в поиске раскрывает', () => {
+    render(<TypePicker open onOpenChange={() => {}} types={[TYPES[1]]} onSelect={vi.fn()} aside={ASIDE} />);
+    fireEvent.keyDown(screen.getByLabelText('Поиск типа'), { key: 'Enter' });
+    expect(screen.getByText('Комплект ЭМ')).toBeTruthy();
+  });
+
+  it('без текстов aside признак не прячет пункт: спрятать без выхода — потерять', () => {
+    render(<TypePicker open onOpenChange={() => {}} types={TYPES} onSelect={vi.fn()} />);
+    expect(screen.getByText('Комплект ЭМ')).toBeTruthy();
+  });
+
+  it('одноимённые стройки по обе стороны — две группы, без дубля ключа', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const twins: PickType[] = [
+      { id: '1', name: 'КЖ', code: '', section: 'ЖК «Север»' },
+      { id: '2', name: 'ЭМ', code: '', section: 'ЖК «Север»', aside: true },
+    ];
+    render(<TypePicker open onOpenChange={() => {}} types={twins} onSelect={vi.fn()} aside={ASIDE} />);
+    fireEvent.click(screen.getByRole('button', { name: ASIDE.reveal }));
+    expect(screen.getAllByText('ЖК «Север»')).toHaveLength(2);
+    expect(errors.mock.calls.filter(c => String(c[0]).includes('same key'))).toEqual([]);
+    errors.mockRestore();
   });
 });

@@ -27,7 +27,6 @@ export const REVEAL_CHOICE = '__show-all-sites__';
 export function useSiteChoices<T extends SiteEntry>(
   sites: readonly T[] | undefined,
   current: string | null | undefined,
-  query = '',
 ): SiteChoices<T> & { reveal: () => void } {
   const filter = useSiteFilter();
   const scope = useContext(SiteRevealContext);
@@ -36,18 +35,9 @@ export function useSiteChoices<T extends SiteEntry>(
   const reveal = scope ? scope.reveal : () => setOwn(true);
   const { active, favorites } = filter;
   const choices = useMemo(
-    () => siteChoices(sites ?? [], current, { active, favorites }, revealed, query),
-    [sites, current, active, favorites, revealed, query]);
+    () => siteChoices(sites ?? [], current, { active, favorites }, revealed),
+    [sites, current, active, favorites, revealed]);
   return { ...choices, reveal };
-}
-
-/**
- * Какие стройки фильтр уводит «в сторону» — для пикера комплектов, где стройка не значение, а группа.
- * Тоже регистрирует потребителя.
- */
-export function useSiteAside(): (constructionId: string) => boolean {
-  const { active, favorites } = useSiteFilter();
-  return useMemo(() => (id: string) => active && !favorites.has(id), [active, favorites]);
 }
 
 /**

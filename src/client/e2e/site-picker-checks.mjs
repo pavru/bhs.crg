@@ -83,6 +83,24 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         throw new Error(`стоящая стройка не в группе «Не в избранном»: ${JSON.stringify(groups)}`);
     });
 
+    await check('site-picker-report-reveal-stays-open', async () => {
+      // Radix-список отчёта: выход раскрывает список НА МЕСТЕ. Закрой его Radix — раскрытое пришлось бы
+      // открывать вторым щелчком, и выглядело бы это как «пункт не сработал» (ревью PR #1332).
+      await page.goto(`${BASE}/site-costs`, { waitUntil: 'networkidle' });
+      await page.getByRole('combobox', { name: 'Стройка' }).click();
+      const list = page.getByRole('listbox');
+      await list.waitFor({ timeout: 10_000 });
+      if (await list.getByRole('option', { name: other.name, exact: true }).count())
+        throw new Error('неизбранная стройка предложена без «Показать все»');
+      await list.getByRole('option', { name: REVEAL }).click();
+      await page.waitForTimeout(300);
+      if (!(await list.isVisible())) throw new Error('после «Показать все» список закрылся');
+      await list.getByText('Остальные стройки').waitFor({ timeout: 5_000 });
+      await list.getByRole('option', { name: other.name, exact: true }).waitFor({ timeout: 5_000 });
+      if (new URL(page.url()).searchParams.get('site')) throw new Error('выход сменил стройку отчёта');
+      await page.keyboard.press('Escape');
+    });
+
     await check('site-picker-waybill-of-non-favorite', async () => {
       const created = await api('POST', '/costs/waybills', { number: `РН-ИЗБ-${stamp}`, construction: other.id });
       try {

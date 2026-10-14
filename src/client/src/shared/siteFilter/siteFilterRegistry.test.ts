@@ -46,9 +46,8 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/costs/WaybillsPage.tsx': {
     filters: false, because: 'список накладных страничный — отбор параметром sites, #1222',
   },
-  '/src/features/costs/SiteCostsPage.tsx': {
-    filters: false, because: 'выбор стройки урезает useSiteChoices (#1219); отчёт сворачивает неизбранные строкой, не меняя чисел, — #1223',
-  },
+  // Выбор стройки урезан useSiteChoices (#1219); сам отчёт сворачивает неизбранные строкой, не меняя чисел, — #1223.
+  '/src/features/costs/SiteCostsPage.tsx': { filters: true },
   '/src/features/reconciliations/ReconciliationsPage.tsx': {
     filters: false, because: 'сверка — вне первой версии (#1217): справочник только для имён',
   },
@@ -61,7 +60,11 @@ const REGISTRY: Record<string, Entry> = {
 const DEFINITIONS = ['/src/shared/api/constructions.ts', '/src/shared/api/invoices.ts'];
 
 const DIRECTORY_HOOKS = ['useListConstructions', 'useCostsConstructions', 'useConstructionDirectory'];
-const FILTER_HOOK = /\buseSiteFilter\(\)/;
+/**
+ * Хуки, которые урезают список и регистрируют экран: сам фильтр и варианты выбора стройки (#1219).
+ * Обёртка, которую сторож не знает, сделала бы честное «фильтрует» недостижимым (ревью PR #1332).
+ */
+const FILTER_HOOK = /\b(?:useSiteFilter|useSiteChoices)\(/;
 
 /** Имена из `import { … } from` и `export { … } from` — со всеми переносами строк и `as`. */
 function namesTaken(code: string): string[] {
@@ -105,7 +108,7 @@ describe('сторож-реестр избранных строек', () => {
   it('каждый файл со справочником строек назван в реестре', () => {
     const unnamed = users.filter(f => !(f in REGISTRY));
     expect(unnamed, 'Файл берёт справочник строек, но не сказал, фильтрует ли он список по избранному. '
-      + 'Впишите его в REGISTRY: { filters: true } — и зовите useSiteFilter(), — или { filters: false, because }.')
+      + 'Впишите его в REGISTRY: { filters: true } — и зовите useSiteFilter() или useSiteChoices(), — или { filters: false, because }.')
       .toEqual([]);
   });
 
@@ -113,7 +116,7 @@ describe('сторож-реестр избранных строек', () => {
     expect(Object.keys(REGISTRY).filter(f => !users.includes(f))).toEqual([]);
   });
 
-  it('«фильтрует» значит зовёт useSiteFilter, «не фильтрует» — не зовёт', () => {
+  it('«фильтрует» значит зовёт useSiteFilter или useSiteChoices, «не фильтрует» — не зовёт', () => {
     const wrong = Object.entries(REGISTRY)
       .filter(([file, entry]) => FILTER_HOOK.test(clientSources[file] ?? '') !== entry.filters)
       .map(([file, entry]) => `${file}: в реестре ${entry.filters ? '«фильтрует»' : '«не фильтрует»'}`);

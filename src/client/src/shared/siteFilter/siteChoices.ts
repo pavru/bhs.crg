@@ -1,8 +1,10 @@
 import type { SiteEntry } from './siteFilterContext';
+import { ruPlural } from '@/shared/utils/pluralize';
 
 /**
  * Варианты выбора стройки под фильтром «Избранные стройки» (issue #1219, отчёт Дизайнера §62.4) —
- * чистая функция, без React: одна для нативного `<select>`, Radix-списка и пикера комплектов.
+ * чистая функция, без React: одна для нативного `<select>`, Radix-списка и пикера комплектов (там она
+ * решает, какие стройки уходят «в сторону», — `useSetTargets`).
  *
  * <ul>
  *   <li>Фильтр не действует — одна группа «Стройки», все. Слово «Избранные» над полным списком было
@@ -12,9 +14,10 @@ import type { SiteEntry } from './siteFilterContext';
  *   <li>Текущее значение — живая, но не избранная стройка (счёт разнесён на неё раньше): своя группа
  *       «Не в избранном», обычным именем. Это НЕ потеря: потерю (стройки нет в справочнике)
  *       подписывает носитель, и смешать два исхода значило бы назвать живую стройку удалённой.</li>
- *   <li>Поиск идёт по ВСЕМ стройкам: искать — уже высказанное намерение. Найденное вне избранного —
- *       отдельной группой «Остальные стройки».</li>
  * </ul>
+ *
+ * <p>Поиска здесь нет: у нативного и Radix-списка его нет вовсе, а пикер комплектов ищет по имени
+ * комплекта — и находит пункты «в стороне» всегда, отдельным блоком (`TypePicker`, `aside`).</p>
  */
 
 export const GROUP_ALL = 'Стройки';
@@ -41,20 +44,22 @@ export function revealText(hidden: number): string {
   return `Показать все стройки (ещё ${hidden})…`;
 }
 
+/** Текст выхода в пикере комплектов: прячутся комплекты, а считаются стройки. */
+export function revealSetsText(hidden: number): string {
+  return `Показать комплекты всех строек (ещё ${hidden} ${ruPlural(hidden, 'стройка', 'стройки', 'строек')})`;
+}
+
 export function siteChoices<T extends SiteEntry>(
   sites: readonly T[],
   current: string | null | undefined,
   filter: SiteChoiceFilter,
   revealed: boolean,
-  query = '',
 ): SiteChoices<T> {
-  const q = query.trim().toLowerCase();
-  const found = q ? sites.filter(s => s.name.toLowerCase().includes(q)) : [...sites];
-  if (!filter.active) return { groups: nonEmpty([{ label: GROUP_ALL, sites: found }]), hidden: 0 };
+  if (!filter.active) return { groups: nonEmpty([{ label: GROUP_ALL, sites: [...sites] }]), hidden: 0 };
 
-  const favorites = found.filter(s => filter.favorites.has(s.id));
-  const others = found.filter(s => !filter.favorites.has(s.id));
-  if (revealed || q)
+  const favorites = sites.filter(s => filter.favorites.has(s.id));
+  const others = sites.filter(s => !filter.favorites.has(s.id));
+  if (revealed)
     return { groups: nonEmpty([{ label: GROUP_FAVORITES, sites: favorites }, { label: GROUP_OTHERS, sites: others }]), hidden: 0 };
 
   const kept = others.filter(s => s.id === current);

@@ -76,7 +76,7 @@ export function SiteCostsPage() {
           <div>
             <span className="block text-xs text-fg3 mb-1">Стройка</span>
             <Select aria-label="Стройка" className="w-64 h-8 rounded-md border border-stroke bg-surface px-2 text-sm"
-              value={site ?? ALL} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
+              value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value === ALL ? null : value })}>
               <SelectItem value={ALL}>Все стройки</SelectItem>
               {choices.groups.map(g => (

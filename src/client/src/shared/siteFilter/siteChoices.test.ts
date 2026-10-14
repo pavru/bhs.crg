@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROUP_ALL, GROUP_FAVORITES, GROUP_NOT_FAVORITE, GROUP_OTHERS, revealText, siteChoices } from './siteChoices';
+import { GROUP_ALL, GROUP_FAVORITES, GROUP_NOT_FAVORITE, GROUP_OTHERS, revealSetsText, revealText, siteChoices } from './siteChoices';
 
 const SITES = [
   { id: 'a', name: 'ЖК «Север»' },
@@ -23,6 +23,8 @@ describe('варианты выбора стройки под фильтром �
   it('действует — только избранные и выход с числом скрытых', () => {
     expect(shape(siteChoices(SITES, null, ON, false))).toEqual({ groups: [[GROUP_FAVORITES, ['a', 'b']]], hidden: 2 });
     expect(revealText(2)).toBe('Показать все стройки (ещё 2)…');
+    expect(revealSetsText(1)).toBe('Показать комплекты всех строек (ещё 1 стройка)');
+    expect(revealSetsText(5)).toBe('Показать комплекты всех строек (ещё 5 строек)');
   });
 
   it('стоящая неизбранная стройка — своей группой и не в числе скрытых', () => {
@@ -37,11 +39,6 @@ describe('варианты выбора стройки под фильтром �
   it('раскрыли — избранные и остальные, выхода больше нет', () => {
     expect(shape(siteChoices(SITES, 'c', ON, true)))
       .toEqual({ groups: [[GROUP_FAVORITES, ['a', 'b']], [GROUP_OTHERS, ['c', 'd']]], hidden: 0 });
-  });
-
-  it('поиск идёт по всем стройкам, найденное вне избранного — отдельной группой', () => {
-    expect(shape(siteChoices(SITES, null, ON, false, 'С')))
-      .toEqual({ groups: [[GROUP_FAVORITES, ['a']], [GROUP_OTHERS, ['d']]], hidden: 0 });
   });
 
   it('все неизбранные — это стоящая: выхода нет, прятать нечего', () => {

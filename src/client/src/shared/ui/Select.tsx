@@ -1,6 +1,6 @@
 import * as RS from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
-import { forwardRef, useId, useState, type ReactNode } from 'react';
+import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
 
 /**
@@ -57,6 +57,12 @@ export interface SelectProps {
   hint?: string;
   /** Классы внешней обёртки поля (ширина, `col-span`). Только в слое формы. */
   containerClassName?: string;
+  /**
+   * Значение пункта, после выбора которого список НЕ закрывается: пункт-выход «Показать все стройки»
+   * (issue #1219). Его выбор раскрывает список на месте — закрой его Radix, раскрытое пришлось бы
+   * открывать вторым щелчком, и выглядело бы это как «пункт не сработал» (ревью PR #1332).
+   */
+  stayOpenOn?: string;
   children: ReactNode;
 }
 
@@ -76,9 +82,11 @@ const FRAMED_TRIGGER =
 
 export function Select({
   value, onValueChange, placeholder, disabled, required, name, className = '',
-  label, invalid, error, hint, containerClassName = '', children, ...aria
+  label, invalid, error, hint, containerClassName = '', stayOpenOn, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
+  // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.
+  const staying = useRef(false);
   const [focused, setFocused] = useState(false);
   const labelId = useId();
   const framed = label !== undefined;
@@ -90,8 +98,13 @@ export function Select({
   // Обязательность в слое формы проверяет само приложение (`isFieldMissing` + «Обязательное поле»),
   // поэтому в Radix не передаём, а доступность закрываем `aria-required` на триггере.
   const control = (
-    <RS.Root value={value ?? ''} onValueChange={onValueChange} disabled={disabled}
-      required={framed ? undefined : required} name={name} onOpenChange={setOpen}>
+    <RS.Root value={value ?? ''} disabled={disabled} required={framed ? undefined : required} name={name}
+      open={open}
+      onValueChange={next => { staying.current = next === stayOpenOn; onValueChange(next); }}
+      onOpenChange={next => {
+        if (!next && staying.current) { staying.current = false; return; }
+        setOpen(next);
+      }}>
       <RS.Trigger className={`${framed ? FRAMED_TRIGGER : TRIGGER} ${className}`}
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
