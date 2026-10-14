@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ChevronLeft, ChevronRight, Table2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { defaultColumnKeys, tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
+import { useSavedTableViews } from '@/shared/api/tableViews';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
 import { recordLink, recordScreen } from '@/shared/ui/recordRoutes';
 import { apiError } from '@/shared/utils/apiError';
@@ -13,11 +14,13 @@ import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
 import { RowPanel } from './RowPanel';
 import { ShortcutChips } from './ShortcutChips';
+import { TableViewHeader } from './TableViewHeader';
+import { isSavedId, lookupBase, lookupTitle, rowsWantedFor, viewLookup } from './savedViews';
 import { withShortcut } from './tableShortcuts';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { hasShownTotals, totalText } from './tableTotals';
 import {
-  DEFAULT_VIEW, PAGE_SIZES, presetLookup, presetView, rowsWanted, wholeTableHash, withColumnShown, withFilter,
+  PAGE_SIZES, wholeTableHash, withColumnShown, withFilter,
   withFilterChange, withPageStep, withRow, withSize, withSort, type TableView, type ViewChange,
 } from './tableViewState';
 import { useTableView } from './useTableView';
@@ -32,7 +35,12 @@ import { useTableView } from './useTableView';
  * <p><b>Готовое представление</b> (задача G4, issue #1097) — та же таблица под названной настройкой:
  * `/tables/costs.invoices/registry` открывает «Реестр счетов» с его колонками, итогами и местами под
  * отбор. Настройку поставляет модуль, и приходит она в описании таблицы; адрес страницы отсчитан от
- * неё, поэтому пуст, пока человек ничего не менял. Сохранённые представления — G3a.</p>
+ * неё, поэтому пуст, пока человек ничего не менял.</p>
+ *
+ * <p><b>Сохранённое представление</b> (задача G3a, issue #1095) стоит в адресе на том же месте, но
+ * идентификатором: `/tables/costs.invoices/3f2a…`. Его настройка — с отбором — приходит списком
+ * представлений, и адрес отсчитан от неё так же. Выбор, пометка «изменено» и сохранение — в шапке
+ * (`TableViewHeader`).</p>
  *
  * <p><b>Из строки — в форму записи</b> (G4, issue #1097). Про счета экран не знает: таблица называет
  * тип записи за строкой, ключ строки — её идентификатор, а где запись открывается и кому, решает
@@ -42,6 +50,8 @@ import { useTableView } from './useTableView';
 export function TablePage() {
   const { address = '', view: presetCode } = useParams();
   const [advanced, setAdvanced] = useState(false);
+  // Представление, которое человек только что удалил сам и с которого экран уходит (см. ниже).
+  const [leaving, setLeaving] = useState<string | null>(null);
   // Пока доступ не известен, ссылок нет: обещать переход раньше, чем известно право, нельзя.
   const { data: access = NO_ACCESS } = useAccess();
 
@@ -49,10 +59,15 @@ export function TablePage() {
   // Экрану они нужны и тогда — иначе негодное условие нечем было бы назвать и нечем исправить, а
   // отказ занял бы место всего экрана вместе с чипами, о которых он говорит.
   const declaration = useTableDeclaration(address);
-  const lookup = presetLookup(presetCode, declaration.data);
-  const [wanted, missing] = [rowsWanted(lookup), lookup.state === 'missing'];
+  // Список сохранённых нужен и шапке, и адресу; у выключенного модуля его нет — и спрашивать незачем.
+  const saved = useSavedTableViews(address, !!declaration.data && declaration.data.state !== 'module-off');
+  const lookup = viewLookup(presetCode, declaration.data, saved.data);
+  const [wanted, missing] = [rowsWantedFor(lookup), lookup.state === 'missing'];
   const preset = lookup.state === 'found' ? lookup.preset : undefined;
-  const base = useMemo(() => (preset ? presetView(preset) : DEFAULT_VIEW), [preset]);
+  const stored = lookup.state === 'saved' ? lookup.saved : undefined;
+  // Основа — один и тот же объект, пока настройка под адресом та же: от неё считается адрес.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `lookup` новый на каждой отрисовке; основу определяют эти двое
+  const base = useMemo(() => lookupBase(lookup), [preset, stored]);
   const [view, setView] = useTableView(base);
 
   const filter = view.filter ?? view.brokenFilter;
@@ -62,7 +77,7 @@ export function TablePage() {
     filter, columns: view.columns, sort: view.sort, totals: view.totals.map(t => t.column),
     offset: (view.page - 1) * view.size, limit: view.size,
   }, wanted);
-  useDocumentTitle(preset?.title ?? declaration.data?.title);
+  useDocumentTitle(declaration.data && lookupTitle(lookup, declaration.data.title));
 
   // Описание ещё не пришло и отказа нет — сказать пока нечего: ни «строк нет», ни причину.
   if (declaration.isPending) return <div className="px-6 py-10 text-sm text-fg4">Загрузка…</div>;
@@ -75,8 +90,39 @@ export function TablePage() {
       </div>
     );
 
+  // Назван идентификатор, а список представлений не пришёл: сказать «удалено» было бы неправдой.
+  // ⚠️ Только если списка НЕТ: неудачное перечитывание оставляет прежний список, и снимать из-за
+  // него рабочий экран нельзя (ревью PR #1324).
+  if (saved.isError && !saved.data && isSavedId(presetCode))
+    return (
+      <div className="px-6 py-10 text-sm text-danger" role="alert">
+        {apiError(saved.error, 'Представления таблицы не открылись')}
+      </div>
+    );
+
+  // Список представлений в пути, а под адресом — одно из них: основа ещё не известна. Нарисовать
+  // экран от умолчаний таблицы значило бы выдать «ещё не знаем» за «таблица целиком» — с чужим
+  // названием, ложным «изменено» и кнопкой, которая сохранила бы не то (ревью PR #1324).
+  // То же — миг между удалением открытого представления и переходом к таблице: из списка оно уже
+  // пропало, а адрес ещё прежний. «Представление удалено» тут было бы ложным объявлением о том, что
+  // человек сделал сам. Устаревшая закладка сюда не попадает: её идентификатор никто не удалял.
+  if (lookup.state === 'pending' || (lookup.state === 'gone' && leaving === presetCode))
+    return <div className="px-6 py-10 text-sm text-fg4">Загрузка…</div>;
+
   const decl = declaration.data;
   const off = decl.state === 'module-off';
+
+  // Устаревшая закладка: представление удалено либо автор вернул его в свои — сервер эти случаи не
+  // различает, и экран тоже. Отбор из адреса едет к таблице целиком: с закладкой пришли за строками.
+  if (lookup.state === 'gone')
+    return (
+      <div className="px-6 py-10 text-sm" role="alert">
+        <p className="text-danger">Представление удалено или больше не общее.</p>
+        <p className="mt-2 text-fg3">
+          <Link className="underline" to={`/tables/${encodeURIComponent(address)}${wholeTableHash(view)}`}>Открыть таблицу целиком</Link>
+        </p>
+      </div>
+    );
 
   // Представление названо, а у таблицы его нет (опечатка в адресе, модуль его убрал). Открыть вместо
   // него таблицу целиком значило бы выдать её за то, о чём просили, — человек искал «Реестр счетов».
@@ -104,24 +150,15 @@ export function TablePage() {
   return (
     <div className="h-full flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col px-6 py-4">
-        <div className="mb-3">
-          <h1 className="text-xl font-semibold text-fg1 flex items-center gap-2">
-            <Table2 size={18} className="text-fg3" aria-hidden />
-            {preset?.title ?? decl.title}
-          </h1>
-          <p className="mt-0.5 text-xs text-fg4">
-            Строка — {decl.grain}. {decl.boundary.replace(/\.$/, '')}.
-            {/* Из представления — к таблице целиком, с тем же отбором: другого входа в неё в интерфейсе нет. */}
-            {preset && (
-              <>
-                {' '}
-                <Link className="underline hover:text-fg2" to={`/tables/${encodeURIComponent(address)}${wholeTableHash(view)}`}>
-                  Таблица целиком
-                </Link>
-              </>
-            )}
-          </p>
-        </div>
+        <TableViewHeader address={address} decl={decl} lookup={lookup} view={view} base={base} saved={saved.data}
+          savedProblem={saved.isError && !saved.data ? apiError(saved.error, 'Сохранённые представления не загрузились') : null}
+          onChange={setView} onLeaving={setLeaving} />
+
+        {/* Отбор автора читателю не отдан: он стоит на колонке, которая ему закрыта. Сказать это
+            обязательно — иначе представление с чужим именем молча показало бы другие строки. */}
+        {stored?.withheld && (
+          <p role="status" className="mb-2 text-xs text-warning">{stored.withheld} Представление открыто без него.</p>
+        )}
 
         {/* Готовые отборы модуля — над рядом условий: нажатие кладёт условие в этот ряд, обычным чипом. */}
         <ShortcutChips address={address} filter={view} enabled={wanted && !off}
@@ -133,7 +170,7 @@ export function TablePage() {
               onChange={change => setView(v => withFilterChange(v, change))} onAdvanced={() => setAdvanced(true)} />
           </div>
           {!off && (
-            <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title}
+            <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title ?? stored?.title}
               gridColumns={grid.length} onChange={setView} />
           )}
         </div>

@@ -65,10 +65,19 @@ export function presetView(preset: TablePreset): TableView {
     ...DEFAULT_VIEW,
     columns: [...preset.columns],
     sort: preset.sort.map(s => ({ ...s })),
-    totals: preset.totals
-      .filter((t): t is ColumnTotal => (AGGREGATE_NAMES as readonly string[]).includes(t.aggregate)),
+    totals: knownTotals(preset.totals),
     pinned: preset.pinned,
   };
+}
+
+/**
+ * Итоги с известным словом; незнакомое пропускается — считать по нему нечего. Одно место на
+ * представление модуля и сохранённое: слово, добавленное в список, доезжает до обоих.
+ */
+export function knownTotals(totals: readonly { column: string; aggregate: string }[]): ColumnTotal[] {
+  return totals
+    .filter(t => (AGGREGATE_NAMES as readonly string[]).includes(t.aggregate))
+    .map(t => ({ column: t.column, aggregate: t.aggregate as Aggregate }));
 }
 
 /**
@@ -97,11 +106,6 @@ export function presetLookup(
   return preset ? { state: 'found', preset } : { state: 'missing' };
 }
 
-/** Запрашивать ли строки: под `pending` рано, под `missing` нечего. */
-export function rowsWanted(lookup: PresetLookup): boolean {
-  return lookup.state !== 'pending' && lookup.state !== 'missing';
-}
-
 /**
  * Адрес таблицы целиком с ТЕМ ЖЕ отбором (G4, issue #1097): из представления к таблице уходят, чтобы
  * посмотреть те же счета всеми колонками, — отбор, оставленный позади, пришлось бы набирать заново.
@@ -120,6 +124,7 @@ const ALL_COLUMNS = '*';
  *
  * ⚠️ Параметр, который в адресе ЕСТЬ, но пуст (`sort=`), — не «как в основе», а «снято»: иначе
  * сортировку готового представления нельзя было бы убрать — адрес без неё читался бы как адрес с ней.
+ * То же с отбором (`filter=`): у сохранённого представления отбор — часть настройки (G3a, issue #1095).
  */
 export function parseView(hash: string, base: TableView = DEFAULT_VIEW): TableView {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
@@ -131,11 +136,11 @@ export function parseView(hash: string, base: TableView = DEFAULT_VIEW): TableVi
     if (columns.length > 0) view.columns = columns;
   }
 
-  const filter = params.get('filter');
-  if (filter?.trim()) {
-    const node = parseFilter(filter);
-    if (node) view.filter = node;
-    else view.brokenFilter = filter;
+  if (params.has('filter')) {
+    const filter = params.get('filter') ?? '';
+    const node = filter.trim() ? parseFilter(filter) : null;
+    view.filter = node;
+    view.brokenFilter = filter.trim() && !node ? filter : null;
   }
 
   if (params.has('sort'))
@@ -167,8 +172,7 @@ export function viewHash(view: TableView, base: TableView = DEFAULT_VIEW): strin
   const columns = view.columns?.join(',') ?? '';
   if (columns !== (base.columns?.join(',') ?? '')) parts.push(['columns', columns || ALL_COLUMNS]);
 
-  const filter = view.filter ? JSON.stringify(view.filter) : view.brokenFilter;
-  if (filter) parts.push(['filter', filter]);
+  if (filterText(view) !== filterText(base)) parts.push(['filter', filterText(view)]);
 
   const sortText = (sort: TableSort[]) => sort.map(s => `${s.column}:${s.descending ? 'desc' : 'asc'}`).join(',');
   const totalsText = (totals: ColumnTotal[]) => totals.map(t => `${t.column}:${t.aggregate}`).join(',');
@@ -193,6 +197,11 @@ export function viewHash(view: TableView, base: TableView = DEFAULT_VIEW): strin
  */
 export function filterChanged(from: TableView, to: TableView): boolean {
   return JSON.stringify(from.filter) !== JSON.stringify(to.filter) || from.brokenFilter !== to.brokenFilter;
+}
+
+/** Отбор — текстом, каким он едет в адресе и серверу; пусто — отбора нет. */
+export function filterText(view: Pick<TableView, 'filter' | 'brokenFilter'>): string {
+  return view.filter ? JSON.stringify(view.filter) : view.brokenFilter ?? '';
 }
 
 /** Изменение состояния: из того, что стоит в адресе СЕЙЧАС, — что должно стоять. */
@@ -383,7 +392,7 @@ function whole(value: string | null, min: number, fallback: number): number {
   return value !== null && Number.isInteger(n) && n >= min ? n : fallback;
 }
 
-function parseFilter(text: string): FilterNode | null {
+export function parseFilter(text: string): FilterNode | null {
   try {
     const node: unknown = JSON.parse(text);
     return isNode(node) ? node : null;
