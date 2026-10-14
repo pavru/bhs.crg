@@ -55,6 +55,27 @@ public sealed class TableDataSetBridgeTests(InvoiceLineHost host) : ModuleTableS
         Assert.Equal($"{seed.Tag}-1", numbers[^1]);
     }
 
+    /// <summary>
+    /// Отбор стоит на колонке, которой на экране нет. Источник отбирает строки сам — без этой колонки в
+    /// маркере условие не нашло бы ничего, и источник молча был бы пустым.
+    /// </summary>
+    [Fact]
+    public async Task Колонка_условия_едет_в_источник_даже_вне_экрана()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var seed = await SeedAsync(admin);
+
+        var created = await CreatedAsync(await admin.PostAsJsonAsync(Bridge, new
+        {
+            name = Name(), columns = new[] { InvoiceRequisites.TotalKey }, filter = Mine(seed),
+        }));
+
+        var preview = await PreviewAsync(admin, created.GetProperty("sourceId").GetGuid());
+        Assert.Equal(8, preview.GetProperty("totalRows").GetInt32());
+        Assert.Equal([InvoiceRequisites.TotalKey, InvoiceRequisites.NumberKey],
+            preview.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
+    }
+
     [Fact]
     public async Task Правка_представления_не_меняет_созданный_из_него_источник()
     {
