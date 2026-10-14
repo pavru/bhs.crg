@@ -268,6 +268,12 @@ export interface InvoiceView {
    * поля не присылает.
    */
   readiness?: InvoiceReadiness;
+  /**
+   * Срок «оплатить до» глазами правила (issue #1080): `manual` — срок вписан человеком, правило его не
+   * трогает; `byRule` — что дало бы правило сейчас (`null` — считать не из чего). Сам срок — реквизит
+   * «Срок». Старый сервер поля не присылает.
+   */
+  due?: { manual: boolean; byRule: string | null };
   createdAt: string;
   updatedAt: string;
   /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */
@@ -560,6 +566,12 @@ export function useUpdateInvoice() {
 export function useConfirmInvoiceFields() {
   return useInvoiceWrite(({ id, seen, fields }: { id: string; seen: string; fields: string[] }) =>
     apiClient.post<InvoiceView>(`/costs/invoices/${id}/confirmed`, { fields }, seenBy(seen)).then(r => r.data));
+}
+
+/** «По правилу» (issue #1080): снять ручную правку срока и подставить его правилом из настройки модуля. */
+export function useDueByRule() {
+  return useInvoiceWrite(({ id, seen }: { id: string; seen: string }) =>
+    apiClient.post<InvoiceView>(`/costs/invoices/${id}/due/rule`, null, seenBy(seen)).then(r => r.data));
 }
 
 export function useAttachInvoiceScan() {

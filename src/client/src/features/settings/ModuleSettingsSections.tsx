@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
+import { Switch } from '@/shared/ui/Switch';
 import { useToast } from '@/shared/ui/Toast';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
@@ -11,7 +12,7 @@ import {
 } from '@/shared/api/moduleSettings';
 import { ModuleMappingSignal } from './ModuleMappingSignal';
 import {
-  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, localRefusals, mappingNeedsAttention,
+  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, flagOn, localRefusals, mappingNeedsAttention,
   sentence, staleStored,
   unitOf,
   type SettingsDraft,
@@ -95,16 +96,31 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
         const reset = draft[setting.key] === null;
         return (
           <div key={setting.key}>
-            <TextField
-              containerClassName="max-w-xs"
-              label={setting.title}
-              inputMode="decimal"
-              value={fieldText(setting, draft)}
-              onChange={e => edit(setting.key, e.target.value)}
-              trailing={unitOf(setting) ? <span className="text-sm text-fg3">{unitOf(setting)}</span> : undefined}
-              error={errors[setting.key] ? sentence(errors[setting.key]) : undefined}
-              hint={boundsHint(setting)}
-            />
+            {/* Флаг — переключателем с подписью (issue #1080): поле ввода для «true» звало бы набирать
+                слово, которое сервер примет только одно из двух. */}
+            {setting.kind === 'flag' ? (
+              <div className="max-w-xl">
+                <label className="flex items-center gap-3 text-sm text-fg1">
+                  <Switch checked={flagOn(setting, draft)} label={setting.title}
+                    onChange={on => edit(setting.key, on ? 'true' : 'false')} />
+                  {setting.title}
+                </label>
+                <p className={`text-xs mt-1 ${errors[setting.key] ? 'text-danger' : 'text-fg3'}`}>
+                  {errors[setting.key] ? sentence(errors[setting.key]) : boundsHint(setting)}
+                </p>
+              </div>
+            ) : (
+              <TextField
+                containerClassName="max-w-xs"
+                label={setting.title}
+                inputMode="decimal"
+                value={fieldText(setting, draft)}
+                onChange={e => edit(setting.key, e.target.value)}
+                trailing={unitOf(setting) ? <span className="text-sm text-fg3">{unitOf(setting)}</span> : undefined}
+                error={errors[setting.key] ? sentence(errors[setting.key]) : undefined}
+                hint={boundsHint(setting)}
+              />
+            )}
             <p className="text-xs text-fg3 mt-1.5 max-w-xl">{setting.effect}</p>
             {stale && <p className="text-xs text-warning mt-1 max-w-xl">{stale}</p>}
             {/* «Вернуть» — только когда есть что возвращать: у несохранённой настройки умолчание и так действует. */}
