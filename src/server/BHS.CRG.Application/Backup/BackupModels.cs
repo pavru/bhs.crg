@@ -64,7 +64,21 @@ public record BackupManifest(
     // «Организация» и «Номенклатура» восстановление назначает роли и тэги полей по прежним именам,
     // тем же правилом, что миграция. true — типы берутся как есть: снятая роль в такой копии —
     // решение администратора, а не пробел.
-    bool? KnowsDirectoryRoles = null);
+    bool? KnowsDirectoryRoles = null,
+    // Общие представления таблиц (ТЗ CORE-33, issue #1095) — в ЛЮБОЙ копии: это настройка компании,
+    // как типы и шаблоны. Личные не едут — они адресуют учётную запись. null — копия снята версией,
+    // не знавшей о представлениях.
+    BackupTableView[]? TableViews = null);
+
+/// <summary>
+/// Общее представление таблицы (ТЗ CORE-33, issue #1095). Автора нет нарочно: учётные записи копия
+/// не переносит, и на новом месте представление правит держатель права на общие представления.
+/// </summary>
+/// <param name="TableAddress">Адрес таблицы, как его объявил модуль.</param>
+/// <param name="State">Состояние экрана — JSON, как оно лежит в базе.</param>
+public record BackupTableView(
+    Guid Id, string TableAddress, string? BasedOn, string Title, string State,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// Данные одной схемы модуля (задача A2b этапа 2, issue #1073).

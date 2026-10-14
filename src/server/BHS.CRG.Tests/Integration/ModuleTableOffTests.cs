@@ -68,6 +68,39 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
         Assert.DoesNotContain(list.EnumerateArray(), t => t.GetProperty("address").GetString() == "costs.invoices");
     }
 
+    /// <summary>
+    /// Сохранённые представления выключенного модуля скрыты, но не удалены (G3a, issue #1095; ТЗ
+    /// CORE-33): список пуст, запись отвечает состоянием «модуль выключен», а строка в базе на месте —
+    /// она вернётся вместе с модулем.
+    /// </summary>
+    [Fact]
+    public async Task Представления_выключенного_модуля_скрыты_но_не_удалены()
+    {
+        var client = await AdminAsync();
+        Guid kept;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var view = BHS.CRG.Domain.Tables.SavedTableView.Create("costs.invoices", null, null, "До выключения", true, "{}");
+            kept = view.Id;
+            db.SavedTableViews.Add(view);
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Empty((await client.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices/views")).EnumerateArray());
+
+        var created = await client.PostAsJsonAsync("/api/tables/costs.invoices/views", new { title = "Новое", shared = false });
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, created.StatusCode);
+        Assert.Contains("выключен", (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/tables/costs.invoices/views/{kept}");
+        request.Headers.TryAddWithoutValidation("If-Match", "1");
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, (await client.SendAsync(request)).StatusCode);
+
+        using (var scope = fixture.Services.CreateScope())
+            Assert.NotNull(await scope.ServiceProvider.GetRequiredService<AppDbContext>().SavedTableViews.FindAsync(kept));
+    }
+
     private async Task<HttpClient> AdminAsync()
     {
         var email = $"tables_{Guid.NewGuid():N}@test.local";

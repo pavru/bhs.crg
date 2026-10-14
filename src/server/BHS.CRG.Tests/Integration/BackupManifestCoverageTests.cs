@@ -174,6 +174,9 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["ActivityRecord"] = nameof(BackupManifest.ActivityLog),
         // Закрытия учётного периода (ТЗ CORE-35, issue #1081) — в полной копии.
         ["PeriodClosure"] = nameof(BackupManifest.PeriodClosures),
+        // Представления таблиц (ТЗ CORE-33, issue #1095): в копию идут ОБЩИЕ — настройка компании.
+        // Личные не идут по той же причине, что настройки пользователя: адресуют учётную запись.
+        ["SavedTableView"] = nameof(BackupManifest.TableViews),
     };
 
     [Fact]
@@ -387,6 +390,9 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             Guid.NewGuid(), documentId, sourceId, null, "{}", now, now));
         db.MaterialQualityLinks.Add(MaterialQualityLink.Restore(
             Guid.NewGuid(), CatalogScope.Set, setId, "кабель ВВГнг", "Кабель", qualityDoc.Id, now, now));
+        // Общее представление таблицы (issue #1095): в копию идут только общие.
+        db.SavedTableViews.Add(BHS.CRG.Domain.Tables.SavedTableView.Restore(
+            Guid.NewGuid(), "costs.invoices", null, "Покрытие", "{}", now, now));
 
         await db.SaveChangesAsync();
 
