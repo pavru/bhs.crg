@@ -56,8 +56,6 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
           className="inline-flex items-center gap-1.5 rounded-md border border-stroke px-2.5 py-1 text-xs text-fg2 hover:text-fg1 hover:bg-muted">
           <Columns3 size={13} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
-          {/* Точка — настройка отошла от готового представления: «Реестр счетов» на экране уже не он. */}
-          {baseTitle && customised && <span className="text-warning" title={`Изменено относительно «${baseTitle}»`}>•</span>}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
