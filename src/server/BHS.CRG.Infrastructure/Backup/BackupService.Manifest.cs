@@ -68,6 +68,9 @@ public partial class BackupService
         // означало бы копию, которая тем короче помнит, чем дольше ею пользуются.
         var activity = await journal.ExportAsync(ct);
         var appSettings = await db.AppSettings.AsNoTracking().OrderBy(a => a.Key).ToListAsync(ct);
+        // Только общие: личное представление адресует учётную запись, а их копия не переносит.
+        var tableViews = await db.SavedTableViews.AsNoTracking().Where(v => v.Shared)
+            .OrderBy(v => v.TableAddress).ThenBy(v => v.Title).ToListAsync(ct);
         // Закрытия периода — через службу: прямой доступ к набору есть только у неё.
         var closures = scope == BackupScope.Full ? await periods.ExportAsync(ct) : [];
 
@@ -219,6 +222,8 @@ public partial class BackupService
             PeriodClosures: full ? closures.Select(c => new BackupPeriodClosure(
                 c.Id, c.Kind.ToString(), c.Contour.ToString(), c.ConstructionId, c.From, c.Through,
                 c.At, c.ById, c.ByName, c.Reason, c.CancelsId, c.Report)).ToArray() : null,
-            AppSettings: appSettings.Select(a => new BackupAppSetting(a.Key, a.Value, a.UpdatedAt)).ToArray());
+            AppSettings: appSettings.Select(a => new BackupAppSetting(a.Key, a.Value, a.UpdatedAt)).ToArray(),
+            TableViews: tableViews.Select(v => new BackupTableView(
+                v.Id, v.TableAddress, v.BasedOn, v.Title, v.State, v.CreatedAt, v.UpdatedAt)).ToArray());
     }
 }

@@ -186,6 +186,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             new("Сверки", manifest.Reconciliations?.Length ?? 0),
             new("Связки с материалами", manifest.MaterialQualityLinks?.Length ?? 0),
             new("Закрытия периода", manifest.PeriodClosures?.Length ?? 0),
+            new("Общие представления таблиц", manifest.TableViews?.Length ?? 0),
         ];
 
         // Схемы модулей (issue #1073): состав перечисляется НАЙДЕННЫМ, таблица за таблицей. Имён

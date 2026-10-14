@@ -1930,6 +1930,64 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.ToTable("bug_reports", (string)null);
                 });
 
+            modelBuilder.Entity("BHS.CRG.Domain.Tables.SavedTableView", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BasedOn")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<bool>("Shared")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("TableAddress")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("TableAddress", "Title")
+                        .IsUnique()
+                        .HasDatabaseName("IX_table_views_shared_title")
+                        .HasFilter("\"Shared\"");
+
+                    b.HasIndex("TableAddress", "OwnerId", "Title")
+                        .IsUnique()
+                        .HasDatabaseName("IX_table_views_own_title")
+                        .HasFilter("NOT \"Shared\"");
+
+                    b.ToTable("table_views", (string)null);
+                });
+
             modelBuilder.Entity("BHS.CRG.Domain.Templates.Template", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2445,6 +2503,14 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Domain.Tables.SavedTableView", b =>
+                {
+                    b.HasOne("BHS.CRG.Infrastructure.Persistence.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("BHS.CRG.Domain.Templates.Template", b =>

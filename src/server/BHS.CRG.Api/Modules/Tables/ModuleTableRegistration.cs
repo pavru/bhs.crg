@@ -25,6 +25,7 @@ public static class ModuleTableRegistration
                 "Таблицы модулей регистрируются после модулей: каталога таблиц в контейнере ещё нет.");
 
         services.AddScoped<ModuleTableService>();
+        services.AddScoped<SavedTableViewService>();
         foreach (var entry in catalog.All)
             services.AddScoped<ISystemDataProvider>(sp =>
                 new ModuleTableDataProvider(entry, sp.GetRequiredService<ModuleTableService>()));

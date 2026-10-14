@@ -120,11 +120,29 @@ public static class ActivityActions
     public static readonly ActivityAction NomenclatureCreated =
         new("core.nomenclature.created", "Заведена позиция номенклатуры");
 
+    /// <summary>
+    /// Общее представление таблицы заведено, изменено, снято с общих или удалено (ТЗ CORE-33,
+    /// issue #1095). Личные представления в журнал не пишутся: их видит один человек. Общее меняет
+    /// экран всем, у кого оно открыто или лежит в закладках, — и «кто убрал колонку» спрашивают у
+    /// журнала, потому что само представление прежнего состояния не хранит.
+    /// </summary>
+    public static readonly ActivityAction TableViewShared =
+        new("core.table.view.shared", "Заведено общее представление таблицы");
+
+    public static readonly ActivityAction TableViewChanged =
+        new("core.table.view.changed", "Изменено общее представление таблицы");
+
+    public static readonly ActivityAction TableViewUnshared =
+        new("core.table.view.unshared", "Представление таблицы снято с общих");
+
+    public static readonly ActivityAction TableViewDeleted =
+        new("core.table.view.deleted", "Удалено общее представление таблицы");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
          RecordArchived, RecordUnarchived, RecordPurged, ScopePurged, ModuleSettingChanged, NomenclatureCreated,
-         AccountingCurrencyChanged];
+         AccountingCurrencyChanged, TableViewShared, TableViewChanged, TableViewUnshared, TableViewDeleted];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

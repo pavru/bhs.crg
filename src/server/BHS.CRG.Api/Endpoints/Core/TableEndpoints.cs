@@ -2,6 +2,7 @@ using System.Security.Claims;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules.Tables;
 using BHS.CRG.Application.Tables;
+using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Endpoints.Core;
 
@@ -73,7 +74,70 @@ public static class TableEndpoints
                 body.Columns, body.Filter, body.Sort ?? [], body.Offset, body.Limit, body.Totals, body.Row);
             return Answer(await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct));
         });
+
+        MapSavedViews(g);
     }
+
+    /// <summary>
+    /// Сохранённые представления таблицы: свои и общие (G3a, issue #1095). Правка и удаление обязаны
+    /// назвать версию заголовком <c>If-Match</c> — и у личного тоже: одно правило проще двух, а две
+    /// вкладки одного человека затирают друг друга так же, как два человека.
+    ///
+    /// <para><c>{view}</c> — строка, а не идентификатор: по коду представления МОДУЛЯ адрес обязан
+    /// ответить отказом с выходом «сохраните как своё», а ограничение маршрута дало бы 404.</para>
+    /// </summary>
+    private static void MapSavedViews(RouteGroupBuilder g)
+    {
+        g.MapGet("/{address}/views", async (
+            string address, ClaimsPrincipal user, DataAccessResolver access, SavedTableViewService views,
+            CancellationToken ct) =>
+        {
+            var (list, refusal) = await views.ListAsync(address, await access.ForAsync(user, ct), ct);
+            return list is not null ? Results.Ok(list) : Refused(refusal!);
+        });
+
+        g.MapPost("/{address}/views", async (
+            string address, SaveTableView body, ClaimsPrincipal user, DataAccessResolver access,
+            SavedTableViewService views, CancellationToken ct) =>
+        {
+            var (view, refusal) = await views.CreateAsync(address, await access.ForAsync(user, ct), body, ct);
+            return view is not null ? Results.Ok(view) : Refused(refusal!);
+        });
+
+        g.MapPut("/{address}/views/{view}", async (
+            string address, string view, SaveTableView body, HttpRequest request, ClaimsPrincipal user,
+            DataAccessResolver access, SavedTableViewService views, CancellationToken ct) =>
+        {
+            if (SeenRefusal(request, out var seen) is { } unnamed) return unnamed;
+            var (saved, refusal) = await views.UpdateAsync(address, view, seen, await access.ForAsync(user, ct), body, ct);
+            return saved is not null ? Results.Ok(saved) : Refused(refusal!);
+        });
+
+        g.MapDelete("/{address}/views/{view}", async (
+            string address, string view, HttpRequest request, ClaimsPrincipal user, DataAccessResolver access,
+            SavedTableViewService views, CancellationToken ct) =>
+        {
+            if (SeenRefusal(request, out var seen) is { } unnamed) return unnamed;
+            var refusal = await views.DeleteAsync(address, view, seen, await access.ForAsync(user, ct), ct);
+            return refusal is null ? Results.NoContent() : Refused(refusal);
+        });
+    }
+
+    private const string VersionRequired =
+        "Представление не изменено: правка обязана назвать версию, по которой собрана, — заголовком If-Match " +
+        "(значение — поле version из списка представлений). Правка заменяет представление целиком, и без версии " +
+        "она затёрла бы изменения, сделанные после того, как его прочли.";
+
+    private static IResult? SeenRefusal(HttpRequest request, out string seen)
+    {
+        var wellFormed = SeenVersion.TryRead(request, out var named);
+        seen = named ?? "";
+        if (!wellFormed) return Results.BadRequest(new { error = SeenVersion.Malformed });
+        return named is null ? Results.BadRequest(new { error = VersionRequired }) : null;
+    }
+
+    private static IResult Refused(TableRefusal refusal) =>
+        Results.Json(new { error = refusal.Error }, statusCode: refusal.Status);
 
     /// <summary>Запрос к таблице телом. <c>Filter</c> — строка с JSON, как и отбор источника набора.</summary>
     public sealed record TableQueryBody(
