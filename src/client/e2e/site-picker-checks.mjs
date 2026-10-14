@@ -34,7 +34,8 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const cell = dialog.locator('tbody input').first();
       await cell.fill('4');
 
-      const offered = await optionTexts(second);
+      // Выход — в поле, где значение УЖЕ стоит: на пустом поле сброс значения был бы незаметен.
+      const offered = await optionTexts(first);
       if (offered.includes(other.name)) throw new Error('неизбранная стройка предложена без «Показать все»');
       const reveal = offered.find(text => REVEAL.test(text));
       if (!reveal) throw new Error(`выхода «Показать все стройки» нет: ${JSON.stringify(offered)}`);
@@ -43,11 +44,11 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const onRequest = r => { if (r.method() !== 'GET' && r.url().includes('/costs/invoices/')) writes.push(r.url()); };
       page.on('request', onRequest);
       try {
-        await second.selectOption({ label: reveal });
-        if ((await selectedText(second)) === reveal) throw new Error('поле осталось на пункте-выходе');
-        if ((await selectedText(first)) !== favorite.name) throw new Error('выход сбросил соседнее поле');
+        await first.selectOption({ label: reveal });
+        const kept = await selectedText(first);
+        if (kept !== favorite.name) throw new Error(`выход сменил значение поля: «${kept}» вместо «${favorite.name}»`);
         if ((await cell.inputValue()) !== '4') throw new Error(`набранное количество потеряно: «${await cell.inputValue()}»`);
-        for (const [label, select] of [['второе', second], ['первое', first]]) {
+        for (const [label, select] of [['первое', first], ['соседнее', second]]) {
           const groups = await groupsOf(select);
           if (!groups['Остальные стройки']?.includes(other.name))
             throw new Error(`${label} поле не раскрыто: ${JSON.stringify(Object.keys(groups))}`);
