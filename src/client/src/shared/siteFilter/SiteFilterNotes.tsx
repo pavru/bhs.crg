@@ -11,13 +11,17 @@ const link = 'text-brand hover:underline focus-visible:outline-none focus-visibl
  * эта строка — всё напоминание о нём. «Показать все» переключает ГЛОБАЛЬНОЕ состояние: шапка меняется
  * на глазах, второго состояния поверх первого нет.
  */
-export function SiteFilterNote({ hidden }: { hidden: number }) {
+export function SiteFilterNote({ hidden, label }: {
+  hidden: number;
+  /** Своя формулировка экрана («Ещё 11 строек скрыто фильтром избранного»); нет — общая. */
+  label?: string;
+}) {
   const filter = useSiteFilterState();
   if (!filter.active) return null;
   return (
     <p className="flex items-center gap-1.5 text-xs text-fg3" data-testid="site-filter-note">
       <Star size={12} className="text-brand fill-current" aria-hidden />
-      <span>Избранные стройки · скрыто: {hidden}</span>
+      <span>{label ?? `Избранные стройки · скрыто: ${hidden}`}</span>
       <span aria-hidden>·</span>
       <button type="button" className={link} onClick={() => filter.setOn(false)}>Показать все</button>
     </p>
