@@ -27,6 +27,7 @@ public static class ModuleTableRegistration
         services.AddScoped<ModuleTableService>();
         services.AddScoped<SavedTableViewService>();
         services.AddScoped<ModuleTableExport>();
+        services.AddScoped<ModuleTableBridge>();
         foreach (var entry in catalog.All)
             services.AddScoped<ISystemDataProvider>(sp =>
                 new ModuleTableDataProvider(entry, sp.GetRequiredService<ModuleTableService>()));

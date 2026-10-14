@@ -65,6 +65,17 @@ public abstract class ModuleTableSeededTests(InvoiceLineHost host) : InvoiceLine
         return name;
     }
 
+    /// <summary>Своя роль с двумя правами.</summary>
+    protected async Task<string> RoleAsync(string first, string second)
+    {
+        var name = await RoleAsync(first);
+        using var scope = host.Services.CreateScope();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var role = await roles.FindByNameAsync(name);
+        Assert.True((await roles.AddClaimAsync(role!, new Claim(RoleSynchronizer.PermissionClaim, second))).Succeeded);
+        return name;
+    }
+
     /// <summary>Источник набора данных на таблице счетов — в своём системном наборе; отдаёт его id.</summary>
     protected static async Task<Guid> SourceAsync(HttpClient client)
     {
