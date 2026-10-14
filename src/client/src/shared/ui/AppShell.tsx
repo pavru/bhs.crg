@@ -25,6 +25,8 @@ import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
 import { OutsideBanner, OutsideNav } from '@/shared/ui/WorkspaceNav';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { splitNav } from '@/shared/ui/workspaces';
+import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
+import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
 import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
 
@@ -79,7 +81,9 @@ function NavSection({
 export function AppShell() {
   return (
     <WorkspaceProvider>
-      <Shell />
+      <SiteFilterProvider>
+        <Shell />
+      </SiteFilterProvider>
     </WorkspaceProvider>
   );
 }
@@ -223,6 +227,8 @@ function Shell() {
         <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-4">
           {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}
           <WorkspaceSwitcher />
+          {/* Избранные стройки — за пространством (#1218): тоже «что я вижу», а не действие. */}
+          <SiteFilterSwitch />
           <div className="flex-1" />
           <ActiveJobsIndicator />
           <NotificationsCenter />

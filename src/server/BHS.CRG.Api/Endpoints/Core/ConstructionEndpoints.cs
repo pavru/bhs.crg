@@ -5,6 +5,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Modules;
 using MediatR;
@@ -45,6 +46,15 @@ public static class ConstructionEndpoints
             var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);
             return Results.Ok(list.Select(x => ConstructionDto.From(x, counts)).ToList());
         });
+
+        // Лёгкий справочник — только id и имя (issue #1218, ревью PR #1331). Его читает фильтр
+        // «Избранные стройки» из оболочки, то есть на КАЖДОМ экране; полный список выше собирает
+        // дерево разделов и считает документы во всех комплектах — ради двух полей это лишнее.
+        c.MapGet("/directory", async (AppDbContext db, CancellationToken ct) =>
+            Results.Ok(await db.Constructions.AsNoTracking()
+                .OrderBy(x => x.Name)
+                .Select(x => new ConstructionDirectoryItem(x.Id, x.Name))
+                .ToListAsync(ct)));
 
         c.MapGet("/{id:guid}", async (Guid id, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
         {
@@ -141,3 +151,6 @@ public static class ConstructionEndpoints
     record CreateSectionRequest(string Name);
     record RenameRequest(string Name);
 }
+
+/// <summary>Стройка лёгкого справочника: id и имя (issue #1218).</summary>
+public sealed record ConstructionDirectoryItem(Guid Id, string Name);

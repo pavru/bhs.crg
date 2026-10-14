@@ -12,6 +12,7 @@ import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
+import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useToast } from '@/shared/ui/Toast';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CopyDocumentDialog } from './CopyDocumentDialog';
@@ -224,6 +225,7 @@ export function SetDetail() {
           Раздел: {sectionName}
         </Link>
       )}
+      <NotFavoriteNote constructionId={constructionId!} />
     </div>
   );
 

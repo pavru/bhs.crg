@@ -1,0 +1,18 @@
+{
+  "about": "Случаи правила видимости «Избранных строек» (#1217). Читают vitest (rule.test.ts) и — когда у накладных появится серверная ветвь (#1222) — xUnit. Буквы — условные id строек; живой справочник у всех случаев A, B, C. Правите правило — правите случаи здесь, обе ветви увидят правку.",
+  "live": ["A", "B", "C"],
+  "cases": [
+    { "name": "избранная стройка — виден", "favorites": ["A"], "on": true, "sites": ["A"], "visible": true },
+    { "name": "неизбранная стройка — скрыт", "favorites": ["A"], "on": true, "sites": ["B"], "visible": false },
+    { "name": "без стройки — виден всегда", "favorites": ["A"], "on": true, "sites": [], "visible": true },
+    { "name": "удалённая стройка — как без стройки", "favorites": ["A"], "on": true, "sites": ["X"], "visible": true },
+    { "name": "удалённая и неизбранная — решает живая", "favorites": ["A"], "on": true, "sites": ["X", "B"], "visible": false },
+    { "name": "удалённая и избранная — виден", "favorites": ["A"], "on": true, "sites": ["X", "A"], "visible": true },
+    { "name": "несколько строек, одна избранная — виден", "favorites": ["A"], "on": true, "sites": ["B", "A"], "visible": true },
+    { "name": "несколько строек, ни одной избранной — скрыт", "favorites": ["A"], "on": true, "sites": ["B", "C"], "visible": false },
+    { "name": "фильтр выключен — виден", "favorites": ["A"], "on": false, "sites": ["B"], "visible": true },
+    { "name": "избранное пусто — фильтра нет", "favorites": [], "on": true, "sites": ["B"], "visible": true },
+    { "name": "избранное пусто после пересечения — фильтра нет", "favorites": ["X", "Y"], "on": true, "sites": ["B"], "visible": true },
+    { "name": "часть избранного удалена — живая часть работает", "favorites": ["X", "A"], "on": true, "sites": ["B"], "visible": false }
+  ]
+}

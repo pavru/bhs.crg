@@ -17,6 +17,10 @@ import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
+import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
+import { FavoriteStar, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { useToast } from '@/shared/ui/Toast';
+import { apiError } from '@/shared/utils/apiError';
 
 // ── Список строек и поиск по документам ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -30,6 +34,9 @@ function DocumentSearchPanel() {
   useEffect(() => { const t = setTimeout(() => setQ(text), 300); return () => clearTimeout(t); }, [text]);
   const { data: results = [], isFetching } = useSearchDocuments(q);
   const active = q.trim().length > 0;
+  // Поиск по избранному НЕ фильтруется (#1217): ищут именно то, чего не видят. Пометка — чтобы
+  // найденное в неизбранной стройке не удивило пустым списком, куда ведёт крошка «Стройки».
+  const filter = useSiteFilterState();
 
   return (
     <div className="mb-5">
@@ -62,6 +69,7 @@ function DocumentSearchPanel() {
                       <div className="text-xs text-fg4 truncate">
                         {r.constructionName} › {r.sectionName} › {r.setName}
                         {r.name && <span> · {r.typeName}</span>}
+                        {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
                       </div>
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-muted text-fg2'}`}>
@@ -87,6 +95,20 @@ export function ConstructionsList() {
   const [createError, setCreateError] = useState('');
 
   const { data: constructions = [], isLoading } = useListConstructions();
+  // Список строек — первый потребитель избранного (#1218): урезается и регистрирует экран для шапки.
+  const filter = useSiteFilter();
+  const toast = useToast();
+  // Стройки, оставленные на экране после щелчка по звезде: снятая не исчезает из-под курсора, а
+  // первая звезда не сжимает список до одной карточки, пока человек не ушёл с экрана (§62.2).
+  const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());
+  // Переключили фильтр в шапке — это уже явное «покажи иначе», и удержание снимается: иначе сегмент
+  // горел бы «Избранные» над неурезанным списком со строкой «скрыто: 0» (ревью PR #1331).
+  const [keptOn, setKeptOn] = useState(filter.on);
+  if (keptOn !== filter.on) {
+    setKeptOn(filter.on);
+    setKept(new Set());
+  }
+  const shown = constructions.filter(c => filter.visible(c.id) || kept.has(c.id));
   // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
   // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
   const { shown: idOn, plan: plans, problems } = useIdIndicators('System');
@@ -111,6 +133,12 @@ export function ConstructionsList() {
       const c = await createMutation.mutateAsync(newName);
       setCreateOpen(false);
       setNewName('');
+      // Новая стройка — в избранное создателя, если оно уже непусто (#1217): иначе, вернувшись, он
+      // не нашёл бы её в списке. Это вторая запись, не атомарная с созданием, — отказ говорится.
+      if (filter.favorites.size > 0) {
+        filter.setFavorite(c.id, true).catch(e =>
+          toast.error(`Стройка создана, но в избранное не добавлена: ${apiError(e)}`));
+      }
       navigate(`/document-sets/${c.id}`);
     } catch (err: unknown) { setCreateError(err instanceof Error ? err.message : 'Ошибка'); }
   }
@@ -134,7 +162,9 @@ export function ConstructionsList() {
 
       {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
 
-      {isLoading ? (
+      <div className="mb-3"><SiteFilterNote hidden={constructions.length - shown.length} /></div>
+
+      {isLoading || filter.status === 'loading' ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
       ) : constructions.length === 0 ? (
         <EmptyState icon={<Building2 size={30} />} title="Пока нет строек"
@@ -142,12 +172,13 @@ export function ConstructionsList() {
           action={canEdit ? <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Новая стройка</Button> : undefined} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {constructions.map(c => {
+          {shown.map(c => {
             const setsCount = c.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
             return (
-              <div key={c.id} className="bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand hover:shadow-[var(--f-shadow16)] transition-all group cursor-pointer"
+              <div key={c.id} className={`bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand hover:shadow-[var(--f-shadow16)] transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
                 onClick={() => editId !== c.id && navigate(`/document-sets/${c.id}`)}>
                 <div className="flex items-start justify-between gap-2">
+                  <FavoriteStar id={c.id} onToggled={() => setKept(new Set(shown.map(x => x.id)))} />
                   {editId === c.id ? (
                     <input value={editName} onChange={e => setEditName(e.target.value)}
                       onBlur={() => commitRename(c)}

@@ -90,12 +90,16 @@ public class BlobDownloadCancellationTests
     [Fact]
     public async Task Срок_тишины_не_обрывает_медленное_но_идущее_чтение()
     {
-        // Всё чтение — полторы секунды, срок тишины — секунда: общий срок оборвал бы его, а срок
+        // Всё чтение — три с половиной секунды, срок тишины — три: общий срок оборвал бы его, а срок
         // тишины заводится заново с каждой порцией и медленному каналу не мешает.
-        var body = Bytes(10 * 16 * 1024);
-        using var storage = FakeStorage.Dribbling(body, chunk: 16 * 1024, pause: TimeSpan.FromMilliseconds(150));
+        // ⚠️ Пауза в двенадцать раз короче срока НАРОЧНО: при 150 мс против секунды тест падал на
+        // нагруженном раннере CI (два потока тестов на одной машине растянули паузу почти на
+        // секунду — CI PR #1331), то есть проверял машину, а не срок. Запас задаёт отношение паузы
+        // к сроку; порций — ровно столько, чтобы чтение было длиннее срока (ревью PR #1331).
+        var body = Bytes(14 * 16 * 1024);
+        using var storage = FakeStorage.Dribbling(body, chunk: 16 * 1024, pause: TimeSpan.FromMilliseconds(250));
         using var client = Client(storage);
-        var blobs = Blobs(client, silence: TimeSpan.FromSeconds(1));
+        var blobs = Blobs(client, silence: TimeSpan.FromSeconds(3));
 
         await using var stream = await blobs.DownloadAsync("bucket/file.bin").WaitAsync(Limit);
 

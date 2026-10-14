@@ -83,7 +83,21 @@ public static class UserSettingKeys
     public static readonly UserSettingKey DefaultWorkspace = new("workspace.default", 64,
         Shape: WorkspaceSettingValues.Choice);
 
-    public static readonly IReadOnlyList<UserSettingKey> All = [Theme, Locale, Workspaces, Workspace, DefaultWorkspace];
+    /// <summary>
+    /// Избранные стройки (issue #1218): GUID через запятую, не больше двадцати. Сервер его хранит, но
+    /// не читает — ни один адрес по нему не отбирает (сторож — <c>FavoritesAreNotApiParameterTests</c>).
+    /// </summary>
+    public static readonly UserSettingKey FavoriteConstructions = new("favoriteConstructions",
+        FavoriteConstructionValues.MaxLength, Valid: FavoriteConstructionValues.IsList);
+
+    /// <summary>
+    /// Включён ли фильтр по избранному. Ключа нет — включён: человек, выбравший избранное, ждёт, что
+    /// оно работает. Выключают его из шапки, не трогая сам список.
+    /// </summary>
+    public static readonly UserSettingKey FavoritesFilter = new("favoritesFilter", 3, OneOf: ["on", "off"]);
+
+    public static readonly IReadOnlyList<UserSettingKey> All =
+        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter];
 
     /// <summary>Объявленный ключ или null — и тогда адрес отвечает отказом, а не записью.</summary>
     public static UserSettingKey? Find(string code) =>

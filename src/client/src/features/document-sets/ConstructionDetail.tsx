@@ -8,6 +8,7 @@ import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
+import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
@@ -79,7 +80,12 @@ export function ConstructionDetail() {
   const docsN = construction.sections.reduce((a, s) => a + s.documentSets.reduce((x, ds) => x + (ds.documentCount ?? 0), 0), 0);
 
   const contextCrumbs = (
-    <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+      {/* Прямая ссылка на неизбранную стройку (#1218): открыта полностью, а крошка ведёт в список,
+          где её нет, — строка говорит почему. */}
+      <NotFavoriteNote constructionId={constructionId!} />
+    </div>
   );
 
   const nav = (

@@ -8,6 +8,7 @@ import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
+import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
@@ -96,6 +97,7 @@ export function SectionDetail() {
         className="text-[11px] px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
         Стройка: {construction.name}
       </Link>
+      <NotFavoriteNote constructionId={constructionId!} />
     </div>
   );
 

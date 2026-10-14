@@ -57,17 +57,20 @@ crosses 0.139.0 && r=да || r=нет; check 'ровно на рубеж — п�
 
 echo
 echo '── legacy_notes: печатаем только пересечённые рубежи ──'
+# ⚠️ Поиск в выводе — here-string (`grep -q … <<<"$out"`), а не `printf … | grep -q`: под pipefail
+# `grep -q` выходит на первом совпадении, `printf` ловит SIGPIPE, и найденная строка читается как
+# «не найдено». Так ронялась проверка «0.90→0.141: про ollama сказано» (CI PR #1331).
 compose() { echo ollama; }          # как будто контейнер ollama работает
 CURRENT=0.90.0; TARGET=0.92.0
 out="$(legacy_notes 2>&1)"
-printf '%s' "$out" | grep -q 'dp_keys'         && r=да || r=нет; check '0.90→0.92: про dp_keys сказано'   да  "$r"
-printf '%s' "$out" | grep -q 'готовые образы'  && r=да || r=нет; check '0.90→0.92: про образы промолчали' нет "$r"
-printf '%s' "$out" | grep -q 'профилю Compose' && r=да || r=нет; check '0.90→0.92: про ollama промолчали' нет "$r"
+grep -q 'dp_keys' <<<"$out"         && r=да || r=нет; check '0.90→0.92: про dp_keys сказано'   да  "$r"
+grep -q 'готовые образы' <<<"$out"  && r=да || r=нет; check '0.90→0.92: про образы промолчали' нет "$r"
+grep -q 'профилю Compose' <<<"$out" && r=да || r=нет; check '0.90→0.92: про ollama промолчали' нет "$r"
 CURRENT=0.90.0; TARGET=0.141.0
 out="$(legacy_notes 2>&1)"
-printf '%s' "$out" | grep -q 'dp_keys'         && r=да || r=нет; check '0.90→0.141: про dp_keys сказано'  да "$r"
-printf '%s' "$out" | grep -q 'готовые образы'  && r=да || r=нет; check '0.90→0.141: про образы сказано'   да "$r"
-printf '%s' "$out" | grep -q 'профилю Compose' && r=да || r=нет; check '0.90→0.141: про ollama сказано'   да "$r"
+grep -q 'dp_keys' <<<"$out"         && r=да || r=нет; check '0.90→0.141: про dp_keys сказано'  да "$r"
+grep -q 'готовые образы' <<<"$out"  && r=да || r=нет; check '0.90→0.141: про образы сказано'   да "$r"
+grep -q 'профилю Compose' <<<"$out" && r=да || r=нет; check '0.90→0.141: про ollama сказано'   да "$r"
 CURRENT=0.146.0; TARGET=0.147.1
 check 'свежая установка: ни одной оговорки' '' "$(legacy_notes 2>&1)"
 
@@ -87,7 +90,7 @@ check 'файла нет — конвертера нет'       1 "$(has_convert
 mkdir -p "$NEW_DIR"
 cp cv-without.yml docker-compose.yml; cp cv-with.yml "$NEW_DIR/docker-compose.yml"
 check 'приходит этим обновлением'        0 "$(brings_converter >/dev/null 2>&1; echo $?)"
-printf '%s' "$(legacy_notes 2>&1)" | grep -q 'конвертер офисных файлов' && r=да || r=нет
+grep -q 'конвертер офисных файлов' <<<"$(legacy_notes 2>&1)" && r=да || r=нет
 check 'о новом контейнере сказано'       да "$r"
 cp cv-with.yml docker-compose.yml
 check 'уже стоит — не приходит'          1 "$(brings_converter >/dev/null 2>&1; echo $?)"
@@ -164,9 +167,9 @@ TARGET=0.151.0; CURRENT=0.150.0
 
 out="$( AUTOFILL=(); check_new_vars 2>&1 )"; rc=$?
 check 'ключ без умолчания — остановка' 1 "$rc"
-printf '%s\n' "$out" | grep -q 'MINIO_BUCKET'  && r=да || r=нет; check 'он назван'                    да "$r"
-printf '%s\n' "$out" | grep -q 'без умолчания' && r=да || r=нет; check 'сказано, что умолчания нет'   да "$r"
-printf '%s\n' "$out" | grep -q 'BACKUP_DIR OLLAMA_MODEL WEB_PORT' && r=да || r=нет
+grep -q 'MINIO_BUCKET' <<<"$out"  && r=да || r=нет; check 'он назван'                    да "$r"
+grep -q 'без умолчания' <<<"$out" && r=да || r=нет; check 'сказано, что умолчания нет'   да "$r"
+grep -q 'BACKUP_DIR OLLAMA_MODEL WEB_PORT' <<<"$out" && r=да || r=нет
 check 'остальные три — впишем сами' да "$r"
 
 sed -i '/MINIO_BUCKET/d' new/env.example
@@ -180,7 +183,7 @@ sed -i 's|^WEB_PORT=8080|WEB_PORT=9090|' new/env.example
 AUTOFILL=()
 out="$( check_new_vars 2>&1 )"; rc=$?
 check 'расхождение образца с умолчанием — остановка' 1 "$rc"
-printf '%s\n' "$out" | grep -q 'без строки подставится «8080»' && r=да || r=нет
+grep -q 'без строки подставится «8080»' <<<"$out" && r=да || r=нет
 check 'названы оба значения' да "$r"
 sed -i 's|^WEB_PORT=9090|WEB_PORT=8080|' new/env.example
 
@@ -208,7 +211,7 @@ check 'правленый compose — остановка' 1 "$rc"
 check 'полный diff сохранён' да "$( [ -f compose-diff-test.patch ] && echo да || echo нет )"
 [ "$(wc -l < compose-diff-test.patch)" -gt 60 ] && r=да || r=нет
 check 'в файле больше, чем показано на экране' да "$r"
-printf '%s\n' "$out" | grep -q 'compose-diff-test.patch' && r=да || r=нет
+grep -q 'compose-diff-test.patch' <<<"$out" && r=да || r=нет
 check 'путь к файлу назван в остановке' да "$r"
 
 echo
@@ -390,7 +393,7 @@ latest="$(latest_release)"
 if [ -z "$latest" ]; then
     echo '  пропуск: до github.com не достучаться'
 else
-    printf '%s\n' "$latest" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' && r=да || r=нет
+    grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$latest" && r=да || r=нет
     check "номер разобран (получено: $latest)" да "$r"
 fi
 
