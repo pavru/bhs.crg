@@ -167,6 +167,62 @@ public sealed class TableExportTests(InvoiceLineHost host) : ModuleTableSeededTe
         Assert.DoesNotContain("6869", $"{record.TargetLabel} {record.Before} {record.After}");
     }
 
+    // ── Ревью PR #1326 ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Итог_которого_в_файле_не_будет_назван_в_шапке()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var seed = await SeedAsync(admin);
+
+        var response = await admin.PostAsJsonAsync(Export, new
+        {
+            columns = new[] { InvoiceRequisites.NumberKey, InvoiceRequisites.TotalKey },
+            filter = Mine(seed),
+            totals = new[]
+            {
+                new { column = InvoiceRequisites.NumberKey, aggregate = "sum" },
+                new { column = InvoiceRequisites.TotalKey, aggregate = "median" },
+                new { column = InvoiceRequisites.NumberKey, aggregate = "count" },
+            },
+        });
+        await OkAsync(response);
+        var sheet = await SheetAsync(response);
+        var lines = Lines(sheet);
+
+        // «Сумма» номера не считается, «median» не знает никто — оба названы, а не пропали молча.
+        Assert.Contains(lines, l => l.StartsWith("Итог «Сумма» по «Номер") && l.EndsWith("у колонки этого вида он не считается"));
+        Assert.Contains(lines, l => l.Contains("«median»"));
+        // Применимый итог на месте: количество — восемь.
+        var footer = sheet.GetRow(HeaderRow(sheet) + 10);
+        Assert.Equal("Количество", footer.GetCell(2).StringCellValue);
+        Assert.Equal(8, footer.GetCell(0).NumericCellValue);
+    }
+
+    [Fact]
+    public async Task Описание_таблицы_называет_потолок_выгрузки()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+
+        var response = await admin.GetAsync($"/api/tables/{Address}/columns");
+        await OkAsync(response);
+
+        Assert.Equal(ModuleTableExport.MaxRows,
+            (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("exportMax").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("2026-10-14T22:30:00Z", "2026-10-15")] // по Москве это уже 15-е
+    [InlineData("2026-10-14T22:30:00+00:00", "2026-10-15")]
+    [InlineData("2026-10-14", "2026-10-14")]
+    [InlineData("2026-10-14T22:30:00", "2026-10-14")] // без смещения — как записано
+    public void День_момента_берётся_в_поясе_компании(string text, string expected)
+    {
+        var moscow = TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+
+        Assert.Equal(DateOnly.Parse(expected), ModuleTableExport.Day(text, moscow));
+    }
+
     private static async Task<ISheet> SheetAsync(HttpResponseMessage response) =>
         new XSSFWorkbook(new MemoryStream(await response.Content.ReadAsByteArrayAsync())).GetSheetAt(0);
 

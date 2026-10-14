@@ -4,7 +4,7 @@ import type { FilterNode } from './types';
 import { cleanFilterNode } from './datasetHelpers';
 import type { FilterColumn } from '@/shared/filter/rowFilterModel';
 import { withBlobErrorBody } from '@/shared/utils/apiError';
-import { filenameFromContentDisposition } from './attachments';
+import { filenameFromContentDisposition, saveBlob } from './attachments';
 
 /**
  * Таблицы модулей — экрану (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092). Первый потребитель
@@ -94,6 +94,11 @@ export interface TableDeclaration {
    * этой паре экран находит, где запись открывается (`recordRoutes`). null — вести строке некуда.
    */
   recordType?: string | null;
+  /**
+   * Сколько строк отбора выгружается в файл за раз (G3b, issue #1096). Больше — выгрузки на экране
+   * нет: невыполнимое действие скрывают (решение владельца 11.10.2026). null — выгружать нечего.
+   */
+  exportMax?: number | null;
 }
 
 /** Итог по колонке — по всему отбору, а не по странице. */
@@ -269,16 +274,8 @@ export function tableExportBody(
 export async function exportTable(address: string, body: TableExportBody): Promise<void> {
   const response = await withBlobErrorBody(apiClient.post<Blob>(
     `/tables/${encodeURIComponent(address)}/export`, body, { responseType: 'blob' }));
-  const name = filenameFromContentDisposition(
-    response.headers['content-disposition'] as string | undefined, 'Таблица.xlsx');
-  const url = URL.createObjectURL(response.data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  saveBlob(response.data, filenameFromContentDisposition(
+    response.headers['content-disposition'] as string | undefined, 'Таблица.xlsx'));
 }
 
 function filterText(filter: FilterNode | string | null): string | null {

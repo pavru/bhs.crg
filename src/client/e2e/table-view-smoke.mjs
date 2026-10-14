@@ -422,11 +422,13 @@ try {
       throw new Error(`имя файла: «${download.suggestedFilename()}»`);
     const xml = sheetXml(await readFile(await download.path()));
 
-    // Шапка называет число строк, а строк листа — не меньше отбора с заголовком: страница дала бы 50.
+    // Считаются КЛЕТКИ ДАННЫХ — назначение посева ровно в клетке, а не строки листа: в тех есть шапка,
+    // заголовок и итоги, и выгрузка одной страницы в 50 строк набрала бы их больше отбора (ревью
+    // PR #1326). Шапка называет назначение в кавычках — внутри строки отбора, и под счёт не попадает.
+    const cells = xml.split(`<t>${TABLE_SEED.purpose}</t>`).length - 1;
+    if (cells !== TABLE_SEED.count) throw new Error(`в листе ${cells} строк посева, а в отборе ${TABLE_SEED.count}`);
     if (!xml.includes(`Строк: ${TABLE_SEED.count}<`)) throw new Error('в шапке файла нет «Строк: N» отбора');
-    const rows = (xml.match(/<row /g) ?? []).length;
-    if (rows < TABLE_SEED.count + 1) throw new Error(`в листе ${rows} строк, а в отборе ${TABLE_SEED.count}`);
-    if (!xml.includes(TABLE_SEED.purpose)) throw new Error('отбор не назван в шапке файла словами');
+    if (!xml.includes(`«${TABLE_SEED.purpose}»`)) throw new Error('отбор не назван в шапке файла словами');
   });
 
   // ── 5. Негодный отбор ─────────────────────────────────────────────────────────────────────────

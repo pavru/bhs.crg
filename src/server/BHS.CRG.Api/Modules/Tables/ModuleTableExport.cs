@@ -54,24 +54,23 @@ public sealed class ModuleTableExport(
     public async Task<(TableExportFile? File, TableRefusal? Refusal)> ExportAsync(
         string address, DataAccess access, TableExportBody body, int maxRows, CancellationToken ct)
     {
-        var totals = (body.Totals ?? []).Where(t => Aggregates.ContainsKey(t.Aggregate)).ToList();
+        var totals = body.Totals ?? [];
+
+        // Сначала — сколько строк, и только потом сами строки: отказ «сузьте отбор» не должен стоить
+        // чтения пятидесяти тысяч строк со всеми их подзапросами (ревью PR #1326). Страница нулевой
+        // длины отдаёт число строк отбора — тем же счётом, каким его отдаёт таблица.
+        var (counted, early) = await tables.ReadAsync(address, access,
+            new TableRequest(body.Columns, body.Filter, body.Sort ?? [], 0, 0), ct);
+        if (counted is null) return (null, early);
+        if (Unexportable(counted, maxRows) is { } before) return (null, before);
+
         var request = new TableRequest(body.Columns, body.Filter, body.Sort ?? [], 0, maxRows,
             [.. totals.Select(t => t.Column).Distinct(StringComparer.Ordinal)]);
-        var (table, refusal) = await tables.ReadAsync(address, access, request, ct);
+        var (table, all, refusal) = await tables.ReadWithColumnsAsync(address, access, request, ct);
         if (table is null) return (null, refusal);
+        // Между двумя чтениями строк могло стать больше: проверяем и то, что прочли на самом деле.
+        if (Unexportable(table, maxRows) is { } after) return (null, after);
 
-        if (table.State is not null)
-            return (null, new(StatusCodes.Status409Conflict,
-                $"Таблица «{table.Title}» не выгружена: {table.Columns.FirstOrDefault()?.Reason ?? "модуль выключен"} — строк нет."));
-
-        if (table.Count > maxRows)
-            return (null, new(StatusCodes.Status409Conflict,
-                $"Таблица «{table.Title}» не выгружена: под отбором {Count(table.Count)} строк, а выгрузка берёт " +
-                $"не больше {Count(maxRows)}. Сузьте отбор — файл, обрезанный по пределу, выглядел бы полным."));
-
-        // Описание — ради ВСЕХ колонок: отбор может стоять на колонке, которой в файле нет, а назвать её
-        // в шапке надо своим именем. Открыть его тому, кому открылись строки, служба не откажет.
-        var (declaration, _) = await tables.DescribeAsync(address, access, ct);
         var shown = table.Columns.Where(c => c.Unavailable is null).ToList();
         var money = shown.Where(c => IsMoney(c, table.Rows)).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
 
@@ -91,9 +90,9 @@ public sealed class ModuleTableExport(
             // и сводную таблицу (решение владельца 14.10.2026).
             [.. shown.Select(c => c.Note is null ? c.Label : $"{c.Label} ({c.Note})")],
             [.. table.Rows.Select(row => (IReadOnlyList<object?>)[.. shown.Select(c =>
-                Cell(row.GetValueOrDefault(c.Key), c.Kind, money.Contains(c.Key)))])],
-            Preamble(table, declaration?.Columns ?? table.Columns, body, who, now, currency),
-            Footer(table, shown, money, totals));
+                Cell(row.GetValueOrDefault(c.Key), c.Kind, money.Contains(c.Key), zone))])],
+            Preamble(table, all, body, who, now, currency, Unshown(totals, shown)),
+            Footer(table, shown, money, totals, zone));
 
         var (bytes, _, _) = SpreadsheetExporter.ExportSheets(SpreadsheetFormat.Xlsx, [sheet]);
 
@@ -105,13 +104,56 @@ public sealed class ModuleTableExport(
         return (new TableExportFile(bytes, Xlsx, FileName(table.Title, body.View, now)), null);
     }
 
+    /// <summary>Почему таблицу нельзя выгрузить целиком; null — можно.</summary>
+    private static TableRefusal? Unexportable(TableDto table, int maxRows)
+    {
+        if (table.State is not null)
+            return new(StatusCodes.Status409Conflict,
+                $"Таблица «{table.Title}» не выгружена: {table.Columns.FirstOrDefault()?.Reason ?? "модуль выключен"} — строк нет.");
+        return table.Count > maxRows
+            ? new(StatusCodes.Status409Conflict,
+                $"Таблица «{table.Title}» не выгружена: под отбором {Count(table.Count)} строк, а выгрузка берёт " +
+                $"не больше {Count(maxRows)}. Сузьте отбор — файл, обрезанный по пределу, выглядел бы полным.")
+            : null;
+    }
+
+    /// <summary>
+    /// Итоги, которых в файле не будет, — словами. Неизвестное слово итога и итог, который у колонки
+    /// такого вида не считается («сумма» текста), иначе пропали бы молча: на экране под колонкой что-то
+    /// стоит, а в файле строки нет, и читатель решил бы, что итогов не просили (ревью PR #1326).
+    /// Итог по колонке, которой в файле нет, здесь не назван: о самой колонке говорит строка «Не выгружено».
+    /// </summary>
+    private static List<string> Unshown(
+        IReadOnlyList<TableExportTotal> totals, List<TableColumnDto> shown)
+    {
+        var lines = new List<string>();
+        foreach (var total in totals)
+        {
+            var column = shown.FirstOrDefault(c => c.Key == total.Column);
+            if (column is null) continue;
+            if (!Aggregates.TryGetValue(total.Aggregate, out var word))
+                lines.Add($"Итог по «{column.Label}» не выгружен: слова итога «{total.Aggregate}» выгрузка не знает");
+            else if (!Applies(total.Aggregate, column.Kind))
+                lines.Add($"Итог «{word}» по «{column.Label}» не выгружен: у колонки этого вида он не считается");
+        }
+        return lines;
+    }
+
+    /// <summary>Какие итоги у колонки считаются — то же правило, что у экрана (<c>aggregatesFor</c>).</summary>
+    private static bool Applies(string aggregate, string kind) => aggregate switch
+    {
+        "count" => true,
+        "min" or "max" => kind is TableOperators.Number or TableOperators.Date,
+        _ => kind == TableOperators.Number,
+    };
+
     /// <summary>
     /// Строки над таблицей — всё, без чего файл через неделю не прочесть: что за таблица, кто и когда
     /// выгрузил, что отобрано, сколько строк, чего в файле нет и почему.
     /// </summary>
     private static List<string> Preamble(
         TableDto table, IReadOnlyList<TableColumnDto> all, TableExportBody body, string who,
-        DateTimeOffset now, string? currency)
+        DateTimeOffset now, string? currency, List<string> unshown)
     {
         var view = string.IsNullOrWhiteSpace(body.View) ? null : body.View.Trim();
         var label = all.ToDictionary(c => c.Key, c => c.Label, StringComparer.Ordinal);
@@ -141,6 +183,7 @@ public sealed class ModuleTableExport(
             if (total.Skipped > 0)
                 lines.Add($"Итог по «{label.GetValueOrDefault(key, key)}»: не учтено {Count(total.Skipped)} — {total.SkippedReason}");
 
+        lines.AddRange(unshown);
         return lines;
     }
 
@@ -149,7 +192,8 @@ public sealed class ModuleTableExport(
     /// колонкой, а если под ней сам итог — за последней: в одну клетку два значения не лягут.
     /// </summary>
     private static List<IReadOnlyList<object?>> Footer(
-        TableDto table, List<TableColumnDto> shown, HashSet<string> money, List<TableExportTotal> totals)
+        TableDto table, List<TableColumnDto> shown, HashSet<string> money, IReadOnlyList<TableExportTotal> totals,
+        TimeZoneInfo zone)
     {
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var (aggregate, word) in AggregateWords)
@@ -161,13 +205,14 @@ public sealed class ModuleTableExport(
                 var index = shown.FindIndex(c => c.Key == total.Column);
                 if (index < 0 || table.Totals?.GetValueOrDefault(total.Column) is not { } value) continue;
                 var column = shown[index];
+                if (!Applies(aggregate, column.Kind)) continue; // назван в шапке — см. Unshown
                 var cell = aggregate switch
                 {
                     "count" => (object)(decimal)value.Count,
-                    "sum" => Cell(value.Sum, column.Kind, money.Contains(column.Key)),
-                    "avg" => Cell(value.Average, column.Kind, money.Contains(column.Key)),
-                    "min" => Cell(value.Min, column.Kind, money.Contains(column.Key)),
-                    _ => Cell(value.Max, column.Kind, money.Contains(column.Key)),
+                    "sum" => Cell(value.Sum, column.Kind, money.Contains(column.Key), zone),
+                    "avg" => Cell(value.Average, column.Kind, money.Contains(column.Key), zone),
+                    "min" => Cell(value.Min, column.Kind, money.Contains(column.Key), zone),
+                    _ => Cell(value.Max, column.Kind, money.Contains(column.Key), zone),
                 };
                 if (cell is null) continue;
                 row[index] = cell;
@@ -190,12 +235,18 @@ public sealed class ModuleTableExport(
     /// <summary>
     /// Значение таблицы → значение клетки. Вид клетки задаёт ВИД КОЛОНКИ, а не вид значения: строка
     /// «0012» в текстовой колонке так и остаётся строкой.
+    ///
+    /// <para>⚠️ Момент переводится в пояс КОМПАНИИ: экспортёр пояса не знает и пишет те часы, что
+    /// записаны в значении, — у момента из базы это UTC, и «22:30 14-го» по Москве было бы уже 15-м
+    /// (ревью PR #1326). Дата без времени — день, ей переводить нечего.</para>
     /// </summary>
-    private static object? Cell(object? value, string kind, bool money) => value switch
+    private static object? Cell(object? value, string kind, bool money, TimeZoneInfo zone) => value switch
     {
         null => null,
         bool flag => flag ? "да" : "нет",
-        string text when kind == TableOperators.Date => Day(text) is { } day ? day : text,
+        DateTimeOffset moment => TimeZoneInfo.ConvertTime(moment, zone),
+        DateTime { Kind: DateTimeKind.Utc } moment => TimeZoneInfo.ConvertTime(new DateTimeOffset(moment), zone),
+        string text when kind == TableOperators.Date => Day(text, zone) is { } day ? day : text,
         string text => text,
         // Перечень — строкой через запятую, как на экране: в клетку список не ложится.
         IEnumerable list => string.Join(", ", list.Cast<object?>().Select(v => Convert.ToString(v, CultureInfo.InvariantCulture))),
@@ -203,10 +254,18 @@ public sealed class ModuleTableExport(
         _ => value,
     };
 
-    /// <summary>Дата из поля схемы: «2026-10-14» и «2026-10-14T…» — днём; иное — не дата.</summary>
-    private static DateOnly? Day(string text) =>
-        text.Length >= 10 && DateOnly.TryParseExact(text[..10], "yyyy-MM-dd", CultureInfo.InvariantCulture,
+    /// <summary>
+    /// Дата из поля схемы: «2026-10-14» и «2026-10-14T…» — днём; иное — не дата. Момент СО СМЕЩЕНИЕМ
+    /// («…T22:30:00Z») — днём в поясе компании, а не первыми десятью знаками: обрезка дала бы день UTC.
+    /// </summary>
+    public static DateOnly? Day(string text, TimeZoneInfo zone)
+    {
+        if (text.Length > 10 && (text.EndsWith('Z') || text.LastIndexOfAny(['+', '-']) > 10)
+            && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var moment))
+            return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(moment, zone).DateTime);
+        return text.Length >= 10 && DateOnly.TryParseExact(text[..10], "yyyy-MM-dd", CultureInfo.InvariantCulture,
             DateTimeStyles.None, out var day) ? day : null;
+    }
 
     /// <summary>
     /// Деньги ли колонка — решается по ВСЕЙ колонке, а не по клетке (ревью PR #1325): числовая колонка,
