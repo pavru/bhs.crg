@@ -52,9 +52,17 @@ export function SiteFilterSwitch() {
 function SwitchContent() {
   const filter = useSiteFilterState();
 
-  if (filter.status === 'unavailable') return null;
   if (filter.status === 'loading') {
     return <span className="h-8 px-3 flex items-center text-sm text-fg4" data-testid="site-filter-loading">Избранные стройки…</span>;
+  }
+  // Не пришло — сказать, а не изображать загрузку: списки при этом полные, фильтр не действует.
+  if (filter.status === 'error') {
+    return (
+      <span className="h-8 px-3 flex items-center gap-1.5 text-sm text-fg4" data-testid="site-filter-error"
+        title="Настройки или справочник строек не загрузились. Списки показаны полностью; обновите страницу.">
+        <Star size={14} aria-hidden /> Избранные стройки не загрузились — показаны все
+      </span>
+    );
   }
 
   const count = filter.favorites.size;

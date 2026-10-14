@@ -39,6 +39,9 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
   }
 
   if (filter.status === 'loading') return <p className="text-sm text-fg4">Загрузка…</p>;
+  if (filter.status === 'error') {
+    return <p role="alert" className="text-sm text-danger">Избранные стройки не загрузились. Обновите страницу.</p>;
+  }
 
   return (
     <div className="space-y-3" data-testid="favorites-picker">

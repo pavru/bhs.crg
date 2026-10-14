@@ -12,9 +12,10 @@ import { BASE, settled, callApi } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 
-// Стройка, которую проверки заводят сами, если на стенде их меньше двух: на стенде CI после посева
-// стройка одна, а скрыть фильтром можно только вторую (CI PR #1331). Удаляется в finally — наборы
-// идут по очереди (`run-suites.mjs`), и следующий её уже не увидит.
+// Стройки, которые проверки заводят сами, если на стенде их меньше трёх: на стенде CI после посева
+// стройка одна (CI PR #1331), а проверке переключателя после звезды нужна третья — неизбранная
+// рядом с двумя избранными. Удаляются в finally — наборы идут по очереди (`run-suites.mjs`), и
+// следующий их уже не увидит.
 const SPARE = 'Избранное: вторая стройка (проверка)';
 
 const stars = page => page.getByTestId('favorite-star');
@@ -25,7 +26,7 @@ export async function favoritesChecks(page, check) {
   const spare = [];
   try {
     let all = (await callApi(page, 'GET', '/constructions')).body;
-    while (all.length + spare.length < 2) {
+    while (all.length + spare.length < 3) {
       const created = await callApi(page, 'POST', '/constructions', { name: `${SPARE} ${spare.length + 1}` });
       if (created.status !== 201 && created.status !== 200) throw new Error(`вторая стройка не заведена: ${created.status}`);
       spare.push(created.body.id);
@@ -72,14 +73,77 @@ export async function favoritesChecks(page, check) {
       if ((await stars(page).count()) !== 1) throw new Error('«Избранные» не вернули отбор');
     });
 
+    await check('favorites-switch-after-star-filters-the-list', async () => {
+      // Звезда держит карточки на экране до ухода с него, но явное переключение в шапке это
+      // удержание снимает — иначе «Избранные» горели бы над неурезанным списком (ревью PR #1331).
+      await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
+      await settled(page);
+      await page.locator('[data-testid="favorite-star"][aria-pressed="false"]').first().click();
+      await settled(page);
+      await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
+      await settled(page);
+      const left = await stars(page).count();
+      if (left !== 2) throw new Error(`после звезды и «Избранные» карточек ${left}, ждали две`);
+    });
+
+    await check('favorites-new-construction-joins-favorites', async () => {
+      // Избранное непусто — созданная стройка попадает в него и открывается без строки «не в
+      // избранном»: справочник перечитан до перехода на её страницу (ревью PR #1331).
+      await page.getByRole('button', { name: 'Новая стройка' }).first().click();
+      await page.getByLabel('Название стройки').fill(`${SPARE} новая`);
+      await page.getByRole('button', { name: 'Создать' }).click();
+      await page.waitForURL(/\/document-sets\/[0-9a-f-]{36}$/);
+      spare.push(page.url().split('/').pop());
+      await settled(page);
+      if (await page.getByTestId('not-favorite-note').count()) throw new Error('новая стройка названа «не в избранном»');
+      const stored = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions.split(',');
+      if (!stored.includes(spare.at(-1))) throw new Error('новая стройка не попала в избранное');
+    });
+
+    await check('favorites-write-keeps-construction-this-page-has-not-seen', async () => {
+      // «С другого компьютера» заводят стройку и отмечают её — адресом, мимо кэша этой страницы.
+      // Звезда здесь не должна снять её как «удалённую»: справочник этой страницы её ещё не видел, а
+      // сервер — видит (ревью PR #1331).
+      const created = await callApi(page, 'POST', '/constructions', { name: `${SPARE} с другого компьютера` });
+      const elsewhere = created.body.id;
+      spare.push(elsewhere);
+      const before = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions;
+      await callApi(page, 'PUT', '/account/settings', { favoriteConstructions: `${before},${elsewhere}` });
+      // В список — переходом внутри приложения: перезагрузка перечитала бы справочник.
+      await page.getByRole('navigation').getByRole('link', { name: 'Стройки' }).first().click();
+      await settled(page);
+      // Под фильтром в списке только избранные — снимаем одну из них: запись та же.
+      await page.locator('[data-testid="favorite-star"][aria-pressed="true"]').first().click();
+      await settled(page);
+      const stored = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions.split(',');
+      if (!stored.includes(elsewhere)) throw new Error('звезда сняла стройку, отмеченную на другом компьютере');
+    });
+
     await check('favorites-direct-link-opens-not-favorite', async () => {
-      const favorite = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions;
-      const other = all.find(c => c.id !== favorite);
+      const favorite = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions.split(',');
+      const other = all.find(c => !favorite.includes(c.id));
       await page.goto(`${BASE}/document-sets/${other.id}`);
       await settled(page);
       // Объект открыт полностью, строка говорит, почему его нет в списке; шапка — «не действуют».
       await page.getByTestId('not-favorite-note').waitFor({ timeout: 5000 });
       await page.getByTestId('site-filter-idle').waitFor({ timeout: 5000 });
+    });
+
+    await check('favorites-settings-failure-shows-everything', async () => {
+      // Настройки не пришли — фильтр не действует и говорит об этом, а список строек полный. Раньше
+      // «загрузка» ждала настроек без конца и держала сам список (ревью PR #1331).
+      await page.route('**/api/account/settings', route =>
+        route.request().method() === 'GET' ? route.fulfill({ status: 500, body: '{}' }) : route.continue());
+      try {
+        await page.goto(`${BASE}/document-sets`);
+        await page.getByTestId('site-filter-error').waitFor({ timeout: 20000 });
+        const left = await stars(page).count();
+        if (left !== 0 && left !== all.length) throw new Error(`при сбое настроек карточек ${left} из ${all.length}`);
+        const cards = await page.locator('h3').count();
+        if (cards < all.length) throw new Error(`при сбое настроек видно ${cards} строек из ${all.length}`);
+      } finally {
+        await page.unroute('**/api/account/settings');
+      }
     });
   } finally {
     await callApi(page, 'PUT', '/account/settings', RESET);

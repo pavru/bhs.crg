@@ -19,6 +19,25 @@ export function useListConstructions(enabled = true) {
   });
 }
 
+/** Стройка лёгкого справочника — id и имя. */
+export interface ConstructionEntry { id: string; name: string }
+
+/** Ключ под `['constructions']` нарочно: создание, удаление и правка строек сбрасывают его вместе со списком. */
+export const DIRECTORY_KEY = ['constructions', 'directory'] as const;
+
+export function fetchConstructionDirectory(): Promise<ConstructionEntry[]> {
+  return apiClient.get<ConstructionEntry[]>('/constructions/directory').then(r => r.data);
+}
+
+/**
+ * Лёгкий справочник строек (issue #1218, ревью PR #1331): id и имя, по названию. Его читает фильтр
+ * «Избранные стройки» из оболочки — на КАЖДОМ экране, — а полный список собирает дерево разделов и
+ * считает документы во всех комплектах.
+ */
+export function useConstructionDirectory(enabled = true) {
+  return useQuery({ queryKey: DIRECTORY_KEY, queryFn: fetchConstructionDirectory, enabled, staleTime: 60_000 });
+}
+
 export function useGetConstruction(id: string) {
   return useQuery({
     queryKey: KEYS.detail(id),

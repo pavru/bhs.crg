@@ -7,14 +7,18 @@ import { clientSources } from '@/shared/testing/clientSources';
  *
  * <p>Зачем. Фильтр ложится на экраны по одному, и новый экран со стройками по умолчанию не фильтрует
  * ничего — молча: шапка скажет «не действуют», но человек, выбравший три стройки, увидит
- * четырнадцать и решит, что фильтр сломан. Реестр делает выбор обязательным: импортировал хук
- * справочника — объяснись здесь. И наоборот: файл, который урезает список, обязан звать
- * `useSiteFilter` — иначе шапка над ним врёт.</p>
+ * четырнадцать и решит, что фильтр сломан. Реестр делает выбор обязательным: взял справочник —
+ * объяснись здесь. И наоборот: файл, который урезает список, обязан звать `useSiteFilter` — иначе
+ * шапка над ним врёт.</p>
  *
  * <p>Справочник сам не фильтруется НИКОГДА (#1217): код читает «нет в справочнике» как «удалена».
  * «Фильтрует» значит «урезает свой список объектов по правилу», а не «берёт урезанный справочник».</p>
+ *
+ * <p>«Берёт справочник» — это имя хука в любом `import { … }` или `export { … } from`, в том числе
+ * многострочном, и через обёртку: обёртка называет в `carries` свои хуки, которые несут справочник
+ * дальше, и их потребители тоже обязаны быть названы (ревью PR #1331 — `usePlaces` прятал троих).</p>
  */
-type Entry = { filters: true } | { filters: false; because: string };
+type Entry = ({ filters: true } | { filters: false; because: string }) & { carries?: string[] };
 
 const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/ConstructionsList.tsx': { filters: true },
@@ -28,7 +32,16 @@ const REGISTRY: Record<string, Entry> = {
     filters: false, because: 'имена строек из полного справочника; таблица периода урезается шагом #1220',
   },
   '/src/features/costs/places.ts': {
+    filters: false, because: 'обёртка: справочник целей разноски; сама ничего не рисует', carries: ['usePlaces'],
+  },
+  '/src/features/costs/AllocationMatrix.tsx': {
     filters: false, because: 'варианты разноски — общий компонент выбора стройки, #1219',
+  },
+  '/src/features/costs/LineAllocation.tsx': {
+    filters: false, because: 'варианты разноски — общий компонент выбора стройки, #1219',
+  },
+  '/src/features/costs/InvoiceObject.tsx': {
+    filters: false, because: 'объект счёта — общий компонент выбора стройки, #1219',
   },
   '/src/features/costs/WaybillsPage.tsx': {
     filters: false, because: 'список накладных страничный — отбор параметром sites, #1222',
@@ -47,24 +60,46 @@ const REGISTRY: Record<string, Entry> = {
 /** Где хуки справочника объявлены — эти файлы его не потребляют. */
 const DEFINITIONS = ['/src/shared/api/constructions.ts', '/src/shared/api/invoices.ts'];
 
-const DIRECTORY_HOOK = /\b(useListConstructions|useCostsConstructions)\b/;
+const DIRECTORY_HOOKS = ['useListConstructions', 'useCostsConstructions', 'useConstructionDirectory'];
 const FILTER_HOOK = /\buseSiteFilter\(\)/;
 
-/** Файлы, импортирующие хук справочника. Сами тесты не в счёт: они его не рисуют. */
-function directoryUsers(sources: Record<string, string>): string[] {
+/** Имена из `import { … } from` и `export { … } from` — со всеми переносами строк и `as`. */
+function namesTaken(code: string): string[] {
+  return [...code.matchAll(/\b(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\b/g)]
+    .flatMap(m => m[1].split(','))
+    .map(part => part.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0])
+    .filter(Boolean);
+}
+
+/** Файлы, берущие справочник — сам хук или хук обёртки. Тесты не в счёт: они его не рисуют. */
+function directoryUsers(sources: Record<string, string>, registry: Record<string, Entry>): string[] {
+  const hooks = new Set([...DIRECTORY_HOOKS, ...Object.values(registry).flatMap(e => e.carries ?? [])]);
   return Object.entries(sources)
-    .filter(([file]) => !file.endsWith('.test.ts') && !file.endsWith('.test.tsx') && !DEFINITIONS.includes(file))
-    .filter(([, code]) => code.split('\n').some(line => line.startsWith('import') && DIRECTORY_HOOK.test(line)))
+    .filter(([file]) => !/\.test\.tsx?$/.test(file) && !DEFINITIONS.includes(file))
+    .filter(([, code]) => namesTaken(code).some(name => hooks.has(name)))
     .map(([file]) => file)
     .sort();
 }
 
 describe('сторож-реестр избранных строек', () => {
-  const users = directoryUsers(clientSources);
+  const users = directoryUsers(clientSources, REGISTRY);
 
   it('видит потребителей справочника', () => {
     // Положительный якорь: сломайся поиск — проверки ниже прошли бы на пустом списке.
     expect(users).toContain('/src/features/document-sets/ConstructionsList.tsx');
+    expect(users).toContain('/src/features/costs/LineAllocation.tsx');
+  });
+
+  it('видит многострочный импорт, реэкспорт и обёртку', () => {
+    // Самопроверка на выдуманных файлах: сторож, зелёный всегда, хуже отсутствующего.
+    const fake = {
+      '/src/a.tsx': "import {\n  useGetConstruction,\n  useListConstructions,\n} from '@/shared/api/constructions';",
+      '/src/b.ts': "export { useCostsConstructions as useSites } from '@/shared/api/invoices';",
+      '/src/c.tsx': "import { usePlaces } from './places';",
+      '/src/d.tsx': "import { useGetConstruction } from '@/shared/api/constructions';",
+    };
+    expect(directoryUsers(fake, { '/src/places.ts': { filters: false, because: '—', carries: ['usePlaces'] } }))
+      .toEqual(['/src/a.tsx', '/src/b.ts', '/src/c.tsx']);
   });
 
   it('каждый файл со справочником строек назван в реестре', () => {
