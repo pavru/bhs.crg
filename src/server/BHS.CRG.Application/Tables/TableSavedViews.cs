@@ -23,9 +23,14 @@ public record TableViewState(
 /// выполнить нельзя, на экране нет.</param>
 /// <param name="BasedOn">Код представления модуля, из которого сделано; null — из таблицы целиком.</param>
 /// <param name="Version">Версия строки — её называет правка заголовком <c>If-Match</c>.</param>
+/// <param name="Withheld">Почему отбор представления спрашивающему НЕ отдан: он стоит на колонке,
+/// закрытой ему правом. Тогда <c>State.Filter</c> пуст — и это не «отбора нет». Значения условия
+/// («поставщик из списка», «сумма больше порога») выдавали бы содержимое закрытой колонки; экран
+/// по этому слову обязан сказать, что отбор автора скрыт, а не открыть представление как есть.
+/// null — отбор отдан целиком либо его нет.</param>
 public record SavedTableViewDto(
     Guid Id, string Title, bool Shared, bool Mine, string? Author, bool CanEdit, string? BasedOn,
-    TableViewState State, string Version);
+    TableViewState State, string Version, string? Withheld = null);
 
 /// <summary>Тело создания и правки представления. Правка заменяет представление целиком.</summary>
 public record SaveTableView(string? Title, bool Shared, TableViewState? State, string? BasedOn = null);

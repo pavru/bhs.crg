@@ -1975,16 +1975,6 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.HasIndex("OwnerId");
 
-                    b.HasIndex("TableAddress", "Title")
-                        .IsUnique()
-                        .HasDatabaseName("IX_table_views_shared_title")
-                        .HasFilter("\"Shared\"");
-
-                    b.HasIndex("TableAddress", "OwnerId", "Title")
-                        .IsUnique()
-                        .HasDatabaseName("IX_table_views_own_title")
-                        .HasFilter("NOT \"Shared\"");
-
                     b.ToTable("table_views", (string)null);
                 });
 

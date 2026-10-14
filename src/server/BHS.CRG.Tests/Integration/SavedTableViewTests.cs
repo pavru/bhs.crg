@@ -76,7 +76,9 @@ public sealed class SavedTableViewTests(InvoiceLineHost host) : ModuleTableSeede
     {
         var (admin, _) = await SignInAsync("Admin");
 
-        var response = await SendAsync(admin, new HttpMethod(method), $"{Views}/{InvoiceTable.RegistryView}", "1",
+        // Версию не называем НАРОЧНО: у представления модуля её нет, в списке его нет, и взять её
+        // неоткуда. Требуй адрес заголовок и здесь, вместо «заперто» приходило бы «назовите версию».
+        var response = await SendAsync(admin, new HttpMethod(method), $"{Views}/{InvoiceTable.RegistryView}", null,
             method == "PUT" ? Body("Реестр по-моему", columns: ["Номер"]) : null);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -91,7 +93,7 @@ public sealed class SavedTableViewTests(InvoiceLineHost host) : ModuleTableSeede
         Assert.Equal(InvoiceTable.RegistryView, copy.GetProperty("basedOn").GetString());
 
         // Кода, которого модуль не объявляет, нет вовсе — это уже «не найдено», а не «заперто».
-        var unknown = await SendAsync(admin, HttpMethod.Delete, $"{Views}/no-such-view", "1");
+        var unknown = await SendAsync(admin, HttpMethod.Delete, $"{Views}/no-such-view", null);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
@@ -116,6 +118,8 @@ public sealed class SavedTableViewTests(InvoiceLineHost host) : ModuleTableSeede
 
         // Читатель общее видит, но править не вправе — и список говорит ему это заранее.
         var seen = (await ListAsync(reader)).Single(v => v.GetProperty("id").GetGuid() == id);
+        // Автор назван одним способом в ответе создания и в списке: клиент кладёт первый в кеш второго.
+        Assert.Equal(shared.GetProperty("author").GetString(), seen.GetProperty("author").GetString());
         Assert.True(seen.GetProperty("shared").GetBoolean());
         Assert.False(seen.GetProperty("mine").GetBoolean());
         Assert.False(seen.GetProperty("canEdit").GetBoolean());
@@ -278,12 +282,118 @@ public sealed class SavedTableViewTests(InvoiceLineHost host) : ModuleTableSeede
 
         var changed = await SavedAsync(await SendAsync(admin, HttpMethod.Put, $"{Views}/{id}",
             shared.GetProperty("version").GetString(), Body(common, shared: true, columns: ["Номер"])));
+        // В журнале — что изменено, словами: состояния целиком раздували бы журнал, а он едет в копии.
         var record = await LastAsync(ActivityActions.TableViewChanged, shared);
-        Assert.DoesNotContain("Номер", record!.Before);
-        Assert.Contains("Номер", record.After);
+        Assert.Equal(common, record!.Before);
+        Assert.Equal($"{common} — изменено: колонки", record.After);
 
         await SendAsync(admin, HttpMethod.Delete, $"{Views}/{id}", changed.GetProperty("version").GetString());
         Assert.NotNull(await LastAsync(ActivityActions.TableViewDeleted, shared));
+    }
+
+    /// <summary>
+    /// Отбор общего представления по колонке, закрытой читателю, из списка ему не отдаётся: значения
+    /// условия — порог суммы, перечень поставщиков — выдавали бы содержимое закрытой колонки. И тот,
+    /// кто отбора не видит, представление не правит: правка заменяет его целиком и стёрла бы условия.
+    /// </summary>
+    [Fact]
+    public async Task Отбор_по_закрытой_колонке_читателю_не_отдаётся_и_правкой_не_затирается()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var (narrow, _) = await SignInAsync(await RoleAsync("costs.waybill.read", "core.views.share"));
+        var title = Name("Крупные счета");
+        var filter = JsonSerializer.Serialize(new { type = "condition", column = InvoiceTable.AmountKey, op = "gt", value = "1000000" });
+
+        var shared = await SavedAsync(await admin.PostAsJsonAsync(Views,
+            new { title, shared = true, state = new { filter } }));
+        var id = shared.GetProperty("id").GetGuid();
+
+        // Автору, у которого суммы открыты, отбор приходит как есть.
+        Assert.Contains("1000000", shared.GetProperty("state").GetProperty("filter").GetString());
+        Assert.Equal(JsonValueKind.Null, shared.GetProperty("withheld").ValueKind);
+
+        var seen = (await ListAsync(narrow)).Single(v => v.GetProperty("id").GetGuid() == id);
+        Assert.Equal(JsonValueKind.Null, seen.GetProperty("state").GetProperty("filter").ValueKind);
+        Assert.Contains("«Сумма»", seen.GetProperty("withheld").GetString());
+        Assert.DoesNotContain("1000000", seen.GetRawText());
+
+        // Право на общие представления у него есть — но отбора он не видит, и правка его стёрла бы.
+        Assert.True(seen.GetProperty("canEdit").GetBoolean());
+        var wiped = await SendAsync(narrow, HttpMethod.Put, $"{Views}/{id}", seen.GetProperty("version").GetString(),
+            Body(title, shared: true));
+        Assert.Equal(HttpStatusCode.Forbidden, wiped.StatusCode);
+        Assert.Contains("Отбор автора скрыт", await ErrorAsync(wiped));
+
+        var still = (await ListAsync(admin)).Single(v => v.GetProperty("id").GetGuid() == id);
+        Assert.Contains("1000000", still.GetProperty("state").GetProperty("filter").GetString());
+    }
+
+    /// <summary>
+    /// Предел группы — правило ВХОДА в неё. Группу сверх предела может принести копия, и её
+    /// представления обязаны остаться правимыми: правка ничего в группу не добавляет.
+    /// </summary>
+    [Fact]
+    public async Task Предел_числа_представлений_проверяется_на_входе_а_не_при_правке()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var mark = $"Предел {Guid.NewGuid():N}";
+        try
+        {
+            using (var scope = host.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.SavedTableViews.AddRange(Enumerable.Range(0, BHS.CRG.Api.Modules.Tables.SavedTableViewService.SharedMax)
+                    .Select(i => BHS.CRG.Domain.Tables.SavedTableView.Create(Address, null, null, $"{mark} {i}", true, "{}")));
+                await db.SaveChangesAsync();
+            }
+
+            var over = await admin.PostAsJsonAsync(Views, Body(Name("Сверх предела"), shared: true));
+            Assert.Equal(HttpStatusCode.Conflict, over.StatusCode);
+            Assert.Contains("предел", await ErrorAsync(over));
+
+            // Правка лежащего в полной группе проходит, своё личное заводится: у него свой счёт.
+            var one = (await ListAsync(admin)).First(v => v.GetProperty("title").GetString() == $"{mark} 0");
+            await SavedAsync(await SendAsync(admin, HttpMethod.Put, $"{Views}/{one.GetProperty("id").GetGuid()}",
+                one.GetProperty("version").GetString(), Body($"{mark} 0", shared: true, columns: ["Номер"])));
+            await SavedAsync(await admin.PostAsJsonAsync(Views, Body(Name("Своё при полной группе"))));
+        }
+        finally
+        {
+            using var scope = host.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().SavedTableViews
+                .Where(v => v.Title.StartsWith(mark)).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>
+    /// Уникальность имени без учёта регистра держит БАЗА, а не только проверка службы: та не атомарна,
+    /// и два одновременных сохранения «Счета» и «счета» прошли бы её оба.
+    /// </summary>
+    [Fact]
+    public async Task Имена_различающиеся_регистром_не_пускает_сама_база()
+    {
+        var title = Name("Счета");
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.SavedTableViews.AddRange(
+            BHS.CRG.Domain.Tables.SavedTableView.Create(Address, null, null, title, true, "{}"),
+            BHS.CRG.Domain.Tables.SavedTableView.Create(Address, null, null, title.ToUpperInvariant(), true, "{}"));
+
+        var refused = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+
+        Assert.Contains("IX_table_views_shared_title", refused.InnerException!.Message);
+    }
+
+    /// <summary>Своя роль с несколькими правами.</summary>
+    private async Task<string> RoleAsync(string first, string second)
+    {
+        var name = await RoleAsync(first);
+        using var scope = host.Services.CreateScope();
+        var roles = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole<Guid>>>();
+        var role = await roles.FindByNameAsync(name);
+        Assert.True((await roles.AddClaimAsync(role!, new System.Security.Claims.Claim(
+            BHS.CRG.Api.Auth.RoleSynchronizer.PermissionClaim, second))).Succeeded);
+        return name;
     }
 
     private async Task<BHS.CRG.Domain.Activity.ActivityRecord?> LastAsync(ActivityAction action, JsonElement view)

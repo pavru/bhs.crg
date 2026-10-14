@@ -113,6 +113,33 @@ public static class SavedTableViewRules
         JsonSerializer.Deserialize<TableViewState>(stored, Json)
         ?? throw new JsonException("Состояние сохранённого представления записано значением «null».");
 
+    /// <summary>Колонки, на которых стоят условия отбора. Отбор, который не разбирается, колонок не называет.</summary>
+    public static IReadOnlySet<string> FilterColumns(string? filter)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        if (DataSetRowFilterExecutor.Problem(filter) is null && DataSetRowFilterExecutor.Parse(filter) is { } root) Walk(root);
+        return keys;
+
+        void Walk(FilterNode node)
+        {
+            if (node.Type == "group") foreach (var child in node.Children ?? []) Walk(child);
+            else if (node.Column is { } column) keys.Add(column);
+        }
+    }
+
+    /// <summary>Что в настройке изменилось — словами для журнала действий; пусто — ничего.</summary>
+    public static IReadOnlyList<string> Changed(TableViewState before, TableViewState after)
+    {
+        var parts = new List<string>();
+        if (!(before.Columns ?? []).SequenceEqual(after.Columns ?? []) || before.Columns is null != after.Columns is null)
+            parts.Add("колонки");
+        if (before.Filter != after.Filter) parts.Add("отбор");
+        if (!(before.Sort ?? []).SequenceEqual(after.Sort ?? [])) parts.Add("сортировка");
+        if (!(before.Totals ?? []).SequenceEqual(after.Totals ?? [])) parts.Add("итоги");
+        if (before.Pinned != after.Pinned) parts.Add("закрепление");
+        return parts;
+    }
+
     private static string? Twice(IEnumerable<string> keys) =>
         keys.GroupBy(k => k, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1)?.Key;
 }

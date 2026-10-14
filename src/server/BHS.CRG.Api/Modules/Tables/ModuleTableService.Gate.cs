@@ -1,4 +1,5 @@
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Tables;
 using BHS.CRG.Modules.Tables;
 
 namespace BHS.CRG.Api.Modules.Tables;
@@ -16,7 +17,8 @@ public sealed partial class ModuleTableService
         var (opened, denied) = await OpenAsync(address, access, ct);
         return opened is null
             ? (null, denied)
-            : (new(opened.Entry.Address, opened.Entry.Table.Title, opened.Off, opened.Entry.Table.Views ?? []), null);
+            : (new(opened.Entry.Address, opened.Entry.Table.Title, opened.Off, opened.Entry.Table.Views ?? [],
+                opened.Columns), null);
     }
 }
 
@@ -24,4 +26,7 @@ public sealed partial class ModuleTableService
 /// <param name="Address">Адрес, как его объявил модуль: им таблица названа в хранимом представлении.</param>
 /// <param name="Off">Причина «модуль выключен» словами; null — модуль включён.</param>
 /// <param name="ModuleViews">Готовые представления модуля — запертые.</param>
-public sealed record TableGate(string Address, string Title, string? Off, IReadOnlyList<ModuleTableView> ModuleViews);
+/// <param name="Columns">Все колонки таблицы; закрытые спрашивающему — с причиной.</param>
+public sealed record TableGate(
+    string Address, string Title, string? Off, IReadOnlyList<ModuleTableView> ModuleViews,
+    IReadOnlyList<TableColumnDto> Columns);

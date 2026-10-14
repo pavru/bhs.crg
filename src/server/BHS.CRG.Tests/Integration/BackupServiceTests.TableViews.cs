@@ -98,6 +98,64 @@ public partial class BackupServiceTests
         }
     }
 
+    /// <summary>
+    /// Цепочка переименований: здесь первое — «А», второе — «Б»; в копии первое — «Б», второе — «В».
+    /// Имя «Б» к концу восстановления свободно, и первое обязано его получить — а не остаться прежним
+    /// с ложным «уже есть». И уникальный индекс посреди сохранения её не роняет.
+    /// </summary>
+    [Fact]
+    public async Task Копия_переименовывает_цепочкой_и_повтор_ничего_не_трогает()
+    {
+        Guid first, second;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var (one, two) = (SavedTableView.Create(ViewsTable, null, null, "Б", true, ViewState),
+                SavedTableView.Create(ViewsTable, null, null, "В", true, ViewState));
+            (first, second) = (one.Id, two.Id);
+            db.SavedTableViews.AddRange(one, two);
+            await db.SaveChangesAsync();
+        }
+
+        var zip = await ExportedAsync();
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // По одному имени за сохранение: порядок строк внутри сохранения не наш, а индекс
+            // проверяется построчно — ровно то, что обходит восстановление своими двумя шагами.
+            (await db.SavedTableViews.SingleAsync(v => v.Id == first)).Change("А", true, ViewState);
+            await db.SaveChangesAsync();
+            (await db.SavedTableViews.SingleAsync(v => v.Id == second)).Change("Б", true, ViewState);
+            await db.SaveChangesAsync();
+        }
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zip));
+
+        Assert.True(report.Success);
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("представлений таблиц"));
+        Dictionary<Guid, uint> versions;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var views = await scope.ServiceProvider.GetRequiredService<AppDbContext>().SavedTableViews.AsNoTracking().ToListAsync();
+            Assert.Equal("Б", views.Single(v => v.Id == first).Title);
+            Assert.Equal("В", views.Single(v => v.Id == second).Title);
+            versions = views.ToDictionary(v => v.Id, v => v.RowVersion);
+        }
+
+        // Та же копия второй раз: менять нечего — и версии строк стоят на месте. Сдвинься они, открытые
+        // формы получали бы «тем временем изменили» без единого изменения.
+        using (var scope = fixture.Services.CreateScope())
+            Assert.True((await Backup(scope).ImportAsync(new MemoryStream(zip))).Success);
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var views = await scope.ServiceProvider.GetRequiredService<AppDbContext>().SavedTableViews.AsNoTracking().ToListAsync();
+            Assert.Equal(versions, views.ToDictionary(v => v.Id, v => v.RowVersion));
+        }
+    }
+
     private async Task<byte[]> ExportedAsync()
     {
         using var scope = fixture.Services.CreateScope();

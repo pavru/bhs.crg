@@ -23,12 +23,12 @@ public class SavedTableViewConfiguration : IEntityTypeConfiguration<SavedTableVi
         b.Property(e => e.RowVersion).IsRowVersion();
 
         // Два «Мои счета» в одном списке неразличимы — имя уникально в своей группе: у общих — на
-        // таблицу, у личных — на таблицу и автора. Индексы частичные: личное и общее с одним именем
-        // живут рядом, это разные списки на экране.
-        b.HasIndex(e => new { e.TableAddress, e.Title })
-            .IsUnique().HasFilter("\"Shared\"").HasDatabaseName("IX_table_views_shared_title");
-        b.HasIndex(e => new { e.TableAddress, e.OwnerId, e.Title })
-            .IsUnique().HasFilter("NOT \"Shared\"").HasDatabaseName("IX_table_views_own_title");
+        // таблицу, у личных — на таблицу и автора; личное и общее с одним именем живут рядом.
+        //
+        // ⚠️ Индексов здесь нет нарочно: они по выражению lower("Title") — «Счета» и «счета» человек
+        // не различит, — а такой индекс моделью не выразить. Их создаёт миграция
+        // SavedTableViewTitleIndexes; что они на месте и ловят гонку двух одинаковых имён, держит
+        // SavedTableViewTests.
 
         // SetNull, а не каскад: общее представление — настройка компании и автора переживает.
         // Личные каскадом не убрать (ключ один на оба вида) — их удаляет адрес удаления пользователя,

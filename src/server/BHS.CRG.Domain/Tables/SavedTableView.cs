@@ -83,6 +83,19 @@ public class SavedTableView
         UpdatedAt = updatedAt,
     };
 
+    /// <summary>
+    /// То же представление из копии поверх лежащего здесь: всё, что копия несёт, — вместе с адресом
+    /// таблицы и временем правки. Время берётся из копии, а не «сейчас»: восстановление не правка.
+    /// </summary>
+    public void Carry(string tableAddress, string? basedOn, string title, string state, DateTimeOffset updatedAt)
+    {
+        TableAddress = tableAddress;
+        BasedOn = basedOn;
+        Title = title;
+        State = state;
+        UpdatedAt = updatedAt;
+    }
+
     public void Change(string title, bool shared, string state)
     {
         Title = title;

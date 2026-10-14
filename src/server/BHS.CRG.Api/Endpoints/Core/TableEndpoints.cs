@@ -108,7 +108,7 @@ public static class TableEndpoints
             string address, string view, SaveTableView body, HttpRequest request, ClaimsPrincipal user,
             DataAccessResolver access, SavedTableViewService views, CancellationToken ct) =>
         {
-            if (SeenRefusal(request, out var seen) is { } unnamed) return unnamed;
+            if (SeenRefusal(request, view, out var seen) is { } unnamed) return unnamed;
             var (saved, refusal) = await views.UpdateAsync(address, view, seen, await access.ForAsync(user, ct), body, ct);
             return saved is not null ? Results.Ok(saved) : Refused(refusal!);
         });
@@ -117,7 +117,7 @@ public static class TableEndpoints
             string address, string view, HttpRequest request, ClaimsPrincipal user, DataAccessResolver access,
             SavedTableViewService views, CancellationToken ct) =>
         {
-            if (SeenRefusal(request, out var seen) is { } unnamed) return unnamed;
+            if (SeenRefusal(request, view, out var seen) is { } unnamed) return unnamed;
             var refusal = await views.DeleteAsync(address, view, seen, await access.ForAsync(user, ct), ct);
             return refusal is null ? Results.NoContent() : Refused(refusal);
         });
@@ -128,10 +128,17 @@ public static class TableEndpoints
         "(значение — поле version из списка представлений). Правка заменяет представление целиком, и без версии " +
         "она затёрла бы изменения, сделанные после того, как его прочли.";
 
-    private static IResult? SeenRefusal(HttpRequest request, out string seen)
+    /// <summary>
+    /// Версия обязательна у СОХРАНЁННОГО представления — того, что названо идентификатором. У кода
+    /// представления модуля версии нет и взять её неоткуда: в списке его нет. Требуй мы заголовок и
+    /// там, отказ «заперто, сохраните как своё» был бы недостижим без выдуманной версии — вместо
+    /// него приходило бы «назовите версию» (ревью PR #1323). Что с кодом делать, решает служба.
+    /// </summary>
+    private static IResult? SeenRefusal(HttpRequest request, string view, out string seen)
     {
         var wellFormed = SeenVersion.TryRead(request, out var named);
         seen = named ?? "";
+        if (!Guid.TryParse(view, out _)) return null;
         if (!wellFormed) return Results.BadRequest(new { error = SeenVersion.Malformed });
         return named is null ? Results.BadRequest(new { error = VersionRequired }) : null;
     }
