@@ -38,7 +38,11 @@ describe('TypePicker: пункты в стороне (#1219)', () => {
 
   it('выход раскрывает список и исчезает, а фокус возвращается в поиск', () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: ASIDE.reveal }));
+    // Как с клавиатуры: Tab на кнопку, затем нажатие. jsdom щелчком фокус не переносит — без этого
+    // фокус и так стоял бы в поиске, и проверка была бы зелёной на любом коде.
+    const button = screen.getByRole('button', { name: ASIDE.reveal });
+    button.focus();
+    fireEvent.click(button);
     expect(screen.getByText('Комплект ЭМ')).toBeTruthy();
     expect(screen.queryByRole('button', { name: ASIDE.reveal })).toBeNull();
     // Кнопка исчезла — фокус не должен уйти с ней: стрелки и Enter живут в поле поиска.
