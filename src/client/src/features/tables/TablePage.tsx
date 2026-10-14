@@ -50,6 +50,8 @@ import { useTableView } from './useTableView';
 export function TablePage() {
   const { address = '', view: presetCode } = useParams();
   const [advanced, setAdvanced] = useState(false);
+  // Представление, которое человек только что удалил сам и с которого экран уходит (см. ниже).
+  const [leaving, setLeaving] = useState<string | null>(null);
   // Пока доступ не известен, ссылок нет: обещать переход раньше, чем известно право, нельзя.
   const { data: access = NO_ACCESS } = useAccess();
 
@@ -89,12 +91,23 @@ export function TablePage() {
     );
 
   // Назван идентификатор, а список представлений не пришёл: сказать «удалено» было бы неправдой.
-  if (saved.isError && isSavedId(presetCode))
+  // ⚠️ Только если списка НЕТ: неудачное перечитывание оставляет прежний список, и снимать из-за
+  // него рабочий экран нельзя (ревью PR #1324).
+  if (saved.isError && !saved.data && isSavedId(presetCode))
     return (
       <div className="px-6 py-10 text-sm text-danger" role="alert">
         {apiError(saved.error, 'Представления таблицы не открылись')}
       </div>
     );
+
+  // Список представлений в пути, а под адресом — одно из них: основа ещё не известна. Нарисовать
+  // экран от умолчаний таблицы значило бы выдать «ещё не знаем» за «таблица целиком» — с чужим
+  // названием, ложным «изменено» и кнопкой, которая сохранила бы не то (ревью PR #1324).
+  // То же — миг между удалением открытого представления и переходом к таблице: из списка оно уже
+  // пропало, а адрес ещё прежний. «Представление удалено» тут было бы ложным объявлением о том, что
+  // человек сделал сам. Устаревшая закладка сюда не попадает: её идентификатор никто не удалял.
+  if (lookup.state === 'pending' || (lookup.state === 'gone' && leaving === presetCode))
+    return <div className="px-6 py-10 text-sm text-fg4">Загрузка…</div>;
 
   const decl = declaration.data;
   const off = decl.state === 'module-off';
@@ -138,7 +151,8 @@ export function TablePage() {
     <div className="h-full flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col px-6 py-4">
         <TableViewHeader address={address} decl={decl} lookup={lookup} view={view} base={base} saved={saved.data}
-          onChange={setView} />
+          savedProblem={saved.isError && !saved.data ? apiError(saved.error, 'Сохранённые представления не загрузились') : null}
+          onChange={setView} onLeaving={setLeaving} />
 
         {/* Отбор автора читателю не отдан: он стоит на колонке, которая ему закрыта. Сказать это
             обязательно — иначе представление с чужим именем молча показало бы другие строки. */}

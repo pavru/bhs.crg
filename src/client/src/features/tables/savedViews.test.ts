@@ -3,7 +3,8 @@ import type { TablePreset } from '@/shared/api/tables';
 import type { FilterNode } from '@/shared/api/types';
 import type { SavedTableView } from '@/shared/api/tableViews';
 import {
-  basedOnOf, isSavedId, keeping, listActions, lookupBase, placeHash, rowsWantedFor, saveActions, savedView, stateOf,
+  basedOnOf, copyTitle, isSavedId, keeping, listActions, lookupBase, placeHash, rebasedHash, rowsWantedFor, saveActions,
+  savedView, stateOf,
   viewGroups, viewLookup, viewModified, withViewReset,
 } from './savedViews';
 import { DEFAULT_VIEW, addressChange, parseView, viewHash, withFilter, withSort, type TableView } from './tableViewState';
@@ -132,6 +133,25 @@ describe('несохранённые изменения', () => {
   it('сброс под таблицей целиком — отдельный шаг истории, если снят отбор', () => {
     const hash = viewHash(withFilter(DEFAULT_VIEW, condition));
     expect(addressChange(hash, DEFAULT_VIEW, v => withViewReset(v, DEFAULT_VIEW))).toEqual({ hash: '', replace: false });
+  });
+
+  it('после сохранения адрес отсчитан от новой основы: сохранённое уходит, место остаётся', () => {
+    const shown: TableView = { ...withSort(base, 'Номер', false), page: 2 };
+    expect(rebasedHash(viewHash(shown, base), base, stateOf(shown))).toBe('#page=2');
+  });
+
+  it('правка, сделанная пока шло сохранение, остаётся в адресе — и помечена', () => {
+    const sent = withSort(base, 'Номер', false);
+    const meanwhile = withFilter(sent, null);
+    const hash = rebasedHash(viewHash(meanwhile, base), base, stateOf(sent));
+    expect(hash).toBe('#filter=');
+    expect(viewModified(parseView(hash, savedView(stateOf(sent))), savedView(stateOf(sent)))).toBe(true);
+  });
+
+  it('название копии не длиннее предела и не обрастает вторым хвостом', () => {
+    expect(copyTitle('Реестр счетов')).toBe('Реестр счетов — моё');
+    expect(copyTitle('Реестр счетов — моё')).toBe('Реестр счетов — моё');
+    expect(copyTitle('я'.repeat(119))).toHaveLength(120);
   });
 
   it('после сохранения в адресе остаётся только место в таблице', () => {

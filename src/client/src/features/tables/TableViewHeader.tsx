@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
 import { Check, ChevronDown, Table2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -11,8 +11,8 @@ import type { TableDeclaration } from '@/shared/api/tables';
 import { useDeleteTableView, useSaveTableView, type SavedTableView } from '@/shared/api/tableViews';
 import { SaveViewDialog } from './SaveViewDialog';
 import {
-  basedOnOf, keeping, listActions, lookupTitle, placeHash, saveActions, stateOf, viewGroups, viewModified,
-  withViewReset, type ViewLookup,
+  basedOnOf, copyTitle, keeping, listActions, lookupTitle, placeHash, rebasedHash, saveActions, stateOf, viewGroups,
+  viewModified, withViewReset, type ViewLookup,
 } from './savedViews';
 import { wholeTableHash, type TableView, type ViewChange } from './tableViewState';
 
@@ -33,7 +33,7 @@ type Asked = { kind: 'create' } | { kind: 'rename' | 'remove'; saved: SavedTable
  * чужое общее без права не правится — у обоих «Сохранить» нет вовсе, есть «Сохранить как своё».
  * Сервер отказывает и сам (409 «заперто», 403), но до отказа человека не доводим.</p>
  */
-export function TableViewHeader({ address, decl, lookup, view, base, saved, onChange }: {
+export function TableViewHeader({ address, decl, lookup, view, base, saved, savedProblem, onChange, onLeaving }: {
   address: string;
   decl: TableDeclaration;
   lookup: ViewLookup;
@@ -41,12 +41,20 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
   /** От чего отсчитаны изменения: умолчания таблицы либо настройка открытого представления. */
   base: TableView;
   saved: SavedTableView[] | undefined;
+  /** Список не пришёл — причина. Пустые группы тогда НЕ «представлений нет». */
+  savedProblem: string | null;
   onChange: (change: ViewChange) => void;
+  /** Открытое представление удалено этим человеком, экран уходит: его идентификатор. */
+  onLeaving: (id: string) => void;
 }) {
   const { data: access = NO_ACCESS } = useAccess();
   const navigate = useNavigate();
+  const { hash } = useLocation();
   const toast = useToast();
+  // «Сохранить» открытого и правки из списка — разными мутациями: иначе «Сделать общим» у соседнего
+  // представления крутило бы кнопку «Сохранить», будто сохраняется открытое.
   const save = useSaveTableView(address);
+  const change = useSaveTableView(address);
   const remove = useDeleteTableView(address);
   const [open, setOpen] = useState(false);
   const [asked, setAsked] = useState<Asked | null>(null);
@@ -66,11 +74,12 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
   async function saveOver() {
     if (!current) return;
     try {
-      await save.mutateAsync({
+      const stored = await save.mutateAsync({
         saved: current,
         body: { title: current.title, shared: current.shared, state: stateOf(view), basedOn: current.basedOn },
       });
-      void navigate({ hash: placeHash(view) }, { replace: true });
+      // От адреса на момент ответа: правка, сделанная за время запроса, остаётся и помечена.
+      void navigate({ hash: rebasedHash(window.location.hash, base, stored.state) }, { replace: true });
       toast.success(`Представление «${current.title}» сохранено`);
     } catch (refusal) {
       toast.apiError(refusal, 'Представление не сохранено');
@@ -78,7 +87,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
   }
 
   async function create(name: string, shared: boolean) {
-    const created = await save.mutateAsync({
+    const created = await change.mutateAsync({
       body: { title: name, shared, state: stateOf(view), basedOn: basedOnOf(lookup) },
     });
     void navigate(`${path}/${created.id}${placeHash(view)}`);
@@ -86,7 +95,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
 
   async function setShared(target: SavedTableView, shared: boolean) {
     try {
-      await save.mutateAsync({ saved: target, body: keeping(target, { shared }) });
+      await change.mutateAsync({ saved: target, body: keeping(target, { shared }) });
       toast.success(shared ? `«${target.title}» теперь общее` : `«${target.title}» возвращено в свои`);
     } catch (refusal) {
       toast.apiError(refusal, 'Представление не изменено');
@@ -94,17 +103,21 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
   }
 
   async function removeAsked(target: SavedTableView) {
-    await remove.mutateAsync(target);
-    // Удалено открытое — уходим к таблице целиком с тем же отбором, а не на «представление удалено».
-    if (target.id === current?.id) void navigate(`${path}${wholeTableHash(view)}`, { replace: true });
+    // Удалено открытое — уходим к таблице целиком с тем же отбором. Переход маршрутизатор отдаёт
+    // отложенной перерисовкой, а из списка представление пропадает сразу: экрану говорим «ухожу» тем
+    // же шагом, иначе он успел бы нарисовать «представление удалено».
+    const leave = target.id === current?.id
+      ? () => { onLeaving(target.id); void navigate(`${path}${wholeTableHash(view)}`, { replace: true }); }
+      : undefined;
+    await remove.mutateAsync({ saved: target, leave });
   }
 
   function actionsOf(target: SavedTableView): RowAction[] {
     const allowed = listActions(target, canShare);
     const all: (RowAction | false)[] = [
       allowed.rename && { key: 'rename', label: 'Переименовать', onSelect: () => ask({ kind: 'rename', saved: target }) },
-      allowed.share && { key: 'share', label: 'Сделать общим', onSelect: () => void setShared(target, true) },
-      allowed.unshare && { key: 'unshare', label: 'Вернуть в свои', onSelect: () => void setShared(target, false) },
+      allowed.share && { key: 'share', label: 'Сделать общим', disabled: change.isPending, onSelect: () => void setShared(target, true) },
+      allowed.unshare && { key: 'unshare', label: 'Вернуть в свои', disabled: change.isPending, onSelect: () => void setShared(target, false) },
       allowed.remove && { key: 'remove', label: 'Удалить', danger: true, onSelect: () => ask({ kind: 'remove', saved: target }) },
     ];
     return all.filter((a): a is RowAction => !!a);
@@ -112,7 +125,8 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
 
   const row = (key: string, to: string, label: string, chosen: boolean, note?: string | null, actions: RowAction[] = []) => (
     <li key={key} className="flex items-center gap-1 rounded-md hover:bg-muted">
-      <Link to={to} onClick={() => setOpen(false)} aria-current={chosen ? 'page' : undefined}
+      {/* Открытое ведёт туда же, где человек стоит: щелчок по отмеченному не сбрасывает несохранённое. */}
+      <Link to={chosen ? { hash } : to} onClick={() => setOpen(false)} aria-current={chosen ? 'page' : undefined}
         className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-fg1">
         <Check size={13} aria-hidden className={chosen ? 'text-brand shrink-0' : 'invisible shrink-0'} />
         <span className="truncate">{label}</span>
@@ -144,13 +158,15 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
               style={{ boxShadow: 'var(--f-shadow16)' }}>
               <ul>
                 {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
-                {row('table', `${path}${lookup.state === 'table' ? '' : wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}
+                {row('table', `${path}${wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}
               </ul>
               <Group title="Готовые" empty={null}>
                 {groups.ready.map(p => row(p.code, `${path}/${encodeURIComponent(p.code)}`, p.title,
                   lookup.state === 'found' && lookup.preset.code === p.code))}
               </Group>
-              {!off && (
+              {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-danger">{savedProblem}</p>}
+              {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-fg4">Сохранённые представления загружаются…</p>}
+              {!off && saved && (
                 <>
                   <Group title="Мои" empty="Настройте таблицу и сохраните её — представление появится здесь.">
                     {groups.own.map(savedRow)}
@@ -175,12 +191,12 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, onCh
 
       {asked?.kind === 'create' && (
         <SaveViewDialog heading="Сохранить представление" action="Сохранить" share={canShare}
-          initial={current || lookup.state === 'found' ? `${title} — моё` : ''}
+          initial={current || lookup.state === 'found' ? copyTitle(title) : ''}
           onSave={create} onClose={() => setAsked(null)} />
       )}
       {asked?.kind === 'rename' && (
         <SaveViewDialog heading="Переименовать представление" action="Переименовать" initial={asked.saved.title}
-          onSave={name => save.mutateAsync({ saved: asked.saved, body: keeping(asked.saved, { title: name }) })}
+          onSave={name => change.mutateAsync({ saved: asked.saved, body: keeping(asked.saved, { title: name }) })}
           onClose={() => setAsked(null)} />
       )}
       {asked?.kind === 'remove' && (

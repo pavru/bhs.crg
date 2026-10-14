@@ -82,12 +82,18 @@ export function useSaveTableView(address: string) {
   });
 }
 
+/**
+ * Удалить представление. `leave` зовётся после ответа и ДО того, как представление уйдёт из списка:
+ * экран, на котором оно открыто, обязан узнать об уходе раньше — иначе на мгновение он нарисовал бы
+ * «представление удалено» о том, что человек только что удалил сам (ревью PR #1324).
+ */
 export function useDeleteTableView(address: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (saved: Pick<SavedTableView, 'id' | 'version'>) =>
+    mutationFn: ({ saved }: { saved: Pick<SavedTableView, 'id' | 'version'>; leave?: () => void }) =>
       apiClient.delete(`${url(address)}/${saved.id}`, { headers: { 'If-Match': saved.version } }).then(() => saved.id),
-    onSuccess: id => {
+    onSuccess: (id, { leave }) => {
+      leave?.();
       client.setQueryData<SavedTableView[]>(key(address), list => (list ?? []).filter(v => v.id !== id));
     },
     onError: () => void client.invalidateQueries({ queryKey: key(address) }),

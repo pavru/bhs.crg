@@ -1,8 +1,8 @@
 import { TABLE_PAGE, type TableDeclaration, type TablePreset } from '@/shared/api/tables';
 import type { SaveTableViewBody, SavedTableView, SavedViewState } from '@/shared/api/tableViews';
 import {
-  DEFAULT_VIEW, filterText, parseFilter, presetLookup, presetView, viewHash,
-  type Aggregate, type ColumnTotal, type PresetLookup, type TableView,
+  DEFAULT_VIEW, filterText, knownTotals, parseFilter, parseView, presetLookup, presetView, viewHash,
+  type PresetLookup, type TableView,
 } from './tableViewState';
 
 /**
@@ -13,7 +13,6 @@ import {
  * идентификатор — у сохранённого. Модулю код, похожий на идентификатор, запрещён сервером.
  */
 
-const AGGREGATES: readonly string[] = ['sum', 'avg', 'min', 'max', 'count'];
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Назван ли в адресе идентификатор сохранённого представления, а не код представления модуля. */
@@ -64,9 +63,7 @@ export function savedView(state: SavedViewState): TableView {
     filter,
     brokenFilter: text && !filter ? text : null,
     sort: (state.sort ?? []).map(s => ({ column: s.column, descending: s.descending })),
-    totals: (state.totals ?? [])
-      .filter(t => AGGREGATES.includes(t.aggregate))
-      .map((t): ColumnTotal => ({ column: t.column, aggregate: t.aggregate as Aggregate })),
+    totals: knownTotals(state.totals ?? []),
     pinned: state.pinned,
   };
 }
@@ -102,14 +99,34 @@ export function withViewReset(view: TableView, base: TableView): TableView {
   return { ...base, size: view.size, page: 1, row: null };
 }
 
-/**
- * Фрагмент адреса, в котором от настройки ничего не осталось, — только где человек стоит. Им адрес
- * переписывается после сохранения: основа стала тем, что на экране, и прежние отличия от старой
- * основы читались бы уже от новой.
- */
+/** Фрагмент адреса, в котором от настройки ничего не осталось, — только где человек стоит. */
 export function placeHash(view: TableView): string {
   return viewHash({ ...DEFAULT_VIEW, page: view.page, size: view.size, row: view.row });
 }
+
+/**
+ * Адрес после «Сохранить»: тот же экран, отсчитанный от НОВОЙ основы. Основа стала тем, что
+ * сохранено, и прежние отличия от старой читались бы уже от неё.
+ *
+ * ⚠️ Считается от адреса на момент ОТВЕТА (`hash`), а не от состояния на момент нажатия: правка,
+ * сделанная, пока запрос шёл, в сохранённое не попала — и обязана остаться на экране помеченной, а
+ * не исчезнуть вместе с отличиями (ревью PR #1324).
+ */
+export function rebasedHash(hash: string, before: TableView, stored: SavedViewState): string {
+  return viewHash(parseView(hash, before), savedView(stored));
+}
+
+/**
+ * Название, которое экран предлагает копии. Не длиннее предела сервера — иначе отказ пришёл бы на
+ * значение, предложенное самим экраном; и без второго хвоста у копии своей же копии.
+ */
+export function copyTitle(title: string): string {
+  const tail = ' — моё';
+  return title.endsWith(tail) ? title : title.slice(0, TITLE_MAX - tail.length).trimEnd() + tail;
+}
+
+/** Предел длины названия — тот же, что у сервера (`SavedTableView.TitleMax`). */
+export const TITLE_MAX = 120;
 
 /**
  * Какие действия сохранения показаны под изменённой настройкой. Невыполнимое не показывается вовсе

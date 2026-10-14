@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import type { FilterNode } from '@/shared/api/types';
 import type { TablePreset } from '@/shared/api/tables';
 import { chipAdded, chipRemoved } from '@/shared/filter/chipsModel';
+import { rowsWantedFor as rowsWanted } from './savedViews';
 import {
-  DEFAULT_VIEW, addressChange, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView, rowsWanted,
+  DEFAULT_VIEW, addressChange, chooserOrder, columnsCustomised, filterChanged, parseView, presetLookup, presetView,
   viewHash, wholeTableHash, withColumnMoved, withColumnReturned, withColumnShown, withColumnsReset,
   withFilter, withFilterChange, withPage, withPageStep, withPinned, withRow, withSize, withSort, withTotal,
   type TableView,

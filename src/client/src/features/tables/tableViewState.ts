@@ -65,10 +65,19 @@ export function presetView(preset: TablePreset): TableView {
     ...DEFAULT_VIEW,
     columns: [...preset.columns],
     sort: preset.sort.map(s => ({ ...s })),
-    totals: preset.totals
-      .filter((t): t is ColumnTotal => (AGGREGATE_NAMES as readonly string[]).includes(t.aggregate)),
+    totals: knownTotals(preset.totals),
     pinned: preset.pinned,
   };
+}
+
+/**
+ * Итоги с известным словом; незнакомое пропускается — считать по нему нечего. Одно место на
+ * представление модуля и сохранённое: слово, добавленное в список, доезжает до обоих.
+ */
+export function knownTotals(totals: readonly { column: string; aggregate: string }[]): ColumnTotal[] {
+  return totals
+    .filter(t => (AGGREGATE_NAMES as readonly string[]).includes(t.aggregate))
+    .map(t => ({ column: t.column, aggregate: t.aggregate as Aggregate }));
 }
 
 /**
@@ -95,11 +104,6 @@ export function presetLookup(
   if (declaration.state === 'module-off') return { state: 'off' };
   const preset = declaration.views?.find(v => v.code.toLowerCase() === code.toLowerCase());
   return preset ? { state: 'found', preset } : { state: 'missing' };
-}
-
-/** Запрашивать ли строки: под `pending` рано, под `missing` нечего. */
-export function rowsWanted(lookup: PresetLookup): boolean {
-  return lookup.state !== 'pending' && lookup.state !== 'missing';
 }
 
 /**

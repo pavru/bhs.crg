@@ -218,6 +218,12 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await mark(page).waitFor({ timeout: 8000 });
 
+    // Щелчок по отмеченному — открытому — представлению в списке несохранённое не сбрасывает.
+    await title(page).getByRole('button').click();
+    await list(page).getByRole('link', { name: OWN }).click();
+    await settled(page);
+    if ((await mark(page).count()) === 0) throw new Error('щелчок по открытому представлению в списке сбросил несохранённое');
+
     await action(page, 'Сбросить').click();
     await until(async () => {
       if ((await mark(page).count()) !== 0) throw new Error('после сброса пометка осталась');
@@ -318,12 +324,21 @@ try {
     await title(page).getByRole('button').click();
     await list(page).getByRole('button', { name: `Действия с представлением «${COMMON}»` }).click();
     await page.getByRole('menuitem', { name: 'Удалить' }).click();
+    // Экран уходит РАНЬШЕ, чем представление пропадает из списка: «удалено» о только что удалённом
+    // своими руками не показывается ни на миг. Мгновение ловит наблюдатель, а не опрос.
+    await page.evaluate(() => {
+      window.__goneShown = false;
+      new MutationObserver(() => {
+        if (document.body.innerText.includes('Представление удалено')) window.__goneShown = true;
+      }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
     await page.getByRole('button', { name: 'Удалить представление' }).click();
     // Удалено открытое — экран уходит к таблице целиком, с тем же отбором.
     await until(() => {
       if (new URL(page.url()).pathname !== `/tables/${ADDRESS}`) throw new Error(`после удаления адрес — ${page.url()}`);
     });
     await rowsBecome(page, TABLE_SEED.count, 'те же счета в таблице целиком');
+    if (await page.evaluate(() => window.__goneShown)) throw new Error('после удаления экран показал «Представление удалено»');
 
     // Закладка на удалённое, со своим отбором в адресе.
     await open(page, `/${commonId}`, { filter: seeded });
