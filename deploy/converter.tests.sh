@@ -48,7 +48,7 @@ check() { # check «что проверяем» ожидание факт
     else bad=$((bad + 1)); printf '  ФЕЙЛ %s\n       ждали: %s\n       факт:  %s\n' "$1" "$2" "$3"; fi
 }
 yes_no() { if "$@" >/dev/null 2>&1; then echo да; else echo нет; fi; }
-has() { if printf '%s' "$1" | grep -q -- "$2"; then echo да; else echo нет; fi; }
+has() { if grep -q -- "$2" <<<"$1"; then echo да; else echo нет; fi; }
 # Запрос изнутри контейнера конвертера: curl в образе есть, им же пользуется его проверка здоровья.
 inside() { compose exec -T converter "$@"; }
 

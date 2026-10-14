@@ -12,14 +12,25 @@ import { BASE, settled, callApi } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 
+// Стройка, которую проверки заводят сами, если на стенде их меньше двух: на стенде CI после посева
+// стройка одна, а скрыть фильтром можно только вторую (CI PR #1331). Удаляется в finally — наборы
+// идут по очереди (`run-suites.mjs`), и следующий её уже не увидит.
+const SPARE = 'Избранное: вторая стройка (проверка)';
+
 const stars = page => page.getByTestId('favorite-star');
 
 export async function favoritesChecks(page, check) {
   const reset = await callApi(page, 'PUT', '/account/settings', RESET);
   if (reset.status !== 200) throw new Error(`настройки избранного не сброшены: ${reset.status}`);
+  const spare = [];
   try {
-    const all = (await callApi(page, 'GET', '/constructions')).body;
-    if (all.length < 2) throw new Error(`для проверки избранного нужно хотя бы две стройки, на стенде ${all.length}`);
+    let all = (await callApi(page, 'GET', '/constructions')).body;
+    while (all.length + spare.length < 2) {
+      const created = await callApi(page, 'POST', '/constructions', { name: `${SPARE} ${spare.length + 1}` });
+      if (created.status !== 201 && created.status !== 200) throw new Error(`вторая стройка не заведена: ${created.status}`);
+      spare.push(created.body.id);
+    }
+    if (spare.length) all = (await callApi(page, 'GET', '/constructions')).body;
     await page.goto(`${BASE}/document-sets`);
     await settled(page);
 
@@ -72,5 +83,6 @@ export async function favoritesChecks(page, check) {
     });
   } finally {
     await callApi(page, 'PUT', '/account/settings', RESET);
+    for (const id of spare) await callApi(page, 'DELETE', `/constructions/${id}`);
   }
 }
