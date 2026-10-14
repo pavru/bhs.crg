@@ -186,6 +186,72 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    /// <summary>
+    /// Признак готовности избранных строек (issue #1218): выбор и выключенный фильтр хранит сервер —
+    /// с другого компьютера человек видит тот же отбор. Предел — ровно двадцать.
+    /// </summary>
+    [Fact]
+    public async Task Избранные_стройки_и_выключенный_фильтр_приезжают_на_другую_машину()
+    {
+        var email = await CreateUserAsync();
+        var twenty = string.Join(',', Enumerable.Range(0, 20).Select(_ => Guid.NewGuid().ToString()));
+        (await (await SignInAsync(email)).PutAsJsonAsync("/api/account/settings", new Dictionary<string, string?>
+        {
+            ["favoriteConstructions"] = twenty, ["favoritesFilter"] = "off",
+        })).EnsureSuccessStatusCode();
+
+        var settings = await SettingsAsync(await SignInAsync(email));
+
+        Assert.Equal(twenty, settings["favoriteConstructions"]);
+        Assert.Equal("off", settings["favoritesFilter"]);
+    }
+
+    /// <summary>
+    /// Избранное — GUID через запятую, не больше двадцати (#1217). Двадцать первая стройка, повтор,
+    /// пустой элемент, пробелы и вольная форма GUID — отказ: сохранённые, они дали бы клиенту на
+    /// другом компьютере список, в котором одна стройка числится дважды или не находится вовсе.
+    /// Существование строек при записи НЕ проверяется — это нарочно (см. FavoriteConstructionValues).
+    /// </summary>
+    [Theory]
+    [InlineData(21)]
+    [InlineData(-1)]
+    [InlineData(-2)]
+    [InlineData(-3)]
+    [InlineData(-4)]
+    [InlineData(-5)]
+    public async Task Негодное_избранное_отвергается(int variant)
+    {
+        var a = Guid.NewGuid().ToString();
+        var value = variant switch
+        {
+            21 => string.Join(',', Enumerable.Range(0, 21).Select(_ => Guid.NewGuid().ToString())),
+            -1 => $"{a},{a.ToUpperInvariant()}",
+            -2 => $"{a},",
+            -3 => $"{a}, {Guid.NewGuid()}",
+            -4 => Guid.NewGuid().ToString("N"),
+            _ => "",
+        };
+        var client = await SignInAsync(await CreateUserAsync());
+
+        var response = await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { ["favoriteConstructions"] = value });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(await SettingsAsync(client));
+    }
+
+    /// <summary>Фильтр — только «on» или «off»: иное значение клиент прочитал бы как «включён» молча.</summary>
+    [Fact]
+    public async Task Негодное_состояние_фильтра_отвергается()
+    {
+        var client = await SignInAsync(await CreateUserAsync());
+
+        var response = await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { ["favoritesFilter"] = "true" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     /// <summary>Без входа адрес не отвечает: настройки принадлежат конкретному человеку.</summary>
     [Fact]
     public async Task Без_входа_настроек_нет()
