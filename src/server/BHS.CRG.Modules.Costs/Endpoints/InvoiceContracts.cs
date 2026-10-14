@@ -69,6 +69,7 @@ public sealed record InvoiceView(
     PaymentView Payment,
     InvoiceReferencesView References,
     InvoiceReadinessView Readiness,
+    InvoiceDueView Due,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     // Что запомнилось ЭТИМ сохранением строк (issue #1079). Есть только в ответе сохранения строк:
@@ -139,6 +140,16 @@ public sealed record InvoiceListItem(
     InvoiceListScan? Recognition = null,
     IReadOnlyList<string>? Readiness = null);
 
+/// <summary>
+/// Срок «оплатить до» глазами правила (C4, issue #1080): сам срок едет реквизитом «Срок», а здесь — то,
+/// чего из реквизитов не вывести.
+/// </summary>
+/// <param name="Manual">Срок вписал человек — правило его не трогает. Форма помечает поле.</param>
+/// <param name="ByRule">Что дало бы правило сейчас; <c>null</c> — считать не из чего. Форма показывает
+/// «По правилу», когда нажатие что-то изменит: срок правлен руками либо записан по прежнему правилу —
+/// смена настройки записанные сроки не пересчитывает (решение владельца 14.10.2026).</param>
+public sealed record InvoiceDueView(bool Manual, DateOnly? ByRule);
+
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
 public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);
 
@@ -153,7 +164,7 @@ public static class InvoiceViews
         IReadOnlyList<InvoiceSameFile> sameFile, IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         InvoiceAllocationRead allocation, PaymentView payment,
         InvoiceReferencesView references, IReadOnlySet<Guid> lost, IReadOnlySet<Guid> archived,
-        InvoiceReadiness readiness, IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
+        InvoiceReadiness readiness, InvoiceDueRule rule, IReadOnlyDictionary<Guid, SupplierMatch>? matches = null) => new(
         invoice.Id,
         version,
         invoice.DocumentTypeId,
@@ -172,6 +183,7 @@ public static class InvoiceViews
         // «всё готово» рядом с таким отказом было бы неправдой (ревью PR #1301).
         new InvoiceReadinessView(InvoiceReadiness.Required,
             invoice.State == InvoiceState.Draft && payment.LockedBy is null ? readiness.Gaps : null),
+        new InvoiceDueView(invoice.DueDateManual, rule.DueOf(invoice.ShippedOn, invoice.DeferralDays)),
         invoice.CreatedAt,
         invoice.UpdatedAt);
 

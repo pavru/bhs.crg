@@ -266,7 +266,7 @@ public class PaymentPostingTests
     {
         var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);
         invoice.ApplyRequisites(new InvoiceColumns(null, null, null, null, null, total, null, null, null, null),
-            JsonDocument.Parse("{}"), dueDateByHand: false);
+            JsonDocument.Parse("{}"), dueDateByHand: false, new InvoiceDueRule(true));
         return invoice;
     }
 }

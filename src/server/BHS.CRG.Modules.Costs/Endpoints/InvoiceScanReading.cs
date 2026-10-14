@@ -380,7 +380,8 @@ public sealed class InvoiceScanReading(
             await InvoiceEndpoints.EnsureAllowedAsync(
                 guard, invoice.DocumentTypeId, before.ToJsonString(), after.ToJsonString(), ct);
             // Срок оплаты распознавание не трогает, значит и «вписан рукой» ему ставить нечему.
-            invoice.ApplyRequisites(columns, rest, dueDateByHand: false);
+            var rule = await desk.DueRuleAsync(ct);
+            invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);
             invoice.AddUnconfirmed(filled);
         }
 

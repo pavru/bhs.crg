@@ -161,8 +161,20 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction OrganizationCreated =
         new("costs.organization.created", "Организация заведена из файла счёта", InvoiceRead);
 
+    /// <summary>
+    /// Срок «оплатить до» вписан рукой (ТЗ COST-16: ручная правка срока — событие журнала; задача C4,
+    /// issue #1080). Отдельно от «счёт изменён»: с этой записи правило срок больше не трогает, и найти,
+    /// кто и когда снял счёт с правила, надо уметь.
+    /// </summary>
+    public static readonly ModuleActivityAction DueByHand =
+        new("costs.invoice.due-by-hand", "Срок оплаты изменён вручную", InvoiceRead);
+
+    /// <summary>«По правилу»: ручная правка срока снята, срок подставлен правилом.</summary>
+    public static readonly ModuleActivityAction DueByRule =
+        new("costs.invoice.due-by-rule", "Срок оплаты возвращён к правилу", InvoiceRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Confirmed, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, Rejected, Deleted, AllocationChanged,
+        [Created, Changed, Confirmed, DueByHand, DueByRule, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, Parsed, Draft, Rejected, Deleted, AllocationChanged,
          Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

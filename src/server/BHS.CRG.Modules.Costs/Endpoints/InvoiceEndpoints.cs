@@ -21,10 +21,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// ПРАВА — чтение отдельно от записи (ТЗ COST-28). Одного доступа к модулю мало: у бухгалтера есть
 /// модуль и нет права заводить счета.</para>
 ///
-/// <para>⚠️ <b>Чего здесь нет и почему.</b> Ни перехода «черновик → разобран», ни отметки оплаты, ни
-/// подстановки срока: это C2, C4 и C5. Первый PR задачи кладёт ХРАНЕНИЕ и адреса — то, на чём стоит
-/// форма, — и кладёт целиком, вместе с метками «распознано, не подтверждено», потому что метка,
-/// приколоченная во втором PR, не пережила бы перезагрузку страницы и не стерегла бы ничего.</para>
+/// <para>Подстановку срока «оплатить до» (C4, issue #1080) делает сам счёт при правке — правилом из
+/// настройки модуля; здесь только адрес «По правилу», снимающий ручную правку.</para>
 /// </summary>
 public static class InvoiceEndpoints
 {
@@ -57,6 +55,7 @@ public static class InvoiceEndpoints
         group.MapPost("/", CreateAsync).RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPost("/{id:guid}/confirmed", ConfirmAsync).RequireAuthorization(AppPolicies.Permission(Edit));
+        group.MapPost("/{id:guid}/due/rule", DueByRuleAsync).RequireAuthorization(AppPolicies.Permission(Edit));
         group.MapPost("/{id:guid}/scan", AttachScanAsync)
             .RequireAuthorization(AppPolicies.Permission(Edit))
             .DisableAntiforgery();
@@ -106,7 +105,8 @@ public static class InvoiceEndpoints
         // Срок, пришедший из распознавания, ручным не считается — и отличим он ровно меткой: «оплатить
         // до» стоит в бумаге поставщика, а правило подстановки (C4) обходит стороной только тот срок,
         // который вписал человек.
-        invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));
+        var rule = await desk.DueRuleAsync(ct);
+        invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey), rule);
         if (marks.Count > 0) invoice.MarkUnconfirmed(marks);
 
         db.Invoices.Add(invoice);
@@ -116,6 +116,9 @@ public static class InvoiceEndpoints
         // (A2a, issue #1072). Порядок обязателен: запись в журнал о счёте, который не сохранился,
         // была бы свидетельством о том, чего не произошло.
         await log.RecordAsync(InvoiceActions.Created, invoice.Id.ToString(), Label(invoice), ct: ct);
+        if (invoice.DueDateManual)
+            await log.RecordAsync(InvoiceActions.DueByHand, invoice.Id.ToString(), Label(invoice),
+                after: DueText(invoice.DueDate), ct: ct);
 
         return TypedResults.Created(
             $"/api/costs/invoices/{invoice.Id}",
@@ -141,10 +144,12 @@ public static class InvoiceEndpoints
                 "заполнил поля (распознавание), а снимает правка поля или действие «Всё верно» " +
                 "(адрес «/confirmed»). Иначе форма, приславшая метки заново, возвращала бы снятые.");
 
-        var (invoice, changed, reason) = await desk.WriteAsync(id, async write =>
+        var rule = await desk.DueRuleAsync(ct);
+        var (invoice, changed, reason, dueWas) = await desk.WriteAsync(id, async write =>
         {
             var invoice = write.Invoice;
             var before = InvoiceRequisites.Merge(invoice);
+            var dueWas = (invoice.DueDate, invoice.DueDateManual);
 
             var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
             // Стороны — прежде охраны: см. создание.
@@ -156,7 +161,7 @@ public static class InvoiceEndpoints
 
             // Правка — всегда человек: метки этот адрес не принимает (отказ выше), то есть фоновому
             // заполнению сюда дороги нет.
-            invoice.ApplyRequisites(columns, rest, dueDateByHand: true);
+            invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);
             invoice.Confirm(changed);
 
             // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
@@ -172,12 +177,19 @@ public static class InvoiceEndpoints
             if (reason is not null) invoice.ReturnToDraft();
 
             await db.SaveChangesAsync(ct);
-            return (invoice, changed, reason);
+            return (invoice, changed, reason, dueWas);
         }, ct);
 
         if (changed.Count > 0)
             await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
                 before: string.Join(", ", changed), ct: ct);
+
+        // Ручная правка срока — своим событием (ТЗ COST-16): «было → стало», а не строкой «Срок» среди
+        // изменённых полей. Только когда срок правил человек: подставленный правилом — следствие
+        // правки отгрузки, и его называет запись выше.
+        if (invoice.DueDateManual && (invoice.DueDate, true) != dueWas)
+            await log.RecordAsync(InvoiceActions.DueByHand, invoice.Id.ToString(), Label(invoice),
+                before: DueText(dueWas.DueDate), after: DueText(invoice.DueDate), ct: ct);
 
         if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
@@ -185,6 +197,40 @@ public static class InvoiceEndpoints
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
+
+    /// <summary>
+    /// «По правилу» (C4, issue #1080; решение владельца 14.10.2026): снять ручную правку срока и
+    /// подставить его правилом из настройки. Своим адресом, а не стиранием поля: пустое «оплатить до»
+    /// — тоже значение («срок не определён»), и отличить его от «верни правило» было бы нечем.
+    ///
+    /// <para>Через связку записи, как любая правка счёта: версия, замок закрытого периода. Нечего
+    /// менять — запись не трогается и в журнал не идёт.</para>
+    /// </summary>
+    private static async Task<Ok<InvoiceView>> DueByRuleAsync(
+        Guid id, CostsDbContext db, IModuleActivityLog log, InvoiceDesk desk, CancellationToken ct)
+    {
+        var rule = await desk.DueRuleAsync(ct);
+        var (invoice, was) = await desk.WriteAsync(id, async write =>
+        {
+            var invoice = write.Invoice;
+            var was = (invoice.DueDate, invoice.DueDateManual);
+            if (was != (rule.DueOf(invoice.ShippedOn, invoice.DeferralDays), false))
+            {
+                invoice.DueByRule(rule);
+                await db.SaveChangesAsync(ct);
+            }
+            return (invoice, was);
+        }, ct);
+
+        if (was != (invoice.DueDate, invoice.DueDateManual))
+            await log.RecordAsync(InvoiceActions.DueByRule, invoice.Id.ToString(), Label(invoice),
+                before: DueText(was.DueDate), after: DueText(invoice.DueDate), ct: ct);
+
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+    }
+
+    /// <summary>Срок словами журнала: пустой — «не определён», как его называет форма.</summary>
+    private static string DueText(DateOnly? due) => due is { } date ? date.ToString("dd.MM.yyyy") : "не определён";
 
     /// <summary>
     /// «Всё верно»: снять метки с полей блока (решение владельца 29.09.2026).
