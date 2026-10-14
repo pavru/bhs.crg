@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
@@ -97,13 +98,15 @@ public static class InvoiceEndpoints
         // Стороны — ПРЕЖДЕ охраны: с правилом архива в охране ядра (issue #1185) она отвергла бы
         // архивного поставщика первой, своими словами, а у четырёх адресов модуля текст один.
         await EnsurePartiesExistAsync(targets, catalog, columns, supplierWas: null, payerWas: null, ct);
-        await EnsureAllowedAsync(guard, typeId, stored: null, body.Requisites.GetRawText(), ct);
+        // Отсрочка из условий поставщика — новому счёту, у которого её нет (ТЗ COST-9.2). Пришедшая с
+        // бумагой отсрочка условиями не перекрывается. Подставляется ДО охраны (ревью PR #1329): охрана
+        // обязана видеть ту отсрочку, которая ляжет в счёт, а не присланную.
+        (columns, var termed) = await desk.WithTermsAsync(columns, was: null, ct);
+        await EnsureAllowedAsync(guard, typeId, stored: null,
+            WithTerms(JsonNode.Parse(body.Requisites.GetRawText())!.AsObject(), termed, columns), ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         var marks = body.Unconfirmed ?? [];
-        // Отсрочка из условий поставщика — новому счёту, у которого её нет (ТЗ COST-9.2). Пришедшая с
-        // бумагой отсрочка условиями не перекрывается.
-        (columns, _) = await desk.WithTermsAsync(columns, wasSupplier: null, wasDeferral: null, ct);
 
         // Срок, пришедший из распознавания, ручным не считается — и отличим он ровно меткой: «оплатить
         // до» стоит в бумаге поставщика, а правило подстановки (C4) обходит стороной только тот срок,
@@ -157,14 +160,14 @@ public static class InvoiceEndpoints
             var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
             // Стороны — прежде охраны: см. создание.
             await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
-            await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
-                InvoiceRequisites.Resulting(body.Requisites, before).ToJsonString(), ct);
-
-            var changed = InvoiceRequisites.Changed(before, body.Requisites);
-
             // Сменили поставщика — отсрочка из его условий (ТЗ COST-9.2), если её не правили той же
-            // записью. Подставленная отсрочка названа среди изменённого: журнал и метки о ней знают.
-            (columns, var termed) = await desk.WithTermsAsync(columns, invoice.SupplierId, invoice.DeferralDays, ct);
+            // записью. До охраны — см. создание.
+            (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
+            await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
+                WithTerms(InvoiceRequisites.Resulting(body.Requisites, before), termed, columns), ct);
+
+            // Подставленная отсрочка названа среди изменённого: журнал и метки о ней знают.
+            var changed = InvoiceRequisites.Changed(before, body.Requisites);
             if (termed && !changed.Contains(InvoiceRequisites.DeferralKey))
                 changed = [.. changed, InvoiceRequisites.DeferralKey];
 
@@ -252,6 +255,16 @@ public static class InvoiceEndpoints
                 before: DueText(was.DueDate), after: DueText(invoice.DueDate), ct: ct);
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+    }
+
+    /// <summary>
+    /// Реквизиты для охраны записи — с отсрочкой из условий поставщика, если её подставили: охрана судит
+    /// то, что ляжет в счёт (ревью PR #1329).
+    /// </summary>
+    internal static string WithTerms(JsonObject requisites, bool termed, InvoiceColumns columns)
+    {
+        if (termed) requisites[InvoiceRequisites.DeferralKey] = columns.DeferralDays;
+        return requisites.ToJsonString();
     }
 
     /// <summary>Срок словами журнала: пустой — «не определён», как его называет форма.</summary>

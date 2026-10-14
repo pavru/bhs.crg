@@ -48,6 +48,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("deferral_days");
 
+                    b.Property<bool>("DeferralFromTerms")
+                        .HasColumnType("boolean")
+                        .HasColumnName("deferral_from_terms");
+
                     b.Property<Guid>("DocumentTypeId")
                         .HasColumnType("uuid")
                         .HasColumnName("document_type_id");

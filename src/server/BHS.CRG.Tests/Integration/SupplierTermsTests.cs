@@ -86,6 +86,36 @@ public class SupplierTermsTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.Equal(20, Deferral(await UpdateAsync(client, id, "Поставщик", Reference(bare))));
     }
 
+    /// <summary>
+    /// Происхождение отсрочки — признаком, а не совпадением с условиями (ревью PR #1329): вписанные рукой
+    /// «30» у поставщика с условиями «30» при смене поставщика остаются, а подставленные из условий
+    /// меняются, даже если условия прежнего поставщика с тех пор сменили.
+    /// </summary>
+    [Fact]
+    public async Task Происхождение_отсрочки_решает_признак_а_не_совпадение_с_условиями()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var (first, second) = (await VendorAsync(), await VendorAsync());
+        var firstTerms = await SetAsync(client, first, 30);
+        await SetAsync(client, second, 45);
+
+        // Вписано рукой то же число, что в условиях первого.
+        var typed = Id(await CreateAsync(client, supplierId: null, shipped: null, deferral: 30));
+        await UpdateAsync(client, typed, "Поставщик", Reference(first));
+        Assert.Equal(30, Deferral(await UpdateAsync(client, typed, "Поставщик", Reference(second))));
+
+        // Подставлено из условий первого, затем его условия сменили — при смене поставщика отсрочка
+        // всё равно из условий и уступает условиям второго.
+        var termed = Id(await CreateAsync(client, first, shipped: null, deferral: null));
+        await SetAsync(client, first, 60, firstTerms.GetProperty("version").GetString());
+        Assert.Equal(45, Deferral(await UpdateAsync(client, termed, "Поставщик", Reference(second))));
+
+        // Правка отсрочки рукой снимает признак: дальше условия её не трогают.
+        var edited = Id(await CreateAsync(client, first, shipped: null, deferral: null));
+        await UpdateAsync(client, edited, "Отсрочка", 12);
+        Assert.Equal(12, Deferral(await UpdateAsync(client, edited, "Поставщик", Reference(second))));
+    }
+
     [Fact]
     public async Task Правка_условий_заведённые_счета_не_трогает()
     {

@@ -172,6 +172,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
         invoice.Property(i => i.ShippedOn).HasColumnName("shipped_on");
         invoice.Property(i => i.DeferralDays).HasColumnName("deferral_days");
+        invoice.Property(i => i.DeferralFromTerms).HasColumnName("deferral_from_terms");
         invoice.Property(i => i.DueDate).HasColumnName("due_date");
         invoice.Property(i => i.DueDateManual).HasColumnName("due_date_manual");
 

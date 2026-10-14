@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { INVOICES_KEY } from './invoices';
+import { isInvoiceView } from './invoices';
 
 /**
  * Условия поставщика — отсрочка платежа в днях (ТЗ COST-9.2; задача C4, issue #1080). Подставляется в
@@ -29,14 +29,15 @@ export function useSupplierTerms() {
 }
 
 /**
- * Условия перечитываются вместе со счетами: открытый счёт говорит у поля «Отсрочка», совпадает ли она
- * с условиями его поставщика, — и после правки условий говорил бы по старым.
+ * Список условий перечитывается после любой попытки — и после отказа: 409 значит, что в окне устаревшее.
+ * Счета — только после успеха и только ВИДЫ открытых счетов (ревью PR #1329): от условий зависит одна
+ * подсказка у поля «Отсрочка», а списки счетов и числа очередей от них не зависят ничем.
  */
 function useTermsChanged() {
   const qc = useQueryClient();
-  return () => {
-    void qc.invalidateQueries({ queryKey: INVOICES_KEY });
-    return qc.invalidateQueries({ queryKey: TERMS_KEY });
+  return {
+    onSuccess: () => void qc.invalidateQueries({ predicate: q => isInvoiceView(q.queryKey) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: TERMS_KEY }),
   };
 }
 
@@ -50,7 +51,7 @@ export function useSetSupplierTerms() {
     mutationFn: ({ supplierId, deferralDays, version }: { supplierId: string; deferralDays: number; version?: string }) =>
       apiClient.put<SupplierTermsItem>(`/costs/supplier-terms/${supplierId}`, { deferralDays },
         version ? { headers: { 'If-Match': version } } : undefined).then(r => r.data),
-    onSettled: changed,
+    ...changed,
   });
 }
 
@@ -60,6 +61,6 @@ export function useRemoveSupplierTerms() {
   return useMutation({
     mutationFn: (item: SupplierTermsItem) =>
       apiClient.delete(`/costs/supplier-terms/${item.supplierId}`, { headers: { 'If-Match': item.version } }),
-    onSettled: changed,
+    ...changed,
   });
 }

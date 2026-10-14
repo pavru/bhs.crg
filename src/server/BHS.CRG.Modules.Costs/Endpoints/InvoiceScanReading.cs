@@ -379,14 +379,22 @@ public sealed class InvoiceScanReading(
         {
             using var incoming = JsonDocument.Parse(after.ToJsonString());
             var (columns, rest) = InvoiceRequisites.Split(incoming.RootElement, before);
+            // Узнанный поставщик приносит отсрочку из своих условий (ТЗ COST-9.2): скан её не читает.
+            // До охраны — охрана судит то, что ляжет в счёт (ревью PR #1329).
+            (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
             // Охрана записи ядра — та же, что у формы: фоновой правке её правила не уступают.
-            await InvoiceEndpoints.EnsureAllowedAsync(
-                guard, invoice.DocumentTypeId, before.ToJsonString(), after.ToJsonString(), ct);
-            // Узнанный поставщик приносит отсрочку из своих условий (ТЗ COST-9.2), если со скана её не
-            // прочитали. Подставленная — не распознанная: метки «распознано» на ней нет.
-            (columns, _) = await desk.WithTermsAsync(columns, invoice.SupplierId, invoice.DeferralDays, ct);
+            await InvoiceEndpoints.EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
+                InvoiceEndpoints.WithTerms(after, termed, columns), ct);
             // Срок оплаты распознавание не трогает, значит и «вписан рукой» ему ставить нечему.
+            var dueBefore = invoice.DueDate;
             invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);
+
+            // Отсрочка из условий и срок, посчитанный от неё, — следствие узнанного поставщика, и метку
+            // «распознано, не подтверждено» несут вместе с ним (ревью PR #1329). Без неё форма, открытая
+            // во время распознавания, приняла бы итог распознавания за чужую правку, а запись в журнале
+            // («полей: N») о них молчала бы.
+            if (termed) filled.Add(InvoiceRequisites.DeferralKey);
+            if (invoice.DueDate != dueBefore) filled.Add(InvoiceRequisites.DueDateKey);
             invoice.AddUnconfirmed(filled);
         }
 

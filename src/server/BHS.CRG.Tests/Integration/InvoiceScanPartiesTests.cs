@@ -56,6 +56,31 @@ public sealed class InvoiceScanPartiesTests(InvoiceScanHost host)
     }
 
     /// <summary>
+    /// Узнанный по ИНН поставщик приносит отсрочку из своих условий (ТЗ COST-9.2; C4, issue #1080) — с
+    /// меткой «распознано», как и сам поставщик (ревью PR #1329): форма, открытая во время распознавания,
+    /// иначе приняла бы отсрочку за чужую правку.
+    /// </summary>
+    [Fact]
+    public async Task Узнанный_поставщик_приносит_отсрочку_из_условий_помеченной()
+    {
+        var type = await OrganizationsAsync();
+        var (seller, sellerTaxId) = await OrganizationAsync(type, "ООО «Условия-Опт»");
+
+        var (client, _) = await SignInAsync("Supplier");
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/supplier-terms/{seller}", new { deferralDays = 30 }));
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(Header(
+            number: "СЧ-30", supplier: "Условия-Опт, ООО", supplierTaxId: sellerTaxId))));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        Assert.Equal("done", (await OutcomeAsync(client, id)).GetProperty("state").GetString());
+
+        var view = await ReadAsync(client, id);
+        Assert.Equal(30, view.GetProperty("requisites").GetProperty("Отсрочка").GetInt32());
+        Assert.Contains("Отсрочка", Unconfirmed(view));
+    }
+
+    /// <summary>
     /// Роль наследует ИНН от организации — в её собственных данных его нет. Сопоставление видит обе
     /// записи и узнаёт в них одну организацию: в счёт ложится она сама, а не роль.
     /// </summary>

@@ -36,6 +36,11 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
   // Набранное в строках — по поставщику; сохраняется уходом из поля или Enter.
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [removingId, setRemovingId] = useState<string | null>(null);
+  // Строки, чья правка в пути, — по поставщику, а не общим «что-то сохраняется» (ревью PR #1329): общий
+  // признак молча глотал правку строки, сделанную, пока добавлялись новые условия. Пока своя правка в
+  // пути, поле строки только читается — второе значение поверх первого ушло бы со старой версией.
+  const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
+  const [adding, setAdding] = useState(false);
 
   const items = terms.data ?? [];
   const offered = choosable(organizations.data ?? [], items);
@@ -45,13 +50,17 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
     || items.some(item => typed[item.supplierId] !== undefined && typed[item.supplierId] !== String(item.deferralDays));
 
   async function add() {
-    if (supplierId === null || typeof parsedNew !== 'number') return;
+    // Второй Enter или Enter и щелчок, пока первое заведение в пути, ушли бы вторым запросом без версии —
+    // и получили бы 409 «записали одновременно с вами» о собственной правке (ревью PR #1329).
+    if (adding || supplierId === null || typeof parsedNew !== 'number') return;
+    setAdding(true);
     try {
       await save.mutateAsync({ supplierId, deferralDays: parsedNew });
       setSupplierId(null);
       setNewDays('');
       toast.success('Условия записаны. Отсрочку получат счета, в которых выберут этого поставщика.');
     } catch (e) { toast.apiError(e, 'Условия не записаны'); }
+    finally { setAdding(false); }
   }
 
   async function change(item: SupplierTermsItem) {
@@ -59,16 +68,24 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
     if (text === undefined) return;
     const days = parseDays(text);
     // Пустое и неверное не отправляются: снять условия — корзиной, а неверное названо у поля.
-    if (typeof days !== 'number' || save.isPending) return;
+    if (typeof days !== 'number' || saving.has(item.supplierId)) return;
     if (days === item.deferralDays) {
       setTyped(({ [item.supplierId]: _, ...rest }) => rest);
       return;
     }
+    setSaving(set => new Set(set).add(item.supplierId));
     try {
       await save.mutateAsync({ supplierId: item.supplierId, deferralDays: days, version: item.version });
       setTyped(({ [item.supplierId]: _, ...rest }) => rest);
       toast.success('Отсрочка изменена. В уже заведённых счетах она не меняется.');
     } catch (e) { toast.apiError(e, 'Отсрочка не изменена'); }
+    finally {
+      setSaving(set => {
+        const left = new Set(set);
+        left.delete(item.supplierId);
+        return left;
+      });
+    }
   }
 
   return (
@@ -92,7 +109,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
           error={parsedNew === 'bad' ? BAD_DAYS : undefined}
           onChange={e => setNewDays(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void add(); }} />
-        <Button variant="outlined" icon={<Plus size={16} />} loading={save.isPending && supplierId !== null}
+        <Button variant="outlined" icon={<Plus size={16} />} loading={adding}
           disabled={supplierId === null || typeof parsedNew !== 'number'} onClick={() => void add()}>
           Добавить
         </Button>
@@ -131,7 +148,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
                       {item.supplierArchived && <ArchivedMark className="ml-1" />}
                     </td>
                     <td className="py-1 pr-2">
-                      <input value={text} inputMode="numeric" aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
+                      <input value={text} inputMode="numeric" readOnly={saving.has(item.supplierId)} aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
                         aria-invalid={typeof days !== 'number' || undefined}
                         title={typeof days !== 'number' ? BAD_DAYS : undefined}
                         onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
@@ -144,7 +161,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
                       {formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}
                     </td>
                     <td className="py-1">
-                      <button type="button" title="Снять условия" disabled={save.isPending}
+                      <button type="button" title="Снять условия" disabled={saving.has(item.supplierId)}
                         onClick={() => setRemovingId(item.supplierId)}
                         className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
                     </td>

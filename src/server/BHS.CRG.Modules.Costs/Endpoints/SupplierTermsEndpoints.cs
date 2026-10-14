@@ -64,9 +64,10 @@ public static class SupplierTermsEndpoints
         Guid supplierId, SupplierTermsRequest body, HttpRequest request, CostsDbContext db, IModuleCatalog catalog,
         IModuleUser user, IModuleActivityLog log, CancellationToken ct)
     {
-        if (body.DeferralDays is not { } days || days is < 0 or > 3650)
+        if (body.DeferralDays is not { } days || days < 0 || days > CostsValues.MaxDeferralDays)
             throw new InvalidRequestException(
-                "Отсрочка («deferralDays») — целое число дней от 0 до 3650, как у поля счёта. Ноль — платим в день отгрузки.");
+                $"Отсрочка («deferralDays») — целое число дней от 0 до {CostsValues.MaxDeferralDays}, как у поля счёта. " +
+                "Ноль — платим в день отгрузки.");
 
         var seen = Seen(request);
         var terms = await db.SupplierTerms.FirstOrDefaultAsync(t => t.SupplierId == supplierId, ct);
@@ -106,10 +107,13 @@ public static class SupplierTermsEndpoints
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException lost) when (seen is null && lost is not DbUpdateConcurrencyException)
+        catch (DbUpdateException lost) when (seen is null
+            && lost.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
         {
             // Два заведения условий одному поставщику разом: второе упирается в ключ таблицы. Тот же
-            // ответ, что у проверки выше, — она просто не успела увидеть первое.
+            // ответ, что у проверки выше, — она просто не успела увидеть первое. Только нарушение
+            // ключа (ревью PR #1329): иной отказ базы под этими словами выдал бы себя за чужую правку
+            // и потерял бы причину — он уходит наверх ошибкой, как есть.
             throw new ConflictException(
                 "У этого поставщика условия уже заведены — их записали одновременно с вами. Перечитайте " +
                 "условия и правьте их строку.", lost);

@@ -404,6 +404,14 @@ export const QK = 'costs-invoices';
 export const INVOICES_KEY = [QK] as const;
 
 /**
+ * Ключ вида одного счёта — `[QK, id]`. Рядом под тем же QK лежат списки (`'list'`) и числа очередей
+ * (`'queues'`); перечитать только виды открытых счетов значит отобрать по этому признаку.
+ */
+export function isInvoiceView(key: readonly unknown[]): boolean {
+  return key.length === 2 && key[0] === QK && key[1] !== 'list' && key[1] !== 'queues';
+}
+
+/**
  * Реестр счетов. Очередь: «Разобрать» — все недоведённые счета, то есть черновики; «удалённые записи»
  * и «в архиве» — отборы «наведите порядок» (issue #1186).
  *

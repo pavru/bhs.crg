@@ -153,12 +153,19 @@ internal static class CostsValues
     internal static string Shown(decimal value) =>
         value.ToString(CultureInfo.InvariantCulture).Replace('.', ',');
 
+    /// <summary>
+    /// Предел отсрочки в днях — десять лет. Один на поле счёта и на условия поставщика (ревью PR #1329):
+    /// разойдись они, условия держали бы отсрочку, которую поле счёта отвергает, а подставленная
+    /// отсрочка ложится в колонку мимо разбора поля.
+    /// </summary>
+    public const int MaxDeferralDays = 3650;
+
     internal static int? Days(JsonElement source, string key) => Number(source, key) switch
     {
         null => null,
-        { } value when value == decimal.Truncate(value) && value is >= 0 and < 3651 => (int)value,
+        { } value when value == decimal.Truncate(value) && value >= 0 && value <= MaxDeferralDays => (int)value,
         { } value => throw new InvalidRequestException(
-            $"Поле «{key}»: «{value}» — не срок в днях. Ожидается целое число от 0 до 3650 " +
+            $"Поле «{key}»: «{value}» — не срок в днях. Ожидается целое число от 0 до {MaxDeferralDays} " +
             "(десять лет): отсрочка в полдня и отсрочка в век — это опечатка, а не условие поставщика."),
     };
 

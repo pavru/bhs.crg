@@ -106,6 +106,16 @@ public sealed class Invoice
     public int? DeferralDays { get; private set; }
 
     /// <summary>
+    /// Отсрочка подставлена из условий поставщика (ТЗ COST-9.2; ревью PR #1329), а не вписана человеком и не
+    /// прочитана из бумаги. По этому признаку смена поставщика решает, менять ли отсрочку: угадывать
+    /// происхождение по совпадению с условиями нельзя — вписанные «30» у поставщика с условиями «30»
+    /// неотличимы от подставленных, а условия могли смениться после подстановки.
+    ///
+    /// <para>Снимается любой иной правкой отсрочки — человеком или распознаванием.</para>
+    /// </summary>
+    public bool DeferralFromTerms { get; private set; }
+
+    /// <summary>
     /// Срок «оплатить до» (ТЗ COST-9.1). Колонка с правилом подстановки, а не расчётное поле:
     /// расчётное перекрыть нельзя, а этот срок человек правит руками.
     ///
@@ -282,6 +292,8 @@ public sealed class Invoice
         Total = columns.Total;
         VatTotal = columns.VatTotal;
         ShippedOn = columns.ShippedOn;
+        // Признак происхождения отсрочки меняется только вместе с ней: правка других полей его не трогает.
+        if (columns.DeferralDays != DeferralDays) DeferralFromTerms = columns.DeferralFromTerms;
         DeferralDays = columns.DeferralDays;
         Data = data;
 
@@ -510,4 +522,6 @@ public sealed record InvoiceColumns(
     decimal? VatTotal,
     DateOnly? ShippedOn,
     int? DeferralDays,
-    DateOnly? DueDate);
+    DateOnly? DueDate,
+    // Отсрочка взята из условий поставщика (InvoiceDesk.WithTermsAsync); у разобранных реквизитов — нет.
+    bool DeferralFromTerms = false);

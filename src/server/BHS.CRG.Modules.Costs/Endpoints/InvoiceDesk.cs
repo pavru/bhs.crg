@@ -53,19 +53,15 @@ public sealed class InvoiceDesk(
     /// <returns>Колонки и признак «отсрочка подставлена»: по нему снимается метка «распознано» с поля
     /// и журнал называет отсрочку среди изменённого.</returns>
     public async Task<(InvoiceColumns Columns, bool Termed)> WithTermsAsync(
-        InvoiceColumns columns, Guid? wasSupplier, int? wasDeferral, CancellationToken ct)
+        InvoiceColumns columns, Invoice? was, CancellationToken ct)
     {
         // Поставщик не сменился — условия не читаются вовсе: таких записей большинство.
-        if (columns.SupplierId is not { } supplier || supplier == wasSupplier) return (columns, false);
+        if (columns.SupplierId is not { } supplier || supplier == was?.SupplierId) return (columns, false);
 
-        Guid[] ids = wasSupplier is { } was ? [supplier, was] : [supplier];
-        var terms = await db.SupplierTerms.AsNoTracking()
-            .Where(t => ids.Contains(t.SupplierId))
-            .ToDictionaryAsync(t => t.SupplierId, t => t.DeferralDays, ct);
-        int? Of(Guid? id) => id is { } key && terms.TryGetValue(key, out var days) ? days : null;
-
-        return SupplierTerms.Substituted(columns, (wasSupplier, wasDeferral), Of(wasSupplier), Of(supplier)) is { } deferral
-            ? (columns with { DeferralDays = deferral }, true)
+        var terms = await SupplierDeferralAsync(supplier, ct);
+        return SupplierTerms.Substituted(
+                columns, (was?.SupplierId, was?.DeferralDays, was?.DeferralFromTerms ?? false), terms) is { } deferral
+            ? (columns with { DeferralDays = deferral, DeferralFromTerms = true }, true)
             : (columns, false);
     }
 

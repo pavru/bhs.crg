@@ -26,7 +26,7 @@ public sealed class SupplierTerms
     /// <summary>Запись организации — поставщика. Без внешнего ключа, как у счёта: справочник в ядре.</summary>
     public Guid SupplierId { get; private set; }
 
-    /// <summary>Отсрочка платежа в днях — те же пределы, что у поля счёта (<see cref="CostsValues" />).</summary>
+    /// <summary>Отсрочка платежа в днях — те же пределы, что у поля счёта (<see cref="CostsValues.MaxDeferralDays" />).</summary>
     public int DeferralDays { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -58,21 +58,24 @@ public sealed class SupplierTerms
     ///
     /// <para>Подставляется, когда поставщик в этой записи СМЕНИЛСЯ (новый счёт — смена с пустого), у
     /// нового поставщика условия есть, а отсрочку той же записью не правили. И только поверх пустой
-    /// отсрочки либо отсрочки из условий прежнего поставщика: вписанное человеком или прочитанное из
-    /// бумаги условиями не перекрывается.</para>
+    /// отсрочки либо отсрочки, подставленной из условий раньше (<see cref="Invoice.DeferralFromTerms" />):
+    /// вписанное человеком или прочитанное из бумаги условиями не перекрывается.</para>
+    ///
+    /// <para>Происхождение отсрочки — признаком счёта, а не сравнением с условиями прежнего поставщика
+    /// (ревью PR #1329): вписанные рукой «30» у поставщика с условиями «30» сравнением не отличить от
+    /// подставленных, а подставленные не узнать, если условия с тех пор сменили.</para>
     ///
     /// <para>У нового поставщика условий нет — отсрочка остаётся, даже взятая у прежнего: стереть её
     /// значило бы молча снять и срок, а неверное значение человек видит в поле и правит.</para>
     /// </summary>
-    /// <param name="was">Поставщик и отсрочка счёта до записи; у нового счёта — пустые.</param>
-    /// <param name="wasTerms">Отсрочка в условиях прежнего поставщика.</param>
+    /// <param name="was">Поставщик, отсрочка и её происхождение до записи; у нового счёта — пустые.</param>
     /// <param name="terms">Отсрочка в условиях нового поставщика.</param>
-    public static int? Substituted(InvoiceColumns columns, (Guid? SupplierId, int? DeferralDays) was, int? wasTerms, int? terms) =>
+    public static int? Substituted(InvoiceColumns columns, (Guid? SupplierId, int? DeferralDays, bool FromTerms) was, int? terms) =>
         columns.SupplierId is not null
         && columns.SupplierId != was.SupplierId
         && terms is { } days
         && columns.DeferralDays == was.DeferralDays
-        && (was.DeferralDays is null || was.DeferralDays == wasTerms)
+        && (was.DeferralDays is null || was.FromTerms)
         && columns.DeferralDays != days
             ? days
             : null;
