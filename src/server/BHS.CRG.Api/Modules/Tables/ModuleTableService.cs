@@ -37,9 +37,22 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
     public async Task<(TableDto? Table, TableRefusal? Refusal)> ReadAsync(
         string address, DataAccess access, TableRequest request, CancellationToken ct)
     {
+        var (table, _, refusal) = await ReadWithColumnsAsync(address, access, request, ct);
+        return (table, refusal);
+    }
+
+    /// <summary>
+    /// То же, что <see cref="ReadAsync" />, и вдобавок ВСЕ колонки таблицы с причинами — тем же
+    /// открытием. Нужно выгрузке (G3b, issue #1096): отбор в шапке файла называет колонки своими
+    /// именами, а стоять он может на колонке, которой среди выгруженных нет. Второе открытие ради
+    /// подписей перечитало бы схемы типов и могло бы разойтись с первым (ревью PR #1326).
+    /// </summary>
+    public async Task<(TableDto? Table, IReadOnlyList<TableColumnDto> All, TableRefusal? Refusal)> ReadWithColumnsAsync(
+        string address, DataAccess access, TableRequest request, CancellationToken ct)
+    {
         var requested = request.Columns;
         var (opened, denied) = await OpenAsync(address, access, ct);
-        if (opened is null) return (null, denied);
+        if (opened is null) return (null, [], denied);
         var (entry, columns) = (opened.Entry, opened.Columns);
         var table = entry.Table;
 
@@ -49,7 +62,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
             return (Dto(entry, [.. Mark(columns, requested).Select(c => c with
             {
                 Unavailable = TableColumnReasons.ModuleOff, Reason = off,
-            })], [], TableColumnReasons.ModuleOff), null);
+            })], [], TableColumnReasons.ModuleOff), columns, null);
 
         var marked = Mark(columns, requested).ToList();
 
@@ -59,7 +72,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
         var open = columns.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
         var shown = marked.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
         var (query, refusal) = ModuleTableQueries.Build(table.Title, columns, open, shown, request, access.UserId!.Value);
-        if (query is null) return (null, refusal);
+        if (query is null) return (null, columns, refusal);
 
         var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
         var page = await reader.ReadAsync(query, ct);
@@ -73,7 +86,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
         if (query.Row is { } row)
         {
             if (page.Keys is null)
-                return (null, new(StatusCodes.Status409Conflict,
+                return (null, columns, new(StatusCodes.Status409Conflict,
                     $"Таблица «{table.Title}» строку по ключу не отдаёт: её служба ключей строк не называет."));
 
             // Служба, не заметившая ключа, отдала бы всю страницу — и первая её строка сошла бы за
@@ -110,7 +123,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
                 // Журнала может не быть у службы, собранной без хоста (тесты ядра); молчать он тогда вправе.
                 services.GetService<ILogger<ModuleTableService>>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ModuleTableService>.Instance),
-        }, null);
+        }, columns, null);
     }
 
     /// <summary>
@@ -129,7 +142,8 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
             opened.Off is null ? null : TableColumnReasons.ModuleOff,
             opened.Off is null ? Views(table) : [],
             // У выключенного модуля строк нет — и вести из них некуда.
-            opened.Off is null ? table.RecordType : null), null);
+            opened.Off is null ? table.RecordType : null,
+            opened.Off is null ? ModuleTableExport.MaxRows : null), null);
     }
 
     /// <summary>

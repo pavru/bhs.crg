@@ -16,6 +16,23 @@ export function filenameFromContentDisposition(cd: string | undefined, fallback:
   return plain?.[1]?.trim() || fallback;
 }
 
+/**
+ * Отдать браузеру файл, пришедший Blob-ом, — временной ссылкой с `download`. Один на всё приложение
+ * (ревью PR #1326): прежде тот же фрагмент жил восемью копиями, и правку поведения скачивания пришлось
+ * бы вносить восемь раз. Ссылка вставляется в документ: Firefox щелчок по ссылке вне документа
+ * пропускает.
+ */
+export function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export interface FileAttachment {
   $type: 'file';
   blobPath: string;

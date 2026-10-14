@@ -168,10 +168,13 @@ public record TableColumnDto(
 /// такой таблицы — идентификатор записи этого типа, и экран по коду находит, где запись открывается.
 /// Адреса экрана здесь нет нарочно: какие экраны есть у клиента, знает клиент. null — за строкой
 /// записи нет либо модуль выключен, и вести строке некуда.</param>
+/// <param name="ExportMax">Сколько строк отбора выгружается в файл за раз (G3b, issue #1096). Экрану
+/// он нужен, чтобы не предлагать выгрузку, которая заведомо откажет: невыполнимое действие на экране
+/// скрывают (решение владельца 11.10.2026). null — выгружать нечего: модуль выключен.</param>
 public record TableDeclarationDto(
     string Address, string Title, string Grain, string Boundary,
     IReadOnlyList<TableColumnDto> Columns, string? State = null,
-    IReadOnlyList<TableViewDto>? Views = null, string? RecordType = null);
+    IReadOnlyList<TableViewDto>? Views = null, string? RecordType = null, int? ExportMax = null);
 
 /// <summary>
 /// Готовое представление таблицы — её настройка от модуля (ТЗ CORE-33, COST-20.1; задача G4,

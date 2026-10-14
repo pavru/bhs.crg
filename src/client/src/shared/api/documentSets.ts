@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { invalidatePlans } from './plans';
 import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
-import { filenameFromContentDisposition } from './attachments';
+import { filenameFromContentDisposition, saveBlob } from './attachments';
 import type { Recipient } from './subscriptions';
 
 /** Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). Пустой q → без запроса. */
@@ -260,12 +260,7 @@ export function useDocumentSetOutput(setId: string | undefined, refetchInterval:
 
 export async function downloadSetOutput(setId: string, fallbackName = 'Комплект') {
   const response = await apiClient.get(`/document-sets/${setId}/output/download`, { responseType: 'blob' });
-  const url = URL.createObjectURL(response.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${fallbackName}.pdf`;
-  a.click();
-  URL.revokeObjectURL(url);
+  saveBlob(response.data as Blob, `${fallbackName}.pdf`);
 }
 
 export function useGenerateDocument() {
@@ -290,12 +285,7 @@ export async function downloadGeneratedFile(instanceId: string, templateId?: str
   });
   // Имя формирует бэкенд (имя документа + суффикс-шаблон, спецсимволы → _), достаём из Content-Disposition.
   const filename = filenameFromContentDisposition(response.headers['content-disposition'], 'document.pdf');
-  const url = URL.createObjectURL(response.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  saveBlob(response.data as Blob, filename);
 }
 
 export interface ResolutionDiagnostic {
@@ -420,12 +410,7 @@ export async function downloadDebugBundle(instanceId: string) {
   const response = await apiClient.get(`/generate/debug-bundle/${instanceId}`, {
     responseType: 'blob',
   });
-  const url = URL.createObjectURL(response.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `typst-debug-${instanceId}.zip`;
-  a.click();
-  URL.revokeObjectURL(url);
+  saveBlob(response.data as Blob, `typst-debug-${instanceId}.zip`);
 }
 
 export async function previewGeneratedFile(instanceId: string, templateId?: string | null) {

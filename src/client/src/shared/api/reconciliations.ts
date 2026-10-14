@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { filenameFromContentDisposition } from './attachments';
+import { filenameFromContentDisposition, saveBlob } from './attachments';
 import { NO_ACCESS, hasPermission, useAccess } from './access';
 
 /**
@@ -410,12 +410,5 @@ export async function downloadDiscrepancyReport(setId: string, setName: string) 
   });
   const disposition = response.headers['content-disposition'] as string | undefined;
   const filename = filenameFromContentDisposition(disposition, `Отчёт о расхождениях — ${setName}.xlsx`);
-  const url = URL.createObjectURL(response.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  saveBlob(response.data as Blob, filename);
 }

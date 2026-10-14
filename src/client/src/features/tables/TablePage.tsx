@@ -5,17 +5,20 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { defaultColumnKeys, tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
+import {
+  defaultColumnKeys, tableExportBody, tableFilterColumns, useTable, useTableDeclaration, type TableData,
+} from '@/shared/api/tables';
 import { useSavedTableViews } from '@/shared/api/tableViews';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
 import { recordLink, recordScreen } from '@/shared/ui/recordRoutes';
 import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
+import { ExportMenu } from './ExportMenu';
 import { RowPanel } from './RowPanel';
 import { ShortcutChips } from './ShortcutChips';
 import { TableViewHeader } from './TableViewHeader';
-import { isSavedId, lookupBase, lookupTitle, rowsWantedFor, viewLookup } from './savedViews';
+import { isSavedId, lookupBase, lookupTitle, rowsWantedFor, viewLookup, viewModified } from './savedViews';
 import { withShortcut } from './tableShortcuts';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { hasShownTotals, totalText } from './tableTotals';
@@ -111,6 +114,10 @@ export function TablePage() {
 
   const decl = declaration.data;
   const off = decl.state === 'module-off';
+  // Название представления в шапке и имени файла. Изменённое представление — уже не оно: файл,
+  // названный «Реестр счетов», через неделю читали бы как выгрузку реестра (ревью PR #1326).
+  const viewTitle = preset?.title ?? stored?.title;
+  const exportTitle = viewTitle && viewModified(view, base) ? `${viewTitle} (изменено)` : viewTitle;
 
   // Устаревшая закладка: представление удалено либо автор вернул его в свои — сервер эти случаи не
   // различает, и экран тоже. Отбор из адреса едет к таблице целиком: с закладкой пришли за строками.
@@ -172,6 +179,14 @@ export function TablePage() {
           {!off && (
             <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title ?? stored?.title}
               gridColumns={grid.length} onChange={setView} />
+          )}
+          {/* Выгружать есть что, только когда пришли строки ЭТОГО отбора. При отказе файл повторил бы
+              отказ, а прежние строки, оставленные на экране на время запроса, назвали бы в пункте меню
+              число чужого отбора (ревью PR #1326). Отбор больше потолка выгрузки сервер отвергнет —
+              такого пункта нет вовсе: невыполнимое действие скрывают (решение владельца 11.10.2026). */}
+          {!off && data && !table.isError && !table.isPlaceholderData && data.count <= (decl.exportMax ?? 0) && (
+            <ExportMenu address={address} count={data.count} body={tableExportBody(
+              { filter, columns: view.columns, sort: view.sort, totals: view.totals }, exportTitle)} />
           )}
         </div>
 

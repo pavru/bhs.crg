@@ -60,6 +60,8 @@
 
 import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
+import { readFile } from 'node:fs/promises';
+import { sheetXml } from './xlsx.mjs';
 
 const TABLE = `${BASE}/tables/costs.invoices`;
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || PASSWORD;
@@ -401,6 +403,32 @@ try {
     await rowsBecome(page, TABLE_SEED.count - 50, 'вторая страница');
     if (!flat(await foot.innerText()).includes(flat(want)))
       throw new Error(`на второй странице итог стал «${flat(await foot.innerText())}»`);
+  });
+
+  // ── 4а. Выгрузка ──────────────────────────────────────────────────────────────────────────────
+
+  await check('export-takes-the-whole-selection: в файл идёт весь отбор, а не страница', async () => {
+    await open(page, { filter: seeded, size: '50' });
+    await rowsBecome(page, 50, 'страница из пятидесяти строк');
+
+    // Число строк названо в пункте ДО нажатия — и это число отбора, а не страницы.
+    await page.getByRole('button', { name: 'Выгрузить' }).click();
+    const item = page.getByRole('menuitem', { name: /^В XLSX/ });
+    const words = flat(await item.innerText());
+    if (!words.includes(`${TABLE_SEED.count} строк`)) throw new Error(`пункт меню: «${words}»`);
+
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), item.click()]);
+    if (!download.suggestedFilename().endsWith('.xlsx'))
+      throw new Error(`имя файла: «${download.suggestedFilename()}»`);
+    const xml = sheetXml(await readFile(await download.path()));
+
+    // Считаются КЛЕТКИ ДАННЫХ — назначение посева ровно в клетке, а не строки листа: в тех есть шапка,
+    // заголовок и итоги, и выгрузка одной страницы в 50 строк набрала бы их больше отбора (ревью
+    // PR #1326). Шапка называет назначение в кавычках — внутри строки отбора, и под счёт не попадает.
+    const cells = xml.split(`<t>${TABLE_SEED.purpose}</t>`).length - 1;
+    if (cells !== TABLE_SEED.count) throw new Error(`в листе ${cells} строк посева, а в отборе ${TABLE_SEED.count}`);
+    if (!xml.includes(`Строк: ${TABLE_SEED.count}<`)) throw new Error('в шапке файла нет «Строк: N» отбора');
+    if (!xml.includes(`«${TABLE_SEED.purpose}»`)) throw new Error('отбор не назван в шапке файла словами');
   });
 
   // ── 5. Негодный отбор ─────────────────────────────────────────────────────────────────────────

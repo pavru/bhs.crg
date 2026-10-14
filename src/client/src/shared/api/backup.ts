@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { saveBlob } from './attachments';
 import type {
   BackupFileInfo, BackupFilesResponse, BackupScheduleSettings, BackupScope, BackupSizeEstimate,
   RestoreReport,
@@ -126,12 +127,5 @@ export async function uploadBackupFile(file: File): Promise<BackupFileInfo> {
 export async function downloadBackupFile(fileName: string): Promise<void> {
   const response = await apiClient.get<Blob>(`/backup/files/${encodeURIComponent(fileName)}`,
     { responseType: 'blob' });
-  const url = URL.createObjectURL(response.data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  saveBlob(response.data, fileName);
 }

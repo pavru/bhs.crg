@@ -13,7 +13,7 @@ import {
   type NotificationSeverity, type NotificationDto,
 } from '@/shared/api/notifications';
 import { apiClient } from '@/shared/api/client';
-import { filenameFromContentDisposition } from '@/shared/api/attachments';
+import { filenameFromContentDisposition, saveBlob } from '@/shared/api/attachments';
 
 /**
  * Ссылка ведёт НАРУЖУ (issue #834): issue в GitHub, заведённый из сообщения об ошибке. Такую
@@ -42,14 +42,7 @@ async function openResult(linkUrl: string) {
   const resp = await apiClient.get(path, { responseType: 'blob' });
   const cd = resp.headers['content-disposition'] as string | undefined;
   const filename = filenameFromContentDisposition(cd, 'document');
-  const url = URL.createObjectURL(resp.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  saveBlob(resp.data as Blob, filename);
 }
 
 // Аватар-иконка уведомления: для ошибок — error-container, иначе — соответствующий контейнер.

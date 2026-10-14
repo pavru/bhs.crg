@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { filenameFromContentDisposition } from './attachments';
+import { filenameFromContentDisposition, saveBlob } from './attachments';
 import type {
   CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
   DataSetPreview, DataSetSource, GostGrouping, GostGroupingGroup, MaterializeDiscriminator,
@@ -492,14 +492,7 @@ export async function downloadDataSetFile(id: string, name: string) {
   const response = await apiClient.get(`/datasets/files/${id}/download`, { responseType: 'blob' });
   const contentDisposition = response.headers['content-disposition'] as string | undefined;
   const filename = filenameFromContentDisposition(contentDisposition, name);
-  const url = URL.createObjectURL(response.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  saveBlob(response.data as Blob, filename);
 }
 
 /** Выгрузка ВСЕХ строк источника (после обработки) в spreadsheet и скачивание в браузере. */
@@ -514,14 +507,7 @@ export async function exportDataSetSource(sourceId: string, format: 'xlsx' | 'xl
   }));
   const contentDisposition = response.headers['content-disposition'] as string | undefined;
   const filename = filenameFromContentDisposition(contentDisposition, `export.${format}`);
-  const url = URL.createObjectURL(response.data as Blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  saveBlob(response.data as Blob, filename);
 }
 
 // ── Все доступные файлы для комплекта (System+Construction+Section+Set) ───────

@@ -3,6 +3,8 @@ import { apiClient } from './client';
 import type { FilterNode } from './types';
 import { cleanFilterNode } from './datasetHelpers';
 import type { FilterColumn } from '@/shared/filter/rowFilterModel';
+import { withBlobErrorBody } from '@/shared/utils/apiError';
+import { filenameFromContentDisposition, saveBlob } from './attachments';
 
 /**
  * Таблицы модулей — экрану (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092). Первый потребитель
@@ -92,6 +94,11 @@ export interface TableDeclaration {
    * этой паре экран находит, где запись открывается (`recordRoutes`). null — вести строке некуда.
    */
   recordType?: string | null;
+  /**
+   * Сколько строк отбора выгружается в файл за раз (G3b, issue #1096). Больше — выгрузки на экране
+   * нет: невыполнимое действие скрывают (решение владельца 11.10.2026). null — выгружать нечего.
+   */
+  exportMax?: number | null;
 }
 
 /** Итог по колонке — по всему отбору, а не по странице. */
@@ -228,6 +235,47 @@ export function tableRequest(address: string, query: TableQuery): TableRequest {
   return bytes > QUERY_IN_URL_LIMIT
     ? { method: 'post', url: `${url}/query`, body }
     : { method: 'get', url, params };
+}
+
+/** Тело выгрузки в XLSX — теми же именами, что читает сервер (`TableExportBody`). */
+export interface TableExportBody {
+  filter?: string;
+  columns?: string[];
+  sort?: TableSort[];
+  /** Итоги парами «колонка, слово итога» — в файле стоит тот итог, что выбран на экране. */
+  totals?: { column: string; aggregate: string }[];
+  /** Название представления — для шапки и имени файла; на строки не влияет. */
+  view?: string;
+}
+
+/**
+ * Выгрузка «того, что на экране» (задача G3b, issue #1096): колонки, отбор, сортировка и итоги — без
+ * страницы, в файл идёт весь отбор. Чистая, как `tableRequest`: что отбор едет тем же текстом, что и
+ * в запрос строк, проверяет тест.
+ */
+export function tableExportBody(
+  query: Pick<TableQuery, 'filter' | 'columns' | 'sort'> & { totals: { column: string; aggregate: string }[] },
+  view?: string,
+): TableExportBody {
+  const body: TableExportBody = {};
+  const filter = filterText(query.filter);
+  if (filter) body.filter = filter;
+  if (query.columns?.length) body.columns = query.columns;
+  if (query.sort?.length) body.sort = query.sort;
+  if (query.totals.length) body.totals = query.totals;
+  if (view) body.view = view;
+  return body;
+}
+
+/**
+ * Выгрузить таблицу в XLSX и отдать файл браузеру. Отказ (сверх потолка строк, негодный отбор)
+ * приходит текстом сервера: тело отказа при ответе-файле — блоб, и его разворачивает обёртка.
+ */
+export async function exportTable(address: string, body: TableExportBody): Promise<void> {
+  const response = await withBlobErrorBody(apiClient.post<Blob>(
+    `/tables/${encodeURIComponent(address)}/export`, body, { responseType: 'blob' }));
+  saveBlob(response.data, filenameFromContentDisposition(
+    response.headers['content-disposition'] as string | undefined, 'Таблица.xlsx'));
 }
 
 function filterText(filter: FilterNode | string | null): string | null {
