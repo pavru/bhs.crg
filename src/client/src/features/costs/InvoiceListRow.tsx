@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Archive, Ban, Check, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
+import { AlarmClock, Archive, Ban, Check, Clock, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
@@ -7,6 +7,7 @@ import { EXIT_WORD, lostTitle, placesCount, placesText, rowReadiness, type Queue
 import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
+import { rowDue } from './invoiceDue';
 
 /**
  * Строка списка счетов.
@@ -34,6 +35,8 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   const scan = rowScan(item);
   // Чего не хватает до «Разобран» — под любым отбором (issue #1292): видно, за какой счёт браться.
   const readiness = rowReadiness(item);
+  // Срок оплаты — под любым отбором (C4, issue #1080): просроченный счёт помечен без чьего-либо действия.
+  const due = rowDue(item);
 
   return (
     <button ref={row} type="button" onClick={onClick} data-testid="invoice-row"
@@ -76,6 +79,12 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
             <Sparkles size={11} />{item.unconfirmedCount}
           </span>
         )}
+        {due && (
+          <span className={`inline-flex items-center gap-0.5 text-xs shrink-0 ${DUE_TONE[due.tone]}`}
+            title={due.title} data-testid="row-due">
+            {due.tone === 'danger' ? <AlarmClock size={11} aria-hidden /> : <Clock size={11} aria-hidden />}{due.text}
+          </span>
+        )}
         {/* Отклонённый назван словом: в реестре он остаётся, и без пометки выглядел бы счётом в работе. */}
         {rejected && (
           <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0" title="По счёту не платим">
@@ -112,6 +121,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
 }
 
 const SCAN_TONE = { quiet: 'text-fg3', danger: 'text-danger', warning: 'text-warning' } as const;
+const DUE_TONE = SCAN_TONE;
 
 /**
  * Строка открытого счёта, который под отбор больше не попадает: держится, пока с него не ушли, —

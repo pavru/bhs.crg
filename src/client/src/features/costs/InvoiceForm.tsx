@@ -35,7 +35,7 @@ import { withArchiveWord } from '@/shared/ui/archive';
 import { ScanUploadButton } from './InvoiceScanPanel';
 import { InvoiceFieldScan } from './InvoiceFieldScan';
 import { InvoiceDueField } from './InvoiceDueField';
-import { hints, shippedBeforeIssued } from './invoiceDue';
+import { deferralNote, hints, shippedBeforeIssued } from './invoiceDue';
 import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart } from './InvoiceRecognitionNote';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
@@ -462,7 +462,10 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       const numeric = money || fieldKey === K.deferral;
       return (
         <div className={frame}>
-          <TextField label={LABELS[fieldKey] ?? fieldKey} hint={hint} readOnly={locked} required={required}
+          {/* У отсрочки — взята ли она из условий поставщика (ТЗ COST-9.2): иначе подставленное число
+              выглядело бы вписанным руками, а расхождение с условиями — незаметным. */}
+          <TextField label={LABELS[fieldKey] ?? fieldKey} readOnly={locked} required={required}
+            hint={fieldKey === K.deferral ? hints(hint, deferralNote(view, edits)) : hint}
             value={money ? moneyInput(current) : asInput(current)}
             inputMode={numeric ? 'decimal' : undefined}
             onChange={e => set(fieldKey, fromInput(e.target.value))} />

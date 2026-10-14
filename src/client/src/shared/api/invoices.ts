@@ -273,7 +273,8 @@ export interface InvoiceView {
    * трогает; `byRule` — что дало бы правило сейчас (`null` — считать не из чего). Сам срок — реквизит
    * «Срок». Старый сервер поля не присылает.
    */
-  due?: { manual: boolean; byRule: string | null };
+  /** Срок по правилу (C4, issue #1080); `supplierDeferral` — отсрочка в условиях поставщика счёта. */
+  due?: { manual: boolean; byRule: string | null; supplierDeferral?: number | null };
   createdAt: string;
   updatedAt: string;
   /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */
@@ -330,6 +331,13 @@ export interface InvoiceListItem {
    * прежний. ⚠️ Это не «всё готово».
    */
   readiness?: string[] | null;
+  /**
+   * Дней до срока «оплатить до» от сегодня в поясе компании (C4, issue #1080); у просроченного —
+   * отрицательное. `null` — счёт оплаты не ждёт либо срок не определён.
+   */
+  daysLeft?: number | null;
+  /** Срок прошёл, а счёт оплаты ждёт. Считает сервер — признак нигде не хранится. */
+  overdue?: boolean;
 }
 
 /** Где в счёте стоят ссылки не на месте. `count` — ссылок, а не мест формы. */
