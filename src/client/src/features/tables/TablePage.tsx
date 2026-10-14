@@ -5,13 +5,16 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { defaultColumnKeys, tableFilterColumns, useTable, useTableDeclaration, type TableData } from '@/shared/api/tables';
+import {
+  defaultColumnKeys, tableExportBody, tableFilterColumns, useTable, useTableDeclaration, type TableData,
+} from '@/shared/api/tables';
 import { useSavedTableViews } from '@/shared/api/tableViews';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
 import { recordLink, recordScreen } from '@/shared/ui/recordRoutes';
 import { apiError } from '@/shared/utils/apiError';
 import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
 import { ColumnsPanel } from './ColumnsPanel';
+import { ExportMenu } from './ExportMenu';
 import { RowPanel } from './RowPanel';
 import { ShortcutChips } from './ShortcutChips';
 import { TableViewHeader } from './TableViewHeader';
@@ -172,6 +175,13 @@ export function TablePage() {
           {!off && (
             <ColumnsPanel columns={decl.columns} view={view} base={base} baseTitle={preset?.title ?? stored?.title}
               gridColumns={grid.length} onChange={setView} />
+          )}
+          {/* Выгружать есть что, только когда строки пришли: при отказе отбора файл повторил бы отказ,
+              а пока строки в пути, неизвестно, сколько их пойдёт в файл. */}
+          {!off && data && !table.isError && (
+            <ExportMenu address={address} count={data.count} body={tableExportBody(
+              { filter, columns: view.columns, sort: view.sort, totals: view.totals },
+              preset?.title ?? stored?.title)} />
           )}
         </div>
 

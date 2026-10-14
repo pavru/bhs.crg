@@ -4298,6 +4298,13 @@ PUT    /api/tables/{модуль.таблица}/views/{id} → заменить
                                                и удалённое — один и тот же 404. Отбор скрыт (withheld) —
                                                403: правка стёрла бы условия, которых правящий не видит
 DELETE /api/tables/{модуль.таблица}/views/{id} → удалить, тем же If-Match; 204
+POST   /api/tables/{модуль.таблица}/export  → XLSX «того, что на экране» (CORE-33, #1096): тело {columns,
+                                               filter, sort, totals: [{column, aggregate}], view}. Весь
+                                               отбор, без страницы; строки — через службу таблиц (права и
+                                               вычистка те же). Больше 50 000 строк — 409 «сузьте отбор»,
+                                               усечения нет. Отбор словами в шапке собирает сервер. В журнал
+                                               действий — core.table.exported: таблица и число строк,
+                                               без сумм и условий отбора
 
 GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved,
                                               effectiveOffset, serverOffset, effectiveNow,

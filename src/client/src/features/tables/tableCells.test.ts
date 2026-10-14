@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultColumnKeys, tableFilterColumns, tableRequest, type TableColumn, type TableData } from '@/shared/api/tables';
+import { defaultColumnKeys, tableFilterColumns, tableExportBody, tableRequest, type TableColumn, type TableData } from '@/shared/api/tables';
 import {
   cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf,
 } from './tableCells';
@@ -178,5 +178,33 @@ describe('колонки по умолчанию', () => {
   it('колонка, приходящая только по требованию, в умолчание не входит', () => {
     const columns = [column({ key: 'Номер' }), column({ key: 'Ссылки', onDemand: true }), column({ key: 'Дата' })];
     expect(defaultColumnKeys(columns)).toEqual(['Номер', 'Дата']);
+  });
+});
+
+describe('tableExportBody — выгрузка того, что на экране (G3b, issue #1096)', () => {
+  const filter = { type: 'condition' as const, column: 'Номер', op: 'eq' as const, value: '1' };
+
+  it('отбор едет тем же текстом, что и в запрос строк, итоги — парами, страницы нет', () => {
+    const body = tableExportBody({
+      filter, columns: ['Номер', 'Итого'], sort: [{ column: 'Итого', descending: true }],
+      totals: [{ column: 'Итого', aggregate: 'sum' }],
+    }, 'Мои счета');
+    const request = tableRequest('costs.invoices', { filter });
+
+    expect(body.filter).toBe(request.method === 'get' ? request.params.filter : request.body.filter);
+    expect(body).toEqual({
+      filter: body.filter, columns: ['Номер', 'Итого'], sort: [{ column: 'Итого', descending: true }],
+      totals: [{ column: 'Итого', aggregate: 'sum' }], view: 'Мои счета',
+    });
+    expect(body).not.toHaveProperty('limit');
+    expect(body).not.toHaveProperty('offset');
+  });
+
+  it('без отбора, колонок и итогов — пустое тело: всё по умолчаниям таблицы', () => {
+    expect(tableExportBody({ filter: null, columns: null, sort: [], totals: [] })).toEqual({});
+  });
+
+  it('неразобранный отбор из адреса уходит как есть — отказывает сервер, а не выгружается всё', () => {
+    expect(tableExportBody({ filter: '{"type":"condi', totals: [] }).filter).toBe('{"type":"condi');
   });
 });

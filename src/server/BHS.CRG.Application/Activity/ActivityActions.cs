@@ -138,11 +138,20 @@ public static class ActivityActions
     public static readonly ActivityAction TableViewDeleted =
         new("core.table.view.deleted", "Удалено общее представление таблицы");
 
+    /// <summary>
+    /// Таблица выгружена в файл (ТЗ CORE-33, issue #1096). Пишется, потому что строки ушли из системы:
+    /// у файла нет прав, и «кто вынес реестр счетов» иначе не спросить ни у кого. Запись называет
+    /// таблицу и число строк — без сумм и без условий отбора (решение владельца 14.10.2026): журнал
+    /// читают по праву ядра, а суммы и то, по чему отбирали, закрыты правом модуля.
+    /// </summary>
+    public static readonly ActivityAction TableExported = new("core.table.exported", "Выгружена таблица");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
          RecordArchived, RecordUnarchived, RecordPurged, ScopePurged, ModuleSettingChanged, NomenclatureCreated,
-         AccountingCurrencyChanged, TableViewShared, TableViewChanged, TableViewUnshared, TableViewDeleted];
+         AccountingCurrencyChanged, TableViewShared, TableViewChanged, TableViewUnshared, TableViewDeleted,
+         TableExported];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

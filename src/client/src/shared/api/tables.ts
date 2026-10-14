@@ -3,6 +3,8 @@ import { apiClient } from './client';
 import type { FilterNode } from './types';
 import { cleanFilterNode } from './datasetHelpers';
 import type { FilterColumn } from '@/shared/filter/rowFilterModel';
+import { withBlobErrorBody } from '@/shared/utils/apiError';
+import { filenameFromContentDisposition } from './attachments';
 
 /**
  * Таблицы модулей — экрану (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092). Первый потребитель
@@ -228,6 +230,55 @@ export function tableRequest(address: string, query: TableQuery): TableRequest {
   return bytes > QUERY_IN_URL_LIMIT
     ? { method: 'post', url: `${url}/query`, body }
     : { method: 'get', url, params };
+}
+
+/** Тело выгрузки в XLSX — теми же именами, что читает сервер (`TableExportBody`). */
+export interface TableExportBody {
+  filter?: string;
+  columns?: string[];
+  sort?: TableSort[];
+  /** Итоги парами «колонка, слово итога» — в файле стоит тот итог, что выбран на экране. */
+  totals?: { column: string; aggregate: string }[];
+  /** Название представления — для шапки и имени файла; на строки не влияет. */
+  view?: string;
+}
+
+/**
+ * Выгрузка «того, что на экране» (задача G3b, issue #1096): колонки, отбор, сортировка и итоги — без
+ * страницы, в файл идёт весь отбор. Чистая, как `tableRequest`: что отбор едет тем же текстом, что и
+ * в запрос строк, проверяет тест.
+ */
+export function tableExportBody(
+  query: Pick<TableQuery, 'filter' | 'columns' | 'sort'> & { totals: { column: string; aggregate: string }[] },
+  view?: string,
+): TableExportBody {
+  const body: TableExportBody = {};
+  const filter = filterText(query.filter);
+  if (filter) body.filter = filter;
+  if (query.columns?.length) body.columns = query.columns;
+  if (query.sort?.length) body.sort = query.sort;
+  if (query.totals.length) body.totals = query.totals;
+  if (view) body.view = view;
+  return body;
+}
+
+/**
+ * Выгрузить таблицу в XLSX и отдать файл браузеру. Отказ (сверх потолка строк, негодный отбор)
+ * приходит текстом сервера: тело отказа при ответе-файле — блоб, и его разворачивает обёртка.
+ */
+export async function exportTable(address: string, body: TableExportBody): Promise<void> {
+  const response = await withBlobErrorBody(apiClient.post<Blob>(
+    `/tables/${encodeURIComponent(address)}/export`, body, { responseType: 'blob' }));
+  const name = filenameFromContentDisposition(
+    response.headers['content-disposition'] as string | undefined, 'Таблица.xlsx');
+  const url = URL.createObjectURL(response.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function filterText(filter: FilterNode | string | null): string | null {

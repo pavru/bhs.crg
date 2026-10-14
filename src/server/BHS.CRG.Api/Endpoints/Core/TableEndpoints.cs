@@ -75,6 +75,19 @@ public static class TableEndpoints
             return Answer(await tables.ReadAsync(address, await access.ForAsync(user, ct), request, ct));
         });
 
+        // Выгрузка в XLSX «того, что на экране» (G3b, issue #1096): колонки, отбор, сортировка и итоги
+        // телом — тем же, что у /query, но без страницы: в файл идёт весь отбор. Строки читает служба
+        // таблиц, тем же путём, что экран, — у выгрузки своего чтения нет.
+        g.MapPost("/{address}/export", async (
+            string address, TableExportBody body,
+            ClaimsPrincipal user, DataAccessResolver access, ModuleTableExport export, CancellationToken ct) =>
+        {
+            var (file, refusal) = await export.ExportAsync(address, await access.ForAsync(user, ct), body, ct);
+            return file is not null
+                ? Results.File(file.Bytes, file.ContentType, file.FileName)
+                : Refused(refusal!);
+        });
+
         MapSavedViews(g);
     }
 
