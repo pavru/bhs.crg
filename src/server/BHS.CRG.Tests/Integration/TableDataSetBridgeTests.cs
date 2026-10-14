@@ -31,6 +31,8 @@ public sealed class TableDataSetBridgeTests(InvoiceLineHost host) : ModuleTableS
     public async Task Источник_несёт_колонки_отбор_и_сортировку_экрана()
     {
         var (admin, _) = await SignInAsync("Admin");
+        // Чужие счета рядом — отбору есть что отсекать: без них источник без отбора дал бы те же восемь.
+        await SeedAsync(admin);
         var seed = await SeedAsync(admin);
         var name = Name();
 
@@ -51,6 +53,7 @@ public sealed class TableDataSetBridgeTests(InvoiceLineHost host) : ModuleTableS
         Assert.Equal([InvoiceRequisites.NumberKey, InvoiceRequisites.TotalKey], columns);
         Assert.Equal(8, preview.GetProperty("totalRows").GetInt32());
         var numbers = preview.GetProperty("rows").EnumerateArray().Select(r => r[0].GetString()).ToList();
+        Assert.All(numbers, n => Assert.StartsWith(seed.Tag, n));
         Assert.Equal($"{seed.Tag}-8", numbers[0]);
         Assert.Equal($"{seed.Tag}-1", numbers[^1]);
     }
