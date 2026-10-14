@@ -19,6 +19,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCreateSection } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
+import { useWorkspace } from '@/shared/ui/workspaceContext';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -39,7 +40,10 @@ export function ConstructionDetail() {
   // Счётчик комплектов у раздела — число модуля ИД (issue #1128): без модуля его нет, а не ноль.
   // Правка стройки и её разделов — право core.constructions.edit: без него кнопки отвечали бы 403.
   const can = useCan();
-  const idOn = can.module('id');
+  // Пункты модуля ИД — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
+  // показывает пункты модулей открытого пространства. Доступ это не меняет.
+  const workspace = useWorkspace();
+  const idOn = can.module('id') && workspace.shows('id');
   const canEdit = can.permission('core.constructions.edit');
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');

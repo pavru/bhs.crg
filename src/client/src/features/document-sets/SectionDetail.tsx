@@ -19,6 +19,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameSection, useDeleteSection, useCreateDocumentSet } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
+import { useWorkspace } from '@/shared/ui/workspaceContext';
 
 // ── Экран раздела ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -41,10 +42,12 @@ export function SectionDetail() {
   // отказом 403, а пустой список читался бы как «комплектов нет». Пока доступ не пришёл — тоже
   // не рисуем (NO_ACCESS): показать и убрать хуже, чем показать позже.
   const can = useCan();
-  const idOn = can.module('id');
+  // Комплекты — пункты модуля ИД: в пространстве без него их нет (ТЗ AUTH-16.1, issue #1001).
+  const workspace = useWorkspace();
+  const idOn = can.module('id') && workspace.shows('id');
   // Создать комплект — право правки документов ИД, а не доступ к модулю: у роли с одним чтением
   // кнопка отвечала бы 403. Правка раздела — право правки строек, по той же причине.
-  const canAddSet = can.permission('id.document.edit');
+  const canAddSet = idOn && can.permission('id.document.edit');
   const canEdit = can.permission('core.constructions.edit');
 
   const [addSetOpen, setAddSetOpen] = useState(false);

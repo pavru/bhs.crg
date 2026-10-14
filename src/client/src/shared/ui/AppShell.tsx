@@ -20,6 +20,10 @@ import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedLeave, useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { paletteShown, refusedByDialog } from '@/shared/ui/modalDismissal';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
+import { WorkspaceProvider } from '@/shared/ui/WorkspaceProvider';
+import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
+import { OutsideBanner, OutsideNav } from '@/shared/ui/WorkspaceNav';
+import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
 
@@ -67,7 +71,19 @@ function NavSection({
   );
 }
 
+/**
+ * Оболочка приложения. Рабочее пространство (issue #1001) поставляется ВОКРУГ неё: шапка, меню и
+ * страницы под ней читают одно и то же открытое пространство.
+ */
 export function AppShell() {
+  return (
+    <WorkspaceProvider>
+      <Shell />
+    </WorkspaceProvider>
+  );
+}
+
+function Shell() {
   const { user, logout } = useAuth();
   const { data: account } = useAccount();
   const productName = useProductName();
@@ -75,8 +91,15 @@ export function AppShell() {
   // она приходила из токена, то есть устаревала ровно тогда, когда это опаснее всего — при снятии
   // прав, — и показывала разделы, которые отвечают отказом (issue #952).
   const { data: access } = useAccess();
-  const work = visibleNav(workNav, access ?? NO_ACCESS);
+  const allWork = visibleNav(workNav, access ?? NO_ACCESS);
   const settings = visibleNav(settingsNav, access ?? NO_ACCESS);
+  // Пространство сужает только рабочие разделы (ТЗ AUTH-16.1, issue #1001). «Настройка системы» —
+  // администрирование, а не контекст работы: прятать «Пользователей» за пространством «Счета» значило
+  // бы заставлять администратора переключаться ради своего же меню. Скрытое не теряется — оно в
+  // строке «Ещё N разделов вне пространства» и в палитре команд.
+  const workspace = useWorkspace();
+  const work = allWork.filter(workspace.inside);
+  const outside = allWork.filter(item => !workspace.inside(item));
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -125,6 +148,7 @@ export function AppShell() {
         {/* Nav sections */}
         <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
           {work.length > 0 && <NavSection label="Документы и данные" items={work} />}
+          <OutsideNav items={outside} />
           {settings.length > 0 && (
             <>
               {work.length > 0 && <div className="border-t border-stroke mt-2" />}
@@ -188,10 +212,14 @@ export function AppShell() {
 
       {/* Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center justify-end gap-1 px-4">
+        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-4">
+          {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}
+          <WorkspaceSwitcher />
+          <div className="flex-1" />
           <ActiveJobsIndicator />
           <NotificationsCenter />
         </header>
+        <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
         <div className="flex-1 overflow-auto">
           <Outlet />

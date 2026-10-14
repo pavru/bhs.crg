@@ -19,12 +19,18 @@ export interface NavItem {
   permission?: string;
   /** Модуль, без доступа к которому пункт не показывается. */
   module?: string;
+  /**
+   * Раздел ЯДРА, которому принадлежит пункт (issue #1001): рабочее пространство показывает его, если
+   * раздел объявил хоть один модуль пространства (`CoreSections` на сервере, те же коды). Пункт
+   * модуля раздела не называет — он входит в пространство своим модулем.
+   */
+  section?: string;
 }
 
 export const workNav: NavItem[] = [
-  { to: '/document-sets',   label: 'Стройки',            icon: FolderOpen,  permission: 'core.constructions.read' },
-  { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read' },
-  { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read' },
+  { to: '/document-sets',   label: 'Стройки',            icon: FolderOpen,  permission: 'core.constructions.read', section: 'constructions' },
+  { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog' },
+  { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read', section: 'datasets' },
   { to: '/quality-docs',    label: 'Документы качества',  icon: ShieldCheck, module: 'id' },
   // Право И модуль: доступ к модулю и право заводить счета — разные вещи (у бухгалтера есть первое
   // без второго), а пункт обязан закрываться тем же правом, что стоит на группе адресов экрана.
@@ -43,8 +49,10 @@ export const workNav: NavItem[] = [
     permission: 'costs.report.read' },
   // Закрытие периода — служба ядра (ТЗ CORE-35): пункт не зависит от модулей. Право то же, что на
   // адресах закрытия и отмены; сами границы читает любой вошедший, но экран существует ради действия.
-  { to: '/periods',         label: 'Учётный период',      icon: CalendarCheck, permission: 'core.period.close' },
-  { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run' },
+  { to: '/periods',         label: 'Учётный период',      icon: CalendarCheck, permission: 'core.period.close',
+    section: 'periods' },
+  { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run',
+    section: 'reconciliations' },
 ];
 
 export const settingsNav: NavItem[] = [

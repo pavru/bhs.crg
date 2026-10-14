@@ -14,6 +14,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled, callApi } from './harness.mjs';
+import { workspaceChecks } from './workspaces-checks.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -290,6 +291,10 @@ await check('recognition-profile-detail-shows-fields', async () => {
   const inputs = await page.locator('input[type=text], input:not([type])').evaluateAll(els => els.map(e => e.value));
   if (!inputs.some(v => v && v.trim())) throw new Error('поля профиля пусты — форма собралась не из ответа');
 });
+
+// Рабочие пространства (issue #1001) — под этим же входом: у администратора доступны оба модуля
+// стенда. Настройки пространств проверки сбрасывают сами, до и после.
+await workspaceChecks(page, check);
 
 // Секция «Название и логотип» о значках из логотипа (issue #1315): что вышло — картинками, что не
 // вышло — словами. Идёт ПОСЛЕДНЕЙ: раскрытая секция запоминается в localStorage, а проверки выше
