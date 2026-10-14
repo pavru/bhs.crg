@@ -1,10 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules.Tables;
+using BHS.CRG.Application.DataSets;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Tables;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -19,6 +23,7 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public sealed class TableDataSetBridgeTests(InvoiceLineHost host) : ModuleTableSeededTests(host)
 {
+    private readonly InvoiceLineHost host = host;
     private const string Bridge = $"/api/tables/{Address}/dataset";
     private const string Views = $"/api/tables/{Address}/views";
 
@@ -174,6 +179,71 @@ public sealed class TableDataSetBridgeTests(InvoiceLineHost host) : ModuleTableS
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    // ── Ревью PR #1327 ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Порядок лежит в источнике той формой, какую читает окно сортировки: ключи строчные.</summary>
+    [Fact]
+    public async Task Сортировка_ложится_в_источник_формой_экрана_наборов()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+
+        var created = await CreatedAsync(await admin.PostAsJsonAsync(Bridge, new
+        {
+            name = Name(), columns = new[] { InvoiceRequisites.NumberKey },
+            sort = new[] { new { column = InvoiceRequisites.NumberKey, descending = true } },
+        }));
+
+        var sources = await admin.GetFromJsonAsync<JsonElement>(
+            $"/api/datasets/files/{created.GetProperty("fileId").GetGuid()}/sources");
+        var level = sources.EnumerateArray()
+            .Single(x => x.GetProperty("id").GetGuid() == created.GetProperty("sourceId").GetGuid())
+            .GetProperty("sortSpec")[0];
+        Assert.Equal(InvoiceRequisites.NumberKey, level.GetProperty("column").GetString());
+        Assert.Equal("desc", level.GetProperty("direction").GetString());
+    }
+
+    [Fact]
+    public async Task Удалённая_из_типа_колонка_представления_в_источник_не_едет()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+
+        var created = await CreatedAsync(await admin.PostAsJsonAsync(Bridge, new
+        {
+            name = Name(), columns = new[] { InvoiceRequisites.NumberKey, "ПолеУдалено" },
+        }));
+
+        var preview = await PreviewAsync(admin, created.GetProperty("sourceId").GetGuid());
+        Assert.Equal([InvoiceRequisites.NumberKey], preview.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
+    }
+
+    [Fact]
+    public async Task Если_переносить_нечего_отказ_а_не_вся_таблица()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var name = Name();
+
+        var response = await admin.PostAsJsonAsync(Bridge, new { name, columns = new[] { InvoiceTable.AmountKey } });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("нет колонки, которую можно перенести", await ErrorAsync(response));
+        Assert.False(await SourceExistsAsync(admin, name));
+    }
+
+    [Fact]
+    public async Task Маркер_длиннее_колонки_базы_отказ_словами()
+    {
+        var (_, adminId) = await SignInAsync("Admin");
+        using var scope = host.Services.CreateScope();
+        var access = await scope.ServiceProvider.GetRequiredService<DataAccessResolver>().ForUserAsync(adminId, default);
+        var marker = SystemDataSets.TableMarker(Address, [.. Enumerable.Range(0, 120).Select(i => $"Колонка{i:000}")]);
+        Assert.True(marker.Length > DataSetSource.SheetOrPathMaxLength);
+
+        var refused = await Assert.ThrowsAsync<InvalidRequestException>(() => scope.ServiceProvider
+            .GetRequiredService<IDataSetService>().CreateTableCopyAsync(Name(), marker, null, null, access, default));
+
+        Assert.Contains("колонок слишком много", refused.Message);
+    }
+
     [Theory]
     [InlineData("costs.invoices", null, "system:table:costs.invoices")]
     [InlineData("costs.invoices", new[] { "Номер", "Итого" }, "system:table:costs.invoices?columns=Номер,Итого")]
@@ -185,6 +255,15 @@ public sealed class TableDataSetBridgeTests(InvoiceLineHost host) : ModuleTableS
         Assert.True(SystemDataSets.TryParseTableMarker(marker, out var parsed, out var back));
         Assert.Equal(address, parsed);
         Assert.Equal(columns, back);
+    }
+
+    /// <summary>Префикс — без учёта регистра, как сравнивался маркер целиком до параметра колонок.</summary>
+    [Fact]
+    public void Маркер_узнаётся_без_учёта_регистра_префикса()
+    {
+        Assert.True(SystemDataSets.TryParseTableMarker("System:Table:costs.invoices?Columns=Номер", out var address, out var columns));
+        Assert.Equal("costs.invoices", address);
+        Assert.Equal(["Номер"], columns);
     }
 
     private static async Task<JsonElement> CreatedAsync(HttpResponseMessage response)

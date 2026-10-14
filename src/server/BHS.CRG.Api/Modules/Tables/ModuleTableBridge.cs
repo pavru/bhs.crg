@@ -52,17 +52,28 @@ public sealed class ModuleTableBridge(ModuleTableService tables, IDataSetService
         bool Dependent(string key) => byKey.TryGetValue(key, out var c) && c.DependsOnFilter;
 
         var filtered = FilterColumns(DataSetRowFilterExecutor.Parse(body.Filter));
-        var shown = body.Columns ?? [.. screen.Columns.Select(c => c.Key)];
+        // Пустой список колонок экран читает как «колонки по умолчанию» — так же читает его и мост.
+        var shown = body.Columns is { Length: > 0 } named ? named : [.. screen.Columns.Select(c => c.Key)];
         var sort = body.Sort ?? [];
+        // Колонку, которой в таблице больше нет (поле удалено из типа, а представление его помнит), мост
+        // не переносит: экран показывает её с причиной, а источнику она досталась бы мёртвой навсегда —
+        // с оговоркой на каждом чтении (ревью PR #1327).
+        var kept = shown.Where(k => byKey.ContainsKey(k) && !Dependent(k)).ToList();
+        if (kept.Count == 0)
+            return (null, new(StatusCodes.Status409Conflict,
+                "На экране нет колонки, которую можно перенести в источник: показанные зависят от отбора или "
+                + "удалены из типа. Добавьте колонку с постоянным смыслом и повторите."));
+
         // В маркер — колонки экрана, а за ними те, по которым отбирают и сортируют: источник отбирает
         // строки сам, и колонки условия без значений у него не было бы — условие молча не нашло бы ничего.
-        var columns = shown.Where(k => !Dependent(k))
-            .Concat(filtered).Concat(sort.Select(s => s.Column))
+        var columns = kept.Concat(filtered).Concat(sort.Select(s => s.Column))
             .Distinct(StringComparer.Ordinal).ToList();
         var dropped = shown.Where(Dependent).Select(k => byKey[k].Label).ToList();
 
+        // Ключи — строчными, как их пишет экран наборов: с заглавными сервер сортировал бы верно, а окно
+        // сортировки источника не нашло бы в уровне колонки и упало (ревью PR #1327).
         var sortSpec = sort.Length == 0 ? null : DataSetDtoMapper.SerializeJson(sort.Select(s =>
-            new SortColumnDef { Column = s.Column, Direction = s.Descending ? "desc" : "asc" }).ToList());
+            new { column = s.Column, direction = s.Descending ? "desc" : "asc" }).ToList());
         var source = await datasets.CreateTableCopyAsync(
             body.Name ?? "", SystemDataSets.TableMarker(screen.Address, columns),
             string.IsNullOrWhiteSpace(body.Filter) ? null : body.Filter, sortSpec, access, ct);

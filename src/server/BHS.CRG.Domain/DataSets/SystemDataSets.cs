@@ -65,9 +65,11 @@ public static class SystemDataSets
     {
         address = "";
         columns = null;
-        if (!marker.StartsWith(TableMarkerPrefix, StringComparison.Ordinal)) return false;
+        // Без учёта регистра, как сравнивался маркер целиком до параметра колонок: источник, записанный
+        // «System:Table:…», находил поставщика и находит его дальше (ревью PR #1327).
+        if (!marker.StartsWith(TableMarkerPrefix, StringComparison.OrdinalIgnoreCase)) return false;
         var rest = marker[TableMarkerPrefix.Length..];
-        var at = rest.IndexOf(TableColumnsParameter, StringComparison.Ordinal);
+        var at = rest.IndexOf(TableColumnsParameter, StringComparison.OrdinalIgnoreCase);
         if (at < 0)
         {
             address = rest;

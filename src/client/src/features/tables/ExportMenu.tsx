@@ -27,7 +27,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
   /** Отбор не больше потолка выгрузки — пункт «В XLSX» есть. */
   xlsx: boolean;
   /** Мост в наборы доступен: название по умолчанию и колонки экрана. Не назван — пункта нет. */
-  dataset?: { name: string; columns: TableColumn[] };
+  dataset?: { name: string; columns: TableColumn[]; all: TableColumn[] };
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -72,6 +72,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
       </DropdownMenu.Portal>
       {bridging && dataset && (
         <TableDataSetDialog address={address} initialName={dataset.name} body={body} columns={dataset.columns}
+          all={dataset.all}
           onClose={() => setBridging(false)} />
       )}
     </DropdownMenu.Root>

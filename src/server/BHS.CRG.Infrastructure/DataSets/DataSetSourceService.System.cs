@@ -56,6 +56,10 @@ public partial class DataSetSourceService
     {
         name = name.Trim();
         if (name.Length == 0) throw new InvalidRequestException("Укажите название источника.");
+        if (marker.Length > DataSetSource.SheetOrPathMaxLength)
+            throw new InvalidRequestException(
+                $"Источник «{name}» не создан: колонок слишком много для одного источника. Уберите часть "
+                + "колонок с экрана и повторите.");
 
         var provider = systemProviders.Get(marker);
         SystemDataSetGate.Ensure(provider.Declaration, access, name);
@@ -64,12 +68,16 @@ public partial class DataSetSourceService
         // Тот же разбор, каким отбор исполняется, и с видами колонок того, кто создаёт: отбор по
         // колонке, пришедшей без значений, источник не выполнит — и создавать его незачем.
         if (!string.IsNullOrWhiteSpace(rowFilter)
-            && (DataSetRowFilterExecutor.Problem(rowFilter) ?? DataSetRowFilterExecutor.Problem(rowFilter, provided.Types))
-                is { } problem)
+            && DataSetRowFilterExecutor.Problem(rowFilter, provided.Types) is { } problem)
             throw new InvalidRequestException($"Источник «{name}» не создан: {problem} Уберите это условие из отбора.");
 
-        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(
-            f => f.Format == DataSetFormat.System && f.Scope == CatalogScope.System && f.ScopeId == null, ct);
+        // «Набора ещё нет» и его создание — под замком (см. AdvisoryLockKeys.SystemDataSetFile). Выбор
+        // среди уже заведённых двойников (до замка гонка была возможна) — старейший, а не случайный.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({AdvisoryLockKeys.SystemDataSetFile})", ct);
+        var file = await db.DataSetFiles.Include(f => f.Sources).OrderBy(f => f.CreatedAt).ThenBy(f => f.Id)
+            .FirstOrDefaultAsync(
+                f => f.Format == DataSetFormat.System && f.Scope == CatalogScope.System && f.ScopeId == null, ct);
         if (file is null)
         {
             file = DataSetFile.CreateSystem("Данные системы", CatalogScope.System, null);
@@ -81,6 +89,7 @@ public partial class DataSetSourceService
         source.SetProcessing(rowFilter, null, sortSpec);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return DataSetDtoMapper.MapSource(source);
     }
 

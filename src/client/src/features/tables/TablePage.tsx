@@ -153,12 +153,12 @@ export function TablePage() {
   const screen = recordScreen(decl.recordType, access);
   const canXlsx = !!data && data.count <= (decl.exportMax ?? 0);
   // Колонки моста — показанные экраном, по порядку: у источника они те же, что у таблицы перед глазами.
+  // Пункта нет и тогда, когда переносить нечего: на экране только колонки доли — сервер откажет.
   const byKey = new Map(decl.columns.map(c => [c.key, c]));
+  const bridgeColumns = (view.columns?.length ? view.columns : allKeys).flatMap(k => byKey.get(k) ?? []);
   const bridge = hasPermission(access, 'core.datasets.edit') && !stored?.withheld
-    ? {
-      name: exportTitle ?? decl.title,
-      columns: (view.columns?.length ? view.columns : allKeys).flatMap(k => byKey.get(k) ?? []),
-    }
+    && bridgeColumns.some(c => !c.dependsOnFilter)
+    ? { name: exportTitle ?? decl.title, columns: bridgeColumns, all: decl.columns }
     : undefined;
   // Подпись ссылки называет строку значением первой показанной колонки — ею строки и различают.
   const nameOf = (row: Record<string, unknown>) => (grid[0] ? cellText(row[grid[0].key], kinds.get(grid[0].key)) : '');

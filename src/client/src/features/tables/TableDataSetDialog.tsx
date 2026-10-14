@@ -8,6 +8,16 @@ import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 
+/** Колонки условий отбора — из того же текста, что уходит на сервер. */
+function filterKeys(filter: string | undefined): string[] {
+  if (!filter) return [];
+  const walk = (node: { type?: string; column?: string; children?: unknown[] } | null): string[] =>
+    !node ? []
+      : node.type === 'condition' ? (node.column ? [node.column] : [])
+        : (node.children ?? []).flatMap(c => walk(c as typeof node));
+  try { return walk(JSON.parse(filter)); } catch { return []; }
+}
+
 /**
  * Диалог моста «Сделать источником данных» (ТЗ CORE-33, COST-22; задача G3b, issue #1096).
  *
@@ -16,12 +26,14 @@ import { apiError } from '@/shared/utils/apiError';
  * шаблон напечатал бы под отбором по стройке полную сумму. Вторая — что источник это копия: правка
  * представления его не изменит.
  */
-export function TableDataSetDialog({ address, initialName, body, columns, onClose }: {
+export function TableDataSetDialog({ address, initialName, body, columns, all, onClose }: {
   address: string;
   initialName: string;
   body: TableExportBody;
   /** Колонки экрана по порядку — с признаком «зависит от отбора». */
   columns: TableColumn[];
+  /** Все колонки таблицы — подписи тех, по которым отбирают и сортируют вне экрана. */
+  all: TableColumn[];
   onClose: () => void;
 }) {
   const toast = useToast();
@@ -33,6 +45,13 @@ export function TableDataSetDialog({ address, initialName, body, columns, onClos
 
   const kept = columns.filter(c => !c.dependsOnFilter);
   const dropped = columns.filter(c => c.dependsOnFilter);
+  // Колонки отбора и сортировки сервер дописывает в источник, даже если их нет на экране: источник
+  // отбирает строки сам. Назвать их обязаны здесь — иначе состав источника расходился бы с диалогом
+  // (ревью PR #1327).
+  const shownKeys = new Set(kept.map(c => c.key));
+  const added = [...new Set([...filterKeys(body.filter), ...(body.sort ?? []).map(s => s.column)])]
+    .filter(k => !shownKeys.has(k))
+    .map(k => all.find(c => c.key === k)?.label ?? k);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -61,9 +80,18 @@ export function TableDataSetDialog({ address, initialName, body, columns, onClos
           onChange={e => { setName(e.target.value); setError(null); }} />
         <div className="space-y-1.5 text-sm text-fg2">
           <p>
-            Колонки: {kept.map(c => c.label).join(', ') || 'все колонки таблицы'}.
-            {body.filter || body.sort?.length ? ' Отбор и порядок строк — как сейчас на экране.' : ' Отбора нет — все строки таблицы.'}
+            Колонки: {kept.map(c => c.label).join(', ')}.
+            {added.length > 0 && ` Для отбора и сортировки добавятся: ${added.join(', ')}.`}
+            {body.filter ? ' Отбор — тот же, что на экране.' : ' Отбора нет — все строки таблицы.'}
           </p>
+          {/* Порядок источник считает сам, а не запросом к базе, как экран: обещать «как на экране»
+              было бы неправдой у текста с цифрами и у пустых значений (ревью PR #1327). */}
+          {!!body.sort?.length && (
+            <p className="text-xs text-fg3">
+              Сортировка — по тем же колонкам, но строки упорядочивает источник: значения, похожие на
+              числа, сравниваются как числа, пустые — всегда в конце.
+            </p>
+          )}
           {dropped.length > 0 && (
             <p className="text-warning">
               Не войдут: {dropped.map(c => `«${c.label}»`).join(', ')} — значение зависит от отбора, а источник
