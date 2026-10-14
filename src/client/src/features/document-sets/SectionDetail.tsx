@@ -19,7 +19,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameSection, useDeleteSection, useCreateDocumentSet } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { useModuleShown } from '@/shared/ui/workspaceContext';
 
 // ── Экран раздела ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -35,16 +35,19 @@ export function SectionDetail() {
   const activePanel: SectionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as SectionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
-  const { data: problems } = useProblemSummary('Section', sectionId);
-  const { data: plan } = usePlanSummary('Section', sectionId);
+  // Пункты модуля ИД — комплекты, их счётчики, готовность по плану и «требует разбора» (сверка
+  // объявлена тем же модулем) — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
+  // показывает пункты модулей открытого пространства. Доступ это не меняет.
+  const idOn = useModuleShown('id');
+  const problemData = useProblemSummary('Section', sectionId).data;
+  const planData = usePlanSummary('Section', sectionId).data;
+  const problems = idOn ? problemData : undefined;
+  const plan = idOn ? planData : undefined;
   // Комплекты — модуль ИД, а раздел — ядро (issue #1128). Без модуля блок комплектов и кнопки
   // «Добавить комплект» не рисуются ВОВСЕ, а не пустым «Нет комплектов»: каждая дверь открывалась
   // отказом 403, а пустой список читался бы как «комплектов нет». Пока доступ не пришёл — тоже
   // не рисуем (NO_ACCESS): показать и убрать хуже, чем показать позже.
   const can = useCan();
-  // Комплекты — пункты модуля ИД: в пространстве без него их нет (ТЗ AUTH-16.1, issue #1001).
-  const workspace = useWorkspace();
-  const idOn = can.module('id') && workspace.shows('id');
   // Создать комплект — право правки документов ИД, а не доступ к модулю: у роли с одним чтением
   // кнопка отвечала бы 403. Правка раздела — право правки строек, по той же причине.
   const canAddSet = idOn && can.permission('id.document.edit');

@@ -55,6 +55,21 @@ export const workNav: NavItem[] = [
     section: 'reconciliations' },
 ];
 
+/**
+ * Страницы МОДУЛЯ, которые живут под адресом раздела ядра (issue #1001, ревью PR #1330): комплект
+ * лежит под `/document-sets` — адресом «Строек», — но это модуль ИД. По одному префиксу пункта меню
+ * он считался бы «Стройками», и в пространстве без ИД открывался бы без плашки «вне пространства».
+ */
+export interface ModulePage {
+  match: RegExp;
+  label: string;
+  module: string;
+}
+
+export const modulePages: ModulePage[] = [
+  { match: /^\/document-sets\/[^/]+\/sets\/[^/]+/, label: 'Комплект документов', module: 'id' },
+];
+
 export const settingsNav: NavItem[] = [
   { to: '/document-types',       label: 'Типы документов',       icon: BookOpen, permission: 'core.types.edit' },
   { to: '/composite-types',      label: 'Составные типы',        icon: Layers,   permission: 'core.types.edit' },

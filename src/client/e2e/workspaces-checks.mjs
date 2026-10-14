@@ -25,6 +25,31 @@ async function switcherName(page) {
   return (await page.getByTestId('workspace-switcher').getAttribute('aria-label')) ?? '';
 }
 
+/**
+ * Выйти кнопкой «Выйти» и войти обратно в той же вкладке. Настоящий вход не помещается в предел
+ * входов прогонов CI, поэтому «вход» — возврат тех же токенов: выход приложения при этом проходит
+ * целиком, со всем, что он стирает. Отзыв refresh-токена на сервере перехвачен — иначе следующие
+ * проверки набора остались бы без сессии.
+ */
+async function relogInSameTab(page) {
+  const tokens = await page.evaluate(() => ['access_token', 'refresh_token'].flatMap(key => [
+    ['local', key, localStorage.getItem(key)], ['session', key, sessionStorage.getItem(key)],
+  ]).filter(([, , value]) => value));
+  if (!tokens.length) throw new Error('токены сессии не найдены — возвращать нечего');
+  await page.route('**/api/auth/logout', route => route.fulfill({ status: 204 }));
+  try {
+    await page.getByRole('button', { name: 'Выйти' }).click();
+    await page.waitForURL(/\/login/);
+  } finally {
+    await page.unroute('**/api/auth/logout');
+  }
+  await page.evaluate(saved => {
+    for (const [where, key, value] of saved) (where === 'local' ? localStorage : sessionStorage).setItem(key, value);
+  }, tokens);
+  await page.goto(`${BASE}/document-sets`);
+  await settled(page);
+}
+
 export async function workspaceChecks(page, check) {
   const reset = await callApi(page, 'PUT', '/account/settings', RESET);
   if (reset.status !== 200) throw new Error(`настройки пространств не сброшены: ${reset.status}`);
@@ -95,12 +120,11 @@ export async function workspaceChecks(page, check) {
       await dialog.waitFor({ state: 'hidden' }).catch(() => page.keyboard.press('Escape'));
       if (!(await switcherName(page)).includes(OWN)) throw new Error(`созданное не открыто: ${await switcherName(page)}`);
 
-      // Уходим в другое пространство — «последнее выбранное» теперь не своё. Новая вкладка после
-      // входа обязана открыть УМОЛЧАНИЕ: его хранит сервер, а вкладка своего выбора ещё не имеет.
+      // Уходим в другое пространство — «последнее выбранное» теперь не своё, и вкладка его помнит.
+      // Повторный вход В ТОЙ ЖЕ вкладке обязан открыть УМОЛЧАНИЕ: выход стирает выбор вкладки (ревью
+      // PR #1330 — раньше здесь стояла ручная очистка хранилища, и забытая очистка в выходе прошла бы).
       await choose(page, 'Все доступные модули');
-      await page.evaluate(() => sessionStorage.clear());
-      await page.goto(`${BASE}/document-sets`);
-      await settled(page);
+      await relogInSameTab(page);
       if (!(await switcherName(page)).includes(OWN))
         throw new Error(`после входа открыто не своё пространство: ${await switcherName(page)}`);
     });

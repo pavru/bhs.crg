@@ -19,7 +19,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCreateSection } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { useModuleShown } from '@/shared/ui/workspaceContext';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -35,15 +35,17 @@ export function ConstructionDetail() {
   const activePanel: ConstructionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as ConstructionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
-  const { data: problems } = useProblemSummary('Construction', constructionId);
-  const { data: plan } = usePlanSummary('Construction', constructionId);
+  // Пункты модуля ИД — комплекты, их счётчики, готовность по плану и «требует разбора» (сверка
+  // объявлена тем же модулем) — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
+  // показывает пункты модулей открытого пространства. Доступ это не меняет.
+  const idOn = useModuleShown('id');
+  const problemData = useProblemSummary('Construction', constructionId).data;
+  const planData = usePlanSummary('Construction', constructionId).data;
+  const problems = idOn ? problemData : undefined;
+  const plan = idOn ? planData : undefined;
   // Счётчик комплектов у раздела — число модуля ИД (issue #1128): без модуля его нет, а не ноль.
   // Правка стройки и её разделов — право core.constructions.edit: без него кнопки отвечали бы 403.
   const can = useCan();
-  // Пункты модуля ИД — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
-  // показывает пункты модулей открытого пространства. Доступ это не меняет.
-  const workspace = useWorkspace();
-  const idOn = can.module('id') && workspace.shows('id');
   const canEdit = can.permission('core.constructions.edit');
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');

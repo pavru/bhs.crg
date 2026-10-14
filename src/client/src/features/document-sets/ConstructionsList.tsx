@@ -13,7 +13,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
 import { useCan } from '@/shared/api/access';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { useModuleShown } from '@/shared/ui/workspaceContext';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 
@@ -86,18 +86,20 @@ export function ConstructionsList() {
   const [createError, setCreateError] = useState('');
 
   const { data: constructions = [], isLoading } = useListConstructions();
-  const { data: problems } = useProblemSummary('System');
-  const { data: plans } = usePlanSummary('System');
+  // Пункты модуля ИД — комплекты, их счётчики, готовность по плану и «требует разбора» (сверка
+  // объявлена тем же модулем) — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
+  // показывает пункты модулей открытого пространства. Доступ это не меняет.
+  const idOn = useModuleShown('id');
+  const problemData = useProblemSummary('System').data;
+  const planData = usePlanSummary('System').data;
+  const problems = idOn ? problemData : undefined;
+  const plans = idOn ? planData : undefined;
   // Поиск идёт по комплектам — это модуль ИД (issue #1125). Без модуля поле отвечало бы
   // «Ничего не найдено» на любой запрос: отказ сервера выглядел бы пустым результатом.
   // Правка строек — своё право (issue #1128): «Бухгалтер» видит стройки, но не правит их, и каждая
   // кнопка правки отвечала бы ему отказом.
   const can = useCan();
   const canEdit = can.permission('core.constructions.edit');
-  // Поиск документов и счётчик комплектов — пункты модуля ИД: в пространстве без него их нет
-  // (ТЗ AUTH-16.1, issue #1001).
-  const workspace = useWorkspace();
-  const idOn = can.module('id') && workspace.shows('id');
   const createMutation = useCreateConstruction();
   const deleteMutation = useDeleteConstruction();
   const renameMutation = useRenameConstruction();

@@ -1,7 +1,7 @@
 import type { AccessInfo, ModuleAccess } from '@/shared/api/access';
 import type { UserSettings } from '@/shared/api/userSettings';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
-import type { NavItem } from './navConfig';
+import { modulePages, type ModulePage, type NavItem } from './navConfig';
 
 /**
  * Рабочие пространства (ТЗ AUTH-16.1, AUTH-16.3, AUTH-16.5, OVW-18.1; issue #1001) — правила без
@@ -23,6 +23,10 @@ export const DEFAULT_KEY = 'workspace.default';
 export const ALL = 'all';
 export const ALL_NAME = 'Все доступные модули';
 export const NAME_MAX = 60;
+/** Пределы сервера (`WorkspaceSettingValues`, `UserSettingKeys.Workspaces`) — здесь, чтобы кнопка
+ *  была заперта с причиной, а не получала общий отказ 400 после нажатия (ревью PR #1330). */
+export const OWN_MAX = 50;
+export const OWN_JSON_MAX = 16_000;
 
 export interface OwnWorkspace {
   id: string;
@@ -202,11 +206,16 @@ export function splitNav(items: NavItem[], ws: Workspace, access: AccessInfo): {
 }
 
 /**
- * Пункт, которому принадлежит адрес страницы, — если он вне пространства. Тогда на странице плашка
- * «Открыто вне пространства» (AUTH-16.1): ссылка из письма открывается, а пространство не меняется.
- * Ищется самый длинный подходящий адрес: `/tables/costs.invoices/registry` точнее `/tables`.
+ * Чему принадлежит адрес страницы, — если это вне пространства. Тогда на странице плашка «Открыто
+ * вне пространства» (AUTH-16.1): ссылка из письма открывается, а пространство не меняется.
+ *
+ * Сначала страницы модулей под адресами ядра (`modulePages`: комплект под «Стройками»), затем пункт
+ * меню с самым длинным подходящим адресом: `/tables/costs.invoices/registry` точнее `/tables`.
  */
-export function outsideItem(pathname: string, items: NavItem[], ws: Workspace, access: AccessInfo): NavItem | null {
+export function outsideItem(pathname: string, items: NavItem[], ws: Workspace, access: AccessInfo,
+  pages: ModulePage[] = modulePages): { label: string } | null {
+  const page = pages.find(p => p.match.test(pathname));
+  if (page) return moduleInWorkspace(page.module, ws, access) ? null : { label: page.label };
   const owner = [...items]
     .sort((a, b) => b.to.length - a.to.length)
     .find(item => pathname === item.to || pathname.startsWith(`${item.to}/`));
@@ -237,5 +246,22 @@ export function ownProblem(name: string, modules: string[], own: OwnWorkspace[],
   if (own.some(w => w.id !== editingId && w.name.trim().toLowerCase() === trimmed.toLowerCase()))
     return 'Пространство с таким именем уже есть';
   if (modules.length === 0) return 'Отметьте хотя бы один модуль';
+  if (editingId === null && own.length >= OWN_MAX) return `Своих пространств уже ${OWN_MAX} — удалите ненужное`;
+  // Размер — тем же счётом, что у сервера: список целиком, каким он уйдёт.
+  const next = { id: editingId ?? 'x'.repeat(40), name: trimmed, modules };
+  const list = editingId === null ? [...own, next] : own.map(w => (w.id === editingId ? next : w));
+  if (JSON.stringify(list).length > OWN_JSON_MAX) return 'Пространства не помещаются в настройку — удалите ненужное';
   return null;
+}
+
+/**
+ * Идентификатор своего пространства. Свой, а не `newLocalId`: тот по договору только для локальных
+ * нужд, а этот хранится на сервере и обязан пройти его форму `[A-Za-z0-9-]{1,40}` (ревью PR #1330).
+ * `getRandomValues` доступен и по HTTP, в отличие от готового генератора UUID (issue #848).
+ */
+export function newWorkspaceId(): string {
+  const c: Crypto | undefined = globalThis.crypto;
+  if (typeof c?.getRandomValues === 'function')
+    return `w${[...c.getRandomValues(new Uint8Array(10))].map(b => b.toString(16).padStart(2, '0')).join('')}`;
+  return `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
 }

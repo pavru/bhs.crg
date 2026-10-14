@@ -24,6 +24,7 @@ import { WorkspaceProvider } from '@/shared/ui/WorkspaceProvider';
 import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
 import { OutsideBanner, OutsideNav } from '@/shared/ui/WorkspaceNav';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { splitNav } from '@/shared/ui/workspaces';
 import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
 
@@ -98,8 +99,8 @@ function Shell() {
   // бы заставлять администратора переключаться ради своего же меню. Скрытое не теряется — оно в
   // строке «Ещё N разделов вне пространства» и в палитре команд.
   const workspace = useWorkspace();
-  const work = allWork.filter(workspace.inside);
-  const outside = allWork.filter(item => !workspace.inside(item));
+  // Делит то же правило, что проверяют тесты (`splitNav`), а не его копия здесь (ревью PR #1330).
+  const { inside: work, outside } = splitNav(allWork, workspace.current, access ?? NO_ACCESS);
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);

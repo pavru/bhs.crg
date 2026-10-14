@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { AccessInfo } from '@/shared/api/access';
 import { workNav } from './navConfig';
 import {
-  ALL, DEFAULT_KEY, LAST_KEY, compositionLabel, coreSectionsWith, outsideItem, ownProblem, ownToWorkspace,
+  ALL, DEFAULT_KEY, LAST_KEY, OWN_MAX, compositionLabel, coreSectionsWith, newWorkspaceId, outsideItem, ownProblem,
+  ownToWorkspace,
   parseOwn, resolveWorkspace, splitNav, startChoice, switcherShown, systemWorkspaces, type OwnWorkspace,
 } from './workspaces';
 
@@ -114,6 +115,21 @@ describe('рабочие пространства', () => {
     expect(outsideItem('/profile', workNav, workspace, BOTH)).toBeNull();
   });
 
+  /**
+   * Комплект живёт под адресом «Строек», но это модуль ИД (ревью PR #1330): по одному префиксу пункта
+   * меню он считался бы «Стройками» и в пространстве без ИД открывался бы без плашки.
+   */
+  it('комплект под адресом строек — страница модуля ИД, а не раздела ядра', () => {
+    const costs = resolveWorkspace(BOTH, [], 'module:costs').workspace;
+    const id = resolveWorkspace(BOTH, [], 'module:id').workspace;
+
+    expect(outsideItem('/document-sets/c1/sets/s1', workNav, costs, BOTH)?.label).toBe('Комплект документов');
+    expect(outsideItem('/document-sets/c1/sets/s1/datasets', workNav, costs, BOTH)?.label).toBe('Комплект документов');
+    expect(outsideItem('/document-sets/c1/sets/s1', workNav, id, BOTH)).toBeNull();
+    // Сама стройка и её раздел — ядро, их объявил модуль счетов.
+    expect(outsideItem('/document-sets/c1/sections/r1', workNav, costs, BOTH)).toBeNull();
+  });
+
   it('«Вместе с ними» называет разделы ядра отмеченных модулей, видные человеку', () => {
     expect(coreSectionsWith(['costs'], workNav, BOTH)).toEqual(['Стройки', 'Общие данные', 'Учётный период']);
     expect(coreSectionsWith([], workNav, BOTH)).toEqual([]);
@@ -129,6 +145,25 @@ describe('рабочие пространства', () => {
     expect(ownProblem('Снабжение', ['costs'], [SUPPLY], 'w1')).toBeNull();
     expect(ownProblem('Склад', [], [SUPPLY], null)).toBe('Отметьте хотя бы один модуль');
     expect(ownProblem('все доступные модули', ['costs'], [], null)).toBe('Так называется системное пространство');
+  });
+
+  /** Пределы сервера — причиной под кнопкой, а не общим отказом 400 после нажатия (ревью PR #1330). */
+  it('пределы сервера запирают сохранение с причиной', () => {
+    const many: OwnWorkspace[] = Array.from({ length: OWN_MAX }, (_, i) => ({ id: `w${i}`, name: `П${i}`, modules: ['costs'] }));
+    expect(ownProblem('Ещё одно', ['costs'], many, null)).toBe(`Своих пространств уже ${OWN_MAX} — удалите ненужное`);
+    // Правка существующего при полном списке — можно.
+    expect(ownProblem('П0 новое', ['costs'], many, 'w0')).toBeNull();
+
+    const codes = Array.from({ length: 20 }, (_, i) => `module_${i}`.padEnd(12, 'x'));
+    const fat: OwnWorkspace[] = Array.from({ length: 45 }, (_, i) =>
+      ({ id: `w${i}`.padEnd(40, '0'), name: `Пространство ${i}`, modules: codes }));
+    expect(ownProblem('Последнее', ['costs'], fat, null)).toBe('Пространства не помещаются в настройку — удалите ненужное');
+  });
+
+  it('идентификатор своего пространства проходит форму сервера', () => {
+    const a = newWorkspaceId();
+    expect(a).toMatch(/^[A-Za-z0-9-]{1,40}$/);
+    expect(newWorkspaceId()).not.toBe(a);
   });
 
   it('негодная настройка списка — пустой список, а не падение шапки', () => {

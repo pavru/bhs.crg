@@ -1,7 +1,10 @@
 import { useState } from 'react';
+import { LayoutGrid } from 'lucide-react';
+import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { resolveWorkspace } from '@/shared/ui/workspaces';
 
 const LAST = 'last';
 
@@ -10,18 +13,24 @@ const LAST = 'last';
  * входа. То же умолчание, что галка «Открывать при входе» в окне пространств: два места, один смысл.
  * Третий вариант — «Открывать последнее выбранное»: иначе заданное умолчание нечем было бы снять.
  *
- * <p>Секции нет, когда нет переключателя (один доступный модуль): выбирать не из чего.</p>
+ * <p>Секции нет — вместе с заголовком, — когда нет переключателя (один доступный модуль): выбирать не
+ * из чего. Решает это одно место, здесь (ревью PR #1330): решай его ещё и профиль, заголовок мог бы
+ * остаться над пустотой.</p>
  */
 export function DefaultWorkspaceSection() {
   const ws = useWorkspace();
+  const { data: access = NO_ACCESS } = useAccess();
   const toast = useToast();
   const [saving, setSaving] = useState(false);
 
   if (!ws.shown) return null;
 
-  // Умолчание, которого больше нет в списке (удалённое своё, модуль стал недоступен), названо
-  // словами, а не подменено «последним выбранным»: иначе профиль показывал бы не то, что хранится.
-  const known = ws.defaultChoice === null || ws.list.some(w => w.key === ws.defaultChoice);
+  // Откроется ли умолчание при входе — ТЕМ ЖЕ расчётом, что и сам вход (ревью PR #1330). Удалённое
+  // своё и своё, у которого все модули стали недоступны, одинаково откатятся на «все»; по одному
+  // наличию в списке второе выглядело бы исправным, и профиль показывал бы не то, что произойдёт.
+  const known = ws.list.some(w => w.key === ws.defaultChoice);
+  const opens = ws.defaultChoice === null
+    || resolveWorkspace(access, ws.own, ws.defaultChoice).workspace.key === ws.defaultChoice;
 
   async function change(value: string) {
     setSaving(true);
@@ -36,14 +45,22 @@ export function DefaultWorkspaceSection() {
   }
 
   return (
-    <div className="max-w-md" data-testid="default-workspace">
-      <Select label="Открывать при входе" value={ws.defaultChoice ?? LAST} disabled={saving}
-        hint={known ? undefined : 'Выбранное пространство недоступно — при входе откроются все разделы'}
-        onValueChange={v => void change(v)}>
-        <SelectItem value={LAST}>Последнее выбранное</SelectItem>
-        {ws.list.map(w => <SelectItem key={w.key} value={w.key}>{w.name}</SelectItem>)}
-        {!known && ws.defaultChoice && <SelectItem value={ws.defaultChoice}>Недоступное пространство</SelectItem>}
-      </Select>
+    <div className="mt-8 pt-6 border-t border-stroke">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">
+        <LayoutGrid size={15} className="text-fg3" /> Рабочее пространство
+      </h2>
+      <p className="text-xs text-fg4 mb-4">
+        С какого пространства начинать работу. Свои пространства заводятся в переключателе в шапке.
+      </p>
+      <div className="max-w-md" data-testid="default-workspace">
+        <Select label="Открывать при входе" value={ws.defaultChoice ?? LAST} disabled={saving}
+          hint={opens ? undefined : 'В выбранном пространстве нет доступных вам модулей — при входе откроются все разделы'}
+          onValueChange={v => void change(v)}>
+          <SelectItem value={LAST}>Последнее выбранное</SelectItem>
+          {ws.list.map(w => <SelectItem key={w.key} value={w.key}>{w.name}</SelectItem>)}
+          {!known && ws.defaultChoice && <SelectItem value={ws.defaultChoice}>Недоступное пространство</SelectItem>}
+        </Select>
+      </div>
     </div>
   );
 }

@@ -4,25 +4,11 @@ import { useSaveUserSettings, useUserSettings } from '@/shared/api/userSettings'
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useToast } from './Toast';
 import { WorkspaceContext, type WorkspaceContextValue } from './workspaceContext';
+import { readTab, tabKey as tabKeyOf, writeTab } from './workspaceTab';
 import {
   DEFAULT_KEY, LAST_KEY, OWN_KEY, inWorkspace, moduleInWorkspace, parseOwn, resolveWorkspace, startChoice, switcherShown,
   workspaceList,
 } from './workspaces';
-
-/**
- * Вкладка помнит своё пространство до закрытия: перезагрузка страницы — не вход, и откатывать
- * человека на умолчание из профиля посреди работы было бы странно. Новая вкладка, новый вход —
- * умолчание (AUTH-16.5). Ключ с почтой: вошёл другой человек в той же вкладке — чужой выбор не его.
- */
-function readTab(key: string | null): string | null {
-  if (!key) return null;
-  try { return sessionStorage.getItem(key); } catch { return null; }
-}
-
-function writeTab(key: string | null, value: string) {
-  if (!key) return;
-  try { sessionStorage.setItem(key, value); } catch { /* без хранилища — до перезагрузки */ }
-}
 
 /**
  * Рабочее пространство открытого экрана (ТЗ AUTH-16.1; issue #1001). Выбор, свои пространства и
@@ -38,7 +24,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { mutate, mutateAsync } = useSaveUserSettings();
   const toast = useToast();
 
-  const tabKey = user ? `crg.workspace:${user.email}` : null;
+  // Вкладка помнит выбор до конца сессии (`workspaceTab.ts`); новая вкладка, новый вход — умолчание
+  // (AUTH-16.5). Ключ с почтой: вошёл другой человек — чужой выбор не его.
+  const tabKey = user ? tabKeyOf(user.email) : null;
   const [picked, setPicked] = useState<string | null>(() => readTab(tabKey));
 
   const own = useMemo(() => parseOwn(settings?.[OWN_KEY]), [settings]);

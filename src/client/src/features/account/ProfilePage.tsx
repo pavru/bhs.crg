@@ -10,8 +10,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { AppearanceSection } from './AppearanceSection';
 import { MyPermissionsSection } from './MyPermissionsSection';
 import { DefaultWorkspaceSection } from './DefaultWorkspaceSection';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
-import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2, Palette, ShieldCheck, LayoutGrid } from 'lucide-react';
+import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2, Palette, ShieldCheck } from 'lucide-react';
 
 /** Ответ сервера → имя в форме. Пока учётка не загружена — пусто, как и раньше. */
 const accountName = (a: { displayName: string } | undefined) => a?.displayName ?? '';
@@ -23,7 +22,6 @@ export function ProfilePage() {
   const update = useUpdateAccount();
   const updateAvatar = useUpdateAvatar();
   const resend = useResendConfirmation();
-  const workspaces = useWorkspace();
   const changeEmail = useChangeEmail();
   // Имя правится поверх ответа сервера (issue #858): своя правка показывается, пока отвечает
   // тому ответу, при котором начата; пришёл другой — показывается он.
@@ -176,18 +174,8 @@ export function ProfilePage() {
         <AppearanceSection />
       </div>
 
-      {/* Пространство по умолчанию (ТЗ AUTH-16.5, issue #1001) — только когда есть переключатель. */}
-      {workspaces.shown && (
-        <div className="mt-8 pt-6 border-t border-stroke">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">
-            <LayoutGrid size={15} className="text-fg3" /> Рабочее пространство
-          </h2>
-          <p className="text-xs text-fg4 mb-4">
-            С какого пространства начинать работу. Свои пространства заводятся в переключателе в шапке.
-          </p>
-          <DefaultWorkspaceSection />
-        </div>
-      )}
+      {/* Пространство по умолчанию (ТЗ AUTH-16.5, issue #1001): секция сама решает, видна ли она. */}
+      <DefaultWorkspaceSection />
 
       {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
           этого раздела», который иначе задают администратору. */}

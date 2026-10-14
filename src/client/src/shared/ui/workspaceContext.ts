@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { useCan } from '@/shared/api/access';
 import type { NavItem } from './navConfig';
 import { ALL, ALL_NAME, type OwnWorkspace, type Workspace } from './workspaces';
 
@@ -48,4 +49,16 @@ export const WorkspaceContext = createContext<WorkspaceContextValue>(NEUTRAL);
 
 export function useWorkspace(): WorkspaceContextValue {
   return useContext(WorkspaceContext);
+}
+
+/**
+ * Модуль доступен И показан в открытом пространстве — для пунктов модуля на общих страницах
+ * (страница стройки: комплекты, готовность, «требует разбора»). Одно место вместо проверки,
+ * скопированной в каждую страницу (ревью PR #1330): копии расходятся, и пункт модуля остаётся
+ * виден там, где соседний уже скрыт.
+ */
+export function useModuleShown(code: string): boolean {
+  const can = useCan();
+  const workspace = useWorkspace();
+  return can.module(code) && workspace.shows(code);
 }

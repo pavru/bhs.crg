@@ -4,15 +4,14 @@ import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
-import { newLocalId } from '@/shared/utils/localId';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { workNav } from '@/shared/ui/navConfig';
 import { visibleNav } from '@/shared/ui/navAccess';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import {
-  DEFAULT_KEY, NAME_MAX, availableModules, compositionLabel, coreSectionsWith, membership, ownProblem,
-  ownToWorkspace, type OwnWorkspace,
+  DEFAULT_KEY, NAME_MAX, availableModules, compositionLabel, coreSectionsWith, membership, newWorkspaceId,
+  ownProblem, ownToWorkspace, type OwnWorkspace,
 } from '@/shared/ui/workspaces';
 
 interface Draft {
@@ -49,9 +48,10 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
 
   const problem = draft ? ownProblem(draft.name, draft.modules, ws.own, draft.id) : null;
   // Недоступный модуль в правке помечен, а не исчез (AUTH-16.3): снять его — решение человека.
-  const closed = draft?.id
-    ? membership(ownToWorkspace({ id: draft.id, name: draft.name, modules: draft.modules }), access).closed
-    : [];
+  // Список — из ИСХОДНОГО состава, а не из черновика (ревью PR #1330): снятая галка иначе убрала бы
+  // строку, и вернуть модуль стало бы негде — после «Сохранить» он пропал бы насовсем.
+  const original = draft?.id ? ws.own.find(w => w.id === draft.id) : undefined;
+  const closed = original ? membership(ownToWorkspace(original), access).closed : [];
   const preview = draft ? ownToWorkspace({ id: draft.id ?? 'new', name: draft.name, modules: draft.modules }) : null;
   const together = draft ? coreSectionsWith(draft.modules, visible, access) : [];
   // Правки — то, что отличается от исходного: открытая пустая форма закрывается без вопроса.
@@ -59,7 +59,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
 
   async function save() {
     if (!draft || problem || saving) return;
-    const id = draft.id ?? newLocalId();
+    const id = draft.id ?? newWorkspaceId();
     const next: OwnWorkspace = { id, name: draft.name.trim(), modules: draft.modules };
     const list = draft.id ? ws.own.map(w => (w.id === id ? next : w)) : [...ws.own, next];
     const key = `own:${id}`;
@@ -105,9 +105,13 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
                 </span>
                 <span className="block text-xs text-fg3 truncate">{compositionLabel(ownToWorkspace(own), access)}</span>
               </span>
-              <button type="button" title="Изменить" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-fg1">
-                <Pencil size={14} />
-              </button>
+              {/* Пока черновик изменён, правку другого не начать — карандаш скрыт (ревью PR #1330):
+                  иначе набранное заменилось бы молча, хотя закрытие окна те же правки бережёт. */}
+              {!dirty && (
+                <button type="button" title="Изменить" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-fg1">
+                  <Pencil size={14} />
+                </button>
+              )}
               <button type="button" title="Удалить" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-danger">
                 <Trash2 size={14} />
               </button>
