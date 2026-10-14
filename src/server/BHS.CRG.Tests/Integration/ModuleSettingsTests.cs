@@ -98,7 +98,7 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
 
         var module = await CostsAsync(client);
         Assert.Equal("Счета и накладные", module.GetProperty("title").GetString());
-        var setting = Assert.Single(module.GetProperty("settings").EnumerateArray());
+        var setting = Tolerance(module);
 
         Assert.Equal(Key, setting.GetProperty("key").GetString());
         Assert.Equal("number", setting.GetProperty("kind").GetString());
@@ -123,7 +123,7 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         var (client, _) = await SignInAsync(SystemRoles.Admin);
 
         await SaveAsync(client, "5");
-        var saved = Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray());
+        var saved = Tolerance(await CostsAsync(client));
         Assert.Equal("5.00", saved.GetProperty("stored").GetString());
         Assert.Equal("5.00", saved.GetProperty("value").GetString());
 
@@ -132,9 +132,47 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Single(await ChangesAsync());
 
         await SaveAsync(client, null);
-        var reset = Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray());
+        var reset = Tolerance(await CostsAsync(client));
         Assert.Equal(JsonValueKind.Null, reset.GetProperty("stored").ValueKind);
         Assert.Equal("1.00", reset.GetProperty("value").GetString());
+    }
+
+    /// <summary>
+    /// Флаг (C4, issue #1080): экран получает названия обоих значений, хранится «true» / «false», а в
+    /// журнал смена идёт словами настройки — «включено» про правило срока не объяснило бы ничего.
+    /// </summary>
+    [Fact]
+    public async Task Флаг_приходит_с_названиями_значений_и_в_журнал_идёт_словами()
+    {
+        const string flag = "costs.due.shipping-day-counts";
+        var (client, _) = await SignInAsync(SystemRoles.Admin);
+
+        var setting = (await CostsAsync(client)).GetProperty("settings").EnumerateArray()
+            .Single(s => s.GetProperty("key").GetString() == flag);
+        Assert.Equal("flag", setting.GetProperty("kind").GetString());
+        Assert.Equal("true", setting.GetProperty("default").GetString());
+        Assert.Equal("день отгрузки — первый день отсрочки", setting.GetProperty("on").GetString());
+        Assert.Equal("отсрочка считается со дня после отгрузки", setting.GetProperty("off").GetString());
+        Assert.Contains("не пересчитываются", setting.GetProperty("changeWarning").GetString());
+
+        try
+        {
+            await OkAsync(await PutAsync(client, "costs", flag, "False"));
+            var saved = (await CostsAsync(client)).GetProperty("settings").EnumerateArray()
+                .Single(s => s.GetProperty("key").GetString() == flag);
+            Assert.Equal("false", saved.GetProperty("stored").GetString());
+
+            var change = Assert.Single(await ChangesAsync());
+            Assert.Equal("отсрочка считается со дня после отгрузки", change.After);
+
+            var refused = await PutAsync(client, "costs", flag, "да");
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            Assert.Contains("нужно «true» или «false»", await refused.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            await OkAsync(await PutAsync(client, "costs", flag, null));
+        }
     }
 
     [Theory]
@@ -153,7 +191,7 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Contains(reason, body.GetProperty("fields").GetProperty(Key).GetString());
         // Отвергнутое не записано: действует прежнее.
-        Assert.Equal("1.00", Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+        Assert.Equal("1.00", Tolerance(await CostsAsync(client))
             .GetProperty("value").GetString());
     }
 
@@ -230,31 +268,31 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
 
         // Годное, но не в хранимом виде — так его кладёт правка базы руками.
         await StoreRawAsync("0.5");
-        var raw = Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray());
+        var raw = Tolerance(await CostsAsync(client));
         Assert.Equal("0.50", raw.GetProperty("value").GetString());
         Assert.Equal("0.50", raw.GetProperty("stored").GetString());
         Assert.Equal(JsonValueKind.Null, raw.GetProperty("stale").ValueKind);
 
         // Негодное: действует умолчание, а что лежит — названо отдельно.
         await StoreRawAsync("500");
-        var stale = Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray());
+        var stale = Tolerance(await CostsAsync(client));
         Assert.Equal("1.00", stale.GetProperty("value").GetString());
         Assert.Equal(JsonValueKind.Null, stale.GetProperty("stored").ValueKind);
         Assert.Equal("500", stale.GetProperty("stale").GetString());
 
         // Сброс негодного строку убирает, а настройку не меняет — журнал молчит.
         await SaveAsync(client, null);
-        Assert.Equal(JsonValueKind.Null, Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+        Assert.Equal(JsonValueKind.Null, Tolerance(await CostsAsync(client))
             .GetProperty("stale").ValueKind);
         // Несохранённая настройка тем же значением, что умолчание, строки не заводит.
         await SaveAsync(client, "1");
-        Assert.Equal(JsonValueKind.Null, Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+        Assert.Equal(JsonValueKind.Null, Tolerance(await CostsAsync(client))
             .GetProperty("stored").ValueKind);
         Assert.Empty(await ChangesAsync());
 
         // Отрицательный ноль — это ноль.
         await SaveAsync(client, "-0");
-        Assert.Equal("0.00", Assert.Single((await CostsAsync(client)).GetProperty("settings").EnumerateArray())
+        Assert.Equal("0.00", Tolerance(await CostsAsync(client))
             .GetProperty("stored").GetString());
         Assert.Equal("0,00", Assert.Single(await ChangesAsync()).After);
     }
@@ -304,6 +342,10 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
     private static Task<HttpResponseMessage> PutAsync(HttpClient client, string module, string key, string? value) =>
         client.PutAsJsonAsync($"/api/settings/modules/{module}",
             new { values = new Dictionary<string, string?> { [key] = value } });
+
+    /// <summary>Допуск среди настроек модуля — по ключу: настроек у модуля больше одной (C4, issue #1080).</summary>
+    private static JsonElement Tolerance(JsonElement module) =>
+        module.GetProperty("settings").EnumerateArray().Single(s => s.GetProperty("key").GetString() == Key);
 
     private static async Task<JsonElement> CostsAsync(HttpClient client)
     {

@@ -1,0 +1,44 @@
+namespace BHS.CRG.Modules.Costs.Data;
+
+/// <summary>
+/// Правило подстановки срока «оплатить до» (ТЗ COST-9.1; задача C4, issue #1080): от даты отгрузки и
+/// отсрочки в днях.
+///
+/// <para>Вариантов два, и выбирает их настройка модуля, а не код: в действующем реестре заказчика
+/// день отгрузки — первый день отсрочки («отгрузка + отсрочка − 1»), но так считают не все
+/// поставщики. Правило зашитым не держится — решение 18.09.2026.</para>
+///
+/// <para>⚠️ Это <b>правило подстановки</b>, а не расчёт при чтении: результат ложится в колонку
+/// <c>due_date</c> и дальше живёт сам. Смена настройки уже записанные сроки не сдвигает (решение
+/// владельца 14.10.2026) — срок, о котором бухгалтер уже знает, молча не меняется.</para>
+/// </summary>
+/// <param name="ShippingDayCounts">День отгрузки — первый день отсрочки.</param>
+public sealed record InvoiceDueRule(bool ShippingDayCounts)
+{
+    /// <summary>
+    /// Срок по правилу; <c>null</c> — считать не из чего (ТЗ COST-9.1: без даты отгрузки срок не
+    /// определён). Без отсрочки — тоже <c>null</c>, а не «в день отгрузки»: пустая отсрочка значит
+    /// «условие неизвестно», а не «платим сразу» — для «сразу» есть ноль.
+    ///
+    /// <para>Нулевая отсрочка даёт день отгрузки и при «день отгрузки — первый»: вычти мы единицу,
+    /// срок встал бы накануне отгрузки, то есть счёт оказался бы просрочен раньше, чем пришёл товар.</para>
+    ///
+    /// <para>Срок за краем календаря — тоже <c>null</c> (ревью PR #1328): отгрузка «9999-12-30» с
+    /// отсрочкой — опечатка, и падать на ней каждым чтением счёта нельзя — его не открыть.</para>
+    /// </summary>
+    public DateOnly? DueOf(DateOnly? shippedOn, int? deferralDays)
+    {
+        if (shippedOn is not { } shipped || deferralDays is not { } days) return null;
+        var add = ShippingDayCounts ? Math.Max(days - 1, 0) : days;
+        return shipped.DayNumber > DateOnly.MaxValue.DayNumber - add ? null : shipped.AddDays(add);
+    }
+
+    /// <summary>
+    /// Стоял ли срок по правилу — по любому из двух вариантов: настройку могли сменить после записи. По
+    /// правилу — значит, его можно и снять, когда считать стало не из чего; иначе это дата из бумаги.
+    /// </summary>
+    public static bool Derived(DateOnly? due, DateOnly? shippedOn, int? deferralDays) =>
+        due is { } date
+        && (new InvoiceDueRule(true).DueOf(shippedOn, deferralDays) == date
+            || new InvoiceDueRule(false).DueOf(shippedOn, deferralDays) == date);
+}

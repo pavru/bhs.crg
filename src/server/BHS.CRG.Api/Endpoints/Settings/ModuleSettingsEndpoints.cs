@@ -34,7 +34,8 @@ public static class ModuleSettingsEndpoints
     public record ModuleSettingView(
         string Key, string Title, string Effect, string Kind,
         string Value, string? Stored, string? Stale, string Default,
-        decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning, bool Money = false);
+        decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning, bool Money = false,
+        string? On = null, string? Off = null);
 
     /// <summary>
     /// Строка-сигнал о сопоставлении полей (ТЗ TYPE-23, issue #1101): сколько обязательного модуль
@@ -150,6 +151,8 @@ public static class ModuleSettingsEndpoints
             Stale: stale ? stored : null,
             Default: setting.DefaultText,
             number?.Min, number?.Max, number?.Scale, number?.Unit, setting.ChangeWarning,
-            Money: number?.Money ?? false);
+            Money: number?.Money ?? false,
+            // Значения флага — словами самой настройки: экрану нечем назвать их иначе, чем «да / нет».
+            On: (setting as FlagSetting)?.On, Off: (setting as FlagSetting)?.Off);
     }
 }

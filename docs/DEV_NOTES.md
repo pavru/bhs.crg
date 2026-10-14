@@ -4450,6 +4450,10 @@ POST   /api/costs/invoices          { requisites, unconfirmed? }            cost
                                       unconfirmed — только при создании: метки ставит тот, кто заполнил
 PUT    /api/costs/invoices/{id}     { requisites }  — правка снимает метки с изменённых полей
 POST   /api/costs/invoices/{id}/confirmed  { fields }  — «Всё верно» по блоку формы; пустой список = 400
+POST   /api/costs/invoices/{id}/due/rule  — «По правилу» (#1080): снять ручную правку срока и подставить
+                                      его правилом настройки costs.due.shipping-day-counts; нечего
+                                      менять — запись не трогается. Ответ чтения и правки несёт
+                                      due: { manual, byRule } — byRule = что дало бы правило сейчас
 POST   /api/costs/invoices/{id}/scan       multipart: file — 409, пока прежний скан распознаётся
 POST   /api/costs/invoices/from-scan       multipart: file (PDF, PNG, JPEG, Excel, Word; до 50 МБ)  costs.invoice.edit
                                       → 201 { invoice, recognition }: черновик со сканом заведён СРАЗУ,

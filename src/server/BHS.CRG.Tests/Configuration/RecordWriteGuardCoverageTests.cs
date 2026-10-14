@@ -85,11 +85,11 @@ public class RecordWriteGuardCoverageTests
             (Guarded, "правка документа качества"),
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|instance.SetData(patched);"] =
             (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо MediatR"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey));"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey), rule);"] =
             (Guarded, "создание счёта: реквизиты пришли из формы или из распознавания, лежащего нет — всё вносится впервые"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceScanReading.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: false);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceScanReading.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);"] =
             (Guarded, "распознанное из скана ложится в пустые поля шапки — фоновой правке правила охраны не уступают"),
-        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: true);"] =
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);"] =
             (Guarded, "правка шапки счёта — проверяется против лежащего, дополненного неприсланным состоянием"),
 
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =

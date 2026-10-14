@@ -22,8 +22,25 @@ export function shown(value: string): string {
 /** Что стоит в поле: набранное, а если не трогали — действующее значение. */
 export function fieldText(setting: ModuleSetting, draft: SettingsDraft): string {
   const typed = draft[setting.key];
-  if (typed === undefined) return shown(setting.value);
-  return typed === null ? shown(setting.default) : typed;
+  const flag = setting.kind === 'flag';
+  if (typed === undefined) return flag ? setting.value : shown(setting.value);
+  if (typed === null) return flag ? setting.default : shown(setting.default);
+  return typed;
+}
+
+/** Включён ли флаг в поле — то же «набранное, иначе действующее». */
+export function flagOn(setting: ModuleSetting, draft: SettingsDraft): boolean {
+  return fieldText(setting, draft) === 'true';
+}
+
+/**
+ * Значение словами для человека: у флага — словами самой настройки («день отгрузки — первый день
+ * отсрочки»), у числа — с запятой и единицей. «true → false» в предупреждении не объяснило бы ничего.
+ */
+export function valueText(setting: ModuleSetting, value: string): string {
+  if (setting.kind === 'flag')
+    return (value.trim().toLowerCase() === 'true' ? setting.on : setting.off) ?? value;
+  return withUnit(shown(value), unitOf(setting));
 }
 
 /**
@@ -39,6 +56,11 @@ export function toServer(typed: string): string {
 function sameNumber(a: string, b: string): boolean {
   const [x, y] = [Number(a), Number(b)];
   return a.trim() !== '' && b.trim() !== '' && Number.isFinite(x) && Number.isFinite(y) && x === y;
+}
+
+/** Одно ли это значение настройки: флаг сравнивается словом, число — числом. */
+function sameValue(setting: ModuleSetting, a: string, b: string): boolean {
+  return setting.kind === 'flag' ? a.trim().toLowerCase() === b.trim().toLowerCase() : sameNumber(a, b);
 }
 
 /**
@@ -58,7 +80,7 @@ export function changedValues(settings: ModuleSetting[], draft: SettingsDraft): 
     const next = toServer(typed);
     // Негодное сохранённое дают перезаписать и тем же числом, что действует: действует умолчание,
     // а в базе лежит другое — без записи оно там и останется.
-    if (setting.stale !== null || !sameNumber(next, setting.value)) values[setting.key] = next;
+    if (setting.stale !== null || !sameValue(setting, next, setting.value)) values[setting.key] = next;
   }
   return values;
 }
@@ -95,13 +117,13 @@ export function localRefusals(
  */
 export function changeWarnings(settings: ModuleSetting[], values: Record<string, string | null>) {
   return settings
-    .filter(s => s.key in values && s.changeWarning && !sameNumber(values[s.key] ?? s.default, s.value))
+    .filter(s => s.key in values && s.changeWarning && !sameValue(s, values[s.key] ?? s.default, s.value))
     .map(s => ({
       key: s.key,
       title: s.title,
       warning: s.changeWarning!,
-      from: withUnit(shown(s.value), unitOf(s)),
-      to: withUnit(shown(values[s.key] ?? s.default), unitOf(s)),
+      from: valueText(s, s.value),
+      to: valueText(s, values[s.key] ?? s.default),
     }));
 }
 
@@ -120,7 +142,7 @@ export function withUnit(text: string, unit: string | null): string {
 
 /** Подсказка под полем: умолчание и границы — чтобы отказ сервера не был первым, кто их назовёт. */
 export function boundsHint(setting: ModuleSetting): string {
-  const parts = [`По умолчанию: ${withUnit(shown(setting.default), unitOf(setting))}`];
+  const parts = [`По умолчанию: ${valueText(setting, setting.default)}`];
   if (setting.min !== null && setting.max !== null)
     parts.push(`допустимо от ${shown(String(setting.min))} до ${shown(String(setting.max))}`);
   return parts.join(' · ');
@@ -134,7 +156,7 @@ export function boundsHint(setting: ModuleSetting): string {
 export function staleStored(setting: ModuleSetting): string | null {
   if (setting.stale === null) return null;
   return `Сохранено «${setting.stale}», но это значение не подходит — действует ` +
-    `${withUnit(shown(setting.value), unitOf(setting))}. Сохраните годное значение или верните умолчание.`;
+    `${valueText(setting, setting.value)}. Сохраните годное значение или верните умолчание.`;
 }
 
 /** Причины отказа по полям из ответа сервера; пусто — отказ не про поле. */

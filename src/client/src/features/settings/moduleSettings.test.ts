@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setFormatCurrency } from '@/shared/format/format';
 import type { ModuleSetting } from '@/shared/api/moduleSettings';
 import {
-  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, localRefusals, sentence, shown, staleStored,
-  toServer, unitOf,
+  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, flagOn, localRefusals, sentence, shown, staleStored,
+  toServer, unitOf, valueText,
 } from './moduleSettings';
 
 afterEach(() => setFormatCurrency('RUB'));
@@ -162,5 +162,41 @@ describe('fieldErrors — отказ у своего поля', () => {
     expect(fieldErrors({ response: { data: { error: 'Модуль не включён' } } })).toEqual({});
     expect(fieldErrors(new Error('Network Error'))).toEqual({});
     expect(fieldErrors({ response: { data: { fields: 'строка' } } })).toEqual({});
+  });
+});
+
+describe('флаг (issue #1080)', () => {
+  const FLAG = 'costs.due.shipping-day-counts';
+  function flag(over: Partial<ModuleSetting> = {}): ModuleSetting {
+    return {
+      key: FLAG, title: 'День отгрузки — первый день отсрочки', effect: 'Что меняет',
+      kind: 'flag', value: 'true', stored: null, stale: null, default: 'true',
+      min: null, max: null, scale: null, unit: null, changeWarning: 'Записанные сроки не пересчитываются.',
+      on: 'день отгрузки — первый день отсрочки', off: 'отсрочка считается со дня после отгрузки', ...over,
+    };
+  }
+
+  it('переключатель показывает действующее, набранное и умолчание после сброса', () => {
+    expect(flagOn(flag(), {})).toBe(true);
+    expect(flagOn(flag(), { [FLAG]: 'false' })).toBe(false);
+    expect(flagOn(flag({ value: 'false', stored: 'false' }), { [FLAG]: null })).toBe(true);
+  });
+
+  it('вернуть то же значение — не изменение; другое уходит словом', () => {
+    expect(changedValues([flag()], { [FLAG]: 'true' })).toEqual({});
+    expect(changedValues([flag()], { [FLAG]: 'false' })).toEqual({ [FLAG]: 'false' });
+  });
+
+  it('предупреждение называет значения словами настройки, а не true/false', () => {
+    expect(changeWarnings([flag()], { [FLAG]: 'false' })).toEqual([{
+      key: FLAG, title: 'День отгрузки — первый день отсрочки', warning: 'Записанные сроки не пересчитываются.',
+      from: 'день отгрузки — первый день отсрочки', to: 'отсрочка считается со дня после отгрузки',
+    }]);
+  });
+
+  it('подсказка называет умолчание словами; число флаг не проверяет', () => {
+    expect(boundsHint(flag())).toBe('По умолчанию: день отгрузки — первый день отсрочки');
+    expect(valueText(flag(), 'false')).toBe('отсрочка считается со дня после отгрузки');
+    expect(localRefusals([flag()], { [FLAG]: 'false' })).toEqual({});
   });
 });

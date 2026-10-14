@@ -41,6 +41,10 @@ public sealed class InvoiceDesk(
     public Task<decimal> ToleranceAsync(CancellationToken ct) =>
         settings.GetAsync(CostsSettings.AllocationTolerance, ct);
 
+    /// <summary>Правило срока оплаты — настройка модуля (C4, issue #1080); здесь по той же причине.</summary>
+    public async Task<InvoiceDueRule> DueRuleAsync(CancellationToken ct) =>
+        new(await settings.GetAsync(CostsSettings.ShippingDayCounts, ct));
+
     /// <summary>
     /// Выполнить правку счёта.
     /// </summary>
@@ -273,6 +277,7 @@ public sealed class InvoiceDesk(
             lost,
             records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet(),
             readiness,
+            await DueRuleAsync(ct),
             await SupplierMatching.MarkedAsync(db, lines, ct)), readiness);
     }
 

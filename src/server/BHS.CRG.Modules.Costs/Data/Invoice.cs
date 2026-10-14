@@ -109,10 +109,9 @@ public sealed class Invoice
     /// Срок «оплатить до» (ТЗ COST-9.1). Колонка с правилом подстановки, а не расчётное поле:
     /// расчётное перекрыть нельзя, а этот срок человек правит руками.
     ///
-    /// <para>⚠️ Здесь только хранение: само правило («дата отгрузки + отсрочка − 1») задаётся
-    /// настройкой модуля, которой ещё нет (M1, issue #1070), и подставляет срок задача C4
-    /// (issue #1080). Без даты отгрузки срок не определён — и это <c>null</c>, а не выдуманная
-    /// дата.</para>
+    /// <para>Подставляет его правило (<see cref="InvoiceDueRule" />) — при правке даты отгрузки или
+    /// отсрочки, пока срок не правил человек (<see cref="DueDateManual" />). Без даты отгрузки срок не
+    /// определён — и это <c>null</c>, а не выдуманная дата.</para>
     /// </summary>
     public DateOnly? DueDate { get; private set; }
 
@@ -264,8 +263,17 @@ public sealed class Invoice
     /// поставщика, то есть правило подстановки обходило бы стороной ровно те счета, ради которых
     /// заводится, а сбросить признак нечем.</para>
     /// </param>
-    public void ApplyRequisites(InvoiceColumns columns, JsonDocument data, bool dueDateByHand)
+    /// <param name="rule">
+    /// Правило подстановки срока (C4, issue #1080). Срабатывает только тогда, когда сменилось то, из
+    /// чего срок считается, — дата отгрузки или отсрочка. Правка назначения или суммы срок не
+    /// пересчитывает: иначе смена правила в настройке сдвигала бы сроки старых счетов при первой же
+    /// посторонней правке, а владелец решил, что записанные сроки она не трогает (14.10.2026).
+    /// </param>
+    public void ApplyRequisites(InvoiceColumns columns, JsonDocument data, bool dueDateByHand, InvoiceDueRule rule)
     {
+        var inputsChanged = columns.ShippedOn != ShippedOn || columns.DeferralDays != DeferralDays;
+        var was = (ShippedOn, DeferralDays, DueDate);
+
         Number = columns.Number;
         IssuedOn = columns.IssuedOn;
         SupplierId = columns.SupplierId;
@@ -277,11 +285,44 @@ public sealed class Invoice
         DeferralDays = columns.DeferralDays;
         Data = data;
 
-        if (dueDateByHand && columns.DueDate != DueDate) DueDateManual = true;
-        DueDate = columns.DueDate;
+        var ruled = rule.DueOf(ShippedOn, DeferralDays);
+        // Срок прислан НОВЫМ — его вписали в этой же записи: рукой или распознаванием из бумаги. Такой
+        // срок правило не перекрывает (ревью PR #1328): иначе дата поставщика, пришедшая вместе с
+        // отгрузкой, молча заменялась бы посчитанной, а метка «распознано» стояла бы уже на ней.
+        var supplied = columns.DueDate != was.DueDate;
+        // Ручным срок становится, только если человек ОТОШЁЛ от правила: вписанная дата, равная
+        // посчитанной, — согласие с правилом, и снимать счёт с правила за неё нельзя (ревью PR #1328).
+        if (dueDateByHand && supplied && columns.DueDate != ruled) DueDateManual = true;
+
+        // Подставляет правило, когда сменилась отгрузка или отсрочка, а срок никто не вписывал. Считать
+        // не из чего — срок «не определён», но только если и прежний стоял по правилу: дату из бумаги
+        // правилу заменить нечем, и выбросить её значило бы потерять прочитанное молча.
+        DueDate = DueDateManual || supplied || !inputsChanged ? columns.DueDate
+            : ruled ?? (InvoiceDueRule.Derived(was.DueDate, was.ShippedOn, was.DeferralDays) ? null : was.DueDate);
+
+        // Срок заменило правило — метка «распознано, не подтверждено» к новому значению не относится.
+        if (!supplied && DueDate != was.DueDate) ForgetMark(InvoiceRequisites.DueDateKey);
 
         Touch();
     }
+
+    /// <summary>
+    /// «По правилу»: снять признак ручной правки и подставить срок заново (C4, issue #1080; решение
+    /// владельца 14.10.2026 — явной кнопкой). Считать не из чего — срок не определён, и это честный
+    /// исход: ручная дата держалась бы дальше, только уже без пометки, что её вписал человек.
+    /// </summary>
+    public void DueByRule(InvoiceDueRule rule)
+    {
+        var was = DueDate;
+        DueDateManual = false;
+        DueDate = rule.DueOf(ShippedOn, DeferralDays);
+        if (DueDate != was) ForgetMark(InvoiceRequisites.DueDateKey);
+        Touch();
+    }
+
+    // Метка уходит без отметки «правили»: её снимает не человек, а замена значения, и время правки
+    // ставит тот, кто заменил.
+    private void ForgetMark(string key) => unconfirmed = [.. unconfirmed.Where(k => k != key)];
 
     /// <summary>
     /// «Когда правили» — одной точкой, как <c>TouchUpdatedAt</c> у сущностей ядра. Время берётся

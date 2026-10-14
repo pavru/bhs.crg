@@ -156,3 +156,50 @@ public sealed record NumberSetting(
         decimal.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
             CultureInfo.InvariantCulture, out number);
 }
+
+/// <summary>
+/// Флаг «включено / выключено» (задача C4, issue #1080): правило, у которого два варианта, а не число.
+///
+/// <para>Хранится словами <c>true</c> / <c>false</c>, а не «1» / «0»: строка в базе читается без
+/// объявления, и «0» у флага не отличить от нуля числовой настройки. Человеку значение называют
+/// <paramref name="On" /> и <paramref name="Off" /> — словами самой настройки: «включено» про
+/// «день отгрузки — первый день отсрочки» в журнале ничего не объясняет.</para>
+/// </summary>
+/// <param name="On">Что значит «включено» — для журнала, отказов и предупреждения перед сохранением.</param>
+/// <param name="Off">Что значит «выключено».</param>
+public sealed record FlagSetting(
+    string Key, string Title, string Effect, bool DefaultValue, string On, string Off)
+    : ModuleSetting<bool>(Key, Title, Effect)
+{
+    public override string Kind => "flag";
+
+    public override bool Default => DefaultValue;
+
+    public override string DefaultText => Text(DefaultValue);
+
+    // Без учёта регистра: «True» прислал бы любой сериализатор, знающий только bool, и отказ «нужно
+    // «true» или «false»» в ответ на «True» был бы придиркой. Хранится всё равно строчными.
+    public override string? Refuse(string value) =>
+        TryParse(value, out _) ? null : "нужно «true» или «false»";
+
+    public override string Normalize(string value) => Text(Parse(value));
+
+    public override string Display(string value) => Parse(value) ? On : Off;
+
+    public override bool Read(string? stored) =>
+        stored is not null && TryParse(stored, out var flag) ? flag : DefaultValue;
+
+    public override string? Validate()
+    {
+        if (string.IsNullOrWhiteSpace(On) || string.IsNullOrWhiteSpace(Off))
+            return $"«{Key}» — у флага не названы оба значения";
+        return base.Validate();
+    }
+
+    private static string Text(bool flag) => flag ? "true" : "false";
+
+    private static bool Parse(string value) => TryParse(value, out var flag) && flag;
+
+    private static bool TryParse(string value, out bool flag) =>
+        bool.TryParse(value.Trim(), out flag);
+}
