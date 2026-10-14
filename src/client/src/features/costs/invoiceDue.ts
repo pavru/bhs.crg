@@ -26,8 +26,9 @@ export function dueState(view: InvoiceView, edits: Record<string, unknown>, lock
   // собраны по прежнему виду — сохранение получило бы отказ «счёт изменили». К тому же правило считает
   // по СОХРАНЁННЫМ отгрузке и отсрочке, а не по набранным.
   const clean = Object.keys(edits).length === 0;
-  // Неручной срок без правила (дата из бумаги, отгрузки нет) «По правилу» только стёр бы: не предлагаем.
-  const differs = due.manual || (due.byRule !== null && due.byRule !== stored);
+  // Правилу не из чего считать — кнопки нет и у ручного срока (ревью PR #1328): «вернуть» некуда, а
+  // сервер такому нажатию откажет. Иначе — когда нажатие что-то изменит.
+  const differs = due.byRule !== null && (due.manual || due.byRule !== stored);
   const offerRule = !locked && clean && differs;
 
   if (due.manual)
@@ -49,6 +50,15 @@ export function dueState(view: InvoiceView, edits: Record<string, unknown>, lock
  * Отгрузка раньше даты счёта (ТЗ COST-9.1): предупреждение у поля, а не отказ — бывает и так
  * (отгрузили до выставления счёта), но чаще это опечатка в годе или месяце, и срок от неё уедет.
  */
+/**
+ * Подсказки под полем — все, а не первая (ревью PR #1328): метка «распознано, не подтверждено» и
+ * предупреждение о дате говорят о разном, и одна не вправе затирать другую.
+ */
+export function hints(...parts: (string | null | undefined)[]): string | undefined {
+  const shown = parts.filter((p): p is string => !!p);
+  return shown.length > 0 ? shown.join(' · ') : undefined;
+}
+
 export function shippedBeforeIssued(shipped: unknown, issued: unknown): boolean {
   return typeof shipped === 'string' && typeof issued === 'string' && shipped !== '' && issued !== ''
     && shipped.slice(0, 10) < issued.slice(0, 10);

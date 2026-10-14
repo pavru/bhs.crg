@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceView } from '@/shared/api/invoices';
-import { dueState, shippedBeforeIssued } from './invoiceDue';
+import { dueState, hints, shippedBeforeIssued } from './invoiceDue';
 
 function view(due: string | null, manual: boolean, byRule: string | null): InvoiceView {
   return { requisites: { Срок: due }, due: { manual, byRule } } as unknown as InvoiceView;
@@ -31,6 +31,11 @@ describe('dueState', () => {
     expect(dueState(view('2026-10-20', false, null), {}, false).offerRule).toBe(false);
   });
 
+  it('ручной срок без правила — кнопки нет: возвращать некуда', () => {
+    const state = dueState(view('2026-12-01', true, null), {}, false);
+    expect(state).toEqual({ note: 'Изменён вручную — правило его не меняет', offerRule: false });
+  });
+
   it('пока шапка правится и у запертого счёта кнопки нет', () => {
     expect(dueState(view('2026-10-20', true, '2026-10-10'), { Назначение: 'x' }, false).offerRule).toBe(false);
     expect(dueState(view('2026-10-20', true, '2026-10-10'), {}, true).offerRule).toBe(false);
@@ -38,6 +43,14 @@ describe('dueState', () => {
 
   it('старый сервер признаков не прислал — форма молчит', () => {
     expect(dueState({ requisites: {} } as unknown as InvoiceView, {}, false)).toEqual({ note: null, offerRule: false });
+  });
+});
+
+describe('hints', () => {
+  it('показывает все подсказки, а не первую', () => {
+    expect(hints('Распознано, не подтверждено', 'Отгрузка раньше даты счёта')).toBe('Распознано, не подтверждено · Отгрузка раньше даты счёта');
+    expect(hints(undefined, null)).toBeUndefined();
+    expect(hints(null, 'одна')).toBe('одна');
   });
 });
 

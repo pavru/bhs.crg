@@ -22,8 +22,23 @@ public sealed record InvoiceDueRule(bool ShippingDayCounts)
     ///
     /// <para>Нулевая отсрочка даёт день отгрузки и при «день отгрузки — первый»: вычти мы единицу,
     /// срок встал бы накануне отгрузки, то есть счёт оказался бы просрочен раньше, чем пришёл товар.</para>
+    ///
+    /// <para>Срок за краем календаря — тоже <c>null</c> (ревью PR #1328): отгрузка «9999-12-30» с
+    /// отсрочкой — опечатка, и падать на ней каждым чтением счёта нельзя — его не открыть.</para>
     /// </summary>
-    public DateOnly? DueOf(DateOnly? shippedOn, int? deferralDays) =>
-        shippedOn is not { } shipped || deferralDays is not { } days ? null
-            : shipped.AddDays(ShippingDayCounts ? Math.Max(days - 1, 0) : days);
+    public DateOnly? DueOf(DateOnly? shippedOn, int? deferralDays)
+    {
+        if (shippedOn is not { } shipped || deferralDays is not { } days) return null;
+        var add = ShippingDayCounts ? Math.Max(days - 1, 0) : days;
+        return shipped.DayNumber > DateOnly.MaxValue.DayNumber - add ? null : shipped.AddDays(add);
+    }
+
+    /// <summary>
+    /// Стоял ли срок по правилу — по любому из двух вариантов: настройку могли сменить после записи. По
+    /// правилу — значит, его можно и снять, когда считать стало не из чего; иначе это дата из бумаги.
+    /// </summary>
+    public static bool Derived(DateOnly? due, DateOnly? shippedOn, int? deferralDays) =>
+        due is { } date
+        && (new InvoiceDueRule(true).DueOf(shippedOn, deferralDays) == date
+            || new InvoiceDueRule(false).DueOf(shippedOn, deferralDays) == date);
 }

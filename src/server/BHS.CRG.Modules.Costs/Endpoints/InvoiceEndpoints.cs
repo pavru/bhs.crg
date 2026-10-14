@@ -180,14 +180,18 @@ public static class InvoiceEndpoints
             return (invoice, changed, reason, dueWas);
         }, ct);
 
-        if (changed.Count > 0)
-            await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
-                before: string.Join(", ", changed), ct: ct);
-
         // Ручная правка срока — своим событием (ТЗ COST-16): «было → стало», а не строкой «Срок» среди
-        // изменённых полей. Только когда срок правил человек: подставленный правилом — следствие
-        // правки отгрузки, и его называет запись выше.
-        if (invoice.DueDateManual && (invoice.DueDate, true) != dueWas)
+        // изменённых полей — и потому из перечня «счёт изменён» срок тогда уходит, чтобы одна правка не
+        // стояла в журнале дважды (ревью PR #1328). Только когда срок правил человек: подставленный
+        // правилом — следствие правки отгрузки, и его называет запись «счёт изменён».
+        var dueByHand = invoice.DueDateManual && (invoice.DueDate, true) != dueWas;
+        IReadOnlyList<string> logged = dueByHand ? [.. changed.Where(k => k != InvoiceRequisites.DueDateKey)] : changed;
+
+        if (logged.Count > 0)
+            await log.RecordAsync(InvoiceActions.Changed, invoice.Id.ToString(), Label(invoice),
+                before: string.Join(", ", logged), ct: ct);
+
+        if (dueByHand)
             await log.RecordAsync(InvoiceActions.DueByHand, invoice.Id.ToString(), Label(invoice),
                 before: DueText(dueWas.DueDate), after: DueText(invoice.DueDate), ct: ct);
 
@@ -205,6 +209,14 @@ public static class InvoiceEndpoints
     ///
     /// <para>Через связку записи, как любая правка счёта: версия, замок закрытого периода. Нечего
     /// менять — запись не трогается и в журнал не идёт.</para>
+    ///
+    /// <para>Считать не из чего — отказ, а не «срок не определён» (ревью PR #1328): вписанная дата
+    /// стёрлась бы одним нажатием, хотя правила, к которому её «возвращают», у счёта нет. Форма кнопку
+    /// в этом случае не показывает.</para>
+    ///
+    /// <para>Охрану записи ядра адрес не зовёт: правило кладёт в поле дату того же вида, поле не
+    /// заперто и ссылкой не является — отказать охране здесь нечем. Так же и в правке шапки, где срок
+    /// подставлен после проверки присланного.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> DueByRuleAsync(
         Guid id, CostsDbContext db, IModuleActivityLog log, InvoiceDesk desk, CancellationToken ct)
@@ -214,7 +226,11 @@ public static class InvoiceEndpoints
         {
             var invoice = write.Invoice;
             var was = (invoice.DueDate, invoice.DueDateManual);
-            if (was != (rule.DueOf(invoice.ShippedOn, invoice.DeferralDays), false))
+            if (rule.DueOf(invoice.ShippedOn, invoice.DeferralDays) is not { } due)
+                throw new ConflictException(
+                    "Срок по правилу посчитать не из чего: у счёта не указаны дата отгрузки или отсрочка. " +
+                    "Вписанный срок остаётся — заполните отгрузку и отсрочку, и правило подставит свой.");
+            if (was != (due, false))
             {
                 invoice.DueByRule(rule);
                 await db.SaveChangesAsync(ct);

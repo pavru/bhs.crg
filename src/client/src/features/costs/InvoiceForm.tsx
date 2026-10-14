@@ -35,7 +35,7 @@ import { withArchiveWord } from '@/shared/ui/archive';
 import { ScanUploadButton } from './InvoiceScanPanel';
 import { InvoiceFieldScan } from './InvoiceFieldScan';
 import { InvoiceDueField } from './InvoiceDueField';
-import { shippedBeforeIssued } from './invoiceDue';
+import { hints, shippedBeforeIssued } from './invoiceDue';
 import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart } from './InvoiceRecognitionNote';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
@@ -439,8 +439,8 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       return (
         <div className={frame}>
           <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
-            hint={fieldKey === K.shippedOn && shippedBeforeIssued(current, value(K.date))
-              ? 'Отгрузка раньше даты счёта — проверьте дату: от неё считается срок' : hint}
+            hint={hints(hint, fieldKey === K.shippedOn && shippedBeforeIssued(current, value(K.date))
+              ? 'Отгрузка раньше даты счёта — проверьте дату: от неё считается срок' : null)}
             readOnly={locked}
             onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
         </div>

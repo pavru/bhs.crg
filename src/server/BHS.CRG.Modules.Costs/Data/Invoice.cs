@@ -272,6 +272,7 @@ public sealed class Invoice
     public void ApplyRequisites(InvoiceColumns columns, JsonDocument data, bool dueDateByHand, InvoiceDueRule rule)
     {
         var inputsChanged = columns.ShippedOn != ShippedOn || columns.DeferralDays != DeferralDays;
+        var was = (ShippedOn, DeferralDays, DueDate);
 
         Number = columns.Number;
         IssuedOn = columns.IssuedOn;
@@ -284,14 +285,23 @@ public sealed class Invoice
         DeferralDays = columns.DeferralDays;
         Data = data;
 
-        if (dueDateByHand && columns.DueDate != DueDate) DueDateManual = true;
+        var ruled = rule.DueOf(ShippedOn, DeferralDays);
+        // Срок прислан НОВЫМ — его вписали в этой же записи: рукой или распознаванием из бумаги. Такой
+        // срок правило не перекрывает (ревью PR #1328): иначе дата поставщика, пришедшая вместе с
+        // отгрузкой, молча заменялась бы посчитанной, а метка «распознано» стояла бы уже на ней.
+        var supplied = columns.DueDate != was.DueDate;
+        // Ручным срок становится, только если человек ОТОШЁЛ от правила: вписанная дата, равная
+        // посчитанной, — согласие с правилом, и снимать счёт с правила за неё нельзя (ревью PR #1328).
+        if (dueDateByHand && supplied && columns.DueDate != ruled) DueDateManual = true;
 
-        // Срок, вписанный рукой, правило обходит стороной всегда. Иначе — подставляет, когда сменилась
-        // отгрузка или отсрочка. Считать не из чего: человек, стёрший дату отгрузки, получает «срок не
-        // определён», а срок из бумаги, пришедший с распознаванием, держится — правилу нечем его
-        // заменить, а выбросить прочитанное значило бы потерять данные молча.
-        DueDate = DueDateManual || !inputsChanged ? columns.DueDate
-            : rule.DueOf(ShippedOn, DeferralDays) ?? (dueDateByHand ? null : columns.DueDate);
+        // Подставляет правило, когда сменилась отгрузка или отсрочка, а срок никто не вписывал. Считать
+        // не из чего — срок «не определён», но только если и прежний стоял по правилу: дату из бумаги
+        // правилу заменить нечем, и выбросить её значило бы потерять прочитанное молча.
+        DueDate = DueDateManual || supplied || !inputsChanged ? columns.DueDate
+            : ruled ?? (InvoiceDueRule.Derived(was.DueDate, was.ShippedOn, was.DeferralDays) ? null : was.DueDate);
+
+        // Срок заменило правило — метка «распознано, не подтверждено» к новому значению не относится.
+        if (!supplied && DueDate != was.DueDate) ForgetMark(InvoiceRequisites.DueDateKey);
 
         Touch();
     }
@@ -303,10 +313,16 @@ public sealed class Invoice
     /// </summary>
     public void DueByRule(InvoiceDueRule rule)
     {
+        var was = DueDate;
         DueDateManual = false;
         DueDate = rule.DueOf(ShippedOn, DeferralDays);
+        if (DueDate != was) ForgetMark(InvoiceRequisites.DueDateKey);
         Touch();
     }
+
+    // Метка уходит без отметки «правили»: её снимает не человек, а замена значения, и время правки
+    // ставит тот, кто заменил.
+    private void ForgetMark(string key) => unconfirmed = [.. unconfirmed.Where(k => k != key)];
 
     /// <summary>
     /// «Когда правили» — одной точкой, как <c>TouchUpdatedAt</c> у сущностей ядра. Время берётся

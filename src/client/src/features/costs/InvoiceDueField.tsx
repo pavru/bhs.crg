@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { DateField } from '@/shared/ui/DateField';
 import { useToast } from '@/shared/ui/Toast';
 import { asInput, K } from './invoiceFields';
-import { dueState } from './invoiceDue';
+import { dueState, hints } from './invoiceDue';
 
 /**
  * Поле «Оплатить до» (ТЗ COST-9.1; задача C4, issue #1080). Срок подставляет сервер правилом из
@@ -23,7 +23,7 @@ export function InvoiceDueField({ view, edits, current, set, locked, hint, requi
 
   return (
     <div className={frame}>
-      <DateField label="Оплатить до" hint={hint ?? note ?? undefined} required={required}
+      <DateField label="Оплатить до" hint={hints(hint, note)} required={required}
         value={asInput(current).slice(0, 10)} readOnly={locked}
         onChange={iso => set(K.dueDate, iso ? iso.slice(0, 10) : null)} />
       {offerRule && (

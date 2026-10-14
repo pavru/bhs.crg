@@ -159,6 +159,9 @@ public sealed class InvoiceScanReading(
         Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
         ScanLines lines, string? readImage, CancellationToken ct)
     {
+        // Правило срока — ДО замка (ревью PR #1328): чтение настройки под замком периода держало бы его
+        // зря, а между попытками слияния правило не меняется.
+        var rule = await desk.DueRuleAsync(ct);
         for (var attempt = 1; ; attempt++)
         {
             try
@@ -169,7 +172,7 @@ public sealed class InvoiceScanReading(
                     // заменить ему скан. Условие проверяется заново — и против того же файла.
                     EnsureSameScan(write.Invoice, scanBlobPath);
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
-                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, readImage, ct);
+                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, readImage, rule, ct);
                     await db.SaveChangesAsync(ct);
                     return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled);
                 }, ct);
@@ -293,7 +296,7 @@ public sealed class InvoiceScanReading(
     /// <summary>Шапка — в пустые поля, строки — в счёт без строк; остальное — предложением.</summary>
     private async Task<(int Filled, int Lines, int Recalled)> ApplyAsync(
         Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
-        ScanLines lines, string? readImage, CancellationToken ct)
+        ScanLines lines, string? readImage, InvoiceDueRule rule, CancellationToken ct)
     {
         var before = InvoiceRequisites.Merge(invoice);
         var after = before.DeepClone().AsObject();
@@ -380,7 +383,6 @@ public sealed class InvoiceScanReading(
             await InvoiceEndpoints.EnsureAllowedAsync(
                 guard, invoice.DocumentTypeId, before.ToJsonString(), after.ToJsonString(), ct);
             // Срок оплаты распознавание не трогает, значит и «вписан рукой» ему ставить нечему.
-            var rule = await desk.DueRuleAsync(ct);
             invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);
             invoice.AddUnconfirmed(filled);
         }
