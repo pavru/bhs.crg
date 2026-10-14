@@ -127,6 +127,11 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
             new { requisites = await RequisitesWithAsync(client, invoice, "Итого", Total) }));
 
+        // Срок оплаты (C4, issue #1080): ручная правка и возврат к правилу — свои события журнала.
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(client, invoice, "Срок", "2026-12-25") }));
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/due/rule", null));
+
         var scan = new ByteArrayContent("%PDF-1.4 скан"u8.ToArray());
         scan.Headers.ContentType = new("application/pdf");
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/scan",
