@@ -15,6 +15,7 @@
 
 import { BASE, launchBrowser, login, createChecks, settled, callApi } from './harness.mjs';
 import { workspaceChecks } from './workspaces-checks.mjs';
+import { favoritesChecks } from './favorites-checks.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -295,6 +296,9 @@ await check('recognition-profile-detail-shows-fields', async () => {
 // Рабочие пространства (issue #1001) — под этим же входом: у администратора доступны оба модуля
 // стенда. Настройки пространств проверки сбрасывают сами, до и после.
 await workspaceChecks(page, check);
+
+// Избранные стройки (issue #1218) — под этим же входом; настройки избранного проверки сбрасывают сами.
+await favoritesChecks(page, check);
 
 // Секция «Название и логотип» о значках из логотипа (issue #1315): что вышло — картинками, что не
 // вышло — словами. Идёт ПОСЛЕДНЕЙ: раскрытая секция запоминается в localStorage, а проверки выше
