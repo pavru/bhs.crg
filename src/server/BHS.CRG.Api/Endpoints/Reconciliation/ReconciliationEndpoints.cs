@@ -213,7 +213,7 @@ public static class ReconciliationEndpoints
 
     /// <summary>Смысловой лист → лист выгрузки: сборка отчёта не знает про NPOI, выгрузка — про домен.</summary>
     private static SpreadsheetExporter.Sheet ToSheet(ReportSheet s)
-        => new(s.Name, s.Columns, s.Rows, s.Preamble);
+        => new(s.Name, s.Columns, s.Rows, s.Preamble, EmptyAsText: true);
 
     // ── DTO ─────────────────────────────────────────────────────────────────────
 

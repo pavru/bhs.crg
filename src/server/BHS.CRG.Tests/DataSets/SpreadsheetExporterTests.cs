@@ -69,7 +69,7 @@ public class SpreadsheetExporterTests
     public void Number_and_date_are_written_as_values_not_as_text()
     {
         var sheet = Written(new("Счета", ["Номер", "Дата", "Сумма", "Дней", "Оплачен"],
-            [["0012", new DateOnly(2026, 10, 14), 1234567.80m, 30m, true]]));
+            [["0012", new DateOnly(2026, 10, 14), new SpreadsheetExporter.Money(1234567.80m), 30m, true]]));
 
         var row = sheet.GetRow(1);
         // Номер «0012» — текст: угадай экспортёр в нём число, ведущие нули пропали бы молча.
@@ -84,9 +84,7 @@ public class SpreadsheetExporterTests
         Assert.Equal(1234567.80, row.GetCell(2).NumericCellValue);
         Assert.Equal("#,##0.00", row.GetCell(2).CellStyle.GetDataFormatString());
 
-        // Целое — без двух знаков: «30,00 дней» читалось бы как деньги.
         Assert.Equal(30, row.GetCell(3).NumericCellValue);
-        Assert.NotEqual("#,##0.00", row.GetCell(3).CellStyle.GetDataFormatString());
 
         Assert.Equal(CellType.Boolean, row.GetCell(4).CellType);
     }
@@ -137,10 +135,113 @@ public class SpreadsheetExporterTests
     public void Styles_are_shared_by_cells_not_created_per_cell()
     {
         var rows = Enumerable.Range(0, 5000)
-            .Select(i => (IReadOnlyList<object?>)[new DateOnly(2026, 1, 1).AddDays(i), i + 0.5m]).ToList();
+            .Select(i => (IReadOnlyList<object?>)[new DateOnly(2026, 1, 1).AddDays(i), new SpreadsheetExporter.Money(i + 0.5m)]).ToList();
         var (bytes, _, _) = SpreadsheetExporter.ExportSheets(SpreadsheetFormat.Xls, [new("Счета", ["Дата", "Сумма"], rows)]);
 
         // У XLS стилей около четырёх тысяч на книгу: стиль на клетку упал бы здесь исключением.
         Assert.True(new NPOI.HSSF.UserModel.HSSFWorkbook(new MemoryStream(bytes)).NumCellStyles < 100);
+    }
+
+    // ── Ревью PR #1325 ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Money_is_named_by_the_caller_not_guessed_from_the_number()
+    {
+        var sheet = Written(new("Счета", ["Количество", "Сумма"],
+            [[2.5m, new SpreadsheetExporter.Money(100m / 3m)], [30m, new SpreadsheetExporter.Money(5m)]]));
+
+        // Количество 2,5 — не сумма, а сумма 33,3333… и сумма 5 — обе суммы: формат один на колонку.
+        Assert.NotEqual("#,##0.00", sheet.GetRow(1).GetCell(0).CellStyle.GetDataFormatString());
+        Assert.Equal("#,##0.00", sheet.GetRow(1).GetCell(1).CellStyle.GetDataFormatString());
+        Assert.Equal("#,##0.00", sheet.GetRow(2).GetCell(1).CellStyle.GetDataFormatString());
+    }
+
+    [Fact]
+    public void Moment_with_offset_is_a_date_cell_with_its_own_clock()
+    {
+        var sheet = Written(new("Счета", ["Создан", "Время"],
+            [[new DateTimeOffset(2026, 10, 14, 9, 30, 0, TimeSpan.FromHours(3)), new TimeOnly(9, 5)]]));
+
+        var cell = sheet.GetRow(1).GetCell(0);
+        Assert.True(DateUtil.IsCellDateFormatted(cell));
+        Assert.Equal(new DateTime(2026, 10, 14, 9, 30, 0), cell.DateCellValue);
+        Assert.Equal("09:05", sheet.GetRow(1).GetCell(1).StringCellValue);
+    }
+
+    [Fact]
+    public void Date_excel_cannot_hold_is_written_as_text()
+    {
+        var sheet = Written(new("Счета", ["Дата"], [[default(DateOnly)], [new DateOnly(1812, 9, 7)]]));
+
+        // Клеткой-датой она стала бы решёткой либо ошибкой: значение неверное, а вид — испорченного файла.
+        Assert.Equal("01.01.0001", sheet.GetRow(1).GetCell(0).StringCellValue);
+        Assert.Equal("07.09.1812", sheet.GetRow(2).GetCell(0).StringCellValue);
+    }
+
+    [Fact]
+    public void Integer_a_number_cell_cannot_hold_is_written_as_text()
+    {
+        var sheet = Written(new("Счета", ["Код", "Малое", "Дробь"], [[9007199254740993L, 42L, 0.1f]]));
+
+        // Числом оно легло бы как …992 — другой код без единого признака отказа.
+        Assert.Equal("9007199254740993", sheet.GetRow(1).GetCell(0).StringCellValue);
+        Assert.Equal(42, sheet.GetRow(1).GetCell(1).NumericCellValue);
+        Assert.Equal(0.1, sheet.GetRow(1).GetCell(2).NumericCellValue);
+    }
+
+    [Fact]
+    public void Long_xlsx_keeps_every_row_the_footer_and_the_widths()
+    {
+        // Длиннее окна потоковой книги: первые строки к концу записи уже сброшены во временный файл.
+        var rows = Enumerable.Range(0, 1000).Select(i => (IReadOnlyList<object?>)
+            [$"Счёт № {i}", new DateOnly(2026, 1, 1).AddDays(i), new SpreadsheetExporter.Money(i + 0.5m), null]).ToList();
+        var sheet = Written(new("Счета", ["Номер", "Дата", "Сумма", "Пусто"], rows,
+            Preamble: ["Отбор: всё"], Footer: [[null, null, new SpreadsheetExporter.Money(500000m)]]));
+
+        Assert.Equal("Счёт № 0", sheet.GetRow(3).GetCell(0).StringCellValue);
+        Assert.Equal(new DateTime(2026, 1, 1), sheet.GetRow(3).GetCell(1).DateCellValue);
+        Assert.Equal("Счёт № 999", sheet.GetRow(1002).GetCell(0).StringCellValue);
+        Assert.Equal(999.5, sheet.GetRow(1002).GetCell(2).NumericCellValue);
+        Assert.Null(sheet.GetRow(1003));
+        Assert.Equal(500000, sheet.GetRow(1004).GetCell(2).NumericCellValue);
+        Assert.True(sheet.GetColumnWidth(1) >= 10 * 256);
+    }
+
+    [Fact]
+    public void Footer_beyond_the_table_gets_its_width_too()
+    {
+        var sheet = Written(new("Счета", ["Номер"], [["1"]],
+            Footer: [["Итого", null, new SpreadsheetExporter.Money(-1234567.80m)]]));
+
+        // «-1 234 567,80» — 13 знаков; при ширине по умолчанию сумма показана решёткой.
+        Assert.True(sheet.GetColumnWidth(2) >= 13 * 256);
+    }
+
+    [Fact]
+    public void Number_wider_than_general_format_does_not_stretch_the_column()
+    {
+        var sheet = Written(new("Счета", ["Доля"], [[100m / 3m]]));
+
+        Assert.True(sheet.GetColumnWidth(0) <= 13 * 256);
+    }
+
+    [Fact]
+    public void Text_sheet_keeps_empty_string_cells()
+    {
+        var (bytes, _, _) = SpreadsheetExporter.Export(SpreadsheetFormat.Xlsx, Columns, Rows);
+        var sheet = new XSSFWorkbook(new MemoryStream(bytes)).GetSheetAt(0);
+
+        // Пустая клетка дала бы длинному тексту соседа разлиться поверх неё.
+        Assert.Equal(CellType.String, sheet.GetRow(2).GetCell(2).CellType);
+    }
+
+    [Fact]
+    public void Styles_are_shared_by_sheets_of_one_book()
+    {
+        var sheets = Enumerable.Range(0, 20).Select(i => new SpreadsheetExporter.Sheet(
+            $"Лист {i}", ["Дата", "Сумма"], [[new DateOnly(2026, 1, 1), new SpreadsheetExporter.Money(1m)]])).ToList();
+        var (bytes, _, _) = SpreadsheetExporter.ExportSheets(SpreadsheetFormat.Xlsx, sheets);
+
+        Assert.True(new XSSFWorkbook(new MemoryStream(bytes)).NumCellStyles < 10);
     }
 }
