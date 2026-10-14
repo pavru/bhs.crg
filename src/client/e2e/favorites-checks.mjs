@@ -129,6 +129,29 @@ export async function favoritesChecks(page, check) {
       await page.getByTestId('site-filter-idle').waitFor({ timeout: 5000 });
     });
 
+    await check('favorites-periods-table-filtered-closing-names-all', async () => {
+      // Учётный период (#1220): урезана таблица, а закрытие компании называет все стройки. Сам период
+      // не закрываем — диалог только читается: закрытие на стенде легло бы под следующие наборы.
+      await callApi(page, 'PUT', '/account/settings', { favoriteConstructions: all[0].id, favoritesFilter: null });
+      const total = (await callApi(page, 'GET', '/periods')).body.constructions.length;
+      await page.goto(`${BASE}/periods`);
+      await settled(page);
+      const table = page.locator('table').first();
+      const rows = await table.locator('tbody tr').count();
+      if (rows !== 2) throw new Error(`в таблице периода строк ${rows}, ждали компанию и одну стройку`);
+      const count = await page.getByTestId('period-sites-count').innerText();
+      if (!count.startsWith(`1 из ${total} `)) throw new Error(`шапка таблицы: «${count}»`);
+      const note = await page.getByTestId('site-filter-note').innerText();
+      if (!note.includes(`Ещё ${total - 1} `)) throw new Error(`строка под таблицей: «${note}»`);
+      await table.locator('tbody tr').first().getByRole('button', { name: 'Закрыть период' }).click();
+      const dialog = page.getByRole('dialog');
+      const text = await dialog.innerText();
+      if (!text.includes(`все стройки — ${total}, в том числе ${total - 1}`))
+        throw new Error(`диалог закрытия компании не назвал скрытые: «${text.slice(0, 300)}»`);
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached', timeout: 5000 });
+    });
+
     await check('favorites-settings-failure-shows-everything', async () => {
       // Настройки не пришли — фильтр не действует и говорит об этом, а список строек полный. Раньше
       // «загрузка» ждала настроек без конца и держала сам список (ревью PR #1331).
