@@ -103,6 +103,11 @@ export async function workspaceChecks(page, check) {
     });
 
     await check('own-workspace-is-built-and-opens-after-login', async () => {
+      // «С другого компьютера» заводят своё пространство — адресом, мимо кэша этой страницы. Создание
+      // здесь обязано его сохранить (ревью PR #1330): запись по кэшу стёрла бы его молча.
+      const elsewhere = await callApi(page, 'PUT', '/account/settings',
+        { workspaces: JSON.stringify([{ id: 'welsewhere', name: 'Склад (проверка)', modules: ['id'] }]) });
+      if (elsewhere.status !== 200) throw new Error(`пространство «с другого компьютера» не заведено: ${elsewhere.status}`);
       await page.getByTestId('workspace-switcher').click();
       await page.getByRole('menuitem', { name: 'Настроить пространства…' }).click();
       const dialog = page.getByRole('dialog');
@@ -117,8 +122,14 @@ export async function workspaceChecks(page, check) {
       await form.getByLabel('Открывать при входе').check();
       await form.getByRole('button', { name: 'Создать' }).click();
       await settled(page);
-      await dialog.waitFor({ state: 'hidden' }).catch(() => page.keyboard.press('Escape'));
+      // Создав, окно закрывается само: новое заводят, чтобы в нём работать. Ожидание без «поймать и
+      // нажать Esc» (ревью PR #1330): с ним проверка зеленела на окне, которое не закрывалось вовсе.
+      await dialog.waitFor({ state: 'hidden', timeout: 5000 })
+        .catch(() => { throw new Error('после «Создать» окно пространств не закрылось'); });
       if (!(await switcherName(page)).includes(OWN)) throw new Error(`созданное не открыто: ${await switcherName(page)}`);
+      const names = JSON.parse((await callApi(page, 'GET', '/account/settings')).body.workspaces).map(w => w.name);
+      if (!names.includes('Склад (проверка)') || !names.includes(OWN))
+        throw new Error(`после создания свои пространства: ${names.join(', ')} — заведённое с другого компьютера потеряно`);
 
       // Уходим в другое пространство — «последнее выбранное» теперь не своё, и вкладка его помнит.
       // Повторный вход В ТОЙ ЖЕ вкладке обязан открыть УМОЛЧАНИЕ: выход стирает выбор вкладки (ревью

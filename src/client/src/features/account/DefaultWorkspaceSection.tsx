@@ -54,7 +54,10 @@ export function DefaultWorkspaceSection() {
       </p>
       <div className="max-w-md" data-testid="default-workspace">
         <Select label="Открывать при входе" value={ws.defaultChoice ?? LAST} disabled={saving}
-          hint={opens ? undefined : 'В выбранном пространстве нет доступных вам модулей — при входе откроются все разделы'}
+          hint={opens ? undefined : known
+            ? 'В выбранном пространстве нет доступных вам модулей — при входе откроются все разделы'
+            // Удалённое своё — не вопрос доступа (ревью PR #1330): иначе человек шёл бы к администратору.
+            : 'Выбранного пространства больше нет — при входе откроются все разделы'}
           onValueChange={v => void change(v)}>
           <SelectItem value={LAST}>Последнее выбранное</SelectItem>
           {ws.list.map(w => <SelectItem key={w.key} value={w.key}>{w.name}</SelectItem>)}

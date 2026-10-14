@@ -19,7 +19,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <div data-testid="outside-nav">
+    <div data-testid="outside-nav" className="mt-1">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
         {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
@@ -71,5 +71,26 @@ export function OutsideBanner({ items, inside }: { items: NavItem[]; inside: Nav
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Пункты модуля убраны пространством — сказано на месте (ревью PR #1330). Без этой строки страница
+ * раздела в пространстве «Счета» просто не показывала комплектов, и это читалось как «комплекты
+ * пропали» или «нет прав», хотя адрес — «Стройки», и плашки «вне пространства» нет. Строки нет, если
+ * модуль человеку недоступен: тогда пункты скрыты правами, и пространство ни при чём.
+ */
+export function HiddenByWorkspace({ module, what }: { module: string; what: string }) {
+  const ws = useWorkspace();
+  const { data: access = NO_ACCESS } = useAccess();
+  const title = access.modules.find(m => m.code === module && m.available)?.title;
+  if (!title || ws.shows(module)) return null;
+  return (
+    <p className="px-3 py-1.5 text-xs text-fg3" data-testid="hidden-by-workspace">
+      {what} — модуль «{title}», он вне пространства «{ws.current.name}».{' '}
+      <button type="button" className="underline hover:no-underline text-brand" onClick={() => ws.choose('all')}>
+        Открыть все модули
+      </button>
+    </p>
   );
 }

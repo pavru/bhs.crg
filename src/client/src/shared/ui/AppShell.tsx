@@ -101,6 +101,7 @@ function Shell() {
   const workspace = useWorkspace();
   // Делит то же правило, что проверяют тесты (`splitNav`), а не его копия здесь (ревью PR #1330).
   const { inside: work, outside } = splitNav(allWork, workspace.current, access ?? NO_ACCESS);
+  const hasWork = work.length > 0 || outside.length > 0;
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -148,11 +149,17 @@ function Shell() {
 
         {/* Nav sections */}
         <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
-          {work.length > 0 && <NavSection label="Документы и данные" items={work} />}
-          <OutsideNav items={outside} />
+          {/* Группа есть, пока в ней есть хоть что-то — пункты пространства ИЛИ строка скрытых (ревью
+              PR #1330): иначе «Ещё N разделов» стояла бы без заголовка и без черты перед настройкой. */}
+          {hasWork && (
+            <div>
+              <NavSection label="Документы и данные" items={work} />
+              <OutsideNav items={outside} />
+            </div>
+          )}
           {settings.length > 0 && (
             <>
-              {work.length > 0 && <div className="border-t border-stroke mt-2" />}
+              {hasWork && <div className="border-t border-stroke mt-2" />}
               <NavSection label="Настройка системы" items={settings} />
             </>
           )}

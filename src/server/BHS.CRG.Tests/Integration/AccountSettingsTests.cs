@@ -158,6 +158,7 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
     [InlineData("""[{"id":"w1","name":"А","modules":["costs"]},{"id":"w1","name":"Б","modules":["id"]}]""")]
     [InlineData("""[{"id":"w1","name":"А","modules":["costs","costs"]}]""")]
     [InlineData("""[{"id":"w1","name":"А","modules":["Costs!"]}]""")]
+    [InlineData("""[{"id":"w1","name":"все доступные модули","modules":["costs"]}]""")]
     public async Task Негодный_список_пространств_отвергается(string value)
     {
         var client = await SignInAsync(await CreateUserAsync());

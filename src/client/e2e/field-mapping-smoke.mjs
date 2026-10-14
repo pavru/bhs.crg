@@ -116,7 +116,9 @@ await check('settings-carry-the-same-summary', async () => {
   const { costs } = await taxIdRow();
   await page.goto(`${BASE}/settings`);
   await settled(page);
-  const section = page.locator('button').filter({ hasText: 'Счета и накладные' }).first();
+  // По ЗАГОЛОВКУ секции: текст «Счета и накладные» есть и в переключателе пространства в шапке
+  // (состав «2 модуля: …», issue #1001), и первая кнопка с ним — он.
+  const section = page.locator('button').filter({ has: page.getByRole('heading', { name: 'Счета и накладные' }) }).first();
   if ((await section.getAttribute('aria-expanded')) !== 'true') { await section.click(); await settled(page); }
   const signal = (await page.locator('[data-mapping-signal]').innerText()).trim();
   const expected = costs.unmet === 0

@@ -7,13 +7,14 @@ import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useScopePurge } from './useScopePurge';
-import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
-import { usePlanSummary, planOf } from '@/shared/api/plans';
+import { problemOf } from '@/shared/api/reconciliations';
+import { planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
 import { useCan } from '@/shared/api/access';
-import { useModuleShown } from '@/shared/ui/workspaceContext';
+import { useIdIndicators } from './useIdIndicators';
+import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 
@@ -86,14 +87,9 @@ export function ConstructionsList() {
   const [createError, setCreateError] = useState('');
 
   const { data: constructions = [], isLoading } = useListConstructions();
-  // Пункты модуля ИД — комплекты, их счётчики, готовность по плану и «требует разбора» (сверка
-  // объявлена тем же модулем) — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
-  // показывает пункты модулей открытого пространства. Доступ это не меняет.
-  const idOn = useModuleShown('id');
-  const problemData = useProblemSummary('System').data;
-  const planData = usePlanSummary('System').data;
-  const problems = idOn ? problemData : undefined;
-  const plans = idOn ? planData : undefined;
+  // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
+  // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
+  const { shown: idOn, plan: plans, problems } = useIdIndicators('System');
   // Поиск идёт по комплектам — это модуль ИД (issue #1125). Без модуля поле отвечало бы
   // «Ничего не найдено» на любой запрос: отказ сервера выглядел бы пустым результатом.
   // Правка строек — своё право (issue #1128): «Бухгалтер» видит стройки, но не правит их, и каждая
@@ -136,7 +132,7 @@ export function ConstructionsList() {
         )}
       </div>
 
-      {idOn && <DocumentSearchPanel />}
+      {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
 
       {isLoading ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>

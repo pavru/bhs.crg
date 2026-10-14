@@ -21,6 +21,13 @@ public static partial class WorkspaceSettingValues
     public const int MaxModules = 20;
 
     /// <summary>
+    /// Имя системного пространства «все доступные». Своё с таким именем дало бы в переключателе две
+    /// одинаковые строки с разным составом (ревью PR #1330). Названия модулей сервер здесь не
+    /// сверяет — их знает реестр модулей, а не настройки; клиент запирает их сам.
+    /// </summary>
+    public const string AllName = "Все доступные модули";
+
+    /// <summary>
     /// Выбор пространства: «все доступные» (<c>all</c>), системное одного модуля (<c>module:costs</c>)
     /// или своё (<c>own:&lt;id&gt;</c>).
     /// </summary>
@@ -47,6 +54,7 @@ public static partial class WorkspaceSettingValues
                 if (!Text(item, "name", out var name)) return false;
                 name = name.Trim();
                 if (name.Length is 0 or > MaxNameLength || !names.Add(name)) return false;
+                if (string.Equals(name, AllName, StringComparison.OrdinalIgnoreCase)) return false;
 
                 if (!item.TryGetProperty("modules", out var modules) || modules.ValueKind != JsonValueKind.Array)
                     return false;

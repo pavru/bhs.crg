@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { useSaveUserSettings, useUserSettings } from '@/shared/api/userSettings';
+import { useQueryClient } from '@tanstack/react-query';
+import { USER_SETTINGS_KEY, fetchUserSettings, useSaveUserSettings, useUserSettings } from '@/shared/api/userSettings';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useToast } from './Toast';
 import { WorkspaceContext, type WorkspaceContextValue } from './workspaceContext';
 import { readTab, tabKey as tabKeyOf, writeTab } from './workspaceTab';
 import {
-  DEFAULT_KEY, LAST_KEY, OWN_KEY, inWorkspace, moduleInWorkspace, parseOwn, resolveWorkspace, startChoice, switcherShown,
+  DEFAULT_KEY, LAST_KEY, OWN_KEY, inWorkspace, moduleInWorkspace, parseOwn, sectionInWorkspace, resolveWorkspace, startChoice, switcherShown,
   workspaceList,
 } from './workspaces';
 
@@ -23,6 +24,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // значение контекста — а с ним всех, кто его читает.
   const { mutate, mutateAsync } = useSaveUserSettings();
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   // Вкладка помнит выбор до конца сессии (`workspaceTab.ts`); новая вкладка, новый вход — умолчание
   // (AUTH-16.5). Ключ с почтой: вошёл другой человек — чужой выбор не его.
@@ -63,16 +65,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           onError: e => toast.apiError(e, 'Выбор пространства не запомнен — после входа откроется прежнее'),
         });
       },
-      saveOwn: async (next, also) => {
-        await mutateAsync({ [OWN_KEY]: next.length ? JSON.stringify(next) : null, ...also });
+      updateOwn: async (change, also) => {
+        // Свежие настройки — мимо кэша. Окно между чтением и записью — доли секунды и один человек;
+        // кэш жил бы пять минут и на каждом компьютере свой.
+        const fresh = await queryClient.fetchQuery({ queryKey: USER_SETTINGS_KEY, queryFn: fetchUserSettings, staleTime: 0 });
+        const next = change(parseOwn(fresh[OWN_KEY]));
+        if (typeof next === 'string') throw new Error(next);
+        await mutateAsync({ [OWN_KEY]: next.length ? JSON.stringify(next) : null, ...also?.(fresh) });
       },
       setDefault: async key => {
         await mutateAsync({ [DEFAULT_KEY]: key });
       },
       shows: module => moduleInWorkspace(module, current, access),
+      showsSection: section => sectionInWorkspace(section, current, access),
       inside,
     };
-  }, [resolved, access, own, settings, tabKey, mutate, mutateAsync, toast]);
+  }, [resolved, access, own, settings, tabKey, mutate, mutateAsync, toast, queryClient]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

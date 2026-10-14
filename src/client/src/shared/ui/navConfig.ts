@@ -56,18 +56,25 @@ export const workNav: NavItem[] = [
 ];
 
 /**
- * Страницы МОДУЛЯ, которые живут под адресом раздела ядра (issue #1001, ревью PR #1330): комплект
- * лежит под `/document-sets` — адресом «Строек», — но это модуль ИД. По одному префиксу пункта меню
- * он считался бы «Стройками», и в пространстве без ИД открывался бы без плашки «вне пространства».
+ * Страницы под адресом «Строек», принадлежащие ДРУГОМУ модулю или разделу (issue #1001, ревью PR
+ * #1330): комплект лежит под `/document-sets`, но это модуль ИД; панель «Наборы данных» стройки и
+ * раздела — раздел ядра `datasets`. По одному префиксу пункта меню они считались бы «Стройками» и в
+ * пространстве без них открывались бы без плашки «вне пространства».
+ *
+ * ⚠️ Список повторяет маршруты `DocumentSetsPage`. Разойтись им не даёт тест
+ * (`workspaceRoutes.test.ts`): каждый маршрут комплекта обязан найтись здесь, а маршрут стройки и
+ * раздела — нет.
  */
-export interface ModulePage {
+export interface PageOwner {
   match: RegExp;
   label: string;
-  module: string;
+  module?: string;
+  section?: string;
 }
 
-export const modulePages: ModulePage[] = [
+export const pageOwners: PageOwner[] = [
   { match: /^\/document-sets\/[^/]+\/sets\/[^/]+/, label: 'Комплект документов', module: 'id' },
+  { match: /^\/document-sets\/[^/]+(\/sections\/[^/]+)?\/datasets$/, label: 'Наборы данных стройки', section: 'datasets' },
 ];
 
 export const settingsNav: NavItem[] = [

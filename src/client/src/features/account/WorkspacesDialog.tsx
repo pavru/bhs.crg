@@ -46,7 +46,8 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
     setDraft({ id: own.id, name: own.name, modules: own.modules, opensAtLogin: ws.defaultChoice === `own:${own.id}` });
   }
 
-  const problem = draft ? ownProblem(draft.name, draft.modules, ws.own, draft.id) : null;
+  const reserved = ws.list.filter(w => w.kind !== 'own').map(w => w.name);
+  const problem = draft ? ownProblem(draft.name, draft.modules, ws.own, draft.id, reserved) : null;
   // Недоступный модуль в правке помечен, а не исчез (AUTH-16.3): снять его — решение человека.
   // Список — из ИСХОДНОГО состава, а не из черновика (ревью PR #1330): снятая галка иначе убрала бы
   // строку, и вернуть модуль стало бы негде — после «Сохранить» он пропал бы насовсем.
@@ -61,20 +62,31 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
     if (!draft || problem || saving) return;
     const id = draft.id ?? newWorkspaceId();
     const next: OwnWorkspace = { id, name: draft.name.trim(), modules: draft.modules };
-    const list = draft.id ? ws.own.map(w => (w.id === id ? next : w)) : [...ws.own, next];
     const key = `own:${id}`;
-    // Умолчание — той же правкой: отдельная запись после списка могла бы не дойти, и галка
-    // «Открывать при входе» соврала бы.
-    const also: Record<string, string | null> = {};
-    if (draft.opensAtLogin) also[DEFAULT_KEY] = key;
-    else if (ws.defaultChoice === key) also[DEFAULT_KEY] = null;
     setSaving(true);
     try {
-      await ws.saveOwn(list, also);
-      // Новое заводят, чтобы в нём работать, — в него и переходим. Правка выбранного не трогает.
-      if (!draft.id) ws.choose(key);
-      toast.success(draft.id ? 'Пространство изменено' : `Пространство «${next.name}» создано и открыто`);
+      // Список — СВЕЖИЙ, с сервера (ревью PR #1330): правка по кэшу стёрла бы пространство, заведённое
+      // тем временем на другом компьютере. Проверки имени — заново, по нему же.
+      await ws.updateOwn(fresh => {
+        if (draft.id && !fresh.some(w => w.id === draft.id)) return 'Это пространство тем временем удалили';
+        const late = ownProblem(next.name, next.modules, fresh, draft.id, reserved);
+        if (late) return late;
+        return draft.id ? fresh.map(w => (w.id === id ? next : w)) : [...fresh, next];
+      }, (fresh): Record<string, string | null> => {
+        // Умолчание — той же правкой: отдельная запись после списка могла бы не дойти, и галка
+        // «Открывать при входе» соврала бы.
+        if (draft.opensAtLogin) return { [DEFAULT_KEY]: key };
+        return fresh[DEFAULT_KEY] === key ? { [DEFAULT_KEY]: null } : {};
+      });
       setDraft(null);
+      if (draft.id) {
+        toast.success('Пространство изменено');
+      } else {
+        // Новое заводят, чтобы в нём работать: в него переходим и окно закрываем.
+        ws.choose(key);
+        toast.success(`Пространство «${next.name}» создано и открыто`);
+        onClose();
+      }
     } catch (e) {
       toast.apiError(e, 'Пространство не сохранено');
     } finally {
@@ -178,8 +190,8 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
         onConfirm={async () => {
           if (!removing) return;
           const key = `own:${removing.id}`;
-          await ws.saveOwn(ws.own.filter(w => w.id !== removing.id),
-            ws.defaultChoice === key ? { [DEFAULT_KEY]: null } : undefined);
+          await ws.updateOwn(fresh => fresh.filter(w => w.id !== removing.id),
+            (fresh): Record<string, string | null> => (fresh[DEFAULT_KEY] === key ? { [DEFAULT_KEY]: null } : {}));
           if (draft?.id === removing.id) setDraft(null);
         }} />
     </Modal>

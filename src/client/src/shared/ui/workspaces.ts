@@ -1,7 +1,7 @@
 import type { AccessInfo, ModuleAccess } from '@/shared/api/access';
 import type { UserSettings } from '@/shared/api/userSettings';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
-import { modulePages, type ModulePage, type NavItem } from './navConfig';
+import { pageOwners, type NavItem, type PageOwner } from './navConfig';
 
 /**
  * Рабочие пространства (ТЗ AUTH-16.1, AUTH-16.3, AUTH-16.5, OVW-18.1; issue #1001) — правила без
@@ -177,7 +177,7 @@ function fallbackNotice(ws: Workspace, access: AccessInfo): string {
  * Пункт, не назвавший ни модуля, ни раздела, виден везде: это решение, а не забывчивость, и тест
  * требует, чтобы рабочие пункты что-то называли.
  */
-export function inWorkspace(item: NavItem, ws: Workspace, access: AccessInfo): boolean {
+export function inWorkspace(item: Pick<NavItem, 'module' | 'section'>, ws: Workspace, access: AccessInfo): boolean {
   if (ws.kind === 'all') return true;
   const open = membership(ws, access).open;
   if (item.module) return open.some(m => m.code === item.module);
@@ -191,6 +191,11 @@ export function inWorkspace(item: NavItem, ws: Workspace, access: AccessInfo): b
  */
 export function moduleInWorkspace(code: string, ws: Workspace, access: AccessInfo): boolean {
   return ws.kind === 'all' || membership(ws, access).open.some(m => m.code === code);
+}
+
+/** Раздел ядра показывается в пространстве — то же правило, что у пункта меню (панель «Наборы данных»). */
+export function sectionInWorkspace(code: string, ws: Workspace, access: AccessInfo): boolean {
+  return inWorkspace({ section: code }, ws, access);
 }
 
 /**
@@ -209,13 +214,14 @@ export function splitNav(items: NavItem[], ws: Workspace, access: AccessInfo): {
  * Чему принадлежит адрес страницы, — если это вне пространства. Тогда на странице плашка «Открыто
  * вне пространства» (AUTH-16.1): ссылка из письма открывается, а пространство не меняется.
  *
- * Сначала страницы модулей под адресами ядра (`modulePages`: комплект под «Стройками»), затем пункт
- * меню с самым длинным подходящим адресом: `/tables/costs.invoices/registry` точнее `/tables`.
+ * Сначала страницы чужих модулей и разделов под адресом «Строек» (`pageOwners`: комплект, панель
+ * наборов данных), затем пункт меню с самым длинным подходящим адресом: `/tables/costs.invoices/registry`
+ * точнее `/tables`.
  */
 export function outsideItem(pathname: string, items: NavItem[], ws: Workspace, access: AccessInfo,
-  pages: ModulePage[] = modulePages): { label: string } | null {
+  pages: PageOwner[] = pageOwners): { label: string } | null {
   const page = pages.find(p => p.match.test(pathname));
-  if (page) return moduleInWorkspace(page.module, ws, access) ? null : { label: page.label };
+  if (page) return inWorkspace(page, ws, access) ? null : { label: page.label };
   const owner = [...items]
     .sort((a, b) => b.to.length - a.to.length)
     .find(item => pathname === item.to || pathname.startsWith(`${item.to}/`));
@@ -238,11 +244,14 @@ export function coreSectionsWith(modules: string[], visibleItems: NavItem[], acc
  * Почему своё пространство нельзя сохранить — причина под кнопкой, а не отказ после нажатия
  * (AUTH-16.5). null — можно.
  */
-export function ownProblem(name: string, modules: string[], own: OwnWorkspace[], editingId: string | null): string | null {
+export function ownProblem(name: string, modules: string[], own: OwnWorkspace[], editingId: string | null,
+  reserved: string[] = [ALL_NAME]): string | null {
   const trimmed = name.trim();
   if (!trimmed) return 'Назовите пространство';
   if (trimmed.length > NAME_MAX) return `Имя длиннее ${NAME_MAX} знаков`;
-  if (trimmed.toLowerCase() === ALL_NAME.toLowerCase()) return 'Так называется системное пространство';
+  // Имена СИСТЕМНЫХ пространств — «Все доступные модули» и названия модулей (ревью PR #1330): своё
+  // «Счета и накладные» дало бы в переключателе две одинаковые строки с разным составом.
+  if (reserved.some(r => r.trim().toLowerCase() === trimmed.toLowerCase())) return 'Так называется системное пространство';
   if (own.some(w => w.id !== editingId && w.name.trim().toLowerCase() === trimmed.toLowerCase()))
     return 'Пространство с таким именем уже есть';
   if (modules.length === 0) return 'Отметьте хотя бы один модуль';

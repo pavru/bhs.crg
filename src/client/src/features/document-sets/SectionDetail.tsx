@@ -11,15 +11,17 @@ import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShel
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
-import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
-import { usePlanSummary, planOf, planTitle } from '@/shared/api/plans';
+import { problemOf } from '@/shared/api/reconciliations';
+import { planOf, planTitle } from '@/shared/api/plans';
 import { PlanProgressBadge } from './PlanProgressBadge';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameSection, useDeleteSection, useCreateDocumentSet } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
-import { useModuleShown } from '@/shared/ui/workspaceContext';
+import { useIdIndicators } from './useIdIndicators';
+import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
+import { useWorkspace } from '@/shared/ui/workspaceContext';
 
 // ── Экран раздела ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -35,14 +37,10 @@ export function SectionDetail() {
   const activePanel: SectionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as SectionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
-  // Пункты модуля ИД — комплекты, их счётчики, готовность по плану и «требует разбора» (сверка
-  // объявлена тем же модулем) — ещё и по пространству (ТЗ AUTH-16.1, issue #1001): страница стройки
-  // показывает пункты модулей открытого пространства. Доступ это не меняет.
-  const idOn = useModuleShown('id');
-  const problemData = useProblemSummary('Section', sectionId).data;
-  const planData = usePlanSummary('Section', sectionId).data;
-  const problems = idOn ? problemData : undefined;
-  const plan = idOn ? planData : undefined;
+  // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
+  // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
+  const datasetsShown = useWorkspace().showsSection('datasets');
+  const { shown: idOn, plan, problems } = useIdIndicators('Section', sectionId);
   // Комплекты — модуль ИД, а раздел — ядро (issue #1128). Без модуля блок комплектов и кнопки
   // «Добавить комплект» не рисуются ВОВСЕ, а не пустым «Нет комплектов»: каждая дверь открывалась
   // отказом 403, а пустой список читался бы как «комплектов нет». Пока доступ не пришёл — тоже
@@ -103,6 +101,7 @@ export function SectionDetail() {
 
   const nav = (
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+      <HiddenByWorkspace module="id" what="Комплекты раздела" />
       {idOn && <>
         <NavSection label="Комплекты" />
         {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
@@ -125,7 +124,11 @@ export function SectionDetail() {
       </>}
       <NavSection label="Этот раздел" />
       <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
-      <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      {/* Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не
+          объявило, пункта нет, как и в главном меню; открытая по ссылке панель получает плашку. */}
+      {datasetsShown && (
+        <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      )}
       <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
     </div>
   );

@@ -3,7 +3,7 @@ import type { AccessInfo } from '@/shared/api/access';
 import { workNav } from './navConfig';
 import {
   ALL, DEFAULT_KEY, LAST_KEY, OWN_MAX, compositionLabel, coreSectionsWith, newWorkspaceId, outsideItem, ownProblem,
-  ownToWorkspace,
+  ownToWorkspace, sectionInWorkspace,
   parseOwn, resolveWorkspace, splitNav, startChoice, switcherShown, systemWorkspaces, type OwnWorkspace,
 } from './workspaces';
 
@@ -130,6 +130,16 @@ describe('рабочие пространства', () => {
     expect(outsideItem('/document-sets/c1/sections/r1', workNav, costs, BOTH)).toBeNull();
   });
 
+  /** Панель «Наборы данных» стройки — раздел ядра `datasets`, которого счета не объявили (ревью PR #1330). */
+  it('панель наборов данных стройки вне пространства счетов — с плашкой', () => {
+    const costs = resolveWorkspace(BOTH, [], 'module:costs').workspace;
+    expect(outsideItem('/document-sets/c1/datasets', workNav, costs, BOTH)?.label).toBe('Наборы данных стройки');
+    expect(outsideItem('/document-sets/c1/sections/r1/datasets', workNav, costs, BOTH)?.label).toBe('Наборы данных стройки');
+    expect(sectionInWorkspace('datasets', costs, BOTH)).toBe(false);
+    expect(sectionInWorkspace('constructions', costs, BOTH)).toBe(true);
+    expect(outsideItem('/document-sets/c1/datasets', workNav, resolveWorkspace(BOTH, [], 'module:id').workspace, BOTH)).toBeNull();
+  });
+
   it('«Вместе с ними» называет разделы ядра отмеченных модулей, видные человеку', () => {
     expect(coreSectionsWith(['costs'], workNav, BOTH)).toEqual(['Стройки', 'Общие данные', 'Учётный период']);
     expect(coreSectionsWith([], workNav, BOTH)).toEqual([]);
@@ -145,6 +155,9 @@ describe('рабочие пространства', () => {
     expect(ownProblem('Снабжение', ['costs'], [SUPPLY], 'w1')).toBeNull();
     expect(ownProblem('Склад', [], [SUPPLY], null)).toBe('Отметьте хотя бы один модуль');
     expect(ownProblem('все доступные модули', ['costs'], [], null)).toBe('Так называется системное пространство');
+    // И название модуля — у него своё системное пространство (ревью PR #1330).
+    const reserved = systemWorkspaces(BOTH).map(w => w.name);
+    expect(ownProblem('Счета и накладные ', ['costs', 'id'], [], null, reserved)).toBe('Так называется системное пространство');
   });
 
   /** Пределы сервера — причиной под кнопкой, а не общим отказом 400 после нажатия (ревью PR #1330). */
