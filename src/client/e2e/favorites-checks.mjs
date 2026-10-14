@@ -132,7 +132,9 @@ export async function favoritesChecks(page, check) {
     await check('favorites-periods-table-filtered-closing-names-all', async () => {
       // Учётный период (#1220): урезана таблица, а закрытие компании называет все стройки. Сам период
       // не закрываем — диалог только читается: закрытие на стенде легло бы под следующие наборы.
-      await callApi(page, 'PUT', '/account/settings', { favoriteConstructions: all[0].id, favoritesFilter: null });
+      const set = await callApi(page, 'PUT', '/account/settings', { favoriteConstructions: all[0].id, favoritesFilter: null });
+      // Не записалось — отказ называет запись, а не таблицу периода, которая показала бы прежнее избранное.
+      if (set.status !== 200) throw new Error(`избранное для проверки не записано: ${set.status}`);
       const total = (await callApi(page, 'GET', '/periods')).body.constructions.length;
       await page.goto(`${BASE}/periods`);
       await settled(page);
@@ -142,7 +144,7 @@ export async function favoritesChecks(page, check) {
       const count = await page.getByTestId('period-sites-count').innerText();
       if (!count.startsWith(`1 из ${total} `)) throw new Error(`шапка таблицы: «${count}»`);
       const note = await page.getByTestId('site-filter-note').innerText();
-      if (!note.includes(`Ещё ${total - 1} `)) throw new Error(`строка под таблицей: «${note}»`);
+      if (!note.includes(`скрыто: ${total - 1}`)) throw new Error(`строка под таблицей: «${note}»`);
       await table.locator('tbody tr').first().getByRole('button', { name: 'Закрыть период' }).click();
       const dialog = page.getByRole('dialog');
       const text = await dialog.innerText();
