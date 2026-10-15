@@ -34,17 +34,7 @@
     "features/costs/NewNomenclatureStep.tsx": 2,
     "features/costs/PlaceSelect.tsx": 1,
     "features/costs/SupplierMatchesDialog.tsx": 1,
-    "features/costs/WaybillForm.tsx": 1,
-    "features/document-sets/catalog/EntryDataSetBindings.tsx": 1,
-    "features/document-sets/editor/ApplyTemplateDialog.tsx": 1,
-    "features/document-sets/editor/ContainerFieldBinding.tsx": 1,
-    "features/document-sets/editor/DataSetsTab.tsx": 11,
-    "features/document-sets/editor/FieldSourceBinding.tsx": 2,
-    "features/document-sets/editor/InstanceAuditModal.tsx": 1,
-    "features/document-sets/fields/ArrayTableModal.tsx": 2,
-    "features/document-sets/fields/ComplexCells.tsx": 1,
-    "features/document-sets/fields/ImageField.tsx": 2,
-    "features/document-sets/fields/PasteMappingModal.tsx": 2
+    "features/costs/WaybillForm.tsx": 1
   },
   "h1": {
     "features/auth/AuthCard.tsx": 1,

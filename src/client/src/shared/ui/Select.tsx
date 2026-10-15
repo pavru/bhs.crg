@@ -47,8 +47,8 @@ export interface SelectProps {
    *  спорит с ним: какой из двух классов победит, решал бы порядок правил в CSS, а не в строке. */
   className?: string;
   /** Высота слоя обвязки: `md` — 36 px (шапки, фильтры), `sm` — 28 px и мелкий текст (строки
-   *  плотных таблиц и списков, где рядом стоят поля `text-xs`), `inline` — без рамки и фона,
-   *  высотой со строку, цвет и размер текста — от окружения (селектор внутри чипа-выражения).
+   *  плотных таблиц и списков, где рядом стоят поля `text-xs`), `inline` — без рамки и фона;
+   *  высоту, поля и цвет текста задаёт место — чип-выражение, ячейка редактируемой таблицы.
    *  В слое формы не действует. */
   size?: 'md' | 'sm' | 'inline';
   /**
@@ -98,7 +98,7 @@ const BOXED = 'border-stroke-strong bg-surface text-fg1';
 const SIZE = {
   md: `h-9 px-3 text-sm ${BOXED}`,
   sm: `h-7 px-2 gap-1 text-xs ${BOXED}`,
-  inline: 'h-auto px-0.5 gap-0.5 border-transparent bg-transparent text-inherit',
+  inline: 'gap-0.5 border-transparent bg-transparent text-inherit',
 } as const;
 
 /** Пустая строка — «значения нет» и для Radix (placeholder), и для вызывающего кода; пункту

@@ -197,12 +197,15 @@ await check('materialize-union-shows-variants', async () => {
 // замапленного» и тут же возвращал первый вариант — выбрать второй было нельзя вовсе.
 await check('materialize-union-switch-to-empty-variant-sticks', async () => {
   const dlg = page.locator('[role=dialog]').last();
-  const select = dlg.locator('select').first();
+  // Колонка маппинга — список Select (issue #1353): его пункты живут в портале и видны, только
+  // пока он открыт. Имя у поля — «Колонка для «…»», по нему и ищем, а не по порядку в окне.
+  const select = dlg.getByRole('combobox', { name: /^Колонка для «/ }).first();
   if (!(await select.count())) throw new Error('нет селектора колонки — нечего маппить');
-  const columns = await select.locator('option').evaluateAll(o => o.map(x => x.textContent.trim()));
+  await select.click();
+  const columns = (await page.getByRole('option').allInnerTexts()).map(c => c.trim());
   const column = columns.find(c => c && !/не привязано/i.test(c));
-  if (!column) throw new Error('в селекторе нет ни одной колонки источника');
-  await select.selectOption({ label: column });
+  if (!column) { await page.keyboard.press('Escape'); throw new Error('в селекторе нет ни одной колонки источника'); }
+  await page.getByRole('option', { name: column, exact: true }).click();
   await settled(page);
   if ((await checkedVariant()) !== 'Документ') throw new Error('маппинг сбил активный вариант');
 
