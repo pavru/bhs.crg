@@ -275,6 +275,8 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — **«почему так сделано»**: обоснования решений,
   история переходов, статус первой версии и полный листинг REST API. Сюда вынесено то, что нужно
   редко, чтобы `CLAUDE.md` не читался целиком каждой сессией (issue #1016).
+- [`docs/UI.md`](docs/UI.md) — **правила интерфейса**: MD3-формы на токенах `--f-*`, цвет только
+  токеном, шкала радиусов и теней. Новый экран сверяется с ним (issue #1348).
 - `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
   и `.env.example`. api и web поставляются образами из GHCR (`APP_VERSION` в `.env`), выпуск —
   ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:

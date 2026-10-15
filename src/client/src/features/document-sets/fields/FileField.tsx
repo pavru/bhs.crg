@@ -17,7 +17,7 @@ export interface PrintFormContext {
 }
 
 export function FileTypeIcon({ mimeType }: { mimeType: string }) {
-  if (mimeType.startsWith('image/')) return <ImageIcon size={16} className="text-purple-500 shrink-0" />;
+  if (mimeType.startsWith('image/')) return <ImageIcon size={16} className="text-tertiary shrink-0" />;
   if (mimeType === 'application/pdf') return <FileText size={16} className="text-danger shrink-0" />;
   if (mimeType.includes('word')) return <FileText size={16} className="text-brand shrink-0" />;
   if (mimeType.includes('sheet') || mimeType.includes('excel')) return <FileSpreadsheet size={16} className="text-success shrink-0" />;

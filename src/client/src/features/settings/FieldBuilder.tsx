@@ -565,7 +565,7 @@ export function FieldCard({
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}
       {applicableTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Cpu size={12} className={`mt-1 ${tags.length ? 'text-purple-500' : 'text-stroke-strong'}`} />
+          <Cpu size={12} className={`mt-1 ${tags.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {

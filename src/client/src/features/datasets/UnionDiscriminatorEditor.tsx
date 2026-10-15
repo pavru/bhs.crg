@@ -115,7 +115,7 @@ export function UnionDiscriminatorEditor({
                     <span key={id}
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] border ${
                         conflicting.has(id)
-                          ? 'bg-red-50 text-danger border-red-200'
+                          ? 'bg-danger-subtle text-danger border-danger/30'
                           : 'bg-base text-fg3 border-stroke'}`}>
                       {typeName(id)}
                       <X size={10} className="cursor-pointer hover:text-danger"
