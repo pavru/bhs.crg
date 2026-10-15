@@ -102,17 +102,19 @@ public static class InvoiceListEndpoint
             })
             .ToListAsync(ct);
 
-        // Стройки разноски (issue #1221) — тоже одним запросом на список и тем же подзапросом отбора:
-        // фильтр «Избранные стройки» отбирает на клиенте, и без строек в элементе он не делал бы ничего.
-        var allocated = db.InvoiceAllocations.AsNoTracking().Where(a => a.ConstructionId != null);
-        if (fix is not null || needsParsing || unrecognized)
-            allocated = allocated.Where(a => selected.Select(i => i.Id).Contains(a.InvoiceId));
-        var sites = (await allocated
-                .Select(a => new { a.InvoiceId, ConstructionId = a.ConstructionId!.Value })
-                .Distinct()
-                .ToListAsync(ct))
-            .GroupBy(a => a.InvoiceId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<Guid>)[.. g.Select(a => a.ConstructionId).Order()]);
+        // Стройки разноски (issue #1221) — одним запросом на список: фильтр «Избранные стройки»
+        // отбирает на клиенте, и без строек в элементе он не делал бы ничего. Только у ОБЩЕГО списка:
+        // очереди фильтр не урезает, а «Разобрать» — это все черновики, и опрашивается он каждые пять
+        // секунд, пока читается скан, — лишний проход по разноске там выбрасывался бы (ревью PR #1334).
+        var sites = fix is null && !needsParsing && !unrecognized
+            ? (await db.InvoiceAllocations.AsNoTracking()
+                    .Where(a => a.ConstructionId != null)
+                    .Select(a => new { a.InvoiceId, ConstructionId = a.ConstructionId!.Value })
+                    .Distinct()
+                    .ToListAsync(ct))
+                .GroupBy(a => a.InvoiceId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<Guid>)[.. g.Select(a => a.ConstructionId).Order()])
+            : null;
 
         // Словарём «счёт → (строк, ждут позиции)». Сумм здесь нет НАРОЧНО: реестру они не нужны, а
         // подставленный нуль в поле суммы — это неправда, на которую кто-нибудь однажды сошлётся.
@@ -136,7 +138,7 @@ public static class InvoiceListEndpoint
                     References = marks?.Of(i),
                     Recognition = scans.GetValueOrDefault(i.Id),
                     Readiness = gaps?.GetValueOrDefault(i.Id),
-                    ConstructionIds = sites.GetValueOrDefault(i.Id) ?? [],
+                    ConstructionIds = sites is null ? null : sites.GetValueOrDefault(i.Id) ?? [],
                 })]);
     }
 

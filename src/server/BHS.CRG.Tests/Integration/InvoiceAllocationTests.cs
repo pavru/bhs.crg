@@ -255,9 +255,9 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
     }
 
     /// <summary>
-    /// Сторож #1221: элемент списка счетов несёт стройки разноски — каждую один раз, по всем строкам, —
-    /// и в общем списке, и под отбором «Разобрать». Без них фильтр «Избранные стройки» на клиенте
-    /// типами зелёный, а не делает ничего: у каждого счёта «строек нет», и виден он всегда.
+    /// Сторож #1221: элемент общего списка счетов несёт стройки разноски — каждую один раз, по всем
+    /// строкам. Без них фильтр «Избранные стройки» на клиенте типами зелёный, а не делает ничего: у
+    /// каждого счёта «строек нет», и виден он всегда. Под очередью их нет вовсе: фильтр её не урезает.
     /// </summary>
     [Fact]
     public async Task Элемент_списка_несёт_все_стройки_разноски()
@@ -282,15 +282,15 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
         // Статья вне строек стройкой не является.
         await AllocateAsync(client, invoice, LineId(view, 2), [ArticlePart(article, quantity: 10)]);
 
-        foreach (var address in new[] { "/api/costs/invoices", "/api/costs/invoices?needsParsing=true" })
-        {
-            var list = (await client.GetFromJsonAsync<JsonElement>(address)).EnumerateArray().ToList();
-            Guid[] SitesOf(Guid id) => [.. list.Single(i => i.GetProperty("id").GetGuid() == id)
-                .GetProperty("constructionIds").EnumerateArray().Select(s => s.GetGuid())];
+        var list = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices")).EnumerateArray().ToList();
+        Guid[] SitesOf(Guid id) => [.. list.Single(i => i.GetProperty("id").GetGuid() == id)
+            .GetProperty("constructionIds").EnumerateArray().Select(s => s.GetGuid())];
+        Assert.Equal(new[] { a, b }.Order(), SitesOf(invoice));
+        Assert.Empty(SitesOf(bare));
 
-            Assert.Equal(new[] { a, b }.Order(), SitesOf(invoice));
-            Assert.Empty(SitesOf(bare));
-        }
+        var queue = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices?needsParsing=true"))
+            .EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice);
+        Assert.Equal(JsonValueKind.Null, queue.GetProperty("constructionIds").ValueKind);
     }
 
     [Fact]

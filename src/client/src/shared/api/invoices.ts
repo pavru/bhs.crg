@@ -1,4 +1,3 @@
-import { createContext, useContext } from 'react';
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
@@ -520,13 +519,11 @@ function rereadOnConflict(qc: QueryClient) {
   };
 }
 
-/**
- * Кому сказать о СВОЕЙ записи счёта: прежний вид (из кэша; `undefined` — его не было) и новый. Так
- * экран отличает свою правку от перечитанной чужой: «Сохранено…» говорится только о сделанном здесь
- * (issue #1221 — счёт, разнесённый на неизбранную стройку, уходит из рейла). Без провайдера — молчит.
- */
-export const InvoiceSavedContext =
-  createContext<((before: InvoiceView | undefined, after: InvoiceView) => void) | null>(null);
+/** Признак записи счёта в `meta` мутации — по нему её узнаёт `onInvoiceWritten`. */
+const INVOICE_WRITE = 'invoiceWrite';
+
+/** Контекст записи счёта: его вид ДО неё, из кэша; `undefined` — счёт в кэше не лежал. */
+interface InvoiceWriteContext { before: InvoiceView | undefined }
 
 /**
  * Правка счёта, возвращающая его вид: ответ кладётся в кэш, реестр перечитывается, отказ 409 перечитывает
@@ -535,16 +532,37 @@ export const InvoiceSavedContext =
  */
 export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Promise<InvoiceView>) {
   const qc = useQueryClient();
-  const saved = useContext(InvoiceSavedContext);
   return useMutation({
     mutationFn: send,
+    meta: { [INVOICE_WRITE]: true },
+    // Вид до записи — в контекст мутации: по нему подписчик узнаёт, что изменила именно эта запись.
+    onMutate: (input): InvoiceWriteContext => ({ before: qc.getQueryData<InvoiceView>([QK, input.id]) }),
     onSuccess: view => {
-      const before = qc.getQueryData<InvoiceView>([QK, view.id]);
       qc.setQueryData([QK, view.id], view);
-      saved?.(before, view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
     onError: rereadOnConflict(qc),
+  });
+}
+
+/**
+ * Подписка на СВОИ удавшиеся записи счёта: прежний вид и новый (issue #1221 — разноска на неизбранную
+ * стройку уводит счёт из рейла, и экран говорит об этом). Своя — значит сделанная этой вкладкой через
+ * `useInvoiceWrite`; чужая правка, пришедшая перечитыванием, сюда не попадает.
+ *
+ * <p>Через кэш мутаций, а не через контекст экрана (ревью PR #1334): запись видна, где бы ни был
+ * смонтирован пишущий хук — в диалоге-портале, на другом экране, — и слой API не знает о том, кто
+ * слушает. Новый пишущий хук «по образцу» попадает сюда сам: признак ставит `useInvoiceWrite`.</p>
+ *
+ * @returns отписка
+ */
+export function onInvoiceWritten(
+  qc: QueryClient, listener: (before: InvoiceView | undefined, after: InvoiceView) => void,
+): () => void {
+  return qc.getMutationCache().subscribe(event => {
+    if (event.type !== 'updated' || event.action.type !== 'success' || !event.mutation.meta?.[INVOICE_WRITE]) return;
+    const context = event.mutation.state.context as InvoiceWriteContext | undefined;
+    listener(context?.before, event.action.data as InvoiceView);
   });
 }
 

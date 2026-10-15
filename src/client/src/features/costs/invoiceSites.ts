@@ -13,11 +13,12 @@ import type { SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
  * только эту страницу.</p>
  */
 
-/** Скрыт ли счёт с такими стройками в рейле. Фильтр не действует — не скрыт никто. */
-export function hiddenBySite(
-  sites: readonly string[] | undefined, filter: Pick<SiteFilterValue, 'active' | 'visible'>,
-): boolean {
-  return filter.active && !filter.visible(sites ?? []);
+/**
+ * Скрыт ли счёт с такими стройками в рейле. Решает одно правило — `visible` фильтра (оно же знает, что
+ * фильтр не действует): вторая проверка здесь разошлась бы с ним при первой правке (ревью PR #1334).
+ */
+export function hiddenBySite(sites: readonly string[] | undefined, filter: Pick<SiteFilterValue, 'visible'>): boolean {
+  return !filter.visible(sites ?? []);
 }
 
 /**

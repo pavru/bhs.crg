@@ -20,9 +20,17 @@ import { clientSources } from '@/shared/testing/clientSources';
  *
  * <p>И обратно: файл, который урезает список хуком фильтра, назван здесь, даже если справочник ему не
  * нужен (#1221 — рейл счетов отбирает по `constructionIds` элемента). Отбор на клиенте держится на
- * условии, и запись его называет (`until`): нарушат условие — увидят, что отбор переезжать обязан.</p>
+ * условии, и запись его называет (`until`) вместе со сторожем сервера, который падает, когда условие
+ * нарушено (`guard`). Есть ли такой сторож, проверяется здесь: условие без сторожа — просто строка,
+ * и нарушили бы его молча (ревью PR #1334).</p>
  */
-type Entry = ({ filters: true; until?: string } | { filters: false; because: string }) & { carries?: string[] };
+type Until = { condition: string; guard: string };
+type Entry = ({ filters: true; until?: Until } | { filters: false; because: string }) & { carries?: string[] };
+
+/** Сторожа сервера, на которые ссылаются условия `until`, — тесты модуля счетов. */
+const SERVER_GUARDS = import.meta.glob('../../../../server/BHS.CRG.Tests/Costs/*Tests.cs', {
+  query: '?raw', import: 'default', eager: true,
+}) as Record<string, string>;
 
 const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/ConstructionsList.tsx': { filters: true },
@@ -48,7 +56,10 @@ const REGISTRY: Record<string, Entry> = {
   },
   '/src/features/costs/InvoicesPage.tsx': {
     filters: true,
-    until: 'пока список счетов приходит целиком: страничный (G4) отбирает сервер параметром sites, как накладные (#1222)',
+    until: {
+      condition: 'пока список счетов приходит целиком: страничный (G4) отбирает сервер параметром sites, как накладные (#1222)',
+      guard: 'Costs/InvoiceListWholeTests.cs',
+    },
   },
   '/src/features/costs/PlaceSelect.tsx': { filters: true },
   '/src/features/costs/WaybillForm.tsx': { filters: true },
@@ -142,6 +153,17 @@ describe('сторож-реестр избранных строек', () => {
     expect(unnamed, 'Файл урезает список по избранному, но не назван. Впишите его в REGISTRY: { filters: true }, '
       + 'а если отбор держится на условии (список приходит целиком) — назовите его в until.')
       .toEqual([]);
+  });
+
+  it('условие отбора на клиенте держит сторож сервера', () => {
+    const named = Object.entries(REGISTRY).flatMap(([file, e]) => e.filters && e.until ? [[file, e.until] as const] : []);
+    // Положительный якорь: без записей с условием цикл ниже не проверил бы ничего.
+    expect(named.length).toBeGreaterThan(0);
+    for (const [file, until] of named) {
+      const guard = Object.entries(SERVER_GUARDS).find(([path]) => path.endsWith(`/BHS.CRG.Tests/${until.guard}`))?.[1];
+      expect(guard, `${file}: сторожа «${until.guard}» нет — условие «${until.condition}» никто не проверяет`).toBeDefined();
+      expect(guard).toMatch(/\[Fact\]/);
+    }
   });
 
   it('в реестре нет файлов, которые ни справочника не берут, ни списка не урезают', () => {

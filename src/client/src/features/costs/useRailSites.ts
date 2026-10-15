@@ -1,5 +1,6 @@
-import { useCallback, useLayoutEffect, useRef } from 'react';
-import type { InvoiceListItem, InvoiceView } from '@/shared/api/invoices';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { onInvoiceWritten, type InvoiceListItem, type InvoiceView } from '@/shared/api/invoices';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
 import { useToast } from '@/shared/ui/Toast';
 import { SAVED_HIDDEN, hiddenBySite, viewSites } from './invoiceSites';
@@ -20,6 +21,7 @@ export function useRailSites({ cuts, list, selected, matches }: {
 }) {
   const favorites = useSiteFilter(cuts);
   const toast = useToast();
+  const qc = useQueryClient();
   const hides = (item: InvoiceListItem) => cuts && hiddenBySite(item.constructionIds, favorites);
   const all = list ?? [];
   const hidden = all.filter(hides);
@@ -27,17 +29,25 @@ export function useRailSites({ cuts, list, selected, matches }: {
 
   // Своя запись, уведшая счёт из рейла. Решение — по прежнему и новому виду счёта, а не по списку:
   // список перечитывается позже, и чужая правка, пришедшая перечитыванием, «Сохранено» не скажет.
-  const now = useRef({ cuts, favorites });
-  useLayoutEffect(() => { now.current = { cuts, favorites }; });
+  // Только об ОТКРЫТОМ счёте (ревью PR #1334): ответ приходит и после ухода на другой, и «счёт скрыт»
+  // над его формой читалось бы как о нём.
+  const now = useRef({ cuts, favorites, selected });
+  useLayoutEffect(() => { now.current = { cuts, favorites, selected }; });
   const onSaved = useCallback((before: InvoiceView | undefined, after: InvoiceView) => {
     const at = now.current;
-    if (!before || !at.cuts) return;
+    if (!before || !at.cuts || after.id !== at.selected) return;
     if (!hiddenBySite(viewSites(after), at.favorites) || hiddenBySite(viewSites(before), at.favorites)) return;
     toast.info(SAVED_HIDDEN, { action: { label: 'Показать все', onClick: () => at.favorites.setOn(false) } });
   }, [toast]);
+  useEffect(() => onInvoiceWritten(qc, onSaved), [qc, onSaved]);
 
   return {
     hides,
+    /**
+     * Фильтр ещё не известен (настройки или справочник в пути): строк общего списка нет вовсе. Полный
+     * список, через миг урезанный под курсором, человек прочёл бы как отобранный (ревью PR #1334).
+     */
+    pending: cuts && favorites.status === 'loading',
     /** Сколько счетов общего списка скрыто фильтром. */
     hidden: hidden.length,
     /** Сколько скрытых нашёл бы поиск. */
