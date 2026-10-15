@@ -47,8 +47,10 @@ export interface SelectProps {
    *  спорит с ним: какой из двух классов победит, решал бы порядок правил в CSS, а не в строке. */
   className?: string;
   /** Высота слоя обвязки: `md` — 36 px (шапки, фильтры), `sm` — 28 px и мелкий текст (строки
-   *  плотных таблиц и списков, где рядом стоят поля `text-xs`). В слое формы не действует. */
-  size?: 'md' | 'sm';
+   *  плотных таблиц и списков, где рядом стоят поля `text-xs`), `inline` — без рамки и фона,
+   *  высотой со строку, цвет и размер текста — от окружения (селектор внутри чипа-выражения).
+   *  В слое формы не действует. */
+  size?: 'md' | 'sm' | 'inline';
   /**
    * Пункт «значения нет» первым в списке: «— не выбрано —», «без итога», «наследуется». Его выбор
    * отдаёт пустую строку. Нужен потому, что Radix не принимает пустую строку значением пункта, а
@@ -77,8 +79,8 @@ export interface SelectProps {
 }
 
 const TRIGGER =
-  'inline-flex items-center justify-between gap-2 rounded-md border border-stroke-strong ' +
-  'bg-surface text-fg1 transition-colors data-[placeholder]:text-fg4 ' +
+  'inline-flex items-center justify-between gap-2 rounded-md border ' +
+  'transition-colors data-[placeholder]:text-fg4 ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:ring-2 ' +
   'data-[state=open]:ring-brand disabled:opacity-50 disabled:pointer-events-none';
 
@@ -90,7 +92,14 @@ const FRAMED_TRIGGER =
   'text-sm text-fg1 data-[placeholder]:text-fg4 outline-none ' +
   'disabled:opacity-50 disabled:pointer-events-none';
 
-const SIZE = { md: 'h-9 px-3 text-sm', sm: 'h-7 px-2 gap-1 text-xs' } as const;
+// Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
+// переопределяющий основу, снова спорил бы с ней порядком правил в CSS.
+const BOXED = 'border-stroke-strong bg-surface text-fg1';
+const SIZE = {
+  md: `h-9 px-3 text-sm ${BOXED}`,
+  sm: `h-7 px-2 gap-1 text-xs ${BOXED}`,
+  inline: 'h-auto px-0.5 gap-0.5 border-transparent bg-transparent text-inherit',
+} as const;
 
 /** Пустая строка — «значения нет» и для Radix (placeholder), и для вызывающего кода; пункту
  *  «значения нет» нужно своё непустое значение, которое наружу не выходит. */
@@ -123,7 +132,7 @@ export function Select({
         setOpen(next);
       }}>
       <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${className}`
-        : `${TRIGGER} ${SIZE[size]} ${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}`}
+        : `${TRIGGER} ${SIZE[size]} ${size === 'inline' || /(^|\s)w-/.test(className) ? '' : 'w-full '}${className}`}
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
         aria-required={framed && required ? true : undefined}

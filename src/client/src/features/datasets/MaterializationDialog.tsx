@@ -19,6 +19,7 @@ import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { apiError } from '@/shared/utils/apiError';
 import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 // Пустые значения — модульными константами, а не инлайновыми `[]`: инлайновый литерал даёт новую
 // ссылку каждый рендер и ломает мемоизацию ниже по течению (issue #305, #870).
@@ -308,17 +309,10 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
             {useByIdMode ? (
               <div className="space-y-1.5">
-                <label className="block">
-                  <span className="block text-xs font-medium mb-1 text-fg3">Колонка с идентификатором документа</span>
-                  <select
-                    value={byIdColumn}
-                    onChange={e => setByIdColumn(e.target.value)}
-                    className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-                  >
-                    <option value="">— не выбрана —</option>
-                    {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </label>
+                <Select label="Колонка с идентификатором документа" value={byIdColumn} onValueChange={setByIdColumn}
+                  emptyItem="— не выбрана —">
+                  {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </Select>
                 <span className="text-caption text-fg4 flex items-center gap-1">
                   <Info size={11} /> строка целиком становится ссылкой на документ — поля берутся из него самого
                 </span>
