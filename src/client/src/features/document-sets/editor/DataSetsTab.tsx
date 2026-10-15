@@ -16,6 +16,7 @@ import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRe
 import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
 import { ruCount } from '@/shared/utils/pluralize';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
+import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
   let cur: string | null = childId;
@@ -132,17 +133,16 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
         <>
           <div className="flex items-center gap-2">
             {refModeVal === 'name' ? (
-              <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')} onChange={e => setRefName(e.target.value)}
-                className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title="Колонка с именем записи каталога">
-                <option value="">— не привязано —</option>
-                {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <Select size="sm" className="flex-1" aria-label={`Колонка с именем записи каталога для «${field.title}»`}
+                value={refMap?.identityColumns ? '' : (refMap?.column ?? '')} onValueChange={setRefName} emptyItem="— не привязано —">
+                {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </Select>
             ) : <span className="flex-1" />}
             {identityFields.length > 0 ? (
-              <select value={refModeVal} onChange={e => { setRefModeOverride(e.target.value as 'name' | 'identity'); onChange(undefined); }}
-                className="w-36 shrink-0 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title="Как искать запись каталога">
-                <option value="name">по имени</option><option value="identity">по идентификатору</option>
-              </select>
+              <Select size="sm" className="w-36 shrink-0" aria-label={`Как искать запись каталога для «${field.title}»`}
+                value={refModeVal} onValueChange={m => { setRefModeOverride(m as 'name' | 'identity'); onChange(undefined); }}>
+                <SelectItem value="name">по имени</SelectItem><SelectItem value="identity">по идентификатору</SelectItem>
+              </Select>
             ) : <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>}
           </div>
           {refModeVal === 'identity' && (
@@ -150,10 +150,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
                   <span className={`w-40 shrink-0 text-caption text-fg4 ${MAP_LABEL}`} title={idf.key}>{idf.title}</span>
-                  <select value={idCols[idf.key] ?? ''} onChange={e => setRefIdentity(idf.key, e.target.value)}
-                    className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для identity-поля «${idf.title}»`}>
-                    <option value="">— колонка —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <Select size="sm" className="flex-1" aria-label={`Колонка для identity-поля «${idf.title}»`}
+                    value={idCols[idf.key] ?? ''} onValueChange={c => setRefIdentity(idf.key, c)} emptyItem="— колонка —">
+                    {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </Select>
                 </div>
               ))}
             </div>
@@ -166,10 +166,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
                 <span className={`w-40 shrink-0 text-caption text-fg3 ${MAP_LABEL}`} title={`${sf.title} (${sf.key})`}>{sf.title}</span>
-                <select value={inlineFields[sf.key] ?? ''} onChange={e => setSub(sf.key, e.target.value || undefined)}
-                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для под-поля «${sf.title}»`}>
-                  <option value="">— не привязано —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select size="sm" className="flex-1" aria-label={`Колонка для под-поля «${sf.title}»`}
+                  value={inlineFields[sf.key] ?? ''} onValueChange={c => setSub(sf.key, c || undefined)} emptyItem="— не привязано —">
+                  {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </Select>
               </div>
             ))}
             {compositeSubs.map(sf => {
@@ -296,24 +296,17 @@ export function MappingEditor({
     <div className="space-y-3 text-sm">
       {!hideModeSelector && (
         <div>
-          <label className="block text-xs font-medium mb-1 text-fg3">
-            Режим использования
-          </label>
-          <select
-            value={targetFieldKey ?? ''}
-            onChange={e => setTarget(e.target.value)}
-            className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-          >
-            <option value="">Скалярный — первая строка заполняет отдельные поля</option>
+          <Select label="Режим использования" value={targetFieldKey ?? ''} onValueChange={setTarget}
+            emptyItem="Скалярный — первая строка заполняет отдельные поля">
             {/* Тем же правилом, что и поля маппинга: запертую таблицу источник не заполняет.
                 Сегодня объявление модуля таких полей не принимает, но выбор цели — ВТОРОЙ вход,
                 и фильтр у одного из них вместо обоих и есть та дыра, которую здесь закрывают. */}
             {bindableFields(tabularFields).map(f => (
-              <option key={f.key} value={f.key}>
+              <SelectItem key={f.key} value={f.key}>
                 Табличный → {f.title} ({f.key}){f.type === 'doc-array' ? ' — документы' : ''}
-              </option>
+              </SelectItem>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -328,14 +321,10 @@ export function MappingEditor({
               <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${f.title} (${f.key})`}>
                 {f.title}
               </span>
-              <select
-                value={mapping[f.key] ?? ''}
-                onChange={e => setCol(f.key, e.target.value)}
-                className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-              >
-                <option value="">— не привязано —</option>
-                {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <Select size="sm" className="flex-1" aria-label={`Колонка для «${f.title}»`}
+                value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
+                {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </Select>
             </div>
           ))}
           {complexMappable.map(f => (
@@ -350,25 +339,15 @@ export function MappingEditor({
                 <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${f.title} (${f.key}) — файл-вложение`}>
                   {f.title} <span className="text-fg4">📎</span>
                 </span>
-                <select
-                  value={fileMap?.column ?? ''}
-                  onChange={e => setFile(f, e.target.value, fileMap?.sizeColumn ?? '')}
-                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                  title="Колонка с путём к файлу (blob)"
-                >
-                  <option value="">— не привязано —</option>
-                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select
-                  value={fileMap?.sizeColumn ?? ''}
-                  onChange={e => setFile(f, fileMap?.column ?? '', e.target.value)}
-                  disabled={!fileMap?.column}
-                  className="w-32 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1 disabled:opacity-50"
-                  title="Колонка с размером файла в байтах (необязательно)"
-                >
-                  <option value="">без размера</option>
-                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select size="sm" className="flex-1" aria-label={`Колонка с путём к файлу для «${f.title}»`}
+                  value={fileMap?.column ?? ''} onValueChange={c => setFile(f, c, fileMap?.sizeColumn ?? '')} emptyItem="— не привязано —">
+                  {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </Select>
+                <Select size="sm" className="w-32" aria-label={`Колонка с размером файла в байтах для «${f.title}» (необязательно)`}
+                  value={fileMap?.sizeColumn ?? ''} onValueChange={c => setFile(f, fileMap?.column ?? '', c)}
+                  disabled={!fileMap?.column} emptyItem="без размера">
+                  {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </Select>
               </div>
             );
           })}
@@ -381,14 +360,10 @@ export function MappingEditor({
                   <Link2 size={12} className="shrink-0 text-fg4" />
                   {f.title}
                 </span>
-                <select
-                  value={mapping[f.key] ?? ''}
-                  onChange={e => setCol(f.key, e.target.value)}
-                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                >
-                  <option value="">— не привязано —</option>
-                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select size="sm" className="flex-1" aria-label={`Колонка для «${f.title}»`}
+                  value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
+                  {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </Select>
                 <span className="w-40 shrink-0 text-caption text-fg4">колонка с Ид документа</span>
               </div>
             );
@@ -495,20 +470,16 @@ function AddBindingPanel({
             Нет загруженных наборов данных. Загрузите файлы на странице «Наборы данных» или в панели комплекта/раздела/стройки.
           </p>
         ) : (
-          <select
-            value={sourceId}
-            onChange={e => handleSourceChange(e.target.value)}
-            className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-          >
-            <option value="">— выберите источник —</option>
+          <Select aria-label="Источник данных" value={sourceId} onValueChange={handleSourceChange}
+            placeholder="— выберите источник —">
             {availableFiles.map(f => (
-              <optgroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
+              <SelectGroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
                 {f.sources.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} · {s.cachedRowCount} строк</option>
+                  <SelectItem key={s.id} value={s.id}>{s.name} · {s.cachedRowCount} строк</SelectItem>
                 ))}
-              </optgroup>
+              </SelectGroup>
             ))}
-          </select>
+          </Select>
         )}
       </div>
 
@@ -519,16 +490,12 @@ function AddBindingPanel({
               Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
               Маппинг задан на источнике — выберите только поле-цель совместимого типа.
             </p>
-            <select
-              value={targetFieldKey ?? ''}
-              onChange={e => setTargetFieldKey(e.target.value || null)}
-              className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-            >
-              <option value="">— выберите поле —</option>
+            <Select aria-label="Поле-цель" value={targetFieldKey ?? ''} onValueChange={key => setTargetFieldKey(key || null)}
+              emptyItem="— выберите поле —">
               {compatibleFields.map(f => (
-                <option key={f.key} value={f.key}>{f.title} ({f.key})</option>
+                <SelectItem key={f.key} value={f.key}>{f.title} ({f.key})</SelectItem>
               ))}
-            </select>
+            </Select>
             {compatibleFields.length === 0 && (
               <p className="text-xs text-warning">Нет полей документа, совместимых с типом источника.</p>
             )}

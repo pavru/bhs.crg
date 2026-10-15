@@ -1,25 +1,27 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { SiteRevealContext, REVEAL_CHOICE } from './siteReveal';
 import { revealText, type SiteChoices } from './siteChoices';
 import type { SiteEntry } from './siteFilterContext';
 
 /**
- * Пункты нативного `<select>` выбора стройки (issue #1219): группы из `useSiteChoices`. Выход —
- * отдельным `RevealOption`, его носитель ставит ПОСЛЕДНИМ пунктом, после своих групп («Вне строек»).
+ * Пункты списка выбора стройки (issue #1219) для `Select`: группы из `useSiteChoices`. Выход —
+ * отдельным `RevealItem`, его носитель ставит ПОСЛЕДНИМ пунктом, после своих групп («Вне строек»),
+ * и держит список открытым после него: `stayOpenOn={REVEAL_CHOICE}`.
  */
-export function SiteOptions<T extends SiteEntry>({ choices, valueOf }: {
+export function SiteSelectItems<T extends SiteEntry>({ choices, valueFor = id => id }: {
   choices: SiteChoices<T>;
-  valueOf: (id: string) => string;
+  valueFor?: (id: string) => string;
 }) {
   return choices.groups.map(g => (
-    <optgroup key={g.label} label={g.label}>
-      {g.sites.map(s => <option key={s.id} value={valueOf(s.id)}>{s.name}</option>)}
-    </optgroup>
+    <SelectGroup key={g.label} label={g.label}>
+      {g.sites.map(s => <SelectItem key={s.id} value={valueFor(s.id)}>{s.name}</SelectItem>)}
+    </SelectGroup>
   ));
 }
 
-export function RevealOption({ hidden }: { hidden: number }) {
-  return hidden > 0 ? <option value={REVEAL_CHOICE}>{revealText(hidden)}</option> : null;
+export function RevealItem({ hidden }: { hidden: number }) {
+  return hidden > 0 ? <SelectItem value={REVEAL_CHOICE}>{revealText(hidden)}</SelectItem> : null;
 }
 
 /** Граница формы для выхода «Показать все стройки»: раскрыли в одном списке — раскрыты все в форме. */

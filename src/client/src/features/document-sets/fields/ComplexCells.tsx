@@ -14,6 +14,7 @@ import { type SchemaField } from '@/shared/api/schema';
 import { CELL_INPUT } from './constants';
 import { RefPickerModal } from './RefPickerModal';
 import { ArchivedRefMark } from './ArchivedRefs';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -89,11 +90,10 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     return (
-      <select value={strVal} onChange={e => onChange(e.target.value)}
-        className={CELL_INPUT + ' cursor-pointer'}>
-        <option value="">—</option>
-        {opts.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
-      </select>
+      <Select size="inline" className="w-full h-full px-1.5 text-xs rounded-none focus:bg-brand-subtle"
+        aria-label={field.title} value={strVal} onValueChange={onChange} emptyItem="—">
+        {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
+      </Select>
     );
   }
   if (field.type === 'date') {

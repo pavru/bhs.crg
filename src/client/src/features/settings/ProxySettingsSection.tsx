@@ -8,6 +8,7 @@ import {
   type IntegrationSettingsDto, type ProxyTestResult,
 } from '@/shared/api/integrationSettings';
 import { useUpdateStatus } from '@/shared/api/updates';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /** Тот же вид, что у сервера (ProxySettings.TryParseUrl): схема и хост без регистра, без косой в конце. */
 function normalizeUrl(value: string): string {
@@ -140,11 +141,11 @@ export function ProxySettingsSection() {
           Сохранить
         </Button>
         {checkable.length > 1 && (
-          <select className="border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
+          <Select className="w-auto" aria-label="Служба для проверки"
             value={service ?? checkable[0].service} disabled={test.isPending}
-            onChange={e => setService(e.target.value)}>
-            {checkable.map(c => <option key={c.service} value={c.service}>{c.name}</option>)}
-          </select>
+            onValueChange={setService}>
+            {checkable.map(c => <SelectItem key={c.service} value={c.service}>{c.name}</SelectItem>)}
+          </Select>
         )}
         <Button type="button" variant="outlined" size="sm" loading={test.isPending}
           disabled={isLoading || !urlValue.trim()} onClick={() => void check()}>

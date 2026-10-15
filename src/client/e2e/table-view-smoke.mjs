@@ -58,7 +58,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-view-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
+import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
@@ -377,10 +377,10 @@ try {
     await open(page, { filter: seeded });
     await rowsBecome(page, TABLE_SEED.count, 'посеянные счета на одной странице');
 
-    await page.getByLabel('Строк на странице').selectOption('50');
+    await pickOption(page.getByLabel('Строк на странице'), '50');
     await rowsBecome(page, 50, 'страница из пятидесяти строк');
     await columnsButton.click();
-    await page.getByRole('dialog').getByLabel('Итог по колонке «Сумма к оплате»').selectOption({ label: 'Сумма' });
+    await pickOption(page.getByRole('dialog').getByLabel('Итог по колонке «Сумма к оплате»'), 'Сумма');
     await page.keyboard.press('Escape');
 
     const column = (await headers(page).allInnerTexts()).map(flat).indexOf('Сумма к оплате');

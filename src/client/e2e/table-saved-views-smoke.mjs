@@ -41,7 +41,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-saved-views-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, pickOption } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows } from './seed-invoices.mjs';
 
 const ADDRESS = 'costs.invoices';
@@ -208,7 +208,7 @@ try {
     await open(page, `/${ownId}`);
     await rowsBecome(page, TABLE_SEED.count, 'счета под сохранённым отбором');
     // Перелистывание и размер страницы — не изменение настройки.
-    await page.getByLabel('Строк на странице').selectOption('50');
+    await pickOption(page.getByLabel('Строк на странице'), '50');
     await page.getByRole('button', { name: 'Следующая страница' }).click();
     await page.waitForFunction(() => location.hash.includes('page=2'));
     if ((await mark(page).count()) !== 0) throw new Error('перелистывание помечено как изменение представления');

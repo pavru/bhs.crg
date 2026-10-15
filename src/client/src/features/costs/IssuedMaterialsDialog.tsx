@@ -6,6 +6,7 @@ import type { CostsConstruction } from '@/shared/api/invoices';
 import { useIssuedMaterials } from '@/shared/api/waybills';
 import { formatCount, formatDate, formatQuantity } from '@/shared/format/format';
 import { linesWord } from './waybills';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * «Материалы на объекте»: что выдано на стройку проведёнными накладными (ТЗ COST-17; задача D1,
@@ -26,17 +27,10 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Материалы на объекте" wide nothingToLose>
       <div className="space-y-3">
-        <label className="block space-y-1">
-          <span className="text-xs text-fg3">Стройка</span>
-          <select value={site} onChange={e => setSite(e.target.value)} aria-label="Стройка"
-            className="w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg1 outline-none focus:border-brand">
-            <option value="">выберите стройку</option>
-            {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          {sitesFailed && (
-            <span className="block text-xs text-danger">Список строек не пришёл: это отказ чтения, а не пустой список.</span>
-          )}
-        </label>
+        <Select label="Стройка" value={site} onValueChange={setSite} placeholder="выберите стройку"
+          error={sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список.' : undefined}>
+          {sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+        </Select>
 
         {!site && <p className="text-xs text-fg4">Перечень считается по стройке — из проведённых накладных.</p>}
         {site && materials.isPending && <p className="text-xs text-fg3">Загрузка…</p>}

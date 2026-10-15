@@ -197,12 +197,20 @@ await check('materialize-union-shows-variants', async () => {
 // замапленного» и тут же возвращал первый вариант — выбрать второй было нельзя вовсе.
 await check('materialize-union-switch-to-empty-variant-sticks', async () => {
   const dlg = page.locator('[role=dialog]').last();
-  const select = dlg.locator('select').first();
-  if (!(await select.count())) throw new Error('нет селектора колонки — нечего маппить');
-  const columns = await select.locator('option').evaluateAll(o => o.map(x => x.textContent.trim()));
+  // Колонка маппинга — список Select (issue #1353): его пункты живут в портале и видны, только
+  // пока он открыт. Ищем по имени, а не по порядку в окне: «Колонка для «…»» у скалярного поля,
+  // «Колонка с именем записи каталога для «…»» у варианта-ссылки (так в посеве CI). «Колонка-признак»
+  // union'а сюда не попадает — после слова нет пробела.
+  const select = dlg.getByRole('combobox', { name: /^Колонка (для|с) / }).first();
+  if (!(await select.count())) {
+    const names = await dlg.getByRole('combobox').evaluateAll(es => es.map(e => e.getAttribute('aria-label') ?? e.textContent));
+    throw new Error(`нет селектора колонки — нечего маппить; поля в окне: ${JSON.stringify(names)}`);
+  }
+  await select.click();
+  const columns = (await page.getByRole('option').allInnerTexts()).map(c => c.trim());
   const column = columns.find(c => c && !/не привязано/i.test(c));
-  if (!column) throw new Error('в селекторе нет ни одной колонки источника');
-  await select.selectOption({ label: column });
+  if (!column) { await page.keyboard.press('Escape'); throw new Error('в селекторе нет ни одной колонки источника'); }
+  await page.getByRole('option', { name: column, exact: true }).click();
   await settled(page);
   if ((await checkedVariant()) !== 'Документ') throw new Error('маппинг сбил активный вариант');
 

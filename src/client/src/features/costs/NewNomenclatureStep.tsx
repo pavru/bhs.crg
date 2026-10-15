@@ -11,6 +11,7 @@ import {
   createBody, defaultKind, missingFields, prefill, prefillHint, similarBody,
   type IntakeDraft, type LineWords,
 } from './newNomenclature';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none';
 
@@ -124,10 +125,9 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
       {kinds.data && (
         <label className="block space-y-1">
           <span className="text-xs text-fg3">Вид</span>
-          <select value={kind?.typeId ?? ''} onChange={e => pickKind(e.target.value)} className={field}>
-            <option value="">— выберите вид позиции —</option>
-            {all.map(k => <option key={k.typeId} value={k.typeId}>{k.name}</option>)}
-          </select>
+          <Select aria-label="Вид" value={kind?.typeId ?? ''} onValueChange={pickKind} emptyItem="— выберите вид позиции —">
+            {all.map(k => <SelectItem key={k.typeId} value={k.typeId}>{k.name}</SelectItem>)}
+          </Select>
         </label>
       )}
 
@@ -146,11 +146,10 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
               {f.options === null ? (
                 <input value={draft.values[f.key] ?? ''} onChange={e => type(f.key, e.target.value)} className={field} />
               ) : (
-                <select value={draft.refs[f.key] ?? ''} className={field}
-                  onChange={e => setEdited({ ...draft, refs: { ...draft.refs, [f.key]: e.target.value } })}>
-                  <option value="">— не выбрано —</option>
-                  {f.options.map(o => <option key={o.id} value={o.id}>{o.name ?? 'без названия'}</option>)}
-                </select>
+                <Select aria-label={f.title} value={draft.refs[f.key] ?? ''} emptyItem="— не выбрано —"
+                  onValueChange={id => setEdited({ ...draft, refs: { ...draft.refs, [f.key]: id } })}>
+                  {f.options.map(o => <SelectItem key={o.id} value={o.id}>{o.name ?? 'без названия'}</SelectItem>)}
+                </Select>
               )}
               {prefillHint(kind, f, from) && draft.values[f.key] === prefill(kind, from).values[f.key] && (
                 <span className="block text-caption text-fg4">{prefillHint(kind, f, from)}</span>

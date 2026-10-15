@@ -31,7 +31,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/costs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption } from './harness.mjs';
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
@@ -191,7 +191,7 @@ async function supplierPart() {
     await Promise.all([
       supplier.page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${invoiceId}/allocation`)
         && r.request().method() === 'PUT' && r.ok(), { timeout: 10_000 }),
-      select.selectOption({ label: SITE }),
+      pickOption(select, SITE),
     ]);
     await supplier.page.getByText('весь счёт на этот объект').waitFor({ timeout: 10_000 });
 
@@ -244,7 +244,7 @@ async function waybillPart(seat) {
   await page.getByText('Строки накладной').waitFor({ timeout: 10_000 });
   await page.getByLabel('Номер', { exact: true }).fill(waybill);
   await page.getByLabel('Дата отпуска').fill('2026-09-01');
-  await page.getByLabel('Получатель — стройка').first().selectOption({ label: SITE });
+  await pickOption(page.getByLabel('Получатель — стройка').first(), SITE);
 
   for (const [name, quantity] of [['Кабель прогона', '12,5'], ['Хомут прогона', '4']]) {
     await page.getByRole('button', { name: 'Строка', exact: true }).click();
@@ -263,7 +263,7 @@ async function waybillPart(seat) {
   seat.screen = 'материалы на объекте';
   await page.getByRole('button', { name: 'Материалы на объекте' }).click();
   const materials = page.getByRole('dialog', { name: 'Материалы на объекте' });
-  await materials.getByLabel('Стройка').selectOption({ label: SITE });
+  await pickOption(materials.getByLabel('Стройка'), SITE);
   // Оговорка и перечень — вместе: перечень без неё читался бы как «выдано только это».
   await materials.getByText(/Не сопоставлено: \d+ строк/).waitFor({ timeout: 10_000 });
   await materials.locator('tbody tr').first().waitFor({ timeout: 10_000 });

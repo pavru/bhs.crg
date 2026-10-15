@@ -29,6 +29,7 @@ import {
   withFilterChange, withPageStep, withRow, withSize, withSort, type TableView, type ViewChange,
 } from './tableViewState';
 import { useTableView } from './useTableView';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Экран таблицы модуля (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092): отбор чипами, сортировка
@@ -318,13 +319,13 @@ function Pager({ view, data, onChange }: {
     <div className="mt-2 flex items-center gap-3 text-xs text-fg4">
       <span>{shownOf(data)}</span>
       <div className="flex-1" />
-      <label className="flex items-center gap-1.5">
-        Строк на странице
-        <select value={view.size} onChange={e => onChange(v => withSize(v, Number(e.target.value)))}
-          className="rounded-md border border-stroke bg-surface px-1 py-0.5 text-xs text-fg2">
-          {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
-        </select>
-      </label>
+      <span className="flex items-center gap-1.5">
+        <span aria-hidden>Строк на странице</span>
+        <Select size="sm" className="w-auto" aria-label="Строк на странице"
+          value={String(view.size)} onValueChange={size => onChange(v => withSize(v, Number(size)))}>
+          {PAGE_SIZES.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}
+        </Select>
+      </span>
       {(pages > 1 || view.page > 1) && (
         <div className="flex items-center gap-1">
           <button type="button" className={button} disabled={view.page <= 1} aria-label="Предыдущая страница"

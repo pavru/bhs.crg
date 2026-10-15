@@ -3,6 +3,7 @@ import { Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { parseXPath, toXPath, type XPathModel, type XPathStep, type XPathPredicate } from './xpathModel';
 import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 interface XPathBuilderProps {
   value: string;
@@ -190,14 +191,13 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
 
   return (
     <span className="inline-flex items-center gap-1 bg-brand-subtle border border-brand-subtle rounded px-1.5 py-0.5 text-caption text-brand-hover">
-      <select value={predicateKind(predicate)} onChange={e => setKind(e.target.value as PredicateKind)}
-        className="bg-transparent outline-none">
-        <option value="exists">путь есть</option>
-        <option value="equals">путь =</option>
-        <option value="contains">содержит</option>
-        <option value="index">позиция N</option>
-        <option value="last">последний</option>
-      </select>
+      <Select size="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
+        <SelectItem value="exists">путь есть</SelectItem>
+        <SelectItem value="equals">путь =</SelectItem>
+        <SelectItem value="contains">содержит</SelectItem>
+        <SelectItem value="index">позиция N</SelectItem>
+        <SelectItem value="last">последний</SelectItem>
+      </Select>
 
       {predicate.kind !== 'position' && (
         <input value={predicate.path} onChange={e => onChange({ ...predicate, path: e.target.value })}
@@ -206,11 +206,10 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
 
       {predicate.kind === 'equals' && (
         <>
-          <select value={predicate.op} onChange={e => onChange({ ...predicate, op: e.target.value as '=' | '!=' })}
-            className="bg-transparent outline-none">
-            <option value="=">=</option>
-            <option value="!=">≠</option>
-          </select>
+          <Select size="inline" aria-label="Сравнение" value={predicate.op} onValueChange={op => onChange({ ...predicate, op: op as '=' | '!=' })}>
+            <SelectItem value="=">=</SelectItem>
+            <SelectItem value="!=">≠</SelectItem>
+          </Select>
           <input value={predicate.value} onChange={e => onChange({ ...predicate, value: e.target.value })}
             placeholder="значение" className={`w-16 ${inputCls}`} />
         </>

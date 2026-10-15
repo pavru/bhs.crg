@@ -310,6 +310,44 @@ export async function closeDialog(page) {
   if (!(await gone())) throw new Error('диалог не закрылся ни Esc, ни кнопкой выхода, ни ответом «Закрыть»');
 }
 
+/**
+ * Выбор пункта в `Select` (Radix) — тем же путём, что у человека: щелчок по полю, щелчок по пункту.
+ * `selectOption` здесь не годится: он умеет только нативный `<select>`, а у Radix поле — кнопка с
+ * ролью combobox, список — пункты с ролью option в портале (issue #1353). `trigger` — локатор поля
+ * (обычно `getByLabel` или `getByRole('combobox', { name })`), `name` — подпись пункта целиком.
+ */
+export async function pickOption(trigger, name) {
+  await trigger.click();
+  await trigger.page().getByRole('option', { name, exact: true }).click();
+}
+
+/** Группы ОТКРЫТОГО списка `Select`: подпись группы → её пункты, как их видит человек. */
+export const listGroups = list => list.evaluate(l => Object.fromEntries(
+  [...l.querySelectorAll('[role=group]')].map(g => [
+    document.getElementById(g.getAttribute('aria-labelledby'))?.textContent ?? '',
+    [...g.querySelectorAll('[role=option]')].map(o => o.textContent),
+  ])));
+
+/**
+ * Что предлагает список `Select`: открыть, прочесть группы и все пункты подряд, закрыть по Esc.
+ * Значение поля не меняется. Нужен вместо чтения `<option>`: пункты Radix живут в портале и
+ * существуют, только пока список открыт.
+ */
+export async function listOptions(trigger) {
+  const page = trigger.page();
+  await trigger.click();
+  const list = page.getByRole('listbox');
+  await list.waitFor({ timeout: 10_000 });
+  const groups = await listGroups(list);
+  const options = await list.getByRole('option').allTextContents();
+  await page.keyboard.press('Escape');
+  await list.waitFor({ state: 'hidden', timeout: 5_000 });
+  return { groups, options };
+}
+
+/** Что показывает поле `Select`: подпись выбранного пункта, а без выбора — placeholder. */
+export const shownValue = trigger => trigger.innerText().then(text => text.trim());
+
 export async function until(probe, { timeout = 10_000, every = 40 } = {}) {
   const deadline = Date.now() + timeout;
   for (;;) {

@@ -10,6 +10,7 @@ import type { DataSetBinding, DataSetSource, DocumentType, CatalogScope } from '
 import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { isLockedField } from '../fields';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -176,16 +177,14 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
           ) : (
             <>
               <div>
-                <label className="block text-xs font-medium text-fg3 mb-1">Источник данных</label>
-                <select value={sourceId} onChange={e => { setSourceId(e.target.value); setMapping({}); }}
-                  className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
-                  <option value="">— выберите источник —</option>
+                <Select label="Источник данных" value={sourceId} onValueChange={id => { setSourceId(id); setMapping({}); }}
+                  placeholder="— выберите источник —">
                   {sources.map(s => (
-                    <option key={s.id} value={s.id}>
+                    <SelectItem key={s.id} value={s.id}>
                       [{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}{s.materializeTypeId ? ` (материализация → ${allDocTypes.find(t => t.id === s.materializeTypeId)?.name ?? 'тип'})` : ''}{s.origin === 'Recognized' ? ' — распознано со скана' : ''}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {selectedSource && (isMaterialized ? (
