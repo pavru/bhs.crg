@@ -21,6 +21,7 @@ import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilte
 import { FavoriteStar, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 // ── Список строек и поиск по документам ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -151,14 +152,11 @@ export function ConstructionsList() {
 
   return (
     <div className="px-6 py-4">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-fg1">Стройки</h1>
-        {canEdit && (
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-            Новая стройка
-          </Button>
-        )}
-      </div>
+      <PageHeader title="Стройки" className="mb-4" actions={canEdit && (
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          Новая стройка
+        </Button>
+      )} />
 
       {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
 

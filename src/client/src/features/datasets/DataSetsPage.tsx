@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Layers } from 'lucide-react';
 import { DataSetsResource } from './DataSetsResource';
 import { ProcessingTemplatesDialog } from './ProcessingTemplatesDialog';
+import { Button } from '@/shared/ui/Button';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 /**
  * Системные наборы данных (scope='System'). Тонкая обёртка над общим `DataSetsResource`
@@ -12,16 +14,13 @@ export function DataSetsPage() {
 
   return (
     <div className="px-6 py-4">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-semibold text-fg1">Наборы данных</h1>
-        <button onClick={() => setTemplatesOpen(true)}
-          className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-md transition-colors text-fg2 bg-muted hover:bg-brand-subtle hover:text-brand">
-          <Layers size={14} /> Шаблоны обработки
-        </button>
-      </div>
-      <p className="text-xs mb-4 text-fg4">
-        Системные наборы доступны во всех комплектах. Наборы уровня стройки, раздела и комплекта управляются на соответствующих страницах.
-      </p>
+      <PageHeader title="Наборы данных" className="mb-4"
+        subtitle="Системные наборы доступны во всех комплектах. Наборы уровня стройки, раздела и комплекта управляются на соответствующих страницах."
+        actions={
+          <Button variant="tonal" size="sm" icon={<Layers size={14} />} onClick={() => setTemplatesOpen(true)}>
+            Шаблоны обработки
+          </Button>
+        } />
 
       <DataSetsResource scope="System" />
 

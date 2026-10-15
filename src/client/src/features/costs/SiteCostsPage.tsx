@@ -12,6 +12,7 @@ import { useCostsConstructions } from '@/shared/api/invoices';
 import { useSiteCosts, type CostFigure, type SiteCosts } from '@/shared/api/siteCosts';
 import { formatCount, formatMoney } from '@/shared/format/format';
 import { foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 const ALL = 'all';
 
@@ -62,15 +63,8 @@ export function SiteCostsPage() {
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-3xl px-6 py-5 space-y-4">
-        <header>
-          <h1 className="flex items-center gap-2 text-lg font-semibold text-fg1">
-            <ChartNoAxesColumn size={18} className="text-fg3" aria-hidden />
-            Затраты по стройке
-          </h1>
-          <p className="mt-0.5 text-sm text-fg3">
-            Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят.
-          </p>
-        </header>
+        <PageHeader icon={<ChartNoAxesColumn size={18} aria-hidden />} title="Затраты по стройке"
+          subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
 
         <div className="flex flex-wrap items-end gap-3">
           {/* Подпись над полем — своя, а не рамочная у Select: рядом стоят поля месяца той же высоты. */}

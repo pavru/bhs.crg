@@ -135,7 +135,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
         <ListDetailShell
           title={title}
           subtitle={kind === 'Composite' ? 'Переиспользуемые структуры полей для использования внутри типов документов' : undefined}
-          headerAction={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
+          actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
           overlay={overlay}
           nav={<TypeListPanel
             groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}

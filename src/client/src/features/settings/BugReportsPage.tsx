@@ -86,7 +86,7 @@ export function BugReportsPage() {
       subtitle={data && data.total > data.items.length
         ? `Показаны последние ${data.items.length} из ${data.total} — более старые в списке не видны`
         : 'Что пользователи сообщают из приложения. Наружу уходит только то, что вы отредактируете'}
-      titleIcon={<Bug size={20} className="text-fg3" />}
+      icon={<Bug size={20} className="text-fg3" />}
       overlay={isLoading
         ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div>
         : (reports?.length ?? 0) === 0

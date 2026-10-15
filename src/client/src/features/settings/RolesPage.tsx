@@ -112,7 +112,7 @@ export function RolesPage() {
     <ListDetailShell
       title="Роли и права"
       subtitle="Роль — это набор прав. Состав правится здесь, выдаётся роль на экране «Пользователи»."
-      headerAction={
+      actions={
         <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
           Новая роль
         </Button>

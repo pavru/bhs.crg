@@ -12,6 +12,7 @@ import { MyPermissionsSection } from './MyPermissionsSection';
 import { DefaultWorkspaceSection } from './DefaultWorkspaceSection';
 import { FavoriteSitesSection } from './FavoriteSitesSection';
 import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2, Palette, ShieldCheck } from 'lucide-react';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 /** Ответ сервера → имя в форме. Пока учётка не загружена — пусто, как и раньше. */
 const accountName = (a: { displayName: string } | undefined) => a?.displayName ?? '';
@@ -95,8 +96,7 @@ export function ProfilePage() {
 
   return (
     <div className="px-6 py-4 max-w-lg">
-      <h1 className="text-xl font-semibold text-fg1 mb-1">Профиль</h1>
-      <p className="text-xs text-fg4 mb-5">Ваши учётные данные.</p>
+      <PageHeader title="Профиль" subtitle="Ваши учётные данные." className="mb-5" />
 
       {/* Аватар (issue #245) */}
       <div className="flex items-center gap-4 mb-6">
