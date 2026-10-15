@@ -436,7 +436,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                     <button key={t.code} type="button" title={t.description}
                       onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
                       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                        on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'}`}>
+                        on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'}`}>
                       {t.label}
                     </button>
                   );

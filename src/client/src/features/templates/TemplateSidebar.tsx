@@ -111,7 +111,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                 <span className="font-mono text-fg2 shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
                   {t.isActive && <span className="text-xs text-success bg-success-subtle px-1.5 py-0.5 rounded shrink-0">активный</span>}
-                  {t.isDefault && <span className="text-xs text-yellow-600 bg-warning-subtle px-1.5 py-0.5 rounded shrink-0">по умолч.</span>}
+                  {t.isDefault && <span className="text-xs text-warning bg-warning-subtle px-1.5 py-0.5 rounded shrink-0">по умолч.</span>}
                   {i === 0 && !t.isActive && <span className="text-xs text-fg4 shrink-0">последняя</span>}
                   {t.comment && <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>}
                 </span>
@@ -240,7 +240,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                   {isExpanded
                     ? <ChevronUp size={12} className="text-fg4 shrink-0" />
                     : <ChevronDown size={12} className="text-fg4 shrink-0" />}
-                  {hasDefault && <Star size={10} className="fill-yellow-400 text-yellow-400 shrink-0" />}
+                  {hasDefault && <Star size={10} className="fill-warning text-warning shrink-0" />}
                   <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
                     {group.name}
                   </span>
@@ -283,7 +283,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                         <span className="text-xs font-mono shrink-0 w-6">v{t.version}</span>
                         <span className="flex items-center gap-1 flex-1 min-w-0">
                           {t.isActive && <span className="text-xs text-success shrink-0">активный</span>}
-                          {t.isDefault && <span className="text-xs text-yellow-600 shrink-0">по умолч.</span>}
+                          {t.isDefault && <span className="text-xs text-warning shrink-0">по умолч.</span>}
                           {used > 0 && (
                             <span className="flex items-center gap-0.5 text-xs text-fg4 shrink-0" title={`Используется в ${used} докум.`}>
                               <FileText size={10} /> {used}

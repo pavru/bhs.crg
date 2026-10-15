@@ -147,6 +147,10 @@ cd src/client && npm test
 cd src/client && npm run lint:ratchet
 cd src/client && npm run lint:ratchet:update   # переписать базовый уровень (осознанно!)
 
+# Храповик интерфейса (issue #1349): <table>, нативный <select>, text-[Npx] и сырая палитра в
+# features/ — по файлам; растёт — красный с подсказкой, куда вместо (правила — docs/UI.md)
+cd src/client && npm run ui:ratchet
+
 # Логика скрипта обновления (без Docker и сети; сеть нужна одной проверке — она пропускается)
 bash deploy/update.tests.sh
 
@@ -181,7 +185,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 
 `.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master: backend
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
-храповик линта), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
+храповики линта и интерфейса), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
 и **живые прогоны в браузере** — четырьмя независимыми
 работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`.
 
@@ -275,6 +279,8 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — **«почему так сделано»**: обоснования решений,
   история переходов, статус первой версии и полный листинг REST API. Сюда вынесено то, что нужно
   редко, чтобы `CLAUDE.md` не читался целиком каждой сессией (issue #1016).
+- [`docs/UI.md`](docs/UI.md) — **правила интерфейса**: MD3-формы на токенах `--f-*`, цвет только
+  токеном, шкала радиусов и теней. Новый экран сверяется с ним (issue #1348).
 - `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
   и `.env.example`. api и web поставляются образами из GHCR (`APP_VERSION` в `.env`), выпуск —
   ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:

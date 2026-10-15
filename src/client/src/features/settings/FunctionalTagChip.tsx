@@ -31,13 +31,13 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
   const step = (delta: number) => onOrderChange(String(Math.min(99, Math.max(1, (order ?? 0) + delta))));
 
   const arrowClass = 'invisible group-hover:visible group-focus-within:visible '
-    + 'text-purple-600 hover:text-purple-800 disabled:opacity-40 shrink-0';
+    + 'text-tertiary hover:text-on-tertiary-subtle disabled:opacity-40 shrink-0';
 
   return (
     <span
       className={`group inline-flex items-stretch overflow-hidden rounded-full border text-xs transition-colors ${
         on
-          ? 'bg-purple-500/15 border-purple-400 text-purple-700 focus-within:ring-1 focus-within:ring-purple-400'
+          ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle focus-within:ring-1 focus-within:ring-tertiary/50'
           : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
       }`}
     >
@@ -48,7 +48,7 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
           номер задавать не над чем. */}
       {showParameter && (
         <span
-          className="flex items-center gap-0.5 border-l border-purple-400 pl-1 pr-1"
+          className="flex items-center gap-0.5 border-l border-tertiary/50 pl-1 pr-1"
           title={tag.parameter!.description}
         >
           <button type="button" className={arrowClass} onClick={() => step(-1)}
@@ -63,8 +63,8 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
             placeholder={tag.parameter!.label}
             aria-label={`Порядок компонента: ${tag.label}`}
             onChange={e => onOrderChange(e.target.value)}
-            className="w-5 bg-transparent text-center tabular-nums text-purple-700 outline-none
-                       placeholder:text-purple-400/70"
+            className="w-5 bg-transparent text-center tabular-nums text-on-tertiary-subtle outline-none
+                       placeholder:text-tertiary/60"
           />
           <button type="button" className={arrowClass} onClick={() => step(1)}
             disabled={(order ?? 0) >= 99} aria-label={`Увеличить порядок: ${tag.label}`}>

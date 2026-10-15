@@ -71,20 +71,20 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       );
     }
     return (
-      <div className="flex items-center gap-2 border border-indigo-200 rounded-lg px-3 py-2 bg-indigo-50">
-        <FileText size={14} className="text-indigo-500 shrink-0" />
+      <div className="flex items-center gap-2 border border-brand/30 rounded-lg px-3 py-2 bg-brand-subtle">
+        <FileText size={14} className="text-brand shrink-0" />
         <span className="flex-1 min-w-0">
-          <span className="block text-sm text-indigo-700 font-medium truncate">{label}</span>
-          {inst?.name && dt && <span className="block text-xs text-indigo-400 truncate">{dt.name}</span>}
+          <span className="block text-sm text-on-brand-subtle font-medium truncate">{label}</span>
+          {inst?.name && dt && <span className="block text-xs text-on-brand-subtle/70 truncate">{dt.name}</span>}
         </span>
         {inst && (
           <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
             {STATUS_LABELS[inst.status]}
           </span>
         )}
-        {replaceButton('text-indigo-400 hover:text-indigo-700')}
+        {replaceButton('text-on-brand-subtle/70 hover:text-on-brand-subtle')}
         <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
-          className="p-1 text-indigo-400 hover:text-danger transition-colors">
+          className="p-1 text-on-brand-subtle/70 hover:text-danger transition-colors">
           <Unlink size={13} />
         </button>
         {picker}
@@ -128,7 +128,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   return (
     <>
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-indigo-600 hover:text-indigo-700 border border-dashed border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors w-full">
+        className="flex items-center gap-2 px-3 py-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand/40 rounded-lg hover:bg-brand-subtle transition-colors w-full">
         <FileText size={13} /> Выбрать документ...
       </button>
       {picker}
@@ -181,7 +181,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
           Документы <span className="text-fg4">{items.length} ссылок</span>
         </span>
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-100 transition-colors">
+          className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors">
           <Plus size={11} /> Добавить
         </button>
       </div>
@@ -213,7 +213,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
             }
             return (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
-                <FileText size={13} className={isCatalog ? 'text-warning shrink-0' : 'text-indigo-400 shrink-0'} />
+                <FileText size={13} className={isCatalog ? 'text-warning shrink-0' : 'text-brand shrink-0'} />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm text-fg2 truncate">{label}</span>
                   {isCatalog ? (

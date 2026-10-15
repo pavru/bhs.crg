@@ -44,6 +44,12 @@
   --f-on-secondary-container: #131c2b;
   --f-on-primary-container:   #001b3c;
 
+  /* MD3 tertiary — третий акцент, отличный от бренда: функциональные тэги, значки видов файлов
+     (issue #1348; раньше — сырая палитра purple-*). */
+  --f-tertiary:              #7340b8;
+  --f-tertiary-container:    #efe0ff;
+  --f-on-tertiary-container: #2b0b5e;
+
   /* Status → MD3 error + производные контейнеры */
   --f-success-bg: #d7f0e3;
   --f-success-fg: #1b8a5b;
@@ -95,6 +101,10 @@
   --f-secondary-container:    #3b4858;
   --f-on-secondary-container: #dae2f9;
   --f-on-primary-container:   #d6e3ff;
+
+  --f-tertiary:              #d4b8ff;
+  --f-tertiary-container:    #4b2c7f;
+  --f-on-tertiary-container: #efe0ff;
 
   --f-success-bg: #06301f;
   --f-success-fg: #5fd39a;
@@ -149,6 +159,11 @@
   --color-tonal:    var(--f-secondary-container);
   --color-on-tonal: var(--f-on-secondary-container);
 
+  /* Tertiary (MD3) — функциональные тэги, значки видов файлов */
+  --color-tertiary:           var(--f-tertiary);
+  --color-tertiary-subtle:    var(--f-tertiary-container);
+  --color-on-tertiary-subtle: var(--f-on-tertiary-container);
+
   /* Status */
   --color-success:         var(--f-success-fg);
   --color-success-subtle:  var(--f-success-bg);
@@ -158,11 +173,11 @@
   --color-danger:          var(--f-danger-fg);
   --color-danger-subtle:   var(--f-danger-bg);
 
-  /* Border radius → Fluent 2 scale */
-  --radius-sm: var(--f-r-sm);   /* 2px */
-  --radius-md: var(--f-r-md);   /* 4px  (Tailwind default: 6px) */
-  --radius-lg: var(--f-r-lg);   /* 6px  (Tailwind default: 8px) */
-  --radius-xl: var(--f-r-xl);   /* 8px  (Tailwind default: 12px) */
+  /* Border radius — шкала MD3 на именах Tailwind (назначение — docs/UI.md) */
+  --radius-sm: var(--f-r-sm);   /* 4px  — чип, бейдж, мелкий контрол */
+  --radius-md: var(--f-r-md);   /* 6px  — поле ввода, кнопка-иконка   */
+  --radius-lg: var(--f-r-lg);   /* 10px — плашка, всплывающее меню    */
+  --radius-xl: var(--f-r-xl);   /* 16px — карточка, панель            */
 }
 
 /* ── dark: variant using data-theme ─────────────────────────────────────────── */
