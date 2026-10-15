@@ -15,7 +15,7 @@ import type { DocumentType } from '@/shared/api/types';
 import { chainFieldKeys, parseSchemaFields, resolveEffectiveFields, type SchemaField, type SchemaDefinition } from '@/shared/api/schema';
 import { typeHealth, healthBadgeLabel } from './typeHealth';
 import { TYPE_LABELS } from './schemaConstants';
-import { DetailHeader } from '@/shared/ui/ListDetailShell';
+import { DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { PropertiesEditor } from './PropertiesEditor';
@@ -112,7 +112,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
         heading={
           <>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-normal text-fg1 truncate">{docType.name}</h2>
+              <DetailTitle>{docType.name}</DetailTitle>
               <span className="text-xs text-fg4 font-mono">{docType.code}</span>
               {parentType && (
                 <button type="button" onClick={() => onSelectType(parentType.id)}

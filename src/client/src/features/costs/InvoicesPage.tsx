@@ -320,8 +320,8 @@ export function InvoicesPage() {
     <ListDetailShell
       title="Счета на оплату"
       subtitle="Черновик сохраняется без строк и сразу попадает в список"
-      headerAction={
-        <div className="flex items-center gap-2">
+      actions={
+        <>
           {/* Справочник статей вне строек (F3) — у того, кто его ведёт, а не у всех: остальным он виден
               только в выборе цели разноски. */}
           {hasPermission(access, 'costs.articles.edit') && (
@@ -364,7 +364,7 @@ export function InvoicesPage() {
           {articlesOpen && <ArticlesDialog onClose={() => setArticlesOpen(false)} />}
           {matchesOpen && <SupplierMatchesDialog onClose={() => setMatchesOpen(false)} />}
           {termsOpen && <SupplierTermsDialog onClose={() => setTermsOpen(false)} />}
-        </div>
+        </>
       }
       nav={
         <InvoiceScanDrop enabled={hasPermission(access, 'costs.invoice.edit') && !loading} onFiles={addScans}>

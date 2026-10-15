@@ -21,6 +21,7 @@ import {
   type MappingDraft, type RawSchema,
 } from './fieldMapping';
 import { saveGroup } from './fieldMappingSave';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 /**
  * «Сопоставление полей» (ТЗ TYPE-23.1, issue #1101): что включённые модули читают из справочников
@@ -220,7 +221,7 @@ function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: Fai
 function Frame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="px-6 py-4 max-w-5xl space-y-5">
-      <h1 className="text-xl font-semibold text-fg1">{title}</h1>
+      <PageHeader title={title} />
       {children}
     </div>
   );

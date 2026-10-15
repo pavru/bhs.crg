@@ -6,7 +6,7 @@ import {
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
+import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -339,7 +339,7 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
       heading={
         <>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl font-normal text-fg1 truncate">{name || '(без названия)'}</h2>
+            <DetailTitle>{name || '(без названия)'}</DetailTitle>
             <span className={`${badge} bg-muted text-fg3`}>{chip}</span>
             {usedBy > 0 && <span className={`${badge} bg-brand-subtle text-brand`}>используется: {usedBy}</span>}
           </div>
@@ -695,7 +695,7 @@ export function PrimitiveTypesPage() {
         <ListDetailShell
           title="Типы полей"
           subtitle="Пользовательские типы реквизитов (строка/число/дата) и перечисления"
-          headerAction={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
+          actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
           nav={<FieldTypeListPanel mode={mode} onMode={requestMode}
             primitives={sortedPrim} enums={sortedEnum}
             selectedId={mode === 'primitive' ? (selectedPrim?.id ?? null) : (selectedEnum?.id ?? null)}

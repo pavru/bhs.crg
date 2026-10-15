@@ -60,6 +60,10 @@
     "features/tables/TablePage.tsx": 1,
     "features/templates/TemplateParamsPanel.tsx": 1
   },
+  "h1": {
+    "features/auth/AuthCard.tsx": 1,
+    "features/catalog/LoginPage.tsx": 1
+  },
   "text-size": {},
   "palette": {}
 }

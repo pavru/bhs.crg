@@ -20,6 +20,13 @@ export const RULES = [
     instead: 'выбор из списка — Select (shared/ui/Select); перевод накопленных — #1353',
   },
   {
+    id: 'h1',
+    // Свой заголовок страницы. Законные — карточки входа (features/auth, LoginPage): это карточка
+    // посреди пустого экрана, а не страница с шапкой, и в уровне они стоят навсегда.
+    pattern: /<h1\b/g,
+    instead: 'заголовок страницы — PageHeader (shared/ui/PageHeader), в list-detail — ListDetailShell: docs/UI.md, «Заголовки»',
+  },
+  {
     id: 'text-size',
     // Произвольный размер текста: text-[11px], text-[0.7rem]. Цвет вида text-[#fff] ловит palette.
     pattern: /\btext-\[\d+(?:\.\d+)?(?:px|rem|em)\]/g,

@@ -1,5 +1,6 @@
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { CatalogResource } from '../document-sets/catalog/CatalogResource';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 /**
  * Системный каталог общих данных (scope='System', приоритет 5). Тонкая обёртка над общим
@@ -9,10 +10,8 @@ export function SystemCommonDataPage() {
   const { data: allDocTypes = [] } = useListDocumentTypes();
   return (
     <div className="px-6 py-4">
-      <div className="mb-4">
-        <h1 className="text-xl font-semibold text-fg1">Системный каталог</h1>
-        <p className="text-xs text-fg3 mt-0.5">Общие данные, доступные во всех проектах (приоритет 5)</p>
-      </div>
+      <PageHeader title="Системный каталог" subtitle="Общие данные, доступные во всех проектах (приоритет 5)"
+        className="mb-4" />
       <CatalogResource scope="System" scopeId={null} allDocTypes={allDocTypes} />
     </div>
   );

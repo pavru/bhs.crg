@@ -120,7 +120,7 @@ export function ConstructionDetail() {
   );
 
   const headerAction = (
-    <div className="flex items-center gap-2 shrink-0">
+    <>
       {canEdit && <>
         <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
         <RowActionsMenu ariaLabel="Действия стройки" actions={[
@@ -128,7 +128,7 @@ export function ConstructionDetail() {
           { key: 'delete', label: 'Удалить стройку', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
         ]} />
       </>}
-    </div>
+    </>
   );
 
   const detail = (
@@ -145,9 +145,9 @@ export function ConstructionDetail() {
 
   return (
     <>
-      <ListDetailShell title={construction.name} titleIcon={<Building2 size={20} />} breadcrumb={contextCrumbs}
-        titleBadge={<PlanProgressBadge progress={plan?.own} />}
-        headerAction={headerAction} nav={nav} detail={detail} />
+      <ListDetailShell title={construction.name} icon={<Building2 size={20} />} breadcrumb={contextCrumbs}
+        badge={<PlanProgressBadge progress={plan?.own} />}
+        actions={headerAction} nav={nav} detail={detail} />
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
         footer={

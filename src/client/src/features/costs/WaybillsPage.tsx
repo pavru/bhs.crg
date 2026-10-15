@@ -110,8 +110,8 @@ export function WaybillsPage() {
     <ListDetailShell
       title="Расходные накладные"
       subtitle="Проведённая накладная — материалы, выданные на стройку"
-      headerAction={
-        <div className="flex items-center gap-2">
+      actions={
+        <>
           <Button variant="outlined" icon={<PackageCheck size={16} />} onClick={() => setMaterialsOpen(true)}>
             Материалы на объекте
           </Button>
@@ -124,7 +124,7 @@ export function WaybillsPage() {
             <IssuedMaterialsDialog sites={sites.data ?? []} sitesFailed={sites.isError}
               onClose={() => setMaterialsOpen(false)} />
           )}
-        </div>
+        </>
       }
       nav={
         <>

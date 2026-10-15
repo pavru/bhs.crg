@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Button } from './Button';
+import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
 
 /**
@@ -10,17 +11,10 @@ import { SearchInput } from './SearchInput';
  * per-page слоты; реестр агрегации dirty — отдельный модуль (features/settings/typeEditorRegistry).
  * НЕ клиент этого shell: редактор документа (#192) — там навигация ВНУТРИ сущности + preview-панель.
  */
-export function ListDetailShell({ title, subtitle, titleIcon, titleBadge, breadcrumb, headerAction, overlay, nav, navWidth = 'w-80', detail }: {
+export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, ...header }: Omit<PageHeaderProps, 'title'> & {
+  /** Строкой, а не узлом: им же названа колонка навигации для диктора. Остальные слоты шапки —
+   *  те же, что у `PageHeader` (значок уровня, готовность по плану в `badge` — #796, крошки). */
   title: string;
-  subtitle?: string;
-  /** Иконка уровня слева от заголовка (scope-страницы: стройка/раздел/комплект). */
-  titleIcon?: ReactNode;
-  /** Показатель состояния уровня справа от заголовка — сегодня это готовность по плану (#796).
-   *  Не в `headerAction`: там действия, и цифра среди кнопок читалась бы как ещё одна кнопка. */
-  titleBadge?: ReactNode;
-  /** Хлебные крошки над заголовком (scope-страницы). */
-  breadcrumb?: ReactNode;
-  headerAction?: ReactNode;
   /** Полноэкранное состояние вместо сплита (загрузка / пустая коллекция). */
   overlay?: ReactNode;
   /** Содержимое левой колонки (табы/поиск/список) — per-page. Рамку/ширину задаёт shell. */
@@ -32,21 +26,10 @@ export function ListDetailShell({ title, subtitle, titleIcon, titleBadge, breadc
 }) {
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
-        <div className="min-w-0">
-          {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
-          <div className="flex items-center gap-2 min-w-0">
-            {titleIcon && <span className="text-fg3 shrink-0">{titleIcon}</span>}
-            <h1 className="text-xl font-semibold text-fg1 truncate">{title}</h1>
-            {titleBadge}
-          </div>
-          {subtitle && <p className="text-xs text-fg3 mt-0.5">{subtitle}</p>}
-        </div>
-        {headerAction}
-      </div>
+      <PageHeader bar {...header} />
       {overlay ?? (
         <div className="flex-1 min-h-0 flex">
-          <nav aria-label={title} className={`${navWidth} shrink-0 border-r border-stroke flex flex-col bg-base`}>
+          <nav aria-label={header.title} className={`${navWidth} shrink-0 border-r border-stroke flex flex-col bg-base`}>
             {nav}
           </nav>
           {detail}
@@ -127,6 +110,12 @@ export function NavItem({ icon, label, count, active, chevron, onClick, alert, a
       )}
     </button>
   );
+}
+
+/** Имя выбранного объекта в `DetailHeader` (issue #1352): `h2` — на ступень ниже заголовка страницы,
+ *  крупно, но тише его (`font-normal`). Длинное обрезается, полностью — в подсказке. */
+export function DetailTitle({ children }: { children: string }) {
+  return <h2 className="text-xl font-normal text-fg1 truncate min-w-0" title={children}>{children}</h2>;
 }
 
 /** Sticky-шапка detail: слева доменный `heading` (имя+бейджи+код), справа dirty-бейдж + «Сохранить»

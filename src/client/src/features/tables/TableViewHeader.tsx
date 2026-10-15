@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
 import { Check, ChevronDown, Table2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { PageHeader } from '@/shared/ui/PageHeader';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
@@ -140,45 +141,44 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
 
   return (
     <div className="mb-3">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Popover.Root open={open} onOpenChange={setOpen}>
-          <h1 className="text-xl font-semibold text-fg1 max-w-full">
+      <PageHeader
+        title={
+          <Popover.Root open={open} onOpenChange={setOpen}>
             <Popover.Trigger asChild>
               <button type="button" title="Выбрать представление"
-                className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-full">
+                className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-[calc(100%+0.75rem)]">
                 <Table2 size={18} className="text-fg3 shrink-0" aria-hidden />
                 <span className="truncate">{title}</span>
                 <ChevronDown size={16} className="text-fg3 shrink-0" aria-hidden />
               </button>
             </Popover.Trigger>
-          </h1>
-          <Popover.Portal>
-            <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
-              className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-2 focus:outline-none"
-              style={{ boxShadow: 'var(--f-shadow16)' }}>
-              <ul>
-                {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
-                {row('table', `${path}${wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}
-              </ul>
-              <Group title="Готовые" empty={null}>
-                {groups.ready.map(p => row(p.code, `${path}/${encodeURIComponent(p.code)}`, p.title,
-                  lookup.state === 'found' && lookup.preset.code === p.code))}
-              </Group>
-              {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-danger">{savedProblem}</p>}
-              {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-fg4">Сохранённые представления загружаются…</p>}
-              {!off && saved && (
-                <>
-                  <Group title="Мои" empty="Настройте таблицу и сохраните её — представление появится здесь.">
-                    {groups.own.map(savedRow)}
-                  </Group>
-                  <Group title="Общие" empty={null}>{groups.shared.map(savedRow)}</Group>
-                </>
-              )}
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
-
-        {modified && (
+            <Popover.Portal>
+              <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
+                className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-2 focus:outline-none"
+                style={{ boxShadow: 'var(--f-shadow16)' }}>
+                <ul>
+                  {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
+                  {row('table', `${path}${wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}
+                </ul>
+                <Group title="Готовые" empty={null}>
+                  {groups.ready.map(p => row(p.code, `${path}/${encodeURIComponent(p.code)}`, p.title,
+                    lookup.state === 'found' && lookup.preset.code === p.code))}
+                </Group>
+                {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-danger">{savedProblem}</p>}
+                {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-fg4">Сохранённые представления загружаются…</p>}
+                {!off && saved && (
+                  <>
+                    <Group title="Мои" empty="Настройте таблицу и сохраните её — представление появится здесь.">
+                      {groups.own.map(savedRow)}
+                    </Group>
+                    <Group title="Общие" empty={null}>{groups.shared.map(savedRow)}</Group>
+                  </>
+                )}
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+        }
+        badge={modified && (
           <>
             <span className="text-sm text-warning" role="status">· изменено</span>
             {can.save && <Button size="sm" variant="tonal" loading={save.isPending} onClick={() => void saveOver()}>Сохранить</Button>}
@@ -186,8 +186,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             <Button size="sm" variant="text" onClick={() => onChange(v => withViewReset(v, base))}>Сбросить</Button>
           </>
         )}
-      </div>
-      <p className="mt-0.5 text-xs text-fg4">Строка — {decl.grain}. {decl.boundary.replace(/\.$/, '')}.</p>
+        subtitle={`Строка — ${decl.grain}. ${decl.boundary.replace(/\.$/, '')}.`} />
 
       {asked?.kind === 'create' && (
         <SaveViewDialog heading="Сохранить представление" action="Сохранить" share={canShare}

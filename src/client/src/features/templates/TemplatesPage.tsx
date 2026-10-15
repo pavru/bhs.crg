@@ -20,6 +20,7 @@ import { SystemLibPanel } from './SystemLibPanel';
 import { TypeBlocksPanel } from './TypeBlocksPanel';
 import { TemplateSidebar, DocTypeSelector, VersionCleanupModal } from './TemplateSidebar';
 import { groupTemplates, type TemplateGroup } from './groupTemplates';
+import { PageHeader } from '@/shared/ui/PageHeader';
 // ─── New template form ────────────────────────────────────────────────────────
 
 interface NewTemplateFormProps {
@@ -261,21 +262,17 @@ export function TemplatesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ── Header ── */}
-      <div className="px-6 py-3 border-b border-stroke bg-surface">
-        <div className="flex items-center justify-between gap-4">
-          {/* Режимы страницы. «Блоки типов» — собранный typeblocks.typ (issue #770): рядом с двумя
-              другими библиотеками, потому что шаблон видит все три одинаково — импортом. Только
-              чтение, как и системные функции. */}
-          <Tabs id={TABS_ID} variant="segmented" aria-label="Раздел шаблонов" className="shrink-0 whitespace-nowrap"
-            value={mode} onChange={setMode} items={MODES} />
-
-          {/* Doc type selector — only in templates mode */}
-          {mode === 'templates' && (
-            <DocTypeSelector docTypes={docTypes} selected={selectedTypeId} onSelect={handleTypeChange} />
-          )}
-        </div>
-      </div>
+      <PageHeader bar className="bg-surface" title="Шаблоны" actions={<>
+        {/* Выбор типа документа — только в режиме шаблонов */}
+        {mode === 'templates' && (
+          <DocTypeSelector docTypes={docTypes} selected={selectedTypeId} onSelect={handleTypeChange} />
+        )}
+        {/* Режимы страницы. «Блоки типов» — собранный typeblocks.typ (issue #770): рядом с двумя
+            другими библиотеками, потому что шаблон видит все три одинаково — импортом. Только
+            чтение, как и системные функции. */}
+        <Tabs id={TABS_ID} variant="segmented" aria-label="Раздел шаблонов" className="max-w-full overflow-x-auto whitespace-nowrap"
+          value={mode} onChange={setMode} items={MODES} />
+      </>} />
 
       {/* ── Content ── */}
       <TabPanel id={TABS_ID} value={mode} className="flex-1 min-h-0 flex flex-col">
