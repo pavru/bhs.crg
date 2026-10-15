@@ -14,9 +14,10 @@ import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  INVOICES_KEY, forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
-  type InvoiceListItem, type InvoiceQueue,
+  INVOICES_KEY, InvoiceSavedContext, forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice,
+  useInvoices, type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
+import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
 import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
@@ -27,6 +28,8 @@ import { SupplierTermsDialog } from './SupplierTermsDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
+import { NotInRailNotice, RailSitesEmpty } from './InvoiceRailSites';
+import { useRailSites } from './useRailSites';
 import {
   afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
   type HeldRow, type QueueExit, type QueueTrace,
@@ -129,10 +132,13 @@ export function InvoicesPage() {
   if (filter === 'upload' && !batch) setFilter(null);
   // Принадлежность загрузке считается в одном месте — `uploadedOf`: и строки, и число в полосе.
   const ofUpload = new Set((uploadedOf(invoices.data, batch) ?? []).map(i => i.id));
+  // Избранные стройки (#1221) урезают только общий список — без чипа и без отбора загрузки.
+  const sites = useRailSites({ cuts: filter === null, list: invoices.data, selected, matches: i => matches(i, query) });
   // Открытый счёт под отбором загрузки остаётся строкой, даже если заведён не ею: форма справа без
   // активной строки слева выглядела бы счётом, которого в списке нет. В число он не входит.
   const rows = queueRows(invoices.data ?? [], nextHeld, trace)
-    .filter(r => matches(r.item, query) && (!onlyUpload || ofUpload.has(r.item.id) || r.item.id === selected));
+    .filter(r => matches(r.item, query) && (!onlyUpload || ofUpload.has(r.item.id) || r.item.id === selected)
+      && !sites.hides(r.item));
   // Сколько счетов загрузки в списке. Под включённым отбором — сколько показано: поиск сужает внутри,
   // и полоса не должна называть пять над одной строкой. «Не знаем» — список не пришёл, стоит под чипом
   // (в отобранном сервером списке счетов загрузки может и не быть) либо догоняет: заведённых в нём
@@ -387,7 +393,16 @@ export function InvoicesPage() {
             {onlyUpload && rows.length === 0 && catchingUp && !invoices.isPending && (
               <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>
             )}
-            {!invoices.isPending && !invoices.isError && rows.length === 0 && !(onlyUpload && catchingUp) && (
+            {!invoices.isPending && !invoices.isError && rows.length > 0 && filter === null && (
+              <div className="px-3 py-1.5"><SiteFilterNote hidden={sites.hidden} /></div>
+            )}
+            {/* Счета есть, но скрыты фильтром — сказать это ПЕРЕД «Счетов пока нет», которое было бы неправдой. */}
+            {!invoices.isPending && !invoices.isError && rows.length === 0 && filter === null && (
+              <RailSitesEmpty searching={!!query.trim()} hidden={sites.hidden} foundHidden={sites.foundHidden}
+                onShowAll={sites.showAll} />
+            )}
+            {!invoices.isPending && !invoices.isError && rows.length === 0 && !(onlyUpload && catchingUp)
+              && !(filter === null && (query.trim() ? sites.foundHidden : sites.hidden) > 0) && (
               <div className="px-3 py-2 text-xs text-fg3 space-y-1">
                 <p>{onlyUpload ? uploadEmpty(query) : emptyText(queue, query, queues)}</p>
                 {(onlyUpload || (queue && !query.trim())) && (
@@ -449,27 +464,31 @@ export function InvoicesPage() {
           </div>
         ) : (
           <div className="flex-1 min-w-0 min-h-0 flex flex-col" inert={leading}>
+            {sites.openHidden && <NotInRailNotice onShowAll={sites.showAll} />}
             {opened.rereadFailed != null && (
               <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}
                 retrying={view.isFetching} onRetry={() => void view.refetch()} />
             )}
             <div className="flex-1 min-w-0 min-h-0 flex">
-              <InvoiceForm
-                key={opened.id}
-                view={opened.data}
-                organizations={organizations.data ?? []}
-                organizationsError={organizations.isError ? organizations.error : undefined}
-                onOpenInvoice={setSelected}
-                onExit={(how, send, otherwise) => exiting(
-                  opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
-                focusHeader={led === opened.id}
-                onUnsaved={noteUnsaved}
-                gone={gone} onClose={() => closeGone(opened.id)}
-                scanSlot={hasScan && !wide && !gone
-                  ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
-                      fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
-                  : undefined}
-              />
+              {/* Своя запись счёта — рейлу: разноска на неизбранную стройку уводит счёт из списка (#1221). */}
+              <InvoiceSavedContext.Provider value={sites.onSaved}>
+                <InvoiceForm
+                  key={opened.id}
+                  view={opened.data}
+                  organizations={organizations.data ?? []}
+                  organizationsError={organizations.isError ? organizations.error : undefined}
+                  onOpenInvoice={setSelected}
+                  onExit={(how, send, otherwise) => exiting(
+                    opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
+                  focusHeader={led === opened.id}
+                  onUnsaved={noteUnsaved}
+                  gone={gone} onClose={() => closeGone(opened.id)}
+                  scanSlot={hasScan && !wide && !gone
+                    ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
+                        fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
+                    : undefined}
+                />
+              </InvoiceSavedContext.Provider>
               {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
                   экране бумага не должна отъедать место у полей, которые правят. */}
               {hasScan && wide && !gone && (

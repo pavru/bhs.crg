@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react';
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
@@ -338,6 +339,12 @@ export interface InvoiceListItem {
   daysLeft?: number | null;
   /** Срок прошёл, а счёт оплаты ждёт. Считает сервер — признак нигде не хранится. */
   overdue?: boolean;
+  /**
+   * Стройки разноски (issue #1221), каждая один раз; пусто — счёт не разнесён ни на одну стройку.
+   * По ним рейл отбирает под фильтром «Избранные стройки». Старый сервер поля не присылает — тогда
+   * счёт считается неразнесённым и виден всегда.
+   */
+  constructionIds?: string[];
 }
 
 /** Где в счёте стоят ссылки не на месте. `count` — ссылок, а не мест формы. */
@@ -514,16 +521,27 @@ function rereadOnConflict(qc: QueryClient) {
 }
 
 /**
+ * Кому сказать о СВОЕЙ записи счёта: прежний вид (из кэша; `undefined` — его не было) и новый. Так
+ * экран отличает свою правку от перечитанной чужой: «Сохранено…» говорится только о сделанном здесь
+ * (issue #1221 — счёт, разнесённый на неизбранную стройку, уходит из рейла). Без провайдера — молчит.
+ */
+export const InvoiceSavedContext =
+  createContext<((before: InvoiceView | undefined, after: InvoiceView) => void) | null>(null);
+
+/**
  * Правка счёта, возвращающая его вид: ответ кладётся в кэш, реестр перечитывается, отказ 409 перечитывает
  * счёт. Каждый пишущий хук счёта строится на этом — иначе следующий, написанный по образцу, забыл бы
  * перечитать после отказа, и отказ повис бы над экраном, на котором всё по-прежнему.
  */
 export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Promise<InvoiceView>) {
   const qc = useQueryClient();
+  const saved = useContext(InvoiceSavedContext);
   return useMutation({
     mutationFn: send,
     onSuccess: view => {
+      const before = qc.getQueryData<InvoiceView>([QK, view.id]);
       qc.setQueryData([QK, view.id], view);
+      saved?.(before, view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
     onError: rereadOnConflict(qc),

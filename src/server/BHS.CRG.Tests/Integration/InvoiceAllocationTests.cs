@@ -254,6 +254,45 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Contains(expected, await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Сторож #1221: элемент списка счетов несёт стройки разноски — каждую один раз, по всем строкам, —
+    /// и в общем списке, и под отбором «Разобрать». Без них фильтр «Избранные стройки» на клиенте
+    /// типами зелёный, а не делает ничего: у каждого счёта «строек нет», и виден он всегда.
+    /// </summary>
+    [Fact]
+    public async Task Элемент_списка_несёт_все_стройки_разноски()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        var bare = await CreateAsync(client, complete: true);
+        var view = await LinesAsync(client, invoice, [
+            Line(cable, quantity: 300, price: 10m),
+            Line(cable, quantity: 10, price: 10m),
+        ]);
+        var (a, sections) = await SiteAsync("Комарова 36", "4 эт.", "3 эт.");
+        var (b, _) = await SiteAsync("Ливнёвка");
+        var (article, _) = await ArticleAsync(client, "Склад");
+
+        // На «Комарова» — двумя частями (два раздела): в элементе она обязана стоять один раз.
+        await AllocateAsync(client, invoice, LineId(view, 1), [
+            Part(a, quantity: 100, section: sections[0]),
+            Part(a, quantity: 100, section: sections[1]),
+            Part(b, quantity: 100),
+        ]);
+        // Статья вне строек стройкой не является.
+        await AllocateAsync(client, invoice, LineId(view, 2), [ArticlePart(article, quantity: 10)]);
+
+        foreach (var address in new[] { "/api/costs/invoices", "/api/costs/invoices?needsParsing=true" })
+        {
+            var list = (await client.GetFromJsonAsync<JsonElement>(address)).EnumerateArray().ToList();
+            Guid[] SitesOf(Guid id) => [.. list.Single(i => i.GetProperty("id").GetGuid() == id)
+                .GetProperty("constructionIds").EnumerateArray().Select(s => s.GetGuid())];
+
+            Assert.Equal(new[] { a, b }.Order(), SitesOf(invoice));
+            Assert.Empty(SitesOf(bare));
+        }
+    }
+
     [Fact]
     public async Task Стройки_с_разделами_отдаются_модулем()
     {
