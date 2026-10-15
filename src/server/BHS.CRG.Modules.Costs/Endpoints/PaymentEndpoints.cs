@@ -68,8 +68,11 @@ public static class PaymentEndpoints
             throw new NotFoundException($"{InvoiceEndpoints.Label(invoice)} не оплачен — расклада оплаты у него нет.");
 
         var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
+        var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
+        var before = PaymentPosting.Before(invoice, parts, PaymentPosting.Balance(
+            await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), parts, invoice.Total, tolerance));
         return TypedResults.Ok(await PostingAsync(db, places, invoice, paidOn, await clock.TodayAsync(ct),
-            PaymentPosting.Before(invoice, parts), await periods.BoundariesAsync(ct), await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct));
+            before, await periods.BoundariesAsync(ct), tolerance, ct));
     }
 
     /// <summary>

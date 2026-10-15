@@ -37,40 +37,20 @@ public sealed record PostedMoney(InvoiceAllocation? Part, decimal? Amount, DateO
 public sealed record PaymentPlan(DateOnly PaidOn, IReadOnlyList<PostedShare> Shares, PostedRemainder? Remainder);
 
 /// <summary>
-/// Учётные даты, записанные ДО правки, — по значению: строка и цель. По ним правка разноски решает,
-/// какая доля дату сохраняет.
+/// Что было записано ДО правки — по значению, строка и цель: учётные даты долей и их деньги. По ним
+/// правка разноски решает, какая доля дату сохраняет и от какой прежней доли её получает новая.
 /// </summary>
+/// <param name="Money">Деньги каждой доли до правки; <c>null</c> — посчитать было нечем (в строке не
+/// вписана цена). Нужны, чтобы узнать, у какой прежней доли деньги ушли (см. <see cref="PaymentPosting.Plan" />).</param>
 public sealed record PostedBefore(
-    IReadOnlyDictionary<(Guid? LineId, AllocationTarget Target), DateOnly> Shares, DateOnly? Remainder)
+    IReadOnlyDictionary<(Guid? LineId, AllocationTarget Target), DateOnly> Shares,
+    IReadOnlyDictionary<(Guid? LineId, AllocationTarget Target), decimal?> Money,
+    DateOnly? Remainder)
 {
     /// <summary>Счёт не был оплачен: сохранять нечего, все даты — по правилу оплаты.</summary>
-    public static PostedBefore None { get; } =
-        new(new Dictionary<(Guid? LineId, AllocationTarget Target), DateOnly>(), null);
-
-    /// <summary>
-    /// Прежний день доли; <c>null</c> — прежнего нет, день по правилу оплаты (issue #1341).
-    ///
-    /// <para>Сначала — та же строка и та же цель: так читается записанный расклад, и день обязан
-    /// вернуться ровно тот, что лежит у доли. Иначе — та же строка и тот же КОНТУР: перенос между
-    /// разделами одной стройки (или между статьями вне строек) не уносит деньги из её закрытого
-    /// месяца в следующий — стройка та же, и ТЗ (COST-16) пересчитывает день только у доли,
-    /// перенесённой на другую стройку.</para>
-    ///
-    /// <para>Совпадений по контуру бывает несколько (у строки два раздела с разными днями) — берём
-    /// позднейший, тем же правилом, что у отрицательного остатка: поздний день не открывает
-    /// закрытого месяца, а ранний мог бы.</para>
-    /// </summary>
-    public DateOnly? DayOf(Guid? lineId, AllocationTarget target)
-    {
-        if (Shares.TryGetValue((lineId, target), out var same)) return same;
-
-        var contour = PaymentPosting.ContourOf(target);
-        var days = Shares
-            .Where(s => s.Key.LineId == lineId && PaymentPosting.ContourOf(s.Key.Target) == contour)
-            .Select(s => s.Value)
-            .ToList();
-        return days.Count > 0 ? days.Max() : null;
-    }
+    public static PostedBefore None { get; } = new(
+        new Dictionary<(Guid? LineId, AllocationTarget Target), DateOnly>(),
+        new Dictionary<(Guid? LineId, AllocationTarget Target), decimal?>(), null);
 }
 
 /// <summary>
@@ -97,11 +77,22 @@ public static class PaymentPosting
     /// <summary>
     /// Расклад оплаты.
     ///
-    /// <para><b>Дата доли при правке — по значению.</b> Та же строка и тот же контур (стройка; у статей
-    /// вне строек — компания) — дата сохраняется, раздел или статья внутри контура её не двигают;
-    /// контур сменился или доля новая — дата по правилу оплаты (<see cref="PostedBefore.DayOf" />). По
-    /// значению, а не по идентификатору части: построчная разноска правит цель на месте, и прежняя
-    /// дата уехала бы на новую стройку.</para>
+    /// <para><b>Дата доли при правке — по значению.</b> По значению, а не по идентификатору части:
+    /// построчная разноска правит цель на месте, и прежняя дата уехала бы на новую стройку. Подбор:</para>
+    /// <list type="number">
+    /// <item>та же строка и та же цель — дата сохраняется; так читается и записанный расклад;</item>
+    /// <item>иначе — дата прежней доли той же строки и того же КОНТУРА (стройка; у статей вне строек —
+    /// компания), у которой деньги УШЛИ: её убрали или уменьшили (issue #1341). Перенос в другой раздел
+    /// той же стройки и раздел, поделённый на два, не уносят деньги из её месяца в следующий — ТЗ
+    /// (COST-16) пересчитывает день только у доли, перенесённой на другую стройку;</item>
+    /// <item>иначе — дата по правилу оплаты.</item>
+    /// </list>
+    /// <para>⚠️ Только у доли, отдавшей деньги, а не у любой прежней доли контура (ревью PR #1342). Доля,
+    /// пришедшая в новый раздел С ДРУГОЙ стройки, взяла бы день соседа, который никуда не делся, — и
+    /// деньги чужой стройки легли бы в её прошлый месяц; доля, выделенная из «р1», взяла бы день
+    /// нетронутого «р2». Отдавших несколько, а дни у них разные — позднейший, как у отрицательного
+    /// остатка: какая из них отдала деньги этой доле, не знает никто, а поздний день не кладёт деньги в
+    /// месяц раньше, чем они лежали у любой из отдавших.</para>
     ///
     /// <para><b>Остаток</b> — сумма к оплате минус деньги долей. Его дата сохраняется, пока остаток
     /// есть, и ставится заново, когда он появился из нуля.</para>
@@ -114,12 +105,14 @@ public static class PaymentPosting
             .Where(share => share.Amount is not null)
             .ToDictionary(share => share.Id, share => share.Amount!.Value);
 
+        var given = Given(kept, parts, money);
         var shares = parts
             .OrderBy(p => p.LineId).ThenBy(p => p.Ordinal).ThenBy(p => p.Id)
             .Select(p =>
             {
-                var date = kept.DayOf(p.LineId, p.Target)
-                    ?? boundaries.AccountingDate(paidOn, ContourOf(p.Target));
+                var date = kept.Shares.TryGetValue((p.LineId, p.Target), out var was) ? was
+                    : given.TryGetValue((p.LineId, ContourOf(p.Target)), out var from) ? from
+                    : boundaries.AccountingDate(paidOn, ContourOf(p.Target));
                 return new PostedShare(p.Id, p.LineId, p.Target,
                     money.TryGetValue(p.Id, out var amount) ? amount : null, date, date != paidOn);
             })
@@ -137,6 +130,30 @@ public static class PaymentPosting
             : (DateOnly?)null;
         var on = kept.Remainder ?? corrected ?? boundaries.AccountingDate(paidOn, new PeriodContour.Company());
         return new PaymentPlan(paidOn, shares, new PostedRemainder(rest, on, on != paidOn));
+    }
+
+    /// <summary>
+    /// Дни, которые прежние доли ОТДАЮТ новым: по строке и контуру — позднейший день среди прежних долей,
+    /// у которых деньги ушли (доли нет — или денег у неё стало меньше по модулю). Считается один раз на
+    /// расклад, а не перебором на каждую долю.
+    /// </summary>
+    private static Dictionary<(Guid? LineId, PeriodContour Contour), DateOnly> Given(
+        PostedBefore kept, IReadOnlyList<InvoiceAllocation> parts, IReadOnlyDictionary<Guid, decimal> money)
+    {
+        var now = parts.GroupBy(p => (p.LineId, p.Target)).ToDictionary(
+            g => g.Key,
+            g => g.Any(p => money.ContainsKey(p.Id)) ? g.Sum(p => money.GetValueOrDefault(p.Id)) : (decimal?)null);
+
+        // Деньги, которых не посчитать (в строке не вписана цена), «ушедшими» не считаем: сравнивать нечего,
+        // а убранную долю узнаём и так — её нет.
+        bool Gave((Guid? LineId, AllocationTarget Target) key) =>
+            !now.TryGetValue(key, out var after)
+            || (kept.Money.GetValueOrDefault(key) is { } before && after is { } left && Math.Abs(left) < Math.Abs(before));
+
+        return kept.Shares
+            .Where(s => Gave(s.Key))
+            .GroupBy(s => (s.Key.LineId, Contour: ContourOf(s.Key.Target)))
+            .ToDictionary(g => g.Key, g => g.Max(s => s.Value));
     }
 
     /// <summary>
@@ -224,11 +241,19 @@ public static class PaymentPosting
     public static DateOnly MonthOf(DateOnly day) => new(day.Year, day.Month, 1);
 
     /// <summary>Что записано сейчас — снимок до правки.</summary>
-    public static PostedBefore Before(Invoice invoice, IEnumerable<InvoiceAllocation> parts) => new(
-        parts.Where(p => p.AccountingOn is not null)
-            .GroupBy(p => (p.LineId, p.Target))
-            .ToDictionary(g => g.Key, g => g.First().AccountingOn!.Value),
-        invoice.RemainderAccountingOn);
+    /// <param name="balance">Баланс счёта ДО правки — по нему видно, у какой доли деньги потом ушли.</param>
+    public static PostedBefore Before(Invoice invoice, IReadOnlyList<InvoiceAllocation> parts, AllocationBalance balance)
+    {
+        var amounts = balance.Money.ToDictionary(share => share.Id, share => share.Amount);
+        return new(
+            parts.Where(p => p.AccountingOn is not null)
+                .GroupBy(p => (p.LineId, p.Target))
+                .ToDictionary(g => g.Key, g => g.First().AccountingOn!.Value),
+            parts.GroupBy(p => (p.LineId, p.Target))
+                .ToDictionary(g => g.Key, g => g.Any(p => amounts.GetValueOrDefault(p.Id) is not null)
+                    ? g.Sum(p => amounts.GetValueOrDefault(p.Id) ?? 0) : (decimal?)null),
+            invoice.RemainderAccountingOn);
+    }
 
     /// <summary>Положить расклад в записи.</summary>
     public static void Apply(Invoice invoice, IReadOnlyList<InvoiceAllocation> parts, PaymentPlan plan)
