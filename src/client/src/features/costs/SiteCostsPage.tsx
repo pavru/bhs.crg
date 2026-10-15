@@ -132,6 +132,11 @@ function Report({ data, bySections, onSite, stale }: {
   // здесь и только здесь: глобальный фильтр оно не трогает и не запоминается (§62.3 Дизайнера).
   const filter = useSiteFilterState();
   const [unfolded, setUnfolded] = useState(false);
+  // Раскрытое — про ЭТОТ отчёт: другой период, НДС, стройка или избранное приходят снова свёрнутыми
+  // (ревью PR #1339). Сброс — по смене того, что показано, а не по перечитыванию тех же чисел.
+  const screen = [data.site?.id, data.from, data.to, data.withVat, filter.active, [...filter.favorites].sort().join()].join('|');
+  const [shownScreen, setShownScreen] = useState(screen);
+  if (shownScreen !== screen) { setShownScreen(screen); setUnfolded(false); }
   const { shown, folded } = foldSites(data.sites, id => filter.visible(id));
   const foldedNow = unfolded ? null : folded;
   // Под «без НДС» реестр по ссылке покажет суммы С НДС — без оговорки сверка глазами дала бы расхождение.

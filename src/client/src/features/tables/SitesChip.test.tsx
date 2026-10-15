@@ -10,7 +10,9 @@ import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/sit
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { TablePage } from './TablePage';
-import { favoriteNames, namesakes, sitesChipState, sitesColumn, withSitesChip } from './tableSites';
+import {
+  favoriteNames, namesakes, replacesOthers, sitesChipState, sitesColumn, sitesCondition, withSitesChip,
+} from './tableSites';
 import { DEFAULT_VIEW, type TableView } from './tableViewState';
 
 /**
@@ -69,6 +71,7 @@ beforeEach(() => {
     if (url.endsWith('/columns')) return { data: DECLARATION };
     if (url.endsWith('/views') || url.endsWith('/shortcuts')) return { data: [] };
     if (url === '/account/access') return { data: { permissions: [], modules: [] } };
+    if (url === '/costs/articles') return { data: [{ id: 's1', name: 'Склад', archived: false }] };
     return { data: { ...DECLARATION, rows: [], count: 0, offset: 0, limit: 50, totals: null, keys: null } };
   });
 });
@@ -97,6 +100,20 @@ describe('таблица со стройками под включённым ф�
     expect(screen.getByRole('button', { name: /Объект: избранные стройки/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('статья с названием избранной стройки названа у чипа; справочник статей не прочитан — так и сказано', async () => {
+    mount(filterOf(['c']));
+    await screen.findByText(/попадут и другие объекты с тем же названием — «Склад»/);
+    cleanup();
+
+    const ok = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (url, config) => {
+      if (url === '/costs/articles') throw new Error('403');
+      return ok(url, config);
+    });
+    mount(filterOf(['c']));
+    await screen.findByText(/статьи вне строек с тем же названием не проверены/);
+  });
+
   it('фильтр выключен или избранное пусто — чипа нет', async () => {
     for (const filter of [filterOf(['a'], false), filterOf([])]) {
       mount(filter);
@@ -118,23 +135,40 @@ describe('правила чипа', () => {
     expect(sitesColumn([column('Объект')])).toBeUndefined();
   });
 
-  it('одноимённая неизбранная стройка названа: отбор по названию покажет и её', () => {
+  it('тёзки названы — неизбранная стройка и статья вне строек: отбор по названию покажет и их', () => {
     const sites = [...SITES, { id: 'd', name: 'Комарова 36' }];
-    expect(favoriteNames(sites, new Set(['a', 'd']))).toEqual(['Комарова 36']);
-    expect(namesakes(sites, new Set(['a']))).toEqual(['Комарова 36']);
-    expect(namesakes(sites, new Set(['a', 'd']))).toEqual([]);
+    const names = (favorites: Set<string>) => favoriteNames(sites, favorites);
+    expect(names(new Set(['a', 'd']))).toEqual(['Комарова 36']);
+    expect(namesakes(sites, new Set(['a']), names(new Set(['a'])))).toEqual(['Комарова 36']);
+    expect(namesakes(sites, new Set(['a', 'd']), names(new Set(['a', 'd'])))).toEqual([]);
+    // Статья «Склад» и избранная стройка «Склад» — одно название в колонке «Объект» (ревью PR #1339).
+    expect(namesakes(SITES, new Set(['c']), ['Склад'], ['Склад', 'Общие расходы'])).toEqual(['Склад']);
   });
 
-  it('снятие убирает своё условие, а поставленное человеком по той же колонке оставляет', () => {
+  it('нажатие заменяет прочие условия по колонке: строки — пересечение, а доля «Суммы» — объединение', () => {
     const own = { type: 'condition' as const, column: 'ОбъектыРазноски', op: 'eq' as const, value: 'Склад' };
+    const number = { type: 'condition' as const, column: 'Номер', op: 'eq' as const, value: '1' };
     const names = ['Комарова 36'];
-    const on = withSitesChip(view({ type: 'group', logic: 'and', children: [own] }), ['Номер'], 'ОбъектыРазноски', names);
-    expect((on.filter as FilterGroup).children).toHaveLength(2);
+    const before = view({ type: 'group', logic: 'and', children: [own, number] });
+    expect(replacesOthers(before, 'ОбъектыРазноски', names)).toBe(true);
+
+    const on = withSitesChip(before, ['Номер'], 'ОбъектыРазноски', names);
+    expect((on.filter as FilterGroup).children).toEqual([number, sitesCondition('ОбъектыРазноски', names)]);
     expect(on.columns).toContain('ОбъектыРазноски');
     expect(sitesChipState(on, 'ОбъектыРазноски', names)).toBe('on');
+    expect(replacesOthers(on, 'ОбъектыРазноски', names)).toBe(false);
 
-    const off = withSitesChip(on, ['Номер'], 'ОбъектыРазноски', names);
-    expect((off.filter as FilterGroup).children).toEqual([own]);
+    // Снятие убирает только своё.
+    expect((withSitesChip(on, ['Номер'], 'ОбъектыРазноски', names).filter as FilterGroup).children).toEqual([number]);
+  });
+
+  it('избранное сменилось — прежнее условие чипа заменяется, а не остаётся рядом', () => {
+    const stale = withSitesChip(view(), ['Номер'], 'ОбъектыРазноски', ['Комарова 36', 'Ленина 5']);
+    const fresh = ['Ленина 5', 'Склад'];
+    expect(sitesChipState(stale, 'ОбъектыРазноски', fresh)).toBe('off');
+
+    const next = withSitesChip(stale, ['Номер'], 'ОбъектыРазноски', fresh);
+    expect((next.filter as FilterGroup).children).toEqual([sitesCondition('ОбъектыРазноски', fresh)]);
   });
 
   it('сложный и неразобранный отбор чипом не дополнить', () => {

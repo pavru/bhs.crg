@@ -93,8 +93,9 @@ export interface FoldedSites {
  * @returns `folded: null` — свёрнуто ничего: фильтр не действует или все стройки отчёта избранные
  */
 export function foldSites(sites: readonly CostLine[], visible: (id: string | null) => boolean) {
-  const shown = sites.filter(s => visible(s.id));
-  const hidden = sites.filter(s => !visible(s.id));
+  // Одним проходом: два противоположных отбора дважды спрашивали бы правило о каждой стройке (ревью PR #1339).
+  const shown: CostLine[] = [], hidden: CostLine[] = [];
+  for (const s of sites) (visible(s.id) ? shown : hidden).push(s);
   const folded: FoldedSites | null = hidden.length === 0 ? null : {
     count: hidden.length,
     amount: hidden.reduce((sum, s) => sum + Math.round(s.amount * 100), 0) / 100,
