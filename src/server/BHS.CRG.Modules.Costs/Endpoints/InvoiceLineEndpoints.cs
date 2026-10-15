@@ -9,6 +9,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
+/// <summary>Набор строк, положенный в счёт: строки по порядку, изменён ли он и что запомнить.</summary>
+internal sealed record LinesPlaced(IReadOnlyList<InvoiceLine> Lines, bool Changed, IReadOnlyList<MatchToRemember> Worth);
+
 /// <summary>
 /// Строки счёта и переход «черновик → разобран» (задача C2 этапа 2, issue #1078, ТЗ COST-7, COST-9).
 ///
@@ -20,9 +23,6 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// состояние, он живёт в реестре и попадает в отбор «Разобрать» (ТЗ COST-6.2). Единственное место, где
 /// строки что-то решают, — переход «разобран».</para>
 /// </summary>
-/// <summary>Набор строк, положенный в счёт: строки по порядку, изменён ли он и что запомнить.</summary>
-internal sealed record LinesPlaced(IReadOnlyList<InvoiceLine> Lines, bool Changed, IReadOnlyList<MatchToRemember> Worth);
-
 public static class InvoiceLineEndpoints
 {
     private const string Edit = CostsModule.InvoiceEdit;

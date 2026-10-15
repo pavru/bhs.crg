@@ -22,8 +22,9 @@ public sealed record UncheckedReferenceView(string What, string Reason);
 /// <summary>Потерянные ссылки модуля на записи ядра (ТЗ CORE-34.3, issue #1184).</summary>
 /// <param name="Editable">То, что ещё можно исправить, — это и есть «потеряно ссылок» (решение
 /// владельца: записи закрытого периода в счётчик не идут, требовать их правки незачем).</param>
-/// <param name="Locked">В счетах закрытого периода: исправить нельзя. Названо отдельно, а не выброшено —
-/// иначе после отмены закрытия потери «появлялись бы из ниоткуда».</param>
+/// <param name="Locked">В счетах, требующих исправления (закрытый период или книга исправлений, E2):
+/// обычной правкой не исправить. Названо отдельно, а не выброшено — иначе после отмены закрытия потери
+/// «появлялись бы из ниоткуда».</param>
 /// <param name="Unfixable">Ссылок на удалённый ТИП счёта (issue #1186). Заменить тип в форме нечем,
 /// поэтому ни в «можно исправить», ни в «заперто» они не идут — где бы счёт ни стоял и что бы ещё в нём
 /// ни было потеряно. Своим числом, а не в <see cref="LostTally.Other" />: там ссылки без документа, и
@@ -68,7 +69,8 @@ public static class LostReferencesEndpoints
 
         LostTally Tally(bool closed)
         {
-            var invoices = ofInvoices.Where(l => (troubles.Lost[l.DocumentKey!.Value] == LostMark.Locked) == closed).ToList();
+            var invoices = ofInvoices.Where(l =>
+                (troubles.Lost[l.DocumentKey!.Value] is LostMark.Locked or LostMark.Corrected) == closed).ToList();
             // Накладная закрытым периодом не запирается: её потери — всегда из тех, что можно исправить.
             // То же с тем, чей документ не назван: запереть их нечем.
             var waybills = closed ? [] : ofWaybills;

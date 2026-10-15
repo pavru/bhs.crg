@@ -36,8 +36,21 @@ internal static class InvoiceCorrectionCheck
             if (id is { } organization && seen.Lost.Contains(organization))
                 gaps.Add(new CorrectionGap(null, "reference:" + field));
 
+        // Обязательные поля шапки и позиции строк — то, что держит «разобран»: стёртое исправлением поле
+        // или строка без позиции у разобранного счёта сделали бы «разобран» неправдой, а вернуть счёт в
+        // черновик исправление не вправе (переход «разобран» ему потом был бы закрыт).
+        // У черновика — даже оплаченного — пустое поле и строка без позиции законны: их не спрашиваем.
+        var parsed = invoice.State == InvoiceState.Parsed;
+        if (parsed)
+        {
+            foreach (var field in InvoiceRequisites.MissingFields(invoice))
+                gaps.Add(new CorrectionGap(null, "field:" + field.Key));
+            if (seen.Lines.Count == 0) gaps.Add(new CorrectionGap(null, "lines"));
+        }
+
         foreach (var line in seen.Lines)
         {
+            if (parsed && line.NomenclatureId is null) gaps.Add(new CorrectionGap(line.Id, "nomenclature"));
             // Справочника нет вовсе — не потеря позиции, а состояние установки (как у готовности).
             if (seen.Names is not null && line.NomenclatureId is { } position && !seen.Names.ContainsKey(position))
                 gaps.Add(new CorrectionGap(line.Id, "position"));
@@ -78,6 +91,14 @@ internal static class InvoiceCorrectionCheck
             problems.Add($"сумма строк расходится с суммой к оплате {total:0.00} на {Math.Abs(gap):0.00}, а до " +
                 $"исправления — не больше чем на {limit:0.00}");
 
+        // Счёт без строк разносится суммой, и его неразнесённое расхождением строк не видно (ревью PR #1364):
+        // поднятая сумма к оплате или снятые строки молча унесли бы деньги в остаток. Предел — то, что было
+        // не разнесено до исправления, а у счёта со строками — ноль: его деньги лежали на строках.
+        var left = was.Lines.Count == 0 ? Math.Abs(before.Document.UnallocatedAmount ?? 0) : 0m;
+        if (seen.Lines.Count == 0 && after.Document.UnallocatedAmount is { } open && Math.Abs(open) > left)
+            problems.Add($"счёт без строк разнесён не полностью: не разнесено {Math.Abs(open):0.00}, а до " +
+                $"исправления — {left:0.00}");
+
         var ordinals = seen.Lines.ToDictionary(l => l.Id, l => l.Ordinal);
         var fresh = Gaps(invoice, seen).Except(wasGaps)
             .OrderBy(g => g.Line is { } id ? ordinals.GetValueOrDefault(id) : 0).ThenBy(g => g.Kind)
@@ -96,6 +117,10 @@ internal static class InvoiceCorrectionCheck
         "position" => $"позиции номенклатуры нет в справочнике у строки {ordinal}",
         "price" => $"у строки {ordinal} не посчитать сумму — не вписана цена",
         "allocation" => $"строка {ordinal} разнесена по стройкам не полностью",
+        "nomenclature" => $"у строки {ordinal} не выбрана позиция номенклатуры",
+        "lines" => "у разобранного счёта не осталось строк",
+        var kind when kind.StartsWith("field:", StringComparison.Ordinal) =>
+            $"не заполнено обязательное поле «{InvoiceRequisites.TitleOf(kind["field:".Length..])}»",
         "pending" => "разноска счёта суммой ждёт пересчёта по строкам",
         var kind when kind.StartsWith("reference:", StringComparison.Ordinal) =>
             $"организации из поля «{InvoiceRequisites.TitleOf(kind["reference:".Length..])}» нет в справочнике",

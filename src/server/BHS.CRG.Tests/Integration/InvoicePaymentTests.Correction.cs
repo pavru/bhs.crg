@@ -5,6 +5,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Tables;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -262,6 +263,109 @@ public partial class InvoicePaymentTests
         }
     }
 
+    /// <summary>
+    /// Исправление не трогает состояние счёта (ревью PR #1364): разобранный остаётся разобранным, даже если
+    /// разноска при нынешнем допуске не сходится, — вернуть его в черновик значило бы запереть там навсегда.
+    /// А стереть у разобранного обязательное поле «не хуже» не даёт.
+    /// </summary>
+    [Fact]
+    public async Task Исправление_разобранного_оставляет_его_разобранным()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, _, _) = await LockedAsync(admin, today, total: 100_000.80m, parsed: true);
+        try
+        {
+            await ToleranceAsync(admin, "0.50");
+            var view = await ReadAsync(admin, invoice);
+            Assert.False(view.GetProperty("allocation").GetProperty("allocated").GetBoolean());
+
+            var body = Correction(view, "опечатка в наименовании", lines => lines[0]["supplierText"] = "Кабель ВВГнг");
+            var preview = await CorrectionPreviewAsync(admin, invoice, view, body);
+            var corrected = await CorrectAsync(admin, invoice, view, body with { Stamp = preview.GetProperty("stamp").GetString() });
+            Assert.Equal("Разобран", corrected.GetProperty("requisites").GetProperty("Состояние").GetString());
+
+            var blank = Correction(corrected, "стёрли номер");
+            blank.Requisites["Номер"] = null;
+            var refused = await CorrectionRawAsync(admin, invoice, "preview", corrected.GetProperty("version").GetString(), blank);
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            Assert.Contains("не заполнено обязательное поле", await ErrorAsync(refused));
+        }
+        finally
+        {
+            await ToleranceAsync(admin, null);
+        }
+    }
+
+    /// <summary>
+    /// Счёт без строк, разнесённый суммой: поднятая сумма к оплате при той же разноске оставила бы
+    /// неразнесённое, которого не было, — «не хуже» обязано это увидеть, хотя расхождения строк у такого
+    /// счёта нет вовсе (ревью PR #1364).
+    /// </summary>
+    [Fact]
+    public async Task Неразнесённое_у_счёта_без_строк_не_хуже_не_пропускает()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (site, _) = await SiteAsync("Без строк");
+        var invoice = await CreateAsync(admin, complete: true);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 1_000m) }));
+        var view = await ReadAsync(admin, invoice);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}/allocation", new
+        {
+            lines = Array.Empty<object>(),
+            document = new object[] { Part(site, amount: 1_000m) },
+            stamp = view.GetProperty("allocation").GetProperty("stamp").GetString(),
+        }));
+        var paidOn = today.AddDays(-15);
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        await CloseAsync(site, today.AddDays(-10));
+
+        view = await ReadAsync(admin, invoice);
+        var body = Correction(view, "сумма к оплате", total: 1_200m);
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/costs/invoices/{invoice}/correction/preview")
+        {
+            Content = JsonContent.Create(new
+            {
+                reason = body.Reason, requisites = body.Requisites, lines = body.Lines,
+                document = new object[] { Part(site, amount: 1_000m) },
+            }),
+        };
+        request.Headers.TryAddWithoutValidation(SeenInvoiceVersion.Header, view.GetProperty("version").GetString());
+        var refused = await admin.SendAsync(request);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("счёт без строк разнесён не полностью", await ErrorAsync(refused));
+    }
+
+    /// <summary>
+    /// Закрытие отменили, книга осталась: ссылка на удалённую запись у такого счёта — не «период закрыт»
+    /// (закрытия нет), а своё слово, и в отбор «можно исправить» обычной правкой он не идёт (ревью PR #1364).
+    /// </summary>
+    [Fact]
+    public async Task Потеря_у_исправлявшегося_счёта_названа_своим_словом()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, position, site) = await InvoiceWithPositionAsync(admin, "Позиция исправленного");
+        var paidOn = today.AddDays(-15);
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        await CloseAsync(site, today.AddDays(-10));
+
+        var view = await ReadAsync(admin, invoice);
+        var body = Correction(view, "опечатка", lines => lines[0]["supplierText"] = "Кабель");
+        var preview = await CorrectionPreviewAsync(admin, invoice, view, body);
+        await CorrectAsync(admin, invoice, view, body with { Stamp = preview.GetProperty("stamp").GetString() });
+
+        await ForgetAsync(position);
+        await ReopenAsync(site, today.AddDays(-10));
+
+        var corrected = InvoiceTable.LostWords[(int)LostMark.Corrected];
+        Assert.Equal(corrected, await TroubleCellAsync(admin, LostColumn, invoice));
+        Assert.False(Has(await TroubleTableAsync(admin, LostColumn, InvoiceTable.TroubleFixable), invoice));
+        Assert.True(Has(await TroubleTableAsync(admin, LostColumn, corrected), invoice));
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     private const string CostsInvoiceEdit = "costs.invoice.edit";
@@ -351,9 +455,11 @@ public partial class InvoicePaymentTests
     ];
 
     /// <summary>Оплачен 15 дней назад, стройка А закрыта по «10 дней назад».</summary>
-    private async Task<(Guid Invoice, Guid A, Guid B)> LockedAsync(HttpClient admin, DateOnly today, decimal total = 100_000m)
+    private async Task<(Guid Invoice, Guid A, Guid B)> LockedAsync(
+        HttpClient admin, DateOnly today, decimal total = 100_000m, bool parsed = false)
     {
         var (invoice, a, b) = await TwoSitesAsync(admin, total);
+        if (parsed) await OkAsync(await admin.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
         var paidOn = today.AddDays(-15);
         await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
         await CloseAsync(a, today.AddDays(-10));

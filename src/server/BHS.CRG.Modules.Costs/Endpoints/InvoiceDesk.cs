@@ -129,9 +129,12 @@ public sealed partial class InvoiceDesk(
                     if (!evenLocked)
                         throw new ConflictException(
                             $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Обычной правкой нельзя изменить " +
-                            "поля, строки, разноску и отметку оплаты — счёт оплачен, и его деньги уже вошли в " +
-                            "закрытый период. Изменить его можно только исправлением: с причиной, новой версией " +
-                            "(право «Исправлять счета закрытого периода»).");
+                            "поля, строки, разноску и отметку оплаты — " +
+                            (found.Lock is not null
+                                ? "счёт оплачен, и его деньги уже вошли в закрытый период. "
+                                : "счёт оплачен и уже исправлялся, и обычная правка разошлась бы с книгой исправлений. ") +
+                            "Содержимое меняется только исправлением: с причиной, новой версией (право «Исправлять " +
+                            "счета закрытого периода»).");
                 }
             }
 
@@ -239,7 +242,8 @@ public sealed partial class InvoiceDesk(
     /// </summary>
     /// <param name="corrected">Исправление (E2): его итог уже проверило «не хуже, чем было», и требовать
     /// сведённости здесь значило бы отказать исправлению счёта, который был несведён и до него.</param>
-    private async Task PostAsync(
+    /// <returns>Доли счёта, как они легли, — с учётными днями.</returns>
+    private async Task<IReadOnlyList<InvoiceAllocation>> PostAsync(
         Invoice invoice, PostedBefore before, PeriodBoundaries boundaries, CancellationToken ct, bool corrected = false)
     {
         var parts = await db.InvoiceAllocations.Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
@@ -248,7 +252,7 @@ public sealed partial class InvoiceDesk(
         {
             PaymentPosting.Clear(invoice, parts);
             await db.SaveChangesAsync(ct);
-            return;
+            return parts;
         }
 
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
@@ -261,6 +265,7 @@ public sealed partial class InvoiceDesk(
         PaymentPosting.Apply(invoice, parts,
             PaymentPosting.Plan(invoice.PaidOn!.Value, invoice.Total!.Value, lines, parts, before, boundaries, tolerance));
         await db.SaveChangesAsync(ct);
+        return parts;
     }
 
     /// <summary>

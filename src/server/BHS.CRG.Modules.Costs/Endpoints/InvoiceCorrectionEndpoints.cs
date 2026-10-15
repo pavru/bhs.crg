@@ -53,9 +53,8 @@ public static class InvoiceCorrectionEndpoints
         await log.RecordAsync(InvoiceActions.Corrected, invoice.Id.ToString(), label,
             before: $"версия {done.Version}", after: parsed.Reason, ct: ct);
 
-        if (done.Draft is not null)
-            await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), label,
-                before: InvoiceEndpoints.WasParsed, after: $"исправление счёта: {done.Draft}", ct: ct);
+        // Изменённые поля шапки и ручной срок — теми же событиями, что у правки шапки (ревью PR #1364).
+        await InvoiceEndpoints.RecordRequisitesAsync(log, invoice, done.Changed, done.DueWas, ct);
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }

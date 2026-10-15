@@ -9,11 +9,11 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Version">Номер версии, ушедшей под исправление.</param>
 /// <param name="Records">Записи книги, которые ложатся исправлением: открытие, выравнивание, само исправление.</param>
 /// <param name="Stamp">Отметка этих записей — та, что сверяется с предпросмотром.</param>
-/// <param name="Changed">Изменённые поля шапки — для журнала.</param>
-/// <param name="Draft">Почему разобранный счёт вернулся в черновик; <c>null</c> — не вернулся.</param>
+/// <param name="Changed">Изменённые поля шапки — для журнала, теми же событиями, что у правки шапки.</param>
+/// <param name="DueWas">Срок оплаты до исправления — для события «срок изменён вручную».</param>
 internal sealed record CorrectionDone(
     Invoice Invoice, int Version, IReadOnlyList<BookRecord> Records, string Stamp,
-    IReadOnlyList<string> Changed, string? Draft);
+    IReadOnlyList<string> Changed, (DateOnly? Due, bool Manual) DueWas);
 
 /// <summary>
 /// Исправление счёта, требующего исправления (E2, issue #1100, spec v3.3 п. 1.4), — свой вход связки
@@ -50,15 +50,18 @@ public sealed partial class InvoiceDesk
                 var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
                 var label = InvoiceEndpoints.Label(invoice);
 
+                // Разноска для «нужно ли исправление» — отдельным узким чтением, а не снимком: снимок спрашивает
+                // ядро, и отказ «не нужно», «нет права» или «форма устарела» платил бы за опрос впустую.
                 var stored = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == id).ToListAsync(ct);
-                if (ClosedPeriodGuard.NeedOf(invoice, stored, boundaries) is null)
-                    throw new ConflictException(
+                var need = ClosedPeriodGuard.NeedOf(invoice, stored, boundaries)
+                    ?? throw new ConflictException(
                         $"{label} исправления не требует: он не оплачен либо его деньги не лежат в закрытом периоде " +
                         "и не исправлялись. Правьте его как обычно — без причины и версии.");
                 if (!await user.HasAsync(CostsModule.InvoiceCorrect, ct))
                     throw new ForbiddenException(
-                        $"{label} лежит в закрытом периоде, и изменить его можно только исправлением, а права " +
-                        "«Исправлять счета закрытого периода» у вас нет. Его выдаёт администратор.");
+                        $"{label} заперт: {PaymentViews.Text(need, await places.LoadAsync(ct))}. Изменить его можно " +
+                        "только исправлением, а права «Исправлять счета закрытого периода» у вас нет. Его выдаёт " +
+                        "администратор.");
                 EnsureSeen(label, db.VersionOf(invoice));
 
                 // ДО — одним снимком под замками. Допуск в нём — первое чтение допуска в запросе.
@@ -71,6 +74,7 @@ public sealed partial class InvoiceDesk
                     PaymentPosting.Balance(was.Lines.Select(InvoiceAllocations.Line), was.Parts, invoice.Total, tolerance));
                 var content = InvoiceVersion.Snapshot(invoice, was.Lines, was.Parts, before);
                 var wasGaps = InvoiceCorrectionCheck.Gaps(invoice, was);
+                var dueWas = (invoice.DueDate, invoice.DueDateManual);
 
                 if (Moved(was, body) && !await user.HasAsync(AllocationEndpoints.Permission, ct))
                     throw new ForbiddenException(
@@ -84,20 +88,13 @@ public sealed partial class InvoiceDesk
                 var seen = await snapshots.OfAsync(invoice, ct);
                 InvoiceCorrectionCheck.EnsureNoWorse(invoice, was, wasGaps, seen);
 
-                // Разобранный, переставший отвечать условию, сам уходит в черновик — как при обычной правке.
-                var draft = invoice.State != InvoiceState.Parsed ? null
-                    : InvoiceRequisites.Missing(invoice) is { Count: > 0 } missing
-                        ? "не заполнено обязательное — " + string.Join(", ", missing.Select(m => $"«{m}»"))
-                    : seen.Lines.Count == 0 || seen.Lines.Any(l => l.NomenclatureId is null)
-                        ? "позиция номенклатуры есть не у всех строк"
-                    : !seen.Allocation.Summary.Allocated ? "баланс разноски не сходится"
-                    : null;
-                if (draft is not null) invoice.ReturnToDraft();
+                // Состояние счёта исправление НЕ трогает (ревью PR #1364). Вернуть разобранный в черновик было бы
+                // дорогой в один конец: переход «разобран» обычной правкой такому счёту закрыт. И незачем —
+                // «не хуже» не пропускает ничего, чего у разобранного не было: ни пустого обязательного поля, ни
+                // строки без позиции, ни неразнесённой строки.
 
                 // Учётные дни — правилом правки оплаченного счёта (п. 0.3); сведённость проверило «не хуже».
-                await PostAsync(invoice, posted, boundaries, ct, corrected: true);
-
-                var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == id).ToListAsync(ct);
+                var parts = await PostAsync(invoice, posted, boundaries, ct, corrected: true);
                 var after = Grains(invoice.Id,
                     (invoice.SupplierId, invoice.Total, invoice.VatTotal, invoice.RemainderAccountingOn),
                     seen.Lines, parts, tolerance);
@@ -112,7 +109,7 @@ public sealed partial class InvoiceDesk
                     boundaries, today, new BookAuthor(user.Id, body.Reason, number), ct);
 
                 var done = new CorrectionDone(invoice, number, appended.Records,
-                    InvoiceBookPosting.Stamp(appended.Records), changed, draft);
+                    InvoiceBookPosting.Stamp(appended.Records), changed, dueWas);
                 if (preview) throw new PreviewOnly(done);
 
                 if (body.Stamp != done.Stamp)
@@ -173,16 +170,25 @@ public sealed partial class InvoiceDesk
         // Строка, убранная исправлением, уносит свои части; новая — приносит.
         if (stored.Any(g => g.Key is { } line && !sent.Contains(line) && g.Any())) return true;
 
-        foreach (var line in body.Lines)
+        // Часть, которую не разобрать, записанной не равна — значит, разноска меняется. Отказ о её виде
+        // услышит тот, кому разноску менять можно: без права ответ — 403, а не 400 о чужой ему разноске.
+        try
         {
-            var mode = AllocationMath.ModeOf(line.Values.Quantity, line.Values.Amount);
-            var parts = line.Parts.Select((p, index) => InvoiceAllocations.Values(p, index + 1, mode)).ToList();
-            if (!(line.Id is { } known ? stored[known] : Enumerable.Empty<AllocationValues>()).SequenceEqual(parts)) return true;
-        }
+            foreach (var line in body.Lines)
+            {
+                var mode = AllocationMath.ModeOf(line.Values.Quantity, line.Values.Amount);
+                var parts = line.Parts.Select((p, index) => InvoiceAllocations.Values(p, index + 1, mode)).ToList();
+                if (!(line.Id is { } known ? stored[known] : Enumerable.Empty<AllocationValues>()).SequenceEqual(parts)) return true;
+            }
 
-        var document = body.Document
-            .Select((p, index) => InvoiceAllocations.Values(p, index + 1, AllocationMode.Amount)).ToList();
-        return !stored[null].SequenceEqual(document);
+            var document = body.Document
+                .Select((p, index) => InvoiceAllocations.Values(p, index + 1, AllocationMode.Amount)).ToList();
+            return !stored[null].SequenceEqual(document);
+        }
+        catch (InvalidRequestException)
+        {
+            return true;
+        }
     }
 
     /// <summary>Деньги счёта зёрнами — при названном допуске, по названным строкам и долям.</summary>

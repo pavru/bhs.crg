@@ -173,10 +173,28 @@ public static class InvoiceEndpoints
             return (invoice, changed, reason, dueWas);
         }, ct);
 
-        // Ручная правка срока — своим событием (ТЗ COST-16): «было → стало», а не строкой «Срок» среди
-        // изменённых полей — и потому из перечня «счёт изменён» срок тогда уходит, чтобы одна правка не
-        // стояла в журнале дважды (ревью PR #1328). Только когда срок правил человек: подставленный
-        // правилом — следствие правки отгрузки, и его называет запись «счёт изменён».
+        await RecordRequisitesAsync(log, invoice, changed, dueWas, ct);
+
+        if (reason is not null)
+            await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
+                before: WasParsed, after: $"правка счёта: {reason}", ct: ct);
+
+        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+    }
+
+    /// <summary>
+    /// Журнал правки шапки — одним местом на правку и исправление (ревью PR #1364): исправление меняет ту
+    /// же шапку, и журнал обязан называть её поля и ручной срок теми же событиями.
+    ///
+    /// <para>Ручная правка срока — своим событием (ТЗ COST-16): «было → стало», а не строкой «Срок» среди
+    /// изменённых полей — и потому из перечня «счёт изменён» срок тогда уходит, чтобы одна правка не
+    /// стояла в журнале дважды (ревью PR #1328). Только когда срок правил человек: подставленный
+    /// правилом — следствие правки отгрузки, и его называет запись «счёт изменён».</para>
+    /// </summary>
+    internal static async Task RecordRequisitesAsync(
+        IModuleActivityLog log, Invoice invoice, IReadOnlyList<string> changed, (DateOnly? DueDate, bool Manual) dueWas,
+        CancellationToken ct)
+    {
         var dueByHand = invoice.DueDateManual && (invoice.DueDate, true) != dueWas;
         IReadOnlyList<string> logged = dueByHand ? [.. changed.Where(k => k != InvoiceRequisites.DueDateKey)] : changed;
 
@@ -187,12 +205,6 @@ public static class InvoiceEndpoints
         if (dueByHand)
             await log.RecordAsync(InvoiceActions.DueByHand, invoice.Id.ToString(), Label(invoice),
                 before: DueText(dueWas.DueDate), after: DueText(invoice.DueDate), ct: ct);
-
-        if (reason is not null)
-            await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(), Label(invoice),
-                before: WasParsed, after: $"правка счёта: {reason}", ct: ct);
-
-        return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
     /// <summary>

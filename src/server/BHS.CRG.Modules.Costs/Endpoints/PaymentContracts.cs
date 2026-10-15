@@ -83,7 +83,6 @@ public static class PaymentViews
     /// <summary>Месяц учётной даты — с годом: «12 + 01» на границе года не читается.</summary>
     public static string Month(DateOnly date) => $"{date:MM.yyyy}";
 
-    /// <summary>Чем заперт счёт — словами: их показывает форма и ими же отказывает запись.</summary>
     /// <summary>
     /// Почему счёт требует исправления — словами. Закрытие называем первым: его можно отменить, и
     /// человеку важнее знать, ЧЬЁ оно. Только книга — значит, закрытие отменили, а исправления остались.
@@ -91,6 +90,7 @@ public static class PaymentViews
     public static string Text(CorrectionNeed need, AllocationPlaces places) =>
         need.Lock is { } locked ? Text(locked, places) : "у него есть исправления закрытого периода";
 
+    /// <summary>Чем заперт счёт — словами: их показывает форма и ими же отказывает запись.</summary>
     public static string Text(PeriodLock locked, AllocationPlaces places) =>
         locked.ConstructionId is { } site
             ? $"период закрыт по {locked.Through:dd.MM.yyyy} у стройки «{places.Site(site)?.Name ?? "удалена"}»"
