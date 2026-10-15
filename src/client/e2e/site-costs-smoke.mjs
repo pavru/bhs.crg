@@ -13,6 +13,10 @@
 //      сумма, что по контрагентам; строки раздела и «без раздела» есть, и каждая стрелка сходится с реестром.
 //   3. `all-sites-total-equals-the-registry-and-back-returns` — «Все стройки»: строка стройки прогона
 //      есть, итог равен реестру, а «назад» возвращает отчёт с тем же периодом.
+//   4. `all-sites-folds-non-favorite-and-keeps-the-total` — под «Избранными стройками» (issue #1223)
+//      неизбранные стройки — одной строкой, видной без прокрутки на 1366×768; итог тот же, столбец
+//      сходится с ним; «Показать построчно» раскрывает на месте. Реестр под фильтром открывается БЕЗ
+//      отбора и только предлагает чип «Объект: избранные стройки».
 //
 // ⚠️ Данные прогон заводит СЕБЕ САМ: стройку «Объект прогона затрат» (один раз, по имени), оплаченный и
 // неоплаченный счёт на запуск. Счета копятся от запуска к запуску — числа растут, равенства остаются:
@@ -217,6 +221,65 @@ await check('all-sites-total-equals-the-registry-and-back-returns', async () => 
   await report.getByText('Не входит в затраты').waitFor({ timeout: 10_000 });
   if (!page.url().includes(query)) throw new Error(`«назад» вернул не тот отчёт: ${page.url()}`);
   if (Math.abs(await row('Итого затраты').amount() - expected) > 0.005) throw new Error('после «назад» итог другой');
+});
+
+// ── 4. Под «Избранными стройками»: строки свёрнуты, числа те же; реестр только предлагает ─────────
+// ⚠️ Избранное хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленное урезало бы
+// им списки. Поэтому сброс — в finally, адресом. Избранная стройка — своя и без счетов: стройка прогона
+// тогда неизбранная и обязана свернуться, на любой базе.
+await check('all-sites-folds-non-favorite-and-keeps-the-total', async () => {
+  const FAVORITE = 'Избранный объект прогона затрат';
+  const favorite = (await api('GET', '/constructions')).find(c => c.name === FAVORITE)
+    ?? await api('POST', '/constructions', { name: FAVORITE });
+  const query = `from=${month}&to=${month}`;
+  await open(query);
+  const before = await row('Итого затраты').amount();
+  const own = await row(SITE).amount();
+
+  await api('PUT', '/account/settings', { favoriteConstructions: favorite.id, favoritesFilter: null });
+  try {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await open(query);
+    const folded = report.getByTestId('site-costs-folded');
+    await folded.waitFor({ timeout: 10_000 });
+    if (await report.locator('th[scope="row"]', { hasText: SITE }).count())
+      throw new Error('неизбранная стройка прогона стоит строкой под фильтром');
+    const box = await folded.boundingBox();
+    if (!box || box.y + box.height > 768) throw new Error(`свёрнутая строка ниже сгиба на 1366×768: ${JSON.stringify(box)}`);
+    const text = await folded.innerText();
+    if (!/Скрыто фильтром: \d+ стро/.test(text)) throw new Error(`свёрнутая строка: «${text}»`);
+    if (!(number(await folded.locator('td').last().innerText()) >= own)) throw new Error(`в свёрнутой строке меньше денег, чем у стройки прогона: «${text}»`);
+
+    // Числа не изменились: итог тот же, а столбец вместе со свёрнутой строкой сходится с ним.
+    const total = await row('Итого затраты').amount();
+    if (Math.abs(total - before) > 0.005) throw new Error(`итог под фильтром ${total}, без него ${before}`);
+    const cells = await report.locator('section[aria-label="Затраты за период"] tbody td:last-child').allInnerTexts();
+    const sum = cells.reduce((acc, cell) => acc + Math.round(number(cell) * 100), 0) / 100;
+    if (Math.abs(sum - total) > 0.005) throw new Error(`сумма строк ${sum} не равна итогу ${total}`);
+
+    // Раскрытие — на месте и только здесь: фильтр в шапке включён, адрес отчёта прежний.
+    await folded.getByRole('button', { name: 'Показать построчно' }).click();
+    await report.locator('th[scope="row"]', { hasText: SITE }).first().waitFor({ timeout: 5_000 });
+    if (await folded.count()) throw new Error('после «Показать построчно» свёрнутая строка осталась');
+    if (!page.url().endsWith(query)) throw new Error(`раскрытие сменило адрес: ${page.url()}`);
+
+    // Реестр под фильтром — без отбора: предложен чип, и только нажатие ставит условие.
+    await page.goto(`${BASE}/tables/costs.invoices/registry`, { waitUntil: 'networkidle' });
+    const chip = page.getByTestId('sites-chip').getByRole('button', { name: 'Объект: избранные стройки' });
+    await chip.waitFor({ timeout: 10_000 });
+    if (page.url().includes('filter=')) throw new Error(`реестр открылся с отбором: ${page.url()}`);
+    await chip.click();
+    await page.waitForURL(/filter=/, { timeout: 5_000 });
+    const filter = decodeURIComponent(new URL(page.url()).hash);
+    if (!filter.includes('ОбъектыРазноски') || !filter.includes(FAVORITE))
+      throw new Error(`чип поставил не тот отбор: ${filter}`);
+    // Ждать нажатого: адрес меняется раньше, чем экран перерисован по нему.
+    await page.getByTestId('sites-chip').getByRole('button', { name: 'Объект: избранные стройки', pressed: true })
+      .waitFor({ timeout: 5_000 });
+  } finally {
+    await api('PUT', '/account/settings', { favoriteConstructions: null, favoritesFilter: null });
+    await page.setViewportSize({ width: 1500, height: 1000 });
+  }
 });
 } finally {
   await browser.close();

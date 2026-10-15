@@ -207,7 +207,9 @@ public static class InvoiceTable
             new(InvoiceRequisites.SupplierKey, "Поставщик", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.PayerKey, "Плательщик", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.PurposeKey, "Назначение", ModuleTableColumnKind.Text),
-            new(ObjectsKey, "Объект", ModuleTableColumnKind.List),
+            // Стройки в «Объекте» — вперемешку со статьями вне строек: экран предлагает по ней отбор
+            // «избранные стройки» (issue #1223), неявно реестр не урезается.
+            new(ObjectsKey, "Объект", ModuleTableColumnKind.List, Sites: true),
             new(SectionsKey, "Раздел", ModuleTableColumnKind.List),
             new(AmountKey, "Сумма", ModuleTableColumnKind.Number, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),

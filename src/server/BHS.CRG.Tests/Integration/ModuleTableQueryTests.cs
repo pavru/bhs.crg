@@ -315,6 +315,23 @@ public sealed class ModuleTableQueryTests(InvoiceLineHost host) : ModuleTableSee
     }
 
     /// <summary>
+    /// Колонка со стройками названа экрану признаком (issue #1223): по ней — и только по ней — экран
+    /// предлагает чип «Объект: избранные стройки». Пропади признак — чип молча исчез бы из реестра;
+    /// появись у другой колонки — чип отбирал бы названиями строек колонку, где их нет.
+    /// </summary>
+    [Fact]
+    public async Task Колонка_со_стройками_названа_экрану_признаком()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+
+        var table = await client.GetFromJsonAsync<JsonElement>($"/api/tables/{Address}?limit=1");
+        var marked = table.GetProperty("columns").EnumerateArray()
+            .Where(c => c.GetProperty("sites").GetBoolean()).Select(c => c.GetProperty("key").GetString());
+
+        Assert.Equal(["ОбъектыРазноски"], marked);
+    }
+
+    /// <summary>
     /// Посев не растит схему типа счёта: она одна на все тесты хоста, и каждое чтение таблицы отдаёт
     /// по колонке на каждое её поле. Пока посев дописывал свои три поля на каждый вызов, схема росла
     /// с каждым тестом — и за десятки прогонов доросла до 578 полей (issue #1142).

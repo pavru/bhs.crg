@@ -19,10 +19,11 @@ export interface CostsArticle {
 
 const KEY = ['costs-articles'] as const;
 
-export function useCostsArticles() {
+export function useCostsArticles(enabled = true) {
   return useQuery({
     queryKey: KEY,
     queryFn: () => apiClient.get<CostsArticle[]>('/costs/articles').then(r => r.data),
+    enabled,
   });
 }
 

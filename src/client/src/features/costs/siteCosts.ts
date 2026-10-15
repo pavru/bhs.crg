@@ -1,6 +1,7 @@
 import { formatCount } from '@/shared/format/format';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
-import type { SiteCosts } from '@/shared/api/siteCosts';
+import type { CostLine, SiteCosts } from '@/shared/api/siteCosts';
+import { ruCount } from '@/shared/utils/pluralize';
 
 /**
  * Ссылки отчёта «Затраты по стройке» в «Реестр счетов» (G5, issue #1098).
@@ -69,4 +70,40 @@ export function invoicesText(count: number): string {
   const tens = count % 100, ones = count % 10;
   const word = tens >= 11 && tens <= 14 ? 'счетов' : ones === 1 ? 'счёт' : ones >= 2 && ones <= 4 ? 'счёта' : 'счетов';
   return `${formatCount(count)} ${word}`;
+}
+
+/** Стройки, свёрнутые фильтром «Избранные стройки» в одну строку отчёта (issue #1223). */
+export interface FoldedSites {
+  /** Сколько строк свёрнуто. */
+  count: number;
+  /** Их деньги вместе. Числа счетов нет: счёт на двух стройках стоит в обеих строках и в сумму не складывается. */
+  amount: number;
+}
+
+/**
+ * Строки строек под фильтром: видимые — как есть, остальные — одной суммой (issue #1223, решение владельца
+ * «фильтр прячет строки, но не меняет ни одного числа»). Свёрнутая строка доводит столбец до «Итого»: итог
+ * не пересчитывается и не переподписывается, а без неё сумма строк была бы меньше итога и не говорила бы
+ * почему.
+ *
+ * <p>Видимость решает общее правило (`visible`): стройка, которой нет в справочнике клиента, видна —
+ * как в списках. Деньги складываются в копейках: дробная сумма с плавающей точкой разошлась бы с итогом
+ * сервера в последнем знаке.</p>
+ *
+ * @returns `folded: null` — свёрнуто ничего: фильтр не действует или все стройки отчёта избранные
+ */
+export function foldSites(sites: readonly CostLine[], visible: (id: string | null) => boolean) {
+  // Одним проходом: два противоположных отбора дважды спрашивали бы правило о каждой стройке (ревью PR #1339).
+  const shown: CostLine[] = [], hidden: CostLine[] = [];
+  for (const s of sites) (visible(s.id) ? shown : hidden).push(s);
+  const folded: FoldedSites | null = hidden.length === 0 ? null : {
+    count: hidden.length,
+    amount: hidden.reduce((sum, s) => sum + Math.round(s.amount * 100), 0) / 100,
+  };
+  return { shown, folded };
+}
+
+/** «Скрыто фильтром: 11 строек» — название свёрнутой строки. */
+export function foldedText(count: number): string {
+  return `Скрыто фильтром: ${ruCount(count, 'стройка', 'стройки', 'строек')}`;
 }

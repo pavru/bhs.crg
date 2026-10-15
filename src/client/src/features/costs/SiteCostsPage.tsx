@@ -5,12 +5,13 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { revealText } from '@/shared/siteFilter/siteChoices';
+import { useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import { useSiteCosts, type CostFigure, type SiteCosts } from '@/shared/api/siteCosts';
 import { formatCount, formatMoney } from '@/shared/format/format';
-import { invoicesText, siteCostsLinks } from './siteCosts';
+import { foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 
 const ALL = 'all';
 
@@ -127,6 +128,17 @@ function Report({ data, bySections, onSite, stale }: {
 }) {
   const period = data.from === data.to ? data.months[0] : `${data.months[0]} — ${data.months[data.months.length - 1]}`;
   const empty = data.total.invoices === 0;
+  // Неизбранные стройки — одной строкой (issue #1223): фильтр прячет строки, но чисел не меняет. Раскрытие —
+  // здесь и только здесь: глобальный фильтр оно не трогает и не запоминается (§62.3 Дизайнера).
+  const filter = useSiteFilterState();
+  const [unfolded, setUnfolded] = useState(false);
+  // Раскрытое — про ЭТОТ отчёт: другой период, НДС, стройка или избранное приходят снова свёрнутыми
+  // (ревью PR #1339). Сброс — по смене того, что показано, а не по перечитыванию тех же чисел.
+  const screen = [data.site?.id, data.from, data.to, data.withVat, filter.active, [...filter.favorites].sort().join()].join('|');
+  const [shownScreen, setShownScreen] = useState(screen);
+  if (shownScreen !== screen) { setShownScreen(screen); setUnfolded(false); }
+  const { shown, folded } = foldSites(data.sites, id => filter.visible(id));
+  const foldedNow = unfolded ? null : folded;
   // Под «без НДС» реестр по ссылке покажет суммы С НДС — без оговорки сверка глазами дала бы расхождение.
   const linkNote = data.withVat ? undefined : 'в реестре суммы с НДС';
 
@@ -176,8 +188,12 @@ function Report({ data, bySections, onSite, stale }: {
                 ))
               ) : (
                 <>
-                  {data.sites.length > 0 && <Group title="Стройки" />}
-                  {data.sites.map(line => (
+                  {data.sites.length > 0 && <Group title="Стройки"
+                    action={unfolded && folded ? { label: 'Свернуть неизбранные', onClick: () => setUnfolded(false) } : undefined} />}
+                  {/* Первой в группе, а не последней: под ней до двадцати избранных, и в конце она ушла бы
+                      ниже сгиба — а без неё столбец не сходится с итогом на глазах. */}
+                  {foldedNow && <FoldedRow folded={foldedNow} onUnfold={() => setUnfolded(true)} />}
+                  {(foldedNow ? shown : data.sites).map(line => (
                     <Row key={line.id} indent figure={line} link={siteCostsLinks.object(data, line.name)} linkNote={linkNote}
                       name={<button type="button" onClick={() => line.id && onSite(line.id)}
                         className="text-left text-brand hover:underline">{line.name}</button>} label={line.name} />
@@ -252,8 +268,41 @@ function Segmented<T>({ label, value, options, onChange }: {
   );
 }
 
-function Group({ title }: { title: string }) {
-  return <tr><th scope="rowgroup" colSpan={3} className="pt-2 pb-0.5 text-left text-xs font-medium text-fg3">{title}</th></tr>;
+function Group({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) {
+  return (
+    <tr>
+      <th scope="rowgroup" colSpan={3} className="pt-2 pb-0.5 text-left text-xs font-medium text-fg3">
+        {title}
+        {action && (
+          <button type="button" onClick={action.onClick} className="ml-2 font-normal text-fg3 underline hover:text-fg1">
+            {action.label}
+          </button>
+        )}
+      </th>
+    </tr>
+  );
+}
+
+/**
+ * Неизбранные стройки одной строкой: название, сколько их и их деньги. Клетка «Счетов» пуста нарочно —
+ * счёт на двух стройках посчитан в каждой, и число свёрнутых счетов не сложилось бы с соседними. Стрелки в
+ * реестр нет: отбор «все неизбранные» — перечень названий длиной в справочник, а одноимённые стройки
+ * сделали бы итог реестра больше строки.
+ */
+function FoldedRow({ folded, onUnfold }: { folded: FoldedSites; onUnfold: () => void }) {
+  return (
+    <tr className="border-t border-stroke/40 text-fg3" data-testid="site-costs-folded">
+      <th scope="row" className="py-1 pl-4 text-left font-normal">
+        {foldedText(folded.count)}
+        <button type="button" onClick={onUnfold} className="ml-2 text-xs underline hover:text-fg1">Показать построчно</button>
+      </th>
+      <td className="py-1" />
+      <td className="py-1 text-right tabular-nums whitespace-nowrap">
+        {formatMoney(folded.amount)}
+        <span className="inline-block w-[22px]" aria-hidden />
+      </td>
+    </tr>
+  );
 }
 
 function Row({ name, label, figure, link, linkNote, indent, strong, muted }: {
