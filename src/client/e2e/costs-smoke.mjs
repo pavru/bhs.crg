@@ -1,4 +1,5 @@
-// Живой прогон модуля «Счета и накладные» ПОД ЕГО РОЛЯМИ — снабженцем и бухгалтером (N1, issue #1102).
+// Живой прогон модуля «Счета и накладные» ПОД ЕГО РОЛЯМИ — снабженцем, бухгалтером и руководителем
+// (N1, issue #1102).
 //
 // ЗАЧЕМ ОН ЕСТЬ. У модуля восемь объявленных прав, а остальные его прогоны ходят администратором, у
 // которого есть всё: разницы между «право выдано» и «право не нужно» он не видит ВОВСЕ. Это дословно
@@ -13,8 +14,10 @@
 // ⚠️ ЧТО КАКОЙ РОЛИ ПОЛОЖЕНО, ЗАПИСАНО ЗДЕСЬ РУКАМИ — не выведено из `/api/account/access`. Выведенное
 // подстроилось бы под любую потерю права: сняли у снабженца разноску — выбор объекта исчез из ожиданий
 // ВМЕСТЕ с экраном, и прогон остался бы зелёным, проверив пустоту. Здесь — самостоятельное утверждение о
-// ролях (ТЗ COST-28): снабженец вводит и разносит, но не платит; бухгалтер платит, но не вводит и не
-// разносит.
+// ролях (ТЗ COST-28): снабженец вводит и разносит, но не платит; бухгалтер платит, а с E2 (issue #1100)
+// ещё и правит счета и разноску — без этого ему нечем исправить счёт закрытого периода (решение владельца
+// 16.10.2026); руководитель читает всё и не правит ничего. Проверку «счёт только для чтения» раньше нёс
+// бухгалтер — теперь её несёт руководитель.
 //
 // Единственный отказ, который прогон ЗОВЁТ САМ, — расклад оплаты токеном снабженца: кнопки у него нет,
 // но спрятанная кнопка не доказывает, что сервер закрыт. Этот адрес назван ожидаемым и в счёт не идёт.
@@ -22,8 +25,8 @@
 // Пишет: один счёт с уникальным номером на запуск (заводит снабженец, оплачивает бухгалтер). Счета
 // копятся — проверки от их числа не зависят: счёт открывается по своему идентификатору.
 //
-// Требует поднятых фронта и бэка, посева (снабженец и бухгалтер — e2e/seed.mjs) и ВКЛЮЧЁННОГО модуля
-// `costs` — см. e2e/README.md.
+// Требует поднятых фронта и бэка, посева (снабженец, бухгалтер, руководитель — e2e/seed.mjs) и
+// ВКЛЮЧЁННОГО модуля `costs` — см. e2e/README.md.
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/costs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
@@ -32,6 +35,7 @@ import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAdd
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
+const READER_EMAIL = process.env.SMOKE_READER_EMAIL || 'ruk@bhs.local';
 const PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 // Стройку заводит посев: у снабженца права заводить стройки нет, и не должно быть.
 const SITE = 'Демо-стройка';
@@ -136,6 +140,7 @@ function noDenials(seat) {
 
 const supplier = await seat('снабженец');
 const accountant = await seat('бухгалтер');
+const reader = await seat('руководитель');
 let invoiceId = null;
 let site = null;
 
@@ -390,6 +395,36 @@ async function waybillRereadPart(seat) {
   await settled(page);
 }
 
+// ══ Руководитель: читает и не правит ══════════════════════════════════════════════════════════════
+async function readerPart() {
+  await check('reader-is-not-an-administrator', () => notAdministrator(reader));
+
+  await check('reader-reads-the-invoice-and-cannot-change-it', async () => {
+    await visit(reader, 'счета', '/invoices');
+    await reader.page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10_000 });
+    await absent(reader, ['Новый счёт']);
+
+    await openInvoice(reader, invoiceId, 'счёт: чтение');
+    await reader.page.getByText('Только чтение: права вводить счета нет').waitFor({ timeout: 10_000 });
+    await absent(reader, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить файл', 'Заменить файл']);
+    if (await reader.page.getByLabel('Объект счёта', { exact: true }).count())
+      throw new Error('руководителю виден выбор «Объект счёта» — права на разноску у роли нет');
+
+    // Читать разноску он обязан: по ней считаются затраты, которые он видит в сводках.
+    await reader.page.getByRole('button', { name: 'разноска по объектам' }).click();
+    const matrix = reader.page.getByRole('dialog', { name: 'Разноска по объектам' });
+    await matrix.waitFor({ timeout: 10_000 });
+    await settled(reader.page);
+    const text = await matrix.innerText();
+    if (!text.includes(SITE) || !text.includes('₽'))
+      throw new Error(`руководитель не видит разноску счёта на «${SITE}»: ${text.slice(0, 300)}`);
+    await absent(reader, ['Сохранить разноску', 'Добавить объект']);
+    await reader.page.keyboard.press('Escape');
+  });
+
+  await check('reader-no-request-was-refused', () => noDenials(reader));
+}
+
 // ══ Бухгалтер: читает и отмечает оплату ═══════════════════════════════════════════════════════════
 async function accountantPart() {
   await check('accountant-is-not-an-administrator', () => notAdministrator(accountant));
@@ -409,27 +444,18 @@ async function accountantPart() {
     await accountant.page.locator('main').getByRole('heading', { name: 'Учётный период' }).waitFor({ timeout: 10_000 });
   });
 
-  await check('accountant-reads-the-invoice-and-cannot-change-it', async () => {
+  // Бухгалтер с E2 (issue #1100) правит счёт и разноску: исправление закрытого периода пишет и то и
+  // другое. Здесь — что форма ему ОТКРЫТА; отказы на её запросах ловит общий счёт ниже.
+  await check('accountant-may-change-the-invoice', async () => {
     await visit(accountant, 'счета', '/invoices');
     await accountant.page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10_000 });
-    await absent(accountant, ['Новый счёт']);
+    if ((await accountant.page.getByRole('button', { name: 'Новый счёт', exact: true }).count()) === 0)
+      throw new Error('у бухгалтера нет «Нового счёта» — право правки счетов у роли есть');
 
-    await openInvoice(accountant, invoiceId, 'счёт: чтение');
-    await accountant.page.getByText('Только чтение: права вводить счета нет').waitFor({ timeout: 10_000 });
-    await absent(accountant, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить файл', 'Заменить файл']);
-    if (await accountant.page.getByLabel('Объект счёта', { exact: true }).count())
-      throw new Error('бухгалтеру виден выбор «Объект счёта» — права на разноску у роли нет');
-
-    // Читать разноску он обязан: по ней считаются затраты, которые он закрывает.
-    await accountant.page.getByRole('button', { name: 'разноска по объектам' }).click();
-    const matrix = accountant.page.getByRole('dialog', { name: 'Разноска по объектам' });
-    await matrix.waitFor({ timeout: 10_000 });
-    await settled(accountant.page);
-    const text = await matrix.innerText();
-    if (!text.includes(SITE) || !text.includes('₽'))
-      throw new Error(`бухгалтер не видит разноску счёта на «${SITE}»: ${text.slice(0, 300)}`);
-    await absent(accountant, ['Сохранить разноску', 'Добавить объект']);
-    await accountant.page.keyboard.press('Escape');
+    await openInvoice(accountant, invoiceId, 'счёт: правка');
+    if (await accountant.page.getByText('Только чтение: права вводить счета нет').count())
+      throw new Error('форма счёта называет себя «Только чтение» — право правки счетов у бухгалтера есть');
+    await accountant.page.getByLabel('Объект счёта', { exact: true }).first().waitFor({ timeout: 10_000 });
   });
 
   await check('accountant-marks-payment', async () => {
@@ -484,6 +510,10 @@ try {
   // Бухгалтер идёт по счёту снабженца: без счёта его проверкам не на чем стоять — они НЕ запускаются,
   // и провал выше остаётся единственной названной причиной.
   if (invoiceId !== null) {
+    // Руководитель читает счёт ДО оплаты — таким, каким его оставил снабженец.
+    await check('reader-logs-in', () => enter(reader, READER_EMAIL));
+    if (reader.entered) await readerPart();
+
     await check('accountant-logs-in', () => enter(accountant, ACCOUNTANT_EMAIL));
     if (accountant.entered) await accountantPart();
   }
@@ -491,4 +521,4 @@ try {
   await browser.close();
 }
 
-process.exitCode = summarize('Smoke модуля счетов под ролями снабженца и бухгалтера');
+process.exitCode = summarize('Smoke модуля счетов под ролями снабженца, бухгалтера и руководителя');

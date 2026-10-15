@@ -171,6 +171,7 @@ public static class InvoiceTable
         [(int)LostMark.Fixable] = TroubleFixable,
         [(int)LostMark.Locked] = "есть, период закрыт",
         [(int)LostMark.TypeOnly] = "удалён тип счёта",
+        [(int)LostMark.Corrected] = "есть, счёт исправлялся",
     };
 
     public static readonly IReadOnlyDictionary<int, string> ArchivedWords = new Dictionary<int, string>
@@ -487,6 +488,7 @@ public sealed partial class InvoiceTableRows(
         var fixable = troubles.With(LostMark.Fixable);
         var locked = troubles.With(LostMark.Locked);
         var typeOnly = troubles.With(LostMark.TypeOnly);
+        var corrected = troubles.With(LostMark.Corrected);
         //
         // ⚠️ И этот массив в запрос идёт НЕ сравнением «ключ среди массива», а подзапросом, который его
         // разворачивает. Сравнение с массивом база исполняет перебором — на каждую строку заново: на
@@ -549,7 +551,8 @@ public sealed partial class InvoiceTableRows(
             .Choice(InvoiceTable.LostKey,
                 i => fixable.Contains(i.Id) ? (int?)(int)LostMark.Fixable
                     : locked.Contains(i.Id) ? (int?)(int)LostMark.Locked
-                    : typeOnly.Contains(i.Id) ? (int?)(int)LostMark.TypeOnly : null,
+                    : typeOnly.Contains(i.Id) ? (int?)(int)LostMark.TypeOnly
+                    : corrected.Contains(i.Id) ? (int?)(int)LostMark.Corrected : null,
                 InvoiceTable.LostWords)
             .Choice(InvoiceTable.ArchivedKey,
                 i => !archived.Contains(i.Id) ? null

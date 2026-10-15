@@ -252,7 +252,8 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal(1, (await ListAsync(client, $"supplierId={other}")).GetProperty("total").GetInt32());
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/common-data/{vendor}")).StatusCode);
 
-        var (accountant, _) = await SignInAsync("Accountant");
+        // Руководитель читает счета и не правит их. (Бухгалтеру с E2 правка выдана — вместе с исправлением.)
+        var (accountant, _) = await SignInAsync("Executive");
         Assert.Equal(HttpStatusCode.Forbidden,
             (await accountant.DeleteAsync($"/api/costs/supplier-matches?supplierId={other}")).StatusCode);
     }
@@ -260,7 +261,8 @@ public class SupplierMatchListTests(InvoiceLineHost host) : InvoiceLineTestBase(
     [Fact]
     public async Task Список_соответствий_открыт_правом_правки_счёта()
     {
-        var (accountant, _) = await SignInAsync("Accountant");
+        // Руководитель читает счета и не правит их. (Бухгалтеру с E2 правка выдана — вместе с исправлением.)
+        var (accountant, _) = await SignInAsync("Executive");
         Assert.Equal(HttpStatusCode.Forbidden, (await accountant.GetAsync("/api/costs/supplier-matches")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await accountant.GetAsync("/api/costs/supplier-matches/suppliers")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await ForgetAsync(accountant, Guid.NewGuid(), "1")).StatusCode);

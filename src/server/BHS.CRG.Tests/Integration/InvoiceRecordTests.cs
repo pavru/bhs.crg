@@ -522,7 +522,8 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
     [Fact]
     public async Task Чтение_счетов_не_даёт_права_их_заводить()
     {
-        var (accountant, _) = await SignInAsync("Accountant");
+        // Руководитель: счета читает, а не правит. (Бухгалтеру с E2 правка выдана — вместе с исправлением.)
+        var (accountant, _) = await SignInAsync("Executive");
 
         var read = await accountant.GetAsync("/api/costs/invoices");
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);

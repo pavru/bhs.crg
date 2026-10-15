@@ -50,6 +50,15 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public const string OrganizationCreate = "costs.organization.create";
 
+    /// <summary>
+    /// Исправлять счёт закрытого периода (E2, issue #1100, решение владельца 15.10.2026): счёт, деньги
+    /// которого уже вошли в закрытый период или который уже исправляли, меняется только исправлением —
+    /// с причиной, новой версией и записью в книге. Своё право, а не часть правки счёта: правка черновиков
+    /// и исправление закрытого — разная ответственность. Исправлять можно только вместе с
+    /// <see cref="InvoiceEdit" />, а если исправление трогает разноску — и с <c>costs.allocation.edit</c>.
+    /// </summary>
+    public const string InvoiceCorrect = "costs.invoice.correct";
+
     public string Code => ModuleCode;
 
     public string Title => "Счета и накладные";
@@ -58,8 +67,8 @@ public sealed class CostsModule : IAppModule
     /// Права модуля (ТЗ COST-28) — каждое с объяснением, потому что галку в редакторе ролей ставит
     /// человек, а код <c>costs.invoice.pay</c> сам по себе не даёт ему оснований решить.
     ///
-    /// <para>⚠️ Здесь их восемь, а перечень ТЗ называет одиннадцать. Три выписаны с причиной, а не
-    /// забыты:</para>
+    /// <para>⚠️ Здесь их девять, а перечень ТЗ называет одиннадцать: одно добавлено (исправление счёта
+    /// закрытого периода, E2), три выписаны с причиной, а не забыты:</para>
     /// <list type="bullet">
     ///   <item><c>costs.invoice.approve</c> — согласование счёта вынесено из этапа (задача C6,
     ///   решение владельца 28.09.2026): оно выключено по умолчанию, то есть его можно не делать
@@ -105,10 +114,18 @@ public sealed class CostsModule : IAppModule
 
         new(InvoiceEdit,
             "заводить, править и удалять счета, их строки и сопоставление наименований поставщиков с номенклатурой",
-            "то же, что чтение, плюс изменение — включая исправление счёта закрытого периода новой " +
-            "версией с причиной — и удаление черновика без оплаты насовсем, вместе с файлом",
+            "то же, что чтение, плюс изменение и удаление черновика без оплаты насовсем, вместе с файлом. " +
+            "Счёт закрытого периода этим правом не правится — только исправлением, своим правом",
             ["costs.invoice.read", "costs.allocation.edit", "core.nomenclature.edit", OrganizationCreate],
             ReadAllMark.Out("заводит и правит счета")),
+
+        new(InvoiceCorrect,
+            "исправлять счёт закрытого периода — с причиной и новой версией",
+            "суммы и разноску оплаченных счетов, уже вошедших в закрытый период. Исправление меняет «как " +
+            "есть» в отчётах, а прежнее остаётся в версии и в книге проводок; работает вместе с правом " +
+            "правки счетов (и разноски, если исправление её трогает)",
+            ["costs.invoice.read", InvoiceEdit, "costs.allocation.edit"],
+            ReadAllMark.Out("исправляет счета закрытого периода")),
 
         new(OrganizationCreate,
             "заводить в справочнике организацию, прочитанную в файле счёта, если её там ещё нет",
@@ -326,6 +343,7 @@ public sealed class CostsModule : IAppModule
         InvoiceScanImageEndpoints.Map(endpoints);
         InvoicePartyIntakeEndpoints.Map(endpoints);
         InvoiceLineEndpoints.MapInvoiceLines(endpoints);
+        InvoiceCorrectionEndpoints.Map(endpoints);
         SupplierMatchEndpoints.Map(endpoints);
         SupplierMatchListEndpoints.Map(endpoints);
         SupplierTermsEndpoints.Map(endpoints);

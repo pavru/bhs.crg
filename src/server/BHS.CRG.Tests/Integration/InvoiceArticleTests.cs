@@ -18,7 +18,7 @@ public class InvoiceArticleTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
     [Fact]
     public async Task Счёт_на_склад_разносится_на_статью_заведённую_бухгалтером()
     {
-        // Статью заводит бухгалтер — у него право справочника, но нет ни разноски, ни core.catalog.edit.
+        // Статью заводит бухгалтер — у него право справочника статей, но нет core.catalog.edit.
         var (accountant, _) = await SignInAsync("Accountant");
         var article = await ArticleAsync(accountant, "Склад");
 

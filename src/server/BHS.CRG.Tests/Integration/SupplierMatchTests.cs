@@ -284,8 +284,8 @@ public class SupplierMatchTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         Assert.Equal(HttpStatusCode.Forbidden,
             (await keeper.PostAsJsonAsync("/api/costs/supplier-matches/suggestions", body)).StatusCode);
 
-        // Читающему счета — тоже: подставить ему некуда.
-        var (accountant, _) = await SignInAsync("Accountant");
+        // Читающему счета — тоже: подставить ему некуда. Читает их руководитель: бухгалтеру с E2 выдана и правка.
+        var (accountant, _) = await SignInAsync("Executive");
         Assert.Equal(HttpStatusCode.Forbidden,
             (await accountant.PostAsJsonAsync("/api/costs/supplier-matches/suggestions", body)).StatusCode);
 

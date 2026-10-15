@@ -9,6 +9,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
+/// <summary>Набор строк, положенный в счёт: строки по порядку, изменён ли он и что запомнить.</summary>
+internal sealed record LinesPlaced(IReadOnlyList<InvoiceLine> Lines, bool Changed, IReadOnlyList<MatchToRemember> Worth);
+
 /// <summary>
 /// Строки счёта и переход «черновик → разобран» (задача C2 этапа 2, issue #1078, ТЗ COST-7, COST-9).
 ///
@@ -104,68 +107,7 @@ public static class InvoiceLineEndpoints
         async Task<(Invoice Invoice, bool Changed, string? Reason, IReadOnlyList<MatchToRemember> Worth)> PlaceAsync(
             Invoice invoice)
         {
-            var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
-
-            // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
-            // потеря в строке 3 не должна мешать поправить цену в строке 7. По строкам, прочитанным под
-            // замком записи: набор, собранный до него, назвал бы «стоящей» позицию, которую уже убрали.
-            await EnsureNomenclatureExistsAsync(catalog, parsed,
-                [.. existing.Select(l => l.NomenclatureId).OfType<Guid>().Distinct()], ct);
-
-            var kept = new HashSet<Guid>();
-
-            // Снимок ДО правки — им отличается настоящая правка от повторной отправки того же набора.
-            // Форма присылает строки целиком на каждое сохранение, и запись «строки изменены» без этой
-            // сверки появлялась бы в журнале там, где не изменилось ничего: журнал заполнился бы шумом, а
-            // настоящая правка в нём потерялась бы.
-            var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
-            var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
-            var stored = was.ToDictionary(l => l.Id, l => l.Values);
-            InvoiceLineValues? Stored(Guid? lineId) => lineId is { } known ? stored.GetValueOrDefault(known) : null;
-
-            // Пометка «запомнено» проверяется, только когда она НОВАЯ — у новой строки, с другим
-            // соответствием, с другой позицией или с другим ключом строки. Стоявшую не перепроверяем:
-            // соответствие с тех пор могли сменить, и это показывает состояние пометки, а не отказ
-            // сохранить счёт. А вот строку, которую ПЕРЕПИСАЛИ («Кабель» → «Доставка»), прежняя пометка
-            // называла бы подставленной из памяти, которой для нового текста не было (ревью PR #1262).
-            await SupplierMatching.EnsureMarksAsync(db, invoice.SupplierId,
-                [.. parsed.Select((p, index) => (Number: index + 1, p.Id, p.Values))
-                    .Where(p => p.Values.MatchedBy is not null
-                        && (Stored(p.Id) is not { } before
-                            || before.MatchedBy != p.Values.MatchedBy
-                            || before.NomenclatureId != p.Values.NomenclatureId
-                            || !SupplierMatching.SameKey(before, p.Values)))
-                    .Select(p => (p.Number, p.Values))], ct);
-
-            // Что запомнить — по лежащему ДО правки: после неё «было» и «стало» совпадут.
-            IReadOnlyList<MatchToRemember> worth = invoice.SupplierId is null
-                ? []
-                : await SupplierMatching.AliveAsync(catalog,
-                    SupplierMatching.Worth(parsed.Select((p, index) => (Stored(p.Id), p.Values, remember[index]))), ct);
-
-            for (var index = 0; index < parsed.Count; index++)
-            {
-                var (lineId, values) = parsed[index];
-
-                var line = lineId is { } known
-                    ? existing.FirstOrDefault(l => l.Id == known)
-                        ?? throw new InvalidRequestException(
-                            $"Строка {index + 1}: строки {known} у этого счёта нет. Так бывает, когда форму " +
-                            "оставили открытой, а строку тем временем удалили: присланное состояние опирается " +
-                            "на то, чего уже нет. Перечитайте счёт и повторите правку — иначе удалённая " +
-                            "строка вернулась бы молча.")
-                    : Added(db, invoice.Id);
-
-                // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
-                // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
-                // строки из ста давала бы сто обновлений, а время правки у девяноста девяти врало бы.
-                // У новой строки место ещё нулевое, поэтому она сюда попадает всегда.
-                if (line.Ordinal != index + 1 || line.Snapshot() != values) line.Apply(index + 1, values);
-                kept.Add(line.Id);
-                now.Add((line.Id, values));
-            }
-
-            db.InvoiceLines.RemoveRange(existing.Where(l => !kept.Contains(l.Id)));
+            var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct);
 
             // Возврат в черновик — ДО сохранения: одна запись в базу на всю правку.
             //
@@ -179,20 +121,97 @@ public static class InvoiceLineEndpoints
                 : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
                     ? "позиция номенклатуры есть не у всех строк"
                 : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
-                    [.. now.Select((l, index) => new AllocationLine(l.Id, index + 1, l.Values.Quantity, l.Values.Amount))],
+                    [.. placed.Lines.Select(InvoiceAllocations.Line)],
                     await desk.ToleranceAsync(ct), ct)
                     ? "баланс разноски не сходится"
                 : null;
             if (reason is not null) invoice.ReturnToDraft();
 
-            // Правка строк — правка счёта: время его правки обязано сдвинуться. Повторная отправка того же
-            // набора правкой не является — ни для журнала, ни для времени.
-            var changed = !was.SequenceEqual(now);
-            if (changed) invoice.ContentChanged();
-
             await db.SaveChangesAsync(ct);
-            return (invoice, changed, reason, worth);
+            return (invoice, placed.Changed, reason, placed.Worth);
         }
+    }
+
+    /// <summary>
+    /// Положить присланный набор строк в счёт — без сохранения и без возврата в черновик: их делает
+    /// звавший. Одна функция на замену строк и на исправление счёта (E2, issue #1100).
+    /// </summary>
+    /// <returns>Строки после правки — по порядку набора; изменён ли набор; что запомнить после записи.</returns>
+    internal static async Task<LinesPlaced> PlaceLinesAsync(
+        CostsDbContext db, IModuleCatalog catalog, Invoice invoice,
+        IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed, IReadOnlyList<bool> remember, CancellationToken ct)
+    {
+        var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+
+        // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
+        // потеря в строке 3 не должна мешать поправить цену в строке 7. По строкам, прочитанным под
+        // замком записи: набор, собранный до него, назвал бы «стоящей» позицию, которую уже убрали.
+        await EnsureNomenclatureExistsAsync(catalog, parsed,
+            [.. existing.Select(l => l.NomenclatureId).OfType<Guid>().Distinct()], ct);
+
+        var kept = new HashSet<Guid>();
+
+        // Снимок ДО правки — им отличается настоящая правка от повторной отправки того же набора.
+        // Форма присылает строки целиком на каждое сохранение, и запись «строки изменены» без этой
+        // сверки появлялась бы в журнале там, где не изменилось ничего: журнал заполнился бы шумом, а
+        // настоящая правка в нём потерялась бы.
+        var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
+        var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
+        var placed = new List<InvoiceLine>(parsed.Count);
+        var stored = was.ToDictionary(l => l.Id, l => l.Values);
+        InvoiceLineValues? Stored(Guid? lineId) => lineId is { } known ? stored.GetValueOrDefault(known) : null;
+
+        // Пометка «запомнено» проверяется, только когда она НОВАЯ — у новой строки, с другим
+        // соответствием, с другой позицией или с другим ключом строки. Стоявшую не перепроверяем:
+        // соответствие с тех пор могли сменить, и это показывает состояние пометки, а не отказ
+        // сохранить счёт. А вот строку, которую ПЕРЕПИСАЛИ («Кабель» → «Доставка»), прежняя пометка
+        // называла бы подставленной из памяти, которой для нового текста не было (ревью PR #1262).
+        await SupplierMatching.EnsureMarksAsync(db, invoice.SupplierId,
+            [.. parsed.Select((p, index) => (Number: index + 1, p.Id, p.Values))
+                .Where(p => p.Values.MatchedBy is not null
+                    && (Stored(p.Id) is not { } before
+                        || before.MatchedBy != p.Values.MatchedBy
+                        || before.NomenclatureId != p.Values.NomenclatureId
+                        || !SupplierMatching.SameKey(before, p.Values)))
+                .Select(p => (p.Number, p.Values))], ct);
+
+        // Что запомнить — по лежащему ДО правки: после неё «было» и «стало» совпадут.
+        IReadOnlyList<MatchToRemember> worth = invoice.SupplierId is null
+            ? []
+            : await SupplierMatching.AliveAsync(catalog,
+                SupplierMatching.Worth(parsed.Select((p, index) => (Stored(p.Id), p.Values, remember[index]))), ct);
+
+        for (var index = 0; index < parsed.Count; index++)
+        {
+            var (lineId, values) = parsed[index];
+
+            var line = lineId is { } known
+                ? existing.FirstOrDefault(l => l.Id == known)
+                    ?? throw new InvalidRequestException(
+                        $"Строка {index + 1}: строки {known} у этого счёта нет. Так бывает, когда форму " +
+                        "оставили открытой, а строку тем временем удалили: присланное состояние опирается " +
+                        "на то, чего уже нет. Перечитайте счёт и повторите правку — иначе удалённая " +
+                        "строка вернулась бы молча.")
+                : Added(db, invoice.Id);
+
+            // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
+            // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
+            // строки из ста давала бы сто обновлений, а время правки у девяноста девяти врало бы.
+            // У новой строки место ещё нулевое, поэтому она сюда попадает всегда.
+            if (line.Ordinal != index + 1 || line.Snapshot() != values) line.Apply(index + 1, values);
+            kept.Add(line.Id);
+            now.Add((line.Id, values));
+            placed.Add(line);
+        }
+
+        db.InvoiceLines.RemoveRange(existing.Where(l => !kept.Contains(l.Id)));
+
+        // Правка строк — правка счёта: время его правки обязано сдвинуться. Повторная отправка того же
+        // набора правкой не является — ни для журнала, ни для времени.
+        var changed = !was.SequenceEqual(now);
+        if (changed) invoice.ContentChanged();
+
+        return new LinesPlaced(placed, changed, worth);
     }
 
     /// <summary>
@@ -323,7 +342,7 @@ public static class InvoiceLineEndpoints
     /// Один и тот же идентификатор дважды — отказ. Прочитать это как «последняя побеждает» нельзя: набор
     /// заменяет состояние, и одна из двух строк исчезла бы без следа.
     /// </summary>
-    private static void EnsureIdsDistinct(List<(Guid? Id, InvoiceLineValues Values)> parsed)
+    internal static void EnsureIdsDistinct(IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed)
     {
         var repeated = parsed.Where(p => p.Id is not null)
             .GroupBy(p => p.Id!.Value)
@@ -347,7 +366,7 @@ public static class InvoiceLineEndpoints
     /// человек за формой ничего не исправит правкой строки.</para>
     /// </summary>
     private static async Task EnsureNomenclatureExistsAsync(
-        IModuleCatalog catalog, List<(Guid? Id, InvoiceLineValues Values)> parsed,
+        IModuleCatalog catalog, IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed,
         IReadOnlyCollection<Guid> kept, CancellationToken ct)
     {
         var referenced = parsed.Select(p => p.Values.NomenclatureId)

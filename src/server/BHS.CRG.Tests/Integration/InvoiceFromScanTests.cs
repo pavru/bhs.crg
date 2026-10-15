@@ -406,26 +406,41 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
     }
 
     /// <summary>
-    /// Правка формы пришла одновременно с исходом распознавания, и слияние проиграло ей запись.
-    /// Прочитанное не выбрасывается: счёт перечитывается, и то же прочитанное раскладывается заново —
-    /// уже мимо поля, которое человек только что заполнил. Иначе за тот же файл платили бы движку дважды.
+    /// Правка формы пришла одновременно с исходом распознавания — посреди слияния, между чтением счёта и
+    /// записью. С E2 (issue #1100, spec v3.3 п. 1.3) слияние держит строку счёта под блокировкой: правка
+    /// ЖДЁТ его, а не перебивает. Дождавшись, она видит счёт уже с прочитанным — и форма, открытая до
+    /// исхода, получает «тем временем изменили», а не затирает его. Ничего не теряется, повторять слиянию
+    /// нечего.
+    ///
+    /// <para>До блокировки строки здесь проверялся повтор слияния, проигравшего правке запись: правка
+    /// успевала сохраниться первой. Теперь проиграть ей слиянию нечем — проверяем то, что стало.</para>
     /// </summary>
     [Fact]
-    public async Task Слияние_проигравшее_правке_формы_повторяется_а_не_выбрасывает_прочитанное()
+    public async Task Правка_формы_посреди_слияния_ждёт_его_и_не_затирает_прочитанное()
     {
         var (client, _) = await SignInAsync("Supplier");
         var scan = Scan();
         var gate = Hold(scan, Read(Header(number: "СЧ-508", basis: "Договор № 8")));
         Guid id;
+        Task<HttpResponseMessage>? form = null;
         try
         {
             id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
-            host.BetweenReadAndSave = async () =>
+            // Форма открыта ДО исхода: версия и шапка — прежние.
+            var opened = await ReadAsync(client, id);
+            var patched = await RequisitesWithAsync(client, id, "Назначение", "вписано рукой");
+            host.BetweenReadAndSave = () =>
             {
-                using var scope = host.Services.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
-                await db.Database.ExecuteSqlRawAsync(
-                    "UPDATE costs.invoices SET purpose = 'вписано рукой' WHERE id = {0}", id);
+                // Не ждём ответа: правка обязана встать в очередь за слиянием, а дождись мы её здесь —
+                // слияние ждало бы правку, а правка слияние.
+                // Запрос не освобождается здесь: он ещё в пути, когда помеха возвращается.
+                var request = new HttpRequestMessage(HttpMethod.Put, $"/api/costs/invoices/{id}")
+                {
+                    Content = JsonContent.Create(new { requisites = patched }),
+                };
+                request.Headers.TryAddWithoutValidation("If-Match", opened.GetProperty("version").GetString());
+                form = client.SendAsync(request);
+                return Task.Delay(300);
             };
         }
         finally
@@ -436,12 +451,14 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         var recognition = await OutcomeAsync(client, id);
         Assert.Null(host.BetweenReadAndSave); // помеха действительно случилась
         Assert.Equal("done", recognition.GetProperty("state").GetString());
-        Assert.Equal("Договор № 8", recognition.GetProperty("offers").GetProperty("Назначение").GetString());
+
+        var late = await form!;
+        Assert.Equal(HttpStatusCode.Conflict, late.StatusCode);
+        Assert.Contains("тем временем изменили", await late.Content.ReadAsStringAsync());
 
         var view = await ReadAsync(client, id);
-        Assert.Equal("вписано рукой", view.GetProperty("requisites").GetProperty("Назначение").GetString());
+        Assert.Equal("Договор № 8", view.GetProperty("requisites").GetProperty("Назначение").GetString());
         Assert.Equal("СЧ-508", view.GetProperty("requisites").GetProperty("Номер").GetString());
-        Assert.Equal(["Номер"], Unconfirmed(view));
     }
 
     /// <summary>

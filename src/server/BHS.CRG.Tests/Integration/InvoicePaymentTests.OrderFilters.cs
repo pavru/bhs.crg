@@ -115,7 +115,10 @@ public partial class InvoicePaymentTests
         Assert.False(Has(await TroubleTableAsync(admin, LostColumn, InvoiceTable.TroubleFixable), invoice));
         var held = await TroubleTableAsync(admin, LostColumn, locked);
         Assert.True(Has(held, invoice));
-        Assert.Equal((await TallyAsync(admin, "locked")).Invoices, Count(held));
+        // В счётчике «заперто» — и счета, которые исправлялись (E2): их слово своё, а обычной правкой не
+        // исправить ни те ни другие.
+        var corrected = await TroubleTableAsync(admin, LostColumn, InvoiceTable.LostWords[(int)LostMark.Corrected]);
+        Assert.Equal((await TallyAsync(admin, "locked")).Invoices, Count(held) + Count(corrected));
         Assert.Equal(locked, await TroubleCellAsync(admin, LostColumn, invoice));
 
         using (var scope = host.Services.CreateScope())

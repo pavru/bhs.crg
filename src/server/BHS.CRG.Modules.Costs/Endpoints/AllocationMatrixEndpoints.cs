@@ -310,7 +310,7 @@ public static class AllocationMatrixEndpoints
         return byLine;
     }
 
-    private static IReadOnlyList<AllocationValues> OfLine(
+    internal static IReadOnlyList<AllocationValues> OfLine(
         InvoiceLine line, IReadOnlyList<JsonElement> parts, AllocationPlaces known)
     {
         try
@@ -331,7 +331,7 @@ public static class AllocationMatrixEndpoints
     /// Части счёта целиком — только у счёта без строк и только суммой, со знаком суммы к оплате и не
     /// больше её (ТЗ COST-11, COST-13).
     /// </summary>
-    private static IReadOnlyList<AllocationValues> ParseDocument(
+    internal static IReadOnlyList<AllocationValues> ParseDocument(
         IReadOnlyList<JsonElement> sent, Invoice invoice, int lineCount, AllocationPlaces known)
     {
         if (sent.Count == 0) return [];
@@ -376,14 +376,14 @@ public static class AllocationMatrixEndpoints
         [.. parts.OrderBy(a => a.LineId).ThenBy(a => a.Ordinal).ThenBy(a => a.Id)
             .Select(a => (a.Id, a.LineId, a.Ordinal, a.Snapshot()))];
 
-    private static IReadOnlyList<JsonElement> Parts(JsonElement item) => CostsValues.Value(item, "parts") switch
+    internal static IReadOnlyList<JsonElement> Parts(JsonElement item) => CostsValues.Value(item, "parts") switch
     {
         { ValueKind: JsonValueKind.Array } parts => [.. parts.EnumerateArray()],
         var other => throw CostsValues.Wrong("parts", other, "набор частей строки ([] — строка не разнесена)"),
     };
 
     /// <summary>Положить части строки (или счёта), правя на месте часть той же цели.</summary>
-    private static void Place(
+    internal static void Place(
         CostsDbContext db, Guid invoiceId, Guid? lineId, IReadOnlyList<AllocationValues> values,
         List<InvoiceAllocation> existing, List<InvoiceAllocation> now)
     {
