@@ -343,9 +343,13 @@ public class PaymentPostingTests
 
     /// <summary>
     /// Тот же остаток при правке разноски (issue #1345): день у него — тот, с которым его читают, а не
-    /// «появился из нуля». Иначе правка, не тронувшая денег остатка, уносит его из закрытого месяца
-    /// компании: положительный — в первый открытый день, отрицательный — в день самой поздней доли
+    /// «появился из нуля». Иначе правка, не тронувшая денег остатка, уносит его в другой месяц:
+    /// положительный — в день платежа по контуру компании, отрицательный — в день самой поздней доли
     /// ПОСЛЕ правки.
+    ///
+    /// <para>Состояние — то, что откроет исправление счёта (E2, #1100): закрыто сейчас ничего, дни долей
+    /// сдвинуты закрытиями, которые потом отменили. Сегодня до Plan такой счёт не доходит: при новом
+    /// допуске он не сведён, и запись отказывает раньше.</para>
     /// </summary>
     [Theory]
     [InlineData("100000.80")]
@@ -354,23 +358,23 @@ public class PaymentPostingTests
     {
         var total = decimal.Parse(whole, System.Globalization.CultureInfo.InvariantCulture);
         const decimal lowered = 0.50m;
-        var closed = new PeriodBoundaries(D(9, 30), new Dictionary<Guid, DateOnly>());
         var first = Part(First, 1, AllocationTarget.Site(SiteB), quantity: 100);
         var second = Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000);
-        first.Post(D(9, 15));
-        second.Post(D(9, 15));
+        first.Post(D(10, 1));
+        second.Post(D(9, 20));
         InvoiceAllocation[] before = [first, second];
         var kept = PaymentPosting.Before(Invoice(total), before,
             PaymentPosting.Balance([First, Second], before, total, lowered));
 
-        // Вторую строку перенесли на статью — её день новый, деньги остатка не тронуты.
-        var moved = Part(Second, 1, AllocationTarget.Article(Stock), amount: 60_000);
-        var plan = PaymentPosting.Plan(D(9, 15), total, [First, Second], [first, moved], kept, closed, lowered);
+        // Первую строку перенесли на статью — её день по правилу оплаты, деньги остатка не тронуты.
+        var moved = Part(First, 1, AllocationTarget.Article(Stock), quantity: 100);
+        var plan = PaymentPosting.Plan(D(9, 15), total, [First, Second], [moved, second], kept,
+            PeriodBoundaries.None, lowered);
 
-        Assert.Equal(D(10, 1), plan.Shares.Single(s => s.Target == moved.Target).AccountingOn);
+        Assert.Equal(D(9, 15), plan.Shares.Single(s => s.Target == moved.Target).AccountingOn);
         Assert.Equal(total - 100_000m, plan.Remainder!.Amount);
-        Assert.Equal(D(9, 15), plan.Remainder.AccountingOn);
-        Assert.Equal(D(9, 15), kept.Remainder);
+        Assert.Equal(D(10, 1), plan.Remainder.AccountingOn);
+        Assert.Equal(D(10, 1), kept.Remainder);
     }
 
     /// <summary>
