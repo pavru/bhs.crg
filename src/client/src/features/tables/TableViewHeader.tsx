@@ -146,7 +146,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
           <Popover.Root open={open} onOpenChange={setOpen}>
             <Popover.Trigger asChild>
               <button type="button" title="Выбрать представление"
-                className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-full">
+                className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-[calc(100%+0.75rem)]">
                 <Table2 size={18} className="text-fg3 shrink-0" aria-hidden />
                 <span className="truncate">{title}</span>
                 <ChevronDown size={16} className="text-fg3 shrink-0" aria-hidden />
