@@ -10,6 +10,8 @@
     "lint": "eslint .",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
+    "ui:ratchet": "node scripts/ui-ratchet.mjs",
+    "ui:ratchet:update": "node scripts/ui-ratchet.mjs --update",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

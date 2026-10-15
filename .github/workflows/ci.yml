@@ -233,6 +233,11 @@ jobs:
       - name: Линт (храповик)
         run: npm run lint:ratchet
 
+      # <table>, нативный <select>, text-[Npx] и сырая палитра в features/ — тот же приём по файлам
+      # (issue #1349); куда идти вместо, скрипт называет сам.
+      - name: Интерфейс (храповик)
+        run: npm run ui:ratchet
+
   update-script:
     # ⚠️ ИМЯ РАБОТЫ МЕНЯТЬ НЕЛЬЗЯ, хотя проверяются здесь уже ТРИ скрипта и имя этого не отражает.
     # Оно названо в обязательных проверках master (Settings → Rules → «Master ruleset»), и правило
