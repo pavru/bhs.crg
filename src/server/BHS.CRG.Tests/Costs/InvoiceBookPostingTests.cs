@@ -91,7 +91,7 @@ public partial class InvoiceBookPostingTests
         : (target.ConstructionId == A ? "A" : target.ConstructionId == B ? "B" : "?")
           + (target.SectionId == R1 ? "/р1" : target.SectionId == R2 ? "/р2" : target.SectionId == R3 ? "/р3" : "");
 
-    private static string Show(BookLine line) =>
+    private static string Show(Grain line) =>
         string.Create(CultureInfo.InvariantCulture,
             $"{Name(line.Cell)} {line.Day:dd.MM} {line.Gross:+0.00;-0.00;0.00}/{line.Net:+0.00;-0.00;0.00}{(line.VatUnknown ? " vU" : "")}");
 
@@ -249,6 +249,15 @@ public partial class InvoiceBookPostingTests
             InvoiceBookPosting.Post(run.Book, new BookChange(InvoiceBookKind.Correction, S05At050, 0.50m, S05At050, 0.50m),
                 ClosedA, D(10, 6)));
     }
+
+    /// <summary>
+    /// Оплата неоплаченного счёта без книги книгу не заводит (spec п. 1.5): иначе в книге лёг бы пустой
+    /// заголовок «открытие» — след, которого не было.
+    /// </summary>
+    [Fact]
+    public void Оплата_счёта_без_книги_в_книгу_не_пишется() =>
+        Assert.Throws<ArgumentException>(() => InvoiceBookPosting.Post([],
+            new BookChange(InvoiceBookKind.Payment, [], 1.00m, [G(CellA, D(10, 7), 120m)], 1.00m), ClosedA, D(10, 7)));
 
     /// <summary>Книга, разошедшаяся с документом при том же допуске, — ошибка, а не повод выровнять.</summary>
     [Fact]

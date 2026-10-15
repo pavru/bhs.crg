@@ -12,14 +12,15 @@ public readonly record struct BookCell(AllocationTarget? Target, Guid? SupplierI
     public PeriodContour Contour => Target is { } target ? PaymentPosting.ContourOf(target) : new PeriodContour.Company();
 }
 
-/// <summary>Зерно денег счёта: ячейка, учётный день и деньги — с НДС, без НДС, известен ли НДС.</summary>
+/// <summary>
+/// Зерно денег: ячейка, учётный день и деньги — с НДС, без НДС, известен ли НДС. Им же записана строка
+/// книги: форма у них одна, и сравнивают их друг с другом — два типа одной формы разошлись бы молча на
+/// первом новом поле (ревью PR #1357).
+/// </summary>
 public sealed record Grain(BookCell Cell, DateOnly Day, decimal Gross, decimal Net, bool VatUnknown);
 
-/// <summary>Денежная строка записи книги — та же форма, что у зерна, но это проводка, а не состояние.</summary>
-public sealed record BookLine(BookCell Cell, DateOnly Day, decimal Gross, decimal Net, bool VatUnknown);
-
 /// <summary>Запись книги до сохранения: вид, день D, допуск и строки.</summary>
-public sealed record BookRecord(InvoiceBookKind Kind, DateOnly Day, decimal Tolerance, IReadOnlyList<BookLine> Lines);
+public sealed record BookRecord(InvoiceBookKind Kind, DateOnly Day, decimal Tolerance, IReadOnlyList<Grain> Lines);
 
 /// <summary>Что сдвигает запись: деньги счёта до и после и допуски, которыми они посчитаны.</summary>
 /// <param name="AtLast">Деньги счёта при допуске ПОСЛЕДНЕЙ записи книги — для страховки (spec п. 1.3
@@ -82,6 +83,11 @@ public static class InvoiceBookPosting
     {
         if (change.Kind == InvoiceBookKind.Opening)
             throw new ArgumentException("Открытие пишет сама проводка, перед первой записью книги.", nameof(change));
+        // Книгу заводят исправление, отмена оплаты запертого и смена допуска запертому (spec п. 1.5);
+        // оплата — только продолжает её. Оплата неоплаченного счёта без книги в книгу не пишется вовсе:
+        // пустое «открытие» перед ней было бы ложным следом (ревью PR #1357).
+        if (book.Count == 0 && change.Kind == InvoiceBookKind.Payment)
+            throw new ArgumentException("Оплата счёта без книги в книгу не пишется: книгу она не заводит.", nameof(change));
         if (book.Count > 0 && book[^1].Tolerance != change.ToleranceBefore && change.AtLast is null)
             throw new ArgumentException(
                 $"Последняя запись книги посчитана при допуске {book[^1].Tolerance}, а «до» — при " +
@@ -111,7 +117,7 @@ public static class InvoiceBookPosting
 
         if (book.Count == 0)
             Write(new BookRecord(InvoiceBookKind.Opening, day, change.ToleranceBefore,
-                [.. Ordered(before).Select(p => new BookLine(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown))]));
+                [.. Ordered(before).Select(p => new Grain(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown))]));
         else if (atLast is not null && !Same(atLast, before))
             // Страховка — по деньгам, а не по числу допуска (п. 1.3 шаг 2): смена, не тронувшая денег
             // счёта, ему ничего не пишет, и пустой заголовок «выравнивание» был бы ложным следом.
@@ -128,13 +134,13 @@ public static class InvoiceBookPosting
     /// Проводка от одних денег к другим по правилу (б′). Книга <paramref name="lines" /> — какой она
     /// лежит ДО этой проводки (с уже записанными открытием и выравниванием).
     /// </summary>
-    private static List<BookLine> Diff(
+    private static List<Grain> Diff(
         IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> from,
         IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> to,
-        IReadOnlyList<BookLine> lines, PeriodBoundaries boundaries, DateOnly day)
+        IReadOnlyList<Grain> lines, PeriodBoundaries boundaries, DateOnly day)
     {
-        var book = Pairs(lines.Select(l => new Grain(l.Cell, l.Day, l.Gross, l.Net, l.VatUnknown)));
-        var result = new List<BookLine>();
+        var book = Pairs(lines);
+        var result = new List<Grain>();
 
         foreach (var key in from.Keys.Union(to.Keys))
         {
@@ -149,17 +155,17 @@ public static class InvoiceBookPosting
             // (закрытие отменили).
             var held = book.GetValueOrDefault(key);
             var own = !boundaries.IsClosed(key.Day, key.Cell.Contour) && held.Gross == was.Gross && held.Net == was.Net;
-            result.Add(new BookLine(key.Cell, own ? key.Day : day, gross, net, was.VatUnknown || now.VatUnknown));
+            result.Add(new Grain(key.Cell, own ? key.Day : day, gross, net, was.VatUnknown || now.VatUnknown));
         }
 
         // Строки одного дня одной ячейки складываются — у дня D их бывает несколько из разных пар.
-        return [.. Ordered(Pairs(result.Select(l => new Grain(l.Cell, l.Day, l.Gross, l.Net, l.VatUnknown))))
-            .Select(p => new BookLine(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown))];
+        return [.. Ordered(Pairs(result))
+            .Select(p => new Grain(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown))];
     }
 
     /// <summary>Книга по ячейкам равна документу — по суммам с НДС и без.</summary>
     private static void Ensure(
-        IReadOnlyList<BookLine> lines, IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> document, string when)
+        IReadOnlyList<Grain> lines, IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> document, string when)
     {
         var book = ByCell(lines.Select(l => (l.Cell, l.Gross, l.Net)));
         var expected = ByCell(document.Select(p => (p.Key.Cell, p.Value.Gross, p.Value.Net)));

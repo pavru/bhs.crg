@@ -7,6 +7,7 @@ using BHS.CRG.Application.Activity;
 using BHS.CRG.Domain.Activity;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -95,6 +96,35 @@ public sealed class InvoiceDeletionTests(InvoiceScanHost host)
 
         // Повтор отвечает «нет такого» — клиент читает это как «уже удалён».
         Assert.Equal(HttpStatusCode.NotFound, (await DeleteAsync(client, invoice)).StatusCode);
+    }
+
+    /// <summary>
+    /// Черновик без оплаты, но с книгой исправлений (оплаченный исправили, оплату отменили, вернули в
+    /// черновик), не удаляется: отказ словами, а не 500 от внешнего ключа книги (E2, spec п. 1.5).
+    /// </summary>
+    [Fact]
+    public async Task Счёт_с_книгой_исправлений_не_удаляется()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client);
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+            await db.InOpenPeriodAsync(scope.ServiceProvider.GetRequiredService<IModulePeriods>(), async boundaries =>
+            {
+                var stored = await db.Invoices.SingleAsync(i => i.Id == invoice);
+                await InvoiceBook.AppendAsync(db, stored, new BookChange(InvoiceBookKind.Unpayment, [], 1.00m, [], 1.00m),
+                    boundaries, new DateOnly(2026, 10, 5), new BookAuthor(null), default);
+                await db.SaveChangesAsync();
+            });
+        }
+
+        var refused = await DeleteAsync(client, invoice);
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("книга исправлений", await refused.Content.ReadAsStringAsync());
+        Assert.NotNull(await StoredAsync(invoice));
+        Assert.Empty(await JournalAsync(invoice, InvoiceActions.Deleted.Code));
     }
 
     /// <summary>

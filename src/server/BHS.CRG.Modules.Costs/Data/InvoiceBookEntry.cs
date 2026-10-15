@@ -130,6 +130,7 @@ public sealed class InvoiceBookEntry : IAppendOnly
         line.Property(l => l.Net).HasColumnName("net").HasPrecision(18, 2);
         line.Property(l => l.VatUnknown).HasColumnName("vat_unknown");
         line.Ignore(l => l.Cell);
+        line.Ignore(l => l.Value);
 
         line.HasOne<InvoiceBookEntry>().WithMany().HasForeignKey(l => l.EntryId).OnDelete(DeleteBehavior.Restrict);
         line.HasIndex(l => new { l.EntryId, l.Ordinal }).IsUnique().HasDatabaseName("ux_invoice_book_lines_order");
@@ -185,7 +186,10 @@ public sealed class InvoiceBookLine : IAppendOnly
         ConstructionId is null && ArticleId is null ? null : new AllocationTarget(ConstructionId, SectionId, ArticleId),
         SupplierId);
 
-    public static InvoiceBookLine Create(Guid entryId, int ordinal, BookLine line) => new()
+    /// <summary>Строка значением — тем, каким её посчитала проводка.</summary>
+    public Grain Value => new(Cell, Day, Gross, Net, VatUnknown);
+
+    public static InvoiceBookLine Create(Guid entryId, int ordinal, Grain line) => new()
     {
         Id = Guid.CreateVersion7(),
         EntryId = entryId,

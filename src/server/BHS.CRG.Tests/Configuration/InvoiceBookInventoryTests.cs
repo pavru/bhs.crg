@@ -30,8 +30,11 @@ public class InvoiceBookInventoryTests
         [$"{Module}/CostsReferences.cs"] = "объявление колонок с идентификаторами ядра: запросов нет",
     };
 
+    // Набор достаётся и мимо имени свойства — Set<InvoiceBookLine>() из любого места контекста (ревью
+    // PR #1357); поэтому и обращение по типу.
     private static readonly Regex Book = new(
-        @"\bInvoiceBook(Entries|Lines)\b|\binvoice_book_(entries|lines)\b|\bInvoiceBook(Entry|Line)\.Create\(|\.RecordBook\(",
+        @"\bInvoiceBook(Entries|Lines)\b|\binvoice_book_(entries|lines)\b|\bInvoiceBook(Entry|Line)\.Create\(" +
+        @"|\.RecordBook\(|\bSet<InvoiceBook(Entry|Line)>",
         RegexOptions.Compiled);
 
     [Fact]

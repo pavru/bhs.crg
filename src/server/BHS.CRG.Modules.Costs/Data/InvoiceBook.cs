@@ -14,12 +14,16 @@ public sealed record BookAuthor(Guid? UserId, string? Reason = null, int? Versio
 ///
 /// <para><b>Порядок замков — период, потом строка счёта</b> (п. 1.3). Замок периода держит
 /// вызывающий (<see cref="OpenPeriodWrite.InOpenPeriodAsync{T}" />): границы, по которым посчитана
-/// запись, взяты под ним. Строку счёта запирает этот метод — <c>FOR UPDATE</c> до чтения книги. Без неё
-/// две записи, прочитавшие одно «до», обе прошли бы и дописали бы книгу дважды: дописанная книга
-/// версию счёта (<c>xmin</c>) не двигает, и сверка версии формы этого не увидела бы.</para>
+/// запись, взяты под ним. Строку счёта запирает этот метод — <c>FOR UPDATE</c> до чтения книги.</para>
 ///
-/// <para><b>Номер записи — в строке счёта</b> (<see cref="Invoice.BookSeq" />): правка строки двигает
-/// её версию, поэтому форма, открытая до записи в книгу, получит «счёт тем временем изменили» (п. 1.1).</para>
+/// <para><b>От двух записей от одного «до» защищают три вещи, и главная — версия строки счёта.</b>
+/// Номер записи лежит в строке счёта (<see cref="Invoice.BookSeq" />), запись его правит, а строка
+/// сверяет версию (<c>xmin</c>) на сохранении — вторая запись от того же «до» упадёт там отказом 409.
+/// Сверка номера ниже говорит то же раньше и своими словами, а уникальный ключ (счёт, номер) — последняя
+/// дверь для кода, который обошёл бы обе. <c>FOR UPDATE</c> ставит записи в очередь: вторая ждёт первую
+/// и отказывает ДО того, как посчитает проводку по чужому «до», — а связка записи (PR 2 E2) читает под
+/// этим же замком весь счёт, строки и разноску одним срезом (spec v3.3 п. 1.3). Он же двигает версию
+/// формы: открытая до записи в книгу, она получит «счёт тем временем изменили» (п. 1.1).</para>
 ///
 /// <para><b>Сохраняет вызывающий</b>, одним сохранением с правкой счёта: книга, записанная отдельно от
 /// того, что она проводит, при отказе второго сохранения осталась бы впереди документа.</para>
@@ -66,15 +70,20 @@ public static class InvoiceBook
     public static async Task<IReadOnlyList<(int Seq, BookRecord Record)>> ReadAsync(
         CostsDbContext db, Guid invoiceId, CancellationToken ct)
     {
-        var entries = await db.InvoiceBookEntries.AsNoTracking()
-            .Where(e => e.InvoiceId == invoiceId).OrderBy(e => e.Seq).ToListAsync(ct);
-        var ids = entries.Select(e => e.Id).ToList();
-        var lines = (await db.InvoiceBookLines.AsNoTracking()
-                .Where(l => ids.Contains(l.EntryId)).OrderBy(l => l.Ordinal).ToListAsync(ct))
-            .ToLookup(l => l.EntryId);
+        // Одним запросом (ревью PR #1357): запись в книгу читает её под двумя замками, и лишний проход с
+        // растущим списком номеров записей держал бы их дольше. Запись без строк — левым соединением.
+        var rows = await (
+                from e in db.InvoiceBookEntries.AsNoTracking().Where(e => e.InvoiceId == invoiceId)
+                join l in db.InvoiceBookLines.AsNoTracking() on e.Id equals l.EntryId into lines
+                from l in lines.DefaultIfEmpty()
+                orderby e.Seq, l == null ? 0 : l.Ordinal
+                select new { Entry = e, Line = l })
+            .ToListAsync(ct);
 
-        return [.. entries.Select(e => (e.Seq, new BookRecord(e.Kind, e.Day, e.Tolerance,
-            [.. lines[e.Id].Select(l => new BookLine(l.Cell, l.Day, l.Gross, l.Net, l.VatUnknown))])))];
+        // Группы — в порядке первого появления, то есть по номеру записи.
+        return [.. rows.GroupBy(r => r.Entry.Id, (_, g) => g.ToList()).Select(g => (g[0].Entry.Seq,
+            new BookRecord(g[0].Entry.Kind, g[0].Entry.Day, g[0].Entry.Tolerance,
+                [.. g.Where(r => r.Line is not null).Select(r => r.Line!.Value)])))];
     }
 
     /// <summary>

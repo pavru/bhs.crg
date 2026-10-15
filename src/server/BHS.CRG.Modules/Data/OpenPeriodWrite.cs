@@ -92,11 +92,15 @@ public static class OpenPeriodWrite
     public static async Task EnsureHeldAsync(ModuleDbContext db, CancellationToken ct = default)
     {
         // Ключ bigint лежит в pg_locks двумя половинами: старшая — classid, младшая — objid, objsubid = 1.
+        // Разделяемый — ShareLock. ⚠️ Отличить замок транзакции от СЕССИОННОГО pg_locks не умеет: сессионный
+        // с этим ключом пережил бы транзакцию на соединении из пула, и проверка ответила бы «держится» вне
+        // всякой записи (ревью PR #1357). Поэтому сессионных совещательных замков в коде нет вовсе — это
+        // держит сторож PeriodClosureInventoryTests, а не эта проверка.
         var held = db.Database.CurrentTransaction is not null && await db.Database
             .SqlQuery<bool>($"""
                 SELECT EXISTS (SELECT 1 FROM pg_locks
-                    WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted AND objsubid = 1
-                      AND classid::bigint = {LockKey >> 32} AND objid::bigint = {LockKey & 0xFFFFFFFF}) AS "Value"
+                    WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted AND mode = 'ShareLock'
+                      AND objsubid = 1 AND classid::bigint = {LockKey >> 32} AND objid::bigint = {LockKey & 0xFFFFFFFF}) AS "Value"
                 """)
             .SingleAsync(ct);
 
