@@ -9,7 +9,11 @@ describe('храповик интерфейса: счёт', () => {
   });
 
   it('компоненты-обёртки нарушением не считаются', () => {
-    expect(countViolations('<DataGrid rows={r} /> <Select value={v} /> <selection>')).toEqual({});
+    expect(countViolations('<DataGrid rows={r} /> <Select value={v} /> <selection> <PageHeader title="x" />')).toEqual({});
+  });
+
+  it('свой заголовок страницы', () => {
+    expect(countViolations('<h1 className="text-xl">Стройки</h1> <h2>Раздел</h2> <h1>')).toEqual({ h1: 2 });
   });
 
   it('произвольный размер текста — px и rem, но не цвет', () => {

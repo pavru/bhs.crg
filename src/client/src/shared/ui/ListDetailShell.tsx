@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Button } from './Button';
+import { PageHeader } from './PageHeader';
 import { SearchInput } from './SearchInput';
 
 /**
@@ -32,18 +33,8 @@ export function ListDetailShell({ title, subtitle, titleIcon, titleBadge, breadc
 }) {
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
-        <div className="min-w-0">
-          {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
-          <div className="flex items-center gap-2 min-w-0">
-            {titleIcon && <span className="text-fg3 shrink-0">{titleIcon}</span>}
-            <h1 className="text-xl font-semibold text-fg1 truncate">{title}</h1>
-            {titleBadge}
-          </div>
-          {subtitle && <p className="text-xs text-fg3 mt-0.5">{subtitle}</p>}
-        </div>
-        {headerAction}
-      </div>
+      <PageHeader bar title={title} subtitle={subtitle} icon={titleIcon} badge={titleBadge}
+        breadcrumb={breadcrumb} actions={headerAction} />
       {overlay ?? (
         <div className="flex-1 min-h-0 flex">
           <nav aria-label={title} className={`${navWidth} shrink-0 border-r border-stroke flex flex-col bg-base`}>

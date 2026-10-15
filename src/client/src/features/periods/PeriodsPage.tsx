@@ -21,6 +21,7 @@ import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 import { ClosingSections } from './ClosingSections';
 import { unfinishedSummary, visiblyChanged } from './closing';
 import { companyClosingNote, companyReopenNote, shownSitesCount, type PeriodSites } from './periodSites';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 /**
  * Учётный период (ТЗ CORE-35, issue #1081): до какой даты закрыт учёт компании и каждой стройки,
@@ -88,10 +89,7 @@ export function PeriodsPage() {
 
   return (
     <div className="px-6 py-4 max-w-5xl">
-      <h1 className="text-xl font-semibold text-fg1 flex items-center gap-2 mb-1">
-        <CalendarCheck size={18} className="text-fg3" />
-        Учётный период
-      </h1>
+      <PageHeader icon={<CalendarCheck size={18} aria-hidden />} title="Учётный период" className="mb-1" />
       <p className="text-note text-fg3 mb-4 max-w-3xl">
         Граница закрытого учёта компании и строек. Закрытие компании закрывает все стройки; стройку
         можно закрыть и дальше компании. Сегодня по часам компании — {ruDate(data.today)}:

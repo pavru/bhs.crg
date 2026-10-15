@@ -4,6 +4,7 @@ import { History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useActivity, useActivityActions, type ActivityRecord } from '@/shared/api/activity';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 /**
  * Журнал действий (issue #950, ТЗ CORE-28).
@@ -49,11 +50,7 @@ export function ActivityPage() {
 
   return (
     <div className="px-6 py-4 max-w-5xl">
-      <div className="flex items-center justify-between mb-4 gap-4">
-        <h1 className="text-xl font-semibold text-fg1 flex items-center gap-2">
-          <History size={18} className="text-fg3" />
-          Журнал действий
-        </h1>
+      <PageHeader icon={<History size={18} aria-hidden />} title="Журнал действий" className="mb-4" actions={
         <div className="w-64">
           {/* aria-label обязателен: видимой подписи у отбора нет — её заменяет заголовок рядом,
               а тот читалке отбор не называет, и объявлен он был бы просто «список». */}
@@ -63,7 +60,7 @@ export function ActivityPage() {
             {actions.map(a => <SelectItem key={a.code} value={a.code}>{a.title}</SelectItem>)}
           </Select>
         </div>
-      </div>
+      } />
 
       {isLoading ? (
         <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>

@@ -13,6 +13,7 @@ import {
   useListUsers, useCreateUser, useChangeUserRoles, useResetUserPassword, useDeleteUser,
   type AppUser,
 } from '@/shared/api/users';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 function apiError(e: unknown): string {
   const err = e as { response?: { data?: { error?: string } }; message?: string };
@@ -40,17 +41,14 @@ export function UsersPage() {
 
   return (
     <div className="px-6 py-4 max-w-4xl">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-fg1">Пользователи</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="tonal" icon={<Mail size={15} />} onClick={() => setSendOpen(true)}>
-            Отправить сообщение
-          </Button>
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-            Добавить пользователя
-          </Button>
-        </div>
-      </div>
+      <PageHeader title="Пользователи" className="mb-4" actions={<>
+        <Button variant="tonal" icon={<Mail size={15} />} onClick={() => setSendOpen(true)}>
+          Отправить сообщение
+        </Button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          Добавить пользователя
+        </Button>
+      </>} />
 
       <SendMessageDialog open={sendOpen} onClose={() => setSendOpen(false)}
         candidates={users.map(u => ({ id: u.id, displayName: u.displayName, email: u.email }))} />

@@ -4,11 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Archive } from 'lucide-react';
 import { Checkbox } from './Checkbox';
+import { PageHeader } from './PageHeader';
 import { Chip } from './Chip';
 import { StatusBadge } from './StatusBadge';
 import { TabPanel, Tabs, type TabItem } from './Tabs';
 
-// Примитивы интерфейса (issue #1351): поведение, которое экраны получают даром, — имя для диктора,
+// Примитивы интерфейса (issue #1351, #1352): поведение, которое экраны получают даром, — имя для диктора,
 // состояние, клавиатура. Вид проверяется глазами и сторожем палитры, не здесь.
 afterEach(cleanup);
 
@@ -114,5 +115,14 @@ describe('Tabs', () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole('tab', { name: 'Генерация' }));
     expect(screen.getByRole('tabpanel').textContent).toBe('панель c');
+  });
+});
+
+describe('PageHeader', () => {
+  it('заголовок — h1 страницы, действия и подзаголовок рядом', () => {
+    render(<PageHeader title="Стройки" subtitle="Все стройки компании" actions={<button type="button">Новая стройка</button>} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Стройки' })).toBeTruthy();
+    expect(screen.getByText('Все стройки компании')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Новая стройка' })).toBeTruthy();
   });
 });

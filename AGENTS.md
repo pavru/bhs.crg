@@ -150,8 +150,8 @@ cd src/client && npm test
 cd src/client && npm run lint:ratchet
 cd src/client && npm run lint:ratchet:update   # переписать базовый уровень (осознанно!)
 
-# Храповик интерфейса (issue #1349): <table>, нативный <select>, text-[Npx] и сырая палитра в
-# features/ — по файлам; растёт — красный с подсказкой, куда вместо (правила — docs/UI.md)
+# Храповик интерфейса (issue #1349): <table>, нативный <select>, text-[Npx], сырая палитра и
+# свой <h1> в features/ — по файлам; растёт — красный с подсказкой, куда вместо (правила — docs/UI.md)
 cd src/client && npm run ui:ratchet
 
 # Логика скрипта обновления (без Docker и сети; сеть нужна одной проверке — она пропускается)

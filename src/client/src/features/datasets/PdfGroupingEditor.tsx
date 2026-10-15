@@ -13,6 +13,7 @@ import { Button } from '@/shared/ui/Button';
 import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { newLocalId } from '@/shared/utils/localId';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -527,32 +528,29 @@ export function PdfGroupingEditor() {
 
   return (
     <div className="p-6 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1.5 text-fg4 hover:text-fg1 rounded transition-colors">
+      <PageHeader className="mb-4 shrink-0"
+        icon={
+          <button onClick={() => navigate(-1)} aria-label="Назад" title="Назад"
+            className="p-1.5 text-fg4 hover:text-fg1 rounded transition-colors">
             <ArrowLeft size={16} />
           </button>
-          <div>
-            <h1 className="text-lg font-semibold text-fg1">
-              Разбиение{location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}
-            </h1>
-            <p className="text-xs text-fg4">
-              {pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}
-              {/* Третьим фактом в ту же строку, а не плашкой в ряду действий: плашка того же
-                  размера и формы рядом с кнопкой читается как кнопка, и первое, что с ней сделают, —
-                  нажмут. Фильтровать тут нечего: листы без ответа рассыпаны по группам, и, скрыв
-                  остальное, человек увидит обрубки документов. Где именно проблема — видно на
-                  плитках, там сигнал и громкий. */}
-              {pagesWithoutAnswer.size > 0 && (
-                <span className="text-danger"
-                  title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
-                  {' · '}{ruCount(pagesWithoutAnswer.size, 'лист', 'листа', 'листов')} без ответа
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
+        }
+        title={`Разбиение${location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}`}
+        subtitle={<>
+          {pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}
+          {/* Третьим фактом в ту же строку, а не плашкой в ряду действий: плашка того же
+              размера и формы рядом с кнопкой читается как кнопка, и первое, что с ней сделают, —
+              нажмут. Фильтровать тут нечего: листы без ответа рассыпаны по группам, и, скрыв
+              остальное, человек увидит обрубки документов. Где именно проблема — видно на
+              плитках, там сигнал и громкий. */}
+          {pagesWithoutAnswer.size > 0 && (
+            <span className="text-danger"
+              title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
+              {' · '}{ruCount(pagesWithoutAnswer.size, 'лист', 'листа', 'листов')} без ответа
+            </span>
+          )}
+        </>}
+        actions={<>
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
@@ -565,8 +563,7 @@ export function PdfGroupingEditor() {
             icon={<Save size={14} />}>
             Сохранить
           </Button>
-        </div>
-      </div>
+        </>} />
 
       {applyMutation.isError && (
         <p className="text-sm text-danger mb-3">
