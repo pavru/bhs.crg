@@ -12,6 +12,7 @@ import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy
 import { registerErrorText, autoLoginFailedText } from '@/shared/auth/identityErrors';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /**
  * Фоновая сетка бренд-панели (по макету 2a) — тонкие линии 34×34.
@@ -192,11 +193,7 @@ function SignInForm() {
           </Link>
         </div>
 
-        <label className="flex items-center gap-3 text-sm text-fg1 cursor-pointer select-none">
-          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
-            className="w-[18px] h-[18px] accent-brand cursor-pointer" />
-          Запомнить меня
-        </label>
+        <Checkbox checked={remember} onChange={setRemember} label="Запомнить меня" />
 
         {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-1">

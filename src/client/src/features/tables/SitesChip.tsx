@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Check, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
+import { Chip } from '@/shared/ui/Chip';
 import { useCostsArticles } from '@/shared/api/articles';
 import type { TableColumn } from '@/shared/api/tables';
 import { useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
@@ -44,13 +45,10 @@ export function SitesChip({ columns, filter, onToggle }: {
 
   return (
     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs" data-testid="sites-chip">
-      <button type="button" aria-pressed={on} disabled={state === 'complex' || state === 'broken'} title={title}
-        onClick={() => onToggle(column.key, names)}
-        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 bg-surface disabled:opacity-50 ${
-          on ? 'border-brand text-brand bg-brand-subtle' : 'border-dashed border-stroke text-fg3 hover:text-fg1'}`}>
-        {on ? <Check size={12} aria-hidden /> : <Star size={12} aria-hidden />}
+      <Chip selected={on} icon={Star} dashed disabled={state === 'complex' || state === 'broken'} title={title}
+        onClick={() => onToggle(column.key, names)}>
         {column.label}: избранные стройки
-      </button>
+      </Chip>
       {twins.length > 0 ? (
         <span className="text-fg3">
           Отбор по названию: попадут и другие объекты с тем же названием — {twins.map(n => `«${n}»`).join(', ')}.
