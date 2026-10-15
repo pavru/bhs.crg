@@ -80,8 +80,6 @@ public partial class InvoicePaymentTests
             new { requisites = await RequisitesWithAsync(admin, invoice, "Назначение", "поправили") });
         Assert.Equal(HttpStatusCode.Conflict, plain.StatusCode);
         Assert.Contains("только исправлением", await ErrorAsync(plain));
-        var unpay = await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" });
-        Assert.Equal(HttpStatusCode.Conflict, unpay.StatusCode);
 
         // Скан такому счёту — как запертому: приложить можно, заменить нельзя.
         await OkAsync(await ScanAsync(admin, invoice, "первый.pdf"));

@@ -96,7 +96,7 @@ const CASES = [
     reason: 'Причина отмены',
     preview: null,
     dialog: (onDone: () => void) => (
-      <CancelDialog onDone={onDone} view={{ id: 'i1', version: '7', requisites: {} } as never} />
+      <CancelDialog onDone={onDone} view={{ id: 'i1', version: '7', requisites: {}, payment: { lockedBy: null } } as never} />
     ),
   },
 ];
