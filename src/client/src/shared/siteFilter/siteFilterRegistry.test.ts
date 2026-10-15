@@ -64,9 +64,8 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/costs/PlaceSelect.tsx': { filters: true },
   '/src/features/costs/WaybillForm.tsx': { filters: true },
   '/src/features/document-sets/setTargets.ts': { filters: true },
-  '/src/features/costs/WaybillsPage.tsx': {
-    filters: false, because: 'список накладных страничный — отбор параметром sites, #1222',
-  },
+  // Список страничный — отбирает сервер параметром sites (#1222); очередь «Сопоставить» не урезается.
+  '/src/features/costs/WaybillsPage.tsx': { filters: true },
   // Выбор стройки урезан useSiteChoices (#1219); сам отчёт сворачивает неизбранные строкой, не меняя чисел, — #1223.
   '/src/features/costs/SiteCostsPage.tsx': { filters: true },
   '/src/features/reconciliations/ReconciliationsPage.tsx': {
@@ -82,15 +81,16 @@ const DEFINITIONS = ['/src/shared/api/constructions.ts', '/src/shared/api/invoic
 /** Где объявлены хуки фильтра — эти файлы ничего не урезают. */
 const FILTER_DEFINITIONS = [
   '/src/shared/siteFilter/siteFilterContext.ts', '/src/shared/siteFilter/siteReveal.ts', '/src/features/costs/useRailSites.ts',
+  '/src/features/costs/useWaybillSites.ts',
 ];
 
 const DIRECTORY_HOOKS = ['useListConstructions', 'useCostsConstructions', 'useConstructionDirectory'];
 /**
  * Хуки, которые урезают список и регистрируют экран: сам фильтр, варианты выбора стройки (#1219) и
- * рейл счетов (#1221).
+ * рейл счетов (#1221), список накладных (#1222).
  * Обёртка, которую сторож не знает, сделала бы честное «фильтрует» недостижимым (ревью PR #1332).
  */
-const FILTER_HOOK = /\b(?:useSiteFilter|useSiteChoices|useRailSites)\(/;
+const FILTER_HOOK = /\b(?:useSiteFilter|useSiteChoices|useRailSites|useWaybillSites)\(/;
 
 /** Имена из `import { … } from` и `export { … } from` — со всеми переносами строк и `as`. */
 function namesTaken(code: string): string[] {

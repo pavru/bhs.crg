@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { onWritten, writeMeta, type WriteContext } from './writeWatch';
 
 /**
  * Счета модуля «Счета и накладные» (задача C1 этапа 2, issue #1076, ТЗ COST-6.2).
@@ -522,9 +523,6 @@ function rereadOnConflict(qc: QueryClient) {
 /** Признак записи счёта в `meta` мутации — по нему её узнаёт `onInvoiceWritten`. */
 const INVOICE_WRITE = 'invoiceWrite';
 
-/** Контекст записи счёта: его вид ДО неё, из кэша; `undefined` — счёт в кэше не лежал. */
-interface InvoiceWriteContext { before: InvoiceView | undefined }
-
 /**
  * Правка счёта, возвращающая его вид: ответ кладётся в кэш, реестр перечитывается, отказ 409 перечитывает
  * счёт. Каждый пишущий хук счёта строится на этом — иначе следующий, написанный по образцу, забыл бы
@@ -534,9 +532,9 @@ export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Pr
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
-    meta: { [INVOICE_WRITE]: true },
+    meta: writeMeta(INVOICE_WRITE),
     // Вид до записи — в контекст мутации: по нему подписчик узнаёт, что изменила именно эта запись.
-    onMutate: (input): InvoiceWriteContext => ({ before: qc.getQueryData<InvoiceView>([QK, input.id]) }),
+    onMutate: (input): WriteContext<InvoiceView> => ({ before: qc.getQueryData<InvoiceView>([QK, input.id]) }),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
@@ -559,11 +557,7 @@ export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Pr
 export function onInvoiceWritten(
   qc: QueryClient, listener: (before: InvoiceView | undefined, after: InvoiceView) => void,
 ): () => void {
-  return qc.getMutationCache().subscribe(event => {
-    if (event.type !== 'updated' || event.action.type !== 'success' || !event.mutation.meta?.[INVOICE_WRITE]) return;
-    const context = event.mutation.state.context as InvoiceWriteContext | undefined;
-    listener(context?.before, event.action.data as InvoiceView);
-  });
+  return onWritten(qc, INVOICE_WRITE, listener);
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { InvoiceView } from '@/shared/api/invoices';
 import type { SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
+import { hiddenEmpty as hiddenEmptyOf } from '@/shared/siteFilter/siteFilterTexts';
 
 /**
  * Рейл счетов под фильтром «Избранные стройки» (issue #1221) — чистые функции и тексты.
@@ -38,7 +39,7 @@ export const SAVED_HIDDEN = 'Сохранено. В списке счёт скр
 
 /** Пустой рейл, когда счета есть, но все скрыты: стоит ПЕРЕД «Счетов пока нет». */
 export function hiddenEmpty(hidden: number): string {
-  return `По избранным стройкам счетов нет. Скрыто фильтром: ${hidden}.`;
+  return hiddenEmptyOf('счетов', hidden);
 }
 
 /** Поиск ничего не нашёл среди видимых, а среди скрытых нашёл бы. */

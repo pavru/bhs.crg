@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Costs.Data;
@@ -42,7 +43,7 @@ public static class WaybillEndpoints
     /// Сколько накладных отдаёт список. Больше — ответ говорит «есть ещё», а не молчит: поиск на экране
     /// идёт по загруженному, и обрезанный молча список читался бы как «такой накладной нет».
     /// </summary>
-    internal const int ListLimit = 300;
+    public const int ListLimit = 300;
 
     internal static string Label(Waybill waybill) =>
         $"Накладная № {waybill.Number ?? "без номера"}" +
@@ -74,15 +75,40 @@ public static class WaybillEndpoints
     /// <summary>
     /// Список накладных, свежие сверху. <paramref name="unmatched" /> — отбор «свести со справочником»:
     /// накладные, где есть строка без позиции.
+    ///
+    /// <para><c>sites</c> — перечень избранных строек (issue #1222, <see cref="WaybillSiteFilter" />):
+    /// отбор и число скрытых им накладных. Читается из запроса сам, а не привязкой параметра: пустой
+    /// <c>sites=</c> обязан быть отказом, а не «параметра нет».</para>
     /// </summary>
     private static async Task<Ok<WaybillListView>> ListAsync(
-        CostsDbContext db, IModuleConstructions sites, CancellationToken ct,
+        HttpRequest request, CostsDbContext db, IModuleConstructions sites, CancellationToken ct,
         Guid? constructionId = null, bool unmatched = false)
     {
+        var favorites = WaybillSiteFilter.Parse(request.Query);
+
         var selected = db.Waybills.AsNoTracking();
         if (constructionId is { } site) selected = selected.Where(w => w.ConstructionId == site);
         if (unmatched)
             selected = selected.Where(w => db.WaybillLines.Any(l => l.WaybillId == w.Id && l.NomenclatureId == null));
+
+        var known = await sites.ListAsync(ct);
+
+        // Скрытые считаются по ВСЕМУ отбору, а не по странице: под пределом страница из трёхсот
+        // урезанных дала бы число, которое ничего не значит. Ни одной живой стройки в перечне — отбор
+        // не применён, и hidden остаётся null (ревью PR #1335): «скрыто: 0» над полным списком было бы
+        // неотличимо от честного «ничего не скрыто».
+        var off = favorites is null ? null : WaybillSiteFilter.Hidden(favorites, known.Select(s => s.Id));
+        // Число и страница — из одного снимка базы (ревью PR #1335): двумя запросами вне транзакции правка
+        // между ними дала бы «скрыто: N» о другом состоянии таблицы, чем показанный список.
+        await using var snapshot = off is { Count: > 0 }
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
+            : null;
+        int? hidden = null;
+        if (off is not null)
+        {
+            hidden = off.Count == 0 ? 0 : await selected.CountAsync(w => off.Contains(w.ConstructionId), ct);
+            if (off.Count > 0) selected = selected.Where(w => !off.Contains(w.ConstructionId));
+        }
 
         // Счётчики — подзапросами того же SELECT: отдельный запрос с перечнем идентификаторов рос бы
         // вместе со списком.
@@ -98,12 +124,10 @@ public static class WaybillEndpoints
             })
             .ToListAsync(ct);
 
-        var known = await sites.ListAsync(ct);
-
         return TypedResults.Ok(new WaybillListView(
             [.. page.Take(ListLimit).Select(row => WaybillViews.Item(
                 row.Waybill, known.FirstOrDefault(s => s.Id == row.Waybill.ConstructionId), row.Lines, row.Unmatched))],
-            More: page.Count > ListLimit));
+            More: page.Count > ListLimit, Hidden: hidden));
     }
 
     private static async Task<Ok<WaybillView>> GetAsync(

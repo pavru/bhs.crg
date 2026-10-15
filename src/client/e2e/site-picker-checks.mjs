@@ -1,4 +1,4 @@
-// Выбор стройки под фильтром «Избранные стройки» (issue #1219) и рейл счетов под ним (#1221) —
+// Выбор стройки под фильтром «Избранные стройки» (issue #1219), рейл счетов (#1221) и список накладных (#1222) под ним —
 // проверки живым браузером.
 //
 // Внутри `allocation-matrix-smoke`, а не своим набором: входы прогонов CI упёрлись в предел частоты
@@ -153,6 +153,34 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         const shown = await selectedText(select);
         if (shown !== other.name) throw new Error(`получатель показан как «${shown}», а не «${other.name}»`);
         if (await page.getByText('Стройки больше нет').count()) throw new Error('живая неизбранная стройка названа удалённой');
+
+        // Список отбирает сервер (#1222): накладной неизбранной стройки в нём нет, открытая по ссылке —
+        // открыта, у списка — сколько скрыто. Свежая накладная стоит первой, то есть до предела.
+        await check('waybill-list-hides-non-favorite-and-counts', async () => {
+          const row = page.getByRole('button', { name: new RegExp(`РН-ИЗБ-${stamp}`) });
+          // Сколько скрыто, говорит строка над непустым списком ИЛИ пустое состояние: на чистой базе CI
+          // эта накладная — единственная, и под фильтром список пуст (CI PR #1335). Ждать одну из двух —
+          // значит проверять базу стенда, а не приложение.
+          const said = page.getByTestId('site-filter-note').or(page.getByTestId('waybill-list-sites-empty'));
+          await said.first().waitFor({ timeout: 10_000 });
+          if (await row.count()) throw new Error('накладная неизбранной стройки стоит в списке под фильтром');
+          await page.getByTestId('waybill-not-in-list').waitFor({ timeout: 5_000 });
+          const note = await said.first().innerText();
+          if (!/скрыто: [1-9]|Скрыто фильтром: [1-9]/.test(note)) throw new Error(`у списка: «${note}»`);
+
+          // Число сходится с разницей против выключенного фильтра — там, где ни один список не усечён.
+          const favorites = [sites[0].id, sites[1].id].sort().join(',');
+          const cut = await api('GET', `/costs/waybills?sites=${favorites}`);
+          const all = await api('GET', '/costs/waybills');
+          if (!cut.more && !all.more && all.items.length - cut.items.length !== cut.hidden)
+            throw new Error(`скрыто ${cut.hidden}, а разница списков — ${all.items.length - cut.items.length}`);
+
+          await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
+          await row.first().waitFor({ timeout: 10_000 });
+          if (await page.getByTestId('waybill-not-in-list').count()) throw new Error('без фильтра форма говорит «нет в списке»');
+          await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
+          await said.first().waitFor({ timeout: 10_000 });
+        });
       } finally {
         await page.evaluate(async ([id, version]) => {
           const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');

@@ -12,13 +12,16 @@ import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import {
-  forgetWaybill, useCreateWaybill, useWaybill, useWaybills, type WaybillListItem,
+  forgetWaybill, useCreateWaybill, useWaybill, type WaybillListItem,
 } from '@/shared/api/waybills';
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
+import { FilterHidesAll, NotInListNotice, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
+import { NOT_IN_LIST, SEARCH_HIDDEN, hiddenEmpty, useWaybillSites } from './useWaybillSites';
 
 const PARAM = 'waybill';
 
@@ -29,7 +32,8 @@ const PARAM = 'waybill';
  * выбор в списке адрес заменяет, а не копит историю (конвенция list-detail, issue #787).</p>
  *
  * <p>⚠️ Отбор «Сопоставить» делает сервер: по загруженному списку можно посчитать ждущие строки, но
- * утверждать по нему, что других таких накладных нет, нельзя.</p>
+ * утверждать по нему, что других таких накладных нет, нельзя. Им же — «Избранные стройки» (#1222): список
+ * страничный, перечень уходит параметром `sites`, число скрытых приходит с ответом.</p>
  */
 export function WaybillsPage() {
   const [params, setParams] = useSearchParams();
@@ -55,9 +59,10 @@ export function WaybillsPage() {
   const { data: access = NO_ACCESS } = useAccess();
   const canEdit = hasPermission(access, 'costs.waybill.edit');
 
-  const waybills = useWaybills(unmatched);
-  const sites = useCostsConstructions();
   const view = useWaybill(selected ?? undefined);
+  const filter = useWaybillSites({ unmatched, selected, open: view.data });
+  const { waybills, stale, hidden } = filter;
+  const sites = useCostsConstructions();
   const create = useCreateWaybill();
   const toast = useToast();
   const qc = useQueryClient();
@@ -83,6 +88,10 @@ export function WaybillsPage() {
   }, id => forgetWaybill(qc, id));
 
   const items = (waybills.data?.items ?? []).filter(i => matches(i, query));
+  const searching = !!query.trim();
+  // Прежний список, удержанный на время переключения фильтра, — не ответ на новый (ревью PR #1335): он
+  // показан приглушённым, а пустые состояния и свидетельство молчат, пока не пришёл настоящий.
+  const settled = !waybills.isPending && !waybills.isError && !stale;
 
   async function createDraft() {
     try {
@@ -132,18 +141,31 @@ export function WaybillsPage() {
                 Список не пришёл. Это отказ чтения, а не пустой список: накладные могут быть.
               </p>
             )}
-            {!waybills.isPending && !waybills.isError && items.length === 0 && (
+            {stale && <p className="px-3 py-2 text-xs text-fg3">Обновляется…</p>}
+            {/* Под поиском — без числа: оно о всём отборе, а поиск видит только загруженное. */}
+            {hidden !== null && items.length > 0 && (
+              <div className="px-3 py-1.5"><SiteFilterNote hidden={hidden} partial={searching} /></div>
+            )}
+            {settled && items.length === 0 && !!hidden && (
+              <FilterHidesAll testId="waybill-list-sites-empty" onShowAll={filter.showAll}
+                text={searching ? SEARCH_HIDDEN : hiddenEmpty(hidden)} action={searching ? SEARCH_ALL_SITES : SHOW_ALL_SITES} />
+            )}
+            {settled && items.length === 0 && !hidden && (
               <p className="px-3 py-2 text-xs text-fg3">
-                {query ? 'Ничего не найдено.'
+                {searching ? 'Ничего не найдено.'
                   : unmatched ? 'Сопоставлять нечего: строк без позиции номенклатуры нет ни у одной накладной.'
                     : 'Накладных пока нет.'}
               </p>
             )}
-            {items.map(item => (
-              <ListRow key={item.id} item={item} active={item.id === selected} onClick={() => setSelected(item.id)} />
-            ))}
+            {/* Прежние строки не нажимаются: строка, которая вот-вот исчезнет, открыла бы «не ту» накладную. */}
+            <div className={stale ? 'opacity-50 pointer-events-none' : undefined} aria-busy={stale || undefined}
+              inert={stale || undefined}>
+              {items.map(item => (
+                <ListRow key={item.id} item={item} active={item.id === selected} onClick={() => setSelected(item.id)} />
+              ))}
+            </div>
             {/* Обрезанный молча список читался бы как «такой накладной нет». */}
-            {waybills.data?.more && (
+            {settled && waybills.data?.more && (
               <p className="px-3 py-2 text-xs text-warning">
                 Показаны самые свежие накладные, это не все. Поиск идёт по показанным: не нашли нужную —
                 включите отбор «Сопоставить» или откройте её по ссылке.
@@ -184,6 +206,7 @@ export function WaybillsPage() {
               <RereadFailedNotice what="Накладная не перечиталась" error={opened.rereadFailed}
                 retrying={view.isFetching} onRetry={() => void view.refetch()} />
             )}
+            {filter.openHidden && <NotInListNotice testId="waybill-not-in-list" text={NOT_IN_LIST} onShowAll={filter.showAll} />}
             <WaybillForm key={opened.id} view={opened.data} sites={sites.data ?? []}
               sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
               onClose={() => closeGone(opened.id)} />

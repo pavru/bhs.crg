@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { isNotFound, seenBy } from './invoices';
+import { onWritten, writeMeta, type WriteContext } from './writeWatch';
 
 /**
  * Расходные накладные модуля «Счета и накладные» (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
@@ -72,6 +73,11 @@ export interface WaybillListItem {
 export interface WaybillList {
   items: WaybillListItem[];
   more: boolean;
+  /**
+   * Сколько накладных скрыл перечень `sites` (issue #1222) — по всему отбору, а не по странице. Без
+   * перечня — `null`: «не отбирали» и «ничего не скрыто» — разные ответы.
+   */
+  hidden?: number | null;
 }
 
 export interface WaybillHeader {
@@ -106,19 +112,37 @@ const QK = 'costs-waybills';
 // накладная тут же перезапрашивалась бы после каждой правки (ревью PR #1206).
 const LIST_KEY = [QK, 'list'] as const;
 const MATERIALS_KEY = ['costs-materials'] as const;
+/** Ключ открытой накладной в кэше: под ним запись ищет вид ДО себя. */
+export const waybillKey = (id: string | undefined) => [QK, 'one', id] as const;
 
-export function useWaybills(unmatched = false) {
+/**
+ * Список накладных. `sites` — избранные стройки, по которым отбирает СЕРВЕР (issue #1222): список
+ * страничный, и урезанный здесь он показал бы три накладные из трёхсот. `null` — не отбирать.
+ *
+ * <p>`enabled: false`, пока фильтр не известен: первый запрос без перечня принёс бы «всё», и список
+ * мигнул бы полным перед урезанным.</p>
+ *
+ * <p>Переключение фильтра держит прежний список, пока не пришёл новый (`placeholderData`): иначе список
+ * пустел бы до «Загрузки» на каждое «Все / Избранные». Смена очереди («Сопоставить») — нет: прежний
+ * список под другой очередью читался бы как её ответ.</p>
+ */
+export function useWaybills(unmatched: boolean, sites: readonly string[] | null, enabled = true) {
+  const key = sites ? [...sites].sort().join(',') : null;
   return useQuery({
-    queryKey: [...LIST_KEY, { unmatched }] as const,
+    queryKey: [...LIST_KEY, { unmatched, sites: key }] as const,
     queryFn: () => apiClient
-      .get<WaybillList>('/costs/waybills', { params: unmatched ? { unmatched: true } : {} })
+      .get<WaybillList>('/costs/waybills', {
+        params: { ...(unmatched ? { unmatched: true } : {}), ...(key ? { sites: key } : {}) },
+      })
       .then(r => r.data),
+    enabled,
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2].unmatched === unmatched ? prev : undefined),
   });
 }
 
 export function useWaybill(id: string | undefined) {
   return useQuery({
-    queryKey: [QK, 'one', id] as const,
+    queryKey: waybillKey(id),
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     enabled: !!id,
     // «Нет такой» повтором не лечится (ревью PR #1299): общий повтор держал бы «загружается…» лишнюю
@@ -136,7 +160,7 @@ export function useWaybill(id: string | undefined) {
 export function useFreshWaybill() {
   const qc = useQueryClient();
   return (id: string) => qc.fetchQuery({
-    queryKey: [QK, 'one', id] as const,
+    queryKey: waybillKey(id),
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     staleTime: 0,
   });
@@ -153,21 +177,38 @@ function useWaybillWrite<T extends { id: string }>(send: (input: T) => Promise<W
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
+    meta: writeMeta(WAYBILL_WRITE),
+    // Вид до записи — в контекст мутации: по нему подписчик узнаёт, что изменила именно эта запись.
+    onMutate: (input): WriteContext<WaybillView> => ({ before: qc.getQueryData<WaybillView>(waybillKey(input.id)) }),
     onSuccess: settle,
     onError: (error: unknown, input: T) => {
       // 404 — накладную удалили, пока она была открыта (issue #1283): перечитывание ответит тем же, и
       // страница скажет «накладной больше нет», оставив набранное на экране.
       const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
+      if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: waybillKey(input.id) });
     },
   });
+}
+
+/** Признак записи накладной в `meta` мутации — по нему её узнаёт `onWaybillWritten`. */
+const WAYBILL_WRITE = 'waybillWrite';
+
+/**
+ * Подписка на СВОИ удавшиеся записи накладной: прежний вид и новый (issue #1222 — получатель сменился
+ * на неизбранную стройку, и накладная уходит из списка). Тот же приём, что `onInvoiceWritten`: через кэш
+ * мутаций, и чужая правка, пришедшая перечитыванием, сюда не попадает.
+ */
+export function onWaybillWritten(
+  qc: QueryClient, listener: (before: WaybillView | undefined, after: WaybillView) => void,
+): () => void {
+  return onWritten(qc, WAYBILL_WRITE, listener);
 }
 
 /** Что считать устаревшим после любой правки: список, открытую накладную и перечень отпущенного. */
 function useSettle() {
   const qc = useQueryClient();
   return (view: WaybillView) => {
-    qc.setQueryData([QK, 'one', view.id], view);
+    qc.setQueryData(waybillKey(view.id), view);
     void qc.invalidateQueries({ queryKey: LIST_KEY });
     void qc.invalidateQueries({ queryKey: MATERIALS_KEY });
   };
@@ -232,7 +273,7 @@ export function useDeleteWaybill() {
  * запроса наблюдатель тут же начал бы его заново.
  */
 export function forgetWaybill(qc: QueryClient, id: string) {
-  qc.removeQueries({ queryKey: [QK, 'one', id] });
+  qc.removeQueries({ queryKey: waybillKey(id) });
   void qc.invalidateQueries({ queryKey: LIST_KEY });
 }
 
