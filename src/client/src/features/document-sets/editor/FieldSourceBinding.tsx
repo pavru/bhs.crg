@@ -11,6 +11,7 @@ import type { DataSetBinding, DataSetSource, CatalogScope } from '@/shared/api/t
 import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { isLockedField, bindableFields, LOCKED_HINT } from '../fields';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -172,30 +173,24 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
         ) : (
           <div className="space-y-3">
             <div>
-              <label className="block text-caption text-fg4 mb-1">Источник</label>
-              <select value={sourceId} onChange={e => pickSource(e.target.value)}
-                className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
-                <option value="">— выберите —</option>
+              <Select label="Источник" value={sourceId} onValueChange={pickSource} placeholder="— выберите —">
                 {/* Происхождение названо ДО привязки: узнать, что источник распознан, уже привязав
                     его к полям документа, — узнать поздно. Формат файла («PDF») отвечает на другой
                     вопрос: чем файл был, а не как из него получены значения. */}
                 {sources.map(s => (
-                  <option key={s.id} value={s.id}>
+                  <SelectItem key={s.id} value={s.id}>
                     [{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}
                     {s.origin === 'Recognized' ? ' — распознано со скана' : ''}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
+              </Select>
             </div>
 
             {selectedSource && (
               <div>
-                <label className="block text-caption text-fg4 mb-1">Колонка</label>
-                <select value={column} onChange={e => setColumn(e.target.value)}
-                  className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
-                  <option value="">— не привязано —</option>
-                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select label="Колонка" value={column} onValueChange={setColumn} emptyItem="— не привязано —">
+                  {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </Select>
               </div>
             )}
 

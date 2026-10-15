@@ -14,6 +14,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { newLocalId } from '@/shared/utils/localId';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -317,22 +318,18 @@ function GroupSection({
           несохранённых правках заблокированы с подсказкой. */}
       {!isSpecial && firstPage !== undefined && (
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <select value={currentTag} onChange={e => onSetTag(group.id, e.target.value)}
-            title="Тип таблицы документа — распознаётся и выгружается (XLSX/CSV)"
-            className="text-caption border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[170px] disabled:opacity-50">
-            <option value="">— тип таблицы</option>
-            {TABLE_TAGS.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
-          </select>
+          <Select size="sm" className="w-auto max-w-[170px]" value={currentTag} onValueChange={tag => onSetTag(group.id, tag)}
+            aria-label="Тип таблицы документа — распознаётся и выгружается (XLSX/CSV)" emptyItem="— тип таблицы">
+            {TABLE_TAGS.map(t => <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>)}
+          </Select>
           {/* Профиль распознавания (issue #410): для ПРОИЗВОЛЬНОЙ таблицы, у которой типа/тэга нет.
               Привязка снимает требование тэга — иначе такую таблицу не распознать вовсе. */}
-          <select value={group.profileId ?? ''}
-            onChange={e => onSetProfile(firstPage, e.target.value || null)}
-            disabled={savingProfile}
-            title="Профиль распознавания — набор колонок для произвольной таблицы (задаётся в «Профили распознавания»)"
-            className="text-caption border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[190px] disabled:opacity-50">
-            <option value="">— профиль таблицы</option>
-            {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <option key={p.id} value={p.id} disabled={p.disabled}>{p.name}</option>)}
-          </select>
+          <Select size="sm" className="w-auto max-w-[190px]" value={group.profileId ?? ''}
+            onValueChange={id => onSetProfile(firstPage, id || null)} disabled={savingProfile}
+            aria-label="Профиль распознавания — набор колонок для произвольной таблицы (задаётся в «Профили распознавания»)"
+            emptyItem="— профиль таблицы">
+            {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <SelectItem key={p.id} value={p.id} disabled={p.disabled}>{p.name}</SelectItem>)}
+          </Select>
           {(currentTag || group.profileId) && (
             <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
               title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}

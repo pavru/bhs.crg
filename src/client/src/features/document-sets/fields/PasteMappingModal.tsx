@@ -14,6 +14,7 @@ import { PasteArchivedNote, type ArchivedCell } from './PasteArchivedNote';
 import { useReturnManyFromArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
+import { Select, SelectItem } from '@/shared/ui/Select';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
 /** Сколько неразобранных ячеек перечислять поимённо: остальные — числом «и ещё N». */
@@ -279,7 +280,7 @@ function PasteMappingModalBody({
     ? `${LOCALE_OPTIONS.find(o => o.value === SYSTEM_LOCALE)?.label}: ${resolveLocale(locale)}`
     : LOCALE_OPTIONS.find(o => o.value === locale)?.label ?? locale;
 
-  const selectCls = 'w-full min-w-[140px] border border-stroke-strong rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
+  const selectCls = 'w-full min-w-[140px]';
 
   if (step === 'input') {
     return (
@@ -434,33 +435,30 @@ function PasteMappingModalBody({
                       {f.required && <span className="text-danger ml-0.5">*</span>}
                     </td>
                     <td className="border border-stroke px-2 py-1.5">
-                      <select value={ci ?? ''}
-                        onChange={e => {
-                          const v = e.target.value;
+                      <Select size="sm" className={selectCls} aria-label={`Колонка для «${f.title}»`}
+                        value={ci == null ? '' : String(ci)} emptyItem="— пропустить —"
+                        onValueChange={v => {
                           clearPending();
                           setFieldCol(prev => {
                             const n = { ...prev };
                             if (v === '') delete n[f.key]; else n[f.key] = Number(v);
                             return n;
                           });
-                        }}
-                        className={selectCls}>
-                        <option value="">— пропустить —</option>
+                        }}>
                         {Array.from({ length: maxCols }, (_, i) => (
-                          <option key={i} value={i}>{colLabel(i)}</option>
+                          <SelectItem key={i} value={String(i)}>{colLabel(i)}</SelectItem>
                         ))}
-                      </select>
+                      </Select>
                     </td>
                     <td className="border border-stroke px-2 py-1.5">
                       {needsMatch && ci != null && (
-                        <select value={matchFields[f.key] ?? ''}
-                          onChange={e => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: e.target.value as 'name' | 'key' | 'inline' })); }}
-                          className={selectCls}>
-                          <option value="">— выберите —</option>
-                          <option value="name">🔗 Наименование</option>
-                          {hasIdentity && <option value="key">🔗 Ключ</option>}
-                          <option value="inline">{'{}'} Встроенно (без поиска)</option>
-                        </select>
+                        <Select size="sm" className={selectCls} aria-label={`Как сопоставлять «${f.title}»`}
+                          value={matchFields[f.key] ?? ''} placeholder="— выберите —"
+                          onValueChange={m => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: m as 'name' | 'key' | 'inline' })); }}>
+                          <SelectItem value="name">🔗 Наименование</SelectItem>
+                          {hasIdentity && <SelectItem value="key">🔗 Ключ</SelectItem>}
+                          <SelectItem value="inline">{'{}'} Встроенно (без поиска)</SelectItem>
+                        </Select>
                       )}
                     </td>
                   </tr>

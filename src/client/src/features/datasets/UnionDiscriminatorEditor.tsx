@@ -4,6 +4,7 @@ import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import type { SchemaField } from '@/shared/api/schema';
 import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Настройка «вариант по типу документа строки» (issue #716).
@@ -70,28 +71,15 @@ export function UnionDiscriminatorEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-end gap-2">
-        <label className="flex-1">
-          <span className="block text-xs font-medium mb-1 text-fg3">Колонка-признак</span>
-          <select
-            value={discriminator.column}
-            onChange={e => setDiscriminator({ column: e.target.value })}
-            className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-          >
-            <option value="">— не выбрана —</option>
-            {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
-        <label className="w-56">
-          <span className="block text-xs font-medium mb-1 text-fg3">Читать как</span>
-          <select
-            value={discriminator.kind}
-            onChange={e => setDiscriminator({ kind: e.target.value as MaterializeDiscriminator['kind'] })}
-            className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-          >
-            <option value="docTypeCode">код типа документа</option>
-            <option value="docId">идентификатор документа</option>
-          </select>
-        </label>
+        <Select label="Колонка-признак" containerClassName="flex-1" value={discriminator.column}
+          onValueChange={column => setDiscriminator({ column })} emptyItem="— не выбрана —">
+          {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+        </Select>
+        <Select label="Читать как" containerClassName="w-56" value={discriminator.kind}
+          onValueChange={kind => setDiscriminator({ kind: kind as MaterializeDiscriminator['kind'] })}>
+          <SelectItem value="docTypeCode">код типа документа</SelectItem>
+          <SelectItem value="docId">идентификатор документа</SelectItem>
+        </Select>
       </div>
 
       <div className="rounded-lg border border-stroke divide-y divide-stroke">
@@ -135,12 +123,9 @@ export function UnionDiscriminatorEditor({
                 <div className="px-3 pb-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <Plus size={12} className="text-fg4 shrink-0" />
-                    <select
-                      value=""
-                      onChange={e => { if (e.target.value) setRules(v.key, [...ids, e.target.value]); }}
-                      className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                    >
-                      <option value="">— добавить тип документа —</option>
+                    <Select size="sm" className="flex-1" aria-label="Добавить тип документа"
+                      value="" placeholder="— добавить тип документа —"
+                      onValueChange={id => { if (id) setRules(v.key, [...ids, id]); }}>
                       {/* Абстрактные типы В СПИСКЕ — и это не оплошность. Правило на тип забирает
                           всех его потомков, а общий предок как раз обычно и абстрактен; без него
                           пришлось бы перечислять каждый конкретный подвид руками, и появившийся
@@ -149,11 +134,11 @@ export function UnionDiscriminatorEditor({
                       {allDocTypes
                         .filter(t => t.kind === 'Document' && !ids.includes(t.id))
                         .map(t => (
-                          <option key={t.id} value={t.id}>
+                          <SelectItem key={t.id} value={t.id}>
                             {t.isAbstract ? `${t.name} (базовый — со всеми подвидами)` : t.name}
-                          </option>
+                          </SelectItem>
                         ))}
-                    </select>
+                    </Select>
                   </div>
                   <MappingEditor
                     source={source}

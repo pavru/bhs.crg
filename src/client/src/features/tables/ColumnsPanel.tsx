@@ -9,6 +9,7 @@ import {
   withTotal,
   type Aggregate, type TableView, type ViewChange,
 } from './tableViewState';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Выбор колонок таблицы (ТЗ CORE-33; задача G1e, issue #1092): какие показаны и в каком порядке,
@@ -86,15 +87,15 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
           </ul>
 
           <div className="mt-3 pt-2.5 border-t border-stroke flex items-center gap-2 text-xs text-fg2">
-            <label htmlFor="table-pinned">Закрепить слева</label>
-            <select id="table-pinned" value={Math.min(view.pinned, gridColumns)}
-              onChange={e => onChange(v => withPinned(v, Number(e.target.value)))}
-              className="rounded-md border border-stroke bg-surface px-1.5 py-1 text-xs">
-              <option value={0}>не закреплять</option>
+            <span aria-hidden>Закрепить слева</span>
+            <Select size="sm" className="w-auto" aria-label="Закрепить слева"
+              value={String(Math.min(view.pinned, gridColumns))}
+              onValueChange={n => onChange(v => withPinned(v, Number(n)))}>
+              <SelectItem value="0">не закреплять</SelectItem>
               {[1, 2, 3].filter(n => n <= gridColumns).map(n => (
-                <option key={n} value={n}>{n === 1 ? 'первую колонку' : `первые ${n} колонки`}</option>
+                <SelectItem key={n} value={String(n)}>{n === 1 ? 'первую колонку' : `первые ${n} колонки`}</SelectItem>
               ))}
-            </select>
+            </Select>
             <div className="flex-1" />
             <button type="button" disabled={!customised} onClick={() => onChange(v => withColumnsReset(v, base))}
               className="text-fg3 hover:text-fg1 disabled:opacity-40 disabled:hover:text-fg3">
@@ -140,12 +141,10 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
       </label>
 
       {onTotal && totals.length > 0 && (
-        <select value={total ?? ''} aria-label={`Итог по колонке «${label}»`}
-          onChange={e => onTotal(e.target.value ? e.target.value as Aggregate : null)}
-          className="shrink-0 rounded-md border border-stroke bg-surface px-1 py-0.5 text-xs text-fg2">
-          <option value="">без итога</option>
-          {totals.map(a => <option key={a} value={a}>{AGGREGATES[a].label}</option>)}
-        </select>
+        <Select size="sm" className="w-auto shrink-0" aria-label={`Итог по колонке «${label}»`}
+          value={total ?? ''} onValueChange={v => onTotal(v ? v as Aggregate : null)} emptyItem="без итога">
+          {totals.map(a => <SelectItem key={a} value={a}>{AGGREGATES[a].label}</SelectItem>)}
+        </Select>
       )}
 
       {move && (

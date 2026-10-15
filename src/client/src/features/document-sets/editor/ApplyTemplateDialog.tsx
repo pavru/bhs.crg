@@ -6,6 +6,7 @@ import { useAvailableDataSetFiles, useCreateDataSetBinding } from '@/shared/api/
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import type { DataSetBindingTemplate, DataSetFile, DataSetSource, DocumentType } from '@/shared/api/types';
+import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 
 // ─── Column match preview ─────────────────────────────────────────────────────
 
@@ -96,23 +97,19 @@ function SourceSelector({
     );
 
   return (
-    <select
-      value={value}
-      onChange={e => {
-        const src = allSources.find(s => s.id === e.target.value);
-        if (src) onChange(e.target.value, src);
-      }}
-      className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-    >
-      <option value="">— выберите источник данных —</option>
+    <Select aria-label="Источник данных" value={value} placeholder="— выберите источник данных —"
+      onValueChange={id => {
+        const src = allSources.find(s => s.id === id);
+        if (src) onChange(id, src);
+      }}>
       {files.map(f => (
-        <optgroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
+        <SelectGroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
           {f.sources.map(s => (
-            <option key={s.id} value={s.id}>{s.name} · {s.cachedRowCount} строк</option>
+            <SelectItem key={s.id} value={s.id}>{s.name} · {s.cachedRowCount} строк</SelectItem>
           ))}
-        </optgroup>
+        </SelectGroup>
       ))}
-    </select>
+    </Select>
   );
 }
 

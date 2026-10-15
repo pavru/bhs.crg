@@ -7,6 +7,7 @@ import {
 } from '@/shared/api/recognitionProfiles';
 import { hiddenLabel, withBoundOption } from '@/shared/api/recognitionProfileGroups';
 import type { DataSetFile } from '@/shared/api/types';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Профили распознавания НАБОРА (issue #412): штамп, обложка/титул и счёт читают файл целиком, поэтому
@@ -77,19 +78,14 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
               .map(p => ({ id: p.id, name: p.isBuiltIn ? `${p.name} (встроенный)` : p.name })),
             map[k.kind], hidden);
           return (
-            <div key={k.kind}>
-              <label className="block text-sm font-medium text-fg1 mb-1">{k.label}</label>
-              <select value={map[k.kind] ?? ''}
-                onChange={e => setMap(m => {
-                  const next = { ...m };
-                  if (e.target.value) next[k.kind] = e.target.value; else delete next[k.kind];
-                  return next;
-                })}
-                className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
-                <option value="">— встроенный профиль</option>
-                {options.map(p => <option key={p.id} value={p.id} disabled={p.disabled}>{p.name}</option>)}
-              </select>
-            </div>
+            <Select key={k.kind} label={k.label} value={map[k.kind] ?? ''} emptyItem="— встроенный профиль"
+              onValueChange={v => setMap(m => {
+                const next = { ...m };
+                if (v) next[k.kind] = v; else delete next[k.kind];
+                return next;
+              })}>
+              {options.map(p => <SelectItem key={p.id} value={p.id} disabled={p.disabled}>{p.name}</SelectItem>)}
+            </Select>
           );
         })}
 
