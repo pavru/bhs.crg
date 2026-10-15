@@ -158,11 +158,15 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         // открыта, у списка — сколько скрыто. Свежая накладная стоит первой, то есть до предела.
         await check('waybill-list-hides-non-favorite-and-counts', async () => {
           const row = page.getByRole('button', { name: new RegExp(`РН-ИЗБ-${stamp}`) });
-          await page.getByTestId('site-filter-note').waitFor({ timeout: 10_000 });
+          // Сколько скрыто, говорит строка над непустым списком ИЛИ пустое состояние: на чистой базе CI
+          // эта накладная — единственная, и под фильтром список пуст (CI PR #1335). Ждать одну из двух —
+          // значит проверять базу стенда, а не приложение.
+          const said = page.getByTestId('site-filter-note').or(page.getByTestId('waybill-list-sites-empty'));
+          await said.first().waitFor({ timeout: 10_000 });
           if (await row.count()) throw new Error('накладная неизбранной стройки стоит в списке под фильтром');
           await page.getByTestId('waybill-not-in-list').waitFor({ timeout: 5_000 });
-          const note = await page.getByTestId('site-filter-note').innerText();
-          if (!/скрыто: [1-9]|часть скрыта/.test(note)) throw new Error(`строка у списка: «${note}»`);
+          const note = await said.first().innerText();
+          if (!/скрыто: [1-9]|Скрыто фильтром: [1-9]/.test(note)) throw new Error(`у списка: «${note}»`);
 
           // Число сходится с разницей против выключенного фильтра — там, где ни один список не усечён.
           const favorites = [sites[0].id, sites[1].id].sort().join(',');
@@ -175,7 +179,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
           await row.first().waitFor({ timeout: 10_000 });
           if (await page.getByTestId('waybill-not-in-list').count()) throw new Error('без фильтра форма говорит «нет в списке»');
           await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
-          await page.getByTestId('site-filter-note').waitFor({ timeout: 10_000 });
+          await said.first().waitFor({ timeout: 10_000 });
         });
       } finally {
         await page.evaluate(async ([id, version]) => {
