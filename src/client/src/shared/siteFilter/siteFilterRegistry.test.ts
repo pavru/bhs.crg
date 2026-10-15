@@ -17,8 +17,20 @@ import { clientSources } from '@/shared/testing/clientSources';
  * <p>«Берёт справочник» — это имя хука в любом `import { … }` или `export { … } from`, в том числе
  * многострочном, и через обёртку: обёртка называет в `carries` свои хуки, которые несут справочник
  * дальше, и их потребители тоже обязаны быть названы (ревью PR #1331 — `usePlaces` прятал троих).</p>
+ *
+ * <p>И обратно: файл, который урезает список хуком фильтра, назван здесь, даже если справочник ему не
+ * нужен (#1221 — рейл счетов отбирает по `constructionIds` элемента). Отбор на клиенте держится на
+ * условии, и запись его называет (`until`) вместе со сторожем сервера, который падает, когда условие
+ * нарушено (`guard`). Есть ли такой сторож, проверяется здесь: условие без сторожа — просто строка,
+ * и нарушили бы его молча (ревью PR #1334).</p>
  */
-type Entry = ({ filters: true } | { filters: false; because: string }) & { carries?: string[] };
+type Until = { condition: string; guard: string };
+type Entry = ({ filters: true; until?: Until } | { filters: false; because: string }) & { carries?: string[] };
+
+/** Сторожа сервера, на которые ссылаются условия `until`, — тесты модуля счетов. */
+const SERVER_GUARDS = import.meta.glob('../../../../server/BHS.CRG.Tests/Costs/*Tests.cs', {
+  query: '?raw', import: 'default', eager: true,
+}) as Record<string, string>;
 
 const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/ConstructionsList.tsx': { filters: true },
@@ -42,6 +54,16 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/costs/InvoiceObject.tsx': {
     filters: false, because: 'объект счёта урезает PlaceSelect (useSiteChoices, #1219)',
   },
+  '/src/features/costs/InvoicesPage.tsx': {
+    filters: true,
+    until: {
+      condition: 'пока список счетов приходит целиком: страничный (G4) отбирает сервер параметром sites, как накладные (#1222)',
+      guard: 'Costs/InvoiceListWholeTests.cs',
+    },
+  },
+  '/src/features/costs/PlaceSelect.tsx': { filters: true },
+  '/src/features/costs/WaybillForm.tsx': { filters: true },
+  '/src/features/document-sets/setTargets.ts': { filters: true },
   '/src/features/costs/WaybillsPage.tsx': {
     filters: false, because: 'список накладных страничный — отбор параметром sites, #1222',
   },
@@ -57,13 +79,18 @@ const REGISTRY: Record<string, Entry> = {
 
 /** Где хуки справочника объявлены — эти файлы его не потребляют. */
 const DEFINITIONS = ['/src/shared/api/constructions.ts', '/src/shared/api/invoices.ts'];
+/** Где объявлены хуки фильтра — эти файлы ничего не урезают. */
+const FILTER_DEFINITIONS = [
+  '/src/shared/siteFilter/siteFilterContext.ts', '/src/shared/siteFilter/siteReveal.ts', '/src/features/costs/useRailSites.ts',
+];
 
 const DIRECTORY_HOOKS = ['useListConstructions', 'useCostsConstructions', 'useConstructionDirectory'];
 /**
- * Хуки, которые урезают список и регистрируют экран: сам фильтр и варианты выбора стройки (#1219).
+ * Хуки, которые урезают список и регистрируют экран: сам фильтр, варианты выбора стройки (#1219) и
+ * рейл счетов (#1221).
  * Обёртка, которую сторож не знает, сделала бы честное «фильтрует» недостижимым (ревью PR #1332).
  */
-const FILTER_HOOK = /\b(?:useSiteFilter|useSiteChoices)\(/;
+const FILTER_HOOK = /\b(?:useSiteFilter|useSiteChoices|useRailSites)\(/;
 
 /** Имена из `import { … } from` и `export { … } from` — со всеми переносами строк и `as`. */
 function namesTaken(code: string): string[] {
@@ -83,13 +110,23 @@ function directoryUsers(sources: Record<string, string>, registry: Record<string
     .sort();
 }
 
+/** Файлы, урезающие список хуком фильтра. */
+function filterUsers(sources: Record<string, string>): string[] {
+  return Object.entries(sources)
+    .filter(([file, code]) => !/\.test\.tsx?$/.test(file) && !FILTER_DEFINITIONS.includes(file) && FILTER_HOOK.test(code))
+    .map(([file]) => file)
+    .sort();
+}
+
 describe('сторож-реестр избранных строек', () => {
   const users = directoryUsers(clientSources, REGISTRY);
+  const cutters = filterUsers(clientSources);
 
   it('видит потребителей справочника', () => {
     // Положительный якорь: сломайся поиск — проверки ниже прошли бы на пустом списке.
     expect(users).toContain('/src/features/document-sets/ConstructionsList.tsx');
     expect(users).toContain('/src/features/costs/LineAllocation.tsx');
+    expect(cutters).toContain('/src/features/costs/InvoicesPage.tsx');
   });
 
   it('видит многострочный импорт, реэкспорт и обёртку', () => {
@@ -111,8 +148,26 @@ describe('сторож-реестр избранных строек', () => {
       .toEqual([]);
   });
 
-  it('в реестре нет файлов, которые справочник больше не берут', () => {
-    expect(Object.keys(REGISTRY).filter(f => !users.includes(f))).toEqual([]);
+  it('каждый файл, урезающий список хуком фильтра, назван в реестре', () => {
+    const unnamed = cutters.filter(f => !(f in REGISTRY));
+    expect(unnamed, 'Файл урезает список по избранному, но не назван. Впишите его в REGISTRY: { filters: true }, '
+      + 'а если отбор держится на условии (список приходит целиком) — назовите его в until.')
+      .toEqual([]);
+  });
+
+  it('условие отбора на клиенте держит сторож сервера', () => {
+    const named = Object.entries(REGISTRY).flatMap(([file, e]) => e.filters && e.until ? [[file, e.until] as const] : []);
+    // Положительный якорь: без записей с условием цикл ниже не проверил бы ничего.
+    expect(named.length).toBeGreaterThan(0);
+    for (const [file, until] of named) {
+      const guard = Object.entries(SERVER_GUARDS).find(([path]) => path.endsWith(`/BHS.CRG.Tests/${until.guard}`))?.[1];
+      expect(guard, `${file}: сторожа «${until.guard}» нет — условие «${until.condition}» никто не проверяет`).toBeDefined();
+      expect(guard).toMatch(/\[Fact\]/);
+    }
+  });
+
+  it('в реестре нет файлов, которые ни справочника не берут, ни списка не урезают', () => {
+    expect(Object.keys(REGISTRY).filter(f => !users.includes(f) && !cutters.includes(f))).toEqual([]);
   });
 
   it('«фильтрует» значит зовёт useSiteFilter или useSiteChoices, «не фильтрует» — не зовёт', () => {

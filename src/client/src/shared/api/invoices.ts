@@ -338,6 +338,12 @@ export interface InvoiceListItem {
   daysLeft?: number | null;
   /** Срок прошёл, а счёт оплаты ждёт. Считает сервер — признак нигде не хранится. */
   overdue?: boolean;
+  /**
+   * Стройки разноски (issue #1221), каждая один раз; пусто — счёт не разнесён ни на одну стройку.
+   * По ним рейл отбирает под фильтром «Избранные стройки». Старый сервер поля не присылает — тогда
+   * счёт считается неразнесённым и виден всегда.
+   */
+  constructionIds?: string[];
 }
 
 /** Где в счёте стоят ссылки не на месте. `count` — ссылок, а не мест формы. */
@@ -513,6 +519,12 @@ function rereadOnConflict(qc: QueryClient) {
   };
 }
 
+/** Признак записи счёта в `meta` мутации — по нему её узнаёт `onInvoiceWritten`. */
+const INVOICE_WRITE = 'invoiceWrite';
+
+/** Контекст записи счёта: его вид ДО неё, из кэша; `undefined` — счёт в кэше не лежал. */
+interface InvoiceWriteContext { before: InvoiceView | undefined }
+
 /**
  * Правка счёта, возвращающая его вид: ответ кладётся в кэш, реестр перечитывается, отказ 409 перечитывает
  * счёт. Каждый пишущий хук счёта строится на этом — иначе следующий, написанный по образцу, забыл бы
@@ -522,11 +534,35 @@ export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Pr
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
+    meta: { [INVOICE_WRITE]: true },
+    // Вид до записи — в контекст мутации: по нему подписчик узнаёт, что изменила именно эта запись.
+    onMutate: (input): InvoiceWriteContext => ({ before: qc.getQueryData<InvoiceView>([QK, input.id]) }),
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
     },
     onError: rereadOnConflict(qc),
+  });
+}
+
+/**
+ * Подписка на СВОИ удавшиеся записи счёта: прежний вид и новый (issue #1221 — разноска на неизбранную
+ * стройку уводит счёт из рейла, и экран говорит об этом). Своя — значит сделанная этой вкладкой через
+ * `useInvoiceWrite`; чужая правка, пришедшая перечитыванием, сюда не попадает.
+ *
+ * <p>Через кэш мутаций, а не через контекст экрана (ревью PR #1334): запись видна, где бы ни был
+ * смонтирован пишущий хук — в диалоге-портале, на другом экране, — и слой API не знает о том, кто
+ * слушает. Новый пишущий хук «по образцу» попадает сюда сам: признак ставит `useInvoiceWrite`.</p>
+ *
+ * @returns отписка
+ */
+export function onInvoiceWritten(
+  qc: QueryClient, listener: (before: InvoiceView | undefined, after: InvoiceView) => void,
+): () => void {
+  return qc.getMutationCache().subscribe(event => {
+    if (event.type !== 'updated' || event.action.type !== 'success' || !event.mutation.meta?.[INVOICE_WRITE]) return;
+    const context = event.mutation.state.context as InvoiceWriteContext | undefined;
+    listener(context?.before, event.action.data as InvoiceView);
   });
 }
 

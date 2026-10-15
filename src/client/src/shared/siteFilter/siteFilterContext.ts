@@ -75,11 +75,14 @@ export function useSiteFilterState(): SiteFilterValue {
  * ⚠️ Каждый файл, импортирующий хук справочника строек, назван в сторож-реестре
  * (`siteFilterRegistry.test.ts`): «фильтрует» или «не фильтрует, потому что…». Новый экран со
  * стройками иначе молча не фильтровал бы.
+ *
+ * @param cuts урезает ли экран список СЕЙЧАС. Счета урезаются только в общем списке, а под рабочими
+ *     очередями — нет (#1221): регистрируйся экран всегда, шапка горела бы над неурезанной очередью.
  */
-export function useSiteFilter(): SiteFilterValue {
+export function useSiteFilter(cuts = true): SiteFilterValue {
   const value = useContext(SiteFilterContext);
   const { register } = value;
   // До отрисовки кадра: иначе шапка успела бы показать «не действуют» над урезанным списком.
-  useLayoutEffect(() => register(), [register]);
+  useLayoutEffect(() => (cuts ? register() : undefined), [register, cuts]);
   return value;
 }

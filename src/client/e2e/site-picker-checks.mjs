@@ -1,4 +1,5 @@
-// Выбор стройки под фильтром «Избранные стройки» (issue #1219) — проверки живым браузером.
+// Выбор стройки под фильтром «Избранные стройки» (issue #1219) и рейл счетов под ним (#1221) —
+// проверки живым браузером.
 //
 // Внутри `allocation-matrix-smoke`, а не своим набором: входы прогонов CI упёрлись в предел частоты
 // (считает `suites.test.mjs`). Этот набор входит администратором и уже держит восемь своих строек.
@@ -19,6 +20,8 @@ const selectedText = select => select.evaluate(s => s.selectedOptions[0]?.textCo
 
 export async function sitePickerChecks({ page, check, api, invoice, openMatrix, sites, stamp }) {
   const [favorite, , , other] = sites;
+  // Счёт, разнесённый на неизбранную стройку: в рейле его нет, открывается он ссылкой (#1221).
+  let elsewhere = null;
   await api('PUT', '/account/settings', { favoriteConstructions: `${sites[0].id},${sites[1].id}`, favoritesFilter: null });
   try {
     await check('site-picker-reveal-keeps-what-was-typed', async () => {
@@ -72,8 +75,9 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         document: [],
         stamp: view.allocation.stamp,
       });
-      await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: new RegExp(number) }).first().click();
+      elsewhere = { id, number };
+      // По ссылке: в рейле под фильтром этого счёта нет (#1221).
+      await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
       const select = page.getByLabel('Объект счёта', { exact: true });
       await select.waitFor({ timeout: 10_000 });
       const shown = await selectedText(select);
@@ -81,6 +85,45 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const groups = await groupsOf(select);
       if (JSON.stringify(groups['Не в избранном']) !== JSON.stringify([other.name]))
         throw new Error(`стоящая стройка не в группе «Не в избранном»: ${JSON.stringify(groups)}`);
+    });
+
+    await check('invoice-rail-hides-non-favorite-and-says-why', async () => {
+      // Тот же счёт: строки в рейле нет, над формой — почему, у списка — сколько скрыто.
+      if (!elsewhere) throw new Error('счёт на неизбранной стройке не заведён предыдущей проверкой');
+      const rail = page.getByRole('button', { name: new RegExp(elsewhere.number) });
+      if (await rail.count()) throw new Error('счёт неизбранной стройки стоит в рейле под фильтром');
+      await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 5_000 });
+      const note = await page.getByTestId('site-filter-note').innerText();
+      if (!/скрыто: [1-9]/.test(note)) throw new Error(`строка у рейла: «${note}»`);
+    });
+
+    await check('invoice-rail-switch-keeps-open-invoice', async () => {
+      // Переключение фильтра в шапке открытый счёт не закрывает: выбор живёт в адресе.
+      const switcher = page.getByTestId('site-filter-switch');
+      await switcher.getByRole('button', { name: /^Все/ }).click();
+      await page.getByRole('button', { name: new RegExp(elsewhere.number) }).first().waitFor({ timeout: 5_000 });
+      if (new URL(page.url()).searchParams.get('invoice') !== elsewhere.id) throw new Error('«Все» закрыло открытый счёт');
+      if (await page.getByTestId('invoice-not-in-rail').count()) throw new Error('без фильтра форма говорит «нет в списке»');
+      await switcher.getByRole('button', { name: /Избранные/ }).click();
+      await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 5_000 });
+      if (new URL(page.url()).searchParams.get('invoice') !== elsewhere.id) throw new Error('«Избранные» закрыли открытый счёт');
+    });
+
+    await check('invoice-rail-saved-to-non-favorite-toasts', async () => {
+      // Неразнесённый счёт виден; разнесли на неизбранную стройку — тост говорит, куда он делся.
+      const number = `МТР-ТСТ-${stamp}`;
+      const id = await invoice(number, [{ supplierText: 'Кабель уходит из рейла', unit: 'м', quantity: 3, price: 2 }], 6);
+      await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: new RegExp(number) }).first().waitFor({ timeout: 10_000 });
+      const select = page.getByLabel('Объект счёта', { exact: true });
+      await select.selectOption({ label: (await optionTexts(select)).find(text => REVEAL.test(text)) });
+      await select.selectOption({ label: other.name });
+      // `.first()`: Radix Toast повторяет текст в живой области для экранного диктора (role="status"), и
+      // на CI вторая копия успевает появиться к проверке — строгий локатор видел два элемента (CI PR #1334).
+      await page.getByText('Сохранено. В списке счёт скрыт').first().waitFor({ timeout: 10_000 });
+      await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 10_000 });
+      if (await page.getByRole('button', { name: new RegExp(number) }).count())
+        throw new Error('счёт, разнесённый на неизбранную стройку, остался в рейле');
     });
 
     await check('site-picker-report-reveal-stays-open', async () => {
