@@ -82,5 +82,6 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 
 ## Кто сторожит
 
-- Сырую палитру, `<table>`, нативный `<select>` и `text-[Npx]` в `features/` — храповик #1349.
+- Сырую палитру, `<table>`, нативный `<select>` и `text-[Npx]` в `features/` — храповик #1349
+  (`npm run ui:ratchet`, уровень в `src/client/ui-baseline.json`): по файлам, новое не добавлять.
 - Всё остальное здесь — договорённость, проверяет её ревью.

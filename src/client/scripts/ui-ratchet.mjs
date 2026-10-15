@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+// Храповик интерфейса (issue #1349, эпик #1347).
+//
+// В features/ растут конструкции в обход дизайн-системы: <table> вместо DataGrid, нативный
+// <select> вместо Select, произвольный размер текста text-[11px], сырая палитра Tailwind.
+// Переписать накопленное разом нельзя, а остановить рост можно — тем же приёмом, что храповик
+// линта (#854) и размера файлов (#1041): накопленное не чинить, новое не добавлять.
+//
+// Почему не ESLint: `no-restricted-syntax` уже занят сторожем randomUUID (#848), а храповик линта
+// считает ПО ПРАВИЛУ — новые запреты смешались бы с ним в один счётчик. И text-[11px] — строка
+// внутри className, селектор AST её ловит плохо.
+//
+// Сравнение по файлам (почему — в ui-ratchet-lib.mjs). Уровень опускается тем же PR: локально
+// файл переписывается сам, в CI шаг падает с просьбой закоммитить — как у храповика линта.
+//
+//   node scripts/ui-ratchet.mjs            — проверить
+//   node scripts/ui-ratchet.mjs --update   — переписать базовый уровень по факту
+
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { RULES, countViolations, compare, normalize } from './ui-ratchet-lib.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const clientRoot = join(here, '..');
+const srcRoot = join(clientRoot, 'src');
+const baselinePath = join(clientRoot, 'ui-baseline.json');
+const update = process.argv.includes('--update');
+
+// Под присмотром — экраны. shared/ не считается: там живут сами DataGrid и Select, которые эти
+// элементы и заворачивают. Тесты тоже: разметка в фикстурах — не интерфейс.
+const files = readdirSync(join(srcRoot, 'features'), { recursive: true })
+  .map(f => 'features/' + String(f).replaceAll('\\', '/'))
+  .filter(f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f));
+
+const actual = {};
+for (const file of files)
+  for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'))))
+    (actual[rule] ??= {})[file] = n;
+
+const sum = level => Object.fromEntries(RULES.map(r =>
+  [r.id, Object.values(level[r.id] ?? {}).reduce((a, b) => a + b, 0)]));
+const summary = level => Object.entries(sum(level)).map(([k, v]) => `${k} ${v}`).join(', ');
+
+if (update) {
+  writeFileSync(baselinePath, JSON.stringify(normalize(actual), null, 2) + '\n', 'utf8');
+  console.log(`Базовый уровень переписан: ${summary(actual)}.`);
+  process.exit(0);
+}
+
+if (!existsSync(baselinePath)) {
+  console.error(`Нет файла базового уровня ${baselinePath}. Создайте его: npm run ui:ratchet:update`);
+  process.exit(2);
+}
+
+const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
+const { worse, better } = compare(baseline, actual);
+const line = d => `  ${d.file} — ${d.rule}: было ${d.was}, стало ${d.now}`;
+
+console.log(`Нарушений интерфейса в features/: ${summary(actual)}.`);
+
+if (worse.length > 0) {
+  console.error('\nНарушений интерфейса стало БОЛЬШЕ:\n' + worse.map(line).join('\n'));
+  console.error('\nКуда вместо:');
+  for (const rule of RULES.filter(r => worse.some(d => d.rule === r.id)))
+    console.error(`  ${rule.id}: ${rule.instead}`);
+  console.error('\nНакопленное чинить не требуется — требуется не добавлять. Если исключение законно и'
+    + '\nсогласовано, поднимите уровень (npm run ui:ratchet:update) и скажите в PR, почему.');
+  process.exit(1);
+}
+
+if (better.length > 0) {
+  console.log('\nСтало ЛУЧШЕ:\n' + better.map(line).join('\n'));
+
+  if (process.env.CI) {
+    console.error('\nУровень выше достигнутого — опустите его и закоммитьте, иначе те же нарушения вернутся молча:'
+      + '\n\n  npm run ui:ratchet:update\n');
+    process.exit(1);
+  }
+
+  writeFileSync(baselinePath, JSON.stringify(normalize(actual), null, 2) + '\n', 'utf8');
+  console.log('\nБазовый уровень опущен по факту — закоммитьте ui-baseline.json вместе с правкой.');
+}
