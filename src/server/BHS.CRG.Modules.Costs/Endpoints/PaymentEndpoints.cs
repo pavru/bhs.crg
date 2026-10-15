@@ -20,6 +20,11 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// Читать записанный расклад может тот, кто читает счёт.</para>
 ///
 /// <para><b>Версий оплата не создаёт</b> — это событие журнала; отмена ошибочной отметки — тоже.</para>
+///
+/// <para><b>Счёт с книгой исправлений или запертый</b> (E2, issue #1100, spec v3.3 п. 1.5): отмену оплаты
+/// ему открывает право оплаты ВМЕСТЕ с правом исправления, новую отметку неоплаченному — одно право
+/// оплаты; обе ложатся в книгу (это делает связка записи). Текст платёжного документа открыт и запертому:
+/// он не деньги.</para>
 /// </summary>
 public static class PaymentEndpoints
 {
@@ -95,11 +100,14 @@ public static class PaymentEndpoints
 
         var document = Text(body.Document);
         var today = await clock.TodayAsync(ct);
-        var tolerance = await desk.ToleranceAsync(ct);
 
         var (invoice, moved) = await desk.WriteAsync(id, async write =>
         {
             var invoice = write.Invoice;
+            // Допуск — под замками, впервые в запросе (spec v3.3 п. 1.3): порт настроек держит значение до
+            // конца запроса, и прочитанный до замка остался бы прежним, смени его кто-то, пока запрос ждал.
+            // У счёта с книгой по нему же посчитана запись оплаты.
+            var tolerance = await desk.ToleranceAsync(ct);
             if (invoice.Payment == InvoicePaymentState.Paid)
                 throw new ConflictException(
                     $"{InvoiceEndpoints.Label(invoice)} уже оплачен {invoice.PaidOn:dd.MM.yyyy}. Дату меняют отменой " +
@@ -128,7 +136,13 @@ public static class PaymentEndpoints
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 
-    /// <summary>Поправить платёжный документ. Дату так не меняют: она задаёт учётные даты долей.</summary>
+    /// <summary>
+    /// Поправить платёжный документ. Дату так не меняют: она задаёт учётные даты долей.
+    ///
+    /// <para>Запертому счёту — тоже (spec v3.3 п. 1.5): текст документа денег не двигает, а опечатку в
+    /// номере платёжки не должно чинить исправлением с версией. В книгу ничего, событие журнала — как
+    /// всегда; под той же блокировкой строки — через связку.</para>
+    /// </summary>
     private static async Task<Ok<InvoiceView>> DescribeAsync(
         Guid id, PaymentDocumentRequest body, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log,
         CancellationToken ct)
@@ -148,7 +162,7 @@ public static class PaymentEndpoints
             }
 
             return (invoice, was);
-        }, ct);
+        }, ct, evenLocked: true);
 
         if (was != document)
             await log.RecordAsync(InvoiceActions.PaymentDescribed, invoice.Id.ToString(),
@@ -158,12 +172,16 @@ public static class PaymentEndpoints
     }
 
     /// <summary>
-    /// Отменить ошибочную отметку оплаты. В закрытом периоде — отказ (его даёт связка записи): пока нет
-    /// версий, сначала отменяют закрытие.
+    /// Отменить ошибочную отметку оплаты.
+    ///
+    /// <para>Счёту, который требует исправления (заперт закрытым периодом или уже исправлялся), — правом
+    /// оплаты И правом исправления (решение владельца 15.10.2026): отмена уносит его деньги из закрытого
+    /// месяца или сдвигает книгу исправлений. Деньги уходят строкой книги днём отмены, а не из закрытого
+    /// дня (spec v3.3 п. 1.5); завела отмена книгу — счёт больше не удалить, его выход — «Отклонён».</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> CancelAsync(
-        Guid id, PaymentCancelRequest body, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log,
-        CancellationToken ct)
+        Guid id, PaymentCancelRequest body, CostsDbContext db, InvoiceDesk desk, IModuleUser user,
+        IModuleActivityLog log, CancellationToken ct)
     {
         if (Text(body.Reason) is not { } reason)
             throw new InvalidRequestException(
@@ -174,12 +192,17 @@ public static class PaymentEndpoints
         {
             var invoice = write.Invoice;
             EnsurePaid(invoice);
+            if (write.Locked is { } locked && !await user.HasAsync(CostsModule.InvoiceCorrect, ct))
+                throw new ForbiddenException(
+                    $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Отменить его оплату можно только вместе с " +
+                    "правом «Исправлять счета закрытого периода»: отмена уносит деньги, уже вошедшие в закрытый " +
+                    "период или в книгу исправлений. Это право выдаёт администратор.");
 
             var was = invoice.PaidOn!.Value;
             invoice.Unpay();
             await db.SaveChangesAsync(ct);
             return (invoice, was);
-        }, ct);
+        }, ct, evenLocked: true);
 
         await log.RecordAsync(InvoiceActions.Unpaid, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
             before: $"оплачен {was:dd.MM.yyyy}", after: $"не оплачен. Причина: {reason}", ct: ct);

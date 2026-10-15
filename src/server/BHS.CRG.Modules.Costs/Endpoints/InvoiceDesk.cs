@@ -9,7 +9,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <summary>Счёт под записью: прочитан ПОСЛЕ замка, границы периодов неподвижны до конца транзакции.</summary>
 /// <param name="Locked">Почему счёт требует исправления — словами (<see cref="ClosedPeriodGuard.NeedOf" />);
 /// <c>null</c> — правится как обычно. Такой счёт досюда доходит только у пути, который назвал себя
-/// разрешённым (приложить скан).</param>
+/// разрешённым: приложить скан, платёжный документ, отмена оплаты (E2, spec v3.3 п. 1.5).</param>
 public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, string? Locked);
 
 /// <summary>
@@ -24,7 +24,7 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 ///
 /// <para><b>Порядок внутри связки</b> (ревизия Архитектора): замок периода → блокировка строки счёта →
 /// чтение счёта → версия формы → проверка «не требует исправления» → правка адреса → учётные даты →
-/// фиксация. Счёт читается ПОСЛЕ замков: проверка по прочитанному до них проверяла бы прошлое. Журнал
+/// книга (оплата и её отмена у счёта с книгой) → фиксация. Счёт читается ПОСЛЕ замков: проверка по прочитанному до них проверяла бы прошлое. Журнал
 /// ядра, удаление файлов и сборка ответа — СНАРУЖИ, после возврата: журнал пишется соединением ядра и
 /// зафиксировался бы раньше модуля.</para>
 ///
@@ -80,7 +80,8 @@ public sealed partial class InvoiceDesk(
     /// Выполнить правку счёта.
     /// </summary>
     /// <param name="evenLocked">Путь, которому запертый счёт не отказ сам по себе, — он решает по
-    /// <see cref="InvoiceWrite.Locked" />. Таких один: приложить скан можно, заменить нельзя.</param>
+    /// <see cref="InvoiceWrite.Locked" />. Таких три: приложить скан можно, заменить нельзя; текст
+    /// платёжного документа открыт; отмена оплаты — с правом исправления (spec v3.3 п. 1.5).</param>
     public Task<T> WriteAsync<T>(
         Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct, bool evenLocked = false) =>
         WriteAsync(id, write, seen: true, evenLocked, ct);
@@ -113,6 +114,8 @@ public sealed partial class InvoiceDesk(
             var paid = invoice.Payment == InvoicePaymentState.Paid;
             var before = PostedBefore.None;
             string? locked = null;
+            // Деньги счёта до правки — для книги, если правка снимет оплату (spec v3.3 п. 1.5).
+            Func<decimal, IReadOnlyList<Grain>>? grains = null;
 
             if (paid)
             {
@@ -126,6 +129,7 @@ public sealed partial class InvoiceDesk(
                 if (ClosedPeriodGuard.NeedOf(invoice, stored, boundaries) is { } found)
                 {
                     locked = PaymentViews.Text(found, await places.LoadAsync(ct));
+                    if (evenLocked) grains = await GrainsAsync(invoice, stored, ct);
                     if (!evenLocked)
                         throw new ConflictException(
                             $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Обычной правкой нельзя изменить " +
@@ -166,6 +170,12 @@ public sealed partial class InvoiceDesk(
             var now = invoice.Payment == InvoicePaymentState.Paid;
             if (paid != now || (now && money))
                 await PostAsync(invoice, before, boundaries, ct);
+
+            // Оплата и её отмена у счёта с книгой или запертого — проводкой по книге, тем же местом и по
+            // тем же учётным дням, что легли только что (spec v3.3 п. 1.5): иначе книга разошлась бы с
+            // документом на всю сумму счёта. Незапертый счёт без книги её не заводит.
+            if (paid != now && (invoice.BookSeq > 0 || locked is not null))
+                await BookPaymentAsync(invoice, grains, boundaries, ct);
 
             return result;
         }, ct);
