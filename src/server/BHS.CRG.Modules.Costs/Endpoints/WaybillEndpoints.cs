@@ -93,11 +93,13 @@ public static class WaybillEndpoints
         var known = await sites.ListAsync(ct);
 
         // Скрытые считаются по ВСЕМУ отбору, а не по странице: под пределом страница из трёхсот
-        // урезанных дала бы число, которое ничего не значит.
+        // урезанных дала бы число, которое ничего не значит. Ни одной живой стройки в перечне — отбор
+        // не применён, и hidden остаётся null (ревью PR #1335): «скрыто: 0» над полным списком было бы
+        // неотличимо от честного «ничего не скрыто».
+        var off = favorites is null ? null : WaybillSiteFilter.Hidden(favorites, known.Select(s => s.Id));
         int? hidden = null;
-        if (favorites is not null)
+        if (off is not null)
         {
-            var off = WaybillSiteFilter.Hidden(favorites, known.Select(s => s.Id));
             hidden = off.Count == 0 ? 0 : await selected.CountAsync(w => off.Contains(w.ConstructionId), ct);
             if (off.Count > 0) selected = selected.Where(w => !off.Contains(w.ConstructionId));
         }

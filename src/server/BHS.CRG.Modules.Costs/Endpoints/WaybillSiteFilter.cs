@@ -56,17 +56,18 @@ public static class WaybillSiteFilter
     }
 
     /// <summary>
-    /// Стройки, чьи накладные скрыты: живые, но не избранные. Пустой перечень — фильтр не действует:
+    /// Стройки, чьи накладные скрыты: живые, но не избранные. <c>null</c> — фильтр не действует:
     /// избранное пусто после пересечения со справочником (удалили последнюю избранную стройку), и
-    /// список возвращается к «всё», а не пустеет.
+    /// список возвращается к «всё», а не пустеет. Пустой перечень — другое: избранное всё, что живо,
+    /// и не скрыто ничего.
     ///
     /// <para>Отбор выражен через СКРЫТЫЕ, а не через видимые: тогда «без стройки» и «стройка удалена»
     /// видны сами собой — их нет среди живых, — и отдельного условия для них нет, которое можно забыть.</para>
     /// </summary>
-    public static List<Guid?> Hidden(IReadOnlyList<Guid> favorites, IEnumerable<Guid> live)
+    public static List<Guid?>? Hidden(IReadOnlyList<Guid> favorites, IEnumerable<Guid> live)
     {
         var alive = live.ToHashSet();
-        if (!favorites.Any(alive.Contains)) return [];
+        if (!favorites.Any(alive.Contains)) return null;
         return [.. alive.Where(id => !favorites.Contains(id)).Select(id => (Guid?)id)];
     }
 }

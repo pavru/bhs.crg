@@ -11,8 +11,9 @@ const link = 'text-brand hover:underline focus-visible:outline-none focus-visibl
  * эта строка — всё напоминание о нём. «Показать все» переключает ГЛОБАЛЬНОЕ состояние: шапка меняется
  * на глазах, второго состояния поверх первого нет.
  *
- * @param partial список усечён пределом (накладные, #1222): число скрытых верно, но сверить его с
- *     разницей против «Все» по усечённым спискам нельзя — и строка говорит «часть скрыта», без числа.
+ * @param partial число — о всём списке, а на экране его часть: поиск по загруженному у накладных (#1222)
+ *     скрытых не видит, и «скрыто: 12» над одной найденной читалось бы как «поиску не показали 12
+ *     совпадений». Тогда — «часть скрыта», без числа (ревью PR #1335).
  */
 export function SiteFilterNote({ hidden, partial = false }: { hidden: number; partial?: boolean }) {
   const filter = useSiteFilterState();
@@ -69,5 +70,34 @@ export function NotFavoriteNote({ constructionId }: { constructionId: string }) 
       <span>Стройка не в избранном — в списках она скрыта.</span>
       <button type="button" className={link} onClick={() => void toggle(constructionId, true)}>Добавить в избранное</button>
     </span>
+  );
+}
+
+const quiet = 'underline hover:text-fg1';
+
+/**
+ * Пустой список, когда объекты есть, но скрыты фильтром (рейл счетов #1221, накладные #1222): «…пока нет»
+ * или «Ничего не найдено» здесь были бы неправдой. Текст и выход называет экран — он знает, что известно:
+ * у счетов поиск видит скрытые, у накладных — нет (их не прислал сервер).
+ */
+export function FilterHidesAll({ text, action, onShowAll, testId }: {
+  text: string; action: string; onShowAll: () => void; testId: string;
+}) {
+  return (
+    <div className="px-3 py-2 text-xs text-fg3 space-y-1" data-testid={testId}>
+      <p>{text}</p>
+      <button type="button" className={quiet} onClick={onShowAll}>{action}</button>
+    </div>
+  );
+}
+
+/** Над формой объекта, скрытого в списке слева: без неё форма выглядела бы объектом, которого нет. */
+export function NotInListNotice({ text, onShowAll, testId }: { text: string; onShowAll: () => void; testId: string }) {
+  return (
+    <p className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-fg3 border-b border-stroke" data-testid={testId}>
+      <Star size={12} aria-hidden />
+      <span>{text}.</span>
+      <button type="button" className={quiet} onClick={onShowAll}>Показать все</button>
+    </p>
   );
 }

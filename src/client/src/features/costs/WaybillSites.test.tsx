@@ -1,22 +1,23 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
-import { useWaybills, type WaybillList } from '@/shared/api/waybills';
+import { useWaybillState, useWaybills, waybillKey, type WaybillList, type WaybillView } from '@/shared/api/waybills';
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
 import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
-import { useWaybillSites } from './useWaybillSites';
-import { WaybillSitesEmpty } from './WaybillSitesEmpty';
+import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { appliedHidden, useWaybillSites } from './useWaybillSites';
 
 /**
  * Список накладных под «Избранными стройками» (issue #1222): отбирает сервер, клиент решает, ЧТО
- * спросить и КОГДА. Чем ломается: первый запрос уходит до настроек и приносит «всё» — список мигает
- * полным; очередь «Сопоставить» урезается и прячет работу за звездой.
+ * спросить, КОГДА и что сказать. Чем ломается: первый запрос уходит до настроек и приносит «всё»;
+ * очередь «Сопоставить» урезается и прячет работу за звездой; прежний список, удержанный на время
+ * переключения, выдаёт себя за ответ (ревью PR #1335).
  */
 
-vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn() } }));
+vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 
 const LIVE = ['a', 'b', 'c'];
 
@@ -32,22 +33,28 @@ function filterOf(favorites: string[], status: SiteFilterValue['status'] = 'read
 
 const answer = (data: Partial<WaybillList> = {}) => ({ data: { items: [], more: false, ...data } });
 const asked = () => vi.mocked(apiClient.get).mock.calls.map(([, config]) => (config as { params: object }).params);
+const waybill = (constructionId: string | null) => ({ id: 'w1', constructionId }) as WaybillView;
 
-function Probe({ unmatched }: { unmatched: boolean }) {
-  const sites = useWaybillSites(unmatched);
-  useWaybills(unmatched, sites.sites, sites.ready);
-  return null;
-}
+interface Mount { unmatched?: boolean; selected?: string | null; open?: WaybillView; writer?: () => null }
 
-function mount(filter: SiteFilterValue, unmatched = false) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function mount(filter: SiteFilterValue, { unmatched = false, selected = null, open, writer }: Mount = {}) {
+  const got: { current: ReturnType<typeof useWaybillSites> | null } = { current: null };
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  function Probe({ u }: { u: boolean }) {
+    got.current = useWaybillSites({ unmatched: u, selected, open });
+    useWaybills(u, got.current.sites, got.current.ready);
+    return null;
+  }
+  const Writer = writer ?? (() => null);
   const tree = (f: SiteFilterValue, u: boolean) => (
     <QueryClientProvider client={qc}>
-      <SiteFilterContext.Provider value={f}><Probe unmatched={u} /></SiteFilterContext.Provider>
+      <ToastProvider>
+        <SiteFilterContext.Provider value={f}><Probe u={u} /><Writer /></SiteFilterContext.Provider>
+      </ToastProvider>
     </QueryClientProvider>
   );
   const view = render(tree(filter, unmatched));
-  return (f: SiteFilterValue, u = unmatched) => view.rerender(tree(f, u));
+  return Object.assign(got, { qc, rerender: (f: SiteFilterValue, u = unmatched) => view.rerender(tree(f, u)) });
 }
 
 beforeEach(() => {
@@ -58,20 +65,20 @@ afterEach(cleanup);
 
 describe('запрос списка накладных под фильтром', () => {
   it('не уходит, пока фильтр не известен, — и уходит с перечнем, когда известен', async () => {
-    const rerender = mount(filterOf(['b', 'a'], 'loading'));
+    const page = mount(filterOf(['b', 'a'], 'loading'));
     await new Promise(r => setTimeout(r, 20));
     // Первым запросом без перечня пришло бы «всё», и список мигнул бы полным перед урезанным.
     expect(apiClient.get).not.toHaveBeenCalled();
 
-    rerender(filterOf(['b', 'a']));
+    page.rerender(filterOf(['b', 'a']));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
     expect(asked()).toEqual([{ sites: 'a,b' }]);
   });
 
   it('фильтр выключен или избранное пусто после пересечения — перечня нет', async () => {
-    const rerender = mount(filterOf(['a'], 'ready', false));
+    const page = mount(filterOf(['a'], 'ready', false));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
-    rerender(filterOf(['x']));
+    page.rerender(filterOf(['x']));
     await new Promise(r => setTimeout(r, 20));
     // Тот же ключ «без перечня» — второго запроса нет, и ни один не несёт sites.
     expect(asked()).toEqual([{}]);
@@ -85,7 +92,7 @@ describe('запрос списка накладных под фильтром',
 
   it('очередь «Сопоставить» не урезается, не ждёт фильтра и экран не регистрирует', async () => {
     const register = vi.fn(() => () => {});
-    mount(filterOf(['a'], 'loading', true, register), true);
+    mount(filterOf(['a'], 'loading', true, register), { unmatched: true });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
     expect(asked()).toEqual([{ unmatched: true }]);
     expect(register).not.toHaveBeenCalled();
@@ -98,6 +105,73 @@ describe('запрос списка накладных под фильтром',
   });
 });
 
+describe('сколько скрыто — только у ответа на текущий перечень', () => {
+  const list = (hidden: number | null) => ({ items: [], more: false, hidden });
+
+  it('ответ на перечень — его число', () => expect(appliedHidden(['a'], list(4), false)).toBe(4));
+
+  it('прежний список на время переключения — числа нет', () => {
+    // «Все» после пустого «Избранного»: прежний пустой список иначе сказал бы «Накладных пока нет».
+    expect(appliedHidden(['a'], list(4), true)).toBeNull();
+    expect(appliedHidden(null, list(4), false)).toBeNull();
+  });
+
+  it('сервер не применил отбор (ни одной живой стройки в перечне) — числа нет, а не «скрыто: 0»', () => {
+    expect(appliedHidden(['a'], list(null), false)).toBeNull();
+    expect(appliedHidden(['a'], list(0), false)).toBe(0);
+  });
+});
+
+describe('открытая накладная под фильтром', () => {
+  it('накладная неизбранной стройки — «нет в списке»; избранной, без стройки и удалённой — нет', () => {
+    expect(mount(filterOf(['a']), { open: waybill('b') }).current!.openHidden).toBe(true);
+    for (const site of ['a', null, 'x']) {
+      cleanup();
+      expect(mount(filterOf(['a']), { open: waybill(site) }).current!.openHidden).toBe(false);
+    }
+  });
+
+  it('под очередью и с выключенным фильтром — ничего не скрыто', () => {
+    expect(mount(filterOf(['a']), { open: waybill('b'), unmatched: true }).current!.openHidden).toBe(false);
+    cleanup();
+    expect(mount(filterOf(['a'], 'ready', false), { open: waybill('b') }).current!.openHidden).toBe(false);
+  });
+});
+
+describe('тост своей записи', () => {
+  function writerOf(after: WaybillView) {
+    let write!: () => Promise<unknown>;
+    function Writer() {
+      const mutation = useWaybillState();
+      write = () => mutation.mutateAsync({ id: 'w1', seen: '1', to: 'posted' });
+      return null;
+    }
+    vi.mocked(apiClient.post).mockResolvedValue({ data: after });
+    return { Writer, write: () => write() };
+  }
+
+  it('своя запись увела открытую накладную на неизбранную стройку — тост с «Показать все»', async () => {
+    const { Writer, write } = writerOf(waybill('b'));
+    const page = mount(filterOf(['a']), { selected: 'w1', writer: Writer });
+    page.qc.setQueryData(waybillKey('w1'), waybill('a'));
+    await act(async () => { await write(); });
+    expect(screen.getAllByText(/Сохранено\. В списке накладная скрыта/).length).toBeGreaterThan(0);
+  });
+
+  it('накладная и до записи была скрыта, или открыта другая — тоста нет', async () => {
+    const { Writer, write } = writerOf(waybill('b'));
+    const page = mount(filterOf(['a']), { selected: 'w1', writer: Writer });
+    page.qc.setQueryData(waybillKey('w1'), waybill('c'));
+    await act(async () => { await write(); });
+    cleanup();
+    const other = writerOf(waybill('b'));
+    const moved = mount(filterOf(['a']), { selected: 'w2', writer: other.Writer });
+    moved.qc.setQueryData(waybillKey('w1'), waybill('a'));
+    await act(async () => { await other.write(); });
+    expect(screen.queryByText(/Сохранено\. В списке накладная скрыта/)).toBeNull();
+  });
+});
+
 function showNote(hidden: number, partial: boolean) {
   render(
     <SiteFilterContext.Provider value={filterOf(['a'])}><SiteFilterNote hidden={hidden} partial={partial} /></SiteFilterContext.Provider>,
@@ -106,28 +180,15 @@ function showNote(hidden: number, partial: boolean) {
 }
 
 describe('свидетельство у списка накладных', () => {
-  it('без предела — число скрытых', () => expect(showNote(4, false)).toContain('скрыто: 4'));
+  it('без поиска — число скрытых, и под пределом тоже: оно по всему отбору', () => {
+    expect(showNote(4, false)).toContain('скрыто: 4');
+  });
 
-  it('предел сработал — «часть скрыта», без числа', () => {
+  it('под поиском — «часть скрыта», без числа: поиск скрытых не видит', () => {
     const text = showNote(4, true);
     expect(text).toContain('часть скрыта');
     expect(text).not.toContain('4');
   });
 
-  it('предел сработал, но скрытых нет — так и сказано', () => expect(showNote(0, true)).toContain('скрыто: 0'));
-
-  it('пустой список: скрытые названы числом, выход — «Показать все стройки»', () => {
-    const onShowAll = vi.fn();
-    render(<WaybillSitesEmpty searching={false} hidden={3} onShowAll={onShowAll} />);
-    expect(screen.getByText('По избранным стройкам накладных нет. Скрыто фильтром: 3.')).toBeTruthy();
-    fireEvent.click(screen.getByText('Показать все стройки'));
-    expect(onShowAll).toHaveBeenCalled();
-  });
-
-  it('поиск: «среди избранных не найдено», без числа — скрытых сервер не прислал', () => {
-    render(<WaybillSitesEmpty searching hidden={3} onShowAll={() => {}} />);
-    expect(screen.getByText('Среди избранных строек не найдено.')).toBeTruthy();
-    expect(screen.getByText('Искать по всем стройкам')).toBeTruthy();
-    expect(screen.getByTestId('waybill-list-sites-empty').textContent).not.toContain('3');
-  });
+  it('под поиском, но скрытых нет — так и сказано', () => expect(showNote(0, true)).toContain('скрыто: 0'));
 });

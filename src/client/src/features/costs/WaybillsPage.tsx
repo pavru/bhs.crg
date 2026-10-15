@@ -19,9 +19,9 @@ import { WaybillForm } from './WaybillForm';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
-import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
-import { useWaybillSites } from './useWaybillSites';
-import { WaybillSitesEmpty } from './WaybillSitesEmpty';
+import { FilterHidesAll, NotInListNotice, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
+import { NOT_IN_LIST, SEARCH_HIDDEN, appliedHidden, hiddenEmpty, useWaybillSites } from './useWaybillSites';
 
 const PARAM = 'waybill';
 
@@ -59,10 +59,10 @@ export function WaybillsPage() {
   const { data: access = NO_ACCESS } = useAccess();
   const canEdit = hasPermission(access, 'costs.waybill.edit');
 
-  const filter = useWaybillSites(unmatched);
+  const view = useWaybill(selected ?? undefined);
+  const filter = useWaybillSites({ unmatched, selected, open: view.data });
   const waybills = useWaybills(unmatched, filter.sites, filter.ready);
   const sites = useCostsConstructions();
-  const view = useWaybill(selected ?? undefined);
   const create = useCreateWaybill();
   const toast = useToast();
   const qc = useQueryClient();
@@ -88,9 +88,12 @@ export function WaybillsPage() {
   }, id => forgetWaybill(qc, id));
 
   const items = (waybills.data?.items ?? []).filter(i => matches(i, query));
-  // Скрытые — только из ответа на ТЕКУЩИЙ перечень: прежний список, удержанный на время переключения,
-  // несёт чужое число.
-  const hidden = filter.sites && !waybills.isPlaceholderData ? waybills.data?.hidden ?? 0 : 0;
+  const searching = !!query.trim();
+  // Прежний список, удержанный на время переключения фильтра, — не ответ на новый (ревью PR #1335): он
+  // показан приглушённым, а пустые состояния и свидетельство молчат, пока не пришёл настоящий.
+  const stale = waybills.isPlaceholderData;
+  const settled = !waybills.isPending && !waybills.isError && !stale;
+  const hidden = appliedHidden(filter.sites, waybills.data, stale);
 
   async function createDraft() {
     try {
@@ -140,24 +143,29 @@ export function WaybillsPage() {
                 Список не пришёл. Это отказ чтения, а не пустой список: накладные могут быть.
               </p>
             )}
-            {filter.sites && !waybills.isPlaceholderData && items.length > 0 && (
-              <div className="px-3 py-1.5"><SiteFilterNote hidden={hidden} partial={!!waybills.data?.more} /></div>
+            {stale && <p className="px-3 py-2 text-xs text-fg3">Обновляется…</p>}
+            {/* Под поиском — без числа: оно о всём отборе, а поиск видит только загруженное. */}
+            {hidden !== null && items.length > 0 && (
+              <div className="px-3 py-1.5"><SiteFilterNote hidden={hidden} partial={searching} /></div>
             )}
-            {!waybills.isPending && !waybills.isError && items.length === 0 && hidden > 0 && (
-              <WaybillSitesEmpty searching={!!query} hidden={hidden} onShowAll={filter.showAll} />
+            {settled && items.length === 0 && !!hidden && (
+              <FilterHidesAll testId="waybill-list-sites-empty" onShowAll={filter.showAll}
+                text={searching ? SEARCH_HIDDEN : hiddenEmpty(hidden)} action={searching ? SEARCH_ALL_SITES : SHOW_ALL_SITES} />
             )}
-            {!waybills.isPending && !waybills.isError && items.length === 0 && hidden === 0 && (
+            {settled && items.length === 0 && !hidden && (
               <p className="px-3 py-2 text-xs text-fg3">
-                {query ? 'Ничего не найдено.'
+                {searching ? 'Ничего не найдено.'
                   : unmatched ? 'Сопоставлять нечего: строк без позиции номенклатуры нет ни у одной накладной.'
                     : 'Накладных пока нет.'}
               </p>
             )}
-            {items.map(item => (
-              <ListRow key={item.id} item={item} active={item.id === selected} onClick={() => setSelected(item.id)} />
-            ))}
+            <div className={stale ? 'opacity-50' : undefined} aria-busy={stale || undefined}>
+              {items.map(item => (
+                <ListRow key={item.id} item={item} active={item.id === selected} onClick={() => setSelected(item.id)} />
+              ))}
+            </div>
             {/* Обрезанный молча список читался бы как «такой накладной нет». */}
-            {waybills.data?.more && (
+            {settled && waybills.data?.more && (
               <p className="px-3 py-2 text-xs text-warning">
                 Показаны самые свежие накладные, это не все. Поиск идёт по показанным: не нашли нужную —
                 включите отбор «Сопоставить» или откройте её по ссылке.
@@ -198,6 +206,7 @@ export function WaybillsPage() {
               <RereadFailedNotice what="Накладная не перечиталась" error={opened.rereadFailed}
                 retrying={view.isFetching} onRetry={() => void view.refetch()} />
             )}
+            {filter.openHidden && <NotInListNotice testId="waybill-not-in-list" text={NOT_IN_LIST} onShowAll={filter.showAll} />}
             <WaybillForm key={opened.id} view={opened.data} sites={sites.data ?? []}
               sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
               onClose={() => closeGone(opened.id)} />

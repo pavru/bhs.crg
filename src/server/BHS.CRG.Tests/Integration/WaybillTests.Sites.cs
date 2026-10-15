@@ -43,20 +43,36 @@ public partial class WaybillTests
 
         var run = 0;
         var several = new List<string>();
-        foreach (var c in cases)
+        var seeded = new List<Guid>();
+        try
         {
-            var name = c.GetProperty("name").GetString()!;
-            var sites = c.GetProperty("sites").EnumerateArray().Select(s => letters[s.GetString()!]).ToList();
-            if (sites.Count > 1) { several.Add(name); continue; }
+            foreach (var c in cases)
+            {
+                var name = c.GetProperty("name").GetString()!;
+                var sites = c.GetProperty("sites").EnumerateArray().Select(s => letters[s.GetString()!]).ToList();
+                if (sites.Count > 1) { several.Add(name); continue; }
 
-            var favorites = c.GetProperty("favorites").EnumerateArray().Select(s => letters[s.GetString()!]).ToList();
-            var query = c.GetProperty("on").GetBoolean() && favorites.Count > 0
-                ? $"?sites={string.Join(',', favorites)}" : string.Empty;
+                var favorites = c.GetProperty("favorites").EnumerateArray().Select(s => letters[s.GetString()!]).ToList();
+                var sent = c.GetProperty("on").GetBoolean() && favorites.Count > 0;
 
-            var waybill = (await SeedAsync(new DateOnly(2099, 1, 1), sites.Count == 0 ? null : sites[0], 1)).Single();
-            var listed = (await ListAsync(client, query)).Any(i => i.GetProperty("id").GetGuid() == waybill);
-            Assert.True(c.GetProperty("visible").GetBoolean() == listed, $"{name}: в списке — {listed}");
-            run++;
+                var waybill = (await SeedAsync(new DateOnly(2099, 1, 1), sites.Count == 0 ? null : sites[0], 1)).Single();
+                seeded.Add(waybill);
+                var page = await PageAsync(client, sent ? $"?sites={string.Join(',', favorites)}" : string.Empty);
+                Assert.False(page.GetProperty("more").GetBoolean());
+                var listed = page.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetGuid() == waybill);
+                Assert.True(c.GetProperty("visible").GetBoolean() == listed, $"{name}: в списке — {listed}");
+
+                // Отбор применён — число есть; перечень без единой живой стройки — отбора нет, и числа нет:
+                // «скрыто: 0» над полным списком читалось бы как «ничего не скрыто» (ревью PR #1335).
+                var applied = sent && favorites.Any(f => f != letters["X"] && f != letters["Y"]);
+                Assert.True(applied == (page.GetProperty("hidden").ValueKind == JsonValueKind.Number), $"{name}: hidden");
+                run++;
+            }
+        }
+        finally
+        {
+            // Накладные «из 2099 года» с потерянными ссылками стояли бы первыми в списке соседних тестов.
+            await ForgetWaybillsAsync(seeded);
         }
 
         // Положительный якорь: пустой или переписанный файл прошёл бы цикл, ничего не проверив.
@@ -110,10 +126,15 @@ public partial class WaybillTests
         finally
         {
             // Предел накладных остался бы в общей базе, и соседний тест получил бы «есть ещё».
-            using var scope = host.Services.CreateScope();
-            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Waybills
-                .Where(w => seeded.Contains(w.Id)).ExecuteDeleteAsync();
+            await ForgetWaybillsAsync(seeded);
         }
+    }
+
+    private async Task ForgetWaybillsAsync(List<Guid> ids)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Waybills
+            .Where(w => ids.Contains(w.Id)).ExecuteDeleteAsync();
     }
 
     /// <summary>

@@ -111,6 +111,8 @@ const QK = 'costs-waybills';
 // накладная тут же перезапрашивалась бы после каждой правки (ревью PR #1206).
 const LIST_KEY = [QK, 'list'] as const;
 const MATERIALS_KEY = ['costs-materials'] as const;
+/** Ключ открытой накладной в кэше: под ним запись ищет вид ДО себя. */
+export const waybillKey = (id: string) => [QK, 'one', id] as const;
 
 /**
  * Список накладных. `sites` — избранные стройки, по которым отбирает СЕРВЕР (issue #1222): список
@@ -174,6 +176,9 @@ function useWaybillWrite<T extends { id: string }>(send: (input: T) => Promise<W
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
+    meta: { [WAYBILL_WRITE]: true },
+    // Вид до записи — в контекст мутации: по нему подписчик узнаёт, что изменила именно эта запись.
+    onMutate: (input): WaybillWriteContext => ({ before: qc.getQueryData<WaybillView>(waybillKey(input.id)) }),
     onSuccess: settle,
     onError: (error: unknown, input: T) => {
       // 404 — накладную удалили, пока она была открыта (issue #1283): перечитывание ответит тем же, и
@@ -181,6 +186,27 @@ function useWaybillWrite<T extends { id: string }>(send: (input: T) => Promise<W
       const status = (error as { response?: { status?: number } })?.response?.status;
       if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
     },
+  });
+}
+
+/** Признак записи накладной в `meta` мутации — по нему её узнаёт `onWaybillWritten`. */
+const WAYBILL_WRITE = 'waybillWrite';
+
+/** Контекст записи накладной: её вид ДО неё, из кэша; `undefined` — накладная в кэше не лежала. */
+interface WaybillWriteContext { before: WaybillView | undefined }
+
+/**
+ * Подписка на СВОИ удавшиеся записи накладной: прежний вид и новый (issue #1222 — получатель сменился
+ * на неизбранную стройку, и накладная уходит из списка). Тот же приём, что `onInvoiceWritten`: через кэш
+ * мутаций, и чужая правка, пришедшая перечитыванием, сюда не попадает.
+ */
+export function onWaybillWritten(
+  qc: QueryClient, listener: (before: WaybillView | undefined, after: WaybillView) => void,
+): () => void {
+  return qc.getMutationCache().subscribe(event => {
+    if (event.type !== 'updated' || event.action.type !== 'success' || !event.mutation.meta?.[WAYBILL_WRITE]) return;
+    const context = event.mutation.state.context as WaybillWriteContext | undefined;
+    listener(context?.before, event.action.data as WaybillView);
   });
 }
 

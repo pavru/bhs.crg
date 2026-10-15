@@ -160,6 +160,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
           const row = page.getByRole('button', { name: new RegExp(`РН-ИЗБ-${stamp}`) });
           await page.getByTestId('site-filter-note').waitFor({ timeout: 10_000 });
           if (await row.count()) throw new Error('накладная неизбранной стройки стоит в списке под фильтром');
+          await page.getByTestId('waybill-not-in-list').waitFor({ timeout: 5_000 });
           const note = await page.getByTestId('site-filter-note').innerText();
           if (!/скрыто: [1-9]|часть скрыта/.test(note)) throw new Error(`строка у списка: «${note}»`);
 
@@ -172,6 +173,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
 
           await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
           await row.first().waitFor({ timeout: 10_000 });
+          if (await page.getByTestId('waybill-not-in-list').count()) throw new Error('без фильтра форма говорит «нет в списке»');
           await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
           await page.getByTestId('site-filter-note').waitFor({ timeout: 10_000 });
         });
