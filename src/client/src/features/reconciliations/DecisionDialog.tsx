@@ -69,7 +69,7 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
             <SelectItem value="Accepted">{DECISION_LABELS.Accepted}</SelectItem>
             <SelectItem value="Suppressed">{DECISION_LABELS.Suppressed}</SelectItem>
           </Select>
-          <p className="text-[11px] text-fg4 mt-1">
+          <p className="text-caption text-fg4 mt-1">
             «Признано нормой» — расхождение реально и объяснимо (давальческое оборудование, учтено в
             другом разделе). «Исключено» — позиция к этой сверке неприменима.
           </p>
@@ -78,7 +78,7 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
         <TextField label="Примечание" value={note} onChange={e => setNote(e.target.value)}
           hint="Почему это не ошибка" />
 
-        <p className="text-[11px] text-fg4">
+        <p className="text-caption text-fg4">
           Решение сохраняется за позицией, а не за прогоном, и останется после следующего пересчёта.
         </p>
       </div>

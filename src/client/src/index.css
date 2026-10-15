@@ -173,6 +173,15 @@
   --color-danger:          var(--f-danger-fg);
   --color-danger-subtle:   var(--f-danger-bg);
 
+  /* Шкала текста (issue #1350). Основа — Tailwind: text-xs 12/16, text-sm 14/20, text-base 16/24.
+     Две ступени, которых в ней нет, названы ролями (назначение — docs/UI.md, «Текст»):
+     caption — бейдж, счётчик, подпись раздела, мелкая пометка (бывшие 10 и 11 px);
+     note    — сообщение формы, пояснение, строка расклада (бывшие 13 px). */
+  --text-caption: 11px;
+  --text-caption--line-height: 16px;
+  --text-note: 13px;
+  --text-note--line-height: 20px;
+
   /* Border radius — шкала MD3 на именах Tailwind (назначение — docs/UI.md) */
   --radius-sm: var(--f-r-sm);   /* 4px  — чип, бейдж, мелкий контрол */
   --radius-md: var(--f-r-md);   /* 6px  — поле ввода, кнопка-иконка   */

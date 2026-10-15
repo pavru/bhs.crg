@@ -58,7 +58,7 @@ function ColumnMatchPreview({
                 {colName}
               </span>
               {!found && (
-                <span className="text-[10px] text-danger">не найдено</span>
+                <span className="text-caption text-danger">не найдено</span>
               )}
             </div>
           );

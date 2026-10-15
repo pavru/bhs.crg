@@ -63,7 +63,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
               <div className="text-xs font-medium truncate text-fg1">
                 {name ?? <em className="text-fg4">без названия</em>}
               </div>
-              <div className="text-[11px] text-fg4">
+              <div className="text-caption text-fg4">
                 {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
               </div>
             </div>

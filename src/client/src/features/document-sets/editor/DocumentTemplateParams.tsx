@@ -36,14 +36,14 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
           Параметры · <span className="text-fg1">«{template.name}»</span>
         </label>
         {!participating && (
-          <span className="flex items-center gap-1 text-[11px] text-warning" title="Шаблон не отмечен для генерации">
+          <span className="flex items-center gap-1 text-caption text-warning" title="Шаблон не отмечен для генерации">
             <AlertTriangle size={11} className="shrink-0" />
             не участвует — значения сохранятся, но PDF по нему не создастся
           </span>
         )}
       </div>
       {declared.length === 0 ? (
-        <p className="text-[11px] text-fg4">У этого шаблона нет объявленных параметров.</p>
+        <p className="text-caption text-fg4">У этого шаблона нет объявленных параметров.</p>
       ) : (
         <div className="rounded-md border border-stroke p-2.5 space-y-1.5">
           {declared.map(p => {
@@ -56,11 +56,11 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
                   onChange={v => commit({ ...overrides, [p.name]: v })} />
                 {overridden ? (
                   <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }}
-                    title="Сбросить к значению по умолчанию" className="text-[10px] text-fg4 hover:text-brand shrink-0">
+                    title="Сбросить к значению по умолчанию" className="text-caption text-fg4 hover:text-brand shrink-0">
                     сброс
                   </button>
                 ) : (
-                  <span className="text-[10px] text-fg4 shrink-0" title="Используется значение по умолчанию шаблона">по умолч.</span>
+                  <span className="text-caption text-fg4 shrink-0" title="Используется значение по умолчанию шаблона">по умолч.</span>
                 )}
               </div>
             );

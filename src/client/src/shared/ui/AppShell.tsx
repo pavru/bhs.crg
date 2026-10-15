@@ -40,7 +40,7 @@ function NavSection({
   const guardedClick = useGuardedNavClick();
   return (
     <div>
-      <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest select-none text-fg4">
+      <p className="px-3 mb-1 text-caption font-semibold uppercase tracking-widest select-none text-fg4">
         {label}
       </p>
       <div className="space-y-0.5">
@@ -297,7 +297,7 @@ function VersionLabel() {
     newer && `доступна версия ${newer} — обновление устанавливает администратор, он уже уведомлён`,
   ].filter(Boolean).join(' · ');
   return (
-    <div className="text-[11px] text-fg3 truncate px-4 pt-2.5 pb-1.5" title={title}>
+    <div className="text-caption text-fg3 truncate px-4 pt-2.5 pb-1.5" title={title}>
       v{data.version}{data.commit ? ` · ${data.commit}` : ''}
       {newer && <span className="text-brand"> · доступна {newer}</span>}
     </div>

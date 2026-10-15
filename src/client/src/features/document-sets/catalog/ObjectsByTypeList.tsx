@@ -26,7 +26,7 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
   return (
     <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
       title="Открыть реальный объект"
-      className="flex items-center gap-1 text-[11px] text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
+      className="flex items-center gap-1 text-caption text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
       <Link2 size={11} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
     </button>
   );

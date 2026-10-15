@@ -92,7 +92,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
               placeholder="Перейти к разделу…"
               className="h-12 flex-1 bg-transparent text-sm text-fg1 outline-none placeholder:text-fg4"
             />
-            <kbd className="rounded border border-stroke px-1 text-[10px] text-fg4">Esc</kbd>
+            <kbd className="rounded border border-stroke px-1 text-caption text-fg4">Esc</kbd>
           </div>
           <ul className="max-h-80 overflow-y-auto p-2">
             {filtered.length === 0 ? (
@@ -106,7 +106,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                 >
                   <it.icon size={16} className={i === active ? 'text-on-tonal' : 'text-fg3'} />
                   <span className="flex-1">{it.label}</span>
-                  <span className={`text-[10px] ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{it.section}</span>
+                  <span className={`text-caption ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{it.section}</span>
                 </button>
               </li>
             ))}

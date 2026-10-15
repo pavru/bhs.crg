@@ -19,7 +19,7 @@ export function RefPickerCurrentArchived({ name, onKeep }: { name: string; onKee
       <Archive size={13} className="text-fg3 shrink-0" />
       <span className="text-fg3 shrink-0">Сейчас:</span>
       <span className="flex-1 font-medium text-fg1 truncate">{name}</span>
-      <span className="text-[11px] text-fg3 shrink-0">{ARCHIVED_WORD}</span>
+      <span className="text-caption text-fg3 shrink-0">{ARCHIVED_WORD}</span>
     </button>
   );
 }

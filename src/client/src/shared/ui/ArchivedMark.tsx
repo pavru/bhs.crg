@@ -11,7 +11,7 @@ import { ARCHIVED_HINT, ARCHIVED_WORD } from './archive';
 export function ArchivedMark({ words = true, className = '' }: { words?: boolean; className?: string }) {
   return (
     <span title={ARCHIVED_HINT} aria-label={words ? undefined : ARCHIVED_WORD}
-      className={`inline-flex items-center gap-1 text-[11px] text-fg3 shrink-0 ${className}`}>
+      className={`inline-flex items-center gap-1 text-caption text-fg3 shrink-0 ${className}`}>
       <Archive size={11} className="shrink-0" />
       {words && ARCHIVED_WORD}
     </span>

@@ -123,7 +123,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
           <label className="block text-xs font-medium text-fg2 mb-1">Внешние адреса (контрагенты)</label>
           <textarea className={field + ' min-h-16 resize-y'} value={external} onChange={e => { setExternal(e.target.value); setError(''); }}
             placeholder="Через запятую: client@zakazchik.ru, tn@stroynadzor.ru" />
-          {externalBad.length > 0 && <p className="text-[11px] text-danger mt-0.5">Неверные: {externalBad.join(', ')}</p>}
+          {externalBad.length > 0 && <p className="text-caption text-danger mt-0.5">Неверные: {externalBad.join(', ')}</p>}
         </div>
 
         <div>

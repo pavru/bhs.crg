@@ -30,9 +30,9 @@ export function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {
             <span className="flex-1 min-w-0">
               <span className="font-medium text-fg1">{it.fieldTitle}</span>
               {it.linkedName && <span className="text-fg4"> → {it.linkedName}</span>}
-              {it.detail && <span className="block text-[11px] text-fg4">{it.detail}</span>}
+              {it.detail && <span className="block text-caption text-fg4">{it.detail}</span>}
             </span>
-            <span className={`shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border font-medium ${s.cls}`}>{s.label}</span>
+            <span className={`shrink-0 text-caption px-1.5 py-0.5 rounded-full border font-medium ${s.cls}`}>{s.label}</span>
           </div>
         );
       })}

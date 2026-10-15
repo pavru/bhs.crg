@@ -25,7 +25,7 @@ import {
 function RoleBadge({ role }: { role: AppRole }) {
   if (!role.system) return null;
   return (
-    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-[11px] font-medium bg-brand-subtle text-brand">
+    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium bg-brand-subtle text-brand">
       системная
     </span>
   );
@@ -100,7 +100,7 @@ export function RolesPage() {
         <span className="text-sm text-fg1 truncate">{r.title}</span>
         <RoleBadge role={r} />
       </div>
-      <div className="text-[11px] text-fg4 mt-0.5 flex items-center gap-2">
+      <div className="text-caption text-fg4 mt-0.5 flex items-center gap-2">
         <span className="inline-flex items-center gap-1"><UsersIcon size={11} />{r.users}</span>
         <span>прав: {r.permissions.length}</span>
       </div>
@@ -153,7 +153,7 @@ export function RolesPage() {
             </div>
           </div>
 
-          <p className="text-[13px] text-fg4 mb-4">
+          <p className="text-note text-fg4 mb-4">
             Роль носят {selected.users} чел.{' '}
             {locked
               ? 'Состав этой роли задан не здесь — см. ниже.'
@@ -161,7 +161,7 @@ export function RolesPage() {
           </p>
 
           {locked && (
-            <p className="text-[13px] text-fg2 border border-stroke rounded-lg bg-muted px-4 py-3 mb-4">
+            <p className="text-note text-fg2 border border-stroke rounded-lg bg-muted px-4 py-3 mb-4">
               <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
               он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
               обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
@@ -172,7 +172,7 @@ export function RolesPage() {
 
           {groups.map(group => (
             <section key={group.module} className="mb-5">
-              <h2 className="text-[11px] font-medium uppercase tracking-wide text-fg4 mb-2">{group.title}</h2>
+              <h2 className="text-caption font-medium uppercase tracking-wide text-fg4 mb-2">{group.title}</h2>
               <div className="border border-stroke rounded-lg divide-y divide-muted bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-base ${
@@ -181,15 +181,15 @@ export function RolesPage() {
                       disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
                       <span className="block text-sm text-fg1">{p.gives}</span>
-                      <span className="block text-[12px] text-fg3">Открывает доступ: {p.opens}</span>
-                      <span className="block text-[11px] text-fg4 font-mono mt-0.5">{p.code}</span>
+                      <span className="block text-xs text-fg3">Открывает доступ: {p.opens}</span>
+                      <span className="block text-caption text-fg4 font-mono mt-0.5">{p.code}</span>
                       {p.usuallyWith.length > 0 && (
-                        <span className="block text-[11px] text-fg4">
+                        <span className="block text-caption text-fg4">
                           обычно вместе с: {p.usuallyWith.join(', ')}
                         </span>
                       )}
                       {p.readAll && (
-                        <span className="block text-[11px] text-fg4">входит в право «читать всё»</span>
+                        <span className="block text-caption text-fg4">входит в право «читать всё»</span>
                       )}
                     </span>
                   </label>

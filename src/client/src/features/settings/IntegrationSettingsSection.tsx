@@ -171,7 +171,7 @@ function EngineCard({
             не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
         {blind && (
           <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-danger-subtle text-danger border border-danger-border shrink-0"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-danger-subtle text-danger border border-danger-border shrink-0"
             title={blindIssue ?? undefined}
           >
             <AlertCircle size={11} /> не работает: модель без зрения
@@ -179,7 +179,7 @@ function EngineCard({
         )}
         {!blind && notParticipating && (
           <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
             title={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}
           >
             <AlertTriangle size={11} /> не участвует: {missing}

@@ -30,7 +30,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
 
   if (!warning && !shown)
     return (
-      <div className="text-[13px] text-fg2">
+      <div className="text-note text-fg2">
         Вся сумма войдёт в затраты {formatDate(posting.paidOn)}.{' '}
         <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
           onClick={() => setShown(true)}>
@@ -42,7 +42,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
   return (
     <div className="space-y-2">
       {warning && (
-        <p role="note" className="flex items-start gap-1.5 text-[13px] text-warning">
+        <p role="note" className="flex items-start gap-1.5 text-note text-warning">
           <ArrowRightLeft size={14} className="shrink-0 mt-0.5" /> {warning}
         </p>
       )}

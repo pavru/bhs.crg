@@ -50,7 +50,7 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
   return (
     <div className={`px-3 py-2 border-b border-stroke text-sm ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
-        <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${
+        <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
           f.status === 'Match' ? 'text-fg4' : open ? 'bg-danger-subtle text-danger' : 'bg-muted text-fg3'}`}>
           {f.resolved ? 'Устранено' : STATUS_LABELS[f.status]}
         </span>
@@ -64,7 +64,7 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
       </div>
-      <div className="flex items-center gap-3 mt-0.5 text-[11px] text-fg4">
+      <div className="flex items-center gap-3 mt-0.5 text-caption text-fg4">
         {provenanceSummary(f.provenance.left) && <span>слева: {provenanceSummary(f.provenance.left)}</span>}
         {provenanceSummary(f.provenance.right) && <span>справа: {provenanceSummary(f.provenance.right)}</span>}
         {f.decision && (
@@ -103,7 +103,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
               находок строится по последнему УДАЧНОМУ прогону, поэтому без этой строки «Всё
               разобрано» читалось бы одинаково и когда расхождений нет, и когда сверку ни разу не
               считали, и когда последний прогон упал. Это самое опасное недоразумение подсистемы. */}
-          <div className="text-[11px] text-fg4">
+          <div className="text-caption text-fg4">
             {lastRun
               ? `${runSummary(lastRun)} · ${formatDateTime(lastRun.startedAt)}`
               : 'Прогонов ещё не было'}
@@ -112,11 +112,11 @@ function ReconciliationBlock({ id, name, unresolved }: {
         {/* История прогонов, алиасы и правка определения живут только в разделе «Сверка»: здесь
             разбирают находки, а не настраивают сверку. */}
         <Link to={`/reconciliations?id=${id}`}
-          className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline shrink-0">
+          className="inline-flex items-center gap-1 text-caption text-brand hover:underline shrink-0">
           <ExternalLink size={11} /> Открыть в «Сверке»
         </Link>
         <button type="button" onClick={() => setOnlyOpen(v => !v)}
-          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+          className={`text-caption px-2 py-0.5 rounded-full transition-colors ${
             onlyOpen ? 'bg-brand-subtle text-brand font-medium' : 'text-fg3 hover:bg-base'}`}>
           не разобрано: {unresolved}
         </button>
@@ -173,7 +173,7 @@ function ObservationCard({ o, documentNames, onReview }: {
   return (
     <div className={`px-3 py-2 border border-stroke rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
-        <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
+        <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
           o.severity === 'Error' ? 'bg-warning-subtle text-warning' : 'bg-muted text-fg3'}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
@@ -182,7 +182,7 @@ function ObservationCard({ o, documentNames, onReview }: {
           {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-2">{o.detail}</p>}
           {/* Имена документов, а не идентификаторы: «документ 77de9193» человеку ничего не говорит. */}
           {(o.references.documentIds ?? []).length > 0 && (
-            <p className="text-[11px] text-fg4 mt-1">
+            <p className="text-caption text-fg4 mt-1">
               {(o.references.documentIds ?? [])
                 .map(id => documentNames.get(id) ?? `документ ${id.slice(0, 8)}`)
                 .join(' · ')}
@@ -190,13 +190,13 @@ function ObservationCard({ o, documentNames, onReview }: {
           )}
           {/* Чем кончился разбор — на карточке: иначе видно только «Отклонено» без причины. */}
           {o.reviewNote && (
-            <p className="text-[11px] text-fg3 mt-1">
+            <p className="text-caption text-fg3 mt-1">
               {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
               {o.reviewedBy ? ` (${o.reviewedBy})` : ''}
             </p>
           )}
         </div>
-        <span className="text-[11px] text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
+        <span className="text-caption text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
         <Button variant="text" size="sm" className="shrink-0 -mt-1" onClick={() => onReview(o)}>
           {isUnreviewed(o) ? 'Разобрать' : 'Изменить'}
         </Button>
@@ -270,12 +270,12 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
           {/* Журнал агента целиком (и его чистка) — в разделе «Сверка»: удалять записи с вкладки
               комплекта незачем, здесь их разбирают. */}
           <Link to="/reconciliations?view=observations"
-            className="inline-flex items-center gap-1 text-[11px] font-normal normal-case tracking-normal text-brand hover:underline">
+            className="inline-flex items-center gap-1 text-caption font-normal normal-case tracking-normal text-brand hover:underline">
             <ExternalLink size={11} /> Весь журнал
           </Link>
         </h3>
         {/* Происхождение обязано быть видно рядом с данными: это утверждения, а не результат системы. */}
-        <p className="text-[11px] text-fg4 -mt-1">
+        <p className="text-caption text-fg4 -mt-1">
           Утверждения внешнего ИИ-агента. Система их не проверяла — подтвердите или отклоните.
         </p>
 

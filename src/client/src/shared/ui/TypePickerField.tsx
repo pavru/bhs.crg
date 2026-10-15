@@ -97,7 +97,7 @@ export function TypePickerField({
         title={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
         {selected ? selected.name : placeholder}
       </span>
-      {showCode && <span className="text-[11px] font-mono text-fg4 shrink-0">{code}</span>}
+      {showCode && <span className="text-caption font-mono text-fg4 shrink-0">{code}</span>}
       {/* Место под крестик резервируем В ПОТОКЕ, а не правым паддингом: паддинг сдвинул бы влево и
           саму лупу (она такой же элемент потока), и у края поля осталась бы дыра. */}
       {showClear && <span aria-hidden className="w-[22px] shrink-0" />}

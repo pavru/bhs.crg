@@ -84,7 +84,7 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
       </div>
-      <div className="flex items-center gap-3 mt-0.5 text-[11px] text-fg4">
+      <div className="flex items-center gap-3 mt-0.5 text-caption text-fg4">
         {/* Провенанс: без него находку нельзя проверить глазами по документу. */}
         {provenanceSummary(left) && <span>слева: {provenanceSummary(left)}</span>}
         {provenanceSummary(right) && <span>справа: {provenanceSummary(right)}</span>}

@@ -92,7 +92,7 @@ export function PeriodsPage() {
         <CalendarCheck size={18} className="text-fg3" />
         Учётный период
       </h1>
-      <p className="text-[13px] text-fg3 mb-4 max-w-3xl">
+      <p className="text-note text-fg3 mb-4 max-w-3xl">
         Граница закрытого учёта компании и строек. Закрытие компании закрывает все стройки; стройку
         можно закрыть и дальше компании. Сегодня по часам компании — {ruDate(data.today)}:
         закрываются только прошедшие дни.
@@ -225,7 +225,7 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
       footer={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {unfinished && (
-            <span className="mr-auto text-[13px] text-fg2">
+            <span className="mr-auto text-note text-fg2">
               Не завершено: <span className="font-medium text-fg1">{unfinished}</span>
             </span>
           )}
@@ -267,21 +267,21 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
           )}
           <DateField label="По (включительно)" value={through} onChange={v => { setThrough(v); setError(null); }} required />
         </div>
-        <p className="text-[13px] text-fg2">
+        <p className="text-note text-fg2">
           {through
             ? <>Будет закрыто всё по {ruDate(through)} включительно.</>
             : <>Назовите последний день периода.</>}
           {!state.constructionId && ` ${companyClosingNote(sites)}`}
         </p>
         {backwards ? (
-          <p role="alert" className="text-[13px] text-danger">
+          <p role="alert" className="text-note text-danger">
             {state.expectedFrom
               ? <>Период по {ruDate(through)} уже закрыт: следующий начинается {ruDate(from)}. Назовите конец
                 не раньше этого дня.</>
               : <>Конец периода раньше начала. Поправьте одну из дат.</>}
           </p>
         ) : previewFailed ? (
-          <p role="alert" className="text-[13px] text-danger">
+          <p role="alert" className="text-note text-danger">
             {apiError(preview.error, 'Не удалось узнать, что попадёт в период.')} Без перечня закрыть нельзя.
           </p>
         ) : preview.data ? (
@@ -289,19 +289,19 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
             <ClosingSections sections={preview.data.sections} stale={!seen} before={before} />
             {/* Сервер сверяет весь перечень, а на экране — не всё: суммы бывают скрыты правом. */}
             {before && seen && !visiblyChanged(before, seen.sections) && (
-              <p role="note" className="text-[13px] text-fg2">
+              <p role="note" className="text-note text-fg2">
                 Числа на экране прежние: изменилось то, чего здесь не видно, — например, суммы, скрытые
                 правом. Перечень перечитан — закрыть можно.
               </p>
             )}
           </>
         ) : (
-          from && through && <p className="text-[13px] text-fg3">Считаем, что попадёт в период…</p>
+          from && through && <p className="text-note text-fg3">Считаем, что попадёт в период…</p>
         )}
         {/* Отказ закрытия — о датах, с которыми его отправляли. Сменили дату — он уже не о том. А когда
             период «наоборот», причина названа выше, и точнее: рядом с «период уже закрыт» строка «не
             удалось закрыть» противоречила бы ей — так бывает, когда закрытие прошло, а ответ потерялся. */}
-        {error && !backwards && <p role="alert" className="text-[13px] text-danger">{error}</p>}
+        {error && !backwards && <p role="alert" className="text-note text-danger">{error}</p>}
       </div>
     </Modal>
   );
@@ -343,21 +343,21 @@ export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-[13px] text-fg2">
+        <p className="text-note text-fg2">
           Отменяется последнее закрытие — с {ruDate(target.from)} по {ruDate(target.through)}. Эти
           дни снова станут открытыми. Учётные даты, записанные, пока период был закрыт, останутся как
           легли. Запись о закрытии не стирается: отмена записывается рядом, с причиной.
           {reopens && ` ${reopens}`}
         </p>
         {target.keptClosed.length > 0 && (
-          <p role="note" className="text-[13px] text-warning">
+          <p role="note" className="text-note text-warning">
             У этих строек дни останутся закрытыми — они закрыты своим закрытием, и его нужно
             отменить отдельно: {target.keptClosed.map(nameOf).join(', ')}.
           </p>
         )}
         <TextAreaField label="Причина отмены" value={reason} onChange={e => setReason(e.target.value)}
           rows={3} required hint="её увидят в истории и в журнале действий" />
-        {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
+        {error && <p role="alert" className="text-note text-danger">{error}</p>}
       </div>
     </Modal>
   );
@@ -394,17 +394,17 @@ function History({ records, nameOf }: {
                     {r.kind === 'Close' ? 'Закрыт период' : 'Отменено закрытие'}
                     {' '}с {ruDate(r.from)} по {ruDate(r.through)} — {nameOf(r.constructionId)}
                   </div>
-                  {r.reason && <div className="text-fg3 text-[12px] break-words">{r.reason}</div>}
+                  {r.reason && <div className="text-fg3 text-xs break-words">{r.reason}</div>}
                   {r.kind === 'Close' && (r.report ? (
                     <>
                       <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
-                        className="mt-0.5 inline-flex items-center gap-0.5 text-[12px] text-brand hover:underline">
+                        className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-brand hover:underline">
                         {open.has(r.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         Что показал диалог при закрытии
                       </button>
                       {open.has(r.id) && (
                         <div className="mt-1.5 mb-1 border-l-2 border-stroke pl-3">
-                          <p className="text-[12px] text-fg3 mb-2">
+                          <p className="text-xs text-fg3 mb-2">
                             Числа на момент закрытия; сейчас могут быть другими.
                           </p>
                           <ClosingSections sections={r.report} />
@@ -413,7 +413,7 @@ function History({ records, nameOf }: {
                     </>
                   ) : (
                     // Закрытие сделано до появления перечня: молчание выглядело бы как «незавершённого не было».
-                    <div className="text-fg4 text-[12px]">Перечень не записывался.</div>
+                    <div className="text-fg4 text-xs">Перечень не записывался.</div>
                   ))}
                 </td>
               </tr>

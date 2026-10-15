@@ -18,7 +18,7 @@ export const BROKEN_LABEL = 'text-danger line-through opacity-70';
 /** Нота под битой плиткой. compact — для элементов массива/вложенных строк. */
 export function BrokenRefNote({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`flex items-center gap-1.5 text-danger ${compact ? 'text-[11px] px-3 pb-1.5' : 'text-xs mt-1'}`}>
+    <div className={`flex items-center gap-1.5 text-danger ${compact ? 'text-caption px-3 pb-1.5' : 'text-xs mt-1'}`}>
       <AlertCircle size={compact ? 11 : 13} className="shrink-0" />
       <span>{BROKEN_REF_MESSAGE}</span>
     </div>

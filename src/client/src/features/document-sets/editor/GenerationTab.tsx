@@ -195,7 +195,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               })}
             </div>
             {selectedTemplateIds.length === 0 && (
-              <p className="text-[11px] text-fg4">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
+              <p className="text-caption text-fg4">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
             )}
           </>
         )}

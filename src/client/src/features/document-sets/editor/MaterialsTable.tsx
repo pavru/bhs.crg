@@ -137,7 +137,7 @@ export function MaterialsTable({
                       </span>
                     ) : suggestion ? (
                       <span className="flex items-center gap-1.5">
-                        <span className="text-[10px] px-1 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(suggestion.score * 100)}%</span>
+                        <span className="text-caption px-1 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(suggestion.score * 100)}%</span>
                         <button onClick={() => setViewDoc(suggestion.doc)} title="Просмотреть предложенный документ"
                           className="flex-1 min-w-0 text-left text-fg3 italic hover:underline truncate">
                           {suggestion.doc.displayName}

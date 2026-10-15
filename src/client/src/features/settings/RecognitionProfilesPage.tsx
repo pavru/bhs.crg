@@ -192,10 +192,10 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
             <span>{profile.name}</span>
             <span className="text-xs font-normal text-fg4">{info.label}</span>
             {profile.isBuiltIn && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-fg3">встроенный</span>
+              <span className="text-caption px-1.5 py-0.5 rounded bg-muted text-fg3">встроенный</span>
             )}
             {profile.isModified && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand-pressed">изменён</span>
+              <span className="text-caption px-1.5 py-0.5 rounded bg-brand-subtle text-brand-pressed">изменён</span>
             )}
           </span>
         }

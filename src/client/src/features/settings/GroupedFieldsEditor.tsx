@@ -363,12 +363,12 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="text-sm text-fg2 truncate">{field.title || field.key}</span>
-          {field.required && <span className="text-[11px] text-danger shrink-0">обяз.</span>}
+          {field.required && <span className="text-caption text-danger shrink-0">обяз.</span>}
         </span>
         <span className="block text-xs text-fg4 font-mono truncate">{field.key}</span>
       </span>
       <ModuleFieldBadge field={field} />
-      <span className="text-[11px] px-1.5 py-0.5 rounded bg-warning-subtle text-warning shrink-0">унаслед.</span>
+      <span className="text-caption px-1.5 py-0.5 rounded bg-warning-subtle text-warning shrink-0">унаслед.</span>
       <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{typeLabel}</span>
     </div>
   );

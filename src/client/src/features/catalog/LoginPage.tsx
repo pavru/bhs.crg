@@ -64,11 +64,11 @@ export function LoginPage() {
           {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
           <div className="flex items-center gap-3">
             <BrandLogo className="w-12 h-12 rounded-2xl bg-white/20" iconSize={24} />
-            <span className="text-[22px] font-medium tracking-wide">{productName}</span>
+            <span className="text-2xl font-medium tracking-wide">{productName}</span>
           </div>
           <div>
-            <div className="text-[32px] font-normal leading-tight">Исполнительная документация</div>
-            <p className="mt-4 text-[15px] leading-relaxed text-on-brand/70 max-w-[300px]">
+            <div className="text-3xl font-normal leading-tight">Исполнительная документация</div>
+            <p className="mt-4 text-base leading-relaxed text-on-brand/70 max-w-[300px]">
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>
           </div>
@@ -94,7 +94,7 @@ export function LoginPage() {
             : registrationOpen ? <FirstAdminForm /> : <SignInForm />}
 
           {version && (
-            <p className="md:hidden mt-6 text-center text-[11px] text-fg4"
+            <p className="md:hidden mt-6 text-center text-caption text-fg4"
               title={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
               {versionLabel}
             </p>

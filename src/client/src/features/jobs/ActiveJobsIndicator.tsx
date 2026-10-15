@@ -101,7 +101,7 @@ function JobRow({ job }: { job: ActiveJob }) {
           <p className="text-sm font-medium text-fg1 truncate flex-1">{job.title}</p>
           <span className="text-xs tabular-nums text-fg4 shrink-0">{elapsed(job, now)}</span>
         </div>
-        <p className="text-[13px] text-fg4 truncate">
+        <p className="text-note text-fg4 truncate">
           {queued ? 'В очереди' : (job.progress ?? 'Выполняется…')}
         </p>
       </div>

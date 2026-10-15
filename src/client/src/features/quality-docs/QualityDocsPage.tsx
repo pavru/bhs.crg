@@ -180,7 +180,7 @@ export function QualityDocsPage() {
           </>
         )}
         {!validUntilKnown && (
-          <p className="text-[11px] text-warning px-3 py-2 leading-snug">
+          <p className="text-caption text-warning px-3 py-2 leading-snug">
             Срок действия документов системе неизвестен: ни одно поле типа не помечено тэгом
             «срок действия». Поэтому состояния «просрочен» и «истекает» не считаются — и по той же
             причине просроченные документы не прячутся из подсказок.
@@ -457,7 +457,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
             <div className="mt-3 divide-y divide-muted border border-stroke rounded-md max-h-96 overflow-y-auto">
               {candidates.map(c => (
                 <div key={c.url} className="flex items-start gap-3 px-3 py-2">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0 mt-0.5">
+                  <span className="text-caption px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0 mt-0.5">
                     {SOURCE_LABEL[c.source] ?? c.source}
                   </span>
                   <div className="min-w-0 flex-1">

@@ -224,7 +224,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
             <span className="hidden sm:inline">Источники</span>
             {staleSourceCount > 0 && (
               <span className="ml-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
-                bg-warning-subtle text-warning text-[10px] font-medium tabular-nums align-middle">
+                bg-warning-subtle text-warning text-caption font-medium tabular-nums align-middle">
                 {staleSourceCount}
               </span>
             )}

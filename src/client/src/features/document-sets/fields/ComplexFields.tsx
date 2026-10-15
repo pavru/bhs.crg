@@ -439,7 +439,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
                   <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
                   <ArchivedRefMark value={wrapped.ref} />
-                  <span className="text-[11px] text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
+                  <span className="text-caption text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
                   <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
                     className="p-1 text-fg4 hover:text-fg2 shrink-0">
@@ -471,7 +471,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   {rowSummary(row)}
                 </button>
                 {extraVariants.length > 1 && (
-                  <span className="flex items-center gap-1 text-[11px] text-warning shrink-0"
+                  <span className="flex items-center gap-1 text-caption text-warning shrink-0"
                     title={overfilledNote(extraVariants)} role="img" aria-label={overfilledNote(extraVariants)}>
                     <AlertTriangle size={12} /> вариантов: {extraVariants.length}
                   </span>
@@ -963,12 +963,12 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   // значению, не по options: там к заполненным приплюсован стэш, а он наш собственный и законен.
   const overfilled = filledVariants(subValues, subFields);
   const chip = overfilled.length > 1 ? (
-    <span className="text-[11px] text-warning flex items-start gap-1" role="alert">
+    <span className="text-caption text-warning flex items-start gap-1" role="alert">
       <AlertTriangle size={11} className="shrink-0 mt-0.5" />
       <span>{overfilledNote(overfilled)}</span>
     </span>
   ) : (
-    <span className="text-[11px] text-fg4 flex items-center gap-1 shrink-0" title="Заполняется ровно один из вариантов">
+    <span className="text-caption text-fg4 flex items-center gap-1 shrink-0" title="Заполняется ровно один из вариантов">
       <Info size={11} /> заполните одно из
     </span>
   );
@@ -998,7 +998,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
               обычными данными — а ✎ и первая правка унесли бы второй вариант (issue #756). Ровно та
               же дверь, что закрыта в списке строк массива; здесь она оставалась открытой. */}
           {overfilled.length > 1 && (
-            <span className="flex items-center gap-1 text-[11px] text-warning shrink-0"
+            <span className="flex items-center gap-1 text-caption text-warning shrink-0"
               title={overfilledNote(overfilled)} role="img" aria-label={overfilledNote(overfilled)}>
               <AlertTriangle size={12} /> вариантов: {overfilled.length}
             </span>

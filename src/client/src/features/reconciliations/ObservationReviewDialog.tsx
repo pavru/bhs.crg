@@ -46,7 +46,7 @@ export function ObservationReferences({ o, setPath, nameOf }: {
   const label = (id: string) => nameOf?.(id) ?? `документ ${id.slice(0, 8)}`;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-caption">
       {docs.map(id => setPath ? (
         <Link key={id} to={`${setPath}?doc=${id}`}
           className="inline-flex items-center gap-1 text-brand hover:underline">

@@ -23,7 +23,7 @@ export const RULES = [
     id: 'text-size',
     // Произвольный размер текста: text-[11px], text-[0.7rem]. Цвет вида text-[#fff] ловит palette.
     pattern: /\btext-\[\d+(?:\.\d+)?(?:px|rem|em)\]/g,
-    instead: 'размер текста — шкалой (text-xs, text-sm); роли мелкого текста — #1350',
+    instead: 'размер текста — ступенью шкалы (text-caption, text-xs, text-note, text-sm): docs/UI.md, «Текст»',
   },
   {
     id: 'palette',

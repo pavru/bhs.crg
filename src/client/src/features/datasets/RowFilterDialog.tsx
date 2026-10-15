@@ -61,7 +61,7 @@ function FilterConditionRow({
   return (
     <div>
       <div className="flex items-start gap-1.5 group/cond">
-        <span className="w-6 shrink-0 pt-1.5 text-[10px] tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
+        <span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
         <ConditionEditor cond={cond} columns={columns} onChange={onChange} />
 
         {/* Remove */}

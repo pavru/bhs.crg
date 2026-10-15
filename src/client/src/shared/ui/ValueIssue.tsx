@@ -10,7 +10,7 @@ import { AlertTriangle } from 'lucide-react';
 export function ValueIssueHint({ messages, compact }: { messages: string[] | undefined; compact?: boolean }) {
   if (!messages?.length) return null;
   return (
-    <p className={`${compact ? 'text-[11px] mt-0.5' : 'text-xs mt-1'} text-warning flex items-start gap-1`}>
+    <p className={`${compact ? 'text-caption mt-0.5' : 'text-xs mt-1'} text-warning flex items-start gap-1`}>
       <AlertTriangle size={compact ? 11 : 12} className="shrink-0 mt-[3px]" />
       <span>{messages.join(' ')}</span>
     </p>
@@ -24,7 +24,7 @@ export function ValueIssueBadge({ count, className = '' }: { count: number; clas
   // и белые цифры на нём не читались бы.
   return (
     <span title={`Значений не по типу: ${count}`}
-      className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-subtle text-warning border border-warning-border text-[10px] font-semibold leading-none ${className}`}>
+      className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-subtle text-warning border border-warning-border text-caption font-semibold leading-none ${className}`}>
       {count}
     </span>
   );

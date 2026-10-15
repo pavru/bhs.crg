@@ -138,7 +138,7 @@ function SideEditor({ title, parts, onChange, sources }: {
       ))}
 
       {parts.length > 1 && (
-        <p className="text-[11px] text-fg4">
+        <p className="text-caption text-fg4">
           Количества по одной позиции складываются по всем источникам стороны.
         </p>
       )}
@@ -235,7 +235,7 @@ export function ReconciliationEditor({ existing, onClose }: {
               <SelectItem value="Percent">в процентах</SelectItem>
             </Select>
           </div>
-          <p className="text-[11px] text-fg4">
+          <p className="text-caption text-fg4">
             Допуск гасит расхождения округления — без него отчёт забьётся находками на сотые доли.
           </p>
         </div>

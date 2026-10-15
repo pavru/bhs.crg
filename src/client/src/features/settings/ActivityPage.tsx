@@ -90,7 +90,7 @@ export function ActivityPage() {
                     <td className="px-4 py-2.5 text-fg2 break-all">{r.actorName}</td>
                     <td className="px-4 py-2.5">
                       <div className="text-fg1">{r.actionTitle}</div>
-                      {r.target && <div className="text-fg3 text-[12px] break-all">{r.target}</div>}
+                      {r.target && <div className="text-fg3 text-xs break-all">{r.target}</div>}
                     </td>
                     <td className="px-4 py-2.5 break-words">
                       <Change record={r} />
@@ -104,7 +104,7 @@ export function ActivityPage() {
           {/* Страницами, а не кнопкой «показать ещё»: журнал копится годами, и растущий запрос
               рано или поздно упёрся бы в потолок страницы на сервере — список перестал бы
               удлиняться молча, и выглядело бы это как «записей больше нет». */}
-          <div className="flex items-center justify-between mt-3 text-[13px] text-fg3">
+          <div className="flex items-center justify-between mt-3 text-note text-fg3">
             <span>
               Записи {page * PAGE + 1}–{page * PAGE + records.length} из {total}
             </span>

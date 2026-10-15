@@ -139,15 +139,15 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
   return (
     <div className="rounded-md border border-brand/30 bg-brand-subtle/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-fg3 font-medium">Формула (JavaScript)</span>
+        <span className="text-caption text-fg3 font-medium">Формула (JavaScript)</span>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTestOpen(o => !o)}
-            className="text-[11px] px-2 py-0.5 rounded border border-stroke-strong text-fg3 hover:bg-muted">
+            className="text-caption px-2 py-0.5 rounded border border-stroke-strong text-fg3 hover:bg-muted">
             Проверить на образце
           </button>
           <div className="relative">
             <button type="button" onClick={() => { setPickOpen(o => !o); setPickFilter(''); }}
-              className="text-[11px] px-2 py-0.5 rounded border border-stroke-strong text-brand hover:bg-brand/10">
+              className="text-caption px-2 py-0.5 rounded border border-stroke-strong text-brand hover:bg-brand/10">
               + Вставить поле
             </button>
             {pickOpen && (
@@ -161,9 +161,9 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
                     : filtered.map(f => (
                       <button key={f.key} type="button" onClick={() => insertRef(f.key)}
                         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-base">
-                        <code className="text-[11px] font-mono text-brand shrink-0 max-w-[45%] truncate">{f.key}</code>
+                        <code className="text-caption font-mono text-brand shrink-0 max-w-[45%] truncate">{f.key}</code>
                         <span className="text-xs text-fg3 truncate flex-1">{f.title || '—'}</span>
-                        <span className="text-[10px] text-fg4 shrink-0">{f.type}</span>
+                        <span className="text-caption text-fg4 shrink-0">{f.type}</span>
                       </button>
                     ))}
                 </div>
@@ -179,28 +179,28 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
 
       {/* Инлайн-статус валидации (#309/#311) */}
       {inCycle ? (
-        <p className="text-[11px] text-danger">⚠ Циклическая зависимость — поле ссылается само на себя (прямо или через другие расчётные).</p>
+        <p className="text-caption text-danger">⚠ Циклическая зависимость — поле ссылается само на себя (прямо или через другие расчётные).</p>
       ) : syntaxError ? (
-        <p className="text-[11px] text-danger" title={syntaxError}>✗ Синтаксическая ошибка: {syntaxError}</p>
+        <p className="text-caption text-danger" title={syntaxError}>✗ Синтаксическая ошибка: {syntaxError}</p>
       ) : unknownRefs.length > 0 ? (
-        <p className="text-[11px] text-warning">⚠ Неизвестные поля: {unknownRefs.map(k => `«${k}»`).join(', ')}</p>
+        <p className="text-caption text-warning">⚠ Неизвестные поля: {unknownRefs.map(k => `«${k}»`).join(', ')}</p>
       ) : expr.trim() ? (
-        <p className="text-[11px] text-success">✓ Синтаксис в порядке</p>
+        <p className="text-caption text-success">✓ Синтаксис в порядке</p>
       ) : null}
 
       {testOpen && (
         <div className="rounded border border-stroke bg-surface p-2 space-y-1.5">
           {testRefs.length === 0
-            ? <p className="text-[11px] text-fg4">Формула не ссылается на поля.</p>
+            ? <p className="text-caption text-fg4">Формула не ссылается на поля.</p>
             : testRefs.map(k => (
-              <label key={k} className="flex items-center gap-2 text-[11px]">
+              <label key={k} className="flex items-center gap-2 text-caption">
                 <code className="font-mono text-fg3 w-28 truncate shrink-0">{k}</code>
                 <input value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))}
                   placeholder="образцовое значение"
                   className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand" />
               </label>
             ))}
-          <div className="text-[11px] pt-0.5">
+          <div className="text-caption pt-0.5">
             {testResult?.error
               ? <span className="text-danger">Ошибка: {testResult.error}</span>
               : <span className="text-fg2">Результат: <strong className="font-mono">{String(testResult?.value ?? '—')}</strong></span>}
@@ -208,7 +208,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
         </div>
       )}
 
-      <p className="text-[11px] text-fg4">
+      <p className="text-caption text-fg4">
         Читайте поля через <code className="font-mono">get("Ключ")</code>. Значения перечислений видны как отображаемое имя.
       </p>
     </div>
@@ -326,8 +326,8 @@ export function FieldCard({
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
               <span className="text-sm font-medium text-fg1 truncate">{field.title || '(без названия)'}</span>
-              {field.required && <span className="text-[11px] text-danger shrink-0">обяз.</span>}
-              {keyConflict && <span className="text-[11px] text-danger shrink-0">! ключ занят</span>}
+              {field.required && <span className="text-caption text-danger shrink-0">обяз.</span>}
+              {keyConflict && <span className="text-caption text-danger shrink-0">! ключ занят</span>}
             </span>
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
@@ -335,7 +335,7 @@ export function FieldCard({
           {tags.slice(0, 2).map(tc => (
             <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />
           ))}
-          {tags.length > 2 && <span className="text-[11px] text-fg4 shrink-0">+{tags.length - 2}</span>}
+          {tags.length > 2 && <span className="text-caption text-fg4 shrink-0">+{tags.length - 2}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
           {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
         </button>
@@ -386,7 +386,7 @@ export function FieldCard({
         </button>
         {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
         {field.computed ? (
-          <span className="flex items-center justify-center gap-1 text-[11px] text-brand" title="Расчётное поле — значение вычисляется формулой">
+          <span className="flex items-center justify-center gap-1 text-caption text-brand" title="Расчётное поле — значение вычисляется формулой">
             <FunctionSquare size={12} /> вычисл.
           </span>
         ) : (
@@ -555,7 +555,7 @@ export function FieldCard({
             {unknownTags.map(code => (
               <span key={code}
                 title="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат."
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-stroke px-2 py-0.5 text-[11px] text-fg4">
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
                 <Lock size={9} />{code}
               </span>
             ))}

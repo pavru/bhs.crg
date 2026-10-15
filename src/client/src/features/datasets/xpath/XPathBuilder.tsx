@@ -156,7 +156,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <PredicateEditor key={i} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
         ))}
-        <button type="button" onClick={addPredicate} className="text-[11px] text-brand hover:text-brand-hover shrink-0">
+        <button type="button" onClick={addPredicate} className="text-caption text-brand hover:text-brand-hover shrink-0">
           + условие
         </button>
       </div>
@@ -189,7 +189,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
   const inputCls = 'bg-transparent border-b border-brand-subtle outline-none focus:border-brand-hover';
 
   return (
-    <span className="inline-flex items-center gap-1 bg-brand-subtle border border-brand-subtle rounded px-1.5 py-0.5 text-[11px] text-brand-hover">
+    <span className="inline-flex items-center gap-1 bg-brand-subtle border border-brand-subtle rounded px-1.5 py-0.5 text-caption text-brand-hover">
       <select value={predicateKind(predicate)} onChange={e => setKind(e.target.value as PredicateKind)}
         className="bg-transparent outline-none">
         <option value="exists">путь есть</option>

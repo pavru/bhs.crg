@@ -138,7 +138,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
       ) : (
         <>
           <div className="border border-stroke rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-muted text-[11px] uppercase tracking-wide text-fg4">
+            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-muted text-caption uppercase tracking-wide text-fg4">
               <span>Тип документа</span>
               <span className="text-right">План</span>
               <span className="text-right">Выпущено</span>
