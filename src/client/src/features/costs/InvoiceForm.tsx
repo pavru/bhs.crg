@@ -40,6 +40,7 @@ import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart 
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -501,7 +502,7 @@ const LABELS: Record<string, string> = {
 
 function StateChip({ text }: { text: string }) {
   if (!text) return null;
-  return <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg2">{text}</span>;
+  return <StatusBadge>{text}</StatusBadge>;
 }
 
 /** Скан из реквизитов — значение файлового поля общего контракта. */

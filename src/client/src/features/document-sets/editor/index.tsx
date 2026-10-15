@@ -12,6 +12,7 @@ import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { containsRef } from './brokenRefs';
 import { BrokenCountBadge } from './BrokenCountBadge';
 import { RequisitesTab } from './RequisitesTab';
@@ -64,6 +65,9 @@ function InstanceNameEditor({ instance, setId, docType }: {
 // ─── Instance editor modal ────────────────────────────────────────────────────
 
 type InstanceTab = 'requisites' | 'quality' | 'generation';
+
+/** Основа идентификаторов вкладок и панелей: редактор открыт на экране один. */
+const TABS_ID = 'instance-editor';
 
 export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange, requestClose }: {
   instance: DocumentInstance; setId: string; docType: DocumentType | undefined;
@@ -133,25 +137,10 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     ['generation', 'Генерация'],
   ];
 
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   function requestTab(next: InstanceTab) {
     if (next === tab) return;
     if (dirty) setPendingTab(next);   // есть несохранённые изменения — спрашиваем
     else setTab(next);
-  }
-  // APG-tablist (issue #107 F3): стрелки/Home/End двигают ФОКУС между вкладками (manual
-  // activation — переключение по Enter/Space через onClick, чтобы dirty-guard не срабатывал на скролле).
-  function onTabKey(e: React.KeyboardEvent, i: number) {
-    // Без начального значения: любая ветка либо присваивает, либо выходит — присвоенный «-1»
-    // не читался никогда.
-    let ni: number;
-    if (e.key === 'ArrowRight') ni = (i + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') ni = (i - 1 + tabs.length) % tabs.length;
-    else if (e.key === 'Home') ni = 0;
-    else if (e.key === 'End') ni = tabs.length - 1;
-    else return;
-    e.preventDefault();
-    tabRefs.current[ni]?.focus();
   }
   function switchTo(next: InstanceTab) {
     setDirty(false);
@@ -243,28 +232,27 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
             </div>
           )}
         </div>
-        <div role="tablist" aria-label="Разделы документа" className="flex border-b border-stroke gap-0 px-3 sm:px-4">
-          {tabs.map(([key, label], i) => (
-            <button key={key} role="tab" aria-selected={tab === key} tabIndex={tab === key ? 0 : -1}
-              ref={el => { tabRefs.current[i] = el; }}
-              onClick={() => requestTab(key)} onKeyDown={e => onTabKey(e, i)}
-              className={`h-12 px-4 text-sm font-medium border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
-                tab === key ? 'border-brand text-brand' : 'border-transparent text-fg3 hover:text-fg1'}`}>
-              {label}
-              {key === 'requisites' && <BrokenCountBadge count={brokenTabCount} className="ml-1.5 align-middle" />}
-              {key === tab && dirty && <span className="ml-1 text-warning" title="Есть несохранённые изменения">•</span>}
-            </button>
-          ))}
-        </div>
+        {/* APG-tablist (issue #107 F3) с ручной активацией — стрелки двигают фокус, не переключают:
+            уход с вкладки спрашивает про несохранённое (requestTab), и стрелка его вызывать не должна. */}
+        <Tabs id={TABS_ID} aria-label="Разделы документа" className="px-3 sm:px-4" value={tab} onChange={requestTab}
+          items={tabs.map(([key, label]) => ({
+            value: key, label,
+            badge: <>
+              {key === 'requisites' && <BrokenCountBadge count={brokenTabCount} className="align-middle" />}
+              {key === tab && dirty && <span className="text-warning" title="Есть несохранённые изменения">•</span>}
+            </>,
+          }))} />
       </div>
       {tab === 'requisites' && (
         // Пометки «в архиве» у плиток ссылок — по сохранённым реквизитам документа (issue #1185).
-        <ArchivedRefsProvider data={instance.requisites} ownerId={instance.id}>
-          <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
-            allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
-            onClose={onClose} onDirty={setDirty} saveRef={saveRef}
-            onBaseState={setBaseState} baseControlRef={baseControlRef} />
-        </ArchivedRefsProvider>
+        <TabPanel id={TABS_ID} value="requisites" className="flex flex-col min-h-0 flex-1">
+          <ArchivedRefsProvider data={instance.requisites} ownerId={instance.id}>
+            <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
+              allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
+              onClose={onClose} onDirty={setDirty} saveRef={saveRef}
+              onBaseState={setBaseState} baseControlRef={baseControlRef} />
+          </ArchivedRefsProvider>
+        </TabPanel>
       )}
       <Modal open={dataSourcesOpen} onOpenChange={setDataSourcesOpen} title="Источники данных" wide>
         {dataSourcesOpen && (
@@ -278,14 +266,14 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         )}
       </Modal>
       {tab === 'quality' && (
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+        <TabPanel id={TABS_ID} value="quality" className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <QualityLinksTab instance={instance} setId={setId} allDocTypes={allDocTypes} />
-        </div>
+        </TabPanel>
       )}
       {tab === 'generation' && (
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+        <TabPanel id={TABS_ID} value="generation" className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <GenerationTab instance={instance} setId={setId} schemaFieldKeys={schemaFields.map(f => f.key)} />
-        </div>
+        </TabPanel>
       )}
 
       {pendingTab && (

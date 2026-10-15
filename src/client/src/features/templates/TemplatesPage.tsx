@@ -4,6 +4,7 @@ import { Library, Lock, Boxes } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
+import { TabPanel, Tabs, type TabItem } from '@/shared/ui/Tabs';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
@@ -69,6 +70,14 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type PageMode = 'templates' | 'userlib' | 'systemlib' | 'typeblocks';
+
+const TABS_ID = 'templates-mode';
+const MODES: TabItem<PageMode>[] = [
+  { value: 'templates', label: 'Шаблоны документов' },
+  { value: 'userlib', label: 'Общие функции Typst', icon: Library },
+  { value: 'systemlib', label: 'Системные функции', icon: Lock },
+  { value: 'typeblocks', label: 'Блоки типов', icon: Boxes },
+];
 
 /**
  * Конвенция (issue #778 → #780): выбор list-detail живёт в URL (replace — стрелки браузера не
@@ -255,54 +264,11 @@ export function TemplatesPage() {
       {/* ── Header ── */}
       <div className="px-6 py-3 border-b border-stroke bg-surface">
         <div className="flex items-center justify-between gap-4">
-          {/* Mode tabs */}
-          <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 shrink-0">
-            <button
-              onClick={() => setMode('templates')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
-                mode === 'templates'
-                  ? 'bg-surface text-fg1 font-medium shadow-sm'
-                  : 'text-fg3 hover:text-fg2'
-              }`}
-            >
-              Шаблоны документов
-            </button>
-            <button
-              onClick={() => setMode('userlib')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
-                mode === 'userlib'
-                  ? 'bg-surface text-fg1 font-medium shadow-sm'
-                  : 'text-fg3 hover:text-fg2'
-              }`}
-            >
-              <Library size={14} className="shrink-0" />
-              Общие функции Typst
-            </button>
-            <button
-              onClick={() => setMode('systemlib')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
-                mode === 'systemlib'
-                  ? 'bg-surface text-fg1 font-medium shadow-sm'
-                  : 'text-fg3 hover:text-fg2'
-              }`}
-            >
-              <Lock size={14} className="shrink-0" />
-              Системные функции
-            </button>
-            {/* Собранный typeblocks.typ (issue #770): рядом с двумя другими библиотеками, потому что
-                шаблон видит все три одинаково — импортом. Только чтение, как и системные функции. */}
-            <button
-              onClick={() => setMode('typeblocks')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
-                mode === 'typeblocks'
-                  ? 'bg-surface text-fg1 font-medium shadow-sm'
-                  : 'text-fg3 hover:text-fg2'
-              }`}
-            >
-              <Boxes size={14} className="shrink-0" />
-              Блоки типов
-            </button>
-          </div>
+          {/* Режимы страницы. «Блоки типов» — собранный typeblocks.typ (issue #770): рядом с двумя
+              другими библиотеками, потому что шаблон видит все три одинаково — импортом. Только
+              чтение, как и системные функции. */}
+          <Tabs id={TABS_ID} variant="segmented" aria-label="Раздел шаблонов" className="shrink-0 whitespace-nowrap"
+            value={mode} onChange={setMode} items={MODES} />
 
           {/* Doc type selector — only in templates mode */}
           {mode === 'templates' && (
@@ -312,54 +278,56 @@ export function TemplatesPage() {
       </div>
 
       {/* ── Content ── */}
-      {mode === 'systemlib' ? (
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <SystemLibPanel />
-        </div>
-      ) : mode === 'typeblocks' ? (
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <TypeBlocksPanel />
-        </div>
-      ) : mode === 'userlib' ? (
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <UserLibPanel />
-        </div>
-      ) : !selectedTypeId ? (
-        <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите тип документа</div>
-      ) : templatesLoading ? (
-        <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
-      ) : (
-        <div className="flex flex-1 overflow-hidden">
-          <TemplateSidebar
-            groups={groups}
-            selectedTemplate={selectedTemplate}
-            maxVersions={maxVersions}
-            documentTypeId={selectedTypeId}
-            usage={usage}
-            onSelect={selectTemplate}
-            onNew={() => setNewModalOpen(true)}
-            onDelete={handleDelete}
-            onDeleteGroup={handleDeleteGroup}
-            onDuplicate={handleDuplicateGroup}
-            onCleanup={setCleanupGroup}
-          />
-
-          <div className="flex-1 overflow-hidden">
-            {selectedTemplate && selectedDocType ? (
-              <EditorPanel
-                template={selectedTemplate}
-                docType={selectedDocType}
-                allDocTypes={docTypes}
-                onSaved={(updated) => selectTemplate(updated)}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center text-fg4 text-sm">
-                Выберите шаблон или создайте новый
-              </div>
-            )}
+      <TabPanel id={TABS_ID} value={mode} className="flex-1 min-h-0 flex flex-col">
+        {mode === 'systemlib' ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <SystemLibPanel />
           </div>
-        </div>
-      )}
+        ) : mode === 'typeblocks' ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <TypeBlocksPanel />
+          </div>
+        ) : mode === 'userlib' ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <UserLibPanel />
+          </div>
+        ) : !selectedTypeId ? (
+          <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите тип документа</div>
+        ) : templatesLoading ? (
+          <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
+        ) : (
+          <div className="flex flex-1 overflow-hidden">
+            <TemplateSidebar
+              groups={groups}
+              selectedTemplate={selectedTemplate}
+              maxVersions={maxVersions}
+              documentTypeId={selectedTypeId}
+              usage={usage}
+              onSelect={selectTemplate}
+              onNew={() => setNewModalOpen(true)}
+              onDelete={handleDelete}
+              onDeleteGroup={handleDeleteGroup}
+              onDuplicate={handleDuplicateGroup}
+              onCleanup={setCleanupGroup}
+            />
+
+            <div className="flex-1 overflow-hidden">
+              {selectedTemplate && selectedDocType ? (
+                <EditorPanel
+                  template={selectedTemplate}
+                  docType={selectedDocType}
+                  allDocTypes={docTypes}
+                  onSaved={(updated) => selectTemplate(updated)}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-fg4 text-sm">
+                  Выберите шаблон или создайте новый
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </TabPanel>
 
       <Modal open={newModalOpen} onOpenChange={setNewModalOpen} title="Новый шаблон" flushBody>
         {newModalOpen && selectedTypeId && selectedDocType && (
