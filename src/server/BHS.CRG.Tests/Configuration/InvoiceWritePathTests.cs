@@ -52,7 +52,10 @@ public class InvoiceWritePathTests
 
     /// <summary>Кто вправе считать учётную дату и спрашивать «закрыт ли день».</summary>
     // У накладной своё правило — учётная дата одна, по её стройке (issue #1285), — и тоже в одном месте.
-    private static readonly string[] MayAskThePeriod = ["Data/PaymentPosting.cs", "Data/WaybillLock.cs"];
+    // Книга проводок (E2, issue #1100) только спрашивает «открыт ли день» — для правила (б′); учётных дат
+    // она не назначает, их назначает PaymentPosting.
+    private static readonly string[] MayAskThePeriod =
+        ["Data/PaymentPosting.cs", "Data/WaybillLock.cs", "Data/InvoiceBookPosting.cs"];
 
     private static readonly Regex Save = new(@"\bSaveChanges(Async)?\(", RegexOptions.Compiled);
     // Входов у связки два: WriteAsync — правка из запроса, со сверкой версии формы; MergeAsync —

@@ -31,6 +31,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("BookSeq")
+                        .HasColumnType("integer")
+                        .HasColumnName("book_seq");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -279,6 +283,122 @@ namespace BHS.CRG.Modules.Costs.Migrations
                             t.HasCheckConstraint("ck_invoice_allocations_document_amount", "line_id IS NOT NULL OR (quantity IS NULL AND amount IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_invoice_allocations_one_target", "(construction_id IS NULL) <> (article_id IS NULL) AND (section_id IS NULL OR construction_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceBookEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("integer")
+                        .HasColumnName("seq");
+
+                    b.Property<decimal>("Tolerance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("tolerance");
+
+                    b.Property<int?>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId", "Seq")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoice_book_entries_seq");
+
+                    b.ToTable("invoice_book_entries", "costs");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceBookLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ArticleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("article_id");
+
+                    b.Property<Guid?>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<Guid>("EntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entry_id");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("gross");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("net");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordinal");
+
+                    b.Property<Guid?>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<bool>("VatUnknown")
+                        .HasColumnType("boolean")
+                        .HasColumnName("vat_unknown");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryId", "Ordinal")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoice_book_lines_order");
+
+                    b.ToTable("invoice_book_lines", "costs", t =>
+                        {
+                            t.HasCheckConstraint("ck_invoice_book_lines_one_target", "construction_id IS NULL OR article_id IS NULL");
                         });
                 });
 
@@ -701,6 +821,24 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .WithMany()
                         .HasForeignKey("LineId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceBookEntry", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Costs.Data.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceBookLine", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Costs.Data.InvoiceBookEntry", null)
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceLine", b =>

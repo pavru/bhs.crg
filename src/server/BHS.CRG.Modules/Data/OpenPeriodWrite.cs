@@ -83,4 +83,27 @@ public static class OpenPeriodWrite
 
         await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock_shared({LockKey})", ct);
     }
+
+    /// <summary>
+    /// Отказ, если замок записи в учёт этой транзакцией НЕ взят. Для того, кто пишет по границам,
+    /// полученным от вызывающего (книга проводок счёта, E2): сам он замок не берёт — границы,
+    /// прочитанные до замка, устарели бы, пока его ждали, и взятый здесь замок защищал бы не то.
+    /// </summary>
+    public static async Task EnsureHeldAsync(ModuleDbContext db, CancellationToken ct = default)
+    {
+        // Ключ bigint лежит в pg_locks двумя половинами: старшая — classid, младшая — objid, objsubid = 1.
+        var held = db.Database.CurrentTransaction is not null && await db.Database
+            .SqlQuery<bool>($"""
+                SELECT EXISTS (SELECT 1 FROM pg_locks
+                    WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted AND objsubid = 1
+                      AND classid::bigint = {LockKey >> 32} AND objid::bigint = {LockKey & 0xFFFFFFFF}) AS "Value"
+                """)
+            .SingleAsync(ct);
+
+        if (!held)
+            throw new InvalidOperationException(
+                "Запись в учёт без замка записи: границы периода, по которым она посчитана, могли " +
+                "устареть, а закрытие — пройти посреди неё. Пишите внутри InOpenPeriodAsync и передавайте " +
+                "его границы.");
+    }
 }

@@ -382,6 +382,28 @@ public class PaymentPostingTests
     /// сущности, а не в адресах — следующему, кто позовёт метод, повторять проверку не придётся. Деньги
     /// такого счёта молча выпали бы из затрат: отчёты считают «оплачен и не отклонён».
     /// </summary>
+    /// <summary>
+    /// Нет остатка — нет и его дня в снимке, даже записанного (E2, spec v3.3 разд. 3): день у нуля
+    /// рублей — «фантом». Возьми снимок сырую колонку, остаток, появившийся снова, вернулся бы старым
+    /// днём, а не днём по правилу оплаты.
+    /// </summary>
+    [Fact]
+    public void Снимок_не_несёт_дня_у_нулевого_остатка()
+    {
+        var invoice = Invoice(100_000m);
+        invoice.Pay(D(9, 15), null, null);
+        invoice.PostRemainder(D(9, 15));
+        var first = Part(First, 1, AllocationTarget.Site(SiteB), quantity: 100);
+        var second = Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000);
+        first.Post(D(9, 15));
+        second.Post(D(9, 15));
+        InvoiceAllocation[] parts = [first, second];
+
+        var kept = PaymentPosting.Before(invoice, parts, PaymentPosting.Balance([First, Second], parts, 100_000m, Rouble));
+
+        Assert.Null(kept.Remainder);
+    }
+
     [Fact]
     public void Оплаченный_не_отклоняется_а_отклонённый_не_оплачивается()
     {

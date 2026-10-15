@@ -158,6 +158,13 @@ public sealed class Invoice
     /// </summary>
     public DateOnly? RemainderAccountingOn { get; private set; }
 
+    /// <summary>
+    /// Номер последней записи книги проводок (E2, issue #1100); 0 — книги нет. Лежит в строке счёта
+    /// нарочно: запись в книгу правит строку и тем двигает её версию — форма, открытая до записи,
+    /// получит «счёт тем временем изменили» (spec v3.3 п. 1.1). Пишет его только <c>InvoiceBook</c>.
+    /// </summary>
+    public int BookSeq { get; private set; }
+
     public string? ScanBlobPath { get; private set; }
 
     public string? ScanFileName { get; private set; }
@@ -443,6 +450,15 @@ public sealed class Invoice
     public void DescribePayment(string? document)
     {
         PaymentDocument = document;
+        Touch();
+    }
+
+    /// <summary>В книгу легла запись с этим номером — его ставит <c>InvoiceBook</c>, и только он.</summary>
+    public void RecordBook(int seq)
+    {
+        if (seq <= BookSeq)
+            throw new InvalidOperationException($"Номер записи книги не растёт: был {BookSeq}, пришёл {seq}.");
+        BookSeq = seq;
         Touch();
     }
 
