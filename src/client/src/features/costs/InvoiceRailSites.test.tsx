@@ -19,12 +19,12 @@ afterEach(cleanup);
 
 const LIVE = ['a', 'b', 'c'];
 
-function filterOf(favorites: string[], setOn = vi.fn()): SiteFilterValue {
+function filterOf(favorites: string[], register = () => () => {}): SiteFilterValue {
   const state = filterState(favorites, true, new Set(LIVE));
   return {
     status: 'ready', favorites: state.favorites, on: true, active: state.active, sites: [],
-    visible: sites => isVisible(sites, state), setOn, setFavorite: vi.fn(), setFavorites: vi.fn(),
-    consumers: 0, register: () => () => {},
+    visible: sites => isVisible(sites, state), setOn: vi.fn(), setFavorite: vi.fn(), setFavorites: vi.fn(),
+    consumers: 0, register,
   };
 }
 
@@ -61,7 +61,7 @@ const item = (id: string, constructionIds: string[], number = id) =>
 const LIST = [item('i1', ['a']), item('i2', ['b'], 'Кабель'), item('i3', []), item('i4', ['b', 'a'])];
 
 /** Хук на настоящем контексте фильтра и тостах; наружу — что он вернул. */
-function mount(favorites: string[], cuts: boolean, selected: string | null = null, query = '') {
+function mount(favorites: string[], cuts: boolean, selected: string | null = null, query = '', register?: () => () => void) {
   const got: { current: ReturnType<typeof useRailSites> | null } = { current: null };
   function Probe() {
     got.current = useRailSites({
@@ -71,7 +71,7 @@ function mount(favorites: string[], cuts: boolean, selected: string | null = nul
   }
   render(
     <ToastProvider>
-      <SiteFilterContext.Provider value={filterOf(favorites)}><Probe /></SiteFilterContext.Provider>
+      <SiteFilterContext.Provider value={filterOf(favorites, register)}><Probe /></SiteFilterContext.Provider>
     </ToastProvider>,
   );
   return got;
@@ -83,6 +83,15 @@ describe('рейл под фильтром', () => {
     expect(LIST.filter(i => !rail.hides(i)).map(i => i.id)).toEqual(['i1', 'i3', 'i4']);
     expect(rail.hidden).toBe(1);
     expect(rail.openHidden).toBe(true);
+  });
+
+  it('шапку зажигает только общий список: под очередью экран не потребитель', () => {
+    const register = vi.fn(() => () => {});
+    mount(['a'], false, null, '', register);
+    expect(register).not.toHaveBeenCalled();
+    cleanup();
+    mount(['a'], true, null, '', register);
+    expect(register).toHaveBeenCalledTimes(1);
   });
 
   it('под очередью не урезает ничего', () => {
