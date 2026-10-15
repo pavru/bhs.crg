@@ -9,6 +9,7 @@ import { Clipboard, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
@@ -234,10 +235,10 @@ function ArrayTableModalBody({
             <tr role="row">
               <th className={TH} style={{ padding: 0, width: 34 }}>
                 <span className="flex items-center justify-center" style={{ height: 28 }}>
-                  <input type="checkbox" aria-label="Выбрать все строки"
+                  <Checkbox size="sm" aria-label="Выбрать все строки"
                     checked={rowIds.length > 0 && selected.size === rowIds.length}
-                    ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rowIds.length; }}
-                    onChange={toggleAll} className="w-4 h-4 accent-brand cursor-pointer" />
+                    indeterminate={selected.size > 0 && selected.size < rowIds.length}
+                    onChange={toggleAll} />
                 </span>
               </th>
               <th role="columnheader" className={TH} style={{ padding: 0, width: 44 }}>

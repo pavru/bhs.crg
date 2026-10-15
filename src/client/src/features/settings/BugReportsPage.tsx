@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
+import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import {
   useBugReports, useBugReport, useSaveBugReportDraft, useMarkBugReportFixed,
@@ -27,20 +28,16 @@ import {
  * правят ДО публикации — потому поле «Текст issue» редактируемое, а не показ «как уйдёт».
  */
 
-const STATUS: Record<BugReportStatus, { label: string; className: string }> = {
-  New:       { label: 'новое',     className: 'bg-warning-subtle text-warning' },
-  Forwarded: { label: 'передано',  className: 'bg-brand-subtle text-brand' },
-  Fixed:     { label: 'исправлено', className: 'bg-success-subtle text-success' },
-  Rejected:  { label: 'отклонено', className: 'text-fg3 border border-stroke' },
+const STATUS: Record<BugReportStatus, { label: string; tone: StatusTone }> = {
+  New:       { label: 'новое',      tone: 'warning' },
+  Forwarded: { label: 'передано',   tone: 'brand' },
+  Fixed:     { label: 'исправлено', tone: 'success' },
+  Rejected:  { label: 'отклонено',  tone: 'quiet' },
 };
 
-function StatusBadge({ status }: { status: BugReportStatus }) {
+function ReportStatus({ status }: { status: BugReportStatus }) {
   const meta = STATUS[status];
-  return (
-    <span className={`shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium ${meta.className}`}>
-      {meta.label}
-    </span>
-  );
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
 
 export function BugReportsPage() {
@@ -71,7 +68,7 @@ export function BugReportsPage() {
         <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
           {r.summary}
         </span>
-        <StatusBadge status={r.status} />
+        <ReportStatus status={r.status} />
       </div>
       <div className="flex items-center gap-1.5 mt-0.5 text-caption text-fg4">
         <span className="truncate">{r.author}</span>
@@ -164,7 +161,7 @@ function ReportBody({ report, githubConfigured }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-medium text-fg1 truncate">{report.author}</h2>
-            <StatusBadge status={report.status} />
+            <ReportStatus status={report.status} />
           </div>
           <p className="text-xs text-fg3 mt-0.5">
             {report.authorEmail && <>{report.authorEmail} · </>}{formatDayTime(report.createdAt)}
