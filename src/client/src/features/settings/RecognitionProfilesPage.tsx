@@ -18,6 +18,7 @@ import {
   type RecognitionProfile, type RecognitionProfileField, type RecognitionKindInfo, type RecognitionTableShape,
 } from '@/shared/api/recognitionProfiles';
 import { groupByModule, hiddenSummary, type HiddenRecognitionProfile } from '@/shared/api/recognitionProfileGroups';
+import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Библиотека профилей распознавания (issue #408). Промпты пишем мы — пользователь правит только
@@ -90,10 +91,10 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             <input value={f.description ?? ''} onChange={e => update(i, { description: e.target.value })}
               placeholder="Что это за колонка — своими словами"
               className="border border-stroke-strong rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface" />
-            <select value={f.type || 'string'} onChange={e => update(i, { type: e.target.value })}
-              className="border border-stroke-strong rounded px-2 py-1.5 text-sm bg-surface text-fg1">
-              {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            <Select value={f.type || 'string'} onValueChange={type => update(i, { type })}
+              aria-label={`Тип: ${f.name.trim() || `строка ${i + 1}`}`}>
+              {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            </Select>
             <span className="flex items-center gap-0.5">
               <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                 isFirst={i === 0} isLast={i === fields.length - 1} />
@@ -318,15 +319,13 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
     <div className="space-y-4">
       <TextField label="Название" value={name} onChange={e => setName(e.target.value)} />
       <div>
-        <label className="block text-sm font-medium text-fg1 mb-1">Вид</label>
-        <select value={kind} onChange={e => setKind(e.target.value)}
-          className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
+        <Select label="Вид" value={kind} onValueChange={setKind}>
           {kindGroups.map(g => (
-            <optgroup key={g.module} label={g.title}>
-              {g.items.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
-            </optgroup>
+            <SelectGroup key={g.module} label={g.title}>
+              {g.items.map(k => <SelectItem key={k.kind} value={k.kind}>{k.label}</SelectItem>)}
+            </SelectGroup>
           ))}
-        </select>
+        </Select>
         <p className="text-xs text-fg4 mt-1">
           Вид определяет, какой промпт применяется, и после создания не меняется.
         </p>

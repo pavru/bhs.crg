@@ -150,8 +150,8 @@ function ArrayTableModalBody({
   }
 
   // ↑↓-навигация между ячейками ОДНОЙ колонки (issue #107, F8a). Полный APG grid (←→, роли,
-  // выделение строк, ресайз с клавиатуры) отложен в фазу таблиц MD3. <select> не трогаем — там
-  // ↑↓ выбирают опцию; для остальных (text/number/date/checkbox/пикер) нативное ↑↓ — no-op либо
+  // выделение строк, ресайз с клавиатуры) отложен в фазу таблиц MD3. Список (role=combobox) не
+  // трогаем — там ↑↓ открывают и листают пункты; для остальных (text/number/date/checkbox/пикер) нативное ↑↓ — no-op либо
   // нежелательный инкремент, так что перехват безопасен и полезен при вводе столбца сверху вниз.
   const tableRef = useRef<HTMLTableElement>(null);
   // Фокус на контрол ячейки (r,c). true — удалось.
@@ -164,7 +164,7 @@ function ArrayTableModalBody({
     return true;
   }
   // APG grid-навигация (issue #107 F8b): ↑↓ — строки; ←→ — колонки, но для текст-инпута только
-  // когда каретка на краю (иначе стрелка двигает курсор). <select> хранит ↑↓ за собой (опции).
+  // когда каретка на краю (иначе стрелка двигает курсор). Список хранит ↑↓ за собой (пункты).
   function onGridKey(e: React.KeyboardEvent) {
     const el = e.target as HTMLElement;
     const td = el.closest('td[data-r]') as HTMLElement | null;
@@ -176,7 +176,7 @@ function ArrayTableModalBody({
     const atEnd = !isText || (input!.selectionStart === input!.value.length && input!.selectionEnd === input!.value.length);
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (el.tagName === 'SELECT') return;
+      if (el.getAttribute('role') === 'combobox') return;
       const nr = e.key === 'ArrowUp' ? r - 1 : r + 1;
       if (nr < 0 || nr >= rows.length) return;
       if (focusCell(nr, c)) e.preventDefault();

@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-lines-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, pickOption } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -303,7 +303,7 @@ try {
 
     // Разноска — через диалог строки: стройка из посева, всё количество.
     await page.getByRole('button', { name: 'Разноска, строка 1' }).click();
-    await page.getByLabel('Куда, часть 1', { exact: true }).selectOption({ label: 'Демо-стройка' });
+    await pickOption(page.getByLabel('Куда, часть 1', { exact: true }), 'Демо-стройка');
     await page.getByLabel('Количество, часть 1', { exact: true }).fill('2');
     const allocated = page.waitForResponse(
       r => r.request().method() === 'PUT' && r.url().endsWith('/allocation'), { timeout: 15_000 });

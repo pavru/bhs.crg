@@ -6,6 +6,7 @@ import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
 import { useDialogSave } from './useDialogSave';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 function SortRow({
   level, columns, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast,
@@ -22,14 +23,10 @@ function SortRow({
   return (
     <div className="flex items-center gap-1.5">
       {columns && columns.length > 0 ? (
-        <select
-          value={level.column}
-          onChange={e => onChange({ ...level, column: e.target.value })}
-          className="border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1 flex-1 min-w-0"
-        >
-          <option value="">— колонка —</option>
-          {columns.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <Select size="sm" className="flex-1 min-w-0" aria-label="Колонка сортировки"
+          value={level.column} onValueChange={column => onChange({ ...level, column })} emptyItem="— колонка —">
+          {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+        </Select>
       ) : (
         <input
           value={level.column}

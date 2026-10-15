@@ -6,6 +6,7 @@ import { moveItem } from '@/shared/utils/moveItem';
 import type { Template, TemplateParam } from '@/shared/api/types';
 import { newLocalId } from '@/shared/utils/localId';
 import { parseTemplateParams } from './templateParams';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -88,13 +89,12 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 className="w-24 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
                 className="flex-1 min-w-0 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
-              <select value={p.type}
-                onChange={e => patch(i, { type: e.target.value as TemplateParam['type'], default: e.target.value === 'boolean' ? false : e.target.value === 'number' ? 0 : '' })}
-                className="text-xs border border-stroke-strong rounded px-1 py-1 bg-surface text-fg3">
-                <option value="string">текст</option>
-                <option value="number">число</option>
-                <option value="boolean">да/нет</option>
-              </select>
+              <Select size="sm" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
+                onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
+                <SelectItem value="string">текст</SelectItem>
+                <SelectItem value="number">число</SelectItem>
+                <SelectItem value="boolean">да/нет</SelectItem>
+              </Select>
               <ParamDefault type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
               <span className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}

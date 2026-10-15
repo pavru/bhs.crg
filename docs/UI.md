@@ -21,7 +21,7 @@
 |---|---|---|
 | Кнопка | `Button`, `IconButton` | пилюля `rounded-full`; **на экране или в окне не больше одной filled** |
 | Поле ввода | `TextField`, `TextAreaField`, `DateField`, `NumberInput` | outlined MD3: рамка с вырезом под подписью (`OutlinedField`) |
-| Выбор из списка | `Select` | слой формы с `label` или компактный слой обвязки (`h-9`) |
+| Выбор из списка | `Select` | слой формы с `label` или компактный слой обвязки (`h-9`, в строках плотных таблиц `size="sm"` — `h-7`); пункт «не выбрано» — `emptyItem`, группы — `SelectGroup`. Нативный `<select>` в экранах не ставится (#1353) |
 | Окно | `Modal`, `ConfirmDialog` | радиус 28 px, тень `shadow28` |
 | Уведомление | `useToast` | — |
 | Таблица | `DataGrid` | — |
@@ -165,4 +165,5 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 
 - Сырую палитру, `<table>`, нативный `<select>`, `text-[Npx]` и свой `<h1>` в `features/` — храповик #1349
   (`npm run ui:ratchet`, уровень в `src/client/ui-baseline.json`): по файлам, новое не добавлять.
+  Нативных `<select>` в `features/` нет вовсе, исключений тоже (#1353): уровень — ноль.
 - Всё остальное здесь — договорённость, проверяет её ревью.

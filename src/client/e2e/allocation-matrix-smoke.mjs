@@ -29,7 +29,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/allocation-matrix-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, listOptions, pickOption, shownValue, until } from './harness.mjs';
 import { sitePickerChecks } from './site-picker-checks.mjs';
 
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
@@ -124,7 +124,7 @@ const dialog = await openMatrix(page, first, 'на несколько объек
 await dialog.getByRole('button', { name: 'Добавить объект' }).click();
 await dialog.getByRole('button', { name: 'Добавить объект' }).click();
 for (let index = 0; index < 3; index++)
-  await dialog.getByLabel(`Объект ${index + 1}`, { exact: true }).selectOption({ label: sites[index].name });
+  await pickOption(dialog.getByLabel(`Объект ${index + 1}`, { exact: true }), sites[index].name);
 
 let asked = false;
 page.on('request', request => { if (request.url().includes('/allocation/preview')) asked = true; });
@@ -216,14 +216,13 @@ await check('invoice-goes-to-article', async () => {
   const select = page.getByLabel('Объект счёта', { exact: true });
 
   // Статья — в своей группе: «Склад» среди строек читался бы стройкой.
-  const groups = await select.evaluate(s => Object.fromEntries(
-    [...s.querySelectorAll('optgroup')].map(g => [g.label, [...g.children].map(o => o.textContent)])));
+  const { groups } = await listOptions(select);
   if (!groups['Вне строек']?.includes(name)) throw new Error(`статьи нет в группе «Вне строек»: ${JSON.stringify(groups)}`);
   if (groups['Стройки']?.includes(name)) throw new Error('статья стоит среди строек');
 
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${id}/allocation`) && r.request().method() === 'PUT'),
-    select.selectOption({ label: name }),
+    pickOption(select, name),
   ]);
 
   const part = (await api('GET', `/costs/invoices/${id}`)).lines[0].allocation.parts[0];
@@ -246,8 +245,7 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
     return page.getByLabel('Объект счёта', { exact: true });
   };
-  const outside = select => select.evaluate(s =>
-    [...s.querySelectorAll('optgroup[label="Вне строек"] option')].map(o => o.textContent));
+  const outside = async select => (await listOptions(select)).groups['Вне строек'] ?? [];
 
   const kept = `МТР-АС-${stamp}`;
   const id = await invoice(kept, [{ supplierText: 'Кабель на закрытый склад', unit: 'м', quantity: 5, price: 2 }], 10);
@@ -256,14 +254,18 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
 
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${id}/allocation`) && r.request().method() === 'PUT'),
-    (await open(kept)).selectOption({ label: name }),
+    open(kept).then(select => pickOption(select, name)),
   ]);
   await api('POST', `/costs/articles/${article.id}/archive`);
 
   // Там, где стоит: выбрана и названа, с пометкой — а не «статьи нет в справочнике» и не пустое поле.
   const standing = await open(kept);
-  const shown = await standing.evaluate(s => s.selectedOptions[0]?.textContent);
-  if (shown !== `${name} — в архиве`) throw new Error(`стоящая архивная статья показана как «${shown}»`);
+  // Пока статьи не пришли, поле честно говорит «…» («ещё не знаем»): ждём ответа, а не читаем сразу.
+  const want = `${name} — в архиве`;
+  await until(async () => {
+    const shown = await shownValue(standing);
+    if (shown !== want) throw new Error(`стоящая архивная статья показана как «${shown}»`);
+  });
 
   // В другом счёте её не предлагают — ни с пометкой, ни без.
   const offered = await outside(await open(other));

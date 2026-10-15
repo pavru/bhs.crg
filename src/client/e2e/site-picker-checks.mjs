@@ -7,16 +7,13 @@
 // ⚠️ Избранное хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленное избранное
 // урезало бы им выбор строек. Поэтому настройки сбрасываются в finally — адресом, а не через экран.
 
-import { BASE } from './harness.mjs';
+import { BASE, listGroups, listOptions, pickOption, shownValue } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 const REVEAL = /^Показать все стройки \(ещё \d+\)…$/;
 
-/** Подписи групп выбора и их пункты — то, что видит человек, открыв список. */
-const groupsOf = select => select.evaluate(s => Object.fromEntries(
-  [...s.querySelectorAll('optgroup')].map(g => [g.label, [...g.children].map(o => o.textContent)])));
-const optionTexts = select => select.evaluate(s => [...s.options].map(o => o.textContent));
-const selectedText = select => select.evaluate(s => s.selectedOptions[0]?.textContent ?? '');
+// Выбор стройки — `Select` (Radix, issue #1353): группы и пункты читаются из открытого списка
+// (`listOptions`, `listGroups`), значение — с поля (`shownValue`).
 
 export async function sitePickerChecks({ page, check, api, invoice, openMatrix, sites, stamp }) {
   const [favorite, , , other] = sites;
@@ -31,14 +28,14 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       await invoice(number, [{ supplierText: 'Кабель под фильтром', unit: 'м', quantity: 10, price: 1 }], 10);
       const dialog = await openMatrix(page, number, 'на несколько объектов');
       const first = dialog.getByLabel('Объект 1', { exact: true });
-      await first.selectOption({ label: favorite.name });
+      await pickOption(first, favorite.name);
       await dialog.getByRole('button', { name: 'Добавить объект' }).click();
       const second = dialog.getByLabel('Объект 2', { exact: true });
       const cell = dialog.locator('tbody input').first();
       await cell.fill('4');
 
       // Выход — в поле, где значение УЖЕ стоит: на пустом поле сброс значения был бы незаметен.
-      const offered = await optionTexts(first);
+      const { options: offered } = await listOptions(first);
       if (offered.includes(other.name)) throw new Error('неизбранная стройка предложена без «Показать все»');
       const reveal = offered.find(text => REVEAL.test(text));
       if (!reveal) throw new Error(`выхода «Показать все стройки» нет: ${JSON.stringify(offered)}`);
@@ -47,16 +44,23 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const onRequest = r => { if (r.method() !== 'GET' && r.url().includes('/costs/invoices/')) writes.push(r.url()); };
       page.on('request', onRequest);
       try {
-        await first.selectOption({ label: reveal });
-        const kept = await selectedText(first);
+        // Выход не закрывает список (`stayOpenOn`): раскрытое видно на месте, без второго щелчка.
+        await first.click();
+        await page.getByRole('option', { name: reveal, exact: true }).click();
+        const list = page.getByRole('listbox');
+        await list.waitFor({ timeout: 5_000 });
+        const opened = await listGroups(list);
+        if (!opened['Остальные стройки']?.includes(other.name))
+          throw new Error(`первое поле не раскрыто: ${JSON.stringify(Object.keys(opened))}`);
+        await page.keyboard.press('Escape');
+        await list.waitFor({ state: 'hidden', timeout: 5_000 });
+        const kept = await shownValue(first);
         if (kept !== favorite.name) throw new Error(`выход сменил значение поля: «${kept}» вместо «${favorite.name}»`);
         if ((await cell.inputValue()) !== '4') throw new Error(`набранное количество потеряно: «${await cell.inputValue()}»`);
-        for (const [label, select] of [['первое', first], ['соседнее', second]]) {
-          const groups = await groupsOf(select);
-          if (!groups['Остальные стройки']?.includes(other.name))
-            throw new Error(`${label} поле не раскрыто: ${JSON.stringify(Object.keys(groups))}`);
-        }
-        await second.selectOption({ label: other.name });
+        const { groups: neighbour } = await listOptions(second);
+        if (!neighbour['Остальные стройки']?.includes(other.name))
+          throw new Error(`соседнее поле не раскрыто: ${JSON.stringify(Object.keys(neighbour))}`);
+        await pickOption(second, other.name);
         if ((await cell.inputValue()) !== '4') throw new Error('после выбора неизбранной стройки количество потеряно');
         if (writes.length) throw new Error(`выход ушёл запросом на запись: ${writes.join(', ')}`);
       } finally {
@@ -80,9 +84,9 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
       const select = page.getByLabel('Объект счёта', { exact: true });
       await select.waitFor({ timeout: 10_000 });
-      const shown = await selectedText(select);
+      const shown = await shownValue(select);
       if (shown !== other.name) throw new Error(`в поле «${shown}», а не «${other.name}»`);
-      const groups = await groupsOf(select);
+      const { groups } = await listOptions(select);
       if (JSON.stringify(groups['Не в избранном']) !== JSON.stringify([other.name]))
         throw new Error(`стоящая стройка не в группе «Не в избранном»: ${JSON.stringify(groups)}`);
     });
@@ -116,8 +120,10 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
       await page.getByRole('button', { name: new RegExp(number) }).first().waitFor({ timeout: 10_000 });
       const select = page.getByLabel('Объект счёта', { exact: true });
-      await select.selectOption({ label: (await optionTexts(select)).find(text => REVEAL.test(text)) });
-      await select.selectOption({ label: other.name });
+      // Выход оставляет список открытым — следующий пункт выбирается в нём же.
+      await select.click();
+      await page.getByRole('option', { name: REVEAL }).click();
+      await page.getByRole('option', { name: other.name, exact: true }).click();
       // `.first()`: Radix Toast повторяет текст в живой области для экранного диктора (role="status"), и
       // на CI вторая копия успевает появиться к проверке — строгий локатор видел два элемента (CI PR #1334).
       await page.getByText('Сохранено. В списке счёт скрыт').first().waitFor({ timeout: 10_000 });
@@ -150,7 +156,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         await page.goto(`${BASE}/waybills?waybill=${created.id}`, { waitUntil: 'networkidle' });
         const select = page.getByLabel('Получатель — стройка', { exact: true });
         await select.waitFor({ timeout: 10_000 });
-        const shown = await selectedText(select);
+        const shown = await shownValue(select);
         if (shown !== other.name) throw new Error(`получатель показан как «${shown}», а не «${other.name}»`);
         if (await page.getByText('Стройки больше нет').count()) throw new Error('живая неизбранная стройка названа удалённой');
 

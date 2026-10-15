@@ -6,6 +6,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { CheckCircle2, AlertTriangle, Loader2, Trash2, Wand2 } from 'lucide-react';
 import { useAuditInstance, useApplyInstanceAuditFixes } from '@/shared/api/documentSets';
 import type { AuditFinding } from '@/shared/api/documentTypes';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Аудит ОДНОГО документа в пользовательском режиме (issue #352) — юзер видит расхождения своего
@@ -118,12 +119,11 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                           {canRename && (
                             <>
                               <span className="text-fg4 text-xs">или переименовать в</span>
-                              <select value={renameTarget[f.path] ?? ''} disabled={applyFixes.isPending}
-                                onChange={e => setRenameTarget(t => ({ ...t, [f.path]: e.target.value }))}
-                                className="text-xs border border-stroke rounded px-1.5 py-1 bg-surface text-fg1">
-                                <option value="">поле схемы…</option>
-                                {schemaFieldKeys.map(k => <option key={k} value={k}>{k}</option>)}
-                              </select>
+                              <Select size="sm" className="w-auto min-w-36" aria-label={`Переименовать «${f.path}» в поле схемы`}
+                                value={renameTarget[f.path] ?? ''} disabled={applyFixes.isPending} placeholder="поле схемы…"
+                                onValueChange={k => setRenameTarget(t => ({ ...t, [f.path]: k }))}>
+                                {schemaFieldKeys.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+                              </Select>
                               <Button variant="text" size="sm" disabled={!renameTarget[f.path] || applyFixes.isPending}
                                 onClick={() => apply('rename', f.path, renameTarget[f.path])}>
                                 Переименовать

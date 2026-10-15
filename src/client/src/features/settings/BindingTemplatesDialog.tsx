@@ -7,6 +7,7 @@ import {
 } from '@/shared/api/bindingTemplates';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import type { DataSetBindingTemplate, DocumentType } from '@/shared/api/types';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 // Shared input styling.
 const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
@@ -83,23 +84,14 @@ function TemplateForm({
       </div>
 
       {/* Режим */}
-      <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">
-          Режим
-        </label>
-        <select
-          value={targetFieldKey}
-          onChange={e => handleTargetChange(e.target.value)}
-          className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-        >
-          <option value="">Скалярный — первая строка → отдельные поля</option>
-          {arrayFields.map(f => (
-            <option key={f.key} value={f.key}>
-              Табличный → {f.title} ({f.key})
-            </option>
-          ))}
-        </select>
-      </div>
+      <Select label="Режим" value={targetFieldKey} onValueChange={handleTargetChange}
+        emptyItem="Скалярный — первая строка → отдельные поля">
+        {arrayFields.map(f => (
+          <SelectItem key={f.key} value={f.key}>
+            Табличный → {f.title} ({f.key})
+          </SelectItem>
+        ))}
+      </Select>
 
       {/* Маппинг */}
       <div>

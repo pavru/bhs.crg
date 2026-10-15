@@ -17,7 +17,7 @@ export const RULES = [
   {
     id: 'select',
     pattern: /<select\b/g,
-    instead: 'выбор из списка — Select (shared/ui/Select); перевод накопленных — #1353',
+    instead: 'выбор из списка — Select (shared/ui/Select): компактный size="sm" для строк таблиц, emptyItem для «не выбрано» (#1353)',
   },
   {
     id: 'h1',

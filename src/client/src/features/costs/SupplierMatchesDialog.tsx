@@ -14,6 +14,7 @@ import {
 } from '@/shared/api/supplierMatches';
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { forgetAllQuestion, forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /** Сколько ждать после последней буквы, прежде чем искать: запрос на каждое нажатие — это десяток запросов на слово. */
 const TYPING_PAUSE = 300;
@@ -85,19 +86,17 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       </p>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select value={filter.supplierId ?? ''} aria-label="Поставщик"
-          onChange={e => narrow({ supplierId: e.target.value || null })}
-          className="rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 max-w-[18rem]">
-          <option value="">Все поставщики</option>
+        <Select className="w-auto max-w-[18rem]" value={filter.supplierId ?? ''} aria-label="Поставщик"
+          onValueChange={id => narrow({ supplierId: id || null })} emptyItem="Все поставщики">
           {chosenMissing && (
-            <option value={filter.supplierId!}>
+            <SelectItem value={filter.supplierId!}>
               {suppliers.isSuccess ? 'Выбранный поставщик (соответствий нет)' : 'Выбранный поставщик'}
-            </option>
+            </SelectItem>
           )}
           {suppliers.data?.map(s => (
-            <option key={s.id} value={s.id}>{supplierLabel(s)} ({s.count})</option>
+            <SelectItem key={s.id} value={s.id}>{supplierLabel(s)} ({s.count})</SelectItem>
           ))}
-        </select>
+        </Select>
         <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-stroke bg-surface px-2 py-1">
           <Search size={14} className="text-fg4" />
           <input value={typed} placeholder="Артикул или наименование у поставщика"

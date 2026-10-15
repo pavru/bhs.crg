@@ -5,6 +5,7 @@ import { beginUpload, endUpload } from '@/shared/ui/uploadsInFlight';
 import { apiError } from '@/shared/utils/apiError';
 import type { ImageValue, ImageBlobValue, ImageOptions } from '@/shared/api/schema';
 import { checkImageResult } from './checkImageResult';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Предел проверяет СЕРВЕР (issue #534). Клиентская константа была осознанной временной мерой: у
@@ -184,20 +185,18 @@ export function ImageField({ value, onChange, readOnly = false }: {
           <input value={img.height ?? ''} onChange={e => patch({ height: e.target.value })}
             placeholder="высота"
             className="w-24 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand" />
-          <select value={img.align ?? ''} onChange={e => patch({ align: (e.target.value || undefined) as ImageValue['align'] })}
-            className="border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand">
-            <option value="">выравнивание</option>
-            <option value="left">слева</option>
-            <option value="center">по центру</option>
-            <option value="right">справа</option>
-          </select>
-          <select value={img.fit ?? ''} onChange={e => patch({ fit: (e.target.value || undefined) as ImageValue['fit'] })}
-            className="border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand">
-            <option value="">fit (вписывание)</option>
-            <option value="contain">contain</option>
-            <option value="cover">cover</option>
-            <option value="stretch">stretch</option>
-          </select>
+          <Select size="sm" className="w-auto" aria-label="Выравнивание" value={img.align ?? ''}
+            onValueChange={align => patch({ align: (align || undefined) as ImageValue['align'] })} emptyItem="выравнивание">
+            <SelectItem value="left">слева</SelectItem>
+            <SelectItem value="center">по центру</SelectItem>
+            <SelectItem value="right">справа</SelectItem>
+          </Select>
+          <Select size="sm" className="w-auto" aria-label="Вписывание (fit)" value={img.fit ?? ''}
+            onValueChange={fit => patch({ fit: (fit || undefined) as ImageValue['fit'] })} emptyItem="fit (вписывание)">
+            <SelectItem value="contain">contain</SelectItem>
+            <SelectItem value="cover">cover</SelectItem>
+            <SelectItem value="stretch">stretch</SelectItem>
+          </Select>
         </div>
       )}
     </div>

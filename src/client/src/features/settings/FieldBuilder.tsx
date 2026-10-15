@@ -18,6 +18,7 @@ import {
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
+import { Select, SelectItem } from '@/shared/ui/Select';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -477,18 +478,16 @@ export function FieldCard({
               <span className="text-xs text-fg3">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>
           ) : field.type === 'enum' ? (
-            <select
+            <Select size="sm" className="flex-1" aria-label="Значение по умолчанию"
               value={String(field.defaultValue ?? '')}
-              onChange={e => onChange({ defaultValue: e.target.value || undefined })}
-              className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-            >
-              <option value="">— не задано —</option>
+              onValueChange={v => onChange({ defaultValue: v || undefined })}
+              emptyItem="— не задано —">
               {enumTypeDef
-                ? enumTypeDef.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)
+                ? enumTypeDef.values.map(v => <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>)
                 : (field.options ?? []).filter(o => o).map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}
-            </select>
+            </Select>
           ) : field.type === 'date' ? (
             <DateInput
               value={field.defaultValue != null ? String(field.defaultValue) : ''}
@@ -699,31 +698,30 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   const hasDv = cur !== undefined;
   const parentDv = field.defaultValue;
   const inputCls = 'w-full border rounded px-1.5 py-0.5 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand ' + (hasDv ? 'border-brand-subtle' : 'border-stroke');
+  // Своя рамка у переопределённого значения сильнее рамки Select: иначе победил бы порядок правил в CSS.
+  const selectCls = hasDv ? 'border-brand-subtle!' : '';
 
   if (field.type === 'boolean') {
     return (
-      <select value={hasDv ? String(cur) : ''} onChange={e => {
-        const v = e.target.value;
-        onOverrideDefaultValue(field.key, v === '' ? undefined : v === 'true');
-      }} className={inputCls}>
-        <option value="">{parentDv !== undefined ? String(parentDv) : 'не задано'}</option>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+      <Select size="sm" className={selectCls} aria-label={`По умолчанию: ${field.title || field.key}`}
+        value={hasDv ? String(cur) : ''} onValueChange={v => onOverrideDefaultValue(field.key, v === '' ? undefined : v === 'true')}
+        emptyItem={parentDv !== undefined ? String(parentDv) : 'не задано'}>
+        <SelectItem value="true">true</SelectItem>
+        <SelectItem value="false">false</SelectItem>
+      </Select>
     );
   }
   if (field.type === 'enum') {
     const enumTypeDef = field.typeId ? enumTypes.find(et => et.id === field.typeId) : undefined;
     if (field.typeId && !enumTypeDef) return <span className="text-xs text-stroke-strong">—</span>;
     return (
-      <select value={hasDv ? String(cur) : ''} onChange={e => {
-        onOverrideDefaultValue(field.key, e.target.value || undefined);
-      }} className={inputCls}>
-        <option value="">{parentDv !== undefined ? String(parentDv) : 'не задано'}</option>
+      <Select size="sm" className={selectCls} aria-label={`По умолчанию: ${field.title || field.key}`}
+        value={hasDv ? String(cur) : ''} onValueChange={v => onOverrideDefaultValue(field.key, v || undefined)}
+        emptyItem={parentDv !== undefined ? String(parentDv) : 'не задано'}>
         {enumTypeDef
-          ? enumTypeDef.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)
-          : (field.options ?? []).filter(o => o).map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
+          ? enumTypeDef.values.map(v => <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>)
+          : (field.options ?? []).filter(o => o).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </Select>
     );
   }
   if (field.type === 'date') {
