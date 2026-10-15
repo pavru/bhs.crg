@@ -46,6 +46,31 @@ public sealed record PostedBefore(
     /// <summary>Счёт не был оплачен: сохранять нечего, все даты — по правилу оплаты.</summary>
     public static PostedBefore None { get; } =
         new(new Dictionary<(Guid? LineId, AllocationTarget Target), DateOnly>(), null);
+
+    /// <summary>
+    /// Прежний день доли; <c>null</c> — прежнего нет, день по правилу оплаты (issue #1341).
+    ///
+    /// <para>Сначала — та же строка и та же цель: так читается записанный расклад, и день обязан
+    /// вернуться ровно тот, что лежит у доли. Иначе — та же строка и тот же КОНТУР: перенос между
+    /// разделами одной стройки (или между статьями вне строек) не уносит деньги из её закрытого
+    /// месяца в следующий — стройка та же, и ТЗ (COST-16) пересчитывает день только у доли,
+    /// перенесённой на другую стройку.</para>
+    ///
+    /// <para>Совпадений по контуру бывает несколько (у строки два раздела с разными днями) — берём
+    /// позднейший, тем же правилом, что у отрицательного остатка: поздний день не открывает
+    /// закрытого месяца, а ранний мог бы.</para>
+    /// </summary>
+    public DateOnly? DayOf(Guid? lineId, AllocationTarget target)
+    {
+        if (Shares.TryGetValue((lineId, target), out var same)) return same;
+
+        var contour = PaymentPosting.ContourOf(target);
+        var days = Shares
+            .Where(s => s.Key.LineId == lineId && PaymentPosting.ContourOf(s.Key.Target) == contour)
+            .Select(s => s.Value)
+            .ToList();
+        return days.Count > 0 ? days.Max() : null;
+    }
 }
 
 /// <summary>
@@ -72,9 +97,11 @@ public static class PaymentPosting
     /// <summary>
     /// Расклад оплаты.
     ///
-    /// <para><b>Дата доли при правке — по значению.</b> Та же строка и та же цель — дата сохраняется;
-    /// цель сменилась или доля новая — дата по правилу оплаты. По значению, а не по идентификатору
-    /// части: построчная разноска правит цель на месте, и прежняя дата уехала бы на новую стройку.</para>
+    /// <para><b>Дата доли при правке — по значению.</b> Та же строка и тот же контур (стройка; у статей
+    /// вне строек — компания) — дата сохраняется, раздел или статья внутри контура её не двигают;
+    /// контур сменился или доля новая — дата по правилу оплаты (<see cref="PostedBefore.DayOf" />). По
+    /// значению, а не по идентификатору части: построчная разноска правит цель на месте, и прежняя
+    /// дата уехала бы на новую стройку.</para>
     ///
     /// <para><b>Остаток</b> — сумма к оплате минус деньги долей. Его дата сохраняется, пока остаток
     /// есть, и ставится заново, когда он появился из нуля.</para>
@@ -91,9 +118,8 @@ public static class PaymentPosting
             .OrderBy(p => p.LineId).ThenBy(p => p.Ordinal).ThenBy(p => p.Id)
             .Select(p =>
             {
-                var date = kept.Shares.TryGetValue((p.LineId, p.Target), out var was)
-                    ? was
-                    : boundaries.AccountingDate(paidOn, ContourOf(p.Target));
+                var date = kept.DayOf(p.LineId, p.Target)
+                    ?? boundaries.AccountingDate(paidOn, ContourOf(p.Target));
                 return new PostedShare(p.Id, p.LineId, p.Target,
                     money.TryGetValue(p.Id, out var amount) ? amount : null, date, date != paidOn);
             })

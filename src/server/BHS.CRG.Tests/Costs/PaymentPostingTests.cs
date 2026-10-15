@@ -144,7 +144,7 @@ public class PaymentPostingTests
 
     /// <summary>
     /// Правка разноски оплаченного счёта: та же строка и та же цель дату сохраняют, даже если период с
-    /// тех пор закрыли и «по правилу» дата была бы другой; новая цель получает дату по правилу.
+    /// тех пор закрыли и «по правилу» дата была бы другой; другая стройка получает дату по правилу.
     /// </summary>
     [Fact]
     public void При_правке_дата_сохраняется_по_значению_строки_и_цели()
@@ -166,6 +166,67 @@ public class PaymentPostingTests
         Assert.Equal(D(9, 15), plan.Shares.Single(s => s.Target.ConstructionId == SiteB).AccountingOn);
         Assert.Equal(D(10, 1), plan.Shares.Single(s => s.Target.ConstructionId == SiteA).AccountingOn);
         Assert.Equal(D(9, 15), plan.Remainder!.AccountingOn);
+    }
+
+    /// <summary>
+    /// Смена раздела той же стройки дня не двигает (issue #1341): контур тот же, и деньги не уходят из
+    /// закрытого месяца стройки в следующий. Разделили раздел на два — у обоих прежний день.
+    /// </summary>
+    [Fact]
+    public void Перенос_между_разделами_одной_стройки_сохраняет_день()
+    {
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid();
+        var kept = new PostedBefore(
+            new Dictionary<(Guid?, AllocationTarget), DateOnly> { [(First.Id, AllocationTarget.Site(SiteA, r1))] = D(9, 15) },
+            Remainder: null);
+
+        // Стройка А закрыта по 30.09 — «по правилу» новая доля легла бы 01.10.
+        InvoiceAllocation[] moved = [Part(First, 1, AllocationTarget.Site(SiteA, r2), quantity: 100)];
+        Assert.Equal(D(9, 15),
+            PaymentPosting.Plan(D(9, 15), 40_000m, [First], moved, kept, Closed, Rouble).Shares.Single().AccountingOn);
+
+        // Раздел без раздела — тоже та же стройка.
+        InvoiceAllocation[] whole = [Part(First, 1, AllocationTarget.Site(SiteA), quantity: 100)];
+        Assert.Equal(D(9, 15),
+            PaymentPosting.Plan(D(9, 15), 40_000m, [First], whole, kept, Closed, Rouble).Shares.Single().AccountingOn);
+
+        InvoiceAllocation[] split =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 60),
+            Part(First, 2, AllocationTarget.Site(SiteA, r2), quantity: 40),
+        ];
+        Assert.All(PaymentPosting.Plan(D(9, 15), 40_000m, [First], split, kept, Closed, Rouble).Shares,
+            s => Assert.Equal(D(9, 15), s.AccountingOn));
+    }
+
+    /// <summary>
+    /// Границы правила: точное совпадение — первым; совпадений по контуру несколько — позднейший день;
+    /// чужая строка не в счёт; статья ↔ статья — контур компании, день сохранён; стройка ↔ статья — новый.
+    /// </summary>
+    [Fact]
+    public void День_по_контуру_позднейший_и_только_своей_строки()
+    {
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), r3 = Guid.NewGuid(), office = Guid.NewGuid();
+        var kept = new PostedBefore(new Dictionary<(Guid?, AllocationTarget), DateOnly>
+        {
+            [(First.Id, AllocationTarget.Site(SiteA, r1))] = D(9, 15),
+            [(First.Id, AllocationTarget.Site(SiteA, r2))] = D(10, 2),
+            [(Second.Id, AllocationTarget.Site(SiteB, r1))] = D(9, 10),
+            [(Second.Id, AllocationTarget.Article(office))] = D(9, 12),
+        }, Remainder: null);
+
+        Assert.Equal(D(9, 15), kept.DayOf(First.Id, AllocationTarget.Site(SiteA, r1)));
+        Assert.Equal(D(10, 2), kept.DayOf(First.Id, AllocationTarget.Site(SiteA, r3)));
+
+        // У первой строки стройки Б не было — день Б второй строки ей не достаётся.
+        Assert.Null(kept.DayOf(First.Id, AllocationTarget.Site(SiteB, r1)));
+
+        // «Офис» → «Склад»: обе статьи — контур компании.
+        Assert.Equal(D(9, 12), kept.DayOf(Second.Id, AllocationTarget.Article(Stock)));
+
+        // Статья → стройка и стройка → другая стройка — контур сменился.
+        Assert.Null(kept.DayOf(Second.Id, AllocationTarget.Site(SiteA)));
+        Assert.Null(PostedBefore.None.DayOf(First.Id, AllocationTarget.Site(SiteA, r1)));
     }
 
     [Fact]
