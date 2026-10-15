@@ -277,16 +277,16 @@ export function QualityDocsPage() {
     <ListDetailShell
       title="Документы качества"
       subtitle="Библиотека сертификатов и деклараций; связки материалов — на карточке документа"
-      titleIcon={<ShieldCheck size={20} className="text-brand" />}
-      headerAction={
-        <div className="flex items-center gap-2">
+      icon={<ShieldCheck size={20} className="text-brand" />}
+      actions={
+        <>
           <Button variant="outlined" icon={<Globe size={15} />} onClick={() => setWebOpen(true)}>
             Найти в интернете
           </Button>
           <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
             Добавить документ
           </Button>
-        </div>
+        </>
       }
       nav={isLoading ? <p className="text-sm text-fg4 p-4">Загрузка…</p> : nav}
       detail={detail}

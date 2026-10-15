@@ -252,7 +252,7 @@ export function SetDetail() {
   );
 
   const headerAction = (
-    <div className="flex items-center gap-2 shrink-0">
+    <>
       {activePanel === 'documents' && (
         <>
           {output && (
@@ -273,7 +273,7 @@ export function SetDetail() {
         { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameSetVal(set.name); setRenameSetOpen(true); } },
         { key: 'delete', label: 'Удалить комплект', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteSetConfirm(true) },
       ]} />
-    </div>
+    </>
   );
 
   const documentsContent = (
@@ -413,9 +413,9 @@ export function SetDetail() {
 
   return (
     <>
-      <ListDetailShell title={set.name} titleIcon={<FolderOpen size={20} />} breadcrumb={contextCrumbs}
-        titleBadge={<PlanProgressBadge progress={plan?.own} />}
-        headerAction={headerAction} nav={nav} detail={detail} />
+      <ListDetailShell title={set.name} icon={<FolderOpen size={20} />} breadcrumb={contextCrumbs}
+        badge={<PlanProgressBadge progress={plan?.own} />}
+        actions={headerAction} nav={nav} detail={detail} />
 
       {canSend && (
         <EmailSendDialog open={emailKitOpen} onClose={() => setEmailKitOpen(false)}

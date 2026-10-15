@@ -270,7 +270,7 @@ export function TemplatesPage() {
         {/* Режимы страницы. «Блоки типов» — собранный typeblocks.typ (issue #770): рядом с двумя
             другими библиотеками, потому что шаблон видит все три одинаково — импортом. Только
             чтение, как и системные функции. */}
-        <Tabs id={TABS_ID} variant="segmented" aria-label="Раздел шаблонов" className="shrink-0 whitespace-nowrap"
+        <Tabs id={TABS_ID} variant="segmented" aria-label="Раздел шаблонов" className="max-w-full overflow-x-auto whitespace-nowrap"
           value={mode} onChange={setMode} items={MODES} />
       </>} />
 

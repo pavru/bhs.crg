@@ -10,7 +10,7 @@ import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import { useToast } from '@/shared/ui/Toast';
-import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
+import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import {
   useListRecognitionProfiles, useRecognitionKinds, useCreateRecognitionProfile,
   useUpdateRecognitionProfile, useResetRecognitionProfile, useDeleteRecognitionProfile,
@@ -188,8 +188,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
     <div className="flex flex-col min-h-0 flex-1">
       <DetailHeader
         heading={
-          <span className="flex items-center gap-2">
-            <span>{profile.name}</span>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+            <DetailTitle>{profile.name}</DetailTitle>
             <span className="text-xs font-normal text-fg4">{info.label}</span>
             {profile.isBuiltIn && (
               <span className="text-caption px-1.5 py-0.5 rounded bg-muted text-fg3">встроенный</span>
@@ -405,8 +405,8 @@ export function RecognitionProfilesPage() {
       <ListDetailShell
         title="Профили распознавания"
         subtitle="Параметры к промптам распознавания: какие поля и колонки извлекать из документа"
-        titleIcon={<ScanText size={20} className="text-fg3" />}
-        headerAction={
+        icon={<ScanText size={20} className="text-fg3" />}
+        actions={
           <span className="flex items-center gap-3">
             {/* Причина — текстом рядом, а не подсказкой на кнопке: выключенная кнопка событий
                 мыши не получает, и подсказка на ней не показалась бы никогда. */}

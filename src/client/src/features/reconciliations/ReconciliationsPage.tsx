@@ -369,8 +369,8 @@ export function ReconciliationsPage() {
       <ListDetailShell
         title="Сверка"
         subtitle="Сопоставление источников по доменному ключу"
-        headerAction={
-          <div className="flex items-center gap-2">
+        actions={
+          <>
             {sets.length > 0 && (
               <>
                 <Select value={reportSetId || sets[0].id} onValueChange={setReportSetId}
@@ -385,7 +385,7 @@ export function ReconciliationsPage() {
             {canEdit && (
               <Button variant="filled" onClick={() => setEditing('new')}><Plus size={14} /> Создать</Button>
             )}
-          </div>
+          </>
         }
         nav={nav}
         detail={detail}

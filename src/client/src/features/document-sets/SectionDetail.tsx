@@ -136,7 +136,7 @@ export function SectionDetail() {
   );
 
   const headerAction = (
-    <div className="flex items-center gap-2 shrink-0">
+    <>
       {canAddSet && <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
       {canEdit && (
         <RowActionsMenu ariaLabel="Действия раздела" actions={[
@@ -144,7 +144,7 @@ export function SectionDetail() {
           { key: 'delete', label: 'Удалить раздел', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
         ]} />
       )}
-    </div>
+    </>
   );
 
   const detail = (
@@ -161,9 +161,9 @@ export function SectionDetail() {
 
   return (
     <>
-      <ListDetailShell title={section.name} titleIcon={<Layers size={20} />} breadcrumb={contextCrumbs}
-        titleBadge={<PlanProgressBadge progress={plan?.own} />}
-        headerAction={headerAction} nav={nav} detail={detail} />
+      <ListDetailShell title={section.name} icon={<Layers size={20} />} breadcrumb={contextCrumbs}
+        badge={<PlanProgressBadge progress={plan?.own} />}
+        actions={headerAction} nav={nav} detail={detail} />
 
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
         footer={

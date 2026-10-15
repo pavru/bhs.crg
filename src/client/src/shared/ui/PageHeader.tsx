@@ -5,20 +5,24 @@ import type { ReactNode } from 'react';
  * действия, подзаголовок и счётчик каждый экран раскладывал сам.
  *
  * - `title` — строка или узел. Узел нужен, когда заголовок сам по себе контрол (выбор представления
- *   таблицы): он всё равно остаётся внутри `h1`.
+ *   таблицы): он всё равно остаётся внутри `h1`. Длинная строка обрезается, полностью — в подсказке.
  * - `icon` — ведущий узел слева: значок раздела или кнопка «назад».
  * - `badge` — показатель состояния рядом с заголовком (готовность по плану): не в `actions`, иначе
  *   цифра среди кнопок читается как ещё одна кнопка.
  * - `subtitle` — одна-две строки пояснения. Длинный текст о том, как устроен раздел, — содержимое
  *   страницы, а не её шапка.
- * - `actions` — справа; filled-кнопка среди них не больше одной (правило `Button`). На узком экране
- *   уходят под заголовок, а не сжимают его.
+ * - `actions` — справа; filled-кнопка среди них не больше одной (правило `Button`).
  * - `bar` — шапка полосой над разделённой страницей (list-detail, редакторы): поля и черта снизу. Без
  *   него шапка стоит в потоке содержимого, и отступ вокруг задаёт страница.
  *
- * Шапку выбранного в list-detail объекта рисует `DetailHeader` (заголовок `h2`), не этот компонент.
+ * Узкое место — по ширине САМОЙ шапки (container query), а не окна: рядом бывает боковое меню, и
+ * окно в 1280 px оставляет странице меньше тысячи. Пока места хватает, заголовок и действия стоят в
+ * ряд: длинный заголовок обрезается, лишние действия переносятся внутри своей группы справа. Уже
+ * `@2xl` (672 px) — действия уходят строкой под заголовок.
+ *
+ * Шапку выбранного в list-detail объекта рисует `DetailHeader` с `DetailTitle` (`h2`), не этот компонент.
  */
-export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, bar = false, className = '' }: {
+export interface PageHeaderProps {
   title: ReactNode;
   subtitle?: ReactNode;
   icon?: ReactNode;
@@ -26,24 +30,30 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
   /** Хлебные крошки над заголовком (страницы уровней: стройка, раздел, комплект). */
   breadcrumb?: ReactNode;
   actions?: ReactNode;
+}
+
+export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, bar = false, className = '' }: PageHeaderProps & {
   bar?: boolean;
   className?: string;
 }) {
+  const plain = typeof title === 'string';
   return (
-    <header className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 ` +
-      `${bar ? 'shrink-0 px-6 py-3 border-b border-stroke ' : ''}${className}`}>
-      <div className="min-w-0">
-        {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-          {icon && <span className="flex text-fg3 shrink-0">{icon}</span>}
-          <h1 className={`text-xl font-semibold text-fg1 min-w-0 max-w-full ${typeof title === 'string' ? 'truncate' : ''}`}>
-            {title}
-          </h1>
-          {badge}
+    <header className={`@container ${bar ? 'shrink-0 px-6 py-3 border-b border-stroke ' : ''}${className}`}>
+      <div className="flex flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:justify-between @2xl:gap-4">
+        <div className="min-w-0 @2xl:flex-1 @2xl:min-w-48">
+          {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
+          <div className="flex items-center gap-2 min-w-0">
+            {icon && <span className="flex text-fg3 shrink-0">{icon}</span>}
+            <h1 className={`text-xl font-semibold text-fg1 min-w-0 ${plain ? 'truncate' : ''}`}
+              title={plain ? title : undefined}>
+              {title}
+            </h1>
+            {badge && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">{badge}</div>}
+          </div>
+          {subtitle && <div className="text-xs text-fg3 mt-0.5">{subtitle}</div>}
         </div>
-        {subtitle && <div className="text-xs text-fg3 mt-0.5">{subtitle}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 min-w-0 @2xl:justify-end">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );
 }
