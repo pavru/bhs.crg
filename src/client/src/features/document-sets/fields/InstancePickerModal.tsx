@@ -84,7 +84,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                 const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
                 return (
                   <button key={inst.id} onClick={() => selectInstance(inst)}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-indigo-50 transition-colors">
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
                     <FileText size={14} className="text-fg4 shrink-0" />
                     <span className="flex-1 min-w-0">
                       <span className="block font-medium text-fg1 truncate">

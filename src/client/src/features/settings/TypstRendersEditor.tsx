@@ -185,7 +185,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
 
         {draft.fnName && (
           <p className="text-xs text-fg4 shrink-0">
-            Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
+            Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
             {' · '}
             Вызов из шаблона:{' '}
             <code className="font-mono text-brand">#{typeCode || 'КодТипа'}.{draft.fnName}(data.КлючПоля)</code>
@@ -278,7 +278,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
             </button>
             {r.fnName && (
               <p className="text-xs text-fg4">
-                Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
+                Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
                 {' · '}
                 Вызов: <code className="font-mono text-brand">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>
               </p>

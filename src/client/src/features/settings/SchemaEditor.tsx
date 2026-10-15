@@ -319,7 +319,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
       {!showJson && applicableTypeTags.length > 0 && (
         <SectionCard icon={<Cpu size={15} />} title="Функциональные тэги типа"
-          count={docTypeTags.length} countClass="text-purple-600"
+          count={docTypeTags.length} countClass="text-tertiary"
           open={showTypeTags} onToggle={() => setShowTypeTags(v => !v)}>
           <div className="flex flex-wrap gap-1.5 pt-2">
             {applicableTypeTags.map(t => {
@@ -341,7 +341,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
                   onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
                   className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
                     blocked ? 'border-stroke text-fg4/50 opacity-60 cursor-not-allowed'
-                      : on ? 'bg-purple-500/15 border-purple-400 text-purple-700'
+                      : on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle'
                         : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
                   }`}
                 >
@@ -398,7 +398,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
       {!showJson && (docType.kind === 'Composite' || docType.kind === 'Document') && (
         <SectionCard icon={<Code size={15} />} title="Typst-блоки (варианты отображения)"
-          count={typstRenders.length} countClass="text-purple-600"
+          count={typstRenders.length} countClass="text-tertiary"
           open={showTypstRenders} onToggle={() => setShowTypstRenders(v => !v)}>
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between">

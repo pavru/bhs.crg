@@ -79,7 +79,7 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
     <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base group">
       {asset.kind === 'Image'
         ? <ImageIcon size={13} className="text-brand shrink-0" />
-        : <FontIcon size={13} className="text-purple-500 shrink-0" />}
+        : <FontIcon size={13} className="text-tertiary shrink-0" />}
       <AssetReference asset={asset} />
       {error && <span className="text-xs text-danger shrink-0">{error}</span>}
       <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}

@@ -331,12 +331,12 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </span>
           )}
           {template.isDefault ? (
-            <span className="text-xs text-yellow-600 flex items-center gap-1">
-              <Star size={11} className="fill-yellow-400 text-yellow-400" /> по умолчанию
+            <span className="text-xs text-warning flex items-center gap-1">
+              <Star size={11} className="fill-warning text-warning" /> по умолчанию
             </span>
           ) : (
             <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
-              className="flex items-center gap-1 px-2 py-1 text-xs border border-yellow-300 text-warning hover:bg-yellow-50 rounded disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1 px-2 py-1 text-xs border border-warning-border text-warning hover:bg-warning-subtle rounded disabled:opacity-50 transition-colors">
               <Star size={11} /> Сделать по умолчанию
             </button>
           )}
