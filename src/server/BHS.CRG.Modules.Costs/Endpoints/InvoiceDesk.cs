@@ -109,7 +109,10 @@ public sealed class InvoiceDesk(
             {
                 var stored = await db.InvoiceAllocations.AsNoTracking()
                     .Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
-                before = PaymentPosting.Before(invoice, stored);
+                // Деньги долей до правки — по строкам, как они лежат сейчас: правка их ещё не тронула.
+                var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
+                before = PaymentPosting.Before(invoice, stored,
+                    PaymentPosting.Balance(lines, stored, invoice.Total, await ToleranceAsync(ct)));
 
                 if (ClosedPeriodGuard.LockOf(invoice, stored, boundaries) is { } found)
                 {

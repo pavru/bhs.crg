@@ -1,5 +1,10 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Application.Periods;
+using BHS.CRG.Modules.Costs.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Contour = BHS.CRG.Domain.Periods.PeriodContour;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -132,6 +137,97 @@ public partial class InvoicePaymentTests
         foreach (var section in sections)
             Assert.Equal(Amount(section), await SectionRegistryAsync(admin,
                 On(name), Section("eq", section.GetProperty("registry").GetString()!), Period(now)));
+    }
+
+    /// <summary>
+    /// <b>Смена раздела той же стройки сохраняет учётный день</b> (issue #1341): стройка та же, и деньги
+    /// не уходят из её месяца в другой. У незапертого счёта правило заметно, когда день доли сдвинуло
+    /// закрытие, которое потом отменили: прежде смена раздела (и раздел, поделённый на два) возвращала
+    /// деньги в день платежа, теперь они остаются на сдвинутом дне. Другая стройка, как и прежде,
+    /// получает день по правилу оплаты. Статьи вне строек — следующий тест.
+    /// </summary>
+    [Fact]
+    public async Task Смена_раздела_сохраняет_учётный_день_а_смена_стройки_пересчитывает()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (a, of) = await SiteAsync("Разделы день", "р1", "р2");
+        var (b, _) = await SiteAsync("Разделы другая");
+
+        var invoice = await CreateAsync(admin, complete: true);
+        var view = await LinesAsync(admin, invoice, [Line(cable, 100, 400)]);
+        await AllocateAsync(admin, invoice, LineId(view, 1), [Part(a, quantity: 100, section: of[0])]);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 40_000m) }));
+
+        // Платёж — в закрытый день стройки: доля ушла в первый открытый. Закрытие потом отменили.
+        var paidOn = today.AddDays(-15);
+        await CloseAsync(a, today.AddDays(-5));
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        Assert.Equal(today.AddDays(-4), (await DatesAsync(invoice))[a]);
+        await ReopenAsync(a, today.AddDays(-5));
+
+        await AllocateAsync(admin, invoice, LineId(view, 1), [Part(a, quantity: 100, section: of[1])]);
+        Assert.Equal(new DateOnly?[] { today.AddDays(-4) }, await DaysAsync(invoice));
+
+        // Разделили на два раздела — у обоих прежний день.
+        await AllocateAsync(admin, invoice, LineId(view, 1),
+            [Part(a, quantity: 60, section: of[0]), Part(a, quantity: 40, section: of[1])]);
+        Assert.Equal(new DateOnly?[] { today.AddDays(-4), today.AddDays(-4) }, await DaysAsync(invoice));
+
+        await AllocateAsync(admin, invoice, LineId(view, 1), [Part(b, quantity: 100)]);
+        Assert.Equal(paidOn, (await DatesAsync(invoice))[b]);
+    }
+
+    /// <summary>
+    /// То же у статей вне строек: их контур — компания, и перенос «Офис» → «Склад» день сохраняет
+    /// (issue #1341). Прежде новая статья получала день по правилу оплаты.
+    /// </summary>
+    [Fact]
+    public async Task Перенос_со_статьи_на_статью_сохраняет_учётный_день()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (office, _) = await ArticleAsync(admin, "Офис день");
+        var (stock, _) = await ArticleAsync(admin, "Склад день");
+
+        var invoice = await CreateAsync(admin, complete: true);
+        var view = await LinesAsync(admin, invoice, [Line(cable, 100, 400)]);
+        await AllocateAsync(admin, invoice, LineId(view, 1), [ArticlePart(office, quantity: 100)]);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 40_000m) }));
+
+        // Платёж — в закрытый день компании: доля ушла в первый открытый. Закрытие потом отменили.
+        var paidOn = today.AddDays(-15);
+        await CloseCompanyAsync(today.AddDays(-5));
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        Assert.Equal(new DateOnly?[] { today.AddDays(-4) }, await DaysAsync(invoice));
+        await ReopenCompanyAsync(today.AddDays(-5));
+
+        await AllocateAsync(admin, invoice, LineId(view, 1), [ArticlePart(stock, quantity: 100)]);
+        Assert.Equal(new DateOnly?[] { today.AddDays(-4) }, await DaysAsync(invoice));
+    }
+
+    private async Task CloseCompanyAsync(DateOnly through)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
+            .CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
+    }
+
+    private async Task ReopenCompanyAsync(DateOnly seen)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
+            .ReopenAsync(new ReopenPeriod(Contour.Company, seen, "для теста"));
+    }
+
+    /// <summary>Учётные дни всех долей счёта — у одной стройки их бывает несколько, по разделам.</summary>
+    private async Task<DateOnly?[]> DaysAsync(Guid invoice)
+    {
+        using var scope = host.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<CostsDbContext>().InvoiceAllocations.AsNoTracking()
+            .Where(p => p.InvoiceId == invoice).Select(p => p.AccountingOn).ToArrayAsync();
     }
 
     private static async Task<JsonElement> SectionTableAsync(HttpClient client, string columns, params object[] conditions)

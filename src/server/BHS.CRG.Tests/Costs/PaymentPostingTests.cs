@@ -144,14 +144,13 @@ public class PaymentPostingTests
 
     /// <summary>
     /// Правка разноски оплаченного счёта: та же строка и та же цель дату сохраняют, даже если период с
-    /// тех пор закрыли и «по правилу» дата была бы другой; новая цель получает дату по правилу.
+    /// тех пор закрыли и «по правилу» дата была бы другой; другая стройка получает дату по правилу.
     /// </summary>
     [Fact]
     public void При_правке_дата_сохраняется_по_значению_строки_и_цели()
     {
-        var kept = new PostedBefore(
-            new Dictionary<(Guid?, AllocationTarget), DateOnly> { [(First.Id, AllocationTarget.Site(SiteB))] = D(9, 15) },
-            Remainder: D(9, 15));
+        var kept = Kept(100_000m, (Part(First, 1, AllocationTarget.Site(SiteB), quantity: 100), D(9, 15)))
+            with { Remainder = D(9, 15) };
 
         // Часть та же по идентификатору, но цель у неё уже другая — построчная разноска правит на месте.
         InvoiceAllocation[] parts =
@@ -167,6 +166,112 @@ public class PaymentPostingTests
         Assert.Equal(D(10, 1), plan.Shares.Single(s => s.Target.ConstructionId == SiteA).AccountingOn);
         Assert.Equal(D(9, 15), plan.Remainder!.AccountingOn);
     }
+
+    /// <summary>
+    /// Смена раздела той же стройки дня не двигает (issue #1341): контур тот же, и деньги не уходят из
+    /// закрытого месяца стройки в следующий. Разделили раздел на два — у обоих прежний день.
+    /// </summary>
+    [Fact]
+    public void Перенос_между_разделами_одной_стройки_сохраняет_день()
+    {
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid();
+        var kept = Kept(40_000m, (Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 100), D(9, 15)));
+
+        // Стройка А закрыта по 30.09 — «по правилу» новая доля легла бы 01.10.
+        InvoiceAllocation[] moved = [Part(First, 1, AllocationTarget.Site(SiteA, r2), quantity: 100)];
+        Assert.Equal(D(9, 15), Day(moved, kept, AllocationTarget.Site(SiteA, r2)));
+
+        // Раздел без раздела — тоже та же стройка.
+        InvoiceAllocation[] whole = [Part(First, 1, AllocationTarget.Site(SiteA), quantity: 100)];
+        Assert.Equal(D(9, 15), Day(whole, kept, AllocationTarget.Site(SiteA)));
+
+        InvoiceAllocation[] split =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 60),
+            Part(First, 2, AllocationTarget.Site(SiteA, r2), quantity: 40),
+        ];
+        Assert.Equal(D(9, 15), Day(split, kept, AllocationTarget.Site(SiteA, r2)));
+    }
+
+    /// <summary>
+    /// День новая доля берёт только у прежней доли той же строки и того же контура, ОТДАВШЕЙ деньги (ревью
+    /// PR #1342): не у соседа, который остался как был, и не у доли другой строки. Отдавших несколько —
+    /// позднейший день. Стройка А закрыта по 30.09: «по правилу» новая доля на А легла бы 01.10.
+    /// </summary>
+    [Fact]
+    public void Новая_доля_берёт_день_только_у_доли_отдавшей_деньги()
+    {
+        Guid r1 = Guid.NewGuid(), r2 = Guid.NewGuid(), r3 = Guid.NewGuid();
+
+        // «р1» поделили на «р1» и «р3», «р2» не трогали: у «р3» день «р1», а не позднейший «р2».
+        var two = Kept(40_000m,
+            (Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 50), D(9, 15)),
+            (Part(First, 2, AllocationTarget.Site(SiteA, r2), quantity: 50), D(10, 2)));
+        InvoiceAllocation[] carved =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 25),
+            Part(First, 2, AllocationTarget.Site(SiteA, r2), quantity: 50),
+            Part(First, 3, AllocationTarget.Site(SiteA, r3), quantity: 25),
+        ];
+        Assert.Equal(D(9, 15), Day(carved, two, AllocationTarget.Site(SiteA, r3)));
+
+        // Оба раздела свели в «р3» — отдали оба, день позднейший.
+        Assert.Equal(D(10, 2), Day([Part(First, 1, AllocationTarget.Site(SiteA, r3), quantity: 100)], two,
+            AllocationTarget.Site(SiteA, r3)));
+
+        // Доля пришла в новый раздел А со стройки Б: «р1» осталась как была и дня не отдаёт — деньги Б не
+        // ложатся в прошлый месяц А, день по правилу.
+        var mixed = Kept(40_000m,
+            (Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 50), D(9, 15)),
+            (Part(First, 2, AllocationTarget.Site(SiteB), quantity: 50), D(9, 15)));
+        InvoiceAllocation[] arrived =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteA, r1), quantity: 50),
+            Part(First, 2, AllocationTarget.Site(SiteA, r2), quantity: 50),
+        ];
+        Assert.Equal(D(10, 1), Day(arrived, mixed, AllocationTarget.Site(SiteA, r2)));
+
+        // Чужая строка дня не отдаёт: стройку Б первая строка получила впервые — день по правилу (Б открыта).
+        var lines = Kept(100_000m,
+            (Part(First, 1, AllocationTarget.Site(SiteA), quantity: 100), D(10, 1)),
+            (Part(Second, 1, AllocationTarget.Site(SiteB, r1), amount: 60_000), D(9, 10)));
+        InvoiceAllocation[] across =
+        [
+            Part(First, 1, AllocationTarget.Site(SiteB), quantity: 100),
+            Part(Second, 1, AllocationTarget.Site(SiteB, r1), amount: 60_000),
+        ];
+        Assert.Equal(D(9, 15), Day(across, lines, AllocationTarget.Site(SiteB), total: 100_000m));
+    }
+
+    /// <summary>
+    /// Статьи вне строек — контур компании: «Офис» → «Склад» день сохраняет; стройка → статья — новый день.
+    /// </summary>
+    [Fact]
+    public void Статья_на_статью_сохраняет_день_а_стройка_на_статью_нет()
+    {
+        var office = Guid.NewGuid();
+        var article = Kept(60_000m, (Part(Second, 1, AllocationTarget.Article(office), amount: 60_000), D(9, 12)));
+        Assert.Equal(D(9, 12), Day([Part(Second, 1, AllocationTarget.Article(Stock), amount: 60_000)], article,
+            AllocationTarget.Article(Stock), total: 60_000m));
+
+        var site = Kept(60_000m, (Part(Second, 1, AllocationTarget.Site(SiteB), amount: 60_000), D(9, 12)));
+        Assert.Equal(D(9, 15), Day([Part(Second, 1, AllocationTarget.Article(Stock), amount: 60_000)], site,
+            AllocationTarget.Article(Stock), total: 60_000m));
+    }
+
+    /// <summary>Снимок до правки — как его снимает запись: доли с записанными днями и их деньги.</summary>
+    private static PostedBefore Kept(decimal total, params (InvoiceAllocation Part, DateOnly Day)[] posted)
+    {
+        foreach (var (part, day) in posted) part.Post(day);
+        InvoiceAllocation[] parts = [.. posted.Select(p => p.Part)];
+        return PaymentPosting.Before(Invoice(total), parts, PaymentPosting.Balance([First, Second], parts, total, Rouble));
+    }
+
+    /// <summary>День доли на цель после правки — оплата 15.09, границы <see cref="Closed" />.</summary>
+    private static DateOnly Day(InvoiceAllocation[] parts, PostedBefore kept, AllocationTarget target,
+        decimal total = 40_000m) =>
+        PaymentPosting.Plan(D(9, 15), total, [First, Second], parts, kept, Closed, Rouble)
+            .Shares.Single(s => s.Target == target).AccountingOn;
 
     [Fact]
     public void Отказ_оплаты_без_суммы_и_при_расхождении_сверх_допуска()
