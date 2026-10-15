@@ -32,9 +32,6 @@ const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 // Бухгалтер — оплата и исправление счетов (E2, issue #1100: с правкой счетов и разноской). Под ним прогоны
 // проверяют оплату и дерево строек без модуля ИД.
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
-// Руководитель — чтение всего БЕЗ правки (F2, issue #1086): под ним прогоны проверяют, что счёт и матрица
-// разноски открываются только для чтения. Раньше эту роль играл бухгалтер — пока не получил правку (#1100).
-const READER_EMAIL = process.env.SMOKE_READER_EMAIL || 'ruk@bhs.local';
 
 let token = null;
 
@@ -494,7 +491,6 @@ async function main() {
   await ensureAdmin();
   await ensureUser();
   await ensureUser(ACCOUNTANT_EMAIL, 'Анна Бухгалтерова', 'Accountant');
-  await ensureUser(READER_EMAIL, 'Роман Руководителев', 'Executive');
   const constructionId = await ensureConstruction();
   const primitiveTypeId = await ensurePrimitiveType();
   await ensureEnumType();
