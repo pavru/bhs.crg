@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
 import { CheckCircle2, AlertTriangle, ChevronRight, ChevronDown, Loader2, Trash2, Wand2 } from 'lucide-react';
 import { useAuditDocumentType, useApplyAuditFixes, type AuditFix } from '@/shared/api/documentTypes';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Отчёт аудита типа + применение исправлений (issue #348/#350). Группировка по категории → по
@@ -157,12 +158,11 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                 {canRename && (
                                   <>
                                     <span className="text-fg4 text-xs">или переименовать в</span>
-                                    <select value={renameTarget[k] ?? ''} disabled={applyFixes.isPending}
-                                      onChange={e => setRenameTarget(t => ({ ...t, [k]: e.target.value }))}
-                                      className="text-xs border border-stroke rounded px-1.5 py-1 bg-surface text-fg1">
-                                      <option value="">поле схемы…</option>
-                                      {schemaFieldKeys.map(f => <option key={f} value={f}>{f}</option>)}
-                                    </select>
+                                    <Select size="sm" className="w-auto min-w-36" aria-label={`Переименовать «${k}» в поле схемы`}
+                                      value={renameTarget[k] ?? ''} disabled={applyFixes.isPending} placeholder="поле схемы…"
+                                      onValueChange={v => setRenameTarget(t => ({ ...t, [k]: v }))}>
+                                      {schemaFieldKeys.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                                    </Select>
                                     <Button variant="text" size="sm" disabled={!renameTarget[k] || applyFixes.isPending}
                                       onClick={() => apply(row, 'rename', renameTarget[k])}>
                                       Переименовать

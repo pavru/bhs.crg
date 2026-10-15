@@ -43,8 +43,18 @@ export interface SelectProps {
    *  В слое формы (задан `label`) — только звёздочка при подписи и `aria-required`, см. ниже. */
   required?: boolean;
   name?: string;
-  /** Класс триггера (например ширина). */
+  /** Класс триггера (например ширина). Своя ширина (`w-…`) заменяет умолчание `w-full`, а не
+   *  спорит с ним: какой из двух классов победит, решал бы порядок правил в CSS, а не в строке. */
   className?: string;
+  /** Высота слоя обвязки: `md` — 36 px (шапки, фильтры), `sm` — 28 px и мелкий текст (строки
+   *  плотных таблиц и списков, где рядом стоят поля `text-xs`). В слое формы не действует. */
+  size?: 'md' | 'sm';
+  /**
+   * Пункт «значения нет» первым в списке: «— не выбрано —», «без итога», «наследуется». Его выбор
+   * отдаёт пустую строку. Нужен потому, что Radix не принимает пустую строку значением пункта, а
+   * сбросить выбор placeholder не умеет — он лишь показывает, что выбора нет.
+   */
+  emptyItem?: ReactNode;
   /** Доступная подпись, если рядом нет <label>. */
   'aria-label'?: string;
   /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). */
@@ -67,8 +77,8 @@ export interface SelectProps {
 }
 
 const TRIGGER =
-  'inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-md border border-stroke-strong ' +
-  'bg-surface text-sm text-fg1 transition-colors data-[placeholder]:text-fg4 ' +
+  'inline-flex items-center justify-between gap-2 rounded-md border border-stroke-strong ' +
+  'bg-surface text-fg1 transition-colors data-[placeholder]:text-fg4 ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:ring-2 ' +
   'data-[state=open]:ring-brand disabled:opacity-50 disabled:pointer-events-none';
 
@@ -80,8 +90,14 @@ const FRAMED_TRIGGER =
   'text-sm text-fg1 data-[placeholder]:text-fg4 outline-none ' +
   'disabled:opacity-50 disabled:pointer-events-none';
 
+const SIZE = { md: 'h-9 px-3 text-sm', sm: 'h-7 px-2 gap-1 text-xs' } as const;
+
+/** Пустая строка — «значения нет» и для Radix (placeholder), и для вызывающего кода; пункту
+ *  «значения нет» нужно своё непустое значение, которое наружу не выходит. */
+const EMPTY = '∅';
+
 export function Select({
-  value, onValueChange, placeholder, disabled, required, name, className = '',
+  value, onValueChange, placeholder, disabled, required, name, className = '', size = 'md', emptyItem,
   label, invalid, error, hint, containerClassName = '', stayOpenOn, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
@@ -98,14 +114,16 @@ export function Select({
   // Обязательность в слое формы проверяет само приложение (`isFieldMissing` + «Обязательное поле»),
   // поэтому в Radix не передаём, а доступность закрываем `aria-required` на триггере.
   const control = (
-    <RS.Root value={value ?? ''} disabled={disabled} required={framed ? undefined : required} name={name}
+    <RS.Root value={!value && emptyItem !== undefined ? EMPTY : value ?? ''} disabled={disabled}
+      required={framed ? undefined : required} name={name}
       open={open}
-      onValueChange={next => { staying.current = next === stayOpenOn; onValueChange(next); }}
+      onValueChange={next => { staying.current = next === stayOpenOn; onValueChange(next === EMPTY ? '' : next); }}
       onOpenChange={next => {
         if (!next && staying.current) { staying.current = false; return; }
         setOpen(next);
       }}>
-      <RS.Trigger className={`${framed ? FRAMED_TRIGGER : TRIGGER} ${className}`}
+      <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${className}`
+        : `${TRIGGER} ${SIZE[size]} ${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}`}
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
@@ -119,6 +137,7 @@ export function Select({
         <RS.Content position="popper" sideOffset={4}
           className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-md border border-stroke bg-surface shadow-[var(--f-shadow16)]">
           <RS.Viewport className="p-1">
+            {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}
             {children}
           </RS.Viewport>
         </RS.Content>

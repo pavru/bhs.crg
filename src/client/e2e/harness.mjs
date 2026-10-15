@@ -310,6 +310,17 @@ export async function closeDialog(page) {
   if (!(await gone())) throw new Error('диалог не закрылся ни Esc, ни кнопкой выхода, ни ответом «Закрыть»');
 }
 
+/**
+ * Выбор пункта в `Select` (Radix) — тем же путём, что у человека: щелчок по полю, щелчок по пункту.
+ * `selectOption` здесь не годится: он умеет только нативный `<select>`, а у Radix поле — кнопка с
+ * ролью combobox, список — пункты с ролью option в портале (issue #1353). `trigger` — локатор поля
+ * (обычно `getByLabel` или `getByRole('combobox', { name })`), `name` — подпись пункта целиком.
+ */
+export async function pickOption(trigger, name) {
+  await trigger.click();
+  await trigger.page().getByRole('option', { name, exact: true }).click();
+}
+
 export async function until(probe, { timeout = 10_000, every = 40 } = {}) {
   const deadline = Date.now() + timeout;
   for (;;) {
