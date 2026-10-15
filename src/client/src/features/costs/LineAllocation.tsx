@@ -16,6 +16,7 @@ import {
 } from './allocation';
 import { PlaceSelect } from './PlaceSelect';
 import { missingSection, usePlaces } from './places';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Разноска строки счёта по стройкам (задача F1, issue #1085, ТЗ COST-10, COST-11, COST-13).
@@ -199,7 +200,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                 <td className="py-1 pr-2">
                   {/* Стройка или статья вне строек (F3) — одним выбором двумя группами. */}
                   <PlaceSelect value={{ construction: draft.constructionId || null, section: null, article: draft.articleId || null }}
-                    places={places} label={`Куда, часть ${index + 1}`} disabled={!canEdit} className={FIELD}
+                    places={places} label={`Куда, часть ${index + 1}`} disabled={!canEdit}
                     onChange={place => edit(draft.key, {
                       constructionId: place.construction ?? '', articleId: place.article ?? '', sectionId: '',
                     })} />
@@ -207,15 +208,14 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                 <td className="py-1 pr-2">
                   {/* Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
                       и без своего пункта поле показало бы «вся стройка», а уехал бы удалённый раздел. */}
-                  <select value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
+                  <Select size="sm" value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
                     disabled={!canEdit || !site || (site.sections.length === 0 && !draft.sectionId)}
-                    onChange={e => edit(draft.key, { sectionId: e.target.value })} className={FIELD}>
-                    <option value="">— вся стройка —</option>
+                    onValueChange={sectionId => edit(draft.key, { sectionId })} emptyItem="— вся стройка —">
                     {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
-                      <option value={draft.sectionId}>{missingSection(draft.sectionId, places)}</option>
+                      <SelectItem value={draft.sectionId}>{missingSection(draft.sectionId, places)}</SelectItem>
                     )}
-                    {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                    {site?.sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </Select>
                 </td>
                 <td className="py-1 pr-2">
                   <NumberInput value={draft.value} disabled={!canEdit}
@@ -307,5 +307,3 @@ function remains(rest: { quantity: number | null; amount: number | null }, byQua
   return (byQuantity ? rest.quantity : rest.amount) !== 0;
 }
 
-const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none
-  focus:border-brand disabled:bg-muted disabled:text-fg3`;

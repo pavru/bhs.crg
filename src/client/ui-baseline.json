@@ -26,16 +26,7 @@
     "features/settings/UsersPage.tsx": 1,
     "features/tables/RowBreakdown.tsx": 1
   },
-  "select": {
-    "features/costs/AllocationMatrix.tsx": 1,
-    "features/costs/InvoiceLinesPaste.tsx": 1,
-    "features/costs/IssuedMaterialsDialog.tsx": 1,
-    "features/costs/LineAllocation.tsx": 1,
-    "features/costs/NewNomenclatureStep.tsx": 2,
-    "features/costs/PlaceSelect.tsx": 1,
-    "features/costs/SupplierMatchesDialog.tsx": 1,
-    "features/costs/WaybillForm.tsx": 1
-  },
+  "select": {},
   "h1": {
     "features/auth/AuthCard.tsx": 1,
     "features/catalog/LoginPage.tsx": 1

@@ -1,6 +1,7 @@
 import { withArchiveWord } from '@/shared/ui/archive';
-import { pickNative, useSiteChoices } from '@/shared/siteFilter/siteReveal';
-import { RevealOption, SiteOptions } from '@/shared/siteFilter/SiteOptions';
+import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
+import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { choiceOf, fromChoice, placeName, type Place, type Places } from './places';
 
 /**
@@ -19,14 +20,18 @@ import { choiceOf, fromChoice, placeName, type Place, type Places } from './plac
  * <p>Стройки урезаны фильтром «Избранные стройки» (issue #1219): выход «Показать все стройки» —
  * последним пунктом, после статей. Стоящая неизбранная стройка — группой «Не в избранном», а НЕ веткой
  * потери: потеря значит «нет в справочнике», а эта стройка в нём есть. Статьи не фильтруются.</p>
+ *
+ * <p>Поле стоит в плотных строках разноски — компактный `Select` (issue #1353). `placeholder` —
+ * пункт «значения нет», а не только подсказка: выбрав его, цель снимают.</p>
  */
-export function PlaceSelect({ value, places, label, placeholder = '— выберите —', disabled, className, onChange }: {
+export function PlaceSelect({ value, places, label, placeholder = '— выберите —', disabled, className = 'w-full', onChange }: {
   value: Place;
   places: Places;
   label: string;
   placeholder?: string;
   disabled?: boolean;
-  className: string;
+  /** Ширина поля; оформление — у `Select`. */
+  className?: string;
   onChange: (place: Place) => void;
 }) {
   const current = choiceOf(value);
@@ -40,21 +45,21 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
       : list.some(item => item.id === id) ? null : placeName({ ...value, section: null }, places);
 
   return (
-    <select value={current} aria-label={label} disabled={disabled} className={className}
-      onChange={e => pickNative(e.currentTarget, sites.reveal, choice => onChange(fromChoice(choice)))}>
-      <option value="">{placeholder}</option>
-      {orphan !== null && <option value={current}>{orphan}</option>}
-      <SiteOptions choices={sites} valueOf={site => choiceOf({ construction: site, section: null, article: null })} />
+    <Select size="sm" value={current} aria-label={label} disabled={disabled} className={className}
+      emptyItem={placeholder} stayOpenOn={REVEAL_CHOICE}
+      onValueChange={choice => pickSite(choice, sites.reveal, picked => onChange(fromChoice(picked)))}>
+      {orphan !== null && <SelectItem value={current}>{orphan}</SelectItem>}
+      <SiteSelectItems choices={sites} valueFor={site => choiceOf({ construction: site, section: null, article: null })} />
       {!!articles?.length && (
-        <optgroup label="Вне строек">
+        <SelectGroup label="Вне строек">
           {articles.map(a => (
-            <option key={a.id} value={choiceOf({ construction: null, section: null, article: a.id })}>
+            <SelectItem key={a.id} value={choiceOf({ construction: null, section: null, article: a.id })}>
               {withArchiveWord(a.name, a.archived)}
-            </option>
+            </SelectItem>
           ))}
-        </optgroup>
+        </SelectGroup>
       )}
-      <RevealOption hidden={sites.hidden} />
-    </select>
+      <RevealItem hidden={sites.hidden} />
+    </Select>
   );
 }

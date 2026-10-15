@@ -2,9 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ArrowUpRight, ChartNoAxesColumn } from 'lucide-react';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { Select, SelectItem } from '@/shared/ui/Select';
+import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
-import { revealText } from '@/shared/siteFilter/siteChoices';
 import { useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { apiError } from '@/shared/utils/apiError';
@@ -74,12 +74,8 @@ export function SiteCostsPage() {
               value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value === ALL ? null : value })}>
               <SelectItem value={ALL}>Все стройки</SelectItem>
-              {choices.groups.map(g => (
-                <SelectGroup key={g.label} label={g.label}>
-                  {g.sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                </SelectGroup>
-              ))}
-              {choices.hidden > 0 && <SelectItem value={REVEAL_CHOICE}>{revealText(choices.hidden)}</SelectItem>}
+              <SiteSelectItems choices={choices} />
+              <RevealItem hidden={choices.hidden} />
             </Select>
           </div>
 

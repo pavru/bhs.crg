@@ -17,6 +17,7 @@ import {
 } from './matrix';
 import { PlaceSelect } from './PlaceSelect';
 import { chosen, missingSection, placeOfPart, samePlace, usePlaces, type Places } from './places';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Матрица разноски «строки × объекты» (задача F2, issue #1086, ТЗ COST-6.2, COST-11, COST-12).
@@ -278,22 +279,21 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
     <div className="space-y-1">
       <div className="flex items-center gap-1">
         <PlaceSelect value={target} places={places} label={`Объект ${number}`} placeholder="— объект —"
-          className={FIELD} onChange={onChange} />
+          onChange={onChange} />
         <button type="button" title={`Убрать объект ${number}`} onClick={onRemove}
           className="text-fg4 hover:text-danger p-0.5">
           <Trash2 size={13} />
         </button>
       </div>
       <div className="flex items-center gap-1">
-        <select value={target.section ?? ''} aria-label={`Раздел, объект ${number}`} className={FIELD}
+        <Select size="sm" value={target.section ?? ''} aria-label={`Раздел, объект ${number}`}
           disabled={!site || (site.sections.length === 0 && !target.section)}
-          onChange={e => onChange({ section: e.target.value || null })}>
-          <option value="">— вся стройка —</option>
+          onValueChange={section => onChange({ section: section || null })} emptyItem="— вся стройка —">
           {site && target.section && !site.sections.some(s => s.id === target.section) && (
-            <option value={target.section}>{missingSection(target.section, places)}</option>
+            <SelectItem value={target.section}>{missingSection(target.section, places)}</SelectItem>
           )}
-          {site?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+          {site?.sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+        </Select>
         <NumberInput value={target.percent} unit="%" label={`Процент, объект ${number}`}
           onChange={percent => onChange({ percent })} className="w-16 shrink-0" />
       </div>
@@ -316,5 +316,3 @@ function PendingNote({ view, places }: { view: InvoiceView; places: Places }) {
 const STICKY_LEFT = 'sticky left-0 z-10 bg-surface border-b border-r border-stroke px-2 py-1.5';
 const STICKY_RIGHT = 'sticky right-0 z-10 bg-surface border-b border-l border-stroke px-2 py-1.5';
 
-const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none
-  focus:border-brand disabled:bg-muted disabled:text-fg3`;

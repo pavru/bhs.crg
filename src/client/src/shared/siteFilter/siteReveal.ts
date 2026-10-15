@@ -17,7 +17,7 @@ export interface SiteRevealValue {
 
 export const SiteRevealContext = createContext<SiteRevealValue | null>(null);
 
-/** Значение пункта-выхода в нативном `<select>` и Radix-списке. Стройкой оно не бывает. */
+/** Значение пункта-выхода в списке выбора стройки. Стройкой оно не бывает. */
 export const REVEAL_CHOICE = '__show-all-sites__';
 
 /**
@@ -41,14 +41,9 @@ export function useSiteChoices<T extends SiteEntry>(
 }
 
 /**
- * Обработать выбор в нативном `<select>`: пункт-выход значения не меняет — React вернёт полю
- * прежнее, — а раскрывает форму и открывает список заново. Открыть заново браузер может и не дать
- * (нужна свежая активация): тогда человек откроет его сам, значение при этом цело.
+ * Выбор в списке стройки: пункт-выход значения не меняет, а раскрывает форму. Список при этом
+ * остаётся открытым — его держит `stayOpenOn={REVEAL_CHOICE}` у `Select` (ревью PR #1332).
  */
-export function pickNative(select: HTMLSelectElement, reveal: () => void, change: (value: string) => void) {
-  if (select.value !== REVEAL_CHOICE) { change(select.value); return; }
-  reveal();
-  requestAnimationFrame(() => {
-    try { select.showPicker?.(); } catch { /* без активации браузер откажет — список откроют руками */ }
-  });
+export function pickSite(choice: string, reveal: () => void, change: (value: string) => void) {
+  if (choice === REVEAL_CHOICE) reveal(); else change(choice);
 }

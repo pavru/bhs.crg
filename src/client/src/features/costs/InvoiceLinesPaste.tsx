@@ -6,6 +6,7 @@ import {
   PASTE_ROLES, fromTable, guessRoles, hasHeader, parseTable,
   type LineDraft, type PasteRole,
 } from './invoiceLines';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 /**
  * Вставка строк из буфера (задача C2, issue #1078, ТЗ COST-6.2: «таблица из PDF или Excel»).
@@ -87,15 +88,13 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
                     <tr>
                       {Array.from({ length: width }, (_, column) => (
                         <th key={column} className="p-1 align-top">
-                          <select value={current[column]}
+                          <Select size="sm" className="w-auto" value={current[column]}
                             aria-label={`Колонка ${column + 1}`}
-                            onChange={e => setRoles(next(current, column, e.target.value as PasteRole))}
-                            className="rounded border border-stroke bg-muted px-1 py-0.5 text-caption
-                              text-fg2">
+                            onValueChange={role => setRoles(next(current, column, role as PasteRole))}>
                             {PASTE_ROLES.map(role => (
-                              <option key={role.role} value={role.role}>{role.title}</option>
+                              <SelectItem key={role.role} value={role.role}>{role.title}</SelectItem>
                             ))}
-                          </select>
+                          </Select>
                         </th>
                       ))}
                     </tr>

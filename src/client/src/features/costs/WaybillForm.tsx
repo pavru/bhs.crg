@@ -12,14 +12,15 @@ import {
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { WaybillDeleteMenu } from './WaybillDeleteDialog';
 import { withArchiveWord } from '@/shared/ui/archive';
-import { pickNative, useSiteChoices } from '@/shared/siteFilter/siteReveal';
-import { RevealOption, SiteOptions } from '@/shared/siteFilter/SiteOptions';
+import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
+import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { formatDate } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import {
   emptyLine, headerPayload, isDirty, linesPayload, toDraft, unmatchedCount, unmatchedNote, withoutBlanks,
   type WaybillDraft, type WaybillLineDraft,
 } from './waybills';
+import { Select, SelectItem } from '@/shared/ui/Select';
 
 const input = 'w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg1 outline-none '
   + 'focus:border-brand placeholder:text-fg4 disabled:bg-muted disabled:text-fg3';
@@ -288,14 +289,13 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           <Field label="Получатель — стройка"
             problem={view.constructionLost && orphan ? 'Стройки больше нет — выберите заново'
               : sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список' : undefined}>
-            <select className={input} value={draft.construction} disabled={locked}
-              aria-label="Получатель — стройка"
-              onChange={e => pickNative(e.currentTarget, choices.reveal, construction => edit({ construction }))}>
-              <option value="">не выбрана</option>
-              {orphan && <option value={draft.construction}>{view.constructionName ?? MISSING.construction}</option>}
-              <SiteOptions choices={choices} valueOf={id => id} />
-              <RevealOption hidden={choices.hidden} />
-            </select>
+            <Select value={draft.construction} disabled={locked} aria-label="Получатель — стройка"
+              emptyItem="не выбрана" stayOpenOn={REVEAL_CHOICE}
+              onValueChange={choice => pickSite(choice, choices.reveal, construction => edit({ construction }))}>
+              {orphan && <SelectItem value={draft.construction}>{view.constructionName ?? MISSING.construction}</SelectItem>}
+              <SiteSelectItems choices={choices} />
+              <RevealItem hidden={choices.hidden} />
+            </Select>
           </Field>
           <Field label="Получил">
             <input className={input} value={draft.receivedBy} disabled={locked}
