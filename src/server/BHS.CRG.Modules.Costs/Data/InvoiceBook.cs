@@ -8,6 +8,10 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// <summary>Кто и почему пишет запись: у исправления — причина и номер версии.</summary>
 public sealed record BookAuthor(Guid? UserId, string? Reason = null, int? Version = null);
 
+/// <summary>Что легло в книгу: записи и их значения — открытие, выравнивание и сама запись.</summary>
+/// <param name="Records">Посчитанное проводкой — по нему отметка предпросмотра (<see cref="InvoiceBookPosting.Stamp" />).</param>
+public sealed record BookAppended(IReadOnlyList<InvoiceBookEntry> Entries, IReadOnlyList<BookRecord> Records);
+
 /// <summary>
 /// Запись в книгу проводок счёта — единственная (E2, issue #1100, spec v3.3 п. 1.3). Считает
 /// <see cref="InvoiceBookPosting" />; здесь — то, без чего посчитанное нельзя положить.
@@ -33,10 +37,19 @@ public static class InvoiceBook
     /// <summary>Положить запись в книгу счёта (в контекст; сохраняет вызывающий).</summary>
     /// <param name="boundaries">Границы из замка периода, под которым идёт запись.</param>
     /// <param name="today">Сегодня по часам компании.</param>
-    /// <returns>Записи, легшие в книгу: открытие, выравнивание и сама запись.</returns>
-    public static async Task<IReadOnlyList<InvoiceBookEntry>> AppendAsync(
+    public static Task<BookAppended> AppendAsync(
         CostsDbContext db, Invoice invoice, BookChange change, PeriodBoundaries boundaries, DateOnly today,
-        BookAuthor author, CancellationToken ct)
+        BookAuthor author, CancellationToken ct) =>
+        AppendAsync(db, invoice, _ => change, boundaries, today, author, ct);
+
+    /// <summary>
+    /// То же — с «до», которое вызывающий собирает, уже зная допуск последней записи книги: деньги при
+    /// нём нужны страховке (spec п. 1.3 шаг 2), а прочитать его можно только здесь, под блокировкой строки.
+    /// </summary>
+    /// <param name="change">Что сдвигает запись — по допуску последней записи книги; книги нет — <c>null</c>.</param>
+    public static async Task<BookAppended> AppendAsync(
+        CostsDbContext db, Invoice invoice, Func<decimal?, BookChange> change, PeriodBoundaries boundaries,
+        DateOnly today, BookAuthor author, CancellationToken ct)
     {
         await OpenPeriodWrite.EnsureHeldAsync(db, ct);
         await LockAsync(db, invoice.Id, ct);
@@ -47,7 +60,8 @@ public static class InvoiceBook
                 "Книгу счёта тем временем дописали, и эта правка не записана. Перечитайте счёт и " +
                 "повторите: посчитанная от прежнего «до», она провела бы те же деньги второй раз.");
 
-        var records = InvoiceBookPosting.Post([.. stored.Select(e => e.Record)], change, boundaries, today);
+        var records = InvoiceBookPosting.Post([.. stored.Select(e => e.Record)],
+            change(stored.Count == 0 ? null : stored[^1].Record.Tolerance), boundaries, today);
 
         var entries = new List<InvoiceBookEntry>();
         var seq = invoice.BookSeq;
@@ -63,7 +77,7 @@ public static class InvoiceBook
         }
 
         invoice.RecordBook(seq);
-        return entries;
+        return new BookAppended(entries, records);
     }
 
     /// <summary>Книга счёта, как она лежит, — по порядку записей.</summary>

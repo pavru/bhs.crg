@@ -59,8 +59,10 @@ public sealed record PaymentPostingView(
 
 /// <summary>Оплата в ответе счёта.</summary>
 /// <param name="Refusal">Почему счёт сейчас оплатить нельзя — словами сервера; у оплаченного пусто.</param>
-/// <param name="LockedBy">Чем счёт заперт: «период закрыт по 30.09.2026 у стройки «А»». Признак
-/// запертого — только это поле, а не «оплачен»: оплаченный счёт открытого периода правится.</param>
+/// <param name="LockedBy">Почему счёт требует исправления: «период закрыт по 30.09.2026 у стройки «А»»
+/// или «у него есть исправления закрытого периода» (E2, issue #1100). Признак — только это поле, а не
+/// «оплачен»: оплаченный счёт открытого периода без книги правится как обычно. Счёт с этим полем обычная
+/// правка не меняет — только исправление.</param>
 /// <param name="Periods">Учётные месяцы счёта — «09.2026», по возрастанию.</param>
 public sealed record PaymentView(
     bool Paid,
@@ -82,6 +84,13 @@ public static class PaymentViews
     public static string Month(DateOnly date) => $"{date:MM.yyyy}";
 
     /// <summary>Чем заперт счёт — словами: их показывает форма и ими же отказывает запись.</summary>
+    /// <summary>
+    /// Почему счёт требует исправления — словами. Закрытие называем первым: его можно отменить, и
+    /// человеку важнее знать, ЧЬЁ оно. Только книга — значит, закрытие отменили, а исправления остались.
+    /// </summary>
+    public static string Text(CorrectionNeed need, AllocationPlaces places) =>
+        need.Lock is { } locked ? Text(locked, places) : "у него есть исправления закрытого периода";
+
     public static string Text(PeriodLock locked, AllocationPlaces places) =>
         locked.ConstructionId is { } site
             ? $"период закрыт по {locked.Through:dd.MM.yyyy} у стройки «{places.Site(site)?.Name ?? "удалена"}»"

@@ -48,6 +48,9 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public DbSet<InvoiceBookLine> InvoiceBookLines => Set<InvoiceBookLine>();
 
+    /// <summary>Версии счёта, ушедшие под исправление (E2, issue #1100) — только дописываются.</summary>
+    public DbSet<InvoiceVersion> InvoiceVersions => Set<InvoiceVersion>();
+
     public DbSet<InvoiceRecognition> InvoiceRecognitions => Set<InvoiceRecognition>();
 
     public DbSet<Waybill> Waybills => Set<Waybill>();
@@ -258,6 +261,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         MapAllocations(builder);
         MapWaybills(builder);
         InvoiceBookEntry.Map(builder);
+        InvoiceVersion.Map(builder);
     }
 
     /// <summary>

@@ -4,8 +4,8 @@ using BHS.CRG.Tests.Common;
 namespace BHS.CRG.Tests.Configuration;
 
 /// <summary>
-/// Перепись обращений к книге проводок счёта (E2, issue #1100): книгу пишет одно место —
-/// <c>InvoiceBook</c>.
+/// Перепись обращений к книге проводок счёта и к версиям счёта (E2, issue #1100): книгу пишет одно
+/// место — <c>InvoiceBook</c>, версии — вход исправления связки записи.
 ///
 /// <para><b>От чего это.</b> Запись в книгу обязана три вещи, которых адрес по памяти не сделает:
 /// запереть строку счёта до чтения книги, сверить книгу с документом и подвинуть номер записи у
@@ -28,13 +28,18 @@ public class InvoiceBookInventoryTests
         [$"{Module}/Data/CostsDbContext.cs"] = "объявление наборов",
         [$"{Module}/Data/InvoiceBookEntry.cs"] = "сами сущности и их отображение на таблицы",
         [$"{Module}/CostsReferences.cs"] = "объявление колонок с идентификаторами ядра: запросов нет",
+        [$"{Module}/Data/InvoiceVersion.cs"] = "сама версия и её отображение на таблицу",
+        [$"{Module}/Endpoints/InvoiceDesk.Correction.cs"] =
+            "единственное место записи версий: исправление пишет версию под блокировкой строки счёта, " +
+            "в одной транзакции с книгой; книгу — через InvoiceBook",
     };
 
     // Набор достаётся и мимо имени свойства — Set<InvoiceBookLine>() из любого места контекста (ревью
     // PR #1357); поэтому и обращение по типу.
     private static readonly Regex Book = new(
         @"\bInvoiceBook(Entries|Lines)\b|\binvoice_book_(entries|lines)\b|\bInvoiceBook(Entry|Line)\.Create\(" +
-        @"|\.RecordBook\(|\bSet<InvoiceBook(Entry|Line)>",
+        @"|\.RecordBook\(|\bSet<InvoiceBook(Entry|Line)>" +
+        @"|\bInvoiceVersions\b|\binvoice_versions\b|\bInvoiceVersion\.Create\(|\bSet<InvoiceVersion>",
         RegexOptions.Compiled);
 
     [Fact]

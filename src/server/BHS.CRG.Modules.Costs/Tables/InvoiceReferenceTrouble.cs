@@ -149,8 +149,9 @@ public sealed class InvoiceReferenceTrouble(
     public static IQueryable<Invoice> InWork(IQueryable<Invoice> invoices) =>
         invoices.Where(i => i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected);
 
-    /// <summary>Счета из названных, запертые закрытым периодом, — тем же правилом, каким правку
-    /// запирает форма (<see cref="ClosedPeriodGuard.LockOf" />). Запирается только оплаченный.</summary>
+    /// <summary>Счета из названных, требующие исправления, — тем же правилом, каким правку запирает
+    /// форма (<see cref="ClosedPeriodGuard.NeedOf" />): заперт закрытым периодом или есть книга. Только
+    /// оплаченный.</summary>
     private async Task<IReadOnlySet<Guid>> LockedAsync(IReadOnlySet<Guid> ids, CancellationToken ct)
     {
         if (ids.Count == 0) return new HashSet<Guid>();
@@ -165,7 +166,7 @@ public sealed class InvoiceReferenceTrouble(
             .ToLookup(a => a.InvoiceId);
         var boundaries = await periods.BoundariesAsync(ct);
 
-        return paid.Where(i => ClosedPeriodGuard.LockOf(i, parts[i.Id], boundaries) is not null)
+        return paid.Where(i => ClosedPeriodGuard.NeedOf(i, parts[i.Id], boundaries) is not null)
             .Select(i => i.Id).ToHashSet();
     }
 }

@@ -113,5 +113,10 @@ public static class CostsReferences
             "книга проводок помнит статью, на которую легли деньги; её держит доля разноски, а не история"),
         ModuleReference.Remembering("invoice_book_lines", "supplier_id", ReferenceTarget.Record,
             "книга проводок помнит поставщика счёта на момент записи; его держит сам счёт, а не история"),
+        ModuleReference.Remembering("invoice_versions", "content", target: null,
+            "версия счёта помнит позиции, стройки, статьи и стороны такими, какими они были до исправления; " +
+            "их держат строки и разноска счёта, а не история (E2, issue #1100)"),
+        ModuleReference.Remembering("invoice_versions", "author_id", ReferenceTarget.User,
+            "кто исправил счёт — справочное поле; удаление учётной записи версии не касается"),
     ];
 }

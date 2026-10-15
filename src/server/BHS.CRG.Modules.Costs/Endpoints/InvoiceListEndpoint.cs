@@ -200,15 +200,15 @@ public static class InvoiceListEndpoint
         {
             var seen = await snapshots.OfAsync(drafts, ct);
 
-            // Запертому закрытым периодом перечня нет и в открытом счёте (InvoiceViews): «Разобран» ему
-            // откажет замок. Заперт бывает только оплаченный, и границы спрашиваются только ради них.
+            // Требующему исправления перечня нет и в открытом счёте (InvoiceViews): «Разобран» ему откажет
+            // связка записи. Такой бывает только оплаченный, и границы спрашиваются только ради них.
             var boundaries = drafts.Any(i => i.Payment == InvoicePaymentState.Paid)
                 ? await periods.BoundariesAsync(ct)
                 : null;
 
             return drafts
                 .Where(i => boundaries is null || i.Payment != InvoicePaymentState.Paid
-                    || ClosedPeriodGuard.LockOf(i, seen[i.Id].Parts, boundaries) is null)
+                    || ClosedPeriodGuard.NeedOf(i, seen[i.Id].Parts, boundaries) is null)
                 .ToDictionary(i => i.Id, i => (IReadOnlyList<string>)[.. seen[i.Id].Readiness.Gaps.Select(g => g.Label)]);
         }
         catch (Exception e) when (!required && e is not OperationCanceledException)

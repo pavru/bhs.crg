@@ -47,7 +47,7 @@ public class InvoiceBookTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
             if (version is not null) Assert.Equal(version, db.VersionOf(invoice));
             var entries = await InvoiceBook.AppendAsync(db, invoice, change, boundaries, Today, new BookAuthor(null, "опечатка"), default);
             await db.SaveChangesAsync();
-            return entries;
+            return entries.Entries;
         });
     }
 
@@ -130,6 +130,32 @@ public class InvoiceBookTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         Assert.Contains("55P03", timeout.ToString());
 
         await held.CommitAsync();
+    }
+
+    /// <summary>
+    /// Обычная правка счёта тоже запирает строку счёта — до сверки версии (E2, PR 2, spec v3.3 п. 1.3):
+    /// порядок замков у всех пишущих один, период → строка. Пока строку держит другая транзакция, правка
+    /// ждёт; отпустили — проходит.
+    /// </summary>
+    [Fact]
+    public async Task Обычная_правка_ждёт_блокировку_строки_счёта()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var id = await CreateAsync(client);
+
+        using var scope = host.Services.CreateScope();
+        var holder = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+        var held = await holder.Database.BeginTransactionAsync();
+        await InvoiceBook.LockAsync(holder, id, default);
+
+        var pending = System.Net.Http.Json.HttpClientJsonExtensions.PostAsJsonAsync(
+            client, $"/api/costs/invoices/{id}/confirmed", new { fields = new[] { "Номер" } });
+        await Task.Delay(700);
+        Assert.False(pending.IsCompleted, "Правка прошла, пока строка счёта заперта: связка её не запирает.");
+
+        await held.CommitAsync();
+        await held.DisposeAsync();
+        await OkAsync(await pending);
     }
 
     /// <summary>

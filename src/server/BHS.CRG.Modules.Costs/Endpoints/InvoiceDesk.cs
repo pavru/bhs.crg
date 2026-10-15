@@ -7,8 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
 /// <summary>Счёт под записью: прочитан ПОСЛЕ замка, границы периодов неподвижны до конца транзакции.</summary>
-/// <param name="Locked">Чем счёт заперт — словами; <c>null</c> — не заперт. Запертый счёт досюда доходит
-/// только у пути, который назвал себя разрешённым (приложить скан).</param>
+/// <param name="Locked">Почему счёт требует исправления — словами (<see cref="ClosedPeriodGuard.NeedOf" />);
+/// <c>null</c> — правится как обычно. Такой счёт досюда доходит только у пути, который назвал себя
+/// разрешённым (приложить скан).</param>
 public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, string? Locked);
 
 /// <summary>
@@ -21,15 +22,19 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 /// <see cref="WriteAsync{T}" />, а перепись по исходникам (<c>InvoiceWritePathTests</c>) не даёт писать
 /// счёт мимо неё.</para>
 ///
-/// <para><b>Порядок внутри связки</b> (ревизия Архитектора): замок → чтение счёта → проверка «не
-/// заперт» → правка адреса → учётные даты → фиксация. Счёт читается ПОСЛЕ замка: проверка по
-/// прочитанному до него проверяла бы прошлое. Журнал ядра, удаление файлов и сборка ответа — СНАРУЖИ,
-/// после возврата: журнал пишется соединением ядра и зафиксировался бы раньше модуля.</para>
+/// <para><b>Порядок внутри связки</b> (ревизия Архитектора): замок периода → блокировка строки счёта →
+/// чтение счёта → версия формы → проверка «не требует исправления» → правка адреса → учётные даты →
+/// фиксация. Счёт читается ПОСЛЕ замков: проверка по прочитанному до них проверяла бы прошлое. Журнал
+/// ядра, удаление файлов и сборка ответа — СНАРУЖИ, после возврата: журнал пишется соединением ядра и
+/// зафиксировался бы раньше модуля.</para>
+///
+/// <para>Исправление счёта, которому обычная правка отказывает, — свой вход связки
+/// (<c>InvoiceDesk.Correction.cs</c>): у него другой порядок проверок и своя запись — версия и книга.</para>
 /// </summary>
-public sealed class InvoiceDesk(
+public sealed partial class InvoiceDesk(
     CostsDbContext db, IModuleCatalog catalog, AllocationPlacesSource places, IModulePeriods periods,
     IHttpContextAccessor http, IModuleReferenceTargets targets, IModuleSettings settings,
-    InvoiceSnapshots snapshots)
+    InvoiceSnapshots snapshots, IModuleUser user, IModuleClock clock)
 {
     /// <summary>Заголовок, которым правка называет версию счёта, по которой она собрана.</summary>
     public const string SeenHeader = SeenVersion.Header;
@@ -99,6 +104,10 @@ public sealed class InvoiceDesk(
         Guid id, Func<InvoiceWrite, Task<T>> write, bool seen, bool evenLocked, CancellationToken ct) =>
         db.InOpenPeriodAsync(periods, async boundaries =>
         {
+            // Строка счёта — под блокировкой ДО чтения и сверки версии (E2, spec v3.3 п. 1.3): порядок
+            // замков у всех пишущих один — период, потом строка. Без неё исправление и правка, прочитавшие
+            // одно «до», прошли бы обе: запись в книгу версию строки не двигает до сохранения.
+            await InvoiceBook.LockAsync(db, id, ct);
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
             if (seen) EnsureSeen(InvoiceEndpoints.Label(invoice), db.VersionOf(invoice));
             var paid = invoice.Payment == InvoicePaymentState.Paid;
@@ -114,14 +123,15 @@ public sealed class InvoiceDesk(
                 before = PaymentPosting.Before(invoice, stored,
                     PaymentPosting.Balance(lines, stored, invoice.Total, await ToleranceAsync(ct)));
 
-                if (ClosedPeriodGuard.LockOf(invoice, stored, boundaries) is { } found)
+                if (ClosedPeriodGuard.NeedOf(invoice, stored, boundaries) is { } found)
                 {
                     locked = PaymentViews.Text(found, await places.LoadAsync(ct));
                     if (!evenLocked)
                         throw new ConflictException(
-                            $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Изменить нельзя поля, строки, " +
-                            "разноску и отметку оплаты — счёт оплачен, и его деньги уже вошли в закрытый период. " +
-                            "Чтобы исправить, сначала отмените закрытие периода.");
+                            $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Обычной правкой нельзя изменить " +
+                            "поля, строки, разноску и отметку оплаты — счёт оплачен, и его деньги уже вошли в " +
+                            "закрытый период. Изменить его можно только исправлением: с причиной, новой версией " +
+                            "(право «Исправлять счета закрытого периода»).");
                 }
             }
 
@@ -227,7 +237,10 @@ public sealed class InvoiceDesk(
     /// <para>⚠️ Оплаченный счёт обязан остаться сведённым (решение владельца 04.10.2026): иначе правило
     /// «сумма бьётся со строками» обходилось бы в два шага — оплатить сведённый, потом поправить строку.</para>
     /// </summary>
-    private async Task PostAsync(Invoice invoice, PostedBefore before, PeriodBoundaries boundaries, CancellationToken ct)
+    /// <param name="corrected">Исправление (E2): его итог уже проверило «не хуже, чем было», и требовать
+    /// сведённости здесь значило бы отказать исправлению счёта, который был несведён и до него.</param>
+    private async Task PostAsync(
+        Invoice invoice, PostedBefore before, PeriodBoundaries boundaries, CancellationToken ct, bool corrected = false)
     {
         var parts = await db.InvoiceAllocations.Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
 
@@ -240,7 +253,7 @@ public sealed class InvoiceDesk(
 
         var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
         var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
-        if (PaymentPosting.Refusal(invoice, PaymentPosting.Balance(lines, parts, invoice.Total, tolerance)) is { } why)
+        if (!corrected && PaymentPosting.Refusal(invoice, PaymentPosting.Balance(lines, parts, invoice.Total, tolerance)) is { } why)
             throw new InvalidRequestException(
                 $"{InvoiceEndpoints.Label(invoice)} оплачен, и после этой правки {why}. Оплаченный счёт обязан " +
                 "оставаться сведённым: его сумма уже вошла в затраты. Сначала отмените оплату.");
@@ -324,7 +337,7 @@ public sealed class InvoiceDesk(
             return new PaymentView(false, null, null, null, Unpayable(invoice, balance), null, []);
 
         var boundaries = await periods.BoundariesAsync(ct);
-        var locked = ClosedPeriodGuard.LockOf(invoice, parts, boundaries);
+        var locked = ClosedPeriodGuard.NeedOf(invoice, parts, boundaries);
 
         // Учётные месяцы — те, куда легли ДЕНЬГИ (ревью PR #1191), и той же функцией, что у реестра.
         var months = PaymentPosting.Months(balance, invoice.Total, parts, invoice.RemainderAccountingOn);

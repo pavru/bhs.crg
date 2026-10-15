@@ -154,27 +154,8 @@ public static class InvoiceEndpoints
         var (invoice, changed, reason, dueWas) = await desk.WriteAsync(id, async write =>
         {
             var invoice = write.Invoice;
-            var before = InvoiceRequisites.Merge(invoice);
             var dueWas = (invoice.DueDate, invoice.DueDateManual);
-
-            var (columns, rest) = InvoiceRequisites.Split(body.Requisites, before);
-            // Стороны — прежде охраны: см. создание.
-            await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
-            // Сменили поставщика — отсрочка из его условий (ТЗ COST-9.2), если её не правили той же
-            // записью. До охраны — см. создание.
-            (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
-            await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
-                WithTerms(InvoiceRequisites.Resulting(body.Requisites, before), termed, columns), ct);
-
-            // Подставленная отсрочка названа среди изменённого: журнал и метки о ней знают.
-            var changed = InvoiceRequisites.Changed(before, body.Requisites);
-            if (termed && !changed.Contains(InvoiceRequisites.DeferralKey))
-                changed = [.. changed, InvoiceRequisites.DeferralKey];
-
-            // Правка — всегда человек: метки этот адрес не принимает (отказ выше), то есть фоновому
-            // заполнению сюда дороги нет.
-            invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);
-            invoice.Confirm(changed);
+            var changed = await ApplyRequisitesAsync(invoice, body.Requisites, desk, guard, targets, catalog, rule, ct);
 
             // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
             // при правке строк и разноски. Шапка задевает условие дважды: обязательным полем, которое
@@ -212,6 +193,39 @@ public static class InvoiceEndpoints
                 before: WasParsed, after: $"правка счёта: {reason}", ct: ct);
 
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
+    }
+
+    /// <summary>
+    /// Положить присланную шапку в счёт — без сохранения и без возврата в черновик: их делает звавший.
+    /// Одна функция на правку шапки и на исправление счёта (E2, issue #1100): охрана записи, стороны и
+    /// отсрочка из условий поставщика у исправления те же, что у правки, — второй список проверок однажды
+    /// разошёлся бы с первым.
+    /// </summary>
+    /// <returns>Изменённые поля — для журнала; подставленная отсрочка названа среди них.</returns>
+    internal static async Task<IReadOnlyList<string>> ApplyRequisitesAsync(
+        Invoice invoice, JsonElement requisites, InvoiceDesk desk, IModuleWriteGuard guard,
+        IModuleReferenceTargets targets, IModuleCatalog catalog, InvoiceDueRule rule, CancellationToken ct)
+    {
+        var before = InvoiceRequisites.Merge(invoice);
+        var (columns, rest) = InvoiceRequisites.Split(requisites, before);
+        // Стороны — прежде охраны: см. создание.
+        await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
+        // Сменили поставщика — отсрочка из его условий (ТЗ COST-9.2), если её не правили той же
+        // записью. До охраны — см. создание.
+        (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
+        await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
+            WithTerms(InvoiceRequisites.Resulting(requisites, before), termed, columns), ct);
+
+        // Подставленная отсрочка названа среди изменённого: журнал и метки о ней знают.
+        var changed = InvoiceRequisites.Changed(before, requisites);
+        if (termed && !changed.Contains(InvoiceRequisites.DeferralKey))
+            changed = [.. changed, InvoiceRequisites.DeferralKey];
+
+        // Правка — всегда человек: метки ни правка, ни исправление не принимают, то есть фоновому
+        // заполнению сюда дороги нет.
+        invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);
+        invoice.Confirm(changed);
+        return changed;
     }
 
     /// <summary>

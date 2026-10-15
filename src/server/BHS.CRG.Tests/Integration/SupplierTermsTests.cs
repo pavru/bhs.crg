@@ -197,7 +197,8 @@ public class SupplierTermsTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     [Fact]
     public async Task Условия_ведёт_тот_кто_правит_счета()
     {
-        var (accountant, _) = await SignInAsync("Accountant");
+        // Руководитель читает счета и не правит их. (Бухгалтеру с E2 правка выдана — вместе с исправлением.)
+        var (accountant, _) = await SignInAsync("Executive");
         Assert.Equal(HttpStatusCode.Forbidden, (await accountant.GetAsync("/api/costs/supplier-terms")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(accountant, Guid.NewGuid(), 10, version: null)).StatusCode);
     }

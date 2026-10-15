@@ -297,6 +297,11 @@ public static class PaymentPosting
 /// <param name="ConstructionId">Стройка со своим закрытием; <c>null</c> — закрытие компании.</param>
 public sealed record PeriodLock(Guid? ConstructionId, DateOnly Through);
 
+/// <summary>Почему счёт требует исправления: чьё закрытие его запирает и (или) у него есть книга.</summary>
+/// <param name="Lock">Закрытие, запирающее счёт; <c>null</c> — закрытых дней у счёта нет.</param>
+/// <param name="Book">У счёта есть книга проводок — его уже исправляли (или отменяли оплату запертому).</param>
+public sealed record CorrectionNeed(PeriodLock? Lock, bool Book);
+
 /// <summary>
 /// Закрытый период запирает оплаченный счёт (C5, issue #1082, ТЗ CORE-35).
 ///
@@ -313,6 +318,27 @@ public sealed record PeriodLock(Guid? ConstructionId, DateOnly Through);
 /// </summary>
 public static class ClosedPeriodGuard
 {
+    /// <summary>
+    /// Требует ли счёт исправления (E2, issue #1100, spec v3.3 п. 1.4): оплачен и заперт закрытым
+    /// периодом — ИЛИ оплачен, и у него есть книга проводок. <c>null</c> — правится как обычно.
+    ///
+    /// <para><b>Это, а не <see cref="LockOf" />, спрашивают все пишущие пути и все экраны.</b> Книга не
+    /// исчезает с отменой закрытия (решение владельца 15.10.2026): месяц, исправленный в закрытом
+    /// периоде, остаётся в книге днём исправления, и обычная правка счёта мимо книги разошлась бы с ней
+    /// — следующая запись отказала бы, а взгляд «на момент закрытия» показал бы деньги, которых в счёте
+    /// нет. Поэтому счёт с книгой правится только исправлением, даже когда закрытых дней у него больше нет.</para>
+    ///
+    /// <para>Неоплаченный счёт исправления не требует никогда: денег в периодах у него нет, и с книгой он
+    /// правится свободно (spec п. 1.5).</para>
+    /// </summary>
+    public static CorrectionNeed? NeedOf(Invoice invoice, IEnumerable<InvoiceAllocation> parts, PeriodBoundaries boundaries)
+    {
+        if (invoice.Payment != InvoicePaymentState.Paid) return null;
+
+        var locked = LockOf(invoice, parts, boundaries);
+        return locked is null && invoice.BookSeq == 0 ? null : new CorrectionNeed(locked, invoice.BookSeq > 0);
+    }
+
     public static PeriodLock? LockOf(Invoice invoice, IEnumerable<InvoiceAllocation> parts, PeriodBoundaries boundaries)
     {
         if (invoice.Payment != InvoicePaymentState.Paid) return null;

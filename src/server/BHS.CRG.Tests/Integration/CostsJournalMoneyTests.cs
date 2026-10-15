@@ -227,11 +227,15 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             await OkAsync(await client.SendAsync(removal));
         }
 
+        // Исправление счёта закрытого периода (E2, issue #1100) — своим счётом: счёт с книгой не удаляется и
+        // оплату не отменяет, а главный счёт сценария удаляется последним. Запись называет версию и причину.
+        var corrected = await CorrectedAsync(client, vendor, b, today);
+
         // Удаление — последним (issue #1282): счёт снова черновик без оплаты. Запись о нём называет
         // поставщика и файл — и не называет сумму.
         await OkAsync(await client.DeleteAsync($"/api/costs/invoices/{invoice}"));
 
-        var records = await RecordsOfAsync(invoice, article, spare, organization, matchId, vendor);
+        var records = await RecordsOfAsync(invoice, article, spare, organization, matchId, vendor, corrected);
 
         // Сценарий обязан пройти через каждое объявленное действие: непройденное — вне присмотра.
         var declared = new InvoiceActions().Actions.Select(action => action.Code).Order().ToList();
@@ -312,4 +316,69 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
     }
 
     private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd");
+
+    /// <summary>
+    /// Счёт на одну строку (1 × цена сценария) на стройку, оплачен вчера; стройка закрыта по вчера — и счёт
+    /// исправлен без изменений по существу. Закрытие потом отменяется: оно — состояние всего хоста.
+    /// </summary>
+    private async Task<Guid> CorrectedAsync(HttpClient client, Guid supplier, Guid site, DateOnly today)
+    {
+        var created = await client.PostAsJsonAsync("/api/costs/invoices", new
+        {
+            requisites = new Dictionary<string, object?>
+            {
+                ["Номер"] = "Ж-исправление", ["Дата"] = "2026-09-29", ["Поставщик"] = Reference(supplier), ["Итого"] = Price,
+            },
+        });
+        await OkAsync(created);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var view = await LinesAsync(client, id, [Line(cable, quantity: 1, price: Price, text: "Кабель")]);
+        view = await AllocateAsync(client, id, LineId(view, 1), [Part(site, quantity: 1)]);
+
+        var paidOn = today.AddDays(-1);
+        var preview = await client.PostAsJsonAsync($"/api/costs/invoices/{id}/paid/preview", new { paidOn = Iso(paidOn) });
+        await OkAsync(preview);
+        await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{id}/paid", new
+        {
+            paidOn = Iso(paidOn),
+            seen = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("stamp").GetString(),
+        }));
+
+        using var scope = host.Services.CreateScope();
+        var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
+        var contour = BHS.CRG.Domain.Periods.PeriodContour.Construction(site);
+        await closures.CloseAsync(new ClosePeriod(contour, paidOn.AddDays(-30), paidOn, null, null));
+        try
+        {
+            view = await ReadAsync(client, id);
+            var body = new
+            {
+                reason = "опечатка в наименовании",
+                requisites = view.GetProperty("requisites"),
+                lines = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["id"] = LineId(view, 1).ToString(), ["nomenclature"] = Reference(cable),
+                        ["supplierText"] = "Кабель ВВГ", ["quantity"] = 1, ["price"] = Price,
+                        ["parts"] = new object[] { Part(site, quantity: 1) },
+                    },
+                },
+                document = Array.Empty<object>(),
+            };
+            var shown = await client.PostAsJsonAsync($"/api/costs/invoices/{id}/correction/preview", body);
+            await OkAsync(shown);
+            var stamp = (await shown.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("stamp").GetString();
+            await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{id}/correction", new
+            {
+                body.reason, body.requisites, body.lines, body.document, stamp,
+            }));
+        }
+        finally
+        {
+            await closures.ReopenAsync(new ReopenPeriod(contour, paidOn, "для теста"));
+        }
+
+        return id;
+    }
 }
