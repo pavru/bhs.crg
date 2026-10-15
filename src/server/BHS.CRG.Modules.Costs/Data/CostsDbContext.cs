@@ -43,6 +43,11 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public DbSet<InvoiceAllocation> InvoiceAllocations => Set<InvoiceAllocation>();
 
+    /// <summary>Книга проводок счёта (E2, issue #1100) — только дописывается; пишет её <c>InvoiceBook</c>.</summary>
+    public DbSet<InvoiceBookEntry> InvoiceBookEntries => Set<InvoiceBookEntry>();
+
+    public DbSet<InvoiceBookLine> InvoiceBookLines => Set<InvoiceBookLine>();
+
     public DbSet<InvoiceRecognition> InvoiceRecognitions => Set<InvoiceRecognition>();
 
     public DbSet<Waybill> Waybills => Set<Waybill>();
@@ -186,6 +191,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.PaidAt).HasColumnName("paid_at");
         invoice.Property(i => i.PaidBy).HasColumnName("paid_by");
         invoice.Property(i => i.RemainderAccountingOn).HasColumnName("remainder_accounting_on");
+        invoice.Property(i => i.BookSeq).HasColumnName("book_seq");
 
         // «Оплачен» и дата платежа — одно утверждение в двух колонках, и держит его база: оплаченный
         // счёт без даты не попал бы ни в один период, а дата у неоплаченного — попала бы в затраты.
@@ -251,6 +257,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         Data.SupplierTerms.Map(builder);
         MapAllocations(builder);
         MapWaybills(builder);
+        InvoiceBookEntry.Map(builder);
     }
 
     /// <summary>

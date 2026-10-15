@@ -260,8 +260,12 @@ public static class PaymentPosting
             // самой поздней доли. Возьми снимок колонку — Plan счёл бы остаток появившимся из нуля и дал
             // ему новый день: правка, не тронувшая денег остатка, унесла бы его в другой месяц.
             // Сегодня такой счёт не сведён и расклад по нему не считается — путь откроет исправление (E2).
-            invoice.RemainderAccountingOn
-                ?? (rest is null or 0 ? null : Latest(parts.Select(p => (amounts.GetValueOrDefault(p.Id), p.AccountingOn)))));
+            // ⚠️ Нет остатка — нет и дня, даже записанного (E2, spec v3.3 разд. 3): день у нуля рублей —
+            // «фантом». Сырая колонка победила бы и при нуле, и остаток, появившийся снова, вернулся бы
+            // старым днём, а не днём по правилу оплаты.
+            rest is null or 0
+                ? null
+                : invoice.RemainderAccountingOn ?? Latest(parts.Select(p => (amounts.GetValueOrDefault(p.Id), p.AccountingOn))));
     }
 
     /// <summary>

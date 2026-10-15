@@ -99,5 +99,19 @@ public static class CostsReferences
             "части разноски счетов на этот раздел", Invoice("invoice_id")),
         ModuleReference.Holding("invoice_allocations", "article_id", ReferenceTarget.Record,
             "части разноски счетов на эту статью", Invoice("invoice_id")),
+
+        // Книга проводок счёта (E2, issue #1100) — история: она только дописывается, и держи она стройку,
+        // статью или поставщика, удалить их не дала бы уже никакая правка счёта. Держит запись доля
+        // разноски — пока деньги на ней; книга помнит, куда они легли на момент записи.
+        ModuleReference.Remembering("invoice_book_entries", "author_id", ReferenceTarget.User,
+            "кто сделал запись книги — справочное поле; удаление учётной записи книги не касается"),
+        ModuleReference.Remembering("invoice_book_lines", "construction_id", ReferenceTarget.Construction,
+            "книга проводок помнит стройку, на которую легли деньги; её держит доля разноски, а не история"),
+        ModuleReference.Remembering("invoice_book_lines", "section_id", ReferenceTarget.Section,
+            "книга проводок помнит раздел, на который легли деньги; его держит доля разноски, а не история"),
+        ModuleReference.Remembering("invoice_book_lines", "article_id", ReferenceTarget.Record,
+            "книга проводок помнит статью, на которую легли деньги; её держит доля разноски, а не история"),
+        ModuleReference.Remembering("invoice_book_lines", "supplier_id", ReferenceTarget.Record,
+            "книга проводок помнит поставщика счёта на момент записи; его держит сам счёт, а не история"),
     ];
 }

@@ -86,6 +86,27 @@ public class PeriodClosureInventoryTests
     /// один. Разойдись две константы, запись и закрытие перестали бы видеть друг друга, и не упало
     /// бы ничего; совпади ключ с замком прогона тестов — закрытие в тесте ждало бы весь прогон.
     /// </summary>
+    /// <summary>
+    /// Совещательные замки в коде — только транзакционные (<c>pg_advisory_xact_lock*</c>). Сессионный
+    /// живёт, пока живёт соединение, а соединение возвращается в пул: замок записи в учёт, взятый так,
+    /// остался бы на чужом запросе — и <c>OpenPeriodWrite.EnsureHeldAsync</c>, которая сессионный от
+    /// транзакционного не отличает, ответила бы «держится» вне всякой записи (ревью PR #1357).
+    /// </summary>
+    [Fact]
+    public void Совещательные_замки_только_транзакционные()
+    {
+        var session = new System.Text.RegularExpressions.Regex(@"\bpg_(try_)?advisory_lock(_shared)?\s*\(");
+        var found = Projects.SelectMany(SourceTree.Files)
+            .Where(f => session.IsMatch(File.ReadAllText(f)))
+            .Select(SourceTree.Relative)
+            .ToList();
+
+        Assert.True(found.Count == 0,
+            "Сессионный совещательный замок в коде: " + string.Join(", ", found) + ".\n\nОн переживает " +
+            "транзакцию и уходит с соединением в пул — берите pg_advisory_xact_lock(_shared): он снимается с " +
+            "концом транзакции сам.");
+    }
+
     [Fact]
     public void Ключи_замков_сверены()
     {
