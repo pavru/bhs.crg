@@ -29,7 +29,7 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
         <label className="block space-y-1">
           <span className="text-xs text-fg3">Стройка</span>
           <select value={site} onChange={e => setSite(e.target.value)} aria-label="Стройка"
-            className="w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-primary">
+            className="w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg1 outline-none focus:border-brand">
             <option value="">выберите стройку</option>
             {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -77,8 +77,8 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
                   <tbody>
                     {data.items.map(item => (
                       <tr key={`${item.nomenclatureId}|${item.unit ?? ''}`} className="border-t border-stroke">
-                        <td className="py-1 text-fg">{item.name ?? 'позиция без названия'}</td>
-                        <td className="py-1 text-right tabular-nums text-fg">{formatQuantity(item.quantity)}</td>
+                        <td className="py-1 text-fg1">{item.name ?? 'позиция без названия'}</td>
+                        <td className="py-1 text-right tabular-nums text-fg1">{formatQuantity(item.quantity)}</td>
                         <td className="py-1 pl-2 text-fg3">{item.unit ?? ''}</td>
                         <td className="py-1 text-fg3">
                           {item.first === item.last

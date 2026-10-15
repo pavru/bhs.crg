@@ -104,7 +104,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         {done && <IconButton label="Закрыть" size="sm" onClick={dismissBatch}><X size={14} /></IconButton>}
       </div>
       {!done && (
-        <div className="h-1 rounded bg-surface2 overflow-hidden" aria-hidden>
+        <div className="h-1 rounded bg-muted overflow-hidden" aria-hidden>
           <div className="h-full bg-brand transition-[width]" style={{ width: `${(batch.settled / batch.total) * 100}%` }} />
         </div>
       )}

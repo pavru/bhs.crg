@@ -307,5 +307,5 @@ function remains(rest: { quantity: number | null; amount: number | null }, byQua
   return (byQuantity ? rest.quantity : rest.amount) !== 0;
 }
 
-const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none
-  focus:border-primary disabled:bg-surface2 disabled:text-fg3`;
+const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none
+  focus:border-brand disabled:bg-muted disabled:text-fg3`;

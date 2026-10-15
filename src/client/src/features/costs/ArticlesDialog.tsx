@@ -92,24 +92,24 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }}
             className={FIELD} />
           <button type="button" title="Сохранить название" onClick={() => void rename()}
-            className="text-fg3 hover:text-primary p-1"><Check size={14} /></button>
+            className="text-fg3 hover:text-brand p-1"><Check size={14} /></button>
           <button type="button" title="Отменить" onClick={() => setEditing(null)}
-            className="text-fg3 hover:text-fg p-1"><X size={14} /></button>
+            className="text-fg3 hover:text-fg1 p-1"><X size={14} /></button>
         </>
       ) : (
         <>
           <span className={`flex-1 ${article.archived ? 'text-fg3' : ''}`}>{article.name}</span>
           <button type="button" title={`Переименовать «${article.name}»`}
             onClick={() => setEditing({ id: article.id, name: article.name })}
-            className="text-fg3 hover:text-primary p-1"><Pencil size={14} /></button>
+            className="text-fg3 hover:text-brand p-1"><Pencil size={14} /></button>
           {article.archived ? (
             <button type="button" title={`Вернуть «${article.name}» из архива`} disabled={archive.isPending}
               onClick={() => void setArchived(article, false)}
-              className="text-fg3 hover:text-primary p-1"><ArchiveRestore size={14} /></button>
+              className="text-fg3 hover:text-brand p-1"><ArchiveRestore size={14} /></button>
           ) : (
             <button type="button" title={`В архив «${article.name}»`} disabled={archive.isPending}
               onClick={() => void setArchived(article, true)}
-              className="text-fg3 hover:text-primary p-1"><Archive size={14} /></button>
+              className="text-fg3 hover:text-brand p-1"><Archive size={14} /></button>
           )}
           <button type="button" title={`Удалить «${article.name}»`} onClick={() => setDeleting(article)}
             className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
@@ -158,4 +158,4 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const FIELD = `flex-1 rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg outline-none focus:border-primary`;
+const FIELD = `flex-1 rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none focus:border-brand`;

@@ -107,7 +107,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
 export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
   return (
     <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-lg border
-      border-danger-border bg-danger-subtle px-3 py-2 text-xs text-danger">
+      border-danger/30 bg-danger-subtle px-3 py-2 text-xs text-danger">
       <TriangleAlert size={13} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         Этого счёта больше нет — его удалили, пока он был открыт у вас. Набранное осталось на экране:

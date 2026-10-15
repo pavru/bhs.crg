@@ -21,10 +21,10 @@ import {
   type WaybillDraft, type WaybillLineDraft,
 } from './waybills';
 
-const input = 'w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg outline-none '
-  + 'focus:border-primary placeholder:text-fg4 disabled:bg-surface2 disabled:text-fg3';
-const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none '
-  + 'focus:border-primary placeholder:text-fg4 disabled:bg-surface2 disabled:text-fg3';
+const input = 'w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg1 outline-none '
+  + 'focus:border-brand placeholder:text-fg4 disabled:bg-muted disabled:text-fg3';
+const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none '
+  + 'focus:border-brand placeholder:text-fg4 disabled:bg-muted disabled:text-fg3';
 
 /**
  * Форма расходной накладной (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
@@ -189,7 +189,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
             {view.issuedOn ? ` от ${formatDate(view.issuedOn)}` : ''}
           </h2>
           <span className={`text-xs px-2 py-0.5 rounded-full ${posted
-            ? 'bg-success-subtle text-success' : 'bg-surface2 text-fg2'}`}>
+            ? 'bg-success-subtle text-success' : 'bg-muted text-fg2'}`}>
             {posted ? 'Проведена' : 'Черновик'}
           </span>
           <div className="flex-1" />
@@ -216,7 +216,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         </div>
         {gone && (
           <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-lg border
-            border-danger-border bg-danger-subtle px-3 py-2 text-xs text-danger">
+            border-danger/30 bg-danger-subtle px-3 py-2 text-xs text-danger">
             <TriangleAlert size={13} className="shrink-0 mt-0.5" />
             <p className="flex-1">
               Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
@@ -226,7 +226,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           </div>
         )}
         {outdated && !gone && (
-          <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger-border
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger/30
             bg-danger-subtle px-3 py-2 text-xs text-danger">
             <TriangleAlert size={13} className="shrink-0 mt-0.5" />
             <span className="flex-1">
@@ -350,7 +350,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
                               ? void matchLine(line, null)
                               : editLine(line.key, { nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false, nomenclatureArchived: false })} />
                         ) : (
-                          <span className={line.nomenclatureId ? 'text-fg' : 'text-warning'}>
+                          <span className={line.nomenclatureId ? 'text-fg1' : 'text-warning'}>
                             {line.nomenclatureLost ? LOST.position
                               : line.nomenclatureId
                                 ? withArchiveWord(line.nomenclatureName ?? 'позиция без названия', !!line.nomenclatureArchived)

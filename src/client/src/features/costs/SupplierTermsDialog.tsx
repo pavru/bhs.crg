@@ -116,7 +116,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {terms.isError ? (
-        <div className="rounded-lg border border-danger-border px-3 py-2 text-sm text-danger">
+        <div className="rounded-lg border border-danger/30 px-3 py-2 text-sm text-danger">
           Условия не прочитаны: {apiError(terms.error)} Это не «условий нет».{' '}
           <button type="button" className="underline" onClick={() => void terms.refetch()}>Повторить</button>
         </div>
@@ -154,7 +154,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
                         onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
                         onBlur={() => void change(item)}
                         onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-                        className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg
+                        className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg1
                           ${typeof days !== 'number' ? 'border-danger' : 'border-stroke'}`} />
                     </td>
                     <td className="py-1.5 pr-2 text-fg3 whitespace-nowrap">

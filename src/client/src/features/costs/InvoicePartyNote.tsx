@@ -117,7 +117,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
                   <li key={c.id}>
                     {pick && !c.archived
                       ? (
-                        <button type="button" className="w-full text-left rounded px-2 py-1 hover:bg-surface2"
+                        <button type="button" className="w-full text-left rounded px-2 py-1 hover:bg-muted"
                           onClick={() => { onChoose(c.id); setOpen(false); }}>{body}</button>
                       )
                       : <div className="px-2 py-1">{body}</div>}
@@ -191,7 +191,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
         {refusal && (
-          <div role="alert" className="rounded-lg border border-danger-border bg-danger-subtle px-3 py-2 text-xs text-danger">
+          <div role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-3 py-2 text-xs text-danger">
             <p>Организация не заведена: {refusal}</p>
             <Link to="/common-data" target="_blank" className="underline hover:no-underline">
               Открыть справочник организаций ↗

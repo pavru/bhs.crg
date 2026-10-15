@@ -391,7 +391,7 @@ function Reconciliation({ sums, paper, difference, unsaved, matched }: {
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-stroke
-      bg-surface2 px-3 py-2 text-xs">
+      bg-muted px-3 py-2 text-xs">
       <span className="text-fg2">Строк: <b>{sums.count}</b></span>
 
       {sums.withoutNomenclature > 0 && (
@@ -604,8 +604,8 @@ function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
     <td className="py-1 pr-2">
       <input value={value} aria-label={label} placeholder={placeholder}
         onChange={e => onChange(e.target.value)} onBlur={onBlur}
-        className="w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg
-          outline-none focus:border-primary placeholder:text-fg4" />
+        className="w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1
+          outline-none focus:border-brand placeholder:text-fg4" />
     </td>
   );
 }

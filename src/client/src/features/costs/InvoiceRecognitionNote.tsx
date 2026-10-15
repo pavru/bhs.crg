@@ -154,8 +154,8 @@ function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode 
   return (
     <div role={quiet ? 'status' : 'alert'}
       className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${quiet
-        ? 'border-stroke bg-surface2 text-fg2'
-        : 'border-danger-border bg-danger-subtle text-danger'}`}>
+        ? 'border-stroke bg-muted text-fg2'
+        : 'border-danger/30 bg-danger-subtle text-danger'}`}>
       {quiet ? <ScanLine size={14} className="shrink-0 mt-0.5 text-fg3" /> : <TriangleAlert size={14} className="shrink-0 mt-0.5" />}
       {children}
     </div>

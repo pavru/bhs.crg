@@ -40,6 +40,7 @@ import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart 
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -242,7 +243,7 @@ export function InvoiceForm({
         {!gone && <InvoicePayment view={view} dirty={dirty} />}
 
         {organizationsError != null && (
-          <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-subtle
+          <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-subtle
             px-3 py-2 text-xs text-danger">
             <TriangleAlert size={14} className="shrink-0 mt-0.5" />
             <span>
@@ -501,7 +502,7 @@ const LABELS: Record<string, string> = {
 
 function StateChip({ text }: { text: string }) {
   if (!text) return null;
-  return <span className="text-xs px-2 py-0.5 rounded-full bg-surface2 text-fg2">{text}</span>;
+  return <StatusBadge>{text}</StatusBadge>;
 }
 
 /** Скан из реквизитов — значение файлового поля общего контракта. */

@@ -171,7 +171,7 @@ function EngineCard({
             не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
         {blind && (
           <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-danger-subtle text-danger border border-danger-border shrink-0"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-danger-subtle text-danger border border-danger/30 shrink-0"
             title={blindIssue ?? undefined}
           >
             <AlertCircle size={11} /> не работает: модель без зрения
@@ -201,7 +201,7 @@ function EngineCard({
           подсказку по наведению незачем. Отдельно от «не участвует» ещё и по смыслу: ненастроенный
           движок цепочка пропускает, а этот — берёт и получает отказ. */}
       {blind && (
-        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-danger-subtle text-danger border border-danger-border">
+        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-danger-subtle text-danger border border-danger/30">
           <AlertCircle size={13} className="shrink-0 mt-px" />
           <span>{blindIssue}</span>
         </p>
