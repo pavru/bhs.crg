@@ -82,7 +82,7 @@ export function UsersPage() {
                           ? <ShieldCheck size={14} className="text-brand shrink-0" />
                           : <UserIcon size={14} className="text-fg4 shrink-0" />}
                         {u.displayName || u.email}
-                        {isSelf && <span className="text-[11px] text-fg4 font-normal">(вы)</span>}
+                        {isSelf && <span className="text-caption text-fg4 font-normal">(вы)</span>}
                       </div>
                       {u.displayName && <div className="text-xs text-fg4 mt-0.5">{u.email}</div>}
                       {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}

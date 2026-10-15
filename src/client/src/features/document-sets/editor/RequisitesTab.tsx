@@ -73,7 +73,7 @@ function SourceBoundDocField(
  */
 function LockedFieldNote() {
   return (
-    <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1">
+    <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1">
       <LockedFieldIcon />{LOCKED_HINT}
     </p>
   );
@@ -83,7 +83,7 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
   const text = loading ? 'Загрузка значения из источника…'
     : error ? 'Источник недоступен — проверьте в «Источниках»'
     : 'Источник не дал значения';
-  return <p className="text-[11px] text-fg4 mt-0.5 italic">{text}</p>;
+  return <p className="text-caption text-fg4 mt-0.5 italic">{text}</p>;
 }
 
 // Стабильный пустой дефолт для загружающихся списочных запросов. КРИТИЧНО (issue #305): `= []` в
@@ -440,7 +440,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               <div key={field.key}>
                 <label className="mb-1 flex items-center gap-1 text-xs font-medium text-fg2">
                   <span className="truncate">{field.title}</span>
-                  <span className="inline-flex items-center gap-0.5 text-[10px] text-brand shrink-0">
+                  <span className="inline-flex items-center gap-0.5 text-caption text-brand shrink-0">
                     <FunctionSquare size={11} /> вычисляется
                   </span>
                 </label>
@@ -495,7 +495,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                         заполняет, а заполняет здесь не человек. Вместо них — замок. */}
                     {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" /> : <>
                       {field.required && <span className="ml-0.5 text-danger">*</span>}
-                      {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
+                      {!field.required && <span className="ml-1 text-caption text-fg4 font-normal">опц.</span>}
                     </>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
@@ -606,7 +606,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {field.title}
                     {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" />
                       : field.required && <span className="ml-0.5 text-danger">*</span>}
-                    {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
+                    {primitiveDef && <span className="ml-1 text-caption text-fg4 font-normal">· {primitiveDef.name}</span>}
                     {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
                         <SourceOriginIcon
@@ -640,8 +640,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               )}
               {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
               {locked && <LockedFieldNote />}
-              {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
-              {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
+              {missing && <p className="text-caption text-danger mt-0.5">Обязательное поле</p>}
+              {!missing && constraintError && <p className="text-caption text-danger mt-0.5">{constraintError}</p>}
               {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}
             </div>
           );

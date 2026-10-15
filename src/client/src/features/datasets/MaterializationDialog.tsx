@@ -319,7 +319,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                     {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </label>
-                <span className="text-[11px] text-fg4 flex items-center gap-1">
+                <span className="text-caption text-fg4 flex items-center gap-1">
                   <Info size={11} /> строка целиком становится ссылкой на документ — поля берутся из него самого
                 </span>
               </div>
@@ -342,7 +342,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
               {isUnion && !byRowType && (
                 <div className="space-y-1.5">
-                  <span className="text-[11px] text-fg4 flex items-center gap-1"
+                  <span className="text-caption text-fg4 flex items-center gap-1"
                     title="Заполняется ровно один из вариантов">
                     <Info size={11} /> выберите вариант — заполняется ровно один
                   </span>
@@ -405,7 +405,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                   ) : (
                     <>
                       {previewModel.unwrappedLabel && (
-                        <p className="text-[11px] text-fg4 px-2 pt-2">Вариант: <span className="text-fg2">{previewModel.unwrappedLabel}</span></p>
+                        <p className="text-caption text-fg4 px-2 pt-2">Вариант: <span className="text-fg2">{previewModel.unwrappedLabel}</span></p>
                       )}
                       <table className={dtTable}>
                         <thead>
@@ -458,21 +458,21 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                     это и есть то, ради чего предпросмотр открывают. */}
                 {!!preview.data?.skipped?.length && (
                   <div className="px-2 py-1.5 border-t border-stroke space-y-0.5">
-                    <p className="text-[11px] text-warning flex items-center gap-1">
+                    <p className="text-caption text-warning flex items-center gap-1">
                       <AlertTriangle size={11} /> Пропущено строк: {preview.data.skipped.length}
                     </p>
                     {preview.data.skipped.slice(0, 8).map(sk => (
-                      <p key={sk.rowNumber} className="text-[11px] text-fg4">
+                      <p key={sk.rowNumber} className="text-caption text-fg4">
                         строка {sk.rowNumber}
                         {sk.value ? <> · <span className="text-fg3">{sk.value}</span></> : null} — {sk.reason}
                       </p>
                     ))}
                     {preview.data.skipped.length > 8 && (
-                      <p className="text-[11px] text-fg4">…и ещё {preview.data.skipped.length - 8}</p>
+                      <p className="text-caption text-fg4">…и ещё {preview.data.skipped.length - 8}</p>
                     )}
                   </div>
                 )}
-                {preview.data && <p className="text-[11px] text-fg4 px-2 py-1">Всего строк: {preview.data.totalRows}</p>}
+                {preview.data && <p className="text-caption text-fg4 px-2 py-1">Всего строк: {preview.data.totalRows}</p>}
               </div>
             )}
           </div>

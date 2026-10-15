@@ -138,15 +138,15 @@ function TemplateForm({
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
           <Filter size={12} /> Фильтрация
-          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-[10px] bg-brand">{filterCount}</span>}
+          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-caption bg-brand">{filterCount}</span>}
         </button>
         <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
           <FunctionSquare size={12} /> Преобразования
-          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-[10px] bg-brand">{transformCount}</span>}
+          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-caption bg-brand">{transformCount}</span>}
         </button>
         <button type="button" onClick={() => setSortOpen(true)} className={toggleCls(sortCount > 0)}>
           <ArrowUpDown size={12} /> Сортировка
-          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-[10px] bg-brand">{sortCount}</span>}
+          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-caption bg-brand">{sortCount}</span>}
         </button>
       </div>
 
@@ -207,22 +207,22 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
               <span className="text-xs text-fg4">Без обработки</span>
             )}
             {template.sheetOrPath && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand" title={template.sheetOrPath}>
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand" title={template.sheetOrPath}>
                 <Route size={9} /> Extraction
               </span>
             )}
             {filterCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
                 <Filter size={9} /> {filterCount}
               </span>
             )}
             {transformCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
                 <FunctionSquare size={9} /> {transformCount}
               </span>
             )}
             {sortCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
                 <ArrowUpDown size={9} /> {sortCount}
               </span>
             )}

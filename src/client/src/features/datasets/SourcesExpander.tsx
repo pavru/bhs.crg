@@ -187,7 +187,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               // Причина приезжает с сервера (issue #815): раньше чип во всех случаях говорил про
               // замену файла, хотя сменить могли и профиль распознавания, и границы документа.
               <span title={`${staleReasonText(src.staleReason)}. Распознайте заново.`}
-                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning align-middle">
+                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning align-middle">
                 <AlertTriangle size={10} /> устарело
               </span>
             )}
@@ -197,7 +197,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
                 // про «маппинг на источнике» отправляла бы искать настройку, которой там не бывает.
                 ? `Строки источника — ссылки на существующие документы по колонке «${src.materializeByIdColumn}».`
                 : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}
-                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand/10 text-brand align-middle">
+                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-brand/10 text-brand align-middle">
                 <Boxes size={10} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
               </span>
             )}
@@ -205,7 +205,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
                 null = не считали (ответ мутации) — тогда чип не показываем, чтобы не мигал ложный ноль. */}
             {!!src.bindingCount && (
               <span title={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}
-                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-fg3 align-middle">
+                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-muted text-fg3 align-middle">
                 <Link2 size={10} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
               </span>
             )}
@@ -425,7 +425,7 @@ export function SourcesPanel({
         ))}
         {availableCandidates.length > 0 && (
           <div className="rounded-md border border-dashed border-stroke-strong bg-base px-3 py-2 space-y-1 mt-1">
-            <p className="text-[11px] text-fg4">
+            <p className="text-caption text-fg4">
               {isSystem ? 'Доступно из данных системы:' : isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}
             </p>
             {availableCandidates.map(c => {

@@ -159,9 +159,9 @@ function PickerDialog({ from, onClose, onPick }: {
                 {/* Найдено по альтернативному имени — сказано словами: набранного в названии нет, и
                     без пояснения строка читается как промах поиска. */}
                 {item.matchedAlias && (
-                  <span className="text-[11px] text-fg3 truncate">найдено по «{item.matchedAlias}»</span>
+                  <span className="text-caption text-fg3 truncate">найдено по «{item.matchedAlias}»</span>
                 )}
-                <span className="text-[11px] text-fg4 shrink-0">{item.type}</span>
+                <span className="text-caption text-fg4 shrink-0">{item.type}</span>
               </button>
             ))}
 
@@ -200,7 +200,7 @@ function PickerDialog({ from, onClose, onPick }: {
             {canCreate ? (
               <Button size="sm" variant="text" onClick={() => setCreating(true)}>Завести новую позицию…</Button>
             ) : (
-              <p className="text-[11px] text-fg4">
+              <p className="text-caption text-fg4">
                 Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
               </p>
             )}

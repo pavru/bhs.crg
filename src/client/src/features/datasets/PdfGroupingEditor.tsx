@@ -89,7 +89,7 @@ function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: numbe
       {url ? (
         <img src={url} alt={`Страница ${pageIndex + 1}`} className="w-full h-full object-contain" />
       ) : failed ? (
-        <span className="text-[10px] text-fg4 px-1 text-center">нет превью</span>
+        <span className="text-caption text-fg4 px-1 text-center">нет превью</span>
       ) : (
         <Loader2 size={14} className="animate-spin text-fg4" />
       )}
@@ -128,7 +128,7 @@ function PageTile({
         <ZoomIn size={12} />
       </button>
       <div className="flex items-center justify-between mt-1 px-0.5">
-        <span className="text-[10px] text-fg4">{pageIndex + 1}</span>
+        <span className="text-caption text-fg4">{pageIndex + 1}</span>
         {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
             что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
         {noAnswer
@@ -318,7 +318,7 @@ function GroupSection({
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <select value={currentTag} onChange={e => onSetTag(group.id, e.target.value)}
             title="Тип таблицы документа — распознаётся и выгружается (XLSX/CSV)"
-            className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[170px] disabled:opacity-50">
+            className="text-caption border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[170px] disabled:opacity-50">
             <option value="">— тип таблицы</option>
             {TABLE_TAGS.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
           </select>
@@ -328,7 +328,7 @@ function GroupSection({
             onChange={e => onSetProfile(firstPage, e.target.value || null)}
             disabled={savingProfile}
             title="Профиль распознавания — набор колонок для произвольной таблицы (задаётся в «Профили распознавания»)"
-            className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[190px] disabled:opacity-50">
+            className="text-caption border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[190px] disabled:opacity-50">
             <option value="">— профиль таблицы</option>
             {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <option key={p.id} value={p.id} disabled={p.disabled}>{p.name}</option>)}
           </select>

@@ -62,7 +62,7 @@ export function ScopeGroupList({
                         {entry.displayName}
                       </span>
                       {hint && (
-                        <span className={`text-[11px] shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                        <span className={`text-caption shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
                           {hint}
                         </span>
                       )}

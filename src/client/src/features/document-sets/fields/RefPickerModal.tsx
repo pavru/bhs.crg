@@ -439,7 +439,7 @@ function RefPickerModalBody({
                       {label}
                     </span>
                     {hint && (
-                      <span className={`text-[11px] shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
                         {hint}
                       </span>
                     )}
@@ -474,12 +474,12 @@ function RefPickerModalBody({
                       {label}
                     </span>
                     {hint && (
-                      <span className={`text-[11px] shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
                         {hint}
                       </span>
                     )}
                     {!filled && (
-                      <span className={`text-[11px] shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}
+                      <span className={`text-caption shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}
                         title="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
                         не заполнено
                       </span>

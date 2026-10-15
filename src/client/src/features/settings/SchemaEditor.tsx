@@ -310,7 +310,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           {unknownTypeTags.map(code => (
             <span key={code}
               title="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат."
-              className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-[11px] text-fg4">
+              className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
               {code}
             </span>
           ))}

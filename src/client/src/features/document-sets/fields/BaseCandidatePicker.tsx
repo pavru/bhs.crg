@@ -57,8 +57,8 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
             ? <FileText size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />
             : <Database size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />}
         <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>{c.name}</span>
-        {c.targetIsProxy && <span className="text-[10px] text-warning shrink-0">роль</span>}
-        <span className={`text-[11px] shrink-0 ${on ? 'text-on-tonal/80' : 'text-fg4'}`}>{c.scopeLabel}</span>
+        {c.targetIsProxy && <span className="text-caption text-warning shrink-0">роль</span>}
+        <span className={`text-caption shrink-0 ${on ? 'text-on-tonal/80' : 'text-fg4'}`}>{c.scopeLabel}</span>
       </button>
     );
   };
@@ -79,13 +79,13 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
           <div id="bcp-listbox" role="listbox" aria-label="Кандидаты" className="space-y-3 max-h-72 overflow-y-auto">
             {proxyCands.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-fg3 uppercase tracking-wide px-1">Роль на реальный объект (тот же тип)</p>
+                <p className="text-caption font-semibold text-fg3 uppercase tracking-wide px-1">Роль на реальный объект (тот же тип)</p>
                 {proxyCands.map((c, i) => row(c, i))}
               </div>
             )}
             {baseCands.length > 0 && (
               <div className="space-y-1">
-                {proxyCands.length > 0 && <p className="text-[11px] font-semibold text-fg3 uppercase tracking-wide px-1">Базовый тип</p>}
+                {proxyCands.length > 0 && <p className="text-caption font-semibold text-fg3 uppercase tracking-wide px-1">Базовый тип</p>}
                 {baseCands.map((c, j) => row(c, proxyCands.length + j))}
               </div>
             )}
@@ -129,13 +129,13 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
           <span className="flex-1 text-sm font-medium text-brand-hover truncate">
             {selected.proxy && <span className="text-fg4 font-normal">→ </span>}{selected.name}
           </span>
-          <span className="text-[11px] text-fg4 shrink-0">{selected.scopeLabel}</span>
+          <span className="text-caption text-fg4 shrink-0">{selected.scopeLabel}</span>
           <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
             <Unlink size={13} />
           </button>
         </div>
         {selected.targetIsProxy && (
-          <p className="text-[11px] text-warning flex items-center gap-1">
+          <p className="text-caption text-warning flex items-center gap-1">
             <AlertTriangle size={11} className="shrink-0" />
             «{selected.name}» — тоже роль. Цепочка ссылок усложняет прослеживание данных.
           </p>

@@ -43,7 +43,7 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
         {/* Чип уровня — в начале подписи, а не в хвосте строки (issue #721): в хвосте он отнимал
             ширину у имени, а трёх «Данные системы» подряд без уровня не различить вовсе. */}
         {(secondary || level) && (
-          <span className="flex items-center gap-1.5 text-[11px] text-fg4">
+          <span className="flex items-center gap-1.5 text-caption text-fg4">
             {level}
             {secondary && <span className="truncate">{secondary}</span>}
           </span>
@@ -62,7 +62,7 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
 function LevelChip({ file }: { file: DataSetFile }) {
   return (
     <span title={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}
-      className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-fg3 leading-tight">
+      className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3 leading-tight">
       {SCOPE_LABELS[file.scope]}
     </span>
   );
@@ -88,7 +88,7 @@ function FileDetail({ file, inherited, job }: {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-fg1 truncate" title={file.name}>{file.name}</span>
-            <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[file.format]}</span>
+            <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[file.format]}</span>
             {inherited && <LevelChip file={file} />}
           </div>
           <div className="text-xs text-fg4 mt-0.5">
@@ -175,7 +175,7 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-fg1 truncate" title={f.name}>{f.name}</span>
-                <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[f.format]}</span>
+                <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[f.format]}</span>
               </div>
               <div className="text-xs text-fg4 mt-0.5 truncate">
                 {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
@@ -403,7 +403,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
             )}
 
             <div className="pt-2">{uploadBtn}</div>
-            {uploadError && <p className="text-[11px] text-danger px-1 pt-1">{uploadError}</p>}
+            {uploadError && <p className="text-caption text-danger px-1 pt-1">{uploadError}</p>}
           </aside>
 
           {/* Detail */}

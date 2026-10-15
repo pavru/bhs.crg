@@ -94,7 +94,7 @@ export function SectionDetail() {
     <div className="flex items-center gap-1.5 flex-wrap">
       <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
       <Link to={`/document-sets/${constructionId}`}
-        className="text-[11px] px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+        className="text-caption px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
         Стройка: {construction.name}
       </Link>
       <NotFavoriteNote constructionId={constructionId!} />

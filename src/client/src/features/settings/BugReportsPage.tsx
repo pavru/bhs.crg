@@ -37,7 +37,7 @@ const STATUS: Record<BugReportStatus, { label: string; className: string }> = {
 function StatusBadge({ status }: { status: BugReportStatus }) {
   const meta = STATUS[status];
   return (
-    <span className={`shrink-0 inline-flex items-center h-5 px-2 rounded-full text-[11px] font-medium ${meta.className}`}>
+    <span className={`shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium ${meta.className}`}>
       {meta.label}
     </span>
   );
@@ -73,7 +73,7 @@ export function BugReportsPage() {
         </span>
         <StatusBadge status={r.status} />
       </div>
-      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-fg4">
+      <div className="flex items-center gap-1.5 mt-0.5 text-caption text-fg4">
         <span className="truncate">{r.author}</span>
         <span>·</span>
         <span className="shrink-0">{formatDayTime(r.createdAt)}</span>
@@ -254,7 +254,7 @@ function ReportBody({ report, githubConfigured }: {
             onChange={e => setDraft(e.target.value)}
             rows={16}
             spellCheck={false}
-            className="w-full rounded-xl border border-stroke-strong bg-surface px-3 py-2 font-mono text-[12.5px] leading-relaxed text-fg1 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+            className="w-full rounded-xl border border-stroke-strong bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg1 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
           />
           <p className="text-xs text-fg4">
             Markdown. Уберите внутреннее — названия строек, организаций и объектов: репозиторий
@@ -411,7 +411,7 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
 
       {(tech.apiErrors?.length ?? 0) > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono">
+          <table className="w-full text-caption font-mono">
             <thead className="text-fg4">
               <tr><th className="text-left pr-3 font-medium">время</th>
                 <th className="text-left pr-3 font-medium">запрос</th>
@@ -435,7 +435,7 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
       )}
 
       {tech.stack && (
-        <pre className="max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-[11px] leading-relaxed whitespace-pre-wrap break-words">
+        <pre className="max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-caption leading-relaxed whitespace-pre-wrap break-words">
           {tech.stack}
         </pre>
       )}

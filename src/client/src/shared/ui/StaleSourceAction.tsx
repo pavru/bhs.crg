@@ -44,7 +44,7 @@ export function StaleSourceAction({ source }: { source: DataSetBindingSource | u
   return (
     <>
       <span title={staleReasonText(source.staleReason)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning shrink-0">
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning shrink-0">
         <AlertTriangle size={10} /> устарело
       </span>
       {scope !== 'None' && (

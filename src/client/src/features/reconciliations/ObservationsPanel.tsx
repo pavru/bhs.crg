@@ -38,7 +38,7 @@ function ObservationRow({ o, setPath, onReview }: {
   return (
     <div className={`px-4 py-3 border-b border-stroke group ${dim ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-2">
-        <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${SEVERITY_STYLE[o.severity]}`}>
+        <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${SEVERITY_STYLE[o.severity]}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
         <div className="min-w-0 flex-1">
@@ -46,13 +46,13 @@ function ObservationRow({ o, setPath, onReview }: {
           {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-3">{o.detail}</p>}
           <ObservationReferences o={o} setPath={setPath} />
           {o.reviewNote && (
-            <p className="text-[11px] text-fg3 mt-1">
+            <p className="text-caption text-fg3 mt-1">
               {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
               {o.reviewedBy ? ` (${o.reviewedBy})` : ''}
             </p>
           )}
         </div>
-        <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[o.status]}`}>
+        <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[o.status]}`}>
           {OBSERVATION_STATUS_LABELS[o.status]}
         </span>
         <Button variant="text" size="sm" onClick={() => onReview(o)}

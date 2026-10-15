@@ -90,7 +90,7 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
                           <select value={current[column]}
                             aria-label={`Колонка ${column + 1}`}
                             onChange={e => setRoles(next(current, column, e.target.value as PasteRole))}
-                            className="rounded border border-stroke bg-surface2 px-1 py-0.5 text-[11px]
+                            className="rounded border border-stroke bg-surface2 px-1 py-0.5 text-caption
                               text-fg2">
                             {PASTE_ROLES.map(role => (
                               <option key={role.role} value={role.role}>{role.title}</option>
