@@ -147,10 +147,12 @@ public static class TableOperators
 /// администратору, а тот ищет право по коду: совпадение строки избавляет обоих от угадывания.</param>
 /// <param name="OnDemand">Колонка приходит, только когда её назвали (issue #1186): в «все колонки» не
 /// входит. Экран по ней показывает её выключенной, пока человек не включит.</param>
+/// <param name="Sites">В клетках — названия строек справочника: экран предлагает по колонке отбор
+/// «избранные стройки» (issue #1223). Отбор ставит человек; сервер признаком не отбирает.</param>
 public record TableColumnDto(
     string Key, string Label, string Kind, IReadOnlyList<string> Operators, bool System,
     string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null,
-    IReadOnlyList<string>? Options = null, string? Requires = null, bool OnDemand = false);
+    IReadOnlyList<string>? Options = null, string? Requires = null, bool OnDemand = false, bool Sites = false);
 
 /// <summary>
 /// Таблица без строк — что она такое и из чего состоит (G1e, issue #1092). Экран спрашивает это

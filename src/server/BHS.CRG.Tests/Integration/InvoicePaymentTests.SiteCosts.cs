@@ -44,6 +44,7 @@ public partial class InvoicePaymentTests
         }
         static object Period(params string[] months) => new { type = "condition", column = "УчётныйПериод", op = "in", values = months };
         static object On(string site) => new { type = "condition", column = "ОбъектыРазноски", op = "eq", value = site };
+        static object In(params string[] sites) => new { type = "condition", column = "ОбъектыРазноски", op = "in", values = sites };
         static decimal Amount(JsonElement figure) => figure.GetProperty("amount").GetDecimal();
 
         // До оплаты: в затратах стройки ничего, а «к оплате» — её доля; и реестр под «не оплачен» говорит то же.
@@ -76,6 +77,13 @@ public partial class InvoicePaymentTests
         decimal Site(Guid id) => Amount(all.GetProperty("sites").EnumerateArray().Single(s => s.GetProperty("id").GetGuid() == id));
         Assert.Equal(40_000m, Site(a));
         Assert.Equal(60_000m, Site(b));
+        // «Из списка» по объектам — условие чипа реестра «Объект: избранные стройки» (issue #1223) — сужает
+        // «Сумму» так же, как «равно»: до долей на названные стройки. Итог реестра равен сумме их строк
+        // отчёта; счёт разнесён на обе, и посчитан он один раз, а не дважды.
+        string Name(Guid id) => all.GetProperty("sites").EnumerateArray().Single(s => s.GetProperty("id").GetGuid() == id)
+            .GetProperty("name").GetString()!;
+        Assert.Equal(Site(a) + Site(b), await RegistryAsync(In(Name(a), Name(b)), Period(was, now)));
+        Assert.Equal(Site(b), await RegistryAsync(In(Name(b)), Period(was, now)));
         var loose = all.GetProperty("unallocated");
         Assert.Equal(Amount(all.GetProperty("total")), await RegistryAsync(Period(was, now)));
         Assert.Equal(Amount(all.GetProperty("total")),

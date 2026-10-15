@@ -17,9 +17,11 @@ import { ColumnsPanel } from './ColumnsPanel';
 import { ExportMenu } from './ExportMenu';
 import { RowPanel } from './RowPanel';
 import { ShortcutChips } from './ShortcutChips';
+import { SitesChip } from './SitesChip';
 import { TableViewHeader } from './TableViewHeader';
 import { isSavedId, lookupBase, lookupTitle, rowsWantedFor, viewLookup, viewModified } from './savedViews';
 import { withShortcut } from './tableShortcuts';
+import { withSitesChip } from './tableSites';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { hasShownTotals, totalText } from './tableTotals';
 import {
@@ -179,6 +181,12 @@ export function TablePage() {
         {/* Готовые отборы модуля — над рядом условий: нажатие кладёт условие в этот ряд, обычным чипом. */}
         <ShortcutChips address={address} filter={view} enabled={wanted && !off}
           onToggle={shortcut => setView(v => withShortcut(v, allKeys, shortcut))} />
+
+        {/* Избранные стройки таблицу не урезают — только предлагают условие, которое ставит человек (#1223). */}
+        {!off && (
+          <SitesChip columns={decl.columns} filter={view}
+            onToggle={(column, names) => setView(v => withSitesChip(v, allKeys, column, names))} />
+        )}
 
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
