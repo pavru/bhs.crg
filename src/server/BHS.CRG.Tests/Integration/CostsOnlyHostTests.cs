@@ -91,12 +91,14 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
         var costs = catalog.All.Where(p => p.Code.StartsWith("costs.", StringComparison.Ordinal)).ToList();
 
         // Девятое — costs.organization.create (issue #1077): завести организацию из скана счёта, своим
-        // правом, а не частью правки счёта, — запись ложится в справочник ядра.
+        // правом, а не частью правки счёта, — запись ложится в справочник ядра. Десятое —
+        // costs.invoice.correct (E2, issue #1100): исправление счёта закрытого периода, решение владельца
+        // 15.10.2026.
         // Остальных восемь, а не одиннадцать по перечню ТЗ: согласование (C6), заявки на закупку (этап 3) и
         // costs.materials.read (контракт «Материалы на объекте», G6) вынесены — см. причины в
         // CostsModule. Число названо здесь нарочно: право, добавленное без причины, обязано
         // столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(9, costs.Count);
+        Assert.Equal(10, costs.Count);
         Assert.All(costs, p => Assert.Null(p.Validate()));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
 
@@ -145,6 +147,12 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
             // потребовали себя убрать. costs.articles.edit ушло в F3 (issue #1087) — справочник статей.
             // costs.invoice.pay ушло в C5 (issue #1082) — отметка оплаты.
             // costs.waybill.read и costs.waybill.edit ушли в D1 (issue #1083) — адреса накладной.
+
+            // Не «ещё без двери», а без двери по устройству: ворота адреса исправления — правка счёта, а
+            // право исправления спрашивает связка, ПОСЛЕ «исправление не нужно». Иначе человек без него
+            // на обычном счёте слышал бы «нет права» вместо «правьте как обычно» (порядок проверок,
+            // решение владельца 15.10.2026). Что право работает — InvoicePaymentTests.Исправление_отказывает_в_названном_порядке.
+            ["costs.invoice.correct"] = "E2, issue #1100: спрашивает связка исправления, а не ворота",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
@@ -183,7 +191,8 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
     /// </summary>
     [Theory]
     [InlineData("Supplier", "costs.invoice.edit", "costs.allocation.edit", "costs.waybill.edit")]
-    [InlineData("Accountant", "costs.invoice.pay", "costs.report.read", "costs.articles.edit")]
+    [InlineData("Accountant", "costs.invoice.pay", "costs.report.read", "costs.articles.edit", "costs.invoice.correct",
+        "costs.invoice.edit", "costs.allocation.edit")]
     public async Task Module_roles_receive_module_permissions(string role, params string[] expected)
     {
         _ = host.CreateClient();

@@ -19,6 +19,12 @@ public enum LostMark
     /// поэтому стоит ВЫШЕ неё: «период закрыт» обещал бы, что после отмены закрытия счёт исправят
     /// (ревью PR #1239).</summary>
     TypeOnly = 3,
+
+    /// <summary>Удалённая запись стоит в поле, которое можно заменить, а закрытых дней у счёта нет — но он
+    /// уже исправлялся (есть книга, E2, issue #1100): обычная правка ему отказывает, менять его — только
+    /// исправлением. Отдельно от <see cref="Locked" />: «период закрыт» отправил бы человека искать
+    /// закрытие, которого нет (ревью PR #1364).</summary>
+    Corrected = 4,
 }
 
 /// <summary>Что со ссылками счёта на записи ядра В АРХИВЕ.</summary>
@@ -129,7 +135,7 @@ public sealed class InvoiceReferenceTrouble(
 
         return new InvoiceTroubles(
             lost.Select(f => f.DocumentKey!.Value).Distinct().ToDictionary(id => id, id =>
-                !fixable.Contains(id) ? LostMark.TypeOnly : locked.Contains(id) ? LostMark.Locked : LostMark.Fixable),
+                !fixable.Contains(id) ? LostMark.TypeOnly : locked.GetValueOrDefault(id, LostMark.Fixable)),
             archived, findings);
     }
 
@@ -149,23 +155,26 @@ public sealed class InvoiceReferenceTrouble(
     public static IQueryable<Invoice> InWork(IQueryable<Invoice> invoices) =>
         invoices.Where(i => i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected);
 
-    /// <summary>Счета из названных, запертые закрытым периодом, — тем же правилом, каким правку
-    /// запирает форма (<see cref="ClosedPeriodGuard.LockOf" />). Запирается только оплаченный.</summary>
-    private async Task<IReadOnlySet<Guid>> LockedAsync(IReadOnlySet<Guid> ids, CancellationToken ct)
+    /// <summary>Счета из названных, требующие исправления, — тем же правилом, каким обычную правку
+    /// запирает форма (<see cref="ClosedPeriodGuard.NeedOf" />). Заперт закрытым периодом —
+    /// <see cref="LostMark.Locked" />; закрытых дней нет, а книга есть — <see cref="LostMark.Corrected" />.
+    /// Только оплаченный.</summary>
+    private async Task<IReadOnlyDictionary<Guid, LostMark>> LockedAsync(IReadOnlySet<Guid> ids, CancellationToken ct)
     {
-        if (ids.Count == 0) return new HashSet<Guid>();
+        if (ids.Count == 0) return new Dictionary<Guid, LostMark>();
 
         var named = ids.ToArray();
         var paid = await db.Invoices.AsNoTracking()
             .Where(i => named.Contains(i.Id) && i.Payment == InvoicePaymentState.Paid).ToListAsync(ct);
-        if (paid.Count == 0) return new HashSet<Guid>();
+        if (paid.Count == 0) return new Dictionary<Guid, LostMark>();
 
         var owners = paid.Select(i => i.Id).ToArray();
         var parts = (await db.InvoiceAllocations.AsNoTracking().Where(a => owners.Contains(a.InvoiceId)).ToListAsync(ct))
             .ToLookup(a => a.InvoiceId);
         var boundaries = await periods.BoundariesAsync(ct);
 
-        return paid.Where(i => ClosedPeriodGuard.LockOf(i, parts[i.Id], boundaries) is not null)
-            .Select(i => i.Id).ToHashSet();
+        return paid.Select(i => (i.Id, Need: ClosedPeriodGuard.NeedOf(i, parts[i.Id], boundaries)))
+            .Where(n => n.Need is not null)
+            .ToDictionary(n => n.Id, n => n.Need!.Lock is null ? LostMark.Corrected : LostMark.Locked);
     }
 }

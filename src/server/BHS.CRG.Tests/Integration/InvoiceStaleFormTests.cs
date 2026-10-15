@@ -42,6 +42,20 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     };
 
     /// <summary>
+    /// Адреса, которые сверяют версию только у счёта, ТРЕБУЮЩЕГО ИСПРАВЛЕНИЯ (E2, issue #1100): иному
+    /// они отказывают раньше — «исправление не нужно, правьте как обычно» (порядок проверок, решение
+    /// владельца 15.10.2026). Версию у них проверяет <c>InvoicePaymentTests.Исправление_отказывает_в_названном_порядке</c>
+    /// — на запертом счёте, устаревшей и не названной.
+    /// </summary>
+    private static readonly Dictionary<string, string> VersionAfterNeed = new()
+    {
+        ["POST /api/costs/invoices/{id:guid}/correction/preview"] =
+            "предпросмотр исправления: та же функция, что запись, и версию сверяет так же — после «не нужно» и права",
+        ["POST /api/costs/invoices/{id:guid}/correction"] =
+            "исправление: версию сверяет после «исправление не нужно» и права исправления",
+    };
+
+    /// <summary>
     /// Тело, с которым адрес доходит до связки записи: шесть адресов отказывают пустому телу раньше
     /// («набор строк не прислан»), и это отказ о другом. У адреса без записи здесь тело — пустой объект.
     /// </summary>
@@ -190,7 +204,8 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
 
             foreach (var method in route.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? [])
             {
-                if (method == "GET" || WritesNothing.ContainsKey($"{method} {pattern}")) continue;
+                if (method == "GET" || WritesNothing.ContainsKey($"{method} {pattern}")
+                    || VersionAfterNeed.ContainsKey($"{method} {pattern}")) continue;
                 routes.Add((method, pattern));
             }
         }

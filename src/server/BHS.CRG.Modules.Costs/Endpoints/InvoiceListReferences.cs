@@ -114,7 +114,7 @@ public sealed class InvoiceListMarks
             troubles.With(LostMark.Fixable).Length,
             archived.Length == 0 ? 0 : await InvoiceReferenceTrouble.InWork(db.Invoices.AsNoTracking())
                 .CountAsync(i => keys.Contains(i.Id), ct),
-            troubles.With(LostMark.Locked).Length,
+            troubles.With(LostMark.Locked).Length + troubles.With(LostMark.Corrected).Length,
             troubles.Doubt,
             InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length));
     }
@@ -136,7 +136,7 @@ public sealed class InvoiceListMarks
                 ? mark switch
                 {
                     LostMark.Fixable => InvoiceListReferences.Fixable,
-                    LostMark.Locked => InvoiceListReferences.Locked,
+                    LostMark.Locked or LostMark.Corrected => InvoiceListReferences.Locked,
                     _ => InvoiceListReferences.TypeOnly,
                 }
                 : null,

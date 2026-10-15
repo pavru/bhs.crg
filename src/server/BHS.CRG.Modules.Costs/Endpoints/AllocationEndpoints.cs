@@ -22,7 +22,10 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public static class AllocationEndpoints
 {
-    private const string Edit = "costs.allocation.edit";
+    /// <summary>Право разноски — его спрашивает и исправление счёта, когда разноска меняется (E2).</summary>
+    internal const string Permission = "costs.allocation.edit";
+
+    private const string Edit = Permission;
 
     public static void MapAllocation(IEndpointRouteBuilder endpoints)
     {

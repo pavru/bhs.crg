@@ -131,6 +131,32 @@ public static class InvoiceBookPosting
     }
 
     /// <summary>
+    /// Отметка предпросмотра исправления (spec п. 1.4): день D и ВСЕ строки, которые запишет запрос, с
+    /// их днями, — открытие и выравнивание тоже. Запись сверяет её со своей: полночь, закрытие периода и
+    /// смена допуска между предпросмотром и записью версию формы не двигают, а строки меняют, — и человек
+    /// подтвердил бы не то, что ляжет в книгу.
+    ///
+    /// <para>Отпечаток, а не сами строки: форма возвращает его как есть и разбирать не обязана. Числа —
+    /// в неизменном виде (без культуры): «0,5» и «0.50» дали бы разные отметки одним деньгам.</para>
+    /// </summary>
+    public static string Stamp(IReadOnlyList<BookRecord> records)
+    {
+        var text = new System.Text.StringBuilder();
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        foreach (var record in records)
+        {
+            text.Append(invariant, $"{record.Kind}|{record.Day:yyyy-MM-dd}|{record.Tolerance:0.00####}\n");
+            foreach (var line in record.Lines)
+                text.Append(invariant,
+                    $"  {line.Cell.Target?.ConstructionId}|{line.Cell.Target?.SectionId}|{line.Cell.Target?.ArticleId}|" +
+                    $"{line.Cell.SupplierId}|{line.Day:yyyy-MM-dd}|{line.Gross:0.00####}|{line.Net:0.00####}|{line.VatUnknown}\n");
+        }
+
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(text.ToString())))[..32];
+    }
+
+    /// <summary>
     /// Проводка от одних денег к другим по правилу (б′). Книга <paramref name="lines" /> — какой она
     /// лежит ДО этой проводки (с уже записанными открытием и выравниванием).
     /// </summary>

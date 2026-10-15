@@ -92,23 +92,24 @@ public partial class InvoicePaymentTests
     }
 
     /// <summary>
-    /// <b>Тому, кто исправить не может, отборы не предлагаются</b>: бухгалтер читает счета, но не правит
-    /// их, и число было бы для него упрёком без выхода. Таблица и сами колонки ему открыты.
+    /// <b>Тому, кто исправить не может, отборы не предлагаются</b>: руководитель читает счета, но не правит
+    /// их, и число было бы для него упрёком без выхода. Таблица и сами колонки ему открыты. (Бухгалтер с E2
+    /// счета правит — ему выдано исправление закрытого периода, а с ним и правка, решение владельца 16.10.2026.)
     /// </summary>
     [Fact]
     public async Task Готовые_отборы_не_предлагаются_тому_кто_счёт_править_не_может()
     {
-        var (accountant, _) = await SignInAsync("Accountant");
+        var (reader, _) = await SignInAsync("Executive");
 
-        Assert.Empty((await ShortcutsAsync(accountant)).EnumerateArray());
-        await OkAsync(await accountant.GetAsync($"/api/tables/costs.invoices?columns=Номер,{LostColumn}&limit=1"));
+        Assert.Empty((await ShortcutsAsync(reader)).EnumerateArray());
+        await OkAsync(await reader.GetAsync($"/api/tables/costs.invoices?columns=Номер,{LostColumn}&limit=1"));
 
         // А тому, кому закрыта таблица, — отказ, тот же, что у строк: ворота одни.
         var (user, _) = await SignInAsync("User");
         Assert.Equal(
             (await user.GetAsync("/api/tables/costs.invoices?limit=1")).StatusCode,
             (await user.GetAsync("/api/tables/costs.invoices/shortcuts")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await accountant.GetAsync("/api/tables/costs.nothing/shortcuts")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync("/api/tables/costs.nothing/shortcuts")).StatusCode);
     }
 
     /// <summary>Порт, который записывает, сколько раз и с каким согласием на архив его опросили.</summary>

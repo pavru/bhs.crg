@@ -9,10 +9,10 @@
 //      объектах остаётся на виду после горизонтальной прокрутки (закреплённая колонка).
 //   3a. `invoice-goes-to-article` — счёт «на склад» разносится в шапке на статью вне строек (F3, issue
 //      #1087): статья стоит в выборе своей группой, не среди строек, и часть ложится на статью.
-//   4. `matrix-under-read-only-right` — под «Бухгалтером» (чтение счетов без права разноски) матрица
+//   4. `matrix-under-read-only-right` — под «Руководителем» (чтение без права разноски) матрица
 //      открывается, но полей и кнопок «поровну» и «по %» НЕТ, и ни один запрос не получил отказа —
 //      а не «кнопки есть и получают 403».
-//   5. `construction-tree-without-id` — тот же «Бухгалтер» (ни модуля ИД, ни права правки строек)
+//   5. `construction-tree-without-id` — под «Бухгалтером» (ни модуля ИД, ни права правки строек)
 //      проходит список строек, стройку и раздел, в котором ЕСТЬ комплект: комплектов, счётчиков и
 //      кнопок ИД и правки нет вовсе — ни пустым «Нет комплектов», ни дверью в 403 (issue #1128); прямой
 //      адрес комплекта даёт «недоступно» с названием модуля; ни один запрос не получил отказа.
@@ -23,7 +23,7 @@
 //
 // ⚠️ Элементы ищутся по видимому тексту, ролям и подписям — без служебных атрибутов.
 //
-// Требует поднятых фронта и бэка, посева (бухгалтер buh@bhs.local — e2e/seed.mjs) и ВКЛЮЧЁННОГО
+// Требует поднятых фронта и бэка, посева (руководитель и бухгалтер — e2e/seed.mjs) и ВКЛЮЧЁННОГО
 // модуля `costs` (`Modules__Enabled=id,costs`) — см. e2e/README.md.
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/allocation-matrix-smoke.mjs
@@ -33,6 +33,9 @@ import { BASE, launchBrowser, login, createChecks, listOptions, pickOption, show
 import { sitePickerChecks } from './site-picker-checks.mjs';
 
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
+// Читатель — «Руководитель»: бухгалтер с E2 (issue #1100) правит счета и разноску, и матрица «только для
+// чтения» под ним проверяла бы не то.
+const READER_EMAIL = process.env.SMOKE_READER_EMAIL || 'ruk@bhs.local';
 const ACCOUNTANT_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 
 const browser = await launchBrowser();
@@ -273,7 +276,7 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
 await page.setViewportSize({ width: 1500, height: 1000 });
 await sitePickerChecks({ page, check, api, invoice, openMatrix, sites, stamp });
 
-// ── 4. Бухгалтер: матрица только для чтения, и ни одного отказа ───────────────────────────────────
+// ── 4. Руководитель: матрица только для чтения, и ни одного отказа ────────────────────────────────
 await check('matrix-under-read-only-right', async () => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const reader = await context.newPage();
@@ -281,7 +284,7 @@ await check('matrix-under-read-only-right', async () => {
   reader.on('response', r => { if (r.status() === 403) denials.push(`${r.request().method()} ${r.url()}`); });
 
   try {
-    await login(reader, ACCOUNTANT_EMAIL, ACCOUNTANT_PASSWORD);
+    await login(reader, READER_EMAIL, ACCOUNTANT_PASSWORD);
     // Отказы считаются С ВХОДА, и стартовой странице дают догрузиться: она — список строек — запрашивала
     // у бухгалтера сводки сверок и планов без права на них (issue #1125). Не дождись прогон её запросов,
     // переход к счетам обрывал бы их, и проверка была бы зелёной через раз — так и было в CI.

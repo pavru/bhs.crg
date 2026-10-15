@@ -130,6 +130,14 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction PaymentDescribed =
         new("costs.invoice.paydoc", "Платёжный документ счёта изменён", InvoiceRead);
 
+    /// <summary>
+    /// Исправление счёта закрытого периода (E2, issue #1100): номер ушедшей версии и причина. ⚠️ Сумм
+    /// нет, как у разноски (issue #1190): что было и что стало, показывают версия и книга счёта под правом
+    /// на счета, а журнал ядра читают и без него.
+    /// </summary>
+    public static readonly ModuleActivityAction Corrected =
+        new("costs.invoice.corrected", "Счёт исправлен", InvoiceRead);
+
     // Справочник статей вне строек (F3, issue #1087): статья меняет то, куда попадут новые затраты, и
     // «кто убрал «Склад»» — вопрос, на который журнал обязан отвечать.
     public static readonly ModuleActivityAction ArticleCreated =
@@ -187,6 +195,6 @@ public sealed class InvoiceActions : IModuleActivityActions
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
         [Created, Changed, Confirmed, DueByHand, DueByRule, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, TermsSet, TermsRemoved, Parsed, Draft, Rejected, Deleted, AllocationChanged,
-         Paid, Unpaid, PaymentDescribed, ArticleCreated, ArticleRenamed, ArticleDeleted,
+         Paid, Unpaid, PaymentDescribed, Corrected, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

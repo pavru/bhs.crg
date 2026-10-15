@@ -101,10 +101,15 @@ public static class SystemRoles
             ]),
 
         new("Accountant", "Бухгалтер",
-            "Отметка оплаты, реестр счетов, отчёты по затратам",
+            "Отметка оплаты, реестр счетов, отчёты по затратам, исправление счетов закрытого периода",
             [
                 "core.employees.read", CorePermissions.PeriodClose, CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.pay", "costs.report.read", "costs.articles.edit",
+                // Исправление счёта закрытого периода (E2, issue #1100) — право бухгалтера по решению владельца
+                // 15.10.2026. Без правки счетов и разноски оно не работает (исправление пишет и то и другое),
+                // поэтому они здесь же (решение владельца 16.10.2026): иначе стандартный «Бухгалтер» не
+                // исправил бы ни одного счёта.
+                "costs.invoice.correct", "costs.invoice.edit", "costs.allocation.edit",
             ]),
 
         new("WorksManager", "Производитель работ",

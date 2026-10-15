@@ -564,6 +564,48 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.ToTable("invoice_recognitions", "costs");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoice_versions_number");
+
+                    b.ToTable("invoice_versions", "costs");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.SupplierMatch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -856,6 +898,15 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .WithOne()
                         .HasForeignKey("BHS.CRG.Modules.Costs.Data.InvoiceRecognition", "InvoiceId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceVersion", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Costs.Data.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
