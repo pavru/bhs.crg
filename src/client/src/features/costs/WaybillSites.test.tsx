@@ -3,12 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
-import { useWaybillState, useWaybills, waybillKey, type WaybillList, type WaybillView } from '@/shared/api/waybills';
+import { useWaybillState, waybillKey, type WaybillList, type WaybillView } from '@/shared/api/waybills';
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
 import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
-import { appliedHidden, useWaybillSites } from './useWaybillSites';
+import { appliedHidden, useWaybillSites, viewHidden } from './useWaybillSites';
 
 /**
  * Список накладных под «Избранными стройками» (issue #1222): отбирает сервер, клиент решает, ЧТО
@@ -33,7 +33,8 @@ function filterOf(favorites: string[], status: SiteFilterValue['status'] = 'read
 
 const answer = (data: Partial<WaybillList> = {}) => ({ data: { items: [], more: false, ...data } });
 const asked = () => vi.mocked(apiClient.get).mock.calls.map(([, config]) => (config as { params: object }).params);
-const waybill = (constructionId: string | null) => ({ id: 'w1', constructionId }) as WaybillView;
+const waybill = (constructionId: string | null, constructionLost = false) =>
+  ({ id: 'w1', constructionId, constructionLost }) as WaybillView;
 
 interface Mount { unmatched?: boolean; selected?: string | null; open?: WaybillView; writer?: () => null }
 
@@ -42,7 +43,6 @@ function mount(filter: SiteFilterValue, { unmatched = false, selected = null, op
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   function Probe({ u }: { u: boolean }) {
     got.current = useWaybillSites({ unmatched: u, selected, open });
-    useWaybills(u, got.current.sites, got.current.ready);
     return null;
   }
   const Writer = writer ?? (() => null);
@@ -123,18 +123,43 @@ describe('сколько скрыто — только у ответа на те
 });
 
 describe('открытая накладная под фильтром', () => {
-  it('накладная неизбранной стройки — «нет в списке»; избранной, без стройки и удалённой — нет', () => {
-    expect(mount(filterOf(['a']), { open: waybill('b') }).current!.openHidden).toBe(true);
-    for (const site of ['a', null, 'x']) {
-      cleanup();
-      expect(mount(filterOf(['a']), { open: waybill(site) }).current!.openHidden).toBe(false);
-    }
+  /** «Нет в списке» — когда пришёл ответ на перечень: до него отбор не применён. */
+  async function openHiddenOf(filter: SiteFilterValue, open: WaybillView, unmatched = false) {
+    const page = mount(filter, { open, unmatched });
+    await waitFor(() => expect(page.current!.waybills.isFetched || !page.current!.waybills.isEnabled).toBe(true));
+    const result = page.current!.openHidden;
+    cleanup();
+    return result;
+  }
+
+  it('накладная неизбранной стройки — «нет в списке»; избранной, без стройки и удалённой — нет', async () => {
+    expect(await openHiddenOf(filterOf(['a']), waybill('b'))).toBe(true);
+    expect(await openHiddenOf(filterOf(['a']), waybill('a'))).toBe(false);
+    expect(await openHiddenOf(filterOf(['a']), waybill(null))).toBe(false);
+    expect(await openHiddenOf(filterOf(['a']), waybill('x', true))).toBe(false);
   });
 
-  it('под очередью и с выключенным фильтром — ничего не скрыто', () => {
-    expect(mount(filterOf(['a']), { open: waybill('b'), unmatched: true }).current!.openHidden).toBe(false);
-    cleanup();
-    expect(mount(filterOf(['a'], 'ready', false), { open: waybill('b') }).current!.openHidden).toBe(false);
+  it('решает знание сервера: стройка, которой нет в справочнике клиента, но живая, — скрыта', async () => {
+    // Завели после загрузки страницы: клиент счёл бы её удалённой, а сервер накладную скрыл (ревью PR #1335).
+    expect(await openHiddenOf(filterOf(['a']), waybill('z'))).toBe(true);
+  });
+
+  it('сервер отбор не применил (ни одной живой стройки в перечне) — не скрыто ничего', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(answer({ hidden: null }));
+    expect(await openHiddenOf(filterOf(['a']), waybill('b'))).toBe(false);
+  });
+
+  it('под очередью и с выключенным фильтром — ничего не скрыто', async () => {
+    expect(await openHiddenOf(filterOf(['a']), waybill('b'), true)).toBe(false);
+    expect(await openHiddenOf(filterOf(['a'], 'ready', false), waybill('b'))).toBe(false);
+  });
+
+  it('правило вида накладной', () => {
+    const favorites = new Set(['a']);
+    expect(viewHidden(waybill('b'), favorites)).toBe(true);
+    expect(viewHidden(waybill('b', true), favorites)).toBe(false);
+    expect(viewHidden(waybill('a'), favorites)).toBe(false);
+    expect(viewHidden(waybill(null), favorites)).toBe(false);
   });
 });
 
@@ -153,6 +178,7 @@ describe('тост своей записи', () => {
   it('своя запись увела открытую накладную на неизбранную стройку — тост с «Показать все»', async () => {
     const { Writer, write } = writerOf(waybill('b'));
     const page = mount(filterOf(['a']), { selected: 'w1', writer: Writer });
+    await waitFor(() => expect(page.current!.hidden).toBe(0));
     page.qc.setQueryData(waybillKey('w1'), waybill('a'));
     await act(async () => { await write(); });
     expect(screen.getAllByText(/Сохранено\. В списке накладная скрыта/).length).toBeGreaterThan(0);
@@ -161,11 +187,14 @@ describe('тост своей записи', () => {
   it('накладная и до записи была скрыта, или открыта другая — тоста нет', async () => {
     const { Writer, write } = writerOf(waybill('b'));
     const page = mount(filterOf(['a']), { selected: 'w1', writer: Writer });
+    // Ответ на перечень пришёл: без него отбор не применён, и тоста не было бы ни при каком условии.
+    await waitFor(() => expect(page.current!.hidden).toBe(0));
     page.qc.setQueryData(waybillKey('w1'), waybill('c'));
     await act(async () => { await write(); });
     cleanup();
     const other = writerOf(waybill('b'));
     const moved = mount(filterOf(['a']), { selected: 'w2', writer: other.Writer });
+    await waitFor(() => expect(moved.current!.hidden).toBe(0));
     moved.qc.setQueryData(waybillKey('w1'), waybill('a'));
     await act(async () => { await other.write(); });
     expect(screen.queryByText(/Сохранено\. В списке накладная скрыта/)).toBeNull();

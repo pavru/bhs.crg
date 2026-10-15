@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Costs.Data;
@@ -97,6 +98,11 @@ public static class WaybillEndpoints
         // не применён, и hidden остаётся null (ревью PR #1335): «скрыто: 0» над полным списком было бы
         // неотличимо от честного «ничего не скрыто».
         var off = favorites is null ? null : WaybillSiteFilter.Hidden(favorites, known.Select(s => s.Id));
+        // Число и страница — из одного снимка базы (ревью PR #1335): двумя запросами вне транзакции правка
+        // между ними дала бы «скрыто: N» о другом состоянии таблицы, чем показанный список.
+        await using var snapshot = off is { Count: > 0 }
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
+            : null;
         int? hidden = null;
         if (off is not null)
         {

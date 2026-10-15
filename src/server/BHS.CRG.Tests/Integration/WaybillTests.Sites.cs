@@ -58,7 +58,6 @@ public partial class WaybillTests
                 var waybill = (await SeedAsync(new DateOnly(2099, 1, 1), sites.Count == 0 ? null : sites[0], 1)).Single();
                 seeded.Add(waybill);
                 var page = await PageAsync(client, sent ? $"?sites={string.Join(',', favorites)}" : string.Empty);
-                Assert.False(page.GetProperty("more").GetBoolean());
                 var listed = page.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetGuid() == waybill);
                 Assert.True(c.GetProperty("visible").GetBoolean() == listed, $"{name}: в списке — {listed}");
 

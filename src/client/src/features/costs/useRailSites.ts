@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { onInvoiceWritten, type InvoiceListItem, type InvoiceView } from '@/shared/api/invoices';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
-import { useToast } from '@/shared/ui/Toast';
+import { useSavedHiddenToast } from '@/shared/siteFilter/useSavedHiddenToast';
 import { SAVED_HIDDEN, hiddenBySite, viewSites } from './invoiceSites';
 
 /**
@@ -20,26 +18,18 @@ export function useRailSites({ cuts, list, selected, matches }: {
   matches: (item: InvoiceListItem) => boolean;
 }) {
   const favorites = useSiteFilter(cuts);
-  const toast = useToast();
-  const qc = useQueryClient();
   const hides = (item: InvoiceListItem) => cuts && hiddenBySite(item.constructionIds, favorites);
   const all = list ?? [];
   const hidden = all.filter(hides);
   const open = selected ? all.find(i => i.id === selected) : undefined;
 
-  // Своя запись, уведшая счёт из рейла. Решение — по прежнему и новому виду счёта, а не по списку:
-  // список перечитывается позже, и чужая правка, пришедшая перечитыванием, «Сохранено» не скажет.
-  // Только об ОТКРЫТОМ счёте (ревью PR #1334): ответ приходит и после ухода на другой, и «счёт скрыт»
-  // над его формой читалось бы как о нём.
-  const now = useRef({ cuts, favorites, selected });
-  useLayoutEffect(() => { now.current = { cuts, favorites, selected }; });
-  const onSaved = useCallback((before: InvoiceView | undefined, after: InvoiceView) => {
-    const at = now.current;
-    if (!before || !at.cuts || after.id !== at.selected) return;
-    if (!hiddenBySite(viewSites(after), at.favorites) || hiddenBySite(viewSites(before), at.favorites)) return;
-    toast.info(SAVED_HIDDEN, { action: { label: 'Показать все', onClick: () => at.favorites.setOn(false) } });
-  }, [toast]);
-  useEffect(() => onInvoiceWritten(qc, onSaved), [qc, onSaved]);
+  // Своя запись, уведшая открытый счёт из рейла: решает общий хук, по стройкам вида счёта.
+  const onSaved = useSavedHiddenToast<InvoiceView>(onInvoiceWritten, {
+    selected,
+    hides: view => cuts && hiddenBySite(viewSites(view), favorites),
+    text: SAVED_HIDDEN,
+    showAll: () => favorites.setOn(false),
+  });
 
   return {
     hides,

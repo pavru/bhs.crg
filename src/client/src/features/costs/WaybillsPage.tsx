@@ -12,7 +12,7 @@ import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import {
-  forgetWaybill, useCreateWaybill, useWaybill, useWaybills, type WaybillListItem,
+  forgetWaybill, useCreateWaybill, useWaybill, type WaybillListItem,
 } from '@/shared/api/waybills';
 import { IssuedMaterialsDialog } from './IssuedMaterialsDialog';
 import { WaybillForm } from './WaybillForm';
@@ -21,7 +21,7 @@ import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
 import { FilterHidesAll, NotInListNotice, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
-import { NOT_IN_LIST, SEARCH_HIDDEN, appliedHidden, hiddenEmpty, useWaybillSites } from './useWaybillSites';
+import { NOT_IN_LIST, SEARCH_HIDDEN, hiddenEmpty, useWaybillSites } from './useWaybillSites';
 
 const PARAM = 'waybill';
 
@@ -61,7 +61,7 @@ export function WaybillsPage() {
 
   const view = useWaybill(selected ?? undefined);
   const filter = useWaybillSites({ unmatched, selected, open: view.data });
-  const waybills = useWaybills(unmatched, filter.sites, filter.ready);
+  const { waybills, stale, hidden } = filter;
   const sites = useCostsConstructions();
   const create = useCreateWaybill();
   const toast = useToast();
@@ -91,9 +91,7 @@ export function WaybillsPage() {
   const searching = !!query.trim();
   // Прежний список, удержанный на время переключения фильтра, — не ответ на новый (ревью PR #1335): он
   // показан приглушённым, а пустые состояния и свидетельство молчат, пока не пришёл настоящий.
-  const stale = waybills.isPlaceholderData;
   const settled = !waybills.isPending && !waybills.isError && !stale;
-  const hidden = appliedHidden(filter.sites, waybills.data, stale);
 
   async function createDraft() {
     try {
@@ -159,7 +157,9 @@ export function WaybillsPage() {
                     : 'Накладных пока нет.'}
               </p>
             )}
-            <div className={stale ? 'opacity-50' : undefined} aria-busy={stale || undefined}>
+            {/* Прежние строки не нажимаются: строка, которая вот-вот исчезнет, открыла бы «не ту» накладную. */}
+            <div className={stale ? 'opacity-50 pointer-events-none' : undefined} aria-busy={stale || undefined}
+              inert={stale || undefined}>
               {items.map(item => (
                 <ListRow key={item.id} item={item} active={item.id === selected} onClick={() => setSelected(item.id)} />
               ))}

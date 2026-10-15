@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { isNotFound, seenBy } from './invoices';
+import { onWritten, writeMeta, type WriteContext } from './writeWatch';
 
 /**
  * Расходные накладные модуля «Счета и накладные» (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
@@ -112,7 +113,7 @@ const QK = 'costs-waybills';
 const LIST_KEY = [QK, 'list'] as const;
 const MATERIALS_KEY = ['costs-materials'] as const;
 /** Ключ открытой накладной в кэше: под ним запись ищет вид ДО себя. */
-export const waybillKey = (id: string) => [QK, 'one', id] as const;
+export const waybillKey = (id: string | undefined) => [QK, 'one', id] as const;
 
 /**
  * Список накладных. `sites` — избранные стройки, по которым отбирает СЕРВЕР (issue #1222): список
@@ -141,7 +142,7 @@ export function useWaybills(unmatched: boolean, sites: readonly string[] | null,
 
 export function useWaybill(id: string | undefined) {
   return useQuery({
-    queryKey: [QK, 'one', id] as const,
+    queryKey: waybillKey(id),
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     enabled: !!id,
     // «Нет такой» повтором не лечится (ревью PR #1299): общий повтор держал бы «загружается…» лишнюю
@@ -159,7 +160,7 @@ export function useWaybill(id: string | undefined) {
 export function useFreshWaybill() {
   const qc = useQueryClient();
   return (id: string) => qc.fetchQuery({
-    queryKey: [QK, 'one', id] as const,
+    queryKey: waybillKey(id),
     queryFn: () => apiClient.get<WaybillView>(`/costs/waybills/${id}`).then(r => r.data),
     staleTime: 0,
   });
@@ -176,24 +177,21 @@ function useWaybillWrite<T extends { id: string }>(send: (input: T) => Promise<W
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
-    meta: { [WAYBILL_WRITE]: true },
+    meta: writeMeta(WAYBILL_WRITE),
     // Вид до записи — в контекст мутации: по нему подписчик узнаёт, что изменила именно эта запись.
-    onMutate: (input): WaybillWriteContext => ({ before: qc.getQueryData<WaybillView>(waybillKey(input.id)) }),
+    onMutate: (input): WriteContext<WaybillView> => ({ before: qc.getQueryData<WaybillView>(waybillKey(input.id)) }),
     onSuccess: settle,
     onError: (error: unknown, input: T) => {
       // 404 — накладную удалили, пока она была открыта (issue #1283): перечитывание ответит тем же, и
       // страница скажет «накладной больше нет», оставив набранное на экране.
       const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: [QK, 'one', input.id] });
+      if (status === 409 || status === 404) void qc.invalidateQueries({ queryKey: waybillKey(input.id) });
     },
   });
 }
 
 /** Признак записи накладной в `meta` мутации — по нему её узнаёт `onWaybillWritten`. */
 const WAYBILL_WRITE = 'waybillWrite';
-
-/** Контекст записи накладной: её вид ДО неё, из кэша; `undefined` — накладная в кэше не лежала. */
-interface WaybillWriteContext { before: WaybillView | undefined }
 
 /**
  * Подписка на СВОИ удавшиеся записи накладной: прежний вид и новый (issue #1222 — получатель сменился
@@ -203,18 +201,14 @@ interface WaybillWriteContext { before: WaybillView | undefined }
 export function onWaybillWritten(
   qc: QueryClient, listener: (before: WaybillView | undefined, after: WaybillView) => void,
 ): () => void {
-  return qc.getMutationCache().subscribe(event => {
-    if (event.type !== 'updated' || event.action.type !== 'success' || !event.mutation.meta?.[WAYBILL_WRITE]) return;
-    const context = event.mutation.state.context as WaybillWriteContext | undefined;
-    listener(context?.before, event.action.data as WaybillView);
-  });
+  return onWritten(qc, WAYBILL_WRITE, listener);
 }
 
 /** Что считать устаревшим после любой правки: список, открытую накладную и перечень отпущенного. */
 function useSettle() {
   const qc = useQueryClient();
   return (view: WaybillView) => {
-    qc.setQueryData([QK, 'one', view.id], view);
+    qc.setQueryData(waybillKey(view.id), view);
     void qc.invalidateQueries({ queryKey: LIST_KEY });
     void qc.invalidateQueries({ queryKey: MATERIALS_KEY });
   };
@@ -279,7 +273,7 @@ export function useDeleteWaybill() {
  * запроса наблюдатель тут же начал бы его заново.
  */
 export function forgetWaybill(qc: QueryClient, id: string) {
-  qc.removeQueries({ queryKey: [QK, 'one', id] });
+  qc.removeQueries({ queryKey: waybillKey(id) });
   void qc.invalidateQueries({ queryKey: LIST_KEY });
 }
 
