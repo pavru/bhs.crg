@@ -124,8 +124,13 @@ describe('рейл под фильтром', () => {
     expect(mount(['a'], true).current!.pending).toBe(false);
   });
 
-  it('поиск считает, сколько нашёл бы среди скрытых', () => {
+  it('поиск считает, сколько нашёл бы среди скрытых; без запроса — все скрытые', () => {
     expect(mount(['a'], true, { query: 'Кабель' }).current!.foundHidden).toBe(1);
+    cleanup();
+    expect(mount(['a'], true, { query: 'Нет такого' }).current!.foundHidden).toBe(0);
+    cleanup();
+    const rail = mount(['a'], true).current!;
+    expect(rail.foundHidden).toBe(rail.hidden);
   });
 
   it('тост — когда своя запись увела счёт из рейла, и только тогда', async () => {

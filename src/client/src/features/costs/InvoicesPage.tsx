@@ -397,7 +397,7 @@ export function InvoicesPage() {
             {sites.pending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
             {/* Под поиском — сколько скрытых нашёл бы он: иначе число звало бы искать там, где нет. */}
             {!invoices.isPending && !invoices.isError && rows.length > 0 && filter === null && (
-              <div className="px-3 py-1.5"><SiteFilterNote hidden={query.trim() ? sites.foundHidden : sites.hidden} /></div>
+              <div className="px-3 py-1.5"><SiteFilterNote hidden={sites.foundHidden} /></div>
             )}
             {/* Счета есть, но скрыты фильтром — сказать это ПЕРЕД «Счетов пока нет», которое было бы неправдой. */}
             {!invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0 && filter === null && (

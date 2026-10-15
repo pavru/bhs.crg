@@ -50,7 +50,7 @@ export function useRailSites({ cuts, list, selected, matches }: {
     pending: cuts && favorites.status === 'loading',
     /** Сколько счетов общего списка скрыто фильтром. */
     hidden: hidden.length,
-    /** Сколько скрытых нашёл бы поиск. */
+    /** Сколько скрытых нашёл бы поиск; без запроса — все скрытые. Это число и пишет строка у рейла. */
     foundHidden: hidden.filter(matches).length,
     /** Открытый счёт есть в списке, но скрыт фильтром — форма говорит, почему его нет слева. */
     openHidden: !!open && hides(open),
