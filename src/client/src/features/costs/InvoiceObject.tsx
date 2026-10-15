@@ -73,10 +73,10 @@ export function InvoiceObject({ view, locked }: {
           value={current.kind === 'one' ? current.place : NO_PLACE}
           placeholder={current.kind === 'many' ? '— несколько объектов —' : '— выберите —'}
           onChange={place => void pick(place)}
-          className="min-w-56 rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none
-            focus:border-primary" />
+          className="min-w-56 rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none
+            focus:border-brand" />
       ) : (
-        <span className="text-fg">
+        <span className="text-fg1">
           {current.kind === 'one' ? targetName(current.place, places) : '—'}
         </span>
       )}

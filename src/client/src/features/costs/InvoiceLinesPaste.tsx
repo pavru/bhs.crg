@@ -70,8 +70,8 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
             aria-label="Таблица из буфера"
             placeholder="Вставьте сюда таблицу товаров — из Excel, из PDF или из письма"
-            className="w-full rounded-lg border border-stroke bg-surface2 px-3 py-2 text-xs font-mono
-              text-fg outline-none focus:border-primary" />
+            className="w-full rounded-lg border border-stroke bg-muted px-3 py-2 text-xs font-mono
+              text-fg1 outline-none focus:border-brand" />
 
           {table.length > 0 && (
             <>
@@ -90,7 +90,7 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
                           <select value={current[column]}
                             aria-label={`Колонка ${column + 1}`}
                             onChange={e => setRoles(next(current, column, e.target.value as PasteRole))}
-                            className="rounded border border-stroke bg-surface2 px-1 py-0.5 text-caption
+                            className="rounded border border-stroke bg-muted px-1 py-0.5 text-caption
                               text-fg2">
                             {PASTE_ROLES.map(role => (
                               <option key={role.role} value={role.role}>{role.title}</option>
@@ -106,7 +106,7 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
                         {Array.from({ length: width }, (_, column) => (
                           <td key={column}
                             className={`px-1.5 py-1 max-w-56 truncate
-                              ${current[column] === 'skip' ? 'text-fg4 line-through' : 'text-fg'}`}>
+                              ${current[column] === 'skip' ? 'text-fg4 line-through' : 'text-fg1'}`}>
                             {row[column] ?? ''}
                           </td>
                         ))}

@@ -243,7 +243,7 @@ export function InvoiceForm({
         {!gone && <InvoicePayment view={view} dirty={dirty} />}
 
         {organizationsError != null && (
-          <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-subtle
+          <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-subtle
             px-3 py-2 text-xs text-danger">
             <TriangleAlert size={14} className="shrink-0 mt-0.5" />
             <span>

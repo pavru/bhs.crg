@@ -87,7 +87,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <select value={filter.supplierId ?? ''} aria-label="Поставщик"
           onChange={e => narrow({ supplierId: e.target.value || null })}
-          className="rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg max-w-[18rem]">
+          className="rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 max-w-[18rem]">
           <option value="">Все поставщики</option>
           {chosenMissing && (
             <option value={filter.supplierId!}>
@@ -103,7 +103,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
             onChange={e => setTyped(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-fg outline-none" />
+            className="flex-1 bg-transparent text-sm text-fg1 outline-none" />
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
         {((data?.counts.lost ?? 0) > 0 || filter.issue === 'lost') && (
@@ -121,7 +121,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       </div>
 
       {list.isError ? (
-        <div className="rounded-lg border border-danger-border px-3 py-2 text-sm text-danger">
+        <div className="rounded-lg border border-danger/30 px-3 py-2 text-sm text-danger">
           Список соответствий не прочитан: {apiError(list.error)} Это не «соответствий нет».{' '}
           <button type="button" className="underline" onClick={() => void list.refetch()}>Повторить</button>
         </div>
@@ -163,7 +163,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
                         {item.supplierArchived && <ArchivedMark className="ml-1" />}
                       </td>
                     )}
-                    <td className="py-1.5 pr-2 text-fg" title={item.source}>
+                    <td className="py-1.5 pr-2 text-fg1" title={item.source}>
                       <span className="text-fg4">{item.by === 'code' ? 'артикул ' : ''}</span>
                       {item.source}
                     </td>
@@ -236,7 +236,7 @@ function IssueChip({ active, danger = false, onClick, children }: {
   return (
     <button type="button" onClick={onClick} aria-pressed={active}
       className={`rounded-full border px-2 py-0.5 text-xs
-        ${active ? 'border-brand bg-surface2 text-fg' : danger ? 'border-danger-border text-danger' : 'border-stroke text-fg3'}`}>
+        ${active ? 'border-brand bg-muted text-fg1' : danger ? 'border-danger/30 text-danger' : 'border-stroke text-fg3'}`}>
       {children}
     </button>
   );

@@ -62,7 +62,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         </Button>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
-      <div className="px-3 py-1.5 border-b border-stroke bg-surface2 text-xs text-fg2 shrink-0" data-testid="image-caveat">
+      <div className="px-3 py-1.5 border-b border-stroke bg-muted text-xs text-fg2 shrink-0" data-testid="image-caveat">
         <div className="flex items-baseline gap-2">
           <span className="flex-1"
             title={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `

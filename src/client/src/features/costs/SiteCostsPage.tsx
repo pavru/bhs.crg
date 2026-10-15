@@ -260,7 +260,7 @@ function Segmented<T>({ label, value, options, onChange }: {
     <div role="group" aria-label={label} className="inline-flex rounded-md border border-stroke overflow-hidden">
       {options.map(([text, option]) => (
         <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
-          className={`h-8 px-3 text-sm ${value === option ? 'bg-brand-subtle text-fg1 font-medium' : 'text-fg2 hover:bg-surface2'}`}>
+          className={`h-8 px-3 text-sm ${value === option ? 'bg-brand-subtle text-fg1 font-medium' : 'text-fg2 hover:bg-muted'}`}>
           {text}
         </button>
       ))}

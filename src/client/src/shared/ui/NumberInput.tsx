@@ -41,13 +41,13 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
 }
 
 const BOX = 'rounded border border-stroke bg-surface px-1.5 py-1';
-const TEXT = 'text-right text-xs tabular-nums text-fg outline-none placeholder:text-fg4 disabled:text-fg3';
+const TEXT = 'text-right text-xs tabular-nums text-fg1 outline-none placeholder:text-fg4 disabled:text-fg3';
 
 /** Поле без единицы: рамка на самом поле. */
-const BARE = `${BOX} ${TEXT} focus:border-primary disabled:bg-surface2`;
+const BARE = `${BOX} ${TEXT} focus:border-brand disabled:bg-muted`;
 
 /** Рамка вокруг поля с единицей: состояние поля она узнаёт через `focus-within` и `has-[:disabled]`. */
-const WRAP = `${BOX} flex items-baseline gap-1 focus-within:border-primary has-[:disabled]:bg-surface2`;
+const WRAP = `${BOX} flex items-baseline gap-1 focus-within:border-brand has-[:disabled]:bg-muted`;
 
 /** Поле внутри рамки с единицей: рамку и отступы держит обёртка. */
 const INNER = `min-w-0 flex-1 bg-transparent ${TEXT}`;

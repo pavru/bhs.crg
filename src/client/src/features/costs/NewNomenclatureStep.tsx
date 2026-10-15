@@ -12,7 +12,7 @@ import {
   type IntakeDraft, type LineWords,
 } from './newNomenclature';
 
-const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg outline-none';
+const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none';
 
 /**
  * Шаг «Новая позиция номенклатуры» в окне выбора позиции (задача C3, issue #1079, ТЗ COST-7.1).
@@ -111,7 +111,7 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 border-b border-stroke pb-2">
-        <button type="button" onClick={onBack} className="flex items-center gap-1 text-xs text-fg3 hover:text-fg">
+        <button type="button" onClick={onBack} className="flex items-center gap-1 text-xs text-fg3 hover:text-fg1">
           <ArrowLeft size={13} /> К поиску
         </button>
       </div>
@@ -265,7 +265,7 @@ function Row({ position, why, action, onPick }: {
 }) {
   const label = (
     <>
-      <span className="text-sm text-fg truncate">{position.name ?? 'без названия'}</span>
+      <span className="text-sm text-fg1 truncate">{position.name ?? 'без названия'}</span>
       {why && <span className="text-caption text-fg3 truncate">{why}</span>}
       <span className="text-caption text-fg4 shrink-0">{position.type}</span>
     </>
@@ -279,7 +279,7 @@ function Row({ position, why, action, onPick }: {
   );
   return (
     <button type="button" onClick={() => onPick(position.id, position.name)}
-      className="w-full text-left px-3 py-1.5 rounded hover:bg-surface2 flex items-baseline gap-2">
+      className="w-full text-left px-3 py-1.5 rounded hover:bg-muted flex items-baseline gap-2">
       {label}<span className="ml-auto text-xs text-brand shrink-0">{action}</span>
     </button>
   );

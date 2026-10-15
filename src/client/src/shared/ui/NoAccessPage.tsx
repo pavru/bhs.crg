@@ -33,7 +33,7 @@ export function NoAccessPage({ what, missing }: {
         {missing?.kind === 'permission' && (
           <p className="text-sm text-fg3">
             Для него нужно право{' '}
-            <code className="rounded bg-surface3 px-1.5 py-0.5 font-mono text-xs text-fg2">
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-fg2">
               {missing.code}
             </code>
             , и его у вас нет.

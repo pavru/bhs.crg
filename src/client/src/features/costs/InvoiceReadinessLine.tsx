@@ -39,7 +39,7 @@ export function InvoiceReadinessLine({ items, unsaved }: {
             {index > 0 && <span className="text-fg4"> · </span>}
             {item.target
               ? (
-                <button type="button" className="text-primary hover:underline"
+                <button type="button" className="text-brand hover:underline"
                   onClick={() => { if (item.target) goTo(item.target); }}>
                   {item.label}
                 </button>
