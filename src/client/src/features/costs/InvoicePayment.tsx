@@ -45,7 +45,12 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
       text-xs text-fg2">
       <Lock size={14} className="shrink-0 mt-0.5 text-fg3" />
       <span>
-        Счёт заперт: {lockedBy}. Изменить нельзя поля, строки, разноску и отметку оплаты.
+        Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
+        {/* Отмена оплаты такому счёту — с правом исправления (E2, issue #1100): она ложится в книгу
+            исправлений днём отмены, закрытый месяц не трогая. Без права её нет вовсе — молчим о ней. */}
+        {can.permission('costs.invoice.pay') && can.permission('costs.invoice.correct') && (
+          <> Оплату отменить можно: отмена ляжет в книгу исправлений.</>
+        )}
         {/* Действие называем только тому, у кого есть путь: остальным ссылка вела бы в отказ. */}
         {can.permission('core.period.close') && (
           <> Закрытие отменяют на странице <Link to="/periods" className="underline">«Учётный период»</Link>.</>
@@ -65,6 +70,9 @@ export function InvoicePayment({ view, dirty }: {
   const [dialog, setDialog] = useState<null | 'pay' | 'cancel' | 'posting'>(null);
   const payment = view.payment;
   const locked = payment.lockedBy !== null;
+  // Отмена оплаты запертого — правом оплаты И правом исправления (E2, issue #1100, spec v3.3 п. 1.5).
+  // Без второго кнопки нет вовсе: почему счёт не правится, говорит полоса над формой.
+  const canCancel = canPay && (!locked || can.permission('costs.invoice.correct'));
 
   if (!payment.paid) {
     // У отклонённого оплаты нет вовсе, а не «кнопка и причина отказа»: действие невыполнимо, пока счёт
@@ -87,7 +95,8 @@ export function InvoicePayment({ view, dirty }: {
 
   return (
     <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-fg2">
-      <PaidDocument view={view} editable={canPay && !locked} />
+      {/* Текст платёжного документа денег не двигает — открыт и запертому (spec v3.3 п. 1.5). */}
+      <PaidDocument view={view} editable={canPay} />
       <span>
         Учётный период: <b className="tabular-nums">{payment.periods.join(' + ') || '—'}</b>{' '}
         <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
@@ -95,13 +104,11 @@ export function InvoicePayment({ view, dirty }: {
           расклад
         </button>
       </span>
-      {canPay && (locked
-        ? <span className="text-fg3">Отмена оплаты недоступна: период закрыт</span>
-        : (
-          <Button size="sm" variant="text" danger icon={<Undo2 size={13} />} onClick={() => setDialog('cancel')}>
-            Отменить оплату
-          </Button>
-        ))}
+      {canCancel && (
+        <Button size="sm" variant="text" danger icon={<Undo2 size={13} />} onClick={() => setDialog('cancel')}>
+          Отменить оплату
+        </Button>
+      )}
       {dialog === 'cancel' && <CancelDialog view={view} onDone={() => setDialog(null)} />}
       {dialog === 'posting' && <PostedDialog view={view} onDone={() => setDialog(null)} />}
     </div>
@@ -320,8 +327,15 @@ export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () =
           Счёт вернётся в «не оплачен», учётные даты долей сотрутся. Запись об оплате в журнале действий
           остаётся: отмена записывается рядом, с причиной.
         </p>
+        {view.payment.lockedBy !== null && (
+          <p className="text-note text-fg2">
+            Счёт заперт: {view.payment.lockedBy}. Закрытый месяц отмена не изменит — она ляжет в книгу
+            исправлений днём отмены. Удалить счёт после этого будет нельзя, только отклонить.
+          </p>
+        )}
         <TextAreaField label="Причина отмены" value={reason} onChange={e => setReason(e.target.value)}
-          rows={3} required hint="её увидят в журнале действий" />
+          rows={3} required
+          hint={view.payment.lockedBy !== null ? 'её увидят в журнале действий и в книге исправлений' : 'её увидят в журнале действий'} />
         {error && <p role="alert" className="text-note text-danger">{error}</p>}
       </div>
     </Modal>

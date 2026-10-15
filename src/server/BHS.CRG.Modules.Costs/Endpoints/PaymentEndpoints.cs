@@ -162,7 +162,7 @@ public static class PaymentEndpoints
             }
 
             return (invoice, was);
-        }, ct, evenLocked: true);
+        }, ct, WhenLocked.Decide);
 
         if (was != document)
             await log.RecordAsync(InvoiceActions.PaymentDescribed, invoice.Id.ToString(),
@@ -180,8 +180,8 @@ public static class PaymentEndpoints
     /// дня (spec v3.3 п. 1.5); завела отмена книгу — счёт больше не удалить, его выход — «Отклонён».</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> CancelAsync(
-        Guid id, PaymentCancelRequest body, CostsDbContext db, InvoiceDesk desk, IModuleUser user,
-        IModuleActivityLog log, CancellationToken ct)
+        Guid id, PaymentCancelRequest body, CostsDbContext db, InvoiceDesk desk, IModuleActivityLog log,
+        CancellationToken ct)
     {
         if (Text(body.Reason) is not { } reason)
             throw new InvalidRequestException(
@@ -192,17 +192,12 @@ public static class PaymentEndpoints
         {
             var invoice = write.Invoice;
             EnsurePaid(invoice);
-            if (write.Locked is { } locked && !await user.HasAsync(CostsModule.InvoiceCorrect, ct))
-                throw new ForbiddenException(
-                    $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Отменить его оплату можно только вместе с " +
-                    "правом «Исправлять счета закрытого периода»: отмена уносит деньги, уже вошедшие в закрытый " +
-                    "период или в книгу исправлений. Это право выдаёт администратор.");
 
             var was = invoice.PaidOn!.Value;
             invoice.Unpay();
             await db.SaveChangesAsync(ct);
             return (invoice, was);
-        }, ct, evenLocked: true);
+        }, ct, WhenLocked.Correct, reason);
 
         await log.RecordAsync(InvoiceActions.Unpaid, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
             before: $"оплачен {was:dd.MM.yyyy}", after: $"не оплачен. Причина: {reason}", ct: ct);

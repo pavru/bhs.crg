@@ -31,10 +31,15 @@ public partial class InvoicePaymentTests
         var today = await TodayAsync();
         var (invoice, a, b) = await LockedAsync(admin, today);
 
-        // S21 (б): право оплаты без права исправления — отказ, и счёт не тронут.
-        var refused = await payer.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" });
-        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
-        Assert.Contains("Исправлять счета закрытого периода", await ErrorAsync(refused));
+        // S21 (б): право оплаты без права исправления — отказ, и счёт не тронут. Отказ о праве — раньше
+        // версии формы, как у исправления: устаревшая форма не отправляет перечитывать ради 403.
+        var stale = (ulong.Parse((await ReadAsync(admin, invoice)).GetProperty("version").GetString()!) - 1).ToString();
+        foreach (var version in new[] { (string?)null, stale })
+        {
+            var refused = await UnpayRawAsync(payer, invoice, "ошиблись", version);
+            Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+            Assert.Contains("Исправлять счета закрытого периода", await ErrorAsync(refused));
+        }
         Assert.Equal((0, 0), await BookAsync(invoice));
 
         // S21 (д): с обоими правами — проходит. Открытие — деньги, как лежали, своими днями; отмена — доля
@@ -46,6 +51,8 @@ public partial class InvoicePaymentTests
         Assert.All(book, r => Assert.Equal(today, r.Day));
         Assert.Equal([(a, paidOn, 40_000m), (b, paidOn, 60_000m)], Cells(book[0]));
         Assert.Equal([(a, today, -40_000m), (b, paidOn, -60_000m)], Cells(book[1]));
+        // Причина — и в книге: она история закрытых месяцев, а не только журнал ядра.
+        Assert.Equal([null, "ошиблись"], await ReasonsAsync(invoice));
         Assert.Empty(await DatesAsync(invoice));
         Assert.Equal((2, 0), await BookAsync(invoice));
 
@@ -127,6 +134,25 @@ public partial class InvoicePaymentTests
         await PayAsync(admin, open, today, await PreviewAsync(admin, open, today), null);
         await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{open}/unpaid", new { reason = "не тот" }));
         Assert.Equal((0, 0), await BookAsync(open));
+    }
+
+    /// <summary>Отмена оплаты с названной версией формы; <c>null</c> — свежая (её подставит обработчик клиента).</summary>
+    private static Task<HttpResponseMessage> UnpayRawAsync(HttpClient client, Guid invoice, string reason, string? version)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/costs/invoices/{invoice}/unpaid")
+        {
+            Content = JsonContent.Create(new { reason }),
+        };
+        if (version is not null) request.Headers.TryAddWithoutValidation(SeenInvoiceVersion.Header, $"\"{version}\"");
+        return client.SendAsync(request);
+    }
+
+    /// <summary>Причины записей книги — по порядку.</summary>
+    private async Task<List<string?>> ReasonsAsync(Guid invoice)
+    {
+        using var scope = host.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<CostsDbContext>().InvoiceBookEntries.AsNoTracking()
+            .Where(e => e.InvoiceId == invoice).OrderBy(e => e.Seq).Select(e => e.Reason).ToListAsync();
     }
 
     /// <summary>Книга счёта, как лежит в базе, — по порядку записей.</summary>

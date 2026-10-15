@@ -388,7 +388,7 @@ public static class InvoiceEndpoints
                 write.Invoice.AttachScan(path, file.FileName, kind, file.Length, print);
                 await db.SaveChangesAsync(ct);
                 return (write.Invoice, replaced);
-            }, ct, evenLocked: true);
+            }, ct, WhenLocked.Decide);
         }
         catch
         {
