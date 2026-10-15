@@ -69,7 +69,7 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
 
 /** Микрозаголовок секции левой навигации scope-страницы («КОМПЛЕКТЫ», «ЭТОТ РАЗДЕЛ», …). */
 export function NavSection({ label }: { label: string }) {
-  return <div className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-fg4">{label}</div>;
+  return <div className="px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{label}</div>;
 }
 
 /**
@@ -103,14 +103,14 @@ export function NavItem({ icon, label, count, active, chevron, onClick, alert, a
       <span className="flex-1 truncate text-sm">{label}</span>
       {progress != null && (
         <span title={progressTitle ?? `Готовность по плану: ${progress}%`}
-          className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
+          className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
             progress === 100 ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg3'}`}>
           {progress}%
         </span>
       )}
       {alert != null && alert > 0 && (
         <span title={`Требует разбора: ${alert}`}
-          className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${
+          className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
             alertDanger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
           {alert > 99 ? '99+' : alert}
         </span>
@@ -122,7 +122,7 @@ export function NavItem({ icon, label, count, active, chevron, onClick, alert, a
         </>
       ) : (
         count != null && count > 0 && (
-          <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-brand-subtle text-brand'}`}>{count}</span>
+          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-brand-subtle text-brand'}`}>{count}</span>
         )
       )}
     </button>

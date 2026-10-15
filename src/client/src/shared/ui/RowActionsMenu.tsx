@@ -28,7 +28,7 @@ function Row({ action }: { action: RowAction }) {
     <>
       {action.icon && <span className={action.active ? 'text-brand' : action.danger ? 'text-danger' : 'text-fg4'}>{action.icon}</span>}
       <span className={`truncate ${color}`}>{action.label}</span>
-      {action.badge && <span className="ml-auto text-[11px] text-fg4 tabular-nums">{action.badge}</span>}
+      {action.badge && <span className="ml-auto text-caption text-fg4 tabular-nums">{action.badge}</span>}
     </>
   );
 }

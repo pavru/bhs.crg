@@ -153,7 +153,7 @@ export function EmailSettingsSection() {
             ))}
           </div>
         )}
-        <p className="text-[11px] text-fg4">⚠ — email не задан или невалиден: такой пользователь не получит писем.</p>
+        <p className="text-caption text-fg4">⚠ — email не задан или невалиден: такой пользователь не получит писем.</p>
       </div>
     </CollapsibleSection>
   );

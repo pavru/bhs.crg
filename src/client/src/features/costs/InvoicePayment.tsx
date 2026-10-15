@@ -222,7 +222,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
     return (
       <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
         acknowledge="Понятно">
-        <p role="alert" className="text-[13px] text-fg1">
+        <p role="alert" className="text-note text-fg1">
           Оплатить нельзя: {posting.refusal}.
           {posting.refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}
         </p>
@@ -242,7 +242,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
       }>
       <div className="space-y-4">
         {error && (
-          <p role="alert" className="text-[13px] text-danger">
+          <p role="alert" className="text-note text-danger">
             {error}{changed.size > 0 && ' Расклад обновлён — проверьте перенос.'}
           </p>
         )}
@@ -261,23 +261,23 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
         </div>
 
         {posting?.total != null && (
-          <p className="text-[13px] text-fg2">К оплате <b className="tabular-nums">{formatMoney(posting.total)}</b></p>
+          <p className="text-note text-fg2">К оплате <b className="tabular-nums">{formatMoney(posting.total)}</b></p>
         )}
 
         <div>
           <h3 className="text-xs font-medium text-fg3 mb-1.5">Когда войдёт в затраты</h3>
           {failed
             ? (
-              <p role="alert" className="text-[13px] text-danger">
+              <p role="alert" className="text-note text-danger">
                 Расклад не получен: {failed}{' '}
                 <button type="button" className="underline" onClick={() => void ask(paidOn || null)}>Повторить</button>
               </p>
             )
-            : posting === null ? <p className="text-[13px] text-fg3">Считаем расклад…</p>
-              : posting.dateRefusal ? <p className="text-[13px] text-warning">Оплатить этой датой нельзя: {posting.dateRefusal}.</p>
+            : posting === null ? <p className="text-note text-fg3">Считаем расклад…</p>
+              : posting.dateRefusal ? <p className="text-note text-warning">Оплатить этой датой нельзя: {posting.dateRefusal}.</p>
                 : (
                   <div className={fresh ? '' : 'opacity-50'} aria-busy={!fresh}>
-                    {!fresh && <p className="text-[13px] text-fg3 mb-1">пересчитываем…</p>}
+                    {!fresh && <p className="text-note text-fg3 mb-1">пересчитываем…</p>}
                     <PaymentPostingTable key={posting.stamp} posting={posting} changed={changed} />
                   </div>
                 )}
@@ -316,13 +316,13 @@ export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () =
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-[13px] text-fg2">
+        <p className="text-note text-fg2">
           Счёт вернётся в «не оплачен», учётные даты долей сотрутся. Запись об оплате в журнале действий
           остаётся: отмена записывается рядом, с причиной.
         </p>
         <TextAreaField label="Причина отмены" value={reason} onChange={e => setReason(e.target.value)}
           rows={3} required hint="её увидят в журнале действий" />
-        {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
+        {error && <p role="alert" className="text-note text-danger">{error}</p>}
       </div>
     </Modal>
   );
@@ -335,8 +335,8 @@ function PostedDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
   return (
     <Modal open wide nothingToLose onOpenChange={o => { if (!o) onDone(); }} title={`Расклад оплаты: ${invoiceTitle(view)}`}
       footer={<div className="flex justify-end"><ModalExit>Закрыть</ModalExit></div>}>
-      {isLoading ? <p className="text-[13px] text-fg3">Читаем расклад…</p>
-        : error || !data ? <p role="alert" className="text-[13px] text-danger">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
+      {isLoading ? <p className="text-note text-fg3">Читаем расклад…</p>
+        : error || !data ? <p role="alert" className="text-note text-danger">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
           : <PaymentPostingTable posting={data} expanded />}
     </Modal>
   );

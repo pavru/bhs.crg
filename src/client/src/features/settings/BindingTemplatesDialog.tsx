@@ -123,7 +123,7 @@ function TemplateForm({
                   <span className="text-xs font-medium truncate block text-fg2" title={f.title}>
                     {f.title}
                   </span>
-                  <span className="text-[10px] font-mono text-fg4">{f.key}</span>
+                  <span className="text-caption font-mono text-fg4">{f.key}</span>
                 </div>
                 <input
                   value={columnMappings[f.key] ?? ''}

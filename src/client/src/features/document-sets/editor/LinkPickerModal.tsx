@@ -194,13 +194,13 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                         {/* Только НОМЕР: срок действия у строки уже есть справа, и вторая дата рядом
                             (да ещё в другом формате) читалась бы как два разных срока. */}
                         {docNumberOf(d, allDocTypes) && (
-                          <span className="block text-[11px] text-fg4 truncate">№ {docNumberOf(d, allDocTypes)}</span>
+                          <span className="block text-caption text-fg4 truncate">№ {docNumberOf(d, allDocTypes)}</span>
                         )}
                       </span>
                       {queryTokens.length > 0 && score > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(score * 100)}%</span>
+                        <span className="text-caption px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(score * 100)}%</span>
                       )}
-                      {validUntil && <span className={`text-[10px] shrink-0 ${expired ? 'text-danger' : 'text-fg4'}`}>
+                      {validUntil && <span className={`text-caption shrink-0 ${expired ? 'text-danger' : 'text-fg4'}`}>
                         {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
                     </button>
                     {d.scanBlobPath && (
@@ -243,7 +243,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
             <div className="max-h-80 overflow-y-auto divide-y divide-muted border border-stroke rounded-md">
               {results.map(c => (
                 <div key={c.url} className="flex items-start gap-2 px-3 py-2">
-                  <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-base text-fg3 shrink-0 mt-0.5">{c.source}</span>
+                  <span className="text-caption uppercase px-1.5 py-0.5 rounded bg-base text-fg3 shrink-0 mt-0.5">{c.source}</span>
                   <div className="flex-1 min-w-0">
                     <a href={c.url} target="_blank" rel="noreferrer"
                       className="text-sm text-brand-hover hover:underline flex items-center gap-1">

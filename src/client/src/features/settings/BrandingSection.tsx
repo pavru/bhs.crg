@@ -122,7 +122,7 @@ export function BrandingSection() {
         <p className="text-xs text-fg3 mb-2">
           Логотип — PNG, JPEG, WebP или SVG, до 5 МБ. Он же доступен печатным формам как ассет
           уровня системы: в шаблоне это{' '}
-          <code className="text-[11px]">image(&quot;/assets/company-logo.png&quot;)</code>{' '}
+          <code className="text-caption">image(&quot;/assets/company-logo.png&quot;)</code>{' '}
           — с тем расширением, с каким файл загружен. Значок вкладки и приложения система строит из
           логотипа сама: вписывает его в квадрат целиком, без обрезки.
         </p>
@@ -197,9 +197,9 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
       <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
-        {!logo && <span className="text-[11px] text-fg4">нет</span>}
+        {!logo && <span className="text-caption text-fg4">нет</span>}
         {logo && unread && (
-          <span className="text-[11px] leading-tight text-center text-warning" data-testid="branding-logo-unread">
+          <span className="text-caption leading-tight text-center text-warning" data-testid="branding-logo-unread">
             {/* Перенос задан явно: в одну строку слова встают в рамку впритык, от края до края. */}
             не<br />читается
           </span>
@@ -239,7 +239,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
   const tab = brandIconUrl('tab', icons.version);
   if (missing)
     return (
-      <p className="border-l border-stroke pl-4 text-[11px] leading-tight text-warning max-w-[9rem]"
+      <p className="border-l border-stroke pl-4 text-caption leading-tight text-warning max-w-[9rem]"
         data-testid="brand-icon-previews-missing">
         Значки построены, но их картинки не загрузились.
       </p>
@@ -258,7 +258,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             <img src={tab} alt="Значок вкладки на тёмном фоне" width={16} height={16} onError={fail} />
           </span>
         </div>
-        <figcaption className="text-[11px] text-fg4">вкладка</figcaption>
+        <figcaption className="text-caption text-fg4">вкладка</figcaption>
       </figure>
 
       <figure className="flex flex-col items-center gap-1">
@@ -268,7 +268,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             в строку. */}
         <img src={brandIconUrl('apple', icons.version)} alt="Значок приложения" width={40} height={40}
           className="rounded-[22%] border border-stroke" onError={fail} />
-        <figcaption className="text-[11px] text-fg4">приложение</figcaption>
+        <figcaption className="text-caption text-fg4">приложение</figcaption>
       </figure>
     </div>
   );

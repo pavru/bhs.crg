@@ -140,7 +140,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
                   {c.unavailable && COLUMN_ICON[c.unavailable]}
                   <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.label}</span>
                   {sorted && (sorted.descending ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />)}
-                  {sorted && sort!.length > 1 && <span className="text-[10px] text-fg4">{order + 1}</span>}
+                  {sorted && sort!.length > 1 && <span className="text-caption text-fg4">{order + 1}</span>}
                 </span>
               );
               return (

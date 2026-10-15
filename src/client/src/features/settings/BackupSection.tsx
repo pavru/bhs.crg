@@ -402,11 +402,11 @@ function BackupFilesPanel() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-fg1 truncate">
                     {f.fileName}
-                    <span className="ml-2 text-[11px] text-fg4 font-normal">
+                    <span className="ml-2 text-caption text-fg4 font-normal">
                       {f.includesProjectData ? 'полная' : 'настройка'}
                     </span>
                     {scheduled.has(f.fileName) && (
-                      <span className="ml-2 text-[11px] text-fg4 font-normal" title="Снята расписанием — попадает под уборку старых">
+                      <span className="ml-2 text-caption text-fg4 font-normal" title="Снята расписанием — попадает под уборку старых">
                         плановая
                       </span>
                     )}

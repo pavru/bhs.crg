@@ -99,14 +99,14 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
             {/* Текстом, а не выключенным селектом: длинная подпись в селекте обрезается, и
                 обрезается как раз причина — «модуль … выключен». */}
             <p className="border border-stroke rounded-md px-2 py-1.5 text-sm bg-muted text-fg3">{hiddenLabel(h)}</p>
-            <p className="text-[11px] text-fg4 mt-1">
+            <p className="text-caption text-fg4 mt-1">
               Привязка сохранена и начнёт действовать, когда модуль включат.
             </p>
           </div>
         ))}
 
         {error && <p className="text-sm text-danger">{error}</p>}
-        <p className="text-[11px] text-fg4">
+        <p className="text-caption text-fg4">
           Смена профиля не перезапускает распознавание — новые параметры применятся при следующем запуске.
         </p>
       </div>

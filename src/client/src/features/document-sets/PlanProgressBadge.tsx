@@ -20,7 +20,7 @@ export function PlanProgressBadge({ progress, className = '' }: {
   const done = progress.percent === 100;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[11px] ${className}`}
+    <span className={`inline-flex items-center gap-1.5 text-caption ${className}`}
       title={planTitle(progress)}>
       <span className={`px-2 py-0.5 rounded-full tabular-nums ${
         done ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg2'}`}>

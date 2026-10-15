@@ -113,7 +113,7 @@ export function UnionDiscriminatorEditor({
                 <span className="flex-1 flex flex-wrap gap-1">
                   {ids.map(id => (
                     <span key={id}
-                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] border ${
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border ${
                         conflicting.has(id)
                           ? 'bg-danger-subtle text-danger border-danger/30'
                           : 'bg-base text-fg3 border-stroke'}`}>
@@ -123,9 +123,9 @@ export function UnionDiscriminatorEditor({
                     </span>
                   ))}
                 </span>
-                {disabled && <span className="text-[11px] text-fg4 shrink-0">выключен, строки пропускаются</span>}
+                {disabled && <span className="text-caption text-fg4 shrink-0">выключен, строки пропускаются</span>}
                 {needsMapping && (
-                  <span className="text-[11px] text-danger shrink-0 flex items-center gap-1">
+                  <span className="text-caption text-danger shrink-0 flex items-center gap-1">
                     <AlertTriangle size={11} /> нет маппинга
                   </span>
                 )}

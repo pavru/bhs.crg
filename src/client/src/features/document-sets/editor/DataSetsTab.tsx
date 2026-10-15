@@ -124,7 +124,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
     <div className="space-y-1 rounded-md border border-stroke/60 p-1.5">
       <div className="flex items-center gap-2">
         <span className={`flex-1 min-w-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${field.title} (${field.key}) — составное поле`}>{field.title}</span>
-        <div className="flex rounded-md border border-stroke overflow-hidden text-[11px] shrink-0">
+        <div className="flex rounded-md border border-stroke overflow-hidden text-caption shrink-0">
           {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
         </div>
       </div>
@@ -149,7 +149,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
             <div className="pl-2 space-y-1 border-l border-stroke">
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
-                  <span className={`w-40 shrink-0 text-[11px] text-fg4 ${MAP_LABEL}`} title={idf.key}>{idf.title}</span>
+                  <span className={`w-40 shrink-0 text-caption text-fg4 ${MAP_LABEL}`} title={idf.key}>{idf.title}</span>
                   <select value={idCols[idf.key] ?? ''} onChange={e => setRefIdentity(idf.key, e.target.value)}
                     className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для identity-поля «${idf.title}»`}>
                     <option value="">— колонка —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
@@ -158,14 +158,14 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               ))}
             </div>
           )}
-          <p className="text-[10px] text-fg4">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
+          <p className="text-caption text-fg4">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
         </>
       ) : (
         <>
           <div className="pl-2 space-y-1 border-l border-brand/40">
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
-                <span className={`w-40 shrink-0 text-[11px] text-fg3 ${MAP_LABEL}`} title={`${sf.title} (${sf.key})`}>{sf.title}</span>
+                <span className={`w-40 shrink-0 text-caption text-fg3 ${MAP_LABEL}`} title={`${sf.title} (${sf.key})`}>{sf.title}</span>
                 <select value={inlineFields[sf.key] ?? ''} onChange={e => setSub(sf.key, e.target.value || undefined)}
                   className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для под-поля «${sf.title}»`}>
                   <option value="">— не привязано —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
@@ -178,7 +178,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 <div key={sf.key}>
                   <button type="button"
                     onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
-                    className="flex items-center gap-1 py-0.5 text-[11px] text-fg3 hover:text-fg1">
+                    className="flex items-center gap-1 py-0.5 text-caption text-fg3 hover:text-fg1">
                     {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     <span className={`text-left ${MAP_LABEL}`} title={`${sf.title} (${sf.key}) — составное поле`}>{sf.title}</span>
                     {inlineFields[sf.key] && <span className="text-brand">•</span>}
@@ -194,10 +194,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               );
             })}
             {scalarSubs.length === 0 && compositeSubs.length === 0 && (
-              <p className="text-[11px] text-fg4">У типа нет под-полей для маппинга.</p>
+              <p className="text-caption text-fg4">У типа нет под-полей для маппинга.</p>
             )}
           </div>
-          <p className="text-[10px] text-fg4">Собирает объект из колонок — разовые данные этого документа.</p>
+          <p className="text-caption text-fg4">Собирает объект из колонок — разовые данные этого документа.</p>
         </>
       )}
     </div>
@@ -389,7 +389,7 @@ export function MappingEditor({
                   <option value="">— не привязано —</option>
                   {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <span className="w-40 shrink-0 text-[11px] text-fg4">колонка с Ид документа</span>
+                <span className="w-40 shrink-0 text-caption text-fg4">колонка с Ид документа</span>
               </div>
             );
           })}

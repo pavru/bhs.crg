@@ -51,7 +51,7 @@ export function AliasesPanel() {
         {items.map(a => (
           <div key={a.id} className="px-4 py-3 border-b border-stroke group">
             <div className="flex items-center gap-2">
-              <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[a.status]}`}>
+              <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[a.status]}`}>
                 {ALIAS_STATUS_LABELS[a.status]}
               </span>
               <span className="min-w-0 flex-1 text-sm text-fg1 truncate">
@@ -81,7 +81,7 @@ export function AliasesPanel() {
               </Button>
             </div>
             {(a.note || a.confirmedBy || a.proposedBy) && (
-              <p className="text-[11px] text-fg4 mt-0.5">
+              <p className="text-caption text-fg4 mt-0.5">
                 {a.note}
                 {a.note && (a.confirmedBy || a.proposedBy) ? ' · ' : ''}
                 {a.confirmedBy ? `подтвердил ${a.confirmedBy}` : a.proposedBy ? `предложил ${a.proposedBy}` : ''}

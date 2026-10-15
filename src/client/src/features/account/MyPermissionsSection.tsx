@@ -60,12 +60,12 @@ export function MyPermissionsSection() {
                   <li key={p.code}>
                     <div className="text-sm text-fg1">{p.gives}</div>
                     <div className="text-xs text-fg3">{p.opens}</div>
-                    <code className="text-[11px] text-fg4">{p.code}</code>
+                    <code className="text-caption text-fg4">{p.code}</code>
                     {/* У человека с одной ролью «Руководитель» этого права в составе роли нет:
                         оно приходит раскрытием составного. Без подписи список расходился бы с
                         тем, что видит администратор в редакторе ролей. */}
                     {holdsReadAll && p.readAll && (
-                      <div className="text-[11px] text-fg4">входит в право «читать всё»</div>
+                      <div className="text-caption text-fg4">входит в право «читать всё»</div>
                     )}
                   </li>
                 ))}

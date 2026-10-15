@@ -172,7 +172,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
         ) : (
           <div className="space-y-3">
             <div>
-              <label className="block text-[11px] text-fg4 mb-1">Источник</label>
+              <label className="block text-caption text-fg4 mb-1">Источник</label>
               <select value={sourceId} onChange={e => pickSource(e.target.value)}
                 className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
                 <option value="">— выберите —</option>
@@ -190,7 +190,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
 
             {selectedSource && (
               <div>
-                <label className="block text-[11px] text-fg4 mb-1">Колонка</label>
+                <label className="block text-caption text-fg4 mb-1">Колонка</label>
                 <select value={column} onChange={e => setColumn(e.target.value)}
                   className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
                   <option value="">— не привязано —</option>

@@ -174,7 +174,7 @@ export function ImageField({ value, onChange, readOnly = false }: {
       </div>
       )}
 
-      {shrunk && <p className="text-[11px] text-fg4">{shrunk}</p>}
+      {shrunk && <p className="text-caption text-fg4">{shrunk}</p>}
 
       {sizeOpen && img && (
         <div className="flex flex-wrap items-center gap-2 pl-1">

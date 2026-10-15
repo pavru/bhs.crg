@@ -141,7 +141,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
               className="h-12 flex-1 bg-transparent text-sm text-fg1 outline-none placeholder:text-fg4" />
-            <kbd className="rounded border border-stroke px-1 text-[10px] text-fg4">Esc</kbd>
+            <kbd className="rounded border border-stroke px-1 text-caption text-fg4">Esc</kbd>
           </div>
           <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
             {noneVisible && (
@@ -162,7 +162,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                 {g.heading && (
                   <div className="mt-2 border-t border-stroke px-3 pt-3 pb-1 text-xs font-medium text-fg2">{g.heading}</div>
                 )}
-                <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-fg4">{g.label}</div>
+                <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{g.label}</div>
                 <ul>
                   {g.items.map(t => {
                     const i = ++idx;
@@ -176,7 +176,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                             i === active ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
                           <Icon size={16} className={i === active ? 'text-on-tonal' : 'text-fg3'} />
                           <span className="flex-1 truncate" title={showCode ? `${t.name} (${code})` : t.name}>{t.name}</span>
-                          {showCode && <span className={`text-[11px] font-mono shrink-0 ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{code}</span>}
+                          {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{code}</span>}
                         </button>
                       </li>
                     );

@@ -193,6 +193,6 @@ function HintCount({ hint }: { hint: TemplateAssetsHint }) {
   const { data: assets = [] } = useListTemplateAssets(hint.scope, hint.scopeId);
   if (assets.length === 0) return null;
   return (
-    <p className="text-[11px] text-fg4">Также доступно: {assets.length} {hint.label}</p>
+    <p className="text-caption text-fg4">Также доступно: {assets.length} {hint.label}</p>
   );
 }

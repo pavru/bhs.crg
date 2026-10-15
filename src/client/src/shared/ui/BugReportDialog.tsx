@@ -227,7 +227,7 @@ function ContextFacts({ prefill, version, commit }: {
       <li>
         Ошибки API: {tech.apiErrors?.length ?? 0}
         {(tech.apiErrors?.length ?? 0) > 0 && (
-          <ul className="mt-1 ml-3 space-y-0.5 font-mono text-[11px]">
+          <ul className="mt-1 ml-3 space-y-0.5 font-mono text-caption">
             {tech.apiErrors!.map((e, i) => (
               <li key={i} className="break-all">
                 {e.at} {e.method} {e.url} → {e.status || 'нет ответа'}

@@ -153,11 +153,11 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
                 </select>
               )}
               {prefillHint(kind, f, from) && draft.values[f.key] === prefill(kind, from).values[f.key] && (
-                <span className="block text-[11px] text-fg4">{prefillHint(kind, f, from)}</span>
+                <span className="block text-caption text-fg4">{prefillHint(kind, f, from)}</span>
               )}
             </label>
           ))}
-          <p className="text-[11px] text-fg4">
+          <p className="text-caption text-fg4">
             В справочник попадёт только названное здесь. Остальные поля вида «{kind.name}» дополните в справочнике.
           </p>
 
@@ -170,7 +170,7 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
               </Button>
             )} />
           {missing.length > 0 && body !== null && (
-            <p className="text-[11px] text-fg4">Не заполнено: {missing.join(', ')}.</p>
+            <p className="text-caption text-fg4">Не заполнено: {missing.join(', ')}.</p>
           )}
           {refused && <Refusal>{refused}</Refusal>}
           {/* Лежащую предлагает сам отказ: ответ о похожих мог не прийти, а выбрать её человек обязан мочь. */}
@@ -218,7 +218,7 @@ function Similar({ body, settled, similar, create, onPick }: {
 
   const { exact, similar: hits, more, unreadable } = similar.data;
   const unread = unreadable > 0 && (
-    <p className="text-[11px] text-warning">
+    <p className="text-caption text-warning">
       Не сверено позиций: {unreadable} — их записи прочитать не удалось. Это не «не похожи».
     </p>
   );
@@ -248,7 +248,7 @@ function Similar({ body, settled, similar, create, onPick }: {
       {more && <p className="text-xs text-warning">Есть ещё похожие — уточните наименование.</p>}
       {hits.length === 0 && <p className="text-xs text-fg3">Похожих в справочнике не найдено.</p>}
       {/* Оговорка — всегда: «не найдено» значит «правила не нашли», а не «дубля нет». */}
-      <p className="text-[11px] text-fg4">
+      <p className="text-caption text-fg4">
         Сверка — по совпадению слов и значений: написанное иначе («3х2,5» и «3*2.5») она не найдёт.
       </p>
       {unread}
@@ -266,15 +266,15 @@ function Row({ position, why, action, onPick }: {
   const label = (
     <>
       <span className="text-sm text-fg truncate">{position.name ?? 'без названия'}</span>
-      {why && <span className="text-[11px] text-fg3 truncate">{why}</span>}
-      <span className="text-[11px] text-fg4 shrink-0">{position.type}</span>
+      {why && <span className="text-caption text-fg3 truncate">{why}</span>}
+      <span className="text-caption text-fg4 shrink-0">{position.type}</span>
     </>
   );
   // Архивную выбрать нельзя — сервер её в новую строку не примет; но показать обязаны: иначе её
   // заведут заново.
   if (position.archived) return (
     <div className="px-3 py-1.5 flex items-baseline gap-2">
-      {label}<span className="ml-auto text-[11px] text-fg4 shrink-0">в архиве</span>
+      {label}<span className="ml-auto text-caption text-fg4 shrink-0">в архиве</span>
     </div>
   );
   return (

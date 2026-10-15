@@ -35,7 +35,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
         className="shrink-0" title="Замечания внешнего анализа, упоминающие этот документ">
         <span className="hidden sm:inline">Замечания</span>
         {unreviewed > 0 && (
-          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-warning-subtle text-warning">
+          <span className="text-caption px-1.5 py-0.5 rounded-full bg-warning-subtle text-warning">
             {unreviewed}
           </span>
         )}
@@ -44,7 +44,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
       <Modal open={open} onOpenChange={setOpen} wide nothingToLose title="Замечания, упоминающие этот документ">
         <div className="space-y-3">
           {/* Происхождение рядом с данными: это утверждения, а не результат проверки системы. */}
-          <p className="text-[11px] text-fg4">
+          <p className="text-caption text-fg4">
             Утверждения внешнего ИИ-агента. Система их не проверяла; разбирать — на странице комплекта.
           </p>
 
@@ -54,7 +54,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
             <div key={o.id} className={`px-3 py-2 border border-stroke rounded-lg ${
               isUnreviewed(o) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-2">
-                <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
+                <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
                   o.severity === 'Error' ? 'bg-warning-subtle text-warning' : 'bg-muted text-fg3'}`}>
                   {SEVERITY_LABELS[o.severity]}
                 </span>
@@ -62,12 +62,12 @@ export function DocumentObservationsChip({ setId, documentId }: {
                   <div className="text-sm text-fg1">{o.title}</div>
                   {o.detail && <p className="text-xs text-fg3 mt-0.5 whitespace-pre-wrap">{o.detail}</p>}
                   {o.reviewNote && (
-                    <p className="text-[11px] text-fg3 mt-1">
+                    <p className="text-caption text-fg3 mt-1">
                       {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
                     </p>
                   )}
                 </div>
-                <span className="text-[11px] text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
+                <span className="text-caption text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
               </div>
             </div>
           ))}

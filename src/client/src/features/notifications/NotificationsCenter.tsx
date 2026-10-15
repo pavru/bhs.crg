@@ -78,7 +78,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <p className="text-sm font-medium text-fg1 truncate">{n.title}</p>
           {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-brand" />}
         </div>
-        <p className="text-[13px] leading-[1.45] text-fg3 mt-1 break-words whitespace-pre-wrap">{n.message}</p>
+        <p className="text-note leading-[1.45] text-fg3 mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
           <a
             href={n.linkUrl} target="_blank" rel="noreferrer"
@@ -187,7 +187,7 @@ export function NotificationsCenter() {
         >
           <Bell size={22} />
           {unread > 0 && (
-            <span className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-[11px] font-medium flex items-center justify-center text-white ${hasUnreadError ? 'bg-danger' : 'bg-success'}`}>
+            <span className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-caption font-medium flex items-center justify-center text-white ${hasUnreadError ? 'bg-danger' : 'bg-success'}`}>
               {unread > 99 ? '99+' : unread}
             </span>
           )}

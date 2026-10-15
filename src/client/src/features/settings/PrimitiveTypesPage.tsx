@@ -449,7 +449,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                 {unknownAllowed.map(code => (
                   <span key={code}
                     title="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат."
-                    className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-[11px] text-fg4">
+                    className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
                     {code}
                   </span>
                 ))}
@@ -580,11 +580,11 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
           <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
           {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
           <span className="flex items-baseline gap-1 min-w-0 text-fg4">
-            <span className="font-mono text-[11px] truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
+            <span className="font-mono text-caption truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
             {t.preview && <span className="text-xs truncate min-w-0">{`· ${t.preview}`}</span>}
           </span>
         </span>
-        <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
+        <span className="text-caption px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
       </button>
     );
   };

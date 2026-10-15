@@ -255,7 +255,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         <PrimitiveInput field={f} value={v} label={f.title}
           onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
           primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
-        {locked && <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
+        {locked && <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
         {constraintErrors[f.key] && (
           <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
         )}

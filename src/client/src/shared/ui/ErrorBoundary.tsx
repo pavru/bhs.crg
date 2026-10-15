@@ -119,7 +119,7 @@ export class ErrorBoundary extends Component<
                 Подробности ошибки
               </button>
               {expanded && (
-                <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-[11px] leading-relaxed text-fg3 whitespace-pre-wrap break-words">
+                <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-caption leading-relaxed text-fg3 whitespace-pre-wrap break-words">
                   {error.message}{error.stack ? `\n\n${error.stack}` : ''}
                 </pre>
               )}

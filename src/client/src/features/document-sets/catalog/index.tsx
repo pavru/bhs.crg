@@ -408,7 +408,7 @@ export function CatalogEntryForm({
                 <PrimitiveInput field={field} value={val} label={field.title}
                   hint={getPrimitiveDef(field)?.name} onChange={() => {}} invalid={false}
                   primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} readOnly />
-                <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1">
+                <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1">
                   <LockedFieldIcon />{LOCKED_HINT}
                 </p>
               </div>
@@ -466,7 +466,7 @@ export function CatalogEntryForm({
             <div key={field.key}>
               {isProxy && (
                 <div className="flex items-center justify-between gap-2 mb-0.5 min-h-[16px]">
-                  <span className="text-[11px] text-fg4 truncate">
+                  <span className="text-caption text-fg4 truncate">
                     {proxyOverridden ? 'переопределено'
                       : proxyRealHint ? `наследует: ${proxyRealHint}`
                       : 'наследуется от реального'}
@@ -474,7 +474,7 @@ export function CatalogEntryForm({
                   {proxyOverridden && (
                     <button type="button" onClick={() => setValue(field.key, undefined)}
                       title="Вернуть к наследованию от реального объекта"
-                      className="text-[11px] text-brand hover:text-brand-hover flex items-center gap-0.5 shrink-0">
+                      className="text-caption text-brand hover:text-brand-hover flex items-center gap-0.5 shrink-0">
                       <CornerUpLeft size={11} /> наследовать
                     </button>
                   )}

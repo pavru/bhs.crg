@@ -47,7 +47,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
     return (
       <p className="text-sm text-fg3">
         Подписчики закрыты правом «управлять аудиторией уведомлений»
-        (<span className="font-mono text-[12px]">core.notify.manage</span>). Кто получает письма по
+        (<span className="font-mono text-xs">core.notify.manage</span>). Кто получает письма по
         этому уровню — видно тому, у кого это право есть.
       </p>
     );

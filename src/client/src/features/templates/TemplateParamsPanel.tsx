@@ -60,7 +60,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
       </button>
       {open && (
         <div className="px-4 pb-4 pt-3 border-t border-muted space-y-2">
-          <p className="text-[11px] text-fg4">
+          <p className="text-caption text-fg4">
             Доступны в Typst как <code className="text-fg3">data.params.имя</code>. Значение по умолчанию можно
             переопределить на конкретном документе.
           </p>
