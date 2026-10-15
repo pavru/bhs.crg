@@ -65,7 +65,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
             }} />
         )}
         <button type="button" onClick={onCancel} title="Отменить подстановку"
-          className="text-fg4 hover:text-fg p-0.5">
+          className="text-fg4 hover:text-fg1 p-0.5">
           <X size={12} />
         </button>
       </span>

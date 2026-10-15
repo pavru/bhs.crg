@@ -41,7 +41,7 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
   const can = useCan();
 
   return (
-    <div role="note" className="flex items-start gap-2 rounded-lg border border-stroke bg-surface2 px-3 py-2
+    <div role="note" className="flex items-start gap-2 rounded-lg border border-stroke bg-muted px-3 py-2
       text-xs text-fg2">
       <Lock size={14} className="shrink-0 mt-0.5 text-fg3" />
       <span>

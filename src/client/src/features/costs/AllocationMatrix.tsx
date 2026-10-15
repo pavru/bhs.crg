@@ -217,7 +217,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
                 return (
                   <tr key={row.key} className="align-top">
                     <th className={`${STICKY_LEFT} font-normal text-left`}>
-                      <div className="text-fg max-w-64 truncate" title={row.title}>{row.title}</div>
+                      <div className="text-fg1 max-w-64 truncate" title={row.title}>{row.title}</div>
                       <div className="text-fg4">
                         {row.mode === 'quantity'
                           ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
@@ -316,5 +316,5 @@ function PendingNote({ view, places }: { view: InvoiceView; places: Places }) {
 const STICKY_LEFT = 'sticky left-0 z-10 bg-surface border-b border-r border-stroke px-2 py-1.5';
 const STICKY_RIGHT = 'sticky right-0 z-10 bg-surface border-b border-l border-stroke px-2 py-1.5';
 
-const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg outline-none
-  focus:border-primary disabled:bg-surface2 disabled:text-fg3`;
+const FIELD = `w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none
+  focus:border-brand disabled:bg-muted disabled:text-fg3`;

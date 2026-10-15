@@ -41,7 +41,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   return (
     <button ref={row} type="button" onClick={onClick} data-testid="invoice-row"
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
-        `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
+        `${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
       <div className="flex items-center gap-2">
         {/* Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. */}
         {item.number || !item.scanFileName
@@ -142,7 +142,7 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
 }) {
   return (
     <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
-      className={`w-full text-left px-3 py-2 border-b border-stroke/60 ${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}
+      className={`w-full text-left px-3 py-2 border-b border-stroke/60 ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}
       title={exit
         ? `Счёт ${EXIT_WORD[exit]} и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться`
         : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>

@@ -60,8 +60,8 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => setOpen(true)} title={archived && !lost ? ARCHIVED_HINT : undefined}
           className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
-            ${lost ? 'border-danger-border text-danger'
-              : chosen ? 'border-stroke text-fg' : 'border-warning-border text-warning'}`}>
+            ${lost ? 'border-danger/30 text-danger'
+              : chosen ? 'border-stroke text-fg1' : 'border-warning-border text-warning'}`}>
           {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
               но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
           {lost ? lostText ?? LOST.position
@@ -73,7 +73,7 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
         {mark}
         {chosen && clearable && (
           <button type="button" onClick={onClear} title="Снять позицию"
-            className="shrink-0 text-fg4 hover:text-fg p-0.5">
+            className="shrink-0 text-fg4 hover:text-fg1 p-0.5">
             <X size={12} />
           </button>
         )}
@@ -140,7 +140,7 @@ function PickerDialog({ from, onClose, onPick }: {
                 рисовал бы лишний кадр. */}
             <input ref={node => node?.focus()} value={typed} onChange={e => type(e.target.value)}
               placeholder="часть наименования"
-              className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-fg4" />
+              className="flex-1 bg-transparent text-sm outline-none text-fg1 placeholder:text-fg4" />
           </div>
 
           {found.isError && (
@@ -154,8 +154,8 @@ function PickerDialog({ from, onClose, onPick }: {
           <div className="max-h-72 overflow-y-auto -mx-1">
             {items.map(item => (
               <button key={item.id} type="button" onClick={() => onPick(item.id, item.name)}
-                className="w-full text-left px-3 py-1.5 rounded hover:bg-surface2 flex items-baseline gap-2">
-                <span className="text-sm text-fg truncate">{item.name ?? 'без названия'}</span>
+                className="w-full text-left px-3 py-1.5 rounded hover:bg-muted flex items-baseline gap-2">
+                <span className="text-sm text-fg1 truncate">{item.name ?? 'без названия'}</span>
                 {/* Найдено по альтернативному имени — сказано словами: набранного в названии нет, и
                     без пояснения строка читается как промах поиска. */}
                 {item.matchedAlias && (

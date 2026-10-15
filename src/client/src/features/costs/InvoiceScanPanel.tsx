@@ -176,7 +176,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
   const refused = image.data?.state === 'refused' ? image.data : null;
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-stroke bg-surface2 px-3 py-2">
+    <div className="flex items-start gap-2 rounded-lg border border-stroke bg-muted px-3 py-2">
       <FileText size={14} className="text-fg3 shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
         {refused

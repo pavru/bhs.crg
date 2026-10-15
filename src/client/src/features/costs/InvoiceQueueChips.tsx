@@ -83,7 +83,7 @@ function Chip({ active, icon: Icon, label, count, title, tone, onClick, ariaLabe
 }) {
   const look = active ? 'border-brand text-brand bg-brand-subtle'
     : tone === 'danger' ? 'border-danger text-danger hover:bg-danger-subtle'
-    : tone === 'doubt' ? 'border-warning text-warning hover:bg-surface2'
+    : tone === 'doubt' ? 'border-warning text-warning hover:bg-muted'
     : 'border-stroke text-fg3 hover:text-fg1';
   const Shown = active ? Check : Icon;
   return (

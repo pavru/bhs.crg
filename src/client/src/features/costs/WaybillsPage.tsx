@@ -221,7 +221,7 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
   return (
     <button type="button" onClick={onClick}
       className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
-        `${active ? 'bg-brand-subtle' : 'hover:bg-surface2'}`}>
+        `${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
       <div className="flex items-center gap-2">
         <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
         {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
