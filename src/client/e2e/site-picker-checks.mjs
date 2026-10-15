@@ -118,7 +118,9 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const select = page.getByLabel('Объект счёта', { exact: true });
       await select.selectOption({ label: (await optionTexts(select)).find(text => REVEAL.test(text)) });
       await select.selectOption({ label: other.name });
-      await page.getByText('Сохранено. В списке счёт скрыт').waitFor({ timeout: 10_000 });
+      // `.first()`: Radix Toast повторяет текст в живой области для экранного диктора (role="status"), и
+      // на CI вторая копия успевает появиться к проверке — строгий локатор видел два элемента (CI PR #1334).
+      await page.getByText('Сохранено. В списке счёт скрыт').first().waitFor({ timeout: 10_000 });
       await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 10_000 });
       if (await page.getByRole('button', { name: new RegExp(number) }).count())
         throw new Error('счёт, разнесённый на неизбранную стройку, остался в рейле');
