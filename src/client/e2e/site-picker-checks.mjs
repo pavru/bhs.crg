@@ -1,4 +1,4 @@
-// Выбор стройки под фильтром «Избранные стройки» (issue #1219) и рейл счетов под ним (#1221) —
+// Выбор стройки под фильтром «Избранные стройки» (issue #1219), рейл счетов (#1221) и список накладных (#1222) под ним —
 // проверки живым браузером.
 //
 // Внутри `allocation-matrix-smoke`, а не своим набором: входы прогонов CI упёрлись в предел частоты
@@ -153,6 +153,28 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         const shown = await selectedText(select);
         if (shown !== other.name) throw new Error(`получатель показан как «${shown}», а не «${other.name}»`);
         if (await page.getByText('Стройки больше нет').count()) throw new Error('живая неизбранная стройка названа удалённой');
+
+        // Список отбирает сервер (#1222): накладной неизбранной стройки в нём нет, открытая по ссылке —
+        // открыта, у списка — сколько скрыто. Свежая накладная стоит первой, то есть до предела.
+        await check('waybill-list-hides-non-favorite-and-counts', async () => {
+          const row = page.getByRole('button', { name: new RegExp(`РН-ИЗБ-${stamp}`) });
+          await page.getByTestId('site-filter-note').waitFor({ timeout: 10_000 });
+          if (await row.count()) throw new Error('накладная неизбранной стройки стоит в списке под фильтром');
+          const note = await page.getByTestId('site-filter-note').innerText();
+          if (!/скрыто: [1-9]|часть скрыта/.test(note)) throw new Error(`строка у списка: «${note}»`);
+
+          // Число сходится с разницей против выключенного фильтра — там, где ни один список не усечён.
+          const favorites = [sites[0].id, sites[1].id].sort().join(',');
+          const cut = await api('GET', `/costs/waybills?sites=${favorites}`);
+          const all = await api('GET', '/costs/waybills');
+          if (!cut.more && !all.more && all.items.length - cut.items.length !== cut.hidden)
+            throw new Error(`скрыто ${cut.hidden}, а разница списков — ${all.items.length - cut.items.length}`);
+
+          await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
+          await row.first().waitFor({ timeout: 10_000 });
+          await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
+          await page.getByTestId('site-filter-note').waitFor({ timeout: 10_000 });
+        });
       } finally {
         await page.evaluate(async ([id, version]) => {
           const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');

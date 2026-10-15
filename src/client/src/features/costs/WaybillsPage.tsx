@@ -19,6 +19,9 @@ import { WaybillForm } from './WaybillForm';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
+import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { useWaybillSites } from './useWaybillSites';
+import { WaybillSitesEmpty } from './WaybillSitesEmpty';
 
 const PARAM = 'waybill';
 
@@ -29,7 +32,8 @@ const PARAM = 'waybill';
  * выбор в списке адрес заменяет, а не копит историю (конвенция list-detail, issue #787).</p>
  *
  * <p>⚠️ Отбор «Сопоставить» делает сервер: по загруженному списку можно посчитать ждущие строки, но
- * утверждать по нему, что других таких накладных нет, нельзя.</p>
+ * утверждать по нему, что других таких накладных нет, нельзя. Им же — «Избранные стройки» (#1222): список
+ * страничный, перечень уходит параметром `sites`, число скрытых приходит с ответом.</p>
  */
 export function WaybillsPage() {
   const [params, setParams] = useSearchParams();
@@ -55,7 +59,8 @@ export function WaybillsPage() {
   const { data: access = NO_ACCESS } = useAccess();
   const canEdit = hasPermission(access, 'costs.waybill.edit');
 
-  const waybills = useWaybills(unmatched);
+  const filter = useWaybillSites(unmatched);
+  const waybills = useWaybills(unmatched, filter.sites, filter.ready);
   const sites = useCostsConstructions();
   const view = useWaybill(selected ?? undefined);
   const create = useCreateWaybill();
@@ -83,6 +88,9 @@ export function WaybillsPage() {
   }, id => forgetWaybill(qc, id));
 
   const items = (waybills.data?.items ?? []).filter(i => matches(i, query));
+  // Скрытые — только из ответа на ТЕКУЩИЙ перечень: прежний список, удержанный на время переключения,
+  // несёт чужое число.
+  const hidden = filter.sites && !waybills.isPlaceholderData ? waybills.data?.hidden ?? 0 : 0;
 
   async function createDraft() {
     try {
@@ -132,7 +140,13 @@ export function WaybillsPage() {
                 Список не пришёл. Это отказ чтения, а не пустой список: накладные могут быть.
               </p>
             )}
-            {!waybills.isPending && !waybills.isError && items.length === 0 && (
+            {filter.sites && !waybills.isPlaceholderData && items.length > 0 && (
+              <div className="px-3 py-1.5"><SiteFilterNote hidden={hidden} partial={!!waybills.data?.more} /></div>
+            )}
+            {!waybills.isPending && !waybills.isError && items.length === 0 && hidden > 0 && (
+              <WaybillSitesEmpty searching={!!query} hidden={hidden} onShowAll={filter.showAll} />
+            )}
+            {!waybills.isPending && !waybills.isError && items.length === 0 && hidden === 0 && (
               <p className="px-3 py-2 text-xs text-fg3">
                 {query ? 'Ничего не найдено.'
                   : unmatched ? 'Сопоставлять нечего: строк без позиции номенклатуры нет ни у одной накладной.'

@@ -72,6 +72,11 @@ export interface WaybillListItem {
 export interface WaybillList {
   items: WaybillListItem[];
   more: boolean;
+  /**
+   * Сколько накладных скрыл перечень `sites` (issue #1222) — по всему отбору, а не по странице. Без
+   * перечня — `null`: «не отбирали» и «ничего не скрыто» — разные ответы.
+   */
+  hidden?: number | null;
 }
 
 export interface WaybillHeader {
@@ -107,12 +112,28 @@ const QK = 'costs-waybills';
 const LIST_KEY = [QK, 'list'] as const;
 const MATERIALS_KEY = ['costs-materials'] as const;
 
-export function useWaybills(unmatched = false) {
+/**
+ * Список накладных. `sites` — избранные стройки, по которым отбирает СЕРВЕР (issue #1222): список
+ * страничный, и урезанный здесь он показал бы три накладные из трёхсот. `null` — не отбирать.
+ *
+ * <p>`enabled: false`, пока фильтр не известен: первый запрос без перечня принёс бы «всё», и список
+ * мигнул бы полным перед урезанным.</p>
+ *
+ * <p>Переключение фильтра держит прежний список, пока не пришёл новый (`placeholderData`): иначе список
+ * пустел бы до «Загрузки» на каждое «Все / Избранные». Смена очереди («Сопоставить») — нет: прежний
+ * список под другой очередью читался бы как её ответ.</p>
+ */
+export function useWaybills(unmatched: boolean, sites: readonly string[] | null, enabled = true) {
+  const key = sites ? [...sites].sort().join(',') : null;
   return useQuery({
-    queryKey: [...LIST_KEY, { unmatched }] as const,
+    queryKey: [...LIST_KEY, { unmatched, sites: key }] as const,
     queryFn: () => apiClient
-      .get<WaybillList>('/costs/waybills', { params: unmatched ? { unmatched: true } : {} })
+      .get<WaybillList>('/costs/waybills', {
+        params: { ...(unmatched ? { unmatched: true } : {}), ...(key ? { sites: key } : {}) },
+      })
       .then(r => r.data),
+    enabled,
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2].unmatched === unmatched ? prev : undefined),
   });
 }
 

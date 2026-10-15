@@ -60,8 +60,12 @@ public sealed record WaybillListItem(
     int Lines,
     int Unmatched);
 
-/// <summary>Список накладных и честное «есть ещё»: поиск на экране идёт по загруженному.</summary>
-public sealed record WaybillListView(IReadOnlyList<WaybillListItem> Items, bool More);
+/// <summary>
+/// Список накладных и честное «есть ещё»: поиск на экране идёт по загруженному. <c>Hidden</c> — сколько
+/// накладных скрыл перечень <c>sites</c> (issue #1222), по всему отбору, а не по странице; без перечня —
+/// <c>null</c>: «не отбирали» и «ничего не скрыто» — разные ответы.
+/// </summary>
+public sealed record WaybillListView(IReadOnlyList<WaybillListItem> Items, bool More, int? Hidden = null);
 
 public sealed record IssuedMaterialView(
     Guid NomenclatureId, string? Name, string? Unit, decimal Quantity, DateOnly First, DateOnly Last, int Waybills);

@@ -10,14 +10,17 @@ const link = 'text-brand hover:underline focus-visible:outline-none focus-visibl
  * шапка — та одна на все экраны. Закрыть строку нельзя нарочно: забытое «включено» прячет данные, и
  * эта строка — всё напоминание о нём. «Показать все» переключает ГЛОБАЛЬНОЕ состояние: шапка меняется
  * на глазах, второго состояния поверх первого нет.
+ *
+ * @param partial список усечён пределом (накладные, #1222): число скрытых верно, но сверить его с
+ *     разницей против «Все» по усечённым спискам нельзя — и строка говорит «часть скрыта», без числа.
  */
-export function SiteFilterNote({ hidden }: { hidden: number }) {
+export function SiteFilterNote({ hidden, partial = false }: { hidden: number; partial?: boolean }) {
   const filter = useSiteFilterState();
   if (!filter.active) return null;
   return (
     <p className="flex items-center gap-1.5 text-xs text-fg3" data-testid="site-filter-note">
       <Star size={12} className="text-brand fill-current" aria-hidden />
-      <span>Избранные стройки · скрыто: {hidden}</span>
+      <span>Избранные стройки · {partial && hidden > 0 ? 'часть скрыта' : `скрыто: ${hidden}`}</span>
       <span aria-hidden>·</span>
       <button type="button" className={link} onClick={() => filter.setOn(false)}>Показать все</button>
     </p>
