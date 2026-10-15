@@ -95,7 +95,8 @@ public static class PaymentPosting
     /// месяц раньше, чем они лежали у любой из отдавших.</para>
     ///
     /// <para><b>Остаток</b> — сумма к оплате минус деньги долей. Его дата сохраняется, пока остаток
-    /// есть, и ставится заново, когда он появился из нуля.</para>
+    /// есть, и ставится заново, когда он появился из нуля. «Его дата» — та, с которой его читают:
+    /// записанная, а без неё — день самой поздней доли (<see cref="Before" />).</para>
     /// </summary>
     public static PaymentPlan Plan(
         DateOnly paidOn, decimal total, IEnumerable<AllocationLine> lines, IReadOnlyList<InvoiceAllocation> parts,
@@ -252,7 +253,14 @@ public static class PaymentPosting
             parts.GroupBy(p => (p.LineId, p.Target))
                 .ToDictionary(g => g.Key, g => g.Any(p => amounts.GetValueOrDefault(p.Id) is not null)
                     ? g.Sum(p => amounts.GetValueOrDefault(p.Id) ?? 0) : (decimal?)null),
-            invoice.RemainderAccountingOn);
+            // ⚠️ День остатка — тот, каким его ЧИТАЮТ (issue #1345), а не сырая колонка. Остаток,
+            // рождённый понижением допуска, своего дня не записал; чтение (Money) кладёт его в месяц
+            // самой поздней доли. Возьми снимок колонку — Plan счёл бы остаток появившимся из нуля и дал
+            // ему новый день: правка, не тронувшая денег, унесла бы его из закрытого месяца компании.
+            // Сегодня такой счёт не сведён и расклад по нему не считается — путь откроет исправление (E2).
+            invoice.RemainderAccountingOn
+                ?? Money(balance, invoice.Total, parts, null).Where(m => m.Part is null)
+                    .Select(m => m.AccountingOn).SingleOrDefault());
     }
 
     /// <summary>Положить расклад в записи.</summary>
