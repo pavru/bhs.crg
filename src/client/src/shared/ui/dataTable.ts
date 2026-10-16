@@ -35,6 +35,12 @@ export const dtTableCompact = 'w-full border-separate border-spacing-0 text-xs [
 export const dtThCompact = `${dtThBase} px-2 h-(--dt-head)`;
 export const dtTdCompact = 'px-2 py-1 border-b border-stroke align-middle';
 
+/**
+ * Клетка сетки правки (EditGrid): плотная, но прижата к верху — рядом с полем стоит то, что
+ * растёт вниз (поле с пометкой, сумма с примечанием), и поля строки обязаны стоять на одной линии.
+ */
+export const dtTdEdit = 'px-2 py-1 border-b border-stroke align-top';
+
 /** Класс строки: hover-подсветка. */
 export const dtRow = 'transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]';
 
