@@ -220,8 +220,8 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
             ["разноска строки"] = () => AllocateRawAsync(admin, invoice, line, []),
             ["матрица"] = () => admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}/allocation",
                 new { stamp, lines = Array.Empty<object>() }),
-            ["платёжный документ"] = () => admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}/paid", new { document = "п/п" }),
-            ["отмена оплаты"] = () => admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }),
+            // Платёжный документ и отмена оплаты запертому открыты (E2, spec v3.3 п. 1.5) —
+            // InvoicePaymentTests.Book.cs.
         };
 
         foreach (var (name, send) in paths)
@@ -241,9 +241,10 @@ public partial class InvoicePaymentTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.Equal(HttpStatusCode.Conflict, replace.StatusCode);
         Assert.Contains("Заменить файл нельзя", await ErrorAsync(replace));
 
-        // Закрытие отменили — счёт снова правится, и оплату можно отменить.
+        // Закрытие отменили — счёт снова правится, и оплату отменяет одно право оплаты: книги у него нет.
         await ReopenAsync(a, today.AddDays(-10));
-        await OkAsync(await paths["отмена оплаты"]());
+        await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }));
+        Assert.Equal((0, 0), await BookAsync(invoice));
     }
 
     /// <summary>

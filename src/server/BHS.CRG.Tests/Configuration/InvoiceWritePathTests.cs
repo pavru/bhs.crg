@@ -33,6 +33,9 @@ public class InvoiceWritePathTests
         ["Endpoints/InvoiceDesk.Correction.cs"] =
             (2, "сама связка, вход исправления (E2, issue #1100): содержимое — до проверки «не хуже», версия и " +
                 "книга — после. Замок периода, блокировка строки и учётные даты у него те же, что у правки"),
+        ["Endpoints/InvoiceDesk.Payment.cs"] =
+            (1, "сама связка: книга после оплаты или её отмены у счёта с книгой или запертого (E2, issue #1100) — " +
+                "под теми же замками, после учётных дат"),
         ["Endpoints/InvoiceRecognitionEndpoints.cs"] =
             (1, "черновик из скана — то же создание счёта: новый счёт не оплачен и периоду не принадлежит"),
         ["Endpoints/InvoiceScanRecognition.cs"] =

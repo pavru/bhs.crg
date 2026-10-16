@@ -9,8 +9,27 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <summary>Счёт под записью: прочитан ПОСЛЕ замка, границы периодов неподвижны до конца транзакции.</summary>
 /// <param name="Locked">Почему счёт требует исправления — словами (<see cref="ClosedPeriodGuard.NeedOf" />);
 /// <c>null</c> — правится как обычно. Такой счёт досюда доходит только у пути, который назвал себя
-/// разрешённым (приложить скан).</param>
+/// разрешённым: приложить скан, платёжный документ, отмена оплаты (E2, spec v3.3 п. 1.5).</param>
 public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, string? Locked);
+
+/// <summary>Как путь записи обходится со счётом, требующим исправления (E2, spec v3.3 п. 1.4–1.5).</summary>
+public enum WhenLocked
+{
+    /// <summary>Отказ 409 «заперт» — у всех путей, кроме названных ниже.</summary>
+    Refuse,
+
+    /// <summary>
+    /// Пропустить: путь решает сам по <see cref="InvoiceWrite.Locked" /> — приложить скан (заменить
+    /// нельзя), текст платёжного документа. Снять оплату такой путь не может: связка откажет.
+    /// </summary>
+    Decide,
+
+    /// <summary>
+    /// Пропустить с правом исправления — отмена оплаты. Право проверяет связка, и ДО версии формы, как у
+    /// исправления: без права устаревшая форма отправила бы перечитывать счёт ради отказа.
+    /// </summary>
+    Correct,
+}
 
 /// <summary>
 /// Запись счёта и его ответ — одним местом на все адреса (задача C5, issue #1082).
@@ -24,7 +43,7 @@ public sealed record InvoiceWrite(Invoice Invoice, PeriodBoundaries Boundaries, 
 ///
 /// <para><b>Порядок внутри связки</b> (ревизия Архитектора): замок периода → блокировка строки счёта →
 /// чтение счёта → версия формы → проверка «не требует исправления» → правка адреса → учётные даты →
-/// фиксация. Счёт читается ПОСЛЕ замков: проверка по прочитанному до них проверяла бы прошлое. Журнал
+/// книга (оплата и её отмена у счёта с книгой) → фиксация. Счёт читается ПОСЛЕ замков: проверка по прочитанному до них проверяла бы прошлое. Журнал
 /// ядра, удаление файлов и сборка ответа — СНАРУЖИ, после возврата: журнал пишется соединением ядра и
 /// зафиксировался бы раньше модуля.</para>
 ///
@@ -79,16 +98,18 @@ public sealed partial class InvoiceDesk(
     /// <summary>
     /// Выполнить правку счёта.
     /// </summary>
-    /// <param name="evenLocked">Путь, которому запертый счёт не отказ сам по себе, — он решает по
-    /// <see cref="InvoiceWrite.Locked" />. Таких один: приложить скан можно, заменить нельзя.</param>
+    /// <param name="whenLocked">Счёт требует исправления — отказать или пропустить (<see cref="WhenLocked" />).</param>
+    /// <param name="reason">Причина действия от человека — ляжет в книгу, если действие её пишет (отмена
+    /// оплаты счёта с книгой или запертого).</param>
     public Task<T> WriteAsync<T>(
-        Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct, bool evenLocked = false) =>
-        WriteAsync(id, write, seen: true, evenLocked, ct);
+        Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct, WhenLocked whenLocked = WhenLocked.Refuse,
+        string? reason = null) =>
+        WriteAsync(id, write, seen: true, whenLocked, reason, ct);
 
     /// <summary>
     /// Правка счёта ВНЕ запроса — фоновой задачей (распознавание скана, issue #1077). Тот же замок
     /// против закрытия периода, тот же отказ запертому счёту и те же учётные даты, что у
-    /// <see cref="WriteAsync{T}(Guid, Func{InvoiceWrite, Task{T}}, CancellationToken, bool)" />, — но без
+    /// <see cref="WriteAsync{T}(Guid, Func{InvoiceWrite, Task{T}}, CancellationToken, WhenLocked, string)" />, — но без
     /// сверки версии формы: формы у фоновой задачи нет.
     ///
     /// <para>⚠️ Версию «на момент постановки» сверять нельзя, и это не упрощение. Пока скан читается,
@@ -98,10 +119,11 @@ public sealed partial class InvoiceDesk(
     /// строки при сохранении: кто записал вторым, получает отказ целиком.</para>
     /// </summary>
     public Task<T> MergeAsync<T>(Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct) =>
-        WriteAsync(id, write, seen: false, evenLocked: false, ct);
+        WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, ct);
 
     private Task<T> WriteAsync<T>(
-        Guid id, Func<InvoiceWrite, Task<T>> write, bool seen, bool evenLocked, CancellationToken ct) =>
+        Guid id, Func<InvoiceWrite, Task<T>> write, bool seen, WhenLocked whenLocked, string? reason,
+        CancellationToken ct) =>
         db.InOpenPeriodAsync(periods, async boundaries =>
         {
             // Строка счёта — под блокировкой ДО чтения и сверки версии (E2, spec v3.3 п. 1.3): порядок
@@ -109,33 +131,47 @@ public sealed partial class InvoiceDesk(
             // одно «до», прошли бы обе: запись в книгу версию строки не двигает до сохранения.
             await InvoiceBook.LockAsync(db, id, ct);
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
-            if (seen) EnsureSeen(InvoiceEndpoints.Label(invoice), db.VersionOf(invoice));
+            var label = InvoiceEndpoints.Label(invoice);
             var paid = invoice.Payment == InvoicePaymentState.Paid;
             var before = PostedBefore.None;
             string? locked = null;
+            // Деньги счёта до правки — для книги, если правка снимет оплату (spec v3.3 п. 1.5).
+            Func<decimal, IReadOnlyList<Grain>>? grains = null;
+
+            IReadOnlyList<InvoiceAllocation> stored = paid
+                ? await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct)
+                : [];
+            var found = paid ? ClosedPeriodGuard.NeedOf(invoice, stored, boundaries) : null;
+            if (found is not null)
+            {
+                locked = PaymentViews.Text(found, await places.LoadAsync(ct));
+                if (whenLocked == WhenLocked.Correct && !await user.HasAsync(CostsModule.InvoiceCorrect, ct))
+                    throw new ForbiddenException(
+                        $"{label} заперт: {locked}. Это действие ему — только с правом «Исправлять счета закрытого " +
+                        "периода»: оно сдвигает деньги, уже вошедшие в закрытый период или в книгу исправлений. " +
+                        "Право выдаёт администратор.");
+            }
+
+            if (seen) EnsureSeen(label, db.VersionOf(invoice));
+            if (found is not null && whenLocked == WhenLocked.Refuse)
+                throw new ConflictException(
+                    $"{label} заперт: {locked}. Обычной правкой нельзя изменить поля, строки, разноску и отметку " +
+                    "оплаты — " +
+                    (found.Lock is not null
+                        ? "счёт оплачен, и его деньги уже вошли в закрытый период. "
+                        : "счёт оплачен и уже исправлялся, и обычная правка разошлась бы с книгой исправлений. ") +
+                    "Содержимое меняется только исправлением: с причиной, новой версией (право «Исправлять " +
+                    "счета закрытого периода»).");
 
             if (paid)
             {
-                var stored = await db.InvoiceAllocations.AsNoTracking()
-                    .Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
                 // Деньги долей до правки — по строкам, как они лежат сейчас: правка их ещё не тронула.
-                var lines = await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct);
-                before = PaymentPosting.Before(invoice, stored,
-                    PaymentPosting.Balance(lines, stored, invoice.Total, await ToleranceAsync(ct)));
-
-                if (ClosedPeriodGuard.NeedOf(invoice, stored, boundaries) is { } found)
-                {
-                    locked = PaymentViews.Text(found, await places.LoadAsync(ct));
-                    if (!evenLocked)
-                        throw new ConflictException(
-                            $"{InvoiceEndpoints.Label(invoice)} заперт: {locked}. Обычной правкой нельзя изменить " +
-                            "поля, строки, разноску и отметку оплаты — " +
-                            (found.Lock is not null
-                                ? "счёт оплачен, и его деньги уже вошли в закрытый период. "
-                                : "счёт оплачен и уже исправлялся, и обычная правка разошлась бы с книгой исправлений. ") +
-                            "Содержимое меняется только исправлением: с причиной, новой версией (право «Исправлять " +
-                            "счета закрытого периода»).");
-                }
+                var lines = await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+                before = PaymentPosting.Before(invoice, stored, PaymentPosting.Balance(
+                    lines.Select(InvoiceAllocations.Line), stored, invoice.Total, await ToleranceAsync(ct)));
+                // Снять оплату счёта, требующего исправления, может только вход с правом исправления — ему
+                // и нужны деньги «до» для книги.
+                if (found is not null && whenLocked == WhenLocked.Correct) grains = MoneyOf(invoice, lines, stored);
             }
 
             // Тронула ли правка ДЕНЬГИ — видит сама связка, по записям под сохранением: адрес об этом не
@@ -165,7 +201,23 @@ public sealed partial class InvoiceDesk(
             // расходится».
             var now = invoice.Payment == InvoicePaymentState.Paid;
             if (paid != now || (now && money))
-                await PostAsync(invoice, before, boundaries, ct);
+            {
+                var parts = await PostAsync(invoice, before, boundaries, ct);
+
+                // Оплата и её отмена у счёта с книгой или запертого — проводкой по книге, тем же местом и по
+                // тем же учётным дням, что легли только что (spec v3.3 п. 1.5): иначе книга разошлась бы с
+                // документом на всю сумму счёта. Незапертый счёт без книги её не заводит.
+                if (paid != now && (invoice.BookSeq > 0 || locked is not null))
+                {
+                    // Вход, не проверивший право исправления, снять оплату такому счёту не может: он записал
+                    // бы в книгу уход денег из закрытого периода без права (ревью PR #1367).
+                    if (locked is not null && whenLocked != WhenLocked.Correct)
+                        throw new InvalidOperationException(
+                            $"{label}: оплату счёта, требующего исправления, снимает путь записи без права " +
+                            "исправления. Такое действие идёт через WhenLocked.Correct.");
+                    await BookPaymentAsync(invoice, grains, parts, reason, boundaries, ct);
+                }
+            }
 
             return result;
         }, ct);

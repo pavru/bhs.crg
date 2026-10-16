@@ -328,7 +328,8 @@ await check('registry-row-opens-the-allocation', async () => {
   if (!total || cell !== flat(total)) throw new Error(`«В отборе» — ${total}, а в клетке «Сумма» — ${cell}`);
 });
 
-// ── 3. Запертый счёт говорит почему, и действий над ним нет ────────────────────────────────────────
+// ── 3. Запертый счёт говорит почему, и правки над ним нет ──────────────────────────────────────────
+// Отмена оплаты остаётся тому, у кого есть право исправления (E2, issue #1100): администратору — есть.
 await check('locked-invoice-says-why', async () => {
   const refused = [];
   const listen = response => { if (response.status() >= 400) refused.push(`${response.status()} ${response.url()}`); };
@@ -339,9 +340,12 @@ await check('locked-invoice-says-why', async () => {
     const body = await page.locator('main').innerText();
     if (!body.includes(`закрыт по ${ru(through)} у стройки «${SITE}»`))
       throw new Error(`полоса не назвала закрытие: ${body.slice(0, 400)}`);
-    if (!/Отмена оплаты недоступна: период закрыт/.test(body)) throw new Error('про отмену оплаты не сказано');
+    if (!/Оплату отменить можно: отмена ляжет в книгу исправлений/.test(body))
+      throw new Error('полоса не сказала, что оплату отменить можно');
+    if (!(await page.getByRole('button', { name: 'Отменить оплату', exact: true }).count()))
+      throw new Error('у запертого счёта нет «Отменить оплату», хотя право исправления у входа есть');
 
-    for (const name of ['Сохранить', 'Сохранить строки', 'Добавить строку', 'Отменить оплату', 'Разобран'])
+    for (const name of ['Сохранить', 'Сохранить строки', 'Добавить строку', 'Разобран'])
       if (await page.getByRole('button', { name, exact: true }).count())
         throw new Error(`у запертого счёта есть кнопка «${name}»`);
 
