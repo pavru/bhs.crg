@@ -8,6 +8,7 @@ import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
@@ -276,119 +277,103 @@ export function SetDetail() {
     </>
   );
 
+  const lastIndex = set.instances.length - 1;
+  const documentColumns: DataGridColumn<DocumentInstance>[] = [
+    { key: 'order', label: '', hint: 'Порядок в собранном комплекте', width: 'w-16', interactive: true,
+      cell: (_, index) => (
+        <div className="flex items-center gap-1">
+          <button type="button" draggable
+            onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
+            className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand"
+            title="Перетащить для изменения порядка" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
+            <GripVertical size={14} />
+          </button>
+          <div className="flex flex-col items-center -my-1">
+            <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
+              isFirst={index === 0} isLast={index === lastIndex}
+              busy={reorderMutation.isPending} size={13}
+              className="hover:text-brand transition-colors" />
+          </div>
+        </div>
+      ) },
+    { key: 'name', label: 'Документ', wrap: true,
+      cell: inst => (
+        <>
+          <div className="font-medium text-fg1">
+            {inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}
+          </div>
+          {inst.name && <div className="text-xs text-fg4 mt-0.5">{docTypeMap[inst.documentTypeId]?.name}</div>}
+        </>
+      ) },
+    { key: 'status', label: 'Статус', width: 'w-32',
+      cell: inst => (
+        <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_COLORS[inst.status] ?? 'bg-muted text-fg2'}`}>
+          {STATUS_LABELS[inst.status] ?? inst.status}
+        </span>
+      ) },
+    { key: 'pdf', label: '', width: 'w-36', interactive: true,
+      cell: inst => {
+        const pdfFiles = inst.generatedFiles.filter(f => f.format === 'Pdf');
+        return (
+          <div className="flex items-center gap-1">
+            {pdfFiles.length === 1 && (
+              <>
+                <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
+                  title="Открыть PDF">
+                  <Eye size={11} /> PDF
+                </button>
+                <IconButton label="Скачать PDF" size="sm"
+                  onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}>
+                  <Download size={13} />
+                </IconButton>
+              </>
+            )}
+            {pdfFiles.length > 1 && (
+              <button onClick={() => setChosenInstance(inst)}
+                className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
+                title="Несколько PDF — открыть документ для выбора">
+                <Eye size={11} /> {pdfFiles.length} PDF
+              </button>
+            )}
+          </div>
+        );
+      } },
+    { key: 'actions', label: '', width: 'w-10', align: 'right', interactive: true,
+      cell: inst => (
+        <RowActionsMenu ariaLabel="Действия документа" actions={[
+          { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />,
+            disabled: duplicateMutation.isPending,
+            onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
+              { onError: e => toast.apiError(e, 'Не удалось дублировать документ') }) },
+          { key: 'copy', label: 'Скопировать в комплект', icon: <FolderInput size={14} />,
+            onSelect: () => setCopyInstance(inst) },
+          { key: 'move', label: 'Перенести в комплект', icon: <FolderOutput size={14} />,
+            onSelect: () => setMoveInstance(inst) },
+          { key: 'del', label: 'Удалить документ', icon: <Trash2 size={14} />, danger: true,
+            disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
+        ]} />
+      ) },
+  ];
+
   const documentsContent = (
     <>
       {addError && <p className="text-xs text-danger mb-3">{addError}</p>}
       {!addError && assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
 
-      <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
-        {set.instances.length === 0 ? (
+      {set.instances.length === 0 ? (
+        <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
           <EmptyState className="m-4 border-0" icon={<FileText size={30} />} title="В комплекте пока нет документов"
             description="Добавьте документ нужного типа — заполните реквизиты и сгенерируйте PDF."
             action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-base border-b border-stroke">
-              <tr>
-                <th className="px-2 py-3 w-16" title="Порядок в собранном комплекте" />
-                <th className="text-left px-4 py-3 font-medium text-fg2">Документ</th>
-                <th className="text-left px-4 py-3 font-medium text-fg2 w-32">Статус</th>
-                <th className="px-4 py-3 w-36" />
-                <th className="px-4 py-3 w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {set.instances.map((inst, index) => {
-                const pdfFiles = inst.generatedFiles.filter(f => f.format === 'Pdf');
-                const isDragging = dragIndex === index;
-                const lastIndex = set.instances.length - 1;
-                const showTop = dragIndex !== null && dropPos === index;
-                const showBottom = dragIndex !== null && dropPos === set.instances.length && index === lastIndex;
-                const rowStyle = showTop ? { boxShadow: 'inset 0 2px 0 0 var(--color-brand)' }
-                  : showBottom ? { boxShadow: 'inset 0 -2px 0 0 var(--color-brand)' } : undefined;
-                return (
-                  <tr key={inst.id}
-                    className={`border-b border-muted last:border-0 hover:bg-base cursor-pointer group transition-opacity ${isDragging ? 'opacity-40' : ''}`}
-                    style={rowStyle}
-                    onClick={() => setChosenInstance(inst)}
-                    onDragOver={e => onRowDragOver(e, index)}
-                    onDrop={() => { if (dragIndex !== null && dropPos !== null) moveDocToPos(dragIndex, dropPos); endDrag(); }}>
-                    <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        <button type="button" draggable
-                          onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
-                          className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand"
-                          title="Перетащить для изменения порядка" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
-                          <GripVertical size={14} />
-                        </button>
-                        <div className="flex flex-col items-center -my-1">
-                          <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
-                            isFirst={index === 0} isLast={index === lastIndex}
-                            busy={reorderMutation.isPending} size={13}
-                            className="hover:text-brand transition-colors" />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-fg1">
-                        {inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}
-                      </div>
-                      {inst.name && (
-                        <div className="text-xs text-fg4 mt-0.5">
-                          {docTypeMap[inst.documentTypeId]?.name}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_COLORS[inst.status] ?? 'bg-muted text-fg2'}`}>
-                        {STATUS_LABELS[inst.status] ?? inst.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        {pdfFiles.length === 1 && (
-                          <>
-                            <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId)}
-                              className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
-                              title="Открыть PDF">
-                              <Eye size={11} /> PDF
-                            </button>
-                            <IconButton label="Скачать PDF" size="sm"
-                              onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}>
-                              <Download size={13} />
-                            </IconButton>
-                          </>
-                        )}
-                        {pdfFiles.length > 1 && (
-                          <button onClick={() => setChosenInstance(inst)}
-                            className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
-                            title="Несколько PDF — открыть документ для выбора">
-                            <Eye size={11} /> {pdfFiles.length} PDF
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      <RowActionsMenu ariaLabel="Действия документа" actions={[
-                        { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />,
-                          disabled: duplicateMutation.isPending,
-                          onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
-                            { onError: e => toast.apiError(e, 'Не удалось дублировать документ') }) },
-                        { key: 'copy', label: 'Скопировать в комплект', icon: <FolderInput size={14} />,
-                          onSelect: () => setCopyInstance(inst) },
-                        { key: 'move', label: 'Перенести в комплект', icon: <FolderOutput size={14} />,
-                          onSelect: () => setMoveInstance(inst) },
-                        { key: 'del', label: 'Удалить документ', icon: <Trash2 size={14} />, danger: true,
-                          disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
-                      ]} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+        </div>
+      ) : (
+        <DataGrid columns={documentColumns} rows={set.instances} rowKey={inst => inst.id} onRowOpen={inst => setChosenInstance(inst)}
+          drag={{
+            dragging: dragIndex, target: dropPos, onOver: onRowDragOver,
+            onDrop: () => { if (dragIndex !== null && dropPos !== null) moveDocToPos(dragIndex, dropPos); endDrag(); },
+          }} />
+      )}
     </>
   );
 

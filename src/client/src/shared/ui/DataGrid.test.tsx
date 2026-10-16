@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { DataGrid, type DataGridColumn } from './DataGrid';
 import { DATA_GRID_STATES } from './dataGridStates';
@@ -66,5 +66,80 @@ describe('DataGrid: клетка по строке (#1354)', () => {
   it('фиксированная раскладка — table-fixed на самой таблице', () => {
     grid([{ key: 'name', label: 'Имя' }], { fixed: true });
     expect(screen.getByRole('table').className).toContain('table-fixed');
+  });
+});
+
+describe('DataGrid: особые строки и шапка (#1354, 3/3)', () => {
+  it('двухэтажная шапка: группа над своими колонками, колонка без группы — на оба этажа', () => {
+    grid([
+      { key: 'id', label: 'Код' },
+      { key: 'name', label: 'Имя', group: { key: 'p', label: 'Человек' } },
+      { key: 'note', label: 'Заметка', group: { key: 'p', label: 'Человек' } },
+    ]);
+    const [upper, lower] = screen.getAllByRole('row');
+    const top = upper.querySelectorAll('th');
+    expect([...top].map(th => th.textContent)).toEqual(['Код', 'Человек']);
+    expect(top[0].getAttribute('rowspan')).toBe('2');
+    expect(top[1].getAttribute('colspan')).toBe('2');
+    expect([...lower.querySelectorAll('th')].map(th => th.textContent)).toEqual(['Имя', 'Заметка']);
+    // Тело — в порядке колонок, а не этажей.
+    expect([...screen.getAllByRole('row')[2].querySelectorAll('td')].map(td => td.textContent))
+      .toEqual(['1', 'Анна', 'длинное пояснение']);
+  });
+
+  it('закреплённая колонка в группе закрепляет и шапку группы; второй этаж липнет под первым', () => {
+    // В jsdom нет ResizeObserver, а закрепление меряет шапку им. Ширин здесь нет — проверяем стили.
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    grid([
+      { key: 'name', label: 'Имя', group: { key: 'p', label: 'Человек' } },
+      { key: 'note', label: 'Заметка' },
+    ], { pinned: 1 });
+    const group = screen.getByRole('columnheader', { name: 'Человек' });
+    expect(group.className).toContain('sticky');
+    expect(group.style.left).toBe('var(--pin-0, 0px)');
+    expect(screen.getByRole('columnheader', { name: 'Имя' }).style.top).toBe('var(--dt-head)');
+    vi.unstubAllGlobals();
+  });
+
+  it('открытая строка — aria-current, а не aria-selected', () => {
+    grid([{ key: 'name', label: 'Имя' }], { onRowOpen: () => {}, rowOpen: p => p.id === '1' });
+    const [, anna, boris] = screen.getAllByRole('row');
+    expect(anna.getAttribute('aria-current')).toBe('true');
+    expect(boris.hasAttribute('aria-current')).toBe(false);
+    expect(anna.hasAttribute('aria-selected')).toBe(false);
+  });
+
+  it('заголовок строки — th scope="row", заголовок группы — одна клетка во всю ширину', () => {
+    grid([{ key: 'name', label: 'Имя', rowHeader: true }, { key: 'note', label: 'Заметка' }],
+      { section: p => (p.id === '1' ? 'Первые' : null) });
+    const boris = screen.getByRole('rowheader', { name: 'Борис' });
+    expect(boris.tagName).toBe('TH');
+    const heading = screen.getByText('Первые');
+    expect(heading.getAttribute('scope')).toBe('rowgroup');
+    expect(heading.getAttribute('colspan')).toBe('2');
+    expect(screen.queryByText('Анна')).toBeNull();
+  });
+
+  it('щелчок в клетке с действиями строку не открывает, в обычной — открывает', () => {
+    const open = vi.fn();
+    grid([
+      { key: 'name', label: 'Имя' },
+      { key: 'act', label: '', interactive: true, cell: p => <button type="button">Меню {p.name}</button> },
+    ], { onRowOpen: open });
+    fireEvent.click(screen.getByRole('button', { name: 'Меню Анна' }));
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Анна'));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('перетаскивание: тащимая строка приглушена, место под последней отмечено чертой', () => {
+    const drop = vi.fn();
+    grid([{ key: 'name', label: 'Имя' }], { drag: { dragging: 0, target: 2, onOver: () => {}, onDrop: drop } });
+    const [, anna, boris] = screen.getAllByRole('row');
+    expect(anna.className).toContain('opacity-40');
+    expect(anna.style.boxShadow).toBe('');
+    expect(boris.style.boxShadow).toContain('inset 0 -2px');
+    fireEvent.drop(boris);
+    expect(drop).toHaveBeenCalledTimes(1);
   });
 });
