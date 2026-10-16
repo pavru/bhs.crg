@@ -56,7 +56,7 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Профили распознавания набора" wide
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Профили распознавания набора"
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
@@ -65,7 +65,7 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
           </Button>
         </div>
       }>
-      <div className="px-6 py-4 space-y-4 min-w-[520px]">
+      <div className="space-y-4">
         <p className="text-xs text-fg4">
           Промпты распознавания задаём мы — здесь выбирается, с какими параметрами (набором полей) они
           применяются к этому набору. Не выбрано — используется встроенный профиль.

@@ -56,7 +56,7 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
     // так же, как любую форму, — а голый диалог закрывался промахом и Esc. Роли выбирают списком,
     // вставка идёт из буфера — признак правок называем сами. Он — про таблицу: роли без неё ни к
     // чему не относятся (и отбрасываются, стоит ширине смениться).
-    <Modal open extraWide onOpenChange={o => { if (!o) onClose(); }} title="Вставка строк из буфера"
+    <Modal open wide onOpenChange={o => { if (!o) onClose(); }} title="Вставка строк из буфера"
       isDirty={text.trim() !== ''}
       footer={
         <div className="flex items-center justify-end gap-2">

@@ -103,7 +103,7 @@ export function SortSpecDialog({
       open={true}
       onOpenChange={o => { if (!o) close(); }}
       title="Сортировка строк"
-      wide isDirty={edited} busy={saving}
+      isDirty={edited} busy={saving}
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}

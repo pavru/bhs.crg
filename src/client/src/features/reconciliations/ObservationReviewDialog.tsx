@@ -96,9 +96,11 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания" wide
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания"
       footer={
-        <div className="flex items-center gap-2">
+        // Решений три и «Отмена»: в обычное окно (и на телефон) в одну строку не встают — ряд
+        // переносится, а не уходит под обрез окна (ревью PR #1386).
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {observation.status !== 'New' && (
             <Button disabled={review.isPending} onClick={() => decide('New')}>
               <RotateCcw size={14} /> Вернуть в работу
