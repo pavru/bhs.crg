@@ -70,6 +70,23 @@ public static class InvoiceBookPosting
     ];
 
     /// <summary>
+    /// Деньги счёта зёрнами — при названном допуске, по названным строкам и долям. Шапка — значениями:
+    /// у отслеживаемого счёта после правки её прежней уже не будет, а «до» нужно и после.
+    /// </summary>
+    /// <param name="head">Поставщик, сумма к оплате, НДС и день остатка в колонке — как их читать.</param>
+    public static IReadOnlyList<Grain> Grains(
+        Guid id, (Guid? Supplier, decimal? Total, decimal? Vat, DateOnly? RemainderOn) head,
+        IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts, decimal tolerance)
+    {
+        var money = PaymentPosting.Money(
+            PaymentPosting.Balance(lines.Select(Endpoints.InvoiceAllocations.Line), parts, head.Total, tolerance),
+            head.Total, parts, head.RemainderOn);
+        var invoice = new CostInvoice(id, head.Supplier, head.Total, head.Vat,
+            lines.Any(l => l.NomenclatureId is null), lines.Any(l => l.VatAmount is not null), money);
+        return Grains(invoice, lines.ToDictionary(l => l.Id, l => new LineVat(l.Amount, l.VatAmount)));
+    }
+
+    /// <summary>
     /// Записи, которые ляжут в книгу: открытие (если книги нет), выравнивание (страховка) и сама
     /// запись — всегда, даже без строк: заголовок и есть след того, что счёт трогали.
     /// </summary>
@@ -213,6 +230,9 @@ public static class InvoiceBookPosting
             .Select(g => (g.Key, Gross: g.Sum(m => m.Gross), Net: g.Sum(m => m.Net)))
             .Where(c => c.Gross != 0 || c.Net != 0)
             .ToDictionary(c => c.Key, c => (c.Gross, c.Net));
+
+    /// <summary>Одни ли деньги — по суммам пар (ячейка, день), с НДС и без; «НДС неизвестен» не в счёт.</summary>
+    public static bool Same(IReadOnlyList<Grain> a, IReadOnlyList<Grain> b) => Same(Pairs(a), Pairs(b));
 
     private static bool Same(
         IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> a, IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> b) =>

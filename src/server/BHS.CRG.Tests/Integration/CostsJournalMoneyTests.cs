@@ -231,6 +231,17 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         // оплату не отменяет, а главный счёт сценария удаляется последним. Запись называет версию и причину.
         var corrected = await CorrectedAsync(client, vendor, b, today);
 
+        // Смена допуска туда и обратно (E2, spec v3.3 п. 1.9): у исправленного счёта расхождение 0,50, и смена
+        // пишет ему книгу — событием у счёта. Называет оно допуск, а не суммы.
+        try
+        {
+            await ToleranceAsync(client, "0.40");
+        }
+        finally
+        {
+            await ToleranceAsync(client, null);
+        }
+
         // Удаление — последним (issue #1282): счёт снова черновик без оплаты. Запись о нём называет
         // поставщика и файл — и не называет сумму.
         await OkAsync(await client.DeleteAsync($"/api/costs/invoices/{invoice}"));
@@ -317,6 +328,11 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
 
     private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd");
 
+    /// <summary>Допуск расхождения — состояние всего хоста: тест обязан вернуть его (<c>null</c> — умолчание).</summary>
+    private static async Task ToleranceAsync(HttpClient client, string? value) =>
+        await OkAsync(await client.PutAsJsonAsync("/api/settings/modules/costs",
+            new { values = new Dictionary<string, string?> { ["costs.allocation.tolerance"] = value } }));
+
     /// <summary>
     /// Счёт на одну строку (1 × цена сценария) на стройку, оплачен вчера; стройка закрыта по вчера — и счёт
     /// исправлен без изменений по существу. Закрытие потом отменяется: оно — состояние всего хоста.
@@ -327,7 +343,8 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         {
             requisites = new Dictionary<string, object?>
             {
-                ["Номер"] = "Ж-исправление", ["Дата"] = "2026-09-29", ["Поставщик"] = Reference(supplier), ["Итого"] = Price,
+                // К оплате на 0,50 больше строки: расхождение в допуске — смене допуска есть что сдвинуть.
+                ["Номер"] = "Ж-исправление", ["Дата"] = "2026-09-29", ["Поставщик"] = Reference(supplier), ["Итого"] = Price + 0.50m,
             },
         });
         await OkAsync(created);

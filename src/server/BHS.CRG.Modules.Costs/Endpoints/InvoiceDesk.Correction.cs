@@ -68,7 +68,7 @@ public sealed partial class InvoiceDesk
                 var was = await snapshots.OfAsync(invoice, ct);
                 var tolerance = was.Tolerance;
                 var head = (invoice.SupplierId, invoice.Total, invoice.VatTotal, invoice.RemainderAccountingOn);
-                IReadOnlyList<Grain> MoneyAt(decimal t) => Grains(invoice.Id, head, was.Lines, was.Parts, t);
+                IReadOnlyList<Grain> MoneyAt(decimal t) => InvoiceBookPosting.Grains(invoice.Id, head, was.Lines, was.Parts, t);
                 var before = MoneyAt(tolerance);
                 var posted = PaymentPosting.Before(invoice, was.Parts,
                     PaymentPosting.Balance(was.Lines.Select(InvoiceAllocations.Line), was.Parts, invoice.Total, tolerance));
@@ -95,7 +95,7 @@ public sealed partial class InvoiceDesk
 
                 // Учётные дни — правилом правки оплаченного счёта (п. 0.3); сведённость проверило «не хуже».
                 var parts = await PostAsync(invoice, posted, boundaries, ct, corrected: true);
-                var after = Grains(invoice.Id,
+                var after = InvoiceBookPosting.Grains(invoice.Id,
                     (invoice.SupplierId, invoice.Total, invoice.VatTotal, invoice.RemainderAccountingOn),
                     seen.Lines, parts, tolerance);
 
@@ -189,19 +189,6 @@ public sealed partial class InvoiceDesk
         {
             return true;
         }
-    }
-
-    /// <summary>Деньги счёта зёрнами — при названном допуске, по названным строкам и долям.</summary>
-    private static IReadOnlyList<Grain> Grains(
-        Guid id, (Guid? Supplier, decimal? Total, decimal? Vat, DateOnly? RemainderOn) head,
-        IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts, decimal tolerance)
-    {
-        var money = PaymentPosting.Money(
-            PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, head.Total, tolerance),
-            head.Total, parts, head.RemainderOn);
-        var invoice = new CostInvoice(id, head.Supplier, head.Total, head.Vat,
-            lines.Any(l => l.NomenclatureId is null), lines.Any(l => l.VatAmount is not null), money);
-        return InvoiceBookPosting.Grains(invoice, lines.ToDictionary(l => l.Id, l => new LineVat(l.Amount, l.VatAmount)));
     }
 
     /// <summary>Предпросмотр: посчитанное уносится исключением, а транзакция откатывается.</summary>

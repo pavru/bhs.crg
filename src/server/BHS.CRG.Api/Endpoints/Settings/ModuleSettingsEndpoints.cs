@@ -77,60 +77,67 @@ public static class ModuleSettingsEndpoints
         });
 
         g.MapPut("/{code}", async (string code, ModuleSettingsRequest req, ModuleRegistry registry,
-            IAppSettingsStore store, IActivityLog journal, AppDbContext db, CancellationToken ct) =>
+            ModuleSettingWriter writer, CancellationToken ct) =>
         {
-            if (registry.Find(code) is not { } module)
-                return Results.NotFound(new { error = $"Модуль «{code}» на этом экземпляре не включён." });
+            if (Checked(code, req, registry, out var module, out var values) is { } refused) return refused;
 
-            if (req.Values is not { Count: > 0 } values)
-                return Results.BadRequest(new { error = "Не названо ни одной настройки." });
-
-            // Всё или ничего: сначала проверяем каждое значение, пишем — только если годны все.
-            // Причина встаёт у СВОЕГО поля, поэтому отказы едут по ключам.
-            var declared = module.Settings.ToDictionary(s => s.Key, StringComparer.Ordinal);
-            var fields = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var (key, value) in values)
-            {
-                if (!declared.TryGetValue(key, out var setting))
-                    fields[key] = "модуль такой настройки не объявляет";
-                else if (value is not null && setting.Refuse(value.Trim()) is { } why)
-                    fields[key] = why;
-            }
-
-            if (fields.Count > 0)
-                return Results.BadRequest(new { error = "Настройки не сохранены: " + string.Join("; ", fields.Values) + ".", fields });
-
-            // ⚠️ Значения и записи журнала — ОДНОЙ транзакцией (ревью PR #1249). Хранилище и журнал
-            // сохраняют каждый сам, и без неё значение, записанное до сбоя журнала, уже действовало бы
-            // на все счета — без следа и при ответе «не сохранилось». Журнал здесь единственный
-            // ответ на вопрос «с какого дня изменились суммы».
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
-            var before = await store.GetManyAsync([.. values.Keys], ct);
-
-            foreach (var (key, value) in values)
-            {
-                var setting = declared[key];
-                var was = before.GetValueOrDefault(key);
-                var now = value is null ? null : setting.Normalize(value.Trim());
-
-                var change = ModuleSettingValues.Change(module.Title, setting, was, now);
-                // Значение не меняется. Строку правим, только когда в базе лежит не то, что должно:
-                // негодное или записанное не в хранимом виде. Несохранённую настройку тем же
-                // значением, что умолчание, не заводим — иначе экран предложил бы «вернуть умолчание»
-                // там, где оно и действует.
-                if (change is null && (was is null || string.Equals(was, now, StringComparison.Ordinal))) continue;
-
-                await store.SetAsync(key, now, ct);
-                // В журнал — только настоящая смена: «было 1,00, стало 1,00» — шум, за которым
-                // теряется запись, ради которой журнал открывали.
-                if (change is not null)
-                    await journal.RecordAsync(ActivityActions.ModuleSettingChanged, key,
-                        change.Label, before: change.Before, after: change.After, ct: ct);
-            }
-
-            await tx.CommitAsync(ct);
+            await writer.SaveAsync(module, values, ct);
             return Results.NoContent();
         });
+
+        // Предупреждение числами (E2, issue #1100, spec v3.3 п. 1.9): что смена сделает с записанным — у
+        // настроек, чей модуль умеет это сказать. Тело — то же, что у записи; записи нет. ChangeWarning
+        // остаётся текстом объявления: числа — сверх него, а не вместо.
+        g.MapPost("/{code}/preview", async (string code, ModuleSettingsRequest req, ModuleRegistry registry,
+            ModuleSettingWriter writer, CancellationToken ct) =>
+        {
+            if (Checked(code, req, registry, out var module, out var values) is { } refused) return refused;
+
+            var impacts = await writer.PreviewAsync(module, values, ct);
+            return Results.Ok(new
+            {
+                impacts = impacts.Select(i => new ModuleSettingImpactView(
+                    i.Setting.Key, i.Setting.Title, i.Impact.Changed, i.Impact.Recorded, i.Impact.Text)),
+            });
+        });
+    }
+
+    /// <summary>Что смена настройки сделает с записанными данными.</summary>
+    /// <param name="Changed">Сколько документов изменится.</param>
+    /// <param name="Recorded">Сколько из них получат запись о смене (у счетов — книгу исправлений).</param>
+    /// <param name="Text">То же словами модуля — его показывают.</param>
+    public record ModuleSettingImpactView(string Key, string Title, int Changed, int Recorded, string Text);
+
+    /// <summary>
+    /// Модуль включён, и каждое значение годно — иначе отказ. Всё или ничего: причина встаёт у СВОЕГО поля,
+    /// поэтому отказы едут по ключам.
+    /// </summary>
+    private static IResult? Checked(
+        string code, ModuleSettingsRequest req, ModuleRegistry registry, out IAppModule module,
+        out IReadOnlyDictionary<string, string?> values)
+    {
+        // Без модуля дальше не идут: отказ уходит раньше, чем кто-то прочтёт module.
+        module = registry.Find(code)!;
+        values = req.Values ?? [];
+        if (module is null)
+            return Results.NotFound(new { error = $"Модуль «{code}» на этом экземпляре не включён." });
+
+        if (values.Count == 0)
+            return Results.BadRequest(new { error = "Не названо ни одной настройки." });
+
+        var declared = module.Settings.ToDictionary(s => s.Key, StringComparer.Ordinal);
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in values)
+        {
+            if (!declared.TryGetValue(key, out var setting))
+                fields[key] = "модуль такой настройки не объявляет";
+            else if (value is not null && setting.Refuse(value.Trim()) is { } why)
+                fields[key] = why;
+        }
+
+        return fields.Count > 0
+            ? Results.BadRequest(new { error = "Настройки не сохранены: " + string.Join("; ", fields.Values) + ".", fields })
+            : null;
     }
 
     private static ModuleMappingSignal? Signal(

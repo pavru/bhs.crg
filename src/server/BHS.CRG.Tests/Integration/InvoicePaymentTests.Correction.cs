@@ -15,7 +15,8 @@ namespace BHS.CRG.Tests.Integration;
 /// <summary>
 /// Исправление счёта закрытого периода (E2, issue #1100, PR 2): адрес исправления через связку записи —
 /// «требует исправления», порядок проверок, права, «не хуже, чем было», версия, книга и отметка
-/// предпросмотра. Сценарии S21 (а)–(г′), S29 и S32 (а) пятого прогона — на живой базе.
+/// предпросмотра. Сценарии S21 (а)–(г′) пятого прогона — на живой базе (S29 и S32 — со сменой допуска,
+/// в <c>InvoicePaymentTests.Tolerance.cs</c>).
 ///
 /// <para>Счёт везде — <c>TwoSitesAsync</c>: строка 1 — 100 × 400 на стройку А, строка 2 — 50 × 1200 на
 /// стройку Б, оплата 15 дней назад, А закрыта по «10 дней назад». Числа книги — проводкой
@@ -183,82 +184,6 @@ public partial class InvoicePaymentTests
         var preview = await CorrectionPreviewAsync(corrector, invoice, view, body);
         await CorrectAsync(corrector, invoice, view, body with { Stamp = preview.GetProperty("stamp").GetString() });
         Assert.Equal((2, 1), await BookAsync(invoice));
-    }
-
-    /// <summary>
-    /// S32 (а): между предпросмотром и записью сменили допуск — строки книги вышли бы другими, а версия
-    /// формы та же. Запись отказывает «пересчитайте предпросмотр»; пересчитанная — проходит.
-    /// </summary>
-    [Fact]
-    public async Task Отметка_предпросмотра_устаревает_со_сменой_допуска()
-    {
-        var (admin, _) = await SignInAsync("Admin");
-        var today = await TodayAsync();
-        // Строки на 100 000, к оплате 100 000,80: расхождение 0,80 при допуске 1,00 уходит в последнюю долю.
-        var (invoice, _, _) = await LockedAsync(admin, today, total: 100_000.80m);
-        try
-        {
-            var view = await ReadAsync(admin, invoice);
-            var body = Correction(view, "опечатка в наименовании", lines => lines[0]["supplierText"] = "Кабель ВВГнг 3×2,5");
-            var seen = await CorrectionPreviewAsync(admin, invoice, view, body);
-
-            await ToleranceAsync(admin, "0.50");
-            var stale = await CorrectionRawAsync(admin, invoice, "", view.GetProperty("version").GetString(),
-                body with { Stamp = seen.GetProperty("stamp").GetString() });
-            Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
-            Assert.Contains("Пересчитайте предпросмотр", await ErrorAsync(stale));
-            Assert.Equal((0, 0), await BookAsync(invoice));
-
-            // При 0,50 расхождение 0,80 сверх допуска — но оно было и до исправления: «не хуже» пропускает.
-            var fresh = await CorrectionPreviewAsync(admin, invoice, view, body);
-            Assert.NotEqual(seen.GetProperty("stamp").GetString(), fresh.GetProperty("stamp").GetString());
-            await CorrectAsync(admin, invoice, view, body with { Stamp = fresh.GetProperty("stamp").GetString() });
-            Assert.Equal((2, 1), await BookAsync(invoice));
-        }
-        finally
-        {
-            await ToleranceAsync(admin, null);
-        }
-    }
-
-    /// <summary>
-    /// S29 через связку записи: остаток +0,50, родившийся понижением допуска у счёта, закрытого периодом
-    /// компании. Обычная правка ему отказывает, исправление «только текст» проходит («не хуже»), а день
-    /// остатка в колонке — день платежа, как его читали (spec v3.3 разд. 3).
-    /// </summary>
-    [Fact]
-    public async Task S29_исправление_текста_при_остатке_от_допуска()
-    {
-        var (admin, _) = await SignInAsync("Admin");
-        var today = await TodayAsync();
-        var (invoice, a, b) = await TwoSitesAsync(admin, total: 100_000.50m);
-        var paidOn = today.AddDays(-15);
-        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
-        Assert.Null(await RemainderAsync(invoice));
-        await CloseCompanyAsync(today.AddDays(-10));
-        try
-        {
-            await ToleranceAsync(admin, "0.40");
-            var view = await ReadAsync(admin, invoice);
-            var body = Correction(view, "опечатка в наименовании", lines => lines[0]["supplierText"] = "Кабель ВВГнг 3×2,5");
-            var preview = await CorrectionPreviewAsync(admin, invoice, view, body);
-
-            // Открытие — деньги при нынешнем допуске, днём платежа; самой правке нечего провести.
-            var records = preview.GetProperty("records").EnumerateArray().ToList();
-            Assert.Equal(
-                [((Guid?)null, 0.50m), (a, 40_000m), (b, 60_000m)],
-                Lines(records[0]).Select(l => (l.Site, l.Gross)).OrderBy(l => l.Gross).ToList());
-            Assert.All(Lines(records[0]), l => Assert.Equal(Iso(paidOn), l.Day));
-            Assert.Empty(Lines(records[1]));
-
-            await CorrectAsync(admin, invoice, view, body with { Stamp = preview.GetProperty("stamp").GetString() });
-            Assert.Equal(paidOn, await RemainderAsync(invoice));
-        }
-        finally
-        {
-            await ToleranceAsync(admin, null);
-            await ReopenCompanyAsync(today.AddDays(-10));
-        }
     }
 
     /// <summary>

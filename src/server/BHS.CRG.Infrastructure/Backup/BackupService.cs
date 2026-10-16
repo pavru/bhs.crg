@@ -17,7 +17,8 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
     BHS.CRG.Application.Periods.IPeriodClosures periods,
     BHS.CRG.Application.Objects.IRecordArchive archive, BHS.CRG.Application.Settings.IAppSettingCatalog settingKeys,
     BHS.CRG.Application.Recognition.RecognitionProfileCatalog recognition,
-    BHS.CRG.Application.Settings.IAccountingCurrencyLock currencyLock)
+    BHS.CRG.Application.Settings.IAccountingCurrencyLock currencyLock,
+    BHS.CRG.Application.Settings.IModuleSettingRestoreGuard settingGuard)
 {
     /// <summary>
     /// Владелец восстанавливаемого профиля распознавания — по каталогу ЭТОЙ сборки, а не из копии

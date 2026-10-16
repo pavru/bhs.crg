@@ -32,7 +32,7 @@ public sealed partial class InvoiceDesk
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts)
     {
         var head = (invoice.SupplierId, invoice.Total, invoice.VatTotal, invoice.RemainderAccountingOn);
-        return tolerance => Grains(invoice.Id, head, lines, parts, tolerance);
+        return tolerance => InvoiceBookPosting.Grains(invoice.Id, head, lines, parts, tolerance);
     }
 
     /// <summary>

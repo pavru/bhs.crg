@@ -138,6 +138,14 @@ public sealed class InvoiceActions : IModuleActivityActions
     public static readonly ModuleActivityAction Corrected =
         new("costs.invoice.corrected", "Счёт исправлен", InvoiceRead);
 
+    /// <summary>
+    /// Смена допуска записала счёту книгу (E2, issue #1100, spec v3.3 п. 1.9): «было → стало» — допуск, а не
+    /// суммы. Смена у ядра записана своим событием; это — у каждого затронутого счёта, чтобы его история
+    /// отвечала, почему у него запись книги, которой никто из людей не делал.
+    /// </summary>
+    public static readonly ModuleActivityAction ToleranceAligned =
+        new("costs.invoice.tolerance", "Книга счёта выровнена сменой допуска", InvoiceRead);
+
     // Справочник статей вне строек (F3, issue #1087): статья меняет то, куда попадут новые затраты, и
     // «кто убрал «Склад»» — вопрос, на который журнал обязан отвечать.
     public static readonly ModuleActivityAction ArticleCreated =
@@ -195,6 +203,6 @@ public sealed class InvoiceActions : IModuleActivityActions
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
         [Created, Changed, Confirmed, DueByHand, DueByRule, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, TermsSet, TermsRemoved, Parsed, Draft, Rejected, Deleted, AllocationChanged,
-         Paid, Unpaid, PaymentDescribed, Corrected, ArticleCreated, ArticleRenamed, ArticleDeleted,
+         Paid, Unpaid, PaymentDescribed, Corrected, ToleranceAligned, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

@@ -1,6 +1,7 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Data;
@@ -52,6 +53,24 @@ public static class InvoiceBook
         DateOnly today, BookAuthor author, CancellationToken ct)
     {
         await OpenPeriodWrite.EnsureHeldAsync(db, ct);
+        return await AppendLockedAsync(db, invoice, change, boundaries, today, author, ct);
+    }
+
+    /// <summary>
+    /// То же — внутри смены настройки (spec v3.3 п. 1.9). Замок записи в учёт держит ЯДРО, на своём
+    /// соединении, и границы прочитаны под ним: проверить его отсюда нечем — он не на соединении модуля, —
+    /// а взять свой нельзя (<see cref="IModuleSettingChange" />). Поэтому вход отдельный и принимает саму
+    /// смену: книгу без замка на этом соединении пишет только тот, кому ядро её передало.
+    /// </summary>
+    public static Task<BookAppended> AppendAsync(
+        CostsDbContext db, Invoice invoice, Func<decimal?, BookChange> change, ModuleSettingChange held,
+        DateOnly today, BookAuthor author, CancellationToken ct) =>
+        AppendLockedAsync(db, invoice, change, held.Boundaries, today, author, ct);
+
+    private static async Task<BookAppended> AppendLockedAsync(
+        CostsDbContext db, Invoice invoice, Func<decimal?, BookChange> change, PeriodBoundaries boundaries,
+        DateOnly today, BookAuthor author, CancellationToken ct)
+    {
         await LockAsync(db, invoice.Id, ct);
 
         var stored = await ReadAsync(db, invoice.Id, ct);
@@ -100,11 +119,68 @@ public static class InvoiceBook
                 [.. g.Where(r => r.Line is not null).Select(r => r.Line!.Value)])))];
     }
 
+    /// <summary>Допуск, которым посчитана последняя запись книги счёта; книги нет — <c>null</c>.</summary>
+    public static Task<decimal?> LastToleranceAsync(CostsDbContext db, Guid invoiceId, CancellationToken ct) =>
+        db.InvoiceBookEntries.AsNoTracking().Where(e => e.InvoiceId == invoiceId)
+            .OrderByDescending(e => e.Seq).Select(e => (decimal?)e.Tolerance).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Счета, у которых последняя запись книги посчитана НЕ этим допуском И чьи деньги при этом допуске
+    /// другие, — кого надо выровнять к действующему (spec п. 1.9). Обычно пусто: смена допуска пишет книги
+    /// сама.
+    ///
+    /// <para>Второе условие — не украшение. Смена, не тронувшая денег счёта, ему ничего не пишет, и
+    /// последняя запись остаётся при прежнем допуске навсегда; без условия каждый такой счёт выравнивался бы
+    /// после каждой смены и при каждом старте — транзакцией, замками и чтением, кончающимися ничем. Деньги
+    /// от допуска зависят только через «расхождение в допуске» (<see cref="AllocationMath.Of" />), и здесь
+    /// оно проверяется в базе: <see cref="Moves" />. Под блокировкой строки счёт проверяется заново.</para>
+    /// </summary>
+    public static Task<List<Guid>> BehindAsync(CostsDbContext db, decimal tolerance, CancellationToken ct) =>
+        db.InvoiceBookEntries.AsNoTracking()
+            .Where(e => !db.InvoiceBookEntries.Any(n => n.InvoiceId == e.InvoiceId && n.Seq > e.Seq) && e.Tolerance != tolerance)
+            .Join(db.Invoices, e => e.InvoiceId, i => i.Id, (e, i) => new
+            {
+                e.Tolerance,
+                i.Id,
+                Gap = Math.Abs(i.Total!.Value - db.InvoiceLines.Where(l => l.InvoiceId == i.Id).Sum(l => l.Amount ?? 0m)),
+            })
+            .Where(x => (x.Gap <= x.Tolerance) != (x.Gap <= tolerance))
+            .Select(x => x.Id)
+            .OrderBy(id => id)
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// Счета, чьи деньги при одном допуске могут быть не теми, что при другом, — отбор в базе, до чтения
+    /// счетов в память. Допуск решает одно: лежит ли расхождение суммы к оплате со строками в нём
+    /// (<see cref="AllocationMath.Of" />, <c>|расхождение| ≤ допуск</c>). Если ответ при обоих допусках один,
+    /// деньги одни. Отбор шире точного: счёт без строк и счёт, разнесённый не весь, он пропускает, хотя
+    /// расхождение у них в деньги не уходит, — и вызывающий проверяет каждого кандидата сам.
+    /// </summary>
+    public static IQueryable<Invoice> Moves(CostsDbContext db, IQueryable<Invoice> invoices, decimal from, decimal to) =>
+        invoices
+            .Select(i => new
+            {
+                Invoice = i,
+                Gap = Math.Abs(i.Total!.Value - db.InvoiceLines.Where(l => l.InvoiceId == i.Id).Sum(l => l.Amount ?? 0m)),
+            })
+            .Where(x => (x.Gap <= from) != (x.Gap <= to))
+            .Select(x => x.Invoice);
+
     /// <summary>
     /// Запереть строку счёта до конца транзакции. Вне транзакции — отказ: замок снялся бы тем же
     /// запросом, и вызов выглядел бы защитой, не будучи ею.
     /// </summary>
     public static async Task LockAsync(CostsDbContext db, Guid invoiceId, CancellationToken ct)
+    {
+        if (!await TryLockAsync(db, invoiceId, ct)) throw new NotFoundException("Счёт не найден.");
+    }
+
+    /// <summary>
+    /// То же для того, кто держит идентификатор, найденный раньше, и отказом исчезнувшему счёту не отвечает
+    /// (смена допуска, выравнивание): счёт может исчезнуть под любым кодом — его удалили черновиком.
+    /// </summary>
+    /// <returns><c>false</c> — счёта больше нет.</returns>
+    public static async Task<bool> TryLockAsync(CostsDbContext db, Guid invoiceId, CancellationToken ct)
     {
         if (db.Database.CurrentTransaction is null)
             throw new InvalidOperationException(
@@ -113,6 +189,6 @@ public static class InvoiceBook
         var found = await db.Database
             .SqlQuery<Guid>($"SELECT id AS \"Value\" FROM costs.invoices WHERE id = {invoiceId} FOR UPDATE")
             .ToListAsync(ct);
-        if (found.Count == 0) throw new NotFoundException("Счёт не найден.");
+        return found.Count > 0;
     }
 }
