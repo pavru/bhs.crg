@@ -16,7 +16,6 @@ import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { validateConstraint } from '@/features/document-sets/fields/fieldValidation';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
-import { parseSchemaFields } from '@/shared/api/schema';
 import {
   useListPrimitiveTypes,
   useCreatePrimitiveType,
@@ -33,13 +32,14 @@ import {
   useSetEnumTypeGroup,
   buildEnumTypeDto,
 } from '@/shared/api/enumTypes';
-import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision, DocumentType } from '@/shared/api/types';
+import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision } from '@/shared/api/types';
 import { formatDatePrecise } from '@/shared/format/format';
 import { useTagRegistry, fieldTags, unknownTagCodes } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
 import { ValuesEditor, EnumForm } from './EnumTypesSection';
 import { humanEnumPreview } from './enumPreview';
 import { uniqueCode } from './uniqueCode';
+import { findReferencingTypeNames } from './fieldTypeUsage';
 import { withRowUids } from '@/shared/utils/rowIdentity';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
@@ -63,15 +63,6 @@ const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
 };
 
 const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Calendar : CaseSensitive;
-
-/** Имена типов документов, ссылающихся на данный тип поля (primitive/enum) полем с этим typeId
- *  (по своим схемам). Единственная причина занятости типа поля = ссылки из схем, и она полностью
- *  выводима на клиенте из уже загруженных схем — тот же критерий, что и backend-guard удаления. */
-function findReferencingTypeNames(typeId: string, kind: 'primitive' | 'enum', allDocTypes: DocumentType[]): string[] {
-  return allDocTypes
-    .filter(dt => parseSchemaFields(dt.schema).some(f => f.type === kind && f.typeId === typeId))
-    .map(dt => dt.name);
-}
 
 /** Проактивный контент «Удаление невозможно» (issue #275): типы документов, использующие тип поля.
  *  Пусто → undefined (диалог в обычном режиме подтверждения). */
