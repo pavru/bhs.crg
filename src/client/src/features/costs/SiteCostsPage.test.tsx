@@ -67,7 +67,7 @@ describe('отчёт всех строек под фильтром', () => {
     mount(filterOf(['a']));
     const folded = await screen.findByTestId('site-costs-folded');
     expect(folded.textContent).toContain('Скрыто фильтром: 2 стройки');
-    expect(folded.querySelectorAll('td')[0].textContent).toBe('');
+    expect(folded.closest('tr')!.querySelectorAll('td')[0].textContent).toBe('');
     expect(screen.queryByText('Ленина 5')).toBeNull();
     expect(screen.getByRole('row', { name: /Итого затраты/ }).textContent).toContain('123');
   });

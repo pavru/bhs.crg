@@ -3,7 +3,8 @@ import { Info, AlertTriangle } from 'lucide-react';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
-import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
+import { dtCard } from '@/shared/ui/dataTable';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -227,11 +228,21 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     ),
     [preview.data, effectiveFields],
   );
-  const previewHasGroups = previewModel.groups.some(g => g.parentKey !== '');
   // Колонка варианта нужна только когда вариант вообще выбирается построчно.
   const variantColumn = !!preview.data?.variants?.some(v => v !== null);
   const variantTitle = (key: string | null | undefined) =>
     key ? effectiveFields.find(f => f.key === key)?.title ?? key : '—';
+  // Двухэтажная шапка: поля вложенного объекта стоят под его именем. Вариант — ПЕРВОЙ колонкой: в этом
+  // режиме он и есть главное, что хочет увидеть человек, а имена полей у вариантов совпадают.
+  const previewColumns: DataGridColumn<Record<string, unknown>>[] = [
+    ...(variantColumn ? [{ key: '__variant', label: 'Вариант',
+      cell: (_: Record<string, unknown>, i: number) => <span className="text-fg3">{variantTitle(preview.data?.variants?.[i])}</span> }] : []),
+    ...previewModel.groups.flatMap(g => g.leaves.map((l): DataGridColumn<Record<string, unknown>> => ({
+      key: l.key, label: leafLabel(l), hint: l.key, wrap: true,
+      group: g.parentKey ? { key: g.parentKey, label: lastSeg(g.parentKey), hint: g.parentKey } : undefined,
+      cell: row => <span className="text-fg2">{renderCell(getPath(row, l.path))}</span>,
+    }))),
+  ];
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Материализация источника «${source.name}»`} wide
@@ -388,7 +399,9 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр материализации'}
             </button>
             {showPreview && (
-              <div className={`mt-2 ${dtCard} max-h-72`}>
+              // Карточка не прокручивается сама: прокручивается сетка, и её шапка остаётся на месте, а
+              // пропущенные строки и их число — под ней, видны при любой прокрутке.
+              <div className={`mt-2 ${dtCard} max-h-72 flex flex-col`}>
                 {preview.isLoading ? (
                   <p className="text-xs text-fg4 p-3">Загрузка…</p>
                 ) : preview.data?.error ? (
@@ -401,48 +414,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                       {previewModel.unwrappedLabel && (
                         <p className="text-caption text-fg4 px-2 pt-2">Вариант: <span className="text-fg2">{previewModel.unwrappedLabel}</span></p>
                       )}
-                      <table className={dtTable}>
-                        <thead>
-                          {/* Верхний этаж: группы-родители (colSpan) + листья-без-родителя (rowSpan 2, если есть вложенность). */}
-                          <tr>
-                            {/* Вариант — ПЕРВОЙ колонкой: в этом режиме он и есть главное, что
-                                хочет увидеть человек, а имена полей у вариантов совпадают. */}
-                            {variantColumn && (
-                              <th rowSpan={previewHasGroups ? 2 : 1} className={dtTh}>Вариант</th>
-                            )}
-                            {previewModel.groups.map(g => g.parentKey === ''
-                              ? g.leaves.map(l => (
-                                  <th key={l.key} rowSpan={previewHasGroups ? 2 : 1} className={dtTh} title={l.key}>{leafLabel(l)}</th>
-                                ))
-                              : (
-                                <th key={g.parentKey} colSpan={g.leaves.length} className={`${dtTh} text-center`} title={g.parentKey}>
-                                  {lastSeg(g.parentKey)}
-                                </th>
-                              ))}
-                          </tr>
-                          {/* Нижний этаж: только листья сгруппированных родителей (нет вложенности — нет ряда). */}
-                          {previewHasGroups && (
-                            <tr>
-                              {previewModel.groups.filter(g => g.parentKey !== '').flatMap(g =>
-                                g.leaves.map(l => <th key={l.key} className={dtTh} title={l.key}>{leafLabel(l)}</th>))}
-                            </tr>
-                          )}
-                        </thead>
-                        <tbody>
-                          {previewModel.rows.map((row, i) => (
-                            <tr key={i} className={dtRow}>
-                              {variantColumn && (
-                                <td className={`${dtTd} text-fg3 align-top whitespace-nowrap`}>
-                                  {variantTitle(preview.data?.variants?.[i])}
-                                </td>
-                              )}
-                              {previewModel.leaves.map(l => (
-                                <td key={l.key} className={`${dtTd} text-fg2 align-top`}>{renderCell(getPath(row, l.path))}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <DataGrid framed={false} density="compact" className="min-h-0" columns={previewColumns} rows={previewModel.rows} />
                     </>
                   )
                 ) : (
