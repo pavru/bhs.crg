@@ -30,11 +30,20 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Payable">Не оплачено и не отклонено — НЕ затраты и от периода не зависит.</param>
 /// <param name="VatUnknown">Под «без НДС» — деньги, из которых НДС вычесть нечем: учтены полной суммой.</param>
 /// <param name="PayableVatUnknown">То же — в «к оплате».</param>
+/// <param name="View">Каким взглядом посчитаны затраты (E2, spec v3.3 п. 1.7): <c>corrected</c> — «с
+/// исправлениями», как реестр; <c>closing</c> — «на момент закрытия», по книге исправлений. «К оплате»
+/// от взгляда не зависит.</param>
+/// <param name="Differs">Чем взгляды различаются на этом отрезке и в этом охвате — для полосы:
+/// <c>totals</c> — итогами, <c>details</c> — при равных итогах разделами, поставщиками или днями; null —
+/// не различаются.</param>
+/// <param name="TotalLinked">Итог сходится с реестром — ссылка на него честная. Во взгляде «с
+/// исправлениями» всегда; «на момент закрытия» — только если числа взглядов совпали.</param>
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
     IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
     IReadOnlyList<CostLine> Suppliers, IReadOnlyList<CostLine> Sections,
-    CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown);
+    CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown,
+    string View, string? Differs, bool TotalLinked);
 
 /// <summary>
 /// «Затраты по стройке» (задача G5 этапа 2, issue #1098, ТЗ COST-20).
@@ -48,6 +57,12 @@ public sealed record SiteCostsView(
 /// <para><b>Только счета.</b> Расходных накладных в модуле ещё нет (D1, issue #1083); места под них
 /// отчёт не рисует — ноль читался бы как «по накладным затрат нет».</para>
 ///
+/// <para><b>Два взгляда</b> (E2, issue #1100, spec v3.3 п. 1.7): по умолчанию «с исправлениями» — то,
+/// что сейчас в документах и в реестре; по <c>view=closing</c> — «на момент закрытия», по книге
+/// исправлений. Ссылка в реестр у строки второго взгляда остаётся, только если её число совпало с
+/// числом первого: реестр показывает документы, и под ссылкой с другим числом человек сверял бы
+/// закрытый месяц с тем, чего в нём при закрытии не было.</para>
+///
 /// <para><b>Право — <c>costs.report.read</c></b>: суммы по всем стройкам экземпляра. Оно включает
 /// чтение счетов, так что по ссылке отчёта человек в реестр попадёт.</para>
 /// </summary>
@@ -58,6 +73,12 @@ public static class SiteCostsEndpoints
     /// <summary>Организации счёта больше нет в справочнике. Без ссылки: реестр такую не называет никак.</summary>
     public const string LostSupplier = "поставщик удалён";
 
+    /// <summary>Взгляд «с исправлениями» — основная таблица (по умолчанию).</summary>
+    public const string Corrected = "corrected";
+
+    /// <summary>Взгляд «на момент закрытия» — по книге исправлений.</summary>
+    public const string Closing = "closing";
+
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/costs/site-costs", ReadAsync)
             .WithTags("Затраты по стройке")
@@ -67,8 +88,9 @@ public static class SiteCostsEndpoints
     /// <param name="from">Первый учётный месяц, <c>2026-09</c>; не назван — текущий месяц компании.</param>
     /// <param name="to">Последний учётный месяц; не назван — тот же, что первый.</param>
     /// <param name="vat"><c>without</c> — без НДС; иначе суммы как в бумаге.</param>
+    /// <param name="view"><c>closing</c> — «на момент закрытия»; не назван или <c>corrected</c> — «с исправлениями».</param>
     private static async Task<Ok<SiteCostsView>> ReadAsync(
-        Guid? site, string? from, string? to, string? vat,
+        Guid? site, string? from, string? to, string? vat, string? view,
         CostsDbContext db, AllocationPlacesSource places, IModuleCatalog catalog, IModuleClock clock,
         IModuleSettings settings, CancellationToken ct)
     {
@@ -87,6 +109,12 @@ public static class SiteCostsEndpoints
                     $"Учётного месяца {month:MM.yyyy} в календаре нет: отчёт строится с {InvoicePeriods.First:MM.yyyy} по {InvoicePeriods.Last(today):MM.yyyy}.");
         var through = last.AddMonths(1).AddDays(-1);
         var withVat = vat != "without";
+        var closing = view switch
+        {
+            null or "" or Corrected => false,
+            Closing => true,
+            _ => throw new InvalidRequestException($"Взгляд «{view}» неизвестен: ждём «{Corrected}» или «{Closing}»."),
+        };
 
         var known = await places.LoadAsync(ct);
         if (site is { } asked && known.Sites.All(s => s.Id != asked))
@@ -111,8 +139,17 @@ public static class SiteCostsEndpoints
                 new Dictionary<Guid, LineVat>())
             : await InvoicesAsync(db, unpaid, tolerance, ct);
 
+        // Оба взгляда — всегда: полосе нужно знать, различаются ли они, а ссылке — совпало ли число строки
+        // с реестром. Книга читается только в днях отрезка.
+        var corrected = SiteCosts.Corrected(costs, lines);
+        var closed = CostViews.Closing(costs, lines, await CostViews.BookAsync(db, first, through, site, ct));
+        var differs = CostViews.Differ(corrected, closed, first, through, site);
+
         // Доля в срезе стройки — всегда на стройку, раздел у неё есть (хотя бы «без раздела»).
-        var result = SiteCosts.Of(costs, lines, first, through, site, withVat, labels.Keys.ToHashSet(), part => shares.SectionOf(part)!);
+        SiteCostsResult Costs(IReadOnlyList<CostMoney> money) =>
+            SiteCosts.Of(money, first, through, site, withVat, labels.Keys.ToHashSet(), target => shares.SectionOf(target)!);
+        var registry = Costs(corrected);
+        var result = closing ? Costs(closed) : registry;
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
         // Контрагенты — только на экране стройки: без неё справочник не читаем.
@@ -120,8 +157,10 @@ public static class SiteCostsEndpoints
             ? []
             : (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
         var byName = InvoiceShares.ByName;
-        CostLine Line(Guid? id, string name, CostFigure figure, bool linked = true) =>
-            new(id, name, figure.Invoices, figure.Amount, linked);
+        // Ссылка — только под числом, которое реестр покажет: во взгляде «на момент закрытия» строка, чьё
+        // число разошлось с «с исправлениями», её теряет.
+        CostLine Line(Guid? id, string name, CostFigure figure, CostFigure? listed, bool linked = true) =>
+            new(id, name, figure.Invoices, figure.Amount, linked && figure == listed);
         CostFigure Sum(IEnumerable<CostFigure> figures) => figures.Aggregate(new CostFigure(0, 0), (a, b) => new(a.Invoices + b.Invoices, a.Amount + b.Amount));
         var lostSuppliers = result.Suppliers.Where(s => s.Supplier is { } id && !suppliers.ContainsKey(id)).ToList();
 
@@ -129,23 +168,29 @@ public static class SiteCostsEndpoints
             site is { } chosen ? new(chosen, labels[chosen], result.Total.Invoices, result.Total.Amount) : null,
             $"{first:yyyy-MM}", $"{last:yyyy-MM}", withVat,
             [.. Months(first, last).Select(PaymentViews.Month)],
-            [.. result.Sites.Select(s => Line(s.Key, labels[s.Key], s.Value)).OrderBy(l => l.Name, byName)],
-            [.. result.Articles.Select(a => Line(a.Key, labels[a.Key], a.Value)).OrderBy(l => l.Name, byName)],
-            result.Lost is { } lost ? Line(null, InvoiceShares.Lost, lost) : null,
+            [.. result.Sites.Select(s => Line(s.Key, labels[s.Key], s.Value, registry.Sites.GetValueOrDefault(s.Key))).OrderBy(l => l.Name, byName)],
+            [.. result.Articles.Select(a => Line(a.Key, labels[a.Key], a.Value, registry.Articles.GetValueOrDefault(a.Key))).OrderBy(l => l.Name, byName)],
+            result.Lost is { } lost ? Line(null, InvoiceShares.Lost, lost, registry.Lost) : null,
             result.Unallocated,
             [.. result.Suppliers.Except(lostSuppliers)
-                .Select(s => Line(s.Supplier, s.Supplier is { } id ? suppliers[id] : NoSupplier, s.Figure))
+                .Select(s => Line(s.Supplier, s.Supplier is { } id ? suppliers[id] : NoSupplier, s.Figure,
+                    registry.Suppliers.FirstOrDefault(r => r.Supplier == s.Supplier).Figure))
                 // Удалённые — одной строкой и без ссылки: реестр их не называет, отбора под них нет. Число
                 // счетов складывается: поставщик у счёта один.
-                .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), linked: false)])
+                .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), null, linked: false)])
                 // Строки без названия — последними: это не название, а его отсутствие.
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
             // Разделы — на экране стройки. В отчёте раздел назван коротко («4 эт.»): стройка стоит в
             // заголовке; реестр зовёт его вместе со стройкой, и это название строка несёт для ссылки.
             [.. result.Sections
-                .Select(s => new CostLine(s.Section.Id, s.Section.Short, s.Figure.Invoices, s.Figure.Amount, Registry: s.Section.Registry))
+                .Select(s => new CostLine(s.Section.Id, s.Section.Short, s.Figure.Invoices, s.Figure.Amount,
+                    s.Figure == registry.Sections.FirstOrDefault(r => r.Section.Registry == s.Section.Registry).Figure,
+                    s.Section.Registry))
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
-            result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown));
+            result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown,
+            closing ? Closing : Corrected,
+            differs switch { ViewsDiffer.Totals => "totals", ViewsDiffer.Details => "details", _ => null },
+            result.Total == registry.Total));
     }
 
     /// <summary>
@@ -165,7 +210,7 @@ public static class SiteCostsEndpoints
     internal static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
         CostsDbContext db, IQueryable<Invoice> invoices, decimal tolerance, CancellationToken ct)
     {
-        var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment, i.State }).ToListAsync(ct);
+        var heads = await invoices.Select(i => new { i.Id, i.SupplierId, i.Total, i.VatTotal, i.RemainderAccountingOn, i.Payment, i.State, i.BookSeq }).ToListAsync(ct);
         var owners = invoices.Select(i => i.Id);
         var money = await InvoiceMoney.ReadAsync(db,
             [.. heads.Select(h => new InvoiceHead(h.Id, h.Total, h.RemainderAccountingOn, h.Payment == InvoicePaymentState.Paid))], owners, null, tolerance, ct);
@@ -176,7 +221,7 @@ public static class SiteCostsEndpoints
 
         return (
             [.. heads.Select(h => new CostInvoice(h.Id, h.SupplierId, h.Total, h.VatTotal, unmatched.Contains(h.Id), vatByLines.Contains(h.Id),
-                money.GetValueOrDefault(h.Id) ?? [], h.State == InvoiceState.Parsed))],
+                money.GetValueOrDefault(h.Id) ?? [], h.State == InvoiceState.Parsed, h.BookSeq > 0))],
             lines.ToDictionary(l => l.Id, l => new LineVat(l.Amount, l.VatAmount)));
     }
 

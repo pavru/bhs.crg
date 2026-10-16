@@ -106,6 +106,18 @@ internal sealed class InvoiceShares
         : found.Site == part.ConstructionId ? found.Name
         : found.Name with { Short = found.Name.Registry };
 
+    /// <summary>
+    /// Раздел цели — той же строкой, что у доли: так отчёт называет разделы строк книги исправлений, у
+    /// которых доли нет (E2, issue #1100). Ключ — то же правило, что <see cref="SectionKeyOf" /> (раздел,
+    /// иначе стройка); что разделы обоих взглядов названы одинаково, стережёт интеграционный тест отчёта
+    /// (<c>InvoicePaymentTests.Readers</c>).
+    /// </summary>
+    public SectionName? SectionOf(AllocationTarget target) =>
+        target.ConstructionId is not { } site ? null
+        : !named.Value.TryGetValue(target.SectionId ?? site, out var found) ? Gone
+        : found.Site == site ? found.Name
+        : found.Name with { Short = found.Name.Registry };
+
     /// <summary>Раздел доли так, как его зовёт колонка «Раздел»; null — доля на статью вне строек.</summary>
     public string? Section(InvoiceAllocation part) => SectionOf(part)?.Registry;
 
