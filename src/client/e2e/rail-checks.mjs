@@ -115,6 +115,30 @@ async function narrowChecks(page, check) {
       const extra = await sideScroll(page);
       if (extra > 0) throw new Error(`страница ролей шире экрана на ${extra}px`);
     });
+
+    // Окно обычного размера на телефоне — во весь экран: плавающая карточка резала бы поля.
+    await check('narrow-dialog-fills-the-screen', async () => {
+      await page.getByRole('button', { name: 'Новая роль' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Новая роль' });
+      await dialog.waitFor();
+      const box = await dialog.boundingBox();
+      if (!box || box.x > 0 || box.y > 0 || box.width < 389 || box.height < 843) {
+        throw new Error(`окно не во весь экран: ${JSON.stringify(box)}`);
+      }
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached' });
+    });
+
+    // Меню, открытое на телефоне, закрывается, когда окно расширили: иначе оно лежало бы поверх
+    // панели, вернувшейся к краю, и держало бы страницу под затемнением.
+    await check('narrow-menu-closes-when-window-widens', async () => {
+      await page.getByRole('button', { name: 'Меню' }).click();
+      const drawer = page.getByTestId('rail-drawer');
+      await drawer.waitFor();
+      await page.setViewportSize(desktop ?? { width: 1280, height: 720 });
+      await drawer.waitFor({ state: 'detached' });
+      if (!(await page.getByTestId('rail').isVisible())) throw new Error('на рабочем столе панель не вернулась к краю');
+    });
   } finally {
     if (desktop) await page.setViewportSize(desktop);
   }

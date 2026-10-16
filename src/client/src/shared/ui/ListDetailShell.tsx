@@ -6,6 +6,10 @@ import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
 
 
+/** Свой порядок сплита начинает с карточки — страницы уровня (см. ниже). Постоянная «запись»:
+ *  она названа с первого кадра и не меняется, поэтому карточку показывает только `NavItem`. */
+const OWN_START = 'own';
+
 /** Ширины колонки на просторе. Классом целиком: Tailwind не соберёт имя, склеенное из частей. */
 const NAV_WIDE: Record<string, string> = { 'w-80': '@2xl/ld:w-80', 'w-64': '@2xl/ld:w-64' };
 
@@ -40,7 +44,7 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
   /** Подпись кнопки возврата к колонке на узком месте; по умолчанию — «К списку». */
   backLabel?: string;
 }) {
-  const own = useListDetailView('detail');
+  const own = useListDetailView(OWN_START);
   const current = view ?? own;
   const onDetail = current.view === 'detail';
   return (
@@ -90,8 +94,11 @@ export function NavSection({ label }: { label: string }) {
  * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
  * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
  */
-export function NavItem({ icon, label, count, active, chevron, onClick, alert, alertDanger, progress, progressTitle }: {
+export function NavItem({ icon, label, count, active, chevron, filter, onClick, alert, alertDanger, progress, progressTitle }: {
   icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
+  /** Пункт сужает СПИСОК (отбор по состоянию), а не меняет карточку: на узком месте он оставляет
+   *  список на экране — показать карточку значило бы спрятать только что отобранное (issue #1355). */
+  filter?: boolean;
   /** Готовность по плану, % (#796). null/пусто — плана нет, и рисовать нечего: «0 %» соврал бы.
    *  Тон НЕЙТРАЛЬНЫЙ: красный на этих экранах занят арифметикой сверки, и второй красный читался
    *  бы как ошибка там, где просто не всё готово. */
@@ -109,9 +116,10 @@ export function NavItem({ icon, label, count, active, chevron, onClick, alert, a
 }) {
   const highlight = active && !chevron;
   // Пункт уровня меняет карточку на месте — на узком месте её и надо показать (issue #1355).
+  // Ребёнок уводит на другой адрес, отбор меняет список: им карточка ни при чём.
   const view = useContext(ViewContext);
   return (
-    <button type="button" onClick={() => { if (!chevron) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
+    <button type="button" onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
         highlight ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
       <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>

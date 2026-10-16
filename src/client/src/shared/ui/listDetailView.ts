@@ -16,11 +16,23 @@ export interface ListDetailView {
 }
 
 /**
- * `start` — с чего начинать на узком месте: со списка, если строка выбрана сама (первая по
- * умолчанию), с карточки — если её назвал адрес (переход из уведомления, ссылка).
+ * `addressed` — запись, которую назвал АДРЕС (счёт, накладная), если выбор живёт в нём. Тогда с
+ * карточки начинается страница, открытая ссылкой, и на карточку же переходит страница, когда адрес
+ * сменился без щелчка по строке: уведомление, палитра, «Вперёд» браузера. Без этого на телефоне
+ * ссылка на счёт меняла бы адрес и оставляла на экране список — выглядит как «ссылка не сработала».
+ *
+ * Щелчок по строке всё равно зовёт `showDetail()`: после «К списку» щелчок по ТОЙ ЖЕ строке адреса
+ * не меняет, а карточку показать обязан.
  */
-export function useListDetailView(start: 'list' | 'detail' = 'list'): ListDetailView {
-  const [view, setView] = useState(start);
+export function useListDetailView(addressed?: string | null): ListDetailView {
+  const [view, setView] = useState<'list' | 'detail'>(addressed ? 'detail' : 'list');
+  // Смена адреса — во время отрисовки, а не эффектом: так React советует выводить состояние из
+  // пропа, и кадра со списком вместо карточки не бывает.
+  const [seen, setSeen] = useState(addressed);
+  if (addressed !== seen) {
+    setSeen(addressed);
+    if (addressed) setView('detail');
+  }
   return useMemo(() => ({ view, showDetail: () => setView('detail'), showList: () => setView('list') }), [view]);
 }
 

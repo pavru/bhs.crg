@@ -9,20 +9,16 @@ import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
-import { workNav } from '@/shared/ui/navConfig';
-import { visibleNav } from '@/shared/ui/navAccess';
-import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { paletteShown, refusedByDialog } from '@/shared/ui/modalDismissal';
 import { WorkspaceProvider } from '@/shared/ui/WorkspaceProvider';
 import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
 import { OutsideBanner } from '@/shared/ui/WorkspaceNav';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
-import { splitNav } from '@/shared/ui/workspaces';
 import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
 import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { RailBody } from '@/shared/ui/AppRail';
+import { useNavSections } from '@/shared/ui/navSections';
 import { MailWarning, X, PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
 
 /**
@@ -58,10 +54,7 @@ export function AppShell() {
 
 function Shell() {
   const productName = useProductName();
-  const { data: access } = useAccess();
-  const workspace = useWorkspace();
-  const allWork = visibleNav(workNav, access ?? NO_ACCESS);
-  const { inside: work } = splitNav(allWork, workspace.current, access ?? NO_ACCESS);
+  const { allWork, work } = useNavSections();
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);

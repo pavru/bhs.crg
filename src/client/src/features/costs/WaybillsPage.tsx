@@ -39,8 +39,8 @@ const PARAM = 'waybill';
 export function WaybillsPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get(PARAM) || null;
-  // Узкое место (#1355): адрес назвал накладную — начинаем с карточки, иначе со списка.
-  const ld = useListDetailView(selected ? 'detail' : 'list');
+  // Узкое место (#1355): накладная, названная адресом, показывается карточкой — и при открытии, и при смене адреса.
+  const ld = useListDetailView(selected);
   const open = (id: string) => setParams(prev => {
     const next = new URLSearchParams(prev);
     next.set(PARAM, id);

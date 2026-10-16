@@ -59,8 +59,8 @@ import {
 export function InvoicesPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get(INVOICE_RECORD.param) || null;
-  // Узкое место (#1355): адрес назвал счёт — начинаем с карточки, иначе со списка.
-  const ld = useListDetailView(selected ? 'detail' : 'list');
+  // Узкое место (#1355): счёт, названный адресом, показывается карточкой — и при открытии, и при смене адреса.
+  const ld = useListDetailView(selected);
   // Счёт, на который привёл переход очереди: его форма при открытии берёт фокус на шапку. Любой
   // другой выбор счёта это снимает — иначе счёт забирал бы фокус при каждом следующем открытии.
   const [led, setLed] = useState<string | null>(null);

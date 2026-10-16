@@ -172,7 +172,7 @@ export function QualityDocsPage() {
               const meta = STATE_META[s];
               const Icon = meta.icon;
               return (
-                <NavItem key={s} icon={<Icon size={15} />} label={meta.label}
+                <NavItem key={s} icon={<Icon size={15} />} label={meta.label} filter
                   active={stateFilter === s}
                   count={meta.danger ? undefined : items.length}
                   alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}
