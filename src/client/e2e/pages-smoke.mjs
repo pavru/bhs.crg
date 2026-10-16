@@ -125,6 +125,8 @@ await check('document-page-asks-before-leaving-with-edits', async () => {
   await editor.getByRole('button', { name: /Прочее/ }).first().click();
   const input = editor.getByLabel('Количество экземпляров');
   await input.fill(String(Number(await input.inputValue() || 0) + 7));
+  // Охрана включается эффектом после ввода — ждём её признака на вкладке, иначе уход опередит её.
+  await editor.getByTitle('Есть несохранённые изменения').waitFor({ timeout: 5000 });
 
   const back = editor.getByRole('button', { name: 'К комплекту' });
   const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
@@ -137,6 +139,54 @@ await check('document-page-asks-before-leaving-with-edits', async () => {
   await back.click();
   await ask.getByRole('button', { name: 'Не сохранять' }).click();
   await page.waitForSelector('tbody tr', { timeout: 15000 });
+});
+
+// «Назад» браузера с правками тоже спрашивает (ревью PR #1388): окно редактора переживало его,
+// страница ушла бы молча. Документ открыт щелчком в комплекте: «Назад» к записи от ДРУГОЙ загрузки
+// страницы (`page.goto`) — уход из приложения, его сторожит `beforeunload`, а не охрана шага.
+await check('document-page-browser-back-asks-with-edits', async () => {
+  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  await page.locator('tbody tr').filter({ hasText: /АОСР/ }).first().click();
+  await editorText();
+  if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`открылся не тот документ: ${page.url()}`);
+  const editor = page.getByTestId('document-editor');
+  await editor.getByRole('button', { name: /Прочее/ }).first().click();
+  const input = editor.getByLabel('Количество экземпляров');
+  await input.fill(String(Number(await input.inputValue() || 0) + 7));
+  // Охрана включается эффектом после ввода — ждём её признака на вкладке, иначе уход опередит её.
+  await editor.getByTitle('Есть несохранённые изменения').waitFor({ timeout: 5000 });
+
+  const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+  await page.evaluate(() => history.back());
+  await ask.waitFor({ timeout: 5000 }).catch(() => { throw new Error('«Назад» увёл из документа с правками без вопроса'); });
+  if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`адрес ушёл с документа под вопросом: ${page.url()}`);
+  await ask.getByRole('button', { name: 'Отмена' }).click();
+  await ask.waitFor({ state: 'detached' });
+  if (!(await input.inputValue())) throw new Error('после «Отмены» правка пропала');
+
+  await page.evaluate(() => history.back());
+  await ask.waitFor({ timeout: 5000 }).catch(() => { throw new Error('второй «Назад» после «Отмены» ушёл без вопроса'); });
+  await ask.getByRole('button', { name: 'Не сохранять' }).click();
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  const path = new URL(page.url()).pathname;
+  if (path !== `/document-sets/${CONSTRUCTION}/sets/${SET}`) throw new Error(`«Назад» увёл не к комплекту: ${path}`);
+});
+
+// Пришли из комплекта — «К комплекту» шагает назад по истории, а не кладёт комплект новой записью:
+// иначе «Назад» с комплекта снова открывал бы документ (ревью PR #1388). Признак шага — «Вперёд»
+// возвращает документ.
+await check('document-page-from-set-steps-back', async () => {
+  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  await page.locator('tbody tr').filter({ hasText: /АОСР/ }).first().click();
+  await editorText();
+  const length = await page.evaluate(() => history.length);
+  await page.getByTestId('document-editor').getByRole('button', { name: 'К комплекту' }).click();
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  if (await page.evaluate(() => history.length) !== length) throw new Error('выход положил комплект новой записью');
+  await page.evaluate(() => history.forward());
+  await editorText();
 });
 
 // ── Сверка: секция из адреса ──────────────────────────────────────────────────

@@ -30,6 +30,8 @@ export class ErrorBoundary extends Component<
      * голое закрытие: о несохранённом обязан спросить тот, кто о нём знает.
      */
     onClose?: () => void;
+    /** Поддерево упало. Нужен тому, кто держит охрану правок упавшего: она ушла вместе с ним. */
+    onCatch?: () => void;
   },
   { error: Error | null; expanded: boolean }
 > {
@@ -49,6 +51,7 @@ export class ErrorBoundary extends Component<
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Лог в консоль — чтобы стек попал в devtools даже когда панель свёрнута.
     console.error('[ErrorBoundary] пойман сбой рендера:', error, info.componentStack);
+    this.props.onCatch?.();
   }
 
   reset = () => this.setState({ error: null, expanded: false });

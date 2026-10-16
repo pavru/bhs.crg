@@ -313,8 +313,10 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           </p>
         </Modal>
       )}
+      {/* Пока картинка едет, сохранять рано — как у кнопок и Ctrl+Enter (issue #532, ревью PR #1388). */}
       <LeaveGuardDialog open={!!leave} saving={saving}
-        onSave={async () => { if (await doSave()) proceedLeave(); else setLeave(null); }}
+        saveBlocked={uploading ? 'Дождитесь загрузки изображения' : undefined}
+        onSave={async () => { if (uploading) return; if (await doSave()) proceedLeave(); else setLeave(null); }}
         onDiscard={proceedLeave} onCancel={() => setLeave(null)} />
     </div>
   );

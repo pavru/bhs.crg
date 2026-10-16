@@ -9,6 +9,7 @@ import {
   useReviewObservation, type Observation, type ObservationStatus,
 } from '@/shared/api/observations';
 import { traceIdOf } from '@/shared/api/client';
+import { documentUnder } from '@/features/document-sets/documentPath';
 
 /**
  * Разбор замечания внешнего анализа — ОДИН на все поверхности (issue #731).
@@ -48,7 +49,7 @@ export function ObservationReferences({ o, setPath, nameOf }: {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-caption">
       {docs.map(id => setPath ? (
-        <Link key={id} to={`${setPath}/docs/${id}`}
+        <Link key={id} to={documentUnder(setPath, id)}
           className="inline-flex items-center gap-1 text-brand hover:underline">
           <FileText size={11} /> {label(id)}
         </Link>

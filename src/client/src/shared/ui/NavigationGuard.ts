@@ -60,7 +60,7 @@ export function useGuardedPick(onPick?: () => void) {
  * счёта с правками молча. Обвязке — всему, что нарисовано вокруг любой страницы, — `useNavigate` и
  * голый `<Link>` запрещены; сверяет `chromeLeavesThroughGuard.test.ts`.</p>
  *
- * <p>Кнопку «Назад» браузера охрана не видит по построению — это отдельное решение.</p>
+ * <p>«Назад» и «Вперёд» браузера сторожит сама страница с правками — `useLeaveGuard`.</p>
  */
 export function useGuardedLeave() {
   const guard = useNavigationGuard();
@@ -77,7 +77,8 @@ export function useGuardedNavigate() {
 /**
  * Регистрирует гард ухода со страницы, пока `active` (есть несохранённые правки). `onLeave(proceed)`
  * должен показать подтверждение и вызвать `proceed()` при выборе «уйти»/«сохранить». Дополнительно —
- * `beforeunload` на перезагрузку/закрытие вкладки. Перехват in-app переходов — в ссылках AppShell.
+ * `beforeunload` на перезагрузку/закрытие вкладки и шаг истории («Назад»/«Вперёд» браузера).
+ * Перехват in-app переходов — в ссылках AppShell.
  */
 export function useLeaveGuard(active: boolean, onLeave: LeaveHandler) {
   const guard = useNavigationGuard();
@@ -93,9 +94,12 @@ export function useLeaveGuard(active: boolean, onLeave: LeaveHandler) {
    * коммит: события в промежуток не попадают, щели нет.
    */
   useLayoutEffect(() => { cbRef.current = onLeave; });
+  // Неактивная охрана не регистрирует ничего — в том числе null (ревью PR #1388): эффекты потомка
+  // идут раньше родительских, и «пустая» регистрация страницы при монтировании стирала бы охрану
+  // вложенного редактора.
   useEffect(() => {
-    if (!guard) return;
-    guard.register(active ? (proceed) => cbRef.current(proceed) : null);
+    if (!guard || !active) return;
+    guard.register((proceed) => cbRef.current(proceed));
     return () => guard.register(null);
   }, [guard, active]);
   useEffect(() => {
@@ -104,4 +108,70 @@ export function useLeaveGuard(active: boolean, onLeave: LeaveHandler) {
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
   }, [active]);
+  useHistoryStepGuard(active, cbRef);
+}
+
+/**
+ * «Назад» и «Вперёд» браузера под охраной (ревью PR #1388). Окно редактора документа переживало
+ * «Назад» с правками; страницей оно ушло бы молча — и так же уходили страницы счёта и накладной.
+ *
+ * <p>`useBlocker` без data-router нет, поэтому шаг истории перехватывается здесь, РАНЬШЕ роутера.
+ * ⚠️ Раньше — значит РАНЬШЕ ЗАРЕГИСТРИРОВАН: у события на самом `window` слушатели идут в порядке
+ * регистрации, и фаза перехвата не помогает (проверено живым прогоном — слушатель страницы, хоть и
+ * в фазе перехвата, шёл после роутера). Поэтому слушатель один и вешается при загрузке модуля, до
+ * того как смонтируется роутер, а страница с правками только подставляет ему обработчик.</p>
+ *
+ * <p>Роутер о шаге не узнаёт (`stopImmediatePropagation`), адрес возвращается тем же шагом назад
+ * (`history.go(-step)`) — история не переписывается, и счётчик `idx` роутера остаётся верным. Уйти —
+ * сделать тот же шаг ещё раз, уже мимо перехвата. Шаг меряется по `idx`, который роутер кладёт в
+ * `history.state`; запись без него (чужая) не трогается.</p>
+ */
+let stepGuard: ((e: PopStateEvent) => void) | null = null;
+let approvedStep = false;
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', e => { if (!approvedStep) stepGuard?.(e); }, { capture: true });
+}
+
+/**
+ * Шаг истории назад, о котором уже решено, — выход страницы «туда, откуда пришли» после сохранения
+ * или ответа на вопрос. Охрана шага его пропускает: правки к этому моменту либо записаны, либо
+ * брошены, а признак «есть правки» мог ещё не успеть погаснуть.
+ */
+export function stepBackApproved() {
+  approvedStep = true;
+  // Гаснет на этом же шаге, после охраны (её слушатель зарегистрирован первым): без охраны, то есть
+  // без правок, флаг иначе дожил бы до чужого «Назад» и пропустил бы его.
+  window.addEventListener('popstate', () => { approvedStep = false; }, { once: true });
+  window.history.back();
+}
+
+function useHistoryStepGuard(active: boolean, onLeave: { current: LeaveHandler }) {
+  // Запись истории, на которой стоит страница, — перечитывается каждой отрисовкой: переход роутера
+  // по странице (параметры адреса) её перерисовывает. Не `useLocation`: охрана живёт и вне роутера
+  // (тесты экранов), а читать надо всё равно `history.state` — его `idx` роутер наружу не отдаёт.
+  const at = useRef<unknown>(null);
+  useLayoutEffect(() => { at.current = (window.history.state as { idx?: unknown } | null)?.idx; });
+  useEffect(() => {
+    if (!active) return;
+    let phase: 'watch' | 'restoring' | 'leaving' = 'watch';
+    let step = 0;
+    const onPop = (e: PopStateEvent) => {
+      if (phase === 'leaving') { phase = 'watch'; return; }   // уход решён — шаг достаётся роутеру
+      if (phase === 'restoring') {
+        e.stopImmediatePropagation();
+        phase = 'watch';
+        onLeave.current(() => { phase = 'leaving'; window.history.go(step); });
+        return;
+      }
+      const from = at.current;
+      const to = (e.state as { idx?: unknown } | null)?.idx;
+      if (typeof from !== 'number' || typeof to !== 'number' || to === from) return;
+      e.stopImmediatePropagation();
+      step = to - from;
+      phase = 'restoring';
+      window.history.go(-step);
+    };
+    stepGuard = onPop;
+    return () => { if (stepGuard === onPop) stepGuard = null; };
+  }, [active, onLeave]);
 }

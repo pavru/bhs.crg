@@ -32,7 +32,7 @@ import { useListConstructions, useGetConstruction, useRenameDocumentSet, useDele
 import { useGetDocumentSet, useAddDocumentToSet, useDeleteDocumentInstance, useDuplicateDocumentInstance, useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput, downloadGeneratedFile, previewGeneratedFile } from '@/shared/api/documentSets';
 import type { DocumentInstance } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
-import { documentPath } from './documentPath';
+import { documentPath, FROM_SET } from './documentPath';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
@@ -167,7 +167,7 @@ export function SetDetail() {
   const sectionName = construction?.sections.find(s => s.id === set.sectionId)?.name;
 
   const base = `/document-sets/${constructionId}/sets/${setId}`;
-  const openDocument = (inst: DocumentInstance) => navigate(documentPath(constructionId!, setId!, inst.id));
+  const openDocument = (inst: DocumentInstance) => navigate(documentPath(constructionId!, setId!, inst.id), { state: FROM_SET });
   const goPanel = (p: SetPanel) => navigate(p === 'documents' ? base : `${base}/${p}`);
 
   const contextCrumbs = (
