@@ -22,6 +22,7 @@ import { FavoriteStar, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNote
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { documentPath } from './documentPath';
 
 // ── Список строек и поиск по документам ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -63,7 +64,7 @@ function DocumentSearchPanel() {
             <ul className="divide-y divide-muted max-h-96 overflow-y-auto">
               {results.map(r => (
                 <li key={r.instanceId}>
-                  <button onClick={() => navigate(`/document-sets/${r.constructionId}/sets/${r.setId}?doc=${r.instanceId}`)}
+                  <button onClick={() => navigate(documentPath(r.constructionId, r.setId, r.instanceId))}
                     className="w-full text-left px-3 py-2 hover:bg-base transition-colors flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-fg1 truncate">{r.name || r.typeName}</div>

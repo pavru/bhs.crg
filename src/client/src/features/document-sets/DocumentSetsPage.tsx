@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router';
 import { useCan } from '@/shared/api/access';
 import { NoAccessPage } from '@/shared/ui/NoAccessPage';
 import { SetDetail } from './SetDetail';
+import { DocumentEditorPage } from './DocumentEditorPage';
 import { SectionDetail } from './SectionDetail';
 import { ConstructionDetail } from './ConstructionDetail';
 import { ConstructionsList } from './ConstructionsList';
@@ -21,6 +22,9 @@ export function DocumentSetsPage() {
       <Route path=":constructionId/sections/:sectionId/:panel" element={<SectionDetail />} />
       <Route path=":constructionId/sets/:setId" element={set} />
       <Route path=":constructionId/sets/:setId/:panel" element={set} />
+      {/* Документ — страница, а не окно над комплектом (issue #1384). */}
+      <Route path=":constructionId/sets/:setId/docs/:instanceId"
+        element={<IdModuleOnly><DocumentEditorPage /></IdModuleOnly>} />
     </Routes>
   );
 }

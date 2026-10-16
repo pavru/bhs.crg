@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Pencil, Database, X } from 'lucide-react';
+import { Pencil, Database, ArrowLeft } from 'lucide-react';
 import { DocumentObservationsChip } from './DocumentObservations';
 import { useRenameDocumentInstance, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
 import { useListDataSetBindings } from '@/shared/api/datasets';
@@ -18,6 +18,8 @@ import { BrokenCountBadge } from './BrokenCountBadge';
 import { RequisitesTab } from './RequisitesTab';
 import { GenerationTab } from './GenerationTab';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
+import { useGuardedLeave, useLeaveGuard } from '@/shared/ui/NavigationGuard';
+import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
 // Сами вкладки вынесены по файлам (#490).
@@ -69,12 +71,12 @@ type InstanceTab = 'requisites' | 'quality' | 'generation';
 /** Основа идентификаторов вкладок и панелей: редактор открыт на экране один. */
 const TABS_ID = 'instance-editor';
 
-export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange, requestClose }: {
+export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange }: {
   instance: DocumentInstance; setId: string; docType: DocumentType | undefined;
-  allDocTypes: DocumentType[]; otherInstances: DocumentInstance[]; onClose: () => void;
+  allDocTypes: DocumentType[]; otherInstances: DocumentInstance[];
+  /** Уйти из документа (к комплекту). Без вопроса о правках: его задаёт сам редактор. */
+  onClose: () => void;
   onDirtyChange?: (dirty: boolean) => void;
-  /** Закрытие с guard несохранённых изменений (крестик top app bar). */
-  requestClose?: () => void;
 }) {
   const schemaFields = docType ? resolveEffectiveFields(docType, allDocTypes) : [];
   const [tab, setTab] = useState<InstanceTab>('requisites');
@@ -125,8 +127,19 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     else onClose();
   }
 
-  // Прокидываем «грязное» состояние наверх — для защиты от закрытия модалки (X/Esc/клик вне).
+  // «Грязное» состояние — наверх: страница закрепляет по нему снимок документа.
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
+  /**
+   * Уход из документа с правками — вопрос с «Сохранить и перейти» (issue #1384). Редактор — страница,
+   * и спрашивает охрана страниц: стрелка «к комплекту», меню, палитра, перезагрузка. Сохранение
+   * живёт здесь, поэтому и вопрос здесь, а не у страницы. «Назад» браузера охрана не видит
+   * (`useGuardedLeave`) — как у формы счёта.
+   */
+  const [leave, setLeave] = useState<(() => void) | null>(null);
+  useLeaveGuard(dirty, proceed => setLeave(() => proceed));
+  const guardedLeave = useGuardedLeave();
+  function proceedLeave() { const go = leave; setLeave(null); go?.(); }
 
   // Вкладка «Документы качества» — только для типов, требующих их (есть материал-массив
   // с полем-ссылкой на документ качества, тэг material.qualityDocLink).
@@ -171,12 +184,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           void doSaveAndClose();
         }
       }}>
-      {/* MD3 top app bar: крестик слева, имя+подзаголовок, статус, действия справа */}
+      {/* MD3 top app bar: «к комплекту» слева, имя+подзаголовок, статус, действия справа */}
       <div className="shrink-0 bg-surface">
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
-          <button type="button" onClick={() => (requestClose ?? onClose)()} aria-label="Закрыть" data-modal-exit=""
+          <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту" title="К комплекту"
             className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            <X size={20} />
+            <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
@@ -300,6 +313,11 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           </p>
         </Modal>
       )}
+      {/* Пока картинка едет, сохранять рано — как у кнопок и Ctrl+Enter (issue #532, ревью PR #1388). */}
+      <LeaveGuardDialog open={!!leave} saving={saving}
+        saveBlocked={uploading ? 'Дождитесь загрузки изображения' : undefined}
+        onSave={async () => { if (uploading) return; if (await doSave()) proceedLeave(); else setLeave(null); }}
+        onDiscard={proceedLeave} onCancel={() => setLeave(null)} />
     </div>
   );
 }
