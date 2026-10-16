@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router';
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { ruCount } from '@/shared/utils/pluralize';
-import { useGuardedNavClick, useGuardedNavigate } from './NavigationGuard';
+import { useGuardedNavigate, useGuardedPick } from './NavigationGuard';
 import { useWorkspace } from './workspaceContext';
 import { outsideItem } from './workspaces';
 import type { NavItem } from './navConfig';
@@ -19,7 +19,7 @@ export function OutsideNav({ items, collapsed = false, onPick }: {
   onPick?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const guardedClick = useGuardedNavClick();
+  const guardedClick = useGuardedPick(onPick);
   if (items.length === 0) return null;
 
   // В свёрнутой панели (issue #1355) строка остаётся — иконкой с тем же текстом в подсказке:
@@ -36,7 +36,7 @@ export function OutsideNav({ items, collapsed = false, onPick }: {
       {open && (
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} onClick={e => { onPick?.(); guardedClick(to)(e); }} title={collapsed ? label : undefined}
+            <NavLink key={to} to={to} onClick={guardedClick(to)} title={collapsed ? label : undefined}
               className={({ isActive }) =>
                 `flex items-center rounded-full text-sm select-none transition-colors ` +
                 `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${

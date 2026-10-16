@@ -10,7 +10,7 @@ import { Avatar } from '@/shared/ui/Avatar';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
 import { visibleNav } from '@/shared/ui/navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
-import { useGuardedLeave, useGuardedNavClick } from '@/shared/ui/NavigationGuard';
+import { useGuardedLeave, useGuardedPick } from '@/shared/ui/NavigationGuard';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { OutsideNav } from '@/shared/ui/WorkspaceNav';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
@@ -50,7 +50,7 @@ export function RailBody({ collapsed, head, navId, onChangePassword, onPick }: {
   const { inside: work, outside } = splitNav(allWork, workspace.current, access ?? NO_ACCESS);
   const hasWork = work.length > 0 || outside.length > 0;
   const bugReport = useBugReportDialog();
-  const guardedProfileClick = useGuardedNavClick();
+  const guardedProfileClick = useGuardedPick(onPick);
   const guardedLeave = useGuardedLeave();
   const picked = (act: () => void) => () => { onPick?.(); act(); };
 
@@ -81,7 +81,7 @@ export function RailBody({ collapsed, head, navId, onChangePassword, onPick }: {
 
         <div className="space-y-0.5">
           {/* Блок пользователя — пилюля с аватаром; в свёрнутой панели — один аватар. */}
-          <NavLink to="/profile" onClick={e => { onPick?.(); guardedProfileClick('/profile')(e); }}
+          <NavLink to="/profile" onClick={guardedProfileClick('/profile')}
             title={collapsed ? (user?.displayName || user?.email) : undefined}
             className={({ isActive }) => `flex items-center gap-3 rounded-[28px] transition-colors ` +
               `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
@@ -124,7 +124,7 @@ function NavSection({ label, items, collapsed, onPick }: {
   collapsed: boolean;
   onPick?: () => void;
 }) {
-  const guardedClick = useGuardedNavClick();
+  const guardedClick = useGuardedPick(onPick);
   return (
     <div>
       {/* Заголовок группы в свёрнутой панели не помещается: группы там делит черта. */}
@@ -137,7 +137,7 @@ function NavSection({ label, items, collapsed, onPick }: {
           <NavLink
             key={to}
             to={to}
-            onClick={e => { onPick?.(); guardedClick(to)(e); }}
+            onClick={guardedClick(to)}
             // Подсказка — только у иконки: в развёрнутой панели она повторила бы видимую подпись.
             title={collapsed ? itemLabel : undefined}
             className={({ isActive }) =>
