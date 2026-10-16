@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ArrowDown, ArrowUp, ArrowUpRight, EyeOff, Unlink, X } from 'lucide-react';
-import { dtCard, dtTable, dtTh, dtTd, dtRow, dtNum } from './dataTable';
+import {
+  dtCard, dtTable, dtTh, dtTd, dtRow, dtNum, dtTableCompact, dtThCompact, dtTdCompact,
+} from './dataTable';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
   type ColumnUnavailable, type GridState,
@@ -21,12 +23,25 @@ import {
  * экран. Предпросмотру набора они не нужны, и без этих свойств сетка та же, что была.
  */
 
-export interface DataGridColumn {
+export interface DataGridColumn<Row = Record<string, unknown>> {
   key: string;
   label: string;
   /** Почему значений колонки не видно; null — видно. */
   unavailable?: ColumnUnavailable | null;
   align?: 'left' | 'right';
+  /**
+   * Клетка по строке целиком (#1354) — когда в ней не значение поля, а составное: ссылка, пометка,
+   * действие, две строки текста. Нет — клетка рисует значение `row[key]` со всеми различиями
+   * «поля нет» и «пусто». У закрытой колонки (`unavailable`) не вызывается: та называет причину.
+   */
+  cell?: (row: Row, index: number) => ReactNode;
+  /** Ширина колонки классом Tailwind (`w-36`); нет — колонка делит остаток. */
+  width?: string;
+  /**
+   * Длинный текст переносится, а не растягивает колонку. Есть хоть одна такая колонка — клетки
+   * всех строк прижаты к верху: многострочная клетка рядом с выровненными по центру читается плохо.
+   */
+  wrap?: boolean;
 }
 
 export interface DataGridSort {
@@ -44,9 +59,9 @@ const COLUMN_ICON: Record<ColumnUnavailable, ReactNode> = {
  * строке, значение пустое. Вынесено, чтобы и вертикальная раскладка (одна запись «поле — значение»)
  * говорила то же самое, а не печатала пустоту по-своему.
  */
-export function DataGridValue({ row, column, renderValue }: {
+export function DataGridValue<Row>({ row, column, renderValue }: {
   row: Record<string, unknown>;
-  column: DataGridColumn;
+  column: DataGridColumn<Row>;
   renderValue?: (value: unknown) => ReactNode;
 }) {
   const kind = cellKind(row, column.key);
@@ -70,11 +85,11 @@ export function DataGridValue({ row, column, renderValue }: {
   }
 }
 
-export function DataGrid<Row extends Record<string, unknown>>({
-  columns, rows, state, renderValue, rowKey, framed = true, className = '',
-  sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, rowLink, onRemoveColumn,
+export function DataGrid<Row extends object>({
+  columns, rows, state, renderValue, rowKey, framed = true, className = '', density = 'regular',
+  sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, rowLink, onRemoveColumn, emphasized,
 }: {
-  columns: DataGridColumn[];
+  columns: DataGridColumn<Row>[];
   rows: Row[];
   /**
    * Почему строк нет. `module-off` перекрывает строки целиком; остальные показываются, когда строк
@@ -82,19 +97,21 @@ export function DataGrid<Row extends Record<string, unknown>>({
    * отбор был.
    */
   state?: GridState;
-  renderValue?: (value: unknown, column: DataGridColumn) => ReactNode;
+  renderValue?: (value: unknown, column: DataGridColumn<Row>) => ReactNode;
   rowKey?: (row: Row, index: number) => string;
   /** Своя рамка-карточка; false — сетка внутри чужой карточки (иначе рамка в рамке). */
   framed?: boolean;
   className?: string;
+  /** `compact` — в диалоге и боковой панели: мельче текст, ниже шапка, теснее клетки. */
+  density?: 'regular' | 'compact';
   /** По чему отсортировано — стрелкой в шапке; при нескольких ключах рядом стоит их порядок. */
   sort?: DataGridSort[];
   /** Щелчок по шапке. `additive` — с Shift: добавить колонку к сортировке, а не заменить её. */
-  onSort?: (column: DataGridColumn, additive: boolean) => void;
+  onSort?: (column: DataGridColumn<Row>, additive: boolean) => void;
   /** По каким колонкам сортируют; нет — по всем, у которых есть значения. */
-  sortable?: (column: DataGridColumn) => boolean;
+  sortable?: (column: DataGridColumn<Row>) => boolean;
   /** Что стоит под колонкой в итоговой строке. Нет свойства — итоговой строки нет вовсе. */
-  footer?: (column: DataGridColumn) => ReactNode;
+  footer?: (column: DataGridColumn<Row>) => ReactNode;
   /** Сколько первых колонок закреплено слева: при прокрутке вбок они остаются на месте. */
   pinned?: number;
   /** Строку открывают — щелчком либо Enter / пробелом на ней. */
@@ -111,12 +128,19 @@ export function DataGrid<Row extends Record<string, unknown>>({
    * Убрать колонку, которой в типе больше нет. Действие стоит в шапке такой колонки: она не
    * исчезает сама, но и держать её на экране человек не обязан.
    */
-  onRemoveColumn?: (column: DataGridColumn) => void;
+  onRemoveColumn?: (column: DataGridColumn<Row>) => void;
+  /** Строка выделена начертанием — например, названная отбором. Цвет и жирность читалка не
+   *  произносит: смысл выделения экран обязан назвать и словом (своей колонкой). */
+  emphasized?: (row: Row, index: number) => boolean;
 }) {
   const shown = state === 'module-off' ? [] : rows;
   const empty = shown.length === 0 ? DATA_GRID_STATES[state ?? 'no-data'] : null;
   const pinCount = Math.min(Math.max(pinned, 0), columns.length);
   const table = usePinOffsets(pinCount, columns.map(c => c.key).join('|'));
+  const compact = density === 'compact';
+  const th = compact ? dtThCompact : dtTh;
+  const td = compact ? dtTdCompact : dtTd;
+  const top = columns.some(c => c.wrap) ? 'align-top' : '';
 
   // Закреплённая клетка липнет к левому краю и лежит НАД соседями: слой задан стилем, а не классом —
   // у шапки уже есть свой класс слоя, и два класса на одно свойство спорили бы порядком в CSS.
@@ -127,7 +151,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
 
   return (
     <div className={`${framed ? dtCard : 'overflow-auto'} ${className}`}>
-      <table ref={table} className={dtTable}>
+      <table ref={table} className={compact ? dtTableCompact : dtTable}>
         <thead>
           <tr>
             {columns.map((c, i) => {
@@ -145,7 +169,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
               );
               return (
                 <th key={c.key} data-pin={i < pinCount ? i : undefined}
-                  className={`${dtTh} ${c.align === 'right' ? 'text-right' : ''} ${pin(i)}`}
+                  className={`${th} ${c.align === 'right' ? 'text-right' : ''} ${c.width ?? ''} ${pin(i)}`}
                   style={pinStyle(i, 30)} title={reason?.hint}
                   aria-sort={!canSort ? undefined : !sorted ? 'none' : sorted.descending ? 'descending' : 'ascending'}>
                   {canSort ? (
@@ -170,7 +194,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
         <tbody>
           {empty ? (
             <tr>
-              <td colSpan={Math.max(columns.length, 1)} className={`${dtTd} text-center py-4`}>
+              <td colSpan={Math.max(columns.length, 1)} className={`${td} text-center py-4`}>
                 <div className="text-sm text-fg2">{empty.title}</div>
                 <div className="text-xs text-fg4">{empty.hint}</div>
               </td>
@@ -178,9 +202,10 @@ export function DataGrid<Row extends Record<string, unknown>>({
           ) : shown.map((row, i) => {
             const open = rowOpen?.(row, i) ?? false;
             const link = rowLink?.(row, i) ?? null;
+            const strong = emphasized?.(row, i) ?? false;
             return (
               <tr key={rowKey ? rowKey(row, i) : i}
-                className={`${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : ''}`}
+                className={`${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : ''} ${strong ? 'font-medium' : ''}`}
                 {...(onRowOpen ? {
                   tabIndex: 0,
                   'aria-selected': open,
@@ -193,7 +218,8 @@ export function DataGrid<Row extends Record<string, unknown>>({
                 } : {})}>
                 {columns.map((c, ci) => (
                   <td key={c.key} style={pinStyle(ci, 5)}
-                    className={`${dtTd} whitespace-nowrap text-fg1 ${c.align === 'right' ? dtNum : ''} `
+                    className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-fg1 `
+                      + `${c.align === 'right' ? dtNum : ''} `
                       + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : 'bg-surface') : ''}`}>
                     {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
                         перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
@@ -204,8 +230,10 @@ export function DataGrid<Row extends Record<string, unknown>>({
                         <ArrowUpRight size={14} aria-hidden />
                       </Link>
                     )}
-                    <DataGridValue row={row} column={c}
-                      renderValue={renderValue ? v => renderValue(v, c) : undefined} />
+                    {c.cell && !c.unavailable ? c.cell(row, i) : (
+                      <DataGridValue row={row as Record<string, unknown>} column={c}
+                        renderValue={renderValue ? v => renderValue(v, c) : undefined} />
+                    )}
                   </td>
                 ))}
               </tr>
@@ -217,7 +245,7 @@ export function DataGrid<Row extends Record<string, unknown>>({
             <tr>
               {columns.map((c, i) => (
                 <td key={c.key} style={pinStyle(i, 30)}
-                  className={`sticky bottom-0 z-10 bg-muted border-t border-stroke px-3 py-1.5 text-xs text-fg2 `
+                  className={`sticky bottom-0 z-10 bg-muted border-t border-stroke ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-xs text-fg2 `
                     + `whitespace-nowrap align-top ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
                   {footer(c)}
                 </td>

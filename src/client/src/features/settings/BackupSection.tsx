@@ -23,6 +23,7 @@ import type {
 } from '@/shared/api/types';
 import { formatDateTime, formatDayTime } from '@/shared/format/format';
 import { CollapsibleSection } from './CollapsibleSection';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 
 /**
  * Резервное копирование: каталог копий на сервере (issue #831).
@@ -600,48 +601,25 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
 
         {report.success && (
           <div className="rounded-lg border border-stroke overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-base border-b border-stroke">
-                  <th className="px-4 py-2 text-left font-medium text-fg2">Категория</th>
-                  <th className="px-3 py-2 text-center font-medium text-success">Добавлено</th>
-                  <th className="px-3 py-2 text-center font-medium text-brand-hover">Обновлено</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-muted">
-                <StatRow label="Типы полей"
-                  created={report.primitiveTypesCreated ?? 0} updated={report.primitiveTypesUpdated ?? 0} />
-                <StatRow label="Перечисления"
-                  created={report.enumTypesCreated ?? 0} updated={report.enumTypesUpdated ?? 0} />
-                <StatRow label="Типы документов"
-                  created={report.documentTypesCreated} updated={report.documentTypesUpdated} />
-                <StatRow label="Шаблоны"
-                  created={report.templatesCreated} updated={report.templatesUpdated} />
-                <StatRow label="Ассеты шаблонов"
-                  created={report.templateAssetsCreated ?? 0} updated={report.templateAssetsUpdated ?? 0} />
-                <StatRow label="Профили распознавания"
-                  created={report.recognitionProfilesCreated ?? 0} updated={report.recognitionProfilesUpdated ?? 0} />
-                <StatRow label="Записи каталога"
-                  created={report.catalogEntitiesCreated} updated={report.catalogEntitiesUpdated} />
-                <StatRow label="Общие данные"
-                  created={report.commonDataEntriesCreated} updated={report.commonDataEntriesUpdated} />
-                <StatRow label="Шаблоны маппинга"
-                  created={report.dataSetBindingTemplatesCreated ?? 0} updated={report.dataSetBindingTemplatesUpdated ?? 0} />
-                <StatRow label="Алиасы сверки"
-                  created={report.reconciliationAliasesCreated ?? 0} updated={report.reconciliationAliasesUpdated ?? 0} />
-                <StatRow label="Шаблоны обработки"
-                  created={report.dataSetProcessingTemplatesCreated ?? 0} updated={report.dataSetProcessingTemplatesUpdated ?? 0} />
-                <StatRow label="Документы качества"
-                  created={report.qualityDocumentsCreated ?? 0} updated={report.qualityDocumentsUpdated ?? 0} />
-                {/* Проектные секции приходят списком (issue #833): их много, и заводить пару полей
-                    на каждую значило бы править тип, таблицу и сервер ради каждой новой. */}
-                {report.projectSections?.map(sec => (
-                  <StatRow key={sec.label} label={sec.label} created={sec.created} updated={sec.updated} />
-                ))}
-              </tbody>
-            </table>
+            <DataGrid framed={false} columns={STAT_COLUMNS} rowKey={r => r.label} rows={[
+              { label: 'Типы полей', created: report.primitiveTypesCreated ?? 0, updated: report.primitiveTypesUpdated ?? 0 },
+              { label: 'Перечисления', created: report.enumTypesCreated ?? 0, updated: report.enumTypesUpdated ?? 0 },
+              { label: 'Типы документов', created: report.documentTypesCreated, updated: report.documentTypesUpdated },
+              { label: 'Шаблоны', created: report.templatesCreated, updated: report.templatesUpdated },
+              { label: 'Ассеты шаблонов', created: report.templateAssetsCreated ?? 0, updated: report.templateAssetsUpdated ?? 0 },
+              { label: 'Профили распознавания', created: report.recognitionProfilesCreated ?? 0, updated: report.recognitionProfilesUpdated ?? 0 },
+              { label: 'Записи каталога', created: report.catalogEntitiesCreated, updated: report.catalogEntitiesUpdated },
+              { label: 'Общие данные', created: report.commonDataEntriesCreated, updated: report.commonDataEntriesUpdated },
+              { label: 'Шаблоны маппинга', created: report.dataSetBindingTemplatesCreated ?? 0, updated: report.dataSetBindingTemplatesUpdated ?? 0 },
+              { label: 'Алиасы сверки', created: report.reconciliationAliasesCreated ?? 0, updated: report.reconciliationAliasesUpdated ?? 0 },
+              { label: 'Шаблоны обработки', created: report.dataSetProcessingTemplatesCreated ?? 0, updated: report.dataSetProcessingTemplatesUpdated ?? 0 },
+              { label: 'Документы качества', created: report.qualityDocumentsCreated ?? 0, updated: report.qualityDocumentsUpdated ?? 0 },
+              // Проектные секции приходят списком (issue #833): их много, и заводить пару полей
+              // на каждую значило бы править тип, таблицу и сервер ради каждой новой.
+              ...(report.projectSections ?? []),
+            ]} />
             {report.typstUserLibRestored && (
-              <p className="px-4 py-2 text-xs text-fg3 border-t border-stroke">Библиотека Typst (userlib) восстановлена.</p>
+              <p className="px-4 py-2 text-xs text-fg3">Библиотека Typst (userlib) восстановлена.</p>
             )}
             {/*
               Семантика восстановления нигде не была объявлена, а она не очевидна: копия ДОБАВЛЯЕТ и
@@ -649,7 +627,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
               состоянию не вернётся — он останется. Поведение выбрано намеренно (безопаснее не
               удалять), но оператор вправе знать о нём до того, как удивится.
             */}
-            <p className="px-4 py-2 text-xs text-fg3 border-t border-stroke">
+            <p className={`px-4 py-2 text-xs text-fg3 ${report.typstUserLibRestored ? 'border-t border-stroke' : ''}`}>
               Восстановление добавляет и обновляет записи, но <b>не удаляет</b> то, чего в копии нет:
               созданное после снятия копии останется на месте. Кроме библиотеки Typst — её дерево
               файлов замещается целиком.
@@ -675,16 +653,15 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
   );
 }
 
-function StatRow({ label, created, updated }: { label: string; created: number; updated: number }) {
-  return (
-    <tr className="text-fg2">
-      <td className="px-4 py-2">{label}</td>
-      <td className="px-3 py-2 text-center font-mono text-success">
-        {created > 0 ? `+${created}` : <span className="text-stroke-strong">—</span>}
-      </td>
-      <td className="px-3 py-2 text-center font-mono text-brand-hover">
-        {updated > 0 ? `~${updated}` : <span className="text-stroke-strong">—</span>}
-      </td>
-    </tr>
-  );
-}
+interface Stat { label: string; created: number; updated: number }
+
+/** Число в отчёте: прочерк вместо нуля — иначе столбец нулей прятал бы немногие ненулевые. */
+const statCell = (n: number, sign: string, tone: string) => n > 0
+  ? <span className={`font-mono ${tone}`}>{sign}{n}</span>
+  : <span className="font-mono text-stroke-strong">—</span>;
+
+const STAT_COLUMNS: DataGridColumn<Stat>[] = [
+  { key: 'label', label: 'Категория' },
+  { key: 'created', label: 'Добавлено', align: 'right', width: 'w-28', cell: r => statCell(r.created, '+', 'text-success') },
+  { key: 'updated', label: 'Обновлено', align: 'right', width: 'w-28', cell: r => statCell(r.updated, '~', 'text-brand-hover') },
+];

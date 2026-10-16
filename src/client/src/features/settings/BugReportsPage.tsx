@@ -13,6 +13,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
 import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import {
   useBugReports, useBugReport, useSaveBugReportDraft, useMarkBugReportFixed,
@@ -390,6 +391,13 @@ function ReportBody({ report, githubConfigured }: {
   );
 }
 
+const API_ERROR_COLUMNS: DataGridColumn<NonNullable<BugReportTech['apiErrors']>[number]>[] = [
+  { key: 'at', label: 'время' },
+  { key: 'url', label: 'запрос', wrap: true, cell: e => <span className="break-all">{e.method} {e.url}</span> },
+  { key: 'status', label: 'код', cell: e => `${e.status || '—'}${(e.count ?? 1) > 1 ? ` ×${e.count}` : ''}` },
+  { key: 'traceId', label: 'идентификатор запроса', wrap: true, cell: e => <span className="break-all">{e.traceId ?? '—'}</span> },
+];
+
 function TechBlock({ tech }: { tech: BugReportTech | null }) {
   if (!tech) return <p className="mt-2 text-sm text-fg4">Клиент не прислал технический контекст.</p>;
   return (
@@ -407,28 +415,7 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
       </ul>
 
       {(tech.apiErrors?.length ?? 0) > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-caption font-mono">
-            <thead className="text-fg4">
-              <tr><th className="text-left pr-3 font-medium">время</th>
-                <th className="text-left pr-3 font-medium">запрос</th>
-                <th className="text-left pr-3 font-medium">код</th>
-                <th className="text-left font-medium">идентификатор запроса</th></tr>
-            </thead>
-            <tbody>
-              {tech.apiErrors!.map((e, i) => (
-                <tr key={i}>
-                  <td className="pr-3 whitespace-nowrap">{e.at}</td>
-                  <td className="pr-3 break-all">{e.method} {e.url}</td>
-                  <td className="pr-3">
-                    {e.status || '—'}{(e.count ?? 1) > 1 ? ` ×${e.count}` : ''}
-                  </td>
-                  <td className="break-all">{e.traceId ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataGrid density="compact" className="font-mono" columns={API_ERROR_COLUMNS} rows={tech.apiErrors!} />
       )}
 
       {tech.stack && (

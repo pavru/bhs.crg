@@ -3,8 +3,21 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
-import type { PurgeOffer } from '@/shared/api/recordPurge';
+import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { countMatches, holderLabel, mismatchShown, type PurgeFailure } from './purgeRecord';
+
+const HOLDER_COLUMNS: DataGridColumn<PurgeHolder>[] = [
+  { key: 'holder', label: 'Кто ссылается', wrap: true,
+    cell: h => (
+      <>
+        {holderLabel(h)}
+        {h.documents && <div className="text-fg3">{h.documents}</div>}
+        {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
+      </>
+    ) },
+  { key: 'rows', label: 'Ссылок', align: 'right', width: 'w-20' },
+];
 
 /** Что удаляют и какими словами об этом говорить: запись (issue #1187) или уровень (issue #1243). */
 export interface PurgeSubject<O extends PurgeOffer> {
@@ -114,26 +127,8 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
               {subject.above?.(offer)}
               <Dialog.Description className="text-xs text-fg2">{subject.intro}</Dialog.Description>
 
-              <table className="w-full mt-2 text-xs">
-                <tbody>
-                  {offer.holders.map((h, i) => (
-                    <tr key={i} className="border-b border-stroke align-top">
-                      <td className="py-1 pr-3 text-fg1">
-                        {holderLabel(h)}
-                        {h.documents && <div className="text-fg3">{h.documents}</div>}
-                        {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
-                      </td>
-                      <td className="py-1 text-right tabular-nums text-fg1">{h.rows}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="font-semibold text-fg1">
-                    <td className="py-1.5 pr-3">Всего ссылок</td>
-                    <td className="py-1.5 text-right tabular-nums">{offer.references}</td>
-                  </tr>
-                </tfoot>
-              </table>
+              <DataGrid density="compact" className="mt-2 max-h-56" columns={HOLDER_COLUMNS} rows={offer.holders}
+                footer={c => c.key === 'rows' ? offer.references : 'Всего ссылок'} />
 
               <ul className="mt-3 text-xs text-fg2 list-disc pl-4 space-y-1">
                 {subject.lines(offer).map(line => <li key={line}>{line}</li>)}

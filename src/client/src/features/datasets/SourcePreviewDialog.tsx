@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Loader2, FileText, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
 import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
@@ -94,6 +94,16 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
  * Источник «Документы» (gost-documents) — исключение: у него вместо генерик-таблицы
  * специализированный просмотр с карточками и открытием разделённых под-PDF (см. GostDocumentsPreview).
  */
+/**
+ * Предпросмотр приходит строками-массивами, а сетке нужны записи. Ключ колонки — её номер, а не
+ * имя: имена у колонок источника повторяются, и одна затёрла бы другую.
+ */
+function previewGrid(data: DataSetPreview) {
+  const columns: DataGridColumn[] = data.columns.map((label, j) => ({ key: String(j), label }));
+  const rows = data.rows.map(row => Object.fromEntries(row.map((v, j) => [String(j), v])));
+  return { columns, rows };
+}
+
 export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource; onClose: () => void }) {
   const { data, isFetching, error } = usePreviewDataSetSource(source.id, MAX_ROWS);
   const isGostDocuments = source.sheetOrPath === 'gost-documents';
@@ -121,28 +131,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
           {/* Ограниченная по высоте карточка — единый скролл-контейнер (sticky-шапка + горизонтальный
               скролл ВНУТРИ него); иначе таблица растягивала тело модалки и горизонтальный скроллбар
               «уезжал» к дну длинной таблицы, а на стыке со скроллом модалки был глюк (issue #240). */}
-          <div className={`${dtCard} max-h-[65vh]`}>
-            <table className={dtTable}>
-              <thead>
-                <tr>
-                  {data.columns.map(c => (
-                    <th key={c} className={dtTh}>{c}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.rows.map((row, i) => (
-                  <tr key={i} className={dtRow}>
-                    {row.map((v, j) => (
-                      <td key={j} className={`${dtTd} whitespace-nowrap ${v == null ? 'text-fg4' : 'text-fg1'}`}>
-                        {v ?? <em>null</em>}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataGrid className="max-h-[65vh]" {...previewGrid(data)} />
           <SourceBoundary boundary={data.boundary} />
           <div className="px-1 pt-2 text-xs text-fg4">
             {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
