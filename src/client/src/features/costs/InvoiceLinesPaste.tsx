@@ -7,6 +7,7 @@ import {
   type LineDraft, type PasteRole,
 } from './invoiceLines';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { DataGrid } from '@/shared/ui/DataGrid';
 
 /**
  * Вставка строк из буфера (задача C2, issue #1078, ТЗ COST-6.2: «таблица из PDF или Excel»).
@@ -82,38 +83,27 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
                 колонок ниже — <b>догадка</b>: проверьте их, прежде чем добавлять.
               </p>
 
-              <div className="overflow-x-auto max-h-64">
-                <table className="text-xs border-collapse">
-                  <thead>
-                    <tr>
-                      {Array.from({ length: width }, (_, column) => (
-                        <th key={column} className="p-1 align-top">
-                          <Select size="sm" className="w-auto" value={current[column]}
-                            aria-label={`Колонка ${column + 1}`}
-                            onValueChange={role => setRoles(next(current, column, role as PasteRole))}>
-                            {PASTE_ROLES.map(role => (
-                              <SelectItem key={role.role} value={role.role}>{role.title}</SelectItem>
-                            ))}
-                          </Select>
-                        </th>
+              {/* Сетка чтения, а не правки: строки здесь не правят — только смотрят, что разобрано, и
+                  называют роль колонки выбором в шапке. */}
+              <DataGrid<PastedRow> density="compact" className="max-h-64"
+                rows={rows.slice(0, 8).map((cells, index) => ({ index, cells }))} rowKey={row => String(row.index)}
+                columns={Array.from({ length: width }, (_, column) => ({
+                  key: `c${column}`, label: `Колонка ${column + 1}`,
+                  header: (
+                    <Select size="sm" className="w-auto" value={current[column]}
+                      aria-label={`Колонка ${column + 1}`}
+                      onValueChange={role => setRoles(next(current, column, role as PasteRole))}>
+                      {PASTE_ROLES.map(role => (
+                        <SelectItem key={role.role} value={role.role}>{role.title}</SelectItem>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.slice(0, 8).map((row, index) => (
-                      <tr key={index} className="border-t border-stroke">
-                        {Array.from({ length: width }, (_, column) => (
-                          <td key={column}
-                            className={`px-1.5 py-1 max-w-56 truncate
-                              ${current[column] === 'skip' ? 'text-fg4 line-through' : 'text-fg1'}`}>
-                            {row[column] ?? ''}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </Select>
+                  ),
+                  cell: row => (
+                    <span className={`block max-w-56 truncate ${current[column] === 'skip' ? 'text-fg4 line-through' : ''}`}>
+                      {row.cells[column] ?? ''}
+                    </span>
+                  ),
+                }))} />
 
               {rows.length > 8 && (
                 <p className="text-xs text-fg4">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
@@ -125,6 +115,9 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
     </Modal>
   );
 }
+
+/** Строка разобранной таблицы — с номером: другого ключа у неё нет. */
+interface PastedRow { index: number; cells: string[] }
 
 function next(roles: readonly PasteRole[], column: number, role: PasteRole): PasteRole[] {
   return roles.map((current, index) => (index === column ? role : current));
