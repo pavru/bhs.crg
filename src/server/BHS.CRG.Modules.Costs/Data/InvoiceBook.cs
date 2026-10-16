@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
@@ -21,6 +22,17 @@ public sealed record BookAuthor(Guid? UserId, string? Reason = null, int? Versio
 
 /// <summary>Запись книги со строками — как её показывает история счёта.</summary>
 public sealed record BookHistoryEntry(InvoiceBookEntry Entry, IReadOnlyList<InvoiceBookLine> Lines);
+
+/// <summary>
+/// Последняя запись книги счёта — пометка «исправлен после закрытия» в реестре (PR 6b-3 E2): когда закрытые
+/// деньги счёта двигались в последний раз и чем.
+/// </summary>
+/// <param name="Day">День записи.</param>
+/// <param name="Kind">Её вид: исправление, отмена или новая оплата, выравнивание допуском. Открытием книга не
+/// кончается никогда — оно пишется только вместе с записью.</param>
+/// <param name="Reason">Причина: у исправления и отмены оплаты — от человека, у выравнивания — «допуск X → Y»,
+/// у новой оплаты — <c>null</c>.</param>
+public sealed record BookMark(DateOnly Day, InvoiceBookKind Kind, string? Reason);
 
 /// <summary>Что легло в книгу: записи и их значения — открытие, выравнивание и сама запись.</summary>
 /// <param name="Records">Посчитанное проводкой — по нему отметка предпросмотра (<see cref="InvoiceBookPosting.Stamp" />).</param>
@@ -141,6 +153,34 @@ public static class InvoiceBook
         return [.. rows.GroupBy(r => r.Entry.Id, (_, g) => g.ToList()).Select(g => new BookHistoryEntry(g[0].Entry,
             [.. g.Where(r => r.Line is not null).Select(r => r.Line!)]))];
     }
+
+    /// <summary>
+    /// Последние записи книг — ОДНА выборка на отбор и сортировку колонки «Исправлен после закрытия» и на её
+    /// клетки с боковой панелью (ревью PR #1390): поправь «какая запись последняя» в одном месте из двух — и
+    /// строка, найденная отбором «не пусто», показала бы пустую клетку.
+    /// </summary>
+    private static IQueryable<InvoiceBookEntry> Latest(CostsDbContext db) =>
+        db.InvoiceBookEntries.AsNoTracking()
+            .Where(e => !db.InvoiceBookEntries.Any(n => n.InvoiceId == e.InvoiceId && n.Seq > e.Seq));
+
+    /// <summary>
+    /// День последней записи книги счёта — выражением для запроса: колонка реестра «Исправлен после закрытия»
+    /// отбирает и сортирует по нему в базе (PR 6b-3 E2). Только день: денег книги реестр не читает — их
+    /// считает <see cref="CostViews" />. Книги нет — <c>null</c>.
+    /// </summary>
+    public static Expression<Func<Invoice, DateOnly?>> LastDay(CostsDbContext db)
+    {
+        // Выборка — переменной: запрос, названный в выражении, база разворачивает подзапросом, а вызов метода
+        // внутри выражения она не перевела бы.
+        var latest = Latest(db);
+        return i => latest.Where(e => e.InvoiceId == i.Id).Select(e => (DateOnly?)e.Day).FirstOrDefault();
+    }
+
+    /// <summary>Последние записи книг названных счетов — для клеток и боковой панели реестра; без книги счёта в ответе нет.</summary>
+    public static async Task<IReadOnlyDictionary<Guid, BookMark>> MarksAsync(
+        CostsDbContext db, IReadOnlyCollection<Guid> invoiceIds, CancellationToken ct) =>
+        await Latest(db).Where(e => invoiceIds.Contains(e.InvoiceId))
+            .ToDictionaryAsync(e => e.InvoiceId, e => new BookMark(e.Day, e.Kind, e.Reason), ct);
 
     /// <summary>Допуск, которым посчитана последняя запись книги счёта; книги нет — <c>null</c>.</summary>
     public static Task<decimal?> LastToleranceAsync(CostsDbContext db, Guid invoiceId, CancellationToken ct) =>

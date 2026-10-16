@@ -40,12 +40,14 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="TotalLinked">Итог сходится с реестром — ссылка на него честная. Во взгляде «с
 /// исправлениями» всегда; «на момент закрытия» — только если числа взглядов совпали.</param>
 /// <param name="UnmatchedLinked">То же — у «без позиции номенклатуры».</param>
+/// <param name="Other">Итог затрат другим взглядом — полоса называет его рядом с переключателем, чтобы
+/// «закрытый месяц изменился» не было молчаливым (PR 6b-3 E2); null — взгляды не различаются.</param>
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
     IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
     IReadOnlyList<CostLine> Suppliers, IReadOnlyList<CostLine> Sections,
     CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown,
-    string View, string? Differs, bool TotalLinked, bool UnmatchedLinked);
+    string View, string? Differs, bool TotalLinked, bool UnmatchedLinked, CostFigure? Other);
 
 /// <summary>
 /// «Затраты по стройке» (задача G5 этапа 2, issue #1098, ТЗ COST-20).
@@ -159,7 +161,12 @@ public static class SiteCostsEndpoints
         SiteCostsResult Costs(IReadOnlyList<CostMoney> money) =>
             SiteCosts.Of(money, first, through, site, withVat, named, target => shares.SectionOf(target)!);
         var registry = Costs(corrected);
-        var result = closing ? Costs(closed) : registry;
+        // «На момент закрытия» — всегда по книге, и при равных взглядах тоже (ревью PR #1390): равенство
+        // зёрен не равенство чисел отчёта — счёт с книгой «+120 и −120 в один день» в зёрнах ноль, а счётом
+        // в строке считается, и признак «НДС неизвестен» у книги исторический. Числа отчёта обязаны совпасть
+        // с диалогом закрытия, который считает той же книгой.
+        var atClosing = Costs(closed);
+        var result = closing ? atClosing : registry;
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
         // Контрагенты — только на экране стройки: без неё справочник не читаем.
@@ -203,7 +210,8 @@ public static class SiteCostsEndpoints
             closing ? Closing : Corrected,
             differs switch { ViewsDiffer.Totals => "totals", ViewsDiffer.Details => "details", _ => null },
             result.Total == registry.Total,
-            result.Unmatched == registry.Unmatched));
+            result.Unmatched == registry.Unmatched,
+            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total));
     }
 
     /// <summary>

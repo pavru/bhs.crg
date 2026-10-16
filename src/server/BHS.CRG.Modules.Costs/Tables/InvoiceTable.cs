@@ -104,6 +104,29 @@ public static class InvoiceTable
     /// </summary>
     public const string PeriodSumsKey = "СуммыПоПериодам";
 
+    /// <summary>
+    /// День последней записи книги исправлений счёта (E2, issue #1100, PR 6b-3); пусто — счёт после
+    /// закрытия периода не исправляли. Дата, а не «да/нет»: она же пометка, сортировка и ответ на «что
+    /// исправляли в октябре». Готового отбора-чипа нет нарочно: это не очередь работ, число до нуля не
+    /// доводится (так же решено об архиве, 07.10.2026).
+    /// </summary>
+    public const string CorrectedKey = "ИсправленПослеЗакрытия";
+
+    /// <summary>
+    /// Подпись итога «Суммы» под отбором по учётному периоду, когда в названных месяцах взгляды различаются:
+    /// реестр показывает счета как они есть сейчас, и за закрытый месяц его сумма — уже не та, что при
+    /// закрытии. Без подписи это расхождение с закрытием было бы молчаливым.
+    ///
+    /// <para>Подпись — о МЕСЯЦАХ, а не об отобранных счетах (ревью PR #1390): исправление, которое увело
+    /// счёт из закрытого месяца (отмена оплаты, перенос доли), убирает его и из отбора — а итог месяца от
+    /// этого как раз и разошёлся с закрытием.</para>
+    /// </summary>
+    public const string CorrectedNote =
+        "в названных месяцах есть исправления после закрытия (на момент закрытия — «Затраты по стройке»)";
+
+    /// <summary>Что закрывает право на колонку «Исправлен после закрытия» — для причины «нет права на …».</summary>
+    private const string Corrections = "исправления счетов";
+
     /// <summary>Подпись «Сумм по периодам» под отбором, называющим период.</summary>
     public const string NamedPeriodsNote = "только периоды, названные отбором";
 
@@ -234,6 +257,9 @@ public static class InvoiceTable
             new(PeriodKey, "Учётный период", ModuleTableColumnKind.List),
             new(PeriodSumsKey, "Суммы по периодам", ModuleTableColumnKind.Text, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),
+            // Под правом на счета (ревью PR #1390): это срез книги исправлений, а её адрес (…/book) открыт
+            // только ему. Таблица же открыта всякому, кому открыт модуль, — и с одним правом на накладные.
+            new(CorrectedKey, "Исправлен после закрытия", ModuleTableColumnKind.Date, "costs.invoice.read", Corrections),
             // Только по требованию: значение даёт опрос ядра, и платить за него обязан тот, кто колонку
             // назвал, а не каждый читатель таблицы. В «Реестр счетов» по умолчанию не входят, в запрос
             // «все колонки» и в набор данных — тоже (issue #1186).
@@ -259,7 +285,7 @@ public static class InvoiceTable
                     InvoiceRequisites.SupplierKey, AmountKey, InvoiceRequisites.TotalKey,
                     InvoiceRequisites.NumberKey, InvoiceRequisites.DateKey, InvoiceRequisites.ShippedOnKey,
                     InvoiceRequisites.DeferralKey, InvoiceRequisites.DueDateKey, DaysLeftKey,
-                    InvoiceRequisites.PaymentKey, PaidOnKey, PeriodKey, PeriodSumsKey, ObjectsKey,
+                    InvoiceRequisites.PaymentKey, PaidOnKey, PeriodKey, PeriodSumsKey, CorrectedKey, ObjectsKey,
                     InvoiceRequisites.PayerKey, InvoiceRequisites.PurposeKey, UnmatchedKey,
                 ],
                 Totals: [new(AmountKey, "sum"), new(InvoiceRequisites.TotalKey, "sum")],
@@ -422,8 +448,12 @@ public sealed partial class InvoiceTableRows(
         // «Сумма» сужена именно по учётному периоду, и оговорка спорила бы с соседней подписью
         // (ревизия Архитектора). «Сумма к оплате» и НДС под учётным периодом — счета целиком.
         var axis = months.Count == 0 ? InvoiceTable.AxisNote(byIssueDate, byPaidOn) : null;
+        // Под учётным периодом итог «Суммы» сверяют с закрытием — и он с ним не сходится, если в названных
+        // месяцах взгляды различаются (E2, PR 6b-3). Только в итоге: клетка исправленного счёта несёт свою дату.
+        var corrected = months.Count > 0 && totals.ContainsKey(InvoiceTable.AmountKey)
+                        && await NamedMonthsCorrectedAsync(query.Filter, calendar, ct);
         var note = Joined(sums, axis);
-        Annotate(totals, InvoiceTable.AmountKey, note);
+        Annotate(totals, InvoiceTable.AmountKey, Joined(note, corrected ? InvoiceTable.CorrectedNote : null));
         foreach (var whole in InvoiceTable.WholeInvoiceMoney)
             Annotate(totals, whole, months.Count > 0 ? InvoiceTable.WholeInvoicesNote : axis);
 
@@ -440,18 +470,51 @@ public sealed partial class InvoiceTableRows(
         if (note is not null) notes[InvoiceTable.AmountKey] = note;
         if (sums is not null) notes[InvoiceTable.PeriodSumsKey] = sums;
 
+        // День и причина последней записи книги — клетке «Исправлен после закрытия» и оговорке расшифровки.
+        // Только счетам страницы и только когда о них спросили: книгу читает одно её место (InvoiceBook).
+        var marks = query.Columns.Contains(InvoiceTable.CorrectedKey) || query.Row is not null
+            ? await InvoiceBook.MarksAsync(db, ids, ct)
+            : new Dictionary<Guid, BookMark>();
+
         // Одна строка по ключу — с расшифровкой: счёт по объектам и учётным месяцам (боковая панель).
         var breakdown = query.Row is not null && invoices is [var opened]
-            ? InvoiceBreakdown.Of(opened, MoneyOf(opened.Id), shares, IsNamed, narrowed)
+            ? InvoiceBreakdown.Of(opened, MoneyOf(opened.Id), shares, IsNamed, narrowed, marks.GetValueOrDefault(opened.Id))
             : null;
 
         var objects = shares.Objects(parts);
         var listed = shares.SectionsOf(parts);
         return new(
             [.. invoices.Select(i => Row(i, names, query.Columns, objects, listed, amounts, unmatched, today,
-                periods.GetValueOrDefault(i.Id), troubles))],
+                periods.GetValueOrDefault(i.Id), troubles, marks.GetValueOrDefault(i.Id)))],
             count, totals, notes.Count == 0 ? null : notes,
             [.. invoices.Select(i => i.Id.ToString())], breakdown, Doubts(query, troubles));
+    }
+
+    /// <summary>
+    /// Различаются ли взгляды «с исправлениями» и «на момент закрытия» в учётных месяцах, названных отбором,
+    /// — по всем счетам с книгой, а не по отобранным (см. <see cref="InvoiceTable.CorrectedNote" />). Тем же
+    /// сравнением, что полоса отчёта (<see cref="CostViews.Differ(IReadOnlyList{CostMoney}, IReadOnlyList{CostMoney}, Func{DateOnly, bool}, Guid?)" />):
+    /// исправление, не тронувшее денег названных месяцев, подписи не даёт.
+    ///
+    /// <para>Счета без книги взгляды не различают, поэтому читаются только счета с книгой — их единицы.
+    /// Без них — один лёгкий запрос «есть ли такие вообще».</para>
+    /// </summary>
+    private async Task<bool> NamedMonthsCorrectedAsync(TableFilter? filter, IReadOnlyDictionary<int, string> calendar, CancellationToken ct)
+    {
+        var booked = db.Invoices.AsNoTracking().Where(i => i.BookSeq > 0);
+        if (!await booked.AnyAsync(ct)) return false;
+
+        // Месяц назван — тем же вопросом к отбору, каким «Сумма» решает, названы ли деньги доли (IsNamed).
+        bool Named(DateOnly day) => TableFilters.Admits(filter,
+            new Dictionary<string, string?>(StringComparer.Ordinal) { [InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, day) });
+
+        // «С исправлениями» — деньги документа, только у оплаченных: неоплаченный в затратах не лежит. «На
+        // момент закрытия» у счёта с книгой — её строки, у любого: книга — история (CostViews).
+        var (costs, lines) = await SiteCostsEndpoints.InvoicesAsync(db,
+            booked.Where(i => i.Payment == InvoicePaymentState.Paid && i.State != InvoiceState.Rejected),
+            await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct);
+        var book = await CostViews.BookAsync(db, DateOnly.MinValue, DateOnly.MaxValue, null, ct);
+        return CostViews.Differ(SiteCosts.Corrected(costs, lines), book, Named) != ViewsDiffer.None;
     }
 
     /// <summary>Спрошена ли колонка этим запросом: показом, отбором, сортировкой или итогом.</summary>
@@ -548,6 +611,7 @@ public sealed partial class InvoiceTableRows(
                 months, InvoicePeriods.Unknown, byKey: true)
             // Клетку собирает служба строк; запросу тут считать нечего — по колонке не отбирают.
             .Text(InvoiceTable.PeriodSumsKey, i => null)
+            .Date(InvoiceTable.CorrectedKey, InvoiceBook.LastDay(db))
             .Choice(InvoiceTable.LostKey,
                 i => fixable.Contains(i.Id) ? (int?)(int)LostMark.Fixable
                     : locked.Contains(i.Id) ? (int?)(int)LostMark.Locked
@@ -569,7 +633,7 @@ public sealed partial class InvoiceTableRows(
         Invoice invoice, Dictionary<Guid, string> names, IReadOnlySet<string> open,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> objects,
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> sections, IReadOnlyDictionary<Guid, decimal?>? amounts,
-        Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods, InvoiceTroubles troubles)
+        Dictionary<Guid, int> unmatched, DateOnly today, InvoiceMonths? periods, InvoiceTroubles troubles, BookMark? mark)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -587,6 +651,7 @@ public sealed partial class InvoiceTableRows(
             [InvoiceRequisites.PaymentKey] = InvoiceRequisites.Label(invoice.Payment),
             [InvoiceTable.PaidOnKey] = invoice.PaidOn,
             [InvoiceTable.PeriodKey] = InvoicePeriods.Cell(periods?.All ?? []),
+            [InvoiceTable.CorrectedKey] = mark?.Day,
         };
 
         // Деньги и срок — только открытые: закрытое ядро всё равно вычистит, но не считать его дешевле,

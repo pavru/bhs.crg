@@ -74,11 +74,19 @@ public static class CostViews
     /// строки книги «+120 и −120 в один день» дают то же, что пустая основная таблица.
     /// </summary>
     public static ViewsDiffer Differ(
-        IReadOnlyList<CostMoney> corrected, IReadOnlyList<CostMoney> closing, DateOnly from, DateOnly through, Guid? site)
+        IReadOnlyList<CostMoney> corrected, IReadOnlyList<CostMoney> closing, DateOnly from, DateOnly through, Guid? site) =>
+        Differ(corrected, closing, day => day >= from && day <= through, site);
+
+    /// <summary>
+    /// То же — в днях, которые называет правило, а не отрезок: реестр называет месяцы списком, и между
+    /// ними бывают не названные (подпись итога под учётным периодом, PR 6b-3 E2).
+    /// </summary>
+    public static ViewsDiffer Differ(
+        IReadOnlyList<CostMoney> corrected, IReadOnlyList<CostMoney> closing, Func<DateOnly, bool> inside, Guid? site = null)
     {
         Dictionary<(BookCell Cell, DateOnly Day), (decimal Gross, decimal Net)> Grains(IEnumerable<CostMoney> money) =>
             InvoiceBookPosting.Pairs(money.Select(m => m.Grain)
-                    .Where(g => g.Day >= from && g.Day <= through && (site is null || g.Cell.Target?.ConstructionId == site)))
+                    .Where(g => inside(g.Day) && (site is null || g.Cell.Target?.ConstructionId == site)))
                 .ToDictionary(p => p.Key, p => (p.Value.Gross, p.Value.Net));
 
         var (left, right) = (Grains(corrected), Grains(closing));

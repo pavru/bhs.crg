@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Tables;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -79,6 +80,7 @@ public partial class InvoicePaymentTests
         Assert.Equal("closing", plain.GetProperty("view").GetString());
         Assert.Equal(JsonValueKind.Null, plain.GetProperty("differs").ValueKind);
         Assert.Equal(40_000m, Amount(plain.GetProperty("total")));
+        Assert.Equal(JsonValueKind.Null, plain.GetProperty("other").ValueKind);
 
         // После отмены оплаты счёта в документах нет, а книга держит его 40 000 днём оплаты и −40 000
         // сегодня: итоги равны нулю, различаются дни. Счёт в книге — «один счёт на ноль», и реестр,
@@ -92,6 +94,9 @@ public partial class InvoicePaymentTests
         var closing = await CostsAsync("&view=closing");
         Assert.Equal((1, 0m), (closing.GetProperty("total").GetProperty("invoices").GetInt32(), Amount(closing.GetProperty("total"))));
         Assert.False(closing.GetProperty("totalLinked").GetBoolean());
+        // Полоса называет итог другого взгляда (PR 6b-3): у каждого — итог соседа.
+        Assert.Equal(1, corrected.GetProperty("other").GetProperty("invoices").GetInt32());
+        Assert.Equal(0, closing.GetProperty("other").GetProperty("invoices").GetInt32());
 
         // Новая оплата: документ — 40 000 «9 дней назад», книга — те же 40 000 тремя строками. Итоги равны,
         // и строки «на момент закрытия» сошлись с реестром — ссылки у них есть.
@@ -131,6 +136,64 @@ public partial class InvoicePaymentTests
         var preview = await ClosingPreviewAsync(admin, today.AddDays(-40), today.AddDays(-1), a);
         Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
         Assert.Equal(1, Line(preview, "frozen", "locked").Count);
+    }
+
+    /// <summary>
+    /// Реестр помечает исправленный после закрытия счёт (PR 6b-3): колонка «Исправлен после закрытия» — день
+    /// последней записи книги, по ней отбирают; итог «Суммы» под учётным периодом говорит, что в названных
+    /// месяцах есть исправления, — и тогда, когда исправление увело счёт из отбора; боковая панель — когда,
+    /// чем и почему исправлен.
+    /// </summary>
+    [Fact]
+    public async Task Реестр_помечает_исправленный_после_закрытия_счёт()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var paidOn = today.AddDays(-15);
+        var (invoice, _, _) = await LockedAsync(admin, today);
+        const string Column = InvoiceTable.CorrectedKey;
+        async Task<JsonElement> RowAsync() =>
+            await admin.GetFromJsonAsync<JsonElement>($"/api/tables/costs.invoices?columns=Номер,{Column}&row={invoice}");
+        var number = (await RowAsync()).GetProperty("rows")[0].GetProperty("Номер").GetString();
+        async Task<JsonElement> ByPeriodAsync(params object[] more) =>
+            await admin.GetFromJsonAsync<JsonElement>(
+                $"/api/tables/costs.invoices?columns=Номер,СуммаПоОтбору&totals=СуммаПоОтбору&filter=" +
+                Uri.EscapeDataString(JsonSerializer.Serialize(new
+                {
+                    type = "group", logic = "and",
+                    children = more.Prepend(new { type = "condition", column = "УчётныйПериод", op = "eq", value = $"{paidOn:MM.yyyy}" })
+                        .Prepend(new { type = "condition", column = "Номер", op = "eq", value = number }),
+                })));
+        static string? Note(JsonElement table) =>
+            table.GetProperty("totals").GetProperty("СуммаПоОтбору").GetProperty("note").GetString();
+
+        // Запертый, но не исправленный: клетка пуста. Об итоге здесь не спрашиваем: подпись — о месяцах по
+        // всем счетам с книгой, а база прогонов общая, и чужое исправление в тех же месяцах её законно даст.
+        var before = await RowAsync();
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("rows")[0].GetProperty(Column).ValueKind);
+
+        // Отмена оплаты пишет книгу: день записи — сегодня, причина — в оговорке панели.
+        await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }));
+        var unpaid = await RowAsync();
+        Assert.Equal($"{today:yyyy-MM-dd}", unpaid.GetProperty("rows")[0].GetProperty(Column).GetString());
+        var note = unpaid.GetProperty("breakdown").GetProperty("note").GetString();
+        Assert.StartsWith($"исправлен после закрытия {today:dd.MM.yyyy} (отмена оплаты: «ошиблись») — здесь счёт как он есть сейчас", note);
+        // Неоплаченного счёта в отборе по учётному периоду больше нет — а итог месяца от этого и разошёлся с
+        // закрытием: подпись о месяцах, а не об отобранных счетах (ревью PR #1390).
+        var left = await ByPeriodAsync();
+        Assert.Equal(0, left.GetProperty("count").GetInt32());
+        Assert.EndsWith(InvoiceTable.CorrectedNote, Note(left));
+
+        // Новая оплата — счёт снова в затратах периода, и итог «Суммы» говорит, что он с исправлениями.
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        Assert.EndsWith(InvoiceTable.CorrectedNote, Note(await ByPeriodAsync()));
+        // Последняя запись теперь — новая оплата, без причины: оговорка называет её видом, а не выдаёт день
+        // оплаты за день исправления с прежней причиной.
+        Assert.StartsWith($"исправлен после закрытия {today:dd.MM.yyyy} (новая оплата) —",
+            (await RowAsync()).GetProperty("breakdown").GetProperty("note").GetString());
+        // Отбор «не пусто» по колонке находит его, «пусто» — нет: колонка отбирается в базе.
+        Assert.Equal(1, (await ByPeriodAsync(new { type = "condition", column = Column, op = "is_not_empty" })).GetProperty("count").GetInt32());
+        Assert.Equal(0, (await ByPeriodAsync(new { type = "condition", column = Column, op = "is_empty" })).GetProperty("count").GetInt32());
     }
 
     /// <summary>Запертый счёт с книгой: отмена оплаты и новая оплата тем же днём (S21 (д), (е)).</summary>

@@ -14,6 +14,7 @@ import { useSiteCosts, type CostFigure, type SiteCosts } from '@/shared/api/site
 import { formatCount, formatMoney } from '@/shared/format/format';
 import { foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
 
 const ALL = 'all';
 
@@ -29,8 +30,8 @@ const ALL = 'all';
  * накладные, которых в модуле ещё нет, — подписью под заголовком, а не строкой с нулём: ноль читался
  * бы как «по накладным затрат нет».
  *
- * Состояние — в адресе страницы: стройка, период и режим НДС переживают перезагрузку и «назад» из
- * реестра.
+ * Состояние — в адресе страницы: стройка, период, режим НДС и взгляд на закрытые периоды переживают
+ * перезагрузку и «назад» из реестра.
  */
 export function SiteCostsPage() {
   useDocumentTitle('Затраты по стройке');
@@ -39,7 +40,9 @@ export function SiteCostsPage() {
   const withVat = params.get('vat') !== 'without';
   // Срез затрат стройки: по контрагентам либо по разделам (G5b, issue #1198). В адресе — как всё остальное.
   const bySections = site !== null && params.get('by') === 'sections';
-  const query = { site, from: params.get('from'), to: params.get('to'), withVat };
+  // Взгляд «на момент закрытия» (E2, PR 6b-3) — только словом в адресе: умолчание — «с исправлениями».
+  const closing = params.get('view') === 'closing';
+  const query = { site, from: params.get('from'), to: params.get('to'), withVat, closing };
 
   const sites = useCostsConstructions();
   // Выбор стройки урезан избранным, выход — последним пунктом (issue #1219). Сам отчёт считает все.
@@ -103,19 +106,23 @@ export function SiteCostsPage() {
         ) : !data ? (
           <p className="text-sm text-fg4">Отчёт строится…</p>
         ) : (
-          <Report data={data} bySections={bySections} onSite={id => set({ site: id })} stale={report.isPlaceholderData} />
+          <Report data={data} bySections={bySections} onSite={id => set({ site: id })} stale={report.isPlaceholderData}
+            asked={closing} onView={view => set({ view: view === 'closing' ? 'closing' : null })} />
         )}
       </div>
     </div>
   );
 }
 
-function Report({ data, bySections, onSite, stale }: {
+function Report({ data, bySections, onSite, stale, asked, onView }: {
   data: SiteCosts;
   /** Затраты стройки — по разделам, а не по контрагентам: та же сумма, сложенная иначе. */
   bySections: boolean;
   onSite: (id: string) => void;
   stale: boolean;
+  /** Взгляд, названный адресом: по нему выбрана вкладка, пока ответ на него в пути. */
+  asked: boolean;
+  onView: (view: 'corrected' | 'closing') => void;
 }) {
   const period = data.from === data.to ? data.months[0] : `${data.months[0]} — ${data.months[data.months.length - 1]}`;
   const empty = data.total.invoices === 0;
@@ -132,18 +139,24 @@ function Report({ data, bySections, onSite, stale }: {
   const foldedNow = unfolded ? null : folded;
   // Под «без НДС» реестр по ссылке покажет суммы С НДС — без оговорки сверка глазами дала бы расхождение.
   const linkNote = data.withVat ? undefined : 'в реестре суммы с НДС';
+  // Взгляд «на момент закрытия» — только когда он и правда другой: совпавшие взгляды полосы не рисуют, и
+  // подпись о нём была бы про то, чего на экране нет. Стрелка у числа — только если реестр под ней покажет
+  // то же число (сервер говорит это у каждой строки): иначе сверяли бы закрытый месяц с тем, чего в нём
+  // при закрытии не было. Нет поля — старый сервер, у которого взгляд один и числа равны реестру.
+  const closing = data.view === 'closing' && !!data.differs;
 
   const columns = costColumns(!data.site ? 'Объект' : bySections ? 'Раздел' : 'Контрагент',
     // По разделам счёт на два раздела стоит в двух строках: числа счетов в итог не складываются.
     data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined, linkNote);
-  const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: data.total, link: siteCostsLinks.total(data) };
+  const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: data.total,
+    link: data.totalLinked !== false ? siteCostsLinks.total(data) : undefined };
   const lines: Line[] = data.site && bySections
     // Среза может не быть в ответе: клиент и сервер обновляются порознь.
     // «Без раздела» и «раздел удалён» — приглушённо: это не название, а его отсутствие. Стрелка — только
     // под названием, каким раздел зовёт реестр: коротким именем он его не зовёт никогда, и ссылка с ним
     // открыла бы пустой реестр — «счетов нет» вместо отказа.
     ? (data.sections ?? []).map((line): Line => ({ kind: 'figure', key: line.id ?? line.name, name: line.name, muted: line.id === null,
-        figure: line, link: line.registry ? siteCostsLinks.section(data, line.registry) : undefined }))
+        figure: line, link: line.linked && line.registry ? siteCostsLinks.section(data, line.registry) : undefined }))
     : data.site
     // Удалённый поставщик — без стрелки: реестр его не называет, отбора под него нет.
     ? data.suppliers.map((line): Line => ({ kind: 'figure', key: line.id ?? line.name, name: line.name, muted: line.id === null,
@@ -155,15 +168,15 @@ function Report({ data, bySections, onSite, stale }: {
         // сгиба — а без неё столбец не сходится с итогом на глазах.
         ...(foldedNow ? [{ kind: 'folded', key: 'folded', folded: foldedNow, onUnfold: () => setUnfolded(true) } satisfies Line] : []),
         ...(foldedNow ? shown : data.sites).map((line): Line => ({ kind: 'figure', key: `site:${line.id ?? line.name}`, indent: true, figure: line,
-          link: siteCostsLinks.object(data, line.name), label: line.name,
+          link: line.linked ? siteCostsLinks.object(data, line.name) : undefined, label: line.name,
           name: <button type="button" onClick={() => line.id && onSite(line.id)}
             className="text-left text-brand hover:underline">{line.name}</button> })),
         ...(data.articles.length > 0 ? [{ kind: 'group', key: 'group:articles', title: 'Вне строек' } satisfies Line] : []),
         ...data.articles.map((line): Line => ({ kind: 'figure', key: `article:${line.id ?? line.name}`, indent: true, name: line.name, figure: line,
-          link: siteCostsLinks.object(data, line.name) })),
+          link: line.linked ? siteCostsLinks.object(data, line.name) : undefined })),
         // Удалённые объекты — одной строкой и без перехода «внутрь»: стройки больше нет.
         ...(data.lost ? [{ kind: 'figure', key: 'lost', name: data.lost.name, muted: true, figure: data.lost,
-          link: siteCostsLinks.object(data, data.lost.name) } satisfies Line] : []),
+          link: data.lost.linked ? siteCostsLinks.object(data, data.lost.name) : undefined } satisfies Line] : []),
         // Без ссылки: отбора «есть неразнесённый остаток» у реестра нет, а «Объект: пусто» находит только
         // счета без разноски вовсе — число бы не сошлось.
         ...(data.unallocated ? [{ kind: 'figure', key: 'unallocated', name: 'Не разнесено', figure: data.unallocated } satisfies Line] : []),
@@ -171,38 +184,43 @@ function Report({ data, bySections, onSite, stale }: {
 
   return (
     <div className={`space-y-5 ${stale ? 'opacity-60' : ''}`} aria-busy={stale}>
-      <section aria-label="Затраты за период">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">
-          Затраты за {period}
-          <span className="ml-2 normal-case tracking-normal font-normal text-fg4">
-            оплаченные счета, по учётному периоду долей{data.withVat ? '' : ' · без НДС'}
-          </span>
-        </h2>
+      <CostViewsBand data={data} closing={asked} onChange={onView} />
+      <ViewPanel shown={!!data.differs} view={asked ? 'closing' : 'corrected'}>
+        <section aria-label="Затраты за период">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">
+            Затраты за {period}
+            <span className="ml-2 normal-case tracking-normal font-normal text-fg4">
+              оплаченные счета, по учётному периоду долей{data.withVat ? '' : ' · без НДС'}{closing ? ' · на момент закрытия' : ''}
+            </span>
+          </h2>
 
-        {empty ? (
-          <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
-            description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
-        ) : (
-          <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
-            // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
-            // выделен целиком, а не одним названием.
-            footer={c => <span className="text-sm font-medium text-fg1">{c.cell?.(total, -1)}</span>} />
-        )}
+          {empty ? (
+            <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
+              description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
+          ) : (
+            <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
+              // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
+              // выделен целиком, а не одним названием.
+              footer={c => <span className="text-sm font-medium text-fg1">{c.cell?.(total, -1)}</span>} />
+          )}
 
-        {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
-        {data.unmatched && (
-          <p className="mt-1 pl-4 text-sm text-fg3">
-            из них без позиции номенклатуры: {invoicesText(data.unmatched.invoices)} на {formatMoney(data.unmatched.amount)} —
-            в затраты вошли, в материалы нет{' '}
-            <RegistryLink to={siteCostsLinks.unmatched(data)} label="Счета без позиции номенклатуры — в реестре" note={linkNote} />
-          </p>
-        )}
-        {data.vatUnknown && (
-          <p className="mt-1 pl-4 text-sm text-fg3">
-            НДС не указан: {invoicesText(data.vatUnknown.invoices)} на {formatMoney(data.vatUnknown.amount)} — учтены полной суммой
-          </p>
-        )}
-      </section>
+          {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
+          {data.unmatched && (
+            <p className="mt-1 pl-4 text-sm text-fg3">
+              из них без позиции номенклатуры: {invoicesText(data.unmatched.invoices)} на {formatMoney(data.unmatched.amount)} —
+              в затраты вошли, в материалы нет{' '}
+              {data.unmatchedLinked !== false && (
+                <RegistryLink to={siteCostsLinks.unmatched(data)} label="Счета без позиции номенклатуры — в реестре" note={linkNote} />
+              )}
+            </p>
+          )}
+          {data.vatUnknown && (
+            <p className="mt-1 pl-4 text-sm text-fg3">
+              НДС не указан: {invoicesText(data.vatUnknown.invoices)} на {formatMoney(data.vatUnknown.amount)} — учтены полной суммой
+            </p>
+          )}
+        </section>
+      </ViewPanel>
 
       <section aria-label="Не входит в затраты" className="border-t border-stroke pt-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">Не входит в затраты</h2>
@@ -219,6 +237,19 @@ function Report({ data, bySections, onSite, stale }: {
       </section>
     </div>
   );
+}
+
+/**
+ * Затраты — панель выбранной вкладки взгляда, когда полоса с вкладками есть. Обёртка одна и та же в обоих
+ * случаях: смена вида элемента (панель ↔ фрагмент) пересоздала бы таблицу под ней при каждой смене периода
+ * с исправлениями на период без них (ревью PR #1390). Адреса — по правилу `Tabs` (`…-tab-…`, `…-panel-…`):
+ * его сверяет SiteCostsViews.test — вкладка обязана указывать на эту панель.
+ */
+function ViewPanel({ shown, view, children }: { shown: boolean; view: string; children: ReactNode }) {
+  const panel = shown
+    ? { role: 'tabpanel', id: `${COST_VIEWS_ID}-panel-${view}`, 'aria-labelledby': `${COST_VIEWS_ID}-tab-${view}` }
+    : {};
+  return <div {...panel}>{children}</div>;
 }
 
 /** Переключатель из двух-трёх взаимоисключающих значений — кнопками, выбранная нажата. */

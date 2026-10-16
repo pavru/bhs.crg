@@ -35,6 +35,26 @@ internal static class InvoiceBreakdown
 
     public const string UnpaidNote = "счёт не оплачен — в затраты не вошёл";
 
+    /// <summary>
+    /// Оговорка у исправленного после закрытия счёта (E2, PR 6b-3): блок показывает счёт как он есть сейчас,
+    /// а закрытый месяц помнит его прежним. Последняя запись книги — с видом (ревью PR #1390): после «отмены
+    /// оплаты: «ошиблись»» последней бывает новая оплата без причины, и голый день без слова читался бы как
+    /// день исправления, а причина выравнивания «допуск 0,01 → 0,05» — как причина правки счёта.
+    /// </summary>
+    public static string CorrectedNote(BookMark mark) =>
+        $"исправлен после закрытия {mark.Day:dd.MM.yyyy} ({KindWord(mark.Kind)}" +
+        $"{(mark.Reason is { Length: > 0 } reason ? $": «{reason}»" : "")}) — здесь счёт как он есть сейчас";
+
+    /// <summary>Вид записи книги словами — те же, что у истории счёта на форме.</summary>
+    private static string KindWord(InvoiceBookKind kind) => kind switch
+    {
+        InvoiceBookKind.Correction => "исправление",
+        InvoiceBookKind.Payment => "новая оплата",
+        InvoiceBookKind.Unpayment => "отмена оплаты",
+        InvoiceBookKind.Alignment => "выравнивание допуском",
+        _ => "открытие книги",
+    };
+
     public static ModuleTableBreakdown Declaration { get; } = new(
         "Разноска",
         [
@@ -50,9 +70,11 @@ internal static class InvoiceBreakdown
     /// <param name="named">Названы ли деньги отбором (<see cref="InvoiceMoney.IsNamed" />); вне сужающего
     /// отбора не спрашивается.</param>
     /// <param name="narrowed">Отбор сужает «Сумму» — называет объекты или учётные месяцы.</param>
+    /// <param name="mark">Последняя запись книги исправлений; null — счёт не исправляли.</param>
     /// <returns>null — у счёта нет суммы к оплате: раскладывать нечего.</returns>
     public static TableRowBreakdown? Of(
-        Invoice invoice, IReadOnlyList<PostedMoney> money, InvoiceShares shares, Func<PostedMoney, bool> named, bool narrowed)
+        Invoice invoice, IReadOnlyList<PostedMoney> money, InvoiceShares shares, Func<PostedMoney, bool> named, bool narrowed,
+        BookMark? mark = null)
     {
         if (invoice.Total is null) return null;
         bool Named(PostedMoney part) => narrowed && named(part);
@@ -78,7 +100,10 @@ internal static class InvoiceBreakdown
             Follows = InvoiceTable.AmountKey,
         }));
 
-        return new(rows, narrowed, invoice.Payment == InvoicePaymentState.Paid ? null : UnpaidNote);
+        // Обе оговорки бывают сразу: оплату исправленного счёта отменяют исправлением.
+        string?[] notes = [mark is null ? null : CorrectedNote(mark), invoice.Payment == InvoicePaymentState.Paid ? null : UnpaidNote];
+        var note = string.Join("; ", notes.OfType<string>());
+        return new(rows, narrowed, note.Length == 0 ? null : note);
     }
 
     private static DateOnly? Month(DateOnly? day) => day is { } on ? PaymentPosting.MonthOf(on) : null;
