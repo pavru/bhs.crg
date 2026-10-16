@@ -95,6 +95,8 @@ public static class InvoiceEndpoints
                 "типа занял другой тип).");
 
         var (columns, rest) = InvoiceRequisites.Split(body.Requisites, stored: null);
+        // Охране — разобранные числа, а не набранный текст: см. Canonical.
+        var requisites = InvoiceRequisites.Canonical(body.Requisites, columns);
         // Стороны — ПРЕЖДЕ охраны: с правилом архива в охране ядра (issue #1185) она отвергла бы
         // архивного поставщика первой, своими словами, а у четырёх адресов модуля текст один.
         await EnsurePartiesExistAsync(targets, catalog, columns, supplierWas: null, payerWas: null, ct);
@@ -103,7 +105,7 @@ public static class InvoiceEndpoints
         // обязана видеть ту отсрочку, которая ляжет в счёт, а не присланную.
         (columns, var termed) = await desk.WithTermsAsync(columns, was: null, ct);
         await EnsureAllowedAsync(guard, typeId, stored: null,
-            WithTerms(JsonNode.Parse(body.Requisites.GetRawText())!.AsObject(), termed, columns), ct);
+            WithTerms(JsonNode.Parse(requisites.GetRawText())!.AsObject(), termed, columns), ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         var marks = body.Unconfirmed ?? [];
@@ -220,6 +222,9 @@ public static class InvoiceEndpoints
     {
         var before = InvoiceRequisites.Merge(invoice);
         var (columns, rest) = InvoiceRequisites.Split(requisites, before);
+        // Дальше — разобранные числа, а не набранный текст: охрана отвергла бы «1 234,50» в числовом
+        // поле, а сравнение сочло бы его правкой. См. Canonical.
+        requisites = InvoiceRequisites.Canonical(requisites, columns);
         // Стороны — прежде охраны: см. создание.
         await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
         // Сменили поставщика — отсрочка из его условий (ТЗ COST-9.2), если её не правили той же

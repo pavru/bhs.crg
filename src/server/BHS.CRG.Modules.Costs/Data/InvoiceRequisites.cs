@@ -133,6 +133,36 @@ public static class InvoiceRequisites
     }
 
     /// <summary>
+    /// Присланные реквизиты, в которых числовые поля-колонки (сумма к оплате, НДС, отсрочка) заменены
+    /// РАЗОБРАННЫМИ значениями — числом, а не тем текстом, что набрал человек.
+    ///
+    /// <para>⚠️ Охрана записи ядра судит вид значения по схеме типа и строку в числовом поле отвергает:
+    /// «ожидается число, а хранится строка». А <see cref="Split" /> строку принимает нарочно — «1 234,50»
+    /// приходит и из поля формы, и из вставки из буфера. Отдай охране присланное как есть, и сумма,
+    /// набранная в форме, не сохранялась бы ни правкой, ни исправлением, хотя разобрать её было чем.
+    /// Охрана обязана видеть то, что ЛЯЖЕТ в счёт, — как и с подставленной отсрочкой.</para>
+    ///
+    /// <para>Сравнение «что изменилось» (<see cref="Changed" />) идёт по тем же значениям: иначе сумма,
+    /// присланная строкой без правки, считалась бы правкой и снимала бы метку распознавания.</para>
+    /// </summary>
+    public static JsonElement Canonical(JsonElement requisites, InvoiceColumns columns)
+    {
+        var result = JsonNode.Parse(requisites.GetRawText())!.AsObject();
+
+        void Put(string key, JsonNode? value)
+        {
+            if (result.ContainsKey(key)) result[key] = value;
+        }
+
+        Put(TotalKey, columns.Total is { } total ? JsonValue.Create(total) : null);
+        Put(VatTotalKey, columns.VatTotal is { } vat ? JsonValue.Create(vat) : null);
+        Put(DeferralKey, columns.DeferralDays is { } days ? JsonValue.Create(days) : null);
+
+        using var document = JsonDocument.Parse(result.ToJsonString());
+        return document.RootElement.Clone();
+    }
+
+    /// <summary>
     /// Незаполненные ОБЯЗАТЕЛЬНЫЕ поля счёта — подписями, как они стоят в форме (issue #1078).
     ///
     /// <para>Обязательность проверяется на переходе «черновик → разобран» и при печати, а НЕ при
