@@ -56,6 +56,23 @@ export interface SiteCosts {
   vatUnknown: CostFigure | null;
   /** То же — в «к оплате». */
   payableVatUnknown: CostFigure | null;
+  /**
+   * Каким взглядом посчитаны затраты (E2, issue #1100): `corrected` — «с исправлениями», как реестр;
+   * `closing` — «на момент закрытия», по книге исправлений. «К оплате» от взгляда не зависит. Поля нет у
+   * старого сервера — тогда это «с исправлениями»: другого он не умел.
+   */
+  view?: 'corrected' | 'closing';
+  /**
+   * Чем взгляды различаются на этом отрезке и в этом охвате: `totals` — итогами, `details` — при равных
+   * итогах разделами, поставщиками или днями; null — не различаются, и полосы с переключателем нет.
+   */
+  differs?: 'totals' | 'details' | null;
+  /** Итог равен итогу реестра под ссылкой — стрелка у него честная. Нет поля — равен (старый сервер). */
+  totalLinked?: boolean;
+  /** То же — у «без позиции номенклатуры». */
+  unmatchedLinked?: boolean;
+  /** Итог затрат другим взглядом — полоса называет его рядом с переключателем; null — взгляды совпали. */
+  other?: CostFigure | null;
 }
 
 export interface SiteCostsQuery {
@@ -64,6 +81,8 @@ export interface SiteCostsQuery {
   from: string | null;
   to: string | null;
   withVat: boolean;
+  /** «На момент закрытия» вместо «с исправлениями». */
+  closing: boolean;
 }
 
 export function useSiteCosts(query: SiteCostsQuery) {
@@ -73,6 +92,7 @@ export function useSiteCosts(query: SiteCostsQuery) {
       params: {
         site: query.site ?? undefined, from: query.from ?? undefined, to: query.to ?? undefined,
         vat: query.withVat ? undefined : 'without',
+        view: query.closing ? 'closing' : undefined,
       },
     }).then(r => r.data),
     // Смена периода не должна гасить экран: прежние числа стоят, пока не пришли новые.
