@@ -6,6 +6,7 @@ import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useToast } from '@/shared/ui/Toast';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
@@ -38,6 +39,8 @@ const PARAM = 'waybill';
 export function WaybillsPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get(PARAM) || null;
+  // Узкое место (#1355): накладная, названная адресом, показывается карточкой — и при открытии, и при смене адреса.
+  const ld = useListDetailView(selected);
   const open = (id: string) => setParams(prev => {
     const next = new URLSearchParams(prev);
     next.set(PARAM, id);
@@ -49,6 +52,7 @@ export function WaybillsPage() {
   const leaveGuard = useRef<((proceed: () => void) => void) | null>(null);
   const onLeaveGuard = useCallback((ask: ((proceed: () => void) => void) | null) => { leaveGuard.current = ask; }, []);
   const setSelected = (id: string) => {
+    ld.showDetail();
     if (id === selected) return;
     if (leaveGuard.current) leaveGuard.current(() => open(id)); else open(id);
   };
@@ -107,7 +111,7 @@ export function WaybillsPage() {
   };
 
   return (
-    <ListDetailShell
+    <ListDetailShell view={ld}
       title="Расходные накладные"
       subtitle="Проведённая накладная — материалы, выданные на стройку"
       actions={

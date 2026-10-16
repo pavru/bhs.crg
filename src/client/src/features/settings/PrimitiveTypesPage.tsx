@@ -7,6 +7,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -15,7 +16,6 @@ import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { validateConstraint } from '@/features/document-sets/fields/fieldValidation';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
-import { parseSchemaFields } from '@/shared/api/schema';
 import {
   useListPrimitiveTypes,
   useCreatePrimitiveType,
@@ -32,13 +32,14 @@ import {
   useSetEnumTypeGroup,
   buildEnumTypeDto,
 } from '@/shared/api/enumTypes';
-import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision, DocumentType } from '@/shared/api/types';
+import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision } from '@/shared/api/types';
 import { formatDatePrecise } from '@/shared/format/format';
 import { useTagRegistry, fieldTags, unknownTagCodes } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
 import { ValuesEditor, EnumForm } from './EnumTypesSection';
 import { humanEnumPreview } from './enumPreview';
 import { uniqueCode } from './uniqueCode';
+import { findReferencingTypeNames } from './fieldTypeUsage';
 import { withRowUids } from '@/shared/utils/rowIdentity';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
@@ -62,15 +63,6 @@ const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
 };
 
 const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Calendar : CaseSensitive;
-
-/** Имена типов документов, ссылающихся на данный тип поля (primitive/enum) полем с этим typeId
- *  (по своим схемам). Единственная причина занятости типа поля = ссылки из схем, и она полностью
- *  выводима на клиенте из уже загруженных схем — тот же критерий, что и backend-guard удаления. */
-function findReferencingTypeNames(typeId: string, kind: 'primitive' | 'enum', allDocTypes: DocumentType[]): string[] {
-  return allDocTypes
-    .filter(dt => parseSchemaFields(dt.schema).some(f => f.type === kind && f.typeId === typeId))
-    .map(dt => dt.name);
-}
 
 /** Проактивный контент «Удаление невозможно» (issue #275): типы документов, использующие тип поля.
  *  Пусто → undefined (диалог в обычном режиме подтверждения). */
@@ -634,6 +626,7 @@ export function PrimitiveTypesPage() {
   const { values, remember } = useRememberedSelection(FIELD_TYPES_LAST_KEY, SELECTION_KEYS);
   const mode: Mode = values.mode === 'enum' ? 'enum' : 'primitive';
   const selectedId = values.type || null;
+  const ld = useListDetailView();
   const setSelection = (m: Mode, id: string | null) => remember({ mode: m, type: id ?? '' });
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -654,7 +647,7 @@ export function PrimitiveTypesPage() {
     isDirty: anyDirty, saving, saveAll,
     onCommit: ({ mode: m, id }) => setSelection(m, id),
   });
-  const requestSelect = (id: string) => { if (id !== selectedId) request({ mode, id }); };
+  const requestSelect = (id: string) => { ld.showDetail(); if (id !== selectedId) request({ mode, id }); };
   const requestMode = (m: Mode) => { if (m !== mode) request({ mode: m, id: null }); };
 
   // Гард ухода со страницы по маршруту (issue #307): тот же диалог при сайдбар-навигации/перезагрузке.
@@ -692,7 +685,7 @@ export function PrimitiveTypesPage() {
   return (
     <>
       <TypeEditorProvider value={registry}>
-        <ListDetailShell
+        <ListDetailShell view={ld}
           title="Типы полей"
           subtitle="Пользовательские типы реквизитов (строка/число/дата) и перечисления"
           actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}

@@ -1,8 +1,17 @@
-import type { ReactNode } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { useContext, type ReactNode } from 'react';
+import { ListDetailViewContext as ViewContext, useListDetailView, type ListDetailView } from './listDetailView';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
+
+
+/** Свой порядок сплита начинает с карточки — страницы уровня (см. ниже). Постоянная «запись»:
+ *  она названа с первого кадра и не меняется, поэтому карточку показывает только `NavItem`. */
+const OWN_START = 'own';
+
+/** Ширины колонки на просторе. Классом целиком: Tailwind не соберёт имя, склеенное из частей. */
+const NAV_WIDE: Record<string, string> = { 'w-80': '@2xl/ld:w-80', 'w-64': '@2xl/ld:w-64' };
 
 /**
  * Тонкий layout-примитив «list-detail со вторичной навигацией» (issue #210, разбор с Архитектором+
@@ -10,8 +19,15 @@ import { SearchInput } from './SearchInput';
  * detail) и Save-кластером в шапке detail. Модель навигации (табы/группы/список) и содержимое detail —
  * per-page слоты; реестр агрегации dirty — отдельный модуль (features/settings/typeEditorRegistry).
  * НЕ клиент этого shell: редактор документа (#192) — там навигация ВНУТРИ сущности + preview-панель.
+ *
+ * Тесно — уже 672 px САМОГО сплита (container query, как у `PageHeader`), а не окна: на ноутбуке с
+ * развёрнутой панелью сплит тоже бывает тесным. Тогда колонка и карточка идут по очереди, у карточки
+ * — кнопка «назад к списку» (issue #1355). Без `view` от страницы сплит ведёт очередь сам: начинает
+ * с карточки, а к ней возвращает пункт `NavItem` — так устроены страницы уровня (стройка, раздел,
+ * комплект), где колонка — разделы уровня, а не список записей.
  */
-export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, ...header }: Omit<PageHeaderProps, 'title'> & {
+export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view, backLabel, ...header }:
+  Omit<PageHeaderProps, 'title'> & {
   /** Строкой, а не узлом: им же названа колонка навигации для диктора. Остальные слоты шапки —
    *  те же, что у `PageHeader` (значок уровня, готовность по плану в `badge` — #796, крошки). */
   title: string;
@@ -20,20 +36,38 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, ...he
   /** Содержимое левой колонки (табы/поиск/список) — per-page. Рамку/ширину задаёт shell. */
   nav: ReactNode;
   /** Ширина левой колонки (Tailwind-класс): по умолчанию w-80 (320px); w-64 (260) для вырожденных. */
-  navWidth?: string;
+  navWidth?: 'w-80' | 'w-64';
   /** Detail-панель или EmptyState «выберите …». */
   detail: ReactNode;
+  /** Очередь «список / карточка» на узком месте — см. `useListDetailView`. */
+  view?: ListDetailView;
+  /** Подпись кнопки возврата к колонке на узком месте; по умолчанию — «К списку». */
+  backLabel?: string;
 }) {
+  const own = useListDetailView(OWN_START);
+  const current = view ?? own;
+  const onDetail = current.view === 'detail';
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col @container/ld">
       <PageHeader bar {...header} />
       {overlay ?? (
-        <div className="flex-1 min-h-0 flex">
-          <nav aria-label={header.title} className={`${navWidth} shrink-0 border-r border-stroke flex flex-col bg-base`}>
-            {nav}
-          </nav>
-          {detail}
-        </div>
+        <ViewContext.Provider value={current}>
+          <div className="flex-1 min-h-0 flex">
+            <nav aria-label={header.title} data-testid="ld-nav"
+              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-stroke flex flex-col bg-base ${
+                onDetail ? '@max-2xl/ld:hidden' : ''}`}>
+              {nav}
+            </nav>
+            <div data-testid="ld-detail" className={`flex-1 min-w-0 min-h-0 flex flex-col ${onDetail ? '' : '@max-2xl/ld:hidden'}`}>
+              <button type="button" onClick={current.showList}
+                className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-stroke text-sm font-medium text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
+                <ArrowLeft size={16} className="shrink-0" />
+                {backLabel ?? 'К списку'}
+              </button>
+              <div className="flex-1 min-h-0 flex">{detail}</div>
+            </div>
+          </div>
+        </ViewContext.Provider>
       )}
     </div>
   );
@@ -60,8 +94,11 @@ export function NavSection({ label }: { label: string }) {
  * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
  * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
  */
-export function NavItem({ icon, label, count, active, chevron, onClick, alert, alertDanger, progress, progressTitle }: {
+export function NavItem({ icon, label, count, active, chevron, filter, onClick, alert, alertDanger, progress, progressTitle }: {
   icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
+  /** Пункт сужает СПИСОК (отбор по состоянию), а не меняет карточку: на узком месте он оставляет
+   *  список на экране — показать карточку значило бы спрятать только что отобранное (issue #1355). */
+  filter?: boolean;
   /** Готовность по плану, % (#796). null/пусто — плана нет, и рисовать нечего: «0 %» соврал бы.
    *  Тон НЕЙТРАЛЬНЫЙ: красный на этих экранах занят арифметикой сверки, и второй красный читался
    *  бы как ошибка там, где просто не всё готово. */
@@ -78,8 +115,11 @@ export function NavItem({ icon, label, count, active, chevron, onClick, alert, a
   alertDanger?: boolean;
 }) {
   const highlight = active && !chevron;
+  // Пункт уровня меняет карточку на месте — на узком месте её и надо показать (issue #1355).
+  // Ребёнок уводит на другой адрес, отбор меняет список: им карточка ни при чём.
+  const view = useContext(ViewContext);
   return (
-    <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
+    <button type="button" onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
         highlight ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
       <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>

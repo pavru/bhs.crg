@@ -11,6 +11,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, NavSection, NavItem } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
@@ -58,6 +59,7 @@ export function QualityDocsPage() {
   const [search, setSearch] = useState('');
   const { values, remember } = useRememberedSelection(QUALITY_LAST_KEY, SELECTION_KEYS);
   const selected = values.doc || null;
+  const ld = useListDetailView();
   const setSelected = (id: string | null) => remember({ doc: id ?? '' });
   // Состояние и документ пишем одним вызовом: два подряд не накапливаются — второй считает от
   // значения времени рендера и вернул бы снятый документ обратно.
@@ -170,7 +172,7 @@ export function QualityDocsPage() {
               const meta = STATE_META[s];
               const Icon = meta.icon;
               return (
-                <NavItem key={s} icon={<Icon size={15} />} label={meta.label}
+                <NavItem key={s} icon={<Icon size={15} />} label={meta.label} filter
                   active={stateFilter === s}
                   count={meta.danger ? undefined : items.length}
                   alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}
@@ -274,7 +276,7 @@ export function QualityDocsPage() {
 
   return (
     <>
-    <ListDetailShell
+    <ListDetailShell view={ld}
       title="Документы качества"
       subtitle="Библиотека сертификатов и деклараций; связки материалов — на карточке документа"
       icon={<ShieldCheck size={20} className="text-brand" />}

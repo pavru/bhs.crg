@@ -11,6 +11,7 @@ import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useTypeEditorRegistry } from './typeEditorRegistry';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -39,6 +40,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const navigate = useNavigate();
   const { values, remember } = useRememberedSelection(lastTypeKey(kind), SELECTION_KEYS);
   const selectedId = values.type || null;
+  const ld = useListDetailView();
   const setSelectedId = (id: string | null) => remember({ type: id ?? '' });
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
   const { data: access } = useAccess();
@@ -67,9 +69,9 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
       if (jump) setQuery('');
     },
   });
-  const requestSelect = (id: string) => { if (id !== selectedId) request({ id }); };
+  const requestSelect = (id: string) => { ld.showDetail(); if (id !== selectedId) request({ id }); };
   // Переход по иерархии и из панели блоков (issue #784).
-  const jumpToType = (id: string) => { if (id !== selectedId) request({ id, jump: true }); };
+  const jumpToType = (id: string) => { ld.showDetail(); if (id !== selectedId) request({ id, jump: true }); };
 
   // Гард ухода со страницы по маршруту (issue #307): сайдбар-навигация перехватывается, показываем
   // тот же диалог. `routeLeave` хранит отложенный переход (proceed).
@@ -132,7 +134,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   return (
     <>
       <TypeEditorProvider value={registry}>
-        <ListDetailShell
+        <ListDetailShell view={ld}
           title={title}
           subtitle={kind === 'Composite' ? 'Переиспользуемые структуры полей для использования внутри типов документов' : undefined}
           actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}

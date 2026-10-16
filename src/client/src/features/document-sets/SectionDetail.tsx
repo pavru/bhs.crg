@@ -163,7 +163,7 @@ export function SectionDetail() {
     <>
       <ListDetailShell title={section.name} icon={<Layers size={20} />} breadcrumb={contextCrumbs}
         badge={<PlanProgressBadge progress={plan?.own} />}
-        actions={headerAction} nav={nav} detail={detail} />
+        actions={headerAction} nav={nav} detail={detail} backLabel="К разделам" />
 
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
         footer={
