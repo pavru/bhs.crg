@@ -140,8 +140,9 @@ public partial class InvoicePaymentTests
 
     /// <summary>
     /// Реестр помечает исправленный после закрытия счёт (PR 6b-3): колонка «Исправлен после закрытия» — день
-    /// последней записи книги, по ней отбирают; итог «Суммы» под учётным периодом говорит, что он с
-    /// исправлениями; боковая панель — когда и почему исправлен.
+    /// последней записи книги, по ней отбирают; итог «Суммы» под учётным периодом говорит, что в названных
+    /// месяцах есть исправления, — и тогда, когда исправление увело счёт из отбора; боковая панель — когда,
+    /// чем и почему исправлен.
     /// </summary>
     [Fact]
     public async Task Реестр_помечает_исправленный_после_закрытия_счёт()
@@ -166,21 +167,30 @@ public partial class InvoicePaymentTests
         static string? Note(JsonElement table) =>
             table.GetProperty("totals").GetProperty("СуммаПоОтбору").GetProperty("note").GetString();
 
-        // Запертый, но не исправленный: клетка пуста, итог без оговорки.
+        // Запертый, но не исправленный: клетка пуста. Об итоге здесь не спрашиваем: подпись — о месяцах по
+        // всем счетам с книгой, а база прогонов общая, и чужое исправление в тех же месяцах её законно даст.
         var before = await RowAsync();
         Assert.Equal(JsonValueKind.Null, before.GetProperty("rows")[0].GetProperty(Column).ValueKind);
-        Assert.DoesNotContain(InvoiceTable.CorrectedNote, Note(await ByPeriodAsync()) ?? "");
 
         // Отмена оплаты пишет книгу: день записи — сегодня, причина — в оговорке панели.
         await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }));
         var unpaid = await RowAsync();
         Assert.Equal($"{today:yyyy-MM-dd}", unpaid.GetProperty("rows")[0].GetProperty(Column).GetString());
         var note = unpaid.GetProperty("breakdown").GetProperty("note").GetString();
-        Assert.StartsWith($"исправлен после закрытия {today:dd.MM.yyyy}: «ошиблись» — здесь счёт как он есть сейчас", note);
+        Assert.StartsWith($"исправлен после закрытия {today:dd.MM.yyyy} (отмена оплаты: «ошиблись») — здесь счёт как он есть сейчас", note);
+        // Неоплаченного счёта в отборе по учётному периоду больше нет — а итог месяца от этого и разошёлся с
+        // закрытием: подпись о месяцах, а не об отобранных счетах (ревью PR #1390).
+        var left = await ByPeriodAsync();
+        Assert.Equal(0, left.GetProperty("count").GetInt32());
+        Assert.EndsWith(InvoiceTable.CorrectedNote, Note(left));
 
         // Новая оплата — счёт снова в затратах периода, и итог «Суммы» говорит, что он с исправлениями.
         await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
         Assert.EndsWith(InvoiceTable.CorrectedNote, Note(await ByPeriodAsync()));
+        // Последняя запись теперь — новая оплата, без причины: оговорка называет её видом, а не выдаёт день
+        // оплаты за день исправления с прежней причиной.
+        Assert.StartsWith($"исправлен после закрытия {today:dd.MM.yyyy} (новая оплата) —",
+            (await RowAsync()).GetProperty("breakdown").GetProperty("note").GetString());
         // Отбор «не пусто» по колонке находит его, «пусто» — нет: колонка отбирается в базе.
         Assert.Equal(1, (await ByPeriodAsync(new { type = "condition", column = Column, op = "is_not_empty" })).GetProperty("count").GetInt32());
         Assert.Equal(0, (await ByPeriodAsync(new { type = "condition", column = Column, op = "is_empty" })).GetProperty("count").GetInt32());

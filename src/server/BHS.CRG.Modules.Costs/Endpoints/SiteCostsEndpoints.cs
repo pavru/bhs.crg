@@ -161,7 +161,11 @@ public static class SiteCostsEndpoints
         SiteCostsResult Costs(IReadOnlyList<CostMoney> money) =>
             SiteCosts.Of(money, first, through, site, withVat, named, target => shares.SectionOf(target)!);
         var registry = Costs(corrected);
-        var atClosing = differs == ViewsDiffer.None ? registry : Costs(closed);
+        // «На момент закрытия» — всегда по книге, и при равных взглядах тоже (ревью PR #1390): равенство
+        // зёрен не равенство чисел отчёта — счёт с книгой «+120 и −120 в один день» в зёрнах ноль, а счётом
+        // в строке считается, и признак «НДС неизвестен» у книги исторический. Числа отчёта обязаны совпасть
+        // с диалогом закрытия, который считает той же книгой.
+        var atClosing = Costs(closed);
         var result = closing ? atClosing : registry;
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 

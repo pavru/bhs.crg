@@ -85,6 +85,8 @@ public sealed class InvoiceRegistryViewTests(InvoiceLineHost host) : ModuleTable
             .Select(c => c.GetProperty("key").GetString()!).ToList();
         Assert.Contains(Amount, closed);
         Assert.Contains(Amount, Strings(narrow.GetProperty("columns")));
+        // Срез книги исправлений — под правом на счета, как и её адрес (ревью PR #1390).
+        Assert.Contains(InvoiceTable.CorrectedKey, closed);
     }
 
     /// <summary>

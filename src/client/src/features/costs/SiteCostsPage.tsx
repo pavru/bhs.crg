@@ -14,7 +14,6 @@ import { useSiteCosts, type CostFigure, type SiteCosts } from '@/shared/api/site
 import { formatCount, formatMoney } from '@/shared/format/format';
 import { foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { TabPanel } from '@/shared/ui/Tabs';
 import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
 
 const ALL = 'all';
@@ -108,19 +107,21 @@ export function SiteCostsPage() {
           <p className="text-sm text-fg4">Отчёт строится…</p>
         ) : (
           <Report data={data} bySections={bySections} onSite={id => set({ site: id })} stale={report.isPlaceholderData}
-            onView={view => set({ view: view === 'closing' ? 'closing' : null })} />
+            asked={closing} onView={view => set({ view: view === 'closing' ? 'closing' : null })} />
         )}
       </div>
     </div>
   );
 }
 
-function Report({ data, bySections, onSite, stale, onView }: {
+function Report({ data, bySections, onSite, stale, asked, onView }: {
   data: SiteCosts;
   /** Затраты стройки — по разделам, а не по контрагентам: та же сумма, сложенная иначе. */
   bySections: boolean;
   onSite: (id: string) => void;
   stale: boolean;
+  /** Взгляд, названный адресом: по нему выбрана вкладка, пока ответ на него в пути. */
+  asked: boolean;
   onView: (view: 'corrected' | 'closing') => void;
 }) {
   const period = data.from === data.to ? data.months[0] : `${data.months[0]} — ${data.months[data.months.length - 1]}`;
@@ -183,8 +184,8 @@ function Report({ data, bySections, onSite, stale, onView }: {
 
   return (
     <div className={`space-y-5 ${stale ? 'opacity-60' : ''}`} aria-busy={stale}>
-      <CostViewsBand data={data} onChange={onView} />
-      <ViewPanel shown={!!data.differs} view={closing ? 'closing' : 'corrected'}>
+      <CostViewsBand data={data} closing={asked} onChange={onView} />
+      <ViewPanel shown={!!data.differs} view={asked ? 'closing' : 'corrected'}>
         <section aria-label="Затраты за период">
           <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">
             Затраты за {period}
@@ -238,9 +239,17 @@ function Report({ data, bySections, onSite, stale, onView }: {
   );
 }
 
-/** Затраты — панель вкладки выбранного взгляда, когда полоса с вкладками есть; иначе как есть. */
+/**
+ * Затраты — панель выбранной вкладки взгляда, когда полоса с вкладками есть. Обёртка одна и та же в обоих
+ * случаях: смена вида элемента (панель ↔ фрагмент) пересоздала бы таблицу под ней при каждой смене периода
+ * с исправлениями на период без них (ревью PR #1390). Адреса — по правилу `Tabs` (`…-tab-…`, `…-panel-…`):
+ * его сверяет SiteCostsViews.test — вкладка обязана указывать на эту панель.
+ */
 function ViewPanel({ shown, view, children }: { shown: boolean; view: string; children: ReactNode }) {
-  return shown ? <TabPanel id={COST_VIEWS_ID} value={view}>{children}</TabPanel> : <>{children}</>;
+  const panel = shown
+    ? { role: 'tabpanel', id: `${COST_VIEWS_ID}-panel-${view}`, 'aria-labelledby': `${COST_VIEWS_ID}-tab-${view}` }
+    : {};
+  return <div {...panel}>{children}</div>;
 }
 
 /** Переключатель из двух-трёх взаимоисключающих значений — кнопками, выбранная нажата. */

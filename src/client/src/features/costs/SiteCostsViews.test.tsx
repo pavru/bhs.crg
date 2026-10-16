@@ -100,6 +100,18 @@ describe('два взгляда на закрытые периоды', () => {
     expect(arrow('Ленина 5')).not.toBeNull();
   });
 
+  it('вкладка следует адресу сразу, не дожидаясь ответа; вкладка указывает на панель затрат', async () => {
+    mount();
+    await screen.findByRole('region', { name: 'Закрытые периоды' });
+    // Ответ на второй взгляд не приходит: на экране остаются прежние числа.
+    vi.mocked(apiClient.get).mockImplementation(((url: string) => url === '/costs/constructions'
+      ? Promise.resolve({ data: SITES.map(s => ({ ...s, sections: [] })) })
+      : new Promise(() => {})) as never);
+    fireEvent.click(screen.getByRole('tab', { name: 'На момент закрытия' }));
+    const tab = await screen.findByRole('tab', { name: 'На момент закрытия', selected: true });
+    expect(document.getElementById(tab.getAttribute('aria-controls')!)?.getAttribute('role')).toBe('tabpanel');
+  });
+
   it('итоги равны — полоса говорит, что различаются дни, и итога соседа не повторяет', async () => {
     differs = 'details';
     mount();

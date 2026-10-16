@@ -37,11 +37,23 @@ internal static class InvoiceBreakdown
 
     /// <summary>
     /// Оговорка у исправленного после закрытия счёта (E2, PR 6b-3): блок показывает счёт как он есть сейчас,
-    /// а закрытый месяц помнит его прежним. Причина — последней записи книги, если она у неё есть.
+    /// а закрытый месяц помнит его прежним. Последняя запись книги — с видом (ревью PR #1390): после «отмены
+    /// оплаты: «ошиблись»» последней бывает новая оплата без причины, и голый день без слова читался бы как
+    /// день исправления, а причина выравнивания «допуск 0,01 → 0,05» — как причина правки счёта.
     /// </summary>
     public static string CorrectedNote(BookMark mark) =>
-        $"исправлен после закрытия {mark.Day:dd.MM.yyyy}{(mark.Reason is { Length: > 0 } reason ? $": «{reason}»" : "")} — " +
-        "здесь счёт как он есть сейчас";
+        $"исправлен после закрытия {mark.Day:dd.MM.yyyy} ({KindWord(mark.Kind)}" +
+        $"{(mark.Reason is { Length: > 0 } reason ? $": «{reason}»" : "")}) — здесь счёт как он есть сейчас";
+
+    /// <summary>Вид записи книги словами — те же, что у истории счёта на форме.</summary>
+    private static string KindWord(InvoiceBookKind kind) => kind switch
+    {
+        InvoiceBookKind.Correction => "исправление",
+        InvoiceBookKind.Payment => "новая оплата",
+        InvoiceBookKind.Unpayment => "отмена оплаты",
+        InvoiceBookKind.Alignment => "выравнивание допуском",
+        _ => "открытие книги",
+    };
 
     public static ModuleTableBreakdown Declaration { get; } = new(
         "Разноска",

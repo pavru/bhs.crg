@@ -19,9 +19,17 @@ type View = 'corrected' | 'closing';
  * реестра, со стрелками; умолчание «по закрытости месяца» спрятало бы исправление и в сентябре, и в
  * октябре. Итог другого взгляда стоит рядом — «закрытый месяц изменился» не бывает молчаливым.</p>
  */
-export function CostViewsBand({ data, onChange }: { data: SiteCosts; onChange: (view: View) => void }) {
+export function CostViewsBand({ data, closing, onChange }: {
+  data: SiteCosts;
+  /**
+   * Выбранный взгляд — из адреса, а не из ответа (ревью PR #1390): пока новый ответ в пути, на экране
+   * прежние числа, и вкладка, выбранная по ним, не сдвинулась бы от щелчка до самого ответа.
+   */
+  closing: boolean;
+  onChange: (view: View) => void;
+}) {
   if (!data.differs) return null;
-  const view: View = data.view === 'closing' ? 'closing' : 'corrected';
+  const view: View = closing ? 'closing' : 'corrected';
 
   return (
     <section aria-label="Закрытые периоды" className="rounded-lg border border-stroke bg-muted px-3 py-2 space-y-1.5 text-sm">

@@ -113,11 +113,19 @@ public static class InvoiceTable
     public const string CorrectedKey = "ИсправленПослеЗакрытия";
 
     /// <summary>
-    /// Подпись итога «Суммы» под отбором по учётному периоду, когда среди отобранных есть исправленный счёт:
+    /// Подпись итога «Суммы» под отбором по учётному периоду, когда в названных месяцах взгляды различаются:
     /// реестр показывает счета как они есть сейчас, и за закрытый месяц его сумма — уже не та, что при
     /// закрытии. Без подписи это расхождение с закрытием было бы молчаливым.
+    ///
+    /// <para>Подпись — о МЕСЯЦАХ, а не об отобранных счетах (ревью PR #1390): исправление, которое увело
+    /// счёт из закрытого месяца (отмена оплаты, перенос доли), убирает его и из отбора — а итог месяца от
+    /// этого как раз и разошёлся с закрытием.</para>
     /// </summary>
-    public const string CorrectedNote = "с исправлениями после закрытия (на момент закрытия — «Затраты по стройке»)";
+    public const string CorrectedNote =
+        "в названных месяцах есть исправления после закрытия (на момент закрытия — «Затраты по стройке»)";
+
+    /// <summary>Что закрывает право на колонку «Исправлен после закрытия» — для причины «нет права на …».</summary>
+    private const string Corrections = "исправления счетов";
 
     /// <summary>Подпись «Сумм по периодам» под отбором, называющим период.</summary>
     public const string NamedPeriodsNote = "только периоды, названные отбором";
@@ -249,7 +257,9 @@ public static class InvoiceTable
             new(PeriodKey, "Учётный период", ModuleTableColumnKind.List),
             new(PeriodSumsKey, "Суммы по периодам", ModuleTableColumnKind.Text, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),
-            new(CorrectedKey, "Исправлен после закрытия", ModuleTableColumnKind.Date),
+            // Под правом на счета (ревью PR #1390): это срез книги исправлений, а её адрес (…/book) открыт
+            // только ему. Таблица же открыта всякому, кому открыт модуль, — и с одним правом на накладные.
+            new(CorrectedKey, "Исправлен после закрытия", ModuleTableColumnKind.Date, "costs.invoice.read", Corrections),
             // Только по требованию: значение даёт опрос ядра, и платить за него обязан тот, кто колонку
             // назвал, а не каждый читатель таблицы. В «Реестр счетов» по умолчанию не входят, в запрос
             // «все колонки» и в набор данных — тоже (issue #1186).
@@ -438,11 +448,10 @@ public sealed partial class InvoiceTableRows(
         // «Сумма» сужена именно по учётному периоду, и оговорка спорила бы с соседней подписью
         // (ревизия Архитектора). «Сумма к оплате» и НДС под учётным периодом — счета целиком.
         var axis = months.Count == 0 ? InvoiceTable.AxisNote(byIssueDate, byPaidOn) : null;
-        // Под учётным периодом итог «Суммы» сверяют с закрытием — и он с ним не сходится, если среди
-        // отобранных есть исправленный счёт (E2, PR 6b-3). Признак — номер записи книги в самом счёте:
-        // книгу ради подписи не читаем. Только в итоге: клетка исправленного счёта несёт свою дату.
+        // Под учётным периодом итог «Суммы» сверяют с закрытием — и он с ним не сходится, если в названных
+        // месяцах взгляды различаются (E2, PR 6b-3). Только в итоге: клетка исправленного счёта несёт свою дату.
         var corrected = months.Count > 0 && totals.ContainsKey(InvoiceTable.AmountKey)
-                        && await selected.AnyAsync(i => i.BookSeq > 0, ct);
+                        && await NamedMonthsCorrectedAsync(query.Filter, calendar, ct);
         var note = Joined(sums, axis);
         Annotate(totals, InvoiceTable.AmountKey, Joined(note, corrected ? InvoiceTable.CorrectedNote : null));
         foreach (var whole in InvoiceTable.WholeInvoiceMoney)
@@ -479,6 +488,33 @@ public sealed partial class InvoiceTableRows(
                 periods.GetValueOrDefault(i.Id), troubles, marks.GetValueOrDefault(i.Id)))],
             count, totals, notes.Count == 0 ? null : notes,
             [.. invoices.Select(i => i.Id.ToString())], breakdown, Doubts(query, troubles));
+    }
+
+    /// <summary>
+    /// Различаются ли взгляды «с исправлениями» и «на момент закрытия» в учётных месяцах, названных отбором,
+    /// — по всем счетам с книгой, а не по отобранным (см. <see cref="InvoiceTable.CorrectedNote" />). Тем же
+    /// сравнением, что полоса отчёта (<see cref="CostViews.Differ(IReadOnlyList{CostMoney}, IReadOnlyList{CostMoney}, Func{DateOnly, bool}, Guid?)" />):
+    /// исправление, не тронувшее денег названных месяцев, подписи не даёт.
+    ///
+    /// <para>Счета без книги взгляды не различают, поэтому читаются только счета с книгой — их единицы.
+    /// Без них — один лёгкий запрос «есть ли такие вообще».</para>
+    /// </summary>
+    private async Task<bool> NamedMonthsCorrectedAsync(TableFilter? filter, IReadOnlyDictionary<int, string> calendar, CancellationToken ct)
+    {
+        var booked = db.Invoices.AsNoTracking().Where(i => i.BookSeq > 0);
+        if (!await booked.AnyAsync(ct)) return false;
+
+        // Месяц назван — тем же вопросом к отбору, каким «Сумма» решает, названы ли деньги доли (IsNamed).
+        bool Named(DateOnly day) => TableFilters.Admits(filter,
+            new Dictionary<string, string?>(StringComparer.Ordinal) { [InvoiceTable.PeriodKey] = InvoicePeriods.Label(calendar, day) });
+
+        // «С исправлениями» — деньги документа, только у оплаченных: неоплаченный в затратах не лежит. «На
+        // момент закрытия» у счёта с книгой — её строки, у любого: книга — история (CostViews).
+        var (costs, lines) = await SiteCostsEndpoints.InvoicesAsync(db,
+            booked.Where(i => i.Payment == InvoicePaymentState.Paid && i.State != InvoiceState.Rejected),
+            await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct);
+        var book = await CostViews.BookAsync(db, DateOnly.MinValue, DateOnly.MaxValue, null, ct);
+        return CostViews.Differ(SiteCosts.Corrected(costs, lines), book, Named) != ViewsDiffer.None;
     }
 
     /// <summary>Спрошена ли колонка этим запросом: показом, отбором, сортировкой или итогом.</summary>
