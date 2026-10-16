@@ -25,9 +25,21 @@ public sealed record SectionName(string Registry, string Short, Guid? Id);
 /// <param name="VatByLines">НДС назван хоть у одной строки счёта — тогда «в том числе НДС» шапки уже
 /// разложен по строкам, и на строку без своего НДС его долю брать нельзя.</param>
 /// <param name="Parsed">Счёт разобран. Затратам всё равно — спрашивает диалог закрытия периода.</param>
+/// <param name="Booked">У счёта есть книга исправлений (E2, issue #1100): во взгляде «на момент
+/// закрытия» его деньги — строки книги, а не <paramref name="Money" />.</param>
 public sealed record CostInvoice(
     Guid Id, Guid? SupplierId, decimal? Total, decimal? VatTotal, bool Unmatched, bool VatByLines,
-    IReadOnlyList<PostedMoney> Money, bool Parsed = true);
+    IReadOnlyList<PostedMoney> Money, bool Parsed = true, bool Booked = false);
+
+/// <summary>
+/// Деньги отчёта одним зерном: чьи и что. Зерно — и деньги основной таблицы, и строка книги
+/// исправлений: отчёт складывает их одной функцией в обоих взглядах (E2, spec v3.3 п. 1.7), иначе «с
+/// исправлениями» и «на момент закрытия» разошлись бы ещё и реализацией.
+/// </summary>
+/// <param name="Invoice">Чей это счёт — по нему считается «сколько счетов».</param>
+/// <param name="Unmatched">У счёта есть строки без позиции номенклатуры — сейчас, а не на момент
+/// закрытия: так их найдёт реестр.</param>
+public sealed record CostMoney(Guid Invoice, bool Unmatched, Grain Grain);
 
 /// <summary>НДС строки счёта: сумма строки и сколько в ней НДС.</summary>
 public sealed record LineVat(decimal? Amount, decimal? VatAmount);
@@ -47,7 +59,9 @@ public sealed record LineVat(decimal? Amount, decimal? VatAmount);
 /// идут разделы, которых больше нет.</param>
 /// <param name="Unmatched">Из затрат — счета со строками без позиции номенклатуры; null — таких нет.</param>
 /// <param name="VatUnknown">Под «без НДС»: деньги, из которых НДС вычесть нечем, — учтены полной
-/// суммой; null — таких нет либо суммы показаны с НДС.</param>
+/// суммой; null — таких нет либо суммы показаны с НДС. Во взгляде «на момент закрытия» — строки книги с
+/// признаком «НДС неизвестен» их суммой без НДС (spec п. 1.3 шаг 4): признак исторический, и строка,
+/// которая правит прежнюю заглушку, бывает и отрицательной.</param>
 public sealed record SiteCostsResult(
     IReadOnlyDictionary<Guid, CostFigure> Sites,
     IReadOnlyDictionary<Guid, CostFigure> Articles,
@@ -89,41 +103,53 @@ public static class SiteCosts
     public static SiteCostsResult Of(
         IReadOnlyList<CostInvoice> invoices, IReadOnlyDictionary<Guid, LineVat> lines,
         DateOnly from, DateOnly through, Guid? site, bool withVat, IReadOnlySet<Guid>? known = null,
-        Func<InvoiceAllocation, SectionName>? section = null)
+        Func<AllocationTarget, SectionName>? section = null) =>
+        Of(Corrected(invoices, lines), from, through, site, withVat, known, section);
+
+    /// <summary>
+    /// Взгляд «с исправлениями» (spec п. 1.7): деньги основной таблицы — зёрнами, тем же
+    /// «без НДС», что у книги (<see cref="InvoiceBookPosting.Grains" />).
+    /// </summary>
+    public static IReadOnlyList<CostMoney> Corrected(IEnumerable<CostInvoice> invoices, IReadOnlyDictionary<Guid, LineVat> lines) =>
+        [.. invoices.SelectMany(i => InvoiceBookPosting.Grains(i, lines).Select(g => new CostMoney(i.Id, i.Unmatched, g)))];
+
+    /// <summary>Затраты за период — по зёрнам любого взгляда.</summary>
+    /// <param name="money">Зёрна с деньгами и днём: основной таблицы или книги исправлений.</param>
+    public static SiteCostsResult Of(
+        IReadOnlyList<CostMoney> money, DateOnly from, DateOnly through, Guid? site, bool withVat,
+        IReadOnlySet<Guid>? known = null, Func<AllocationTarget, SectionName>? section = null)
     {
         bool Known(Guid? id) => id is { } key && known?.Contains(key) != false;
 
-        var entries = invoices.SelectMany(i => i.Money
-                .Where(m => m is { Amount: not null, AccountingOn: { } day } && day >= from && day <= through)
-                .Where(m => site is null || m.Part?.ConstructionId == site)
-                .Select(m =>
-                {
-                    var (amount, unknown) = withVat ? (m.Amount!.Value, false) : Net(m, i, lines);
-                    return (Invoice: i, Money: m, Amount: amount, VatUnknown: unknown);
-                }))
+        var entries = money
+            .Where(m => m.Grain.Day >= from && m.Grain.Day <= through)
+            .Where(m => site is null || m.Grain.Cell.Target?.ConstructionId == site)
+            .Select(m => (Money: m, Target: m.Grain.Cell.Target, Amount: withVat ? m.Grain.Gross : m.Grain.Net,
+                VatUnknown: !withVat && m.Grain.VatUnknown))
             .ToList();
 
-        static CostFigure Figure<T>(IEnumerable<(CostInvoice Invoice, T Money, decimal Amount, bool VatUnknown)> rows)
+        static CostFigure Figure(IEnumerable<(CostMoney Money, AllocationTarget? Target, decimal Amount, bool VatUnknown)> rows)
         {
             var list = rows.ToList();
-            return new(list.Select(r => r.Invoice.Id).Distinct().Count(), list.Sum(r => r.Amount));
+            return new(list.Select(r => r.Money.Invoice).Distinct().Count(), list.Sum(r => r.Amount));
         }
         static CostFigure? Some(CostFigure figure) => figure.Invoices == 0 ? null : figure;
 
         return new(
             site is null
-                ? entries.Where(e => Known(e.Money.Part?.ConstructionId))
-                    .GroupBy(e => e.Money.Part!.ConstructionId!.Value).ToDictionary(g => g.Key, Figure)
+                ? entries.Where(e => Known(e.Target?.ConstructionId))
+                    .GroupBy(e => e.Target!.Value.ConstructionId!.Value).ToDictionary(g => g.Key, Figure)
                 : new Dictionary<Guid, CostFigure>(),
             site is null
-                ? entries.Where(e => Known(e.Money.Part?.ArticleId))
-                    .GroupBy(e => e.Money.Part!.ArticleId!.Value).ToDictionary(g => g.Key, Figure)
+                ? entries.Where(e => Known(e.Target?.ArticleId))
+                    .GroupBy(e => e.Target!.Value.ArticleId!.Value).ToDictionary(g => g.Key, Figure)
                 : new Dictionary<Guid, CostFigure>(),
             site is null
-                ? Some(Figure(entries.Where(e => e.Money.Part is { } part && !Known(part.ConstructionId ?? part.ArticleId))))
+                ? Some(Figure(entries.Where(e => e.Target is { } target && !Known(target.ConstructionId ?? target.ArticleId))))
                 : null,
-            site is null ? Some(Figure(entries.Where(e => e.Money.Part is null))) : null,
-            site is null ? [] : [.. entries.GroupBy(e => e.Invoice.SupplierId).Select(g => (g.Key, Figure(g)))],
+            site is null ? Some(Figure(entries.Where(e => e.Target is null))) : null,
+            // Поставщик — ячейки зерна: у строки книги он тот, что был при записи (spec п. 0.3).
+            site is null ? [] : [.. entries.GroupBy(e => e.Money.Grain.Cell.SupplierId).Select(g => (g.Key, Figure(g)))],
             // Тот же набор долей, сгруппированный иначе: сумма строк обоих срезов — один итог. А число
             // счетов по разделам в итог НЕ складывается: счёт на два раздела стоит в двух строках.
             // Группа — название в реестре: одноимённые разделы и разделы, которых больше нет, — одной
@@ -133,12 +159,12 @@ public static class SiteCosts
             // тёзок берётся один и тот же. Возьми мы первую попавшуюся долю, вид и место строки на
             // экране менялись бы от запроса к запросу (так и упал тест на master после PR #1209).
             site is null || section is null ? [] : [.. entries
-                .Select(e => (Entry: e, Section: section(e.Money.Part!)))
+                .Select(e => (Entry: e, Section: section(e.Target!.Value)))
                 .GroupBy(e => e.Section.Registry, StringComparer.Ordinal)
                 .Select(g => (g.Select(e => e.Section).OrderBy(s => s.Id is not null).ThenBy(s => s.Id).First(),
                     Figure(g.Select(e => e.Entry))))],
             Figure(entries),
-            Some(Figure(entries.Where(e => e.Invoice.Unmatched))),
+            Some(Figure(entries.Where(e => e.Money.Unmatched))),
             withVat ? null : Some(Figure(entries.Where(e => e.VatUnknown))));
     }
 

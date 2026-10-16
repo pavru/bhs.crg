@@ -78,18 +78,18 @@ internal sealed class InvoiceShares
     /// <summary>
     /// Ключ раздела доли со стройкой: раздел либо, если доля на стройку целиком, сама стройка.
     ///
-    /// <para>⚠️ <b>Одно выражение на запрос и на память.</b> Отбор строк идёт по нему в базе, а клетка,
-    /// подпись и названные деньги — по нему же в памяти (<see cref="SectionKey" />). Записанное дважды,
-    /// оно разошлось бы при первой правке одного места: счёт попадал бы в отбор с пустой «Суммой»
-    /// (ревью PR #1209).</para>
+    /// <para>⚠️ <b>Правило записано дважды — здесь для запроса и в <see cref="SectionKey" /> для памяти</b>, и
+    /// обязано совпадать: отбор строк идёт по нему в базе, а клетка, подпись и названные деньги — в
+    /// памяти. Разойдись они, счёт попадал бы в отбор с пустой «Суммой» (ревью PR #1209). Выражение
+    /// запроса цели книги исправлений не примет (у строки книги доли нет), поэтому память считает по
+    /// цели — одна функция на долю и на строку книги. Сверку двух записей держит живой тест отбора по
+    /// разделу (<c>InvoicePaymentTests.Sections</c>).</para>
     /// </summary>
     public static readonly Expression<Func<InvoiceAllocation, Guid?>> SectionKeyOf = a => a.SectionId ?? a.ConstructionId;
 
-    private static readonly Func<InvoiceAllocation, bool> hasSection = HasSection.Compile();
-    private static readonly Func<InvoiceAllocation, Guid?> sectionKeyOf = SectionKeyOf.Compile();
-
-    /// <summary>Ключ раздела доли; null — доля на статью вне строек.</summary>
-    public static Guid? SectionKey(InvoiceAllocation part) => hasSection(part) ? sectionKeyOf(part) : null;
+    /// <summary>Ключ раздела цели (то же правило, что <see cref="SectionKeyOf" />); null — статья вне строек.</summary>
+    public static Guid? SectionKey(AllocationTarget target) =>
+        target.ConstructionId is { } site ? target.SectionId ?? site : null;
 
     private static readonly SectionName Gone = new(LostSection, LostSection, null);
 
@@ -100,10 +100,17 @@ internal sealed class InvoiceShares
     /// <para>Раздел ЧУЖОЙ стройки (доля на стройку А с разделом стройки Б — так бывает в старых данных)
     /// коротко не называется: «4 эт.» рядом со стройкой А читалось бы как её раздел.</para>
     /// </summary>
-    public SectionName? SectionOf(InvoiceAllocation part) =>
-        SectionKey(part) is not { } key ? null
+    public SectionName? SectionOf(InvoiceAllocation part) => SectionOf(part.Target);
+
+    /// <summary>
+    /// Раздел цели — так же названы и доли, и строки книги исправлений, у которых доли нет (E2, issue
+    /// #1100): разделы двух взглядов отчёта обязаны совпадать, иначе ссылка строки «на момент закрытия»
+    /// вела бы в чужой отбор.
+    /// </summary>
+    public SectionName? SectionOf(AllocationTarget target) =>
+        SectionKey(target) is not { } key ? null
         : !named.Value.TryGetValue(key, out var found) ? Gone
-        : found.Site == part.ConstructionId ? found.Name
+        : found.Site == target.ConstructionId ? found.Name
         : found.Name with { Short = found.Name.Registry };
 
     /// <summary>Раздел доли так, как его зовёт колонка «Раздел»; null — доля на статью вне строек.</summary>
