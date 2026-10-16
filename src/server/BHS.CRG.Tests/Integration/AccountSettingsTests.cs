@@ -207,6 +207,23 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Свёрнутая панель (issue #1355) едет за человеком, как тема; значение вне двух известных —
+    /// отказ, а не запись, которую клиент молча прочитал бы как «развёрнута».
+    /// </summary>
+    [Fact]
+    public async Task Свёрнутая_панель_приезжает_на_другую_машину_а_чужое_значение_отвергается()
+    {
+        var email = await CreateUserAsync();
+        var first = await SignInAsync(email);
+        (await first.PutAsJsonAsync("/api/account/settings", new { rail = "collapsed" })).EnsureSuccessStatusCode();
+
+        var refused = await first.PutAsJsonAsync("/api/account/settings", new { rail = "icons" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal("collapsed", (await SettingsAsync(await SignInAsync(email)))["rail"]);
+    }
+
+    /// <summary>
     /// Избранное — GUID через запятую, не больше двадцати (#1217). Двадцать первая стройка, повтор,
     /// пустой элемент, пробелы и вольная форма GUID — отказ: сохранённые, они дали бы клиенту на
     /// другом компьютере список, в котором одна стройка числится дважды или не находится вовсе.

@@ -96,8 +96,16 @@ public static class UserSettingKeys
     /// </summary>
     public static readonly UserSettingKey FavoritesFilter = new("favoritesFilter", 3, OneOf: ["on", "off"]);
 
+    /// <summary>
+    /// Боковая панель: развёрнута или свёрнута в иконки (issue #1355). Ключа нет — развёрнута: так
+    /// выглядело приложение до свёртки, и человек, ничего не выбиравший, не должен проснуться в
+    /// другом каркасе. Список закрыт по той же причине, что у темы: третье значение клиент не узнал
+    /// бы и молча показал бы развёрнутую.
+    /// </summary>
+    public static readonly UserSettingKey Rail = new("rail", 16, OneOf: ["expanded", "collapsed"]);
+
     public static readonly IReadOnlyList<UserSettingKey> All =
-        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter];
+        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter, Rail];
 
     /// <summary>Объявленный ключ или null — и тогда адрес отвечает отказом, а не записью.</summary>
     public static UserSettingKey? Find(string code) =>
