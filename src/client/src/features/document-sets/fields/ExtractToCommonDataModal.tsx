@@ -1,6 +1,7 @@
 import { useContext, useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, ArchiveRestore, Link2, X } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { ModalExit } from '@/shared/ui/Modal';
+import { WindowStep } from '@/shared/ui/WindowStep';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
@@ -43,10 +44,10 @@ interface Duplicate {
  * исход приемлемый, а тост о несохранённом документе про него и напоминает.
  */
 export function ExtractToCommonDataModal({
-  open, onOpenChange, values, compositeType, allDocTypes, setId, scope, scopeId, onExtracted,
+  onClose, values, compositeType, allDocTypes, setId, scope, scopeId, onExtracted,
 }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
+  /** Уйти из выноса: вызывающий перестаёт его рисовать — он монтируется только открытым. */
+  onClose: () => void;
   /** Значение составного поля — то, что выносим. */
   values: Record<string, unknown>;
   compositeType: DocumentType;
@@ -81,7 +82,7 @@ export function ExtractToCommonDataModal({
   // За справочником записей ходим ТОЛЬКО если внутри есть ссылка без записанного уровня — иначе он
   // не нужен, а стоит дорого (см. useNestedScopeLookup).
   const needsLookup = useMemo(() => hasScopelessCatalogRef(values), [values]);
-  const nestedScopeLookup = useNestedScopeLookup(scope, scopeId, setId, open && needsLookup);
+  const nestedScopeLookup = useNestedScopeLookup(scope, scopeId, setId, needsLookup);
   const allowedMax = useMemo(
     () => maxAllowedScope(values, nestedScopeLookup), [values, nestedScopeLookup]);
 
@@ -103,7 +104,7 @@ export function ExtractToCommonDataModal({
   const offered = useMemo(() => offeredScopes(allowedMax, idFor), [allowedMax, idFor]);
 
   // Начальные значения считаем ОДИН РАЗ, на монтировании: окно монтируется на каждое открытие
-  // (вызывающий рендерит его только открытым), поэтому «сбрасывать при open» нечего.
+  // (вызывающий рендерит его только открытым), поэтому «сбрасывать при открытии» нечего.
   //
   // Эффектом это делать нельзя, и дело не в правиле линтера: значение, список подполей и цепочка
   // уровней пересчитываются при каждом рендере родителя, так что эффект срабатывал бы посреди
@@ -149,7 +150,7 @@ export function ExtractToCommonDataModal({
   // Поиск дубликата: имя и составной ключ, оба в выбранном уровне. Порядок identity-полей клиенту
   // знать не нужно — сервер берёт их сам по typeId.
   useEffect(() => {
-    if (!open || blocking.length > 0 || !effectiveTarget) return;
+    if (blocking.length > 0 || !effectiveTarget) return;
     const trimmed = name.trim();
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -178,7 +179,7 @@ export function ExtractToCommonDataModal({
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [open, name, effectiveTarget, targetScopeId, values, compositeType.id, blocking.length]);
+  }, [name, effectiveTarget, targetScopeId, values, compositeType.id, blocking.length]);
 
   function addAlias() {
     const t = aliasDraft.trim();
@@ -203,7 +204,7 @@ export function ExtractToCommonDataModal({
       $ref: 'catalog', entryId: match.entryId,
       displayName: match.displayName ?? '', scope: match.scope,
     });
-    onOpenChange(false);
+    onClose();
     toast.success(match.archived
       ? `Запись «${match.displayName ?? ''}» возвращена из архива и связана с полем. Новая не создавалась.`
       : 'Поле связано с существующей записью. Новая не создавалась.');
@@ -243,7 +244,7 @@ export function ExtractToCommonDataModal({
       onExtracted({
         $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: effectiveTarget,
       });
-      onOpenChange(false);
+      onClose();
       toast.success('Запись создана и подставлена ссылкой. Не забудьте сохранить документ.');
     } catch (e) {
       // Сервер нашёл в архиве запись с тем же ключом, а окно её не показывало (поиск дубля ещё
@@ -262,12 +263,14 @@ export function ExtractToCommonDataModal({
   const violationList = Object.entries(violations);
   const blocked = blocking.length > 0 || violationList.length > 0 || noPlace;
 
+  // Внутри окна поля (строка массива, составное) — его шаг, и «Отмена» возвращает к форме; на
+  // странице — своё окно (issue #1384).
   return (
-    <Modal open={open} onOpenChange={onOpenChange}
+    <WindowStep onBack={onClose} busy={busy}
       title={`Вынести в общие данные — ${compositeType.name}`}
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" onClick={submit} loading={busy}
             disabled={busy || blocked || !name.trim()}>
             {duplicate ? 'Всё равно создать новую' : 'Создать запись'}
@@ -414,7 +417,7 @@ export function ExtractToCommonDataModal({
 
         {error && <p className="text-sm text-danger">{error}</p>}
       </div>
-    </Modal>
+    </WindowStep>
   );
 }
 
