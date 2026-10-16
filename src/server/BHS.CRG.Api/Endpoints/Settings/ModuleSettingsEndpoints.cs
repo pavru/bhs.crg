@@ -31,11 +31,14 @@ public static class ModuleSettingsEndpoints
     /// <param name="Stale">Что лежит в базе и не принимается этой версией; <c>null</c> — такого нет.
     /// Признак считает сервер проверкой объявления: сравнивать строки экрану нельзя — годное «1» и
     /// действующее «1.00» различаются записью, а не значением (ревью PR #1249).</param>
+    /// <param name="Impact">Модуль умеет назвать числами, что смена сделает с записанным (<c>…/preview</c>,
+    /// E2, issue #1100). Без признака экран обещал бы «считаем, что изменится» у каждой настройки с
+    /// предупреждением — и замолкал бы, так и не назвав чисел: молчание читалось бы «ничего не тронет».</param>
     public record ModuleSettingView(
         string Key, string Title, string Effect, string Kind,
         string Value, string? Stored, string? Stale, string Default,
         decimal? Min, decimal? Max, int? Scale, string? Unit, string? ChangeWarning, bool Money = false,
-        string? On = null, string? Off = null);
+        string? On = null, string? Off = null, bool Impact = false);
 
     /// <summary>
     /// Строка-сигнал о сопоставлении полей (ТЗ TYPE-23, issue #1101): сколько обязательного модуль
@@ -57,7 +60,7 @@ public static class ModuleSettingsEndpoints
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         g.MapGet("/", async (ModuleRegistry registry, IAppSettingsStore store, TagCatalog tags,
-            AppDbContext db, CancellationToken ct) =>
+            AppDbContext db, ModuleSettingWriter writer, CancellationToken ct) =>
         {
             // Модуль без настроек И без потребностей в ответ не попадает: пустая секция на экране —
             // вопрос «а где?». Модуль с одними потребностями попадает — ради строки-сигнала.
@@ -71,7 +74,7 @@ public static class ModuleSettingsEndpoints
             return Results.Ok(new
             {
                 modules = modules.Select(m => new ModuleSettingsView(m.Code, m.Title,
-                    [.. m.Settings.Select(s => View(s, stored.GetValueOrDefault(s.Key)))],
+                    [.. m.Settings.Select(s => View(s, stored.GetValueOrDefault(s.Key)) with { Impact = writer.Previews(s.Key) })],
                     Signal(m, tags, types))),
             });
         });

@@ -124,6 +124,7 @@ export function changeWarnings(settings: ModuleSetting[], values: Record<string,
       warning: s.changeWarning!,
       from: valueText(s, s.value),
       to: valueText(s, values[s.key] ?? s.default),
+      impact: s.impact === true,
     }));
 }
 
@@ -177,18 +178,30 @@ export function sentence(text: string): string {
 export type ImpactLine = { tone: 'pending' | 'refused' | 'told'; text: string } | null;
 
 /**
- * Что показать под предупреждением настройки, пока считается и когда посчитано (E2, issue #1100).
+ * Что показать под предупреждением настройки, пока считается и когда посчитано (E2, issue #1100). Строка
+ * есть только у настройки, чей модуль умеет назвать числа (`impact`): у остальных обещание «считаем»
+ * замолкало бы, так и не назвав ничего.
  *
  * ⚠️ Отказ предпросмотра — отказ на экране, а не пустое место: молчание читалось бы как «смена ничего не
  * тронет», а это ровно то, о чём окно спрашивает. Сохранить при этом можно — запись проверит всё сама, а
- * текст предупреждения из объявления остаётся.
+ * текст предупреждения из объявления остаётся. Отказ по полю сюда не доходит: его показывают под полем
+ * (`ModuleSection`), как местный.
+ *
+ * Ответ без этой настройки — сервер не видит смены действующего значения: так бывает, когда настройку тем
+ * временем изменили, и на экране было уже не то, что действует. Это тоже говорится словами (ревью PR #1381).
  */
 export function impactLine(
-  key: string, impact: { data?: ModuleSettingImpact[]; isError: boolean },
+  warning: { key: string; impact: boolean },
+  impact: { data?: ModuleSettingImpact[]; isError: boolean },
 ): ImpactLine {
+  if (!warning.impact) return null;
   if (impact.isError)
     return { tone: 'refused', text: 'Не удалось посчитать, что смена сделает с уже записанными данными.' };
   if (!impact.data) return { tone: 'pending', text: 'Считаем, что изменится…' };
-  const told = impact.data.find(i => i.key === key);
-  return told ? { tone: 'told', text: told.text } : null;
+  const told = impact.data.find(i => i.key === warning.key);
+  return told ? { tone: 'told', text: told.text } : {
+    tone: 'told',
+    text: 'По данным сервера действующее значение не меняется — записанные данные смена не тронет. ' +
+      'Настройку, видимо, тем временем изменили: обновите страницу, чтобы увидеть, что действует.',
+  };
 }

@@ -37,6 +37,11 @@ export interface ModuleSetting {
   /** Что значат «включено» и «выключено» у флага — словами самой настройки; у числа нет. */
   on?: string | null;
   off?: string | null;
+  /**
+   * Модуль умеет назвать числами, что смена сделает с записанным (`…/preview`, E2, issue #1100). Без
+   * признака окно обещало бы «считаем, что изменится» у каждой настройки с предупреждением.
+   */
+  impact?: boolean;
 }
 
 /**
@@ -97,17 +102,19 @@ export interface ModuleSettingImpact {
 }
 
 /**
- * Предупреждение числами перед сохранением: тело — то же, что у записи, в базу ничего не пишется. Пока
- * окно подтверждения закрыто, запроса нет. Не повторяется и не кэшируется: числа — о данных этой минуты,
- * а отказ обязан стать отказом на экране, а не тремя попытками молчания.
+ * Предупреждение числами перед сохранением: тело — то же, что у записи, в базу ничего не пишется.
+ * Спрашивается один раз — при открытии окна подтверждения.
+ *
+ * ⚠️ Мутация, а не запрос, нарочно (ревью PR #1381). У запроса числа жили бы в кэше: повторно открытое окно
+ * сперва показало бы прошлый ответ уверенным тоном, сохранение перезапросило бы их по общему префиксу
+ * ключа уже ПОСЛЕ записи (сервер ответил бы «ничего не меняется», и строка исчезла бы из открытого окна),
+ * а возврат на вкладку пересчитывал бы все оплаченные счета заново. У мутации состояние — только этого
+ * вопроса: окно закрылось — `reset()`, открылось — новый вопрос, и повторов нет.
  */
-export function useModuleSettingsImpact(code: string, values: Record<string, string | null>, enabled: boolean) {
-  return useQuery<ModuleSettingImpact[]>({
-    queryKey: [...MODULE_SETTINGS_KEY, code, 'preview', values],
-    queryFn: () => apiClient.post(`/settings/modules/${code}/preview`, { values }).then(r => r.data.impacts),
-    enabled,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
+export function useModuleSettingsImpact() {
+  return useMutation({
+    mutationFn: ({ code, values }: { code: string; values: Record<string, string | null> }) =>
+      apiClient.post(`/settings/modules/${code}/preview`, { values })
+        .then(r => r.data.impacts as ModuleSettingImpact[]),
   });
 }

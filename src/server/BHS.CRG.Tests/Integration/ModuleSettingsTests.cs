@@ -114,6 +114,8 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.False(string.IsNullOrWhiteSpace(setting.GetProperty("effect").GetString()));
         // Настройка действует на записанные счета — предупреждение обязано ехать с объявлением.
         Assert.Contains("закрытых периодов", setting.GetProperty("changeWarning").GetString());
+        // У допуска есть обработчик смены (E2, issue #1100): экран спросит числа предупреждения.
+        Assert.True(setting.GetProperty("impact").GetBoolean());
     }
 
     /// <summary>«5» и «5.00» — одно значение; снятая настройка возвращает умолчание, а не ноль.</summary>
@@ -154,6 +156,8 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.Equal("день отгрузки — первый день отсрочки", setting.GetProperty("on").GetString());
         Assert.Equal("отсрочка считается со дня после отгрузки", setting.GetProperty("off").GetString());
         Assert.Contains("не пересчитываются", setting.GetProperty("changeWarning").GetString());
+        // Обработчика у флага нет: предупреждение — одним текстом, «считаем, что изменится» экран не обещает.
+        Assert.False(setting.GetProperty("impact").GetBoolean());
 
         try
         {

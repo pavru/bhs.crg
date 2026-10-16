@@ -52,9 +52,9 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
   const values = changedValues(module.settings, draft);
   const dirty = Object.keys(values).length > 0;
   const warnings = changeWarnings(module.settings, values);
-  // Числа к предупреждению — только пока открыто окно подтверждения: считать их на каждую набранную цифру
-  // незачем, а на момент вопроса они должны быть свежими.
-  const impact = useModuleSettingsImpact(module.code, values, confirming);
+  // Числа к предупреждению спрашиваются при открытии окна подтверждения: считать их на каждую набранную
+  // цифру незачем, а на момент вопроса они должны быть свежими.
+  const impact = useModuleSettingsImpact();
 
   useLeaveGuard(dirty, proceed => setLeave(() => proceed));
 
@@ -78,11 +78,36 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
     }
   }
 
+  /**
+   * Открыть подтверждение и спросить числа у модулей, которые умеют их назвать. Отказ сервера по полю
+   * (знаков после запятой больше, чем примет запись, — их считает только сервер) закрывает окно и встаёт
+   * под полем, как местный: подтверждать значение, которое запись всё равно отвергнет, незачем, а причина
+   * уже в руках (ревью PR #1381).
+   */
+  function askConfirm(proceed: (() => void) | null) {
+    setAfterConfirm(() => proceed);
+    setConfirming(true);
+    if (!warnings.some(w => w.impact)) return;
+    impact.mutate({ code: module.code, values }, {
+      onError: e => {
+        const refused = fieldErrors(e);
+        if (Object.keys(refused).length > 0) { setErrors(refused); closeConfirm(); }
+      },
+    });
+  }
+
+  /** Окно закрыто — ответ о числах забыт: следующее открытие спросит заново, а не покажет прошлое. */
+  function closeConfirm() {
+    setConfirming(false);
+    setAfterConfirm(null);
+    impact.reset();
+  }
+
   /** Настройка, действующая на записанные данные, сохраняется через подтверждение. */
   function requestSave(): boolean {
     const refused = localRefusals(module.settings, values);
     if (Object.keys(refused).length > 0) { setErrors(refused); return false; }
-    if (warnings.length > 0) setConfirming(true);
+    if (warnings.length > 0) askConfirm(null);
     else void submit();
     return true;
   }
@@ -152,12 +177,12 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
 
       <ConfirmDialog
         open={confirming}
-        onOpenChange={o => { if (!o) { setConfirming(false); setAfterConfirm(null); } }}
+        onOpenChange={o => { if (!o) closeConfirm(); }}
         title="Изменить настройку?"
         description={
           <div className="space-y-3">
             {warnings.map(w => {
-              const line = impactLine(w.key, impact);
+              const line = impactLine(w, impact);
               return (
                 <div key={w.key}>
                   <p className="font-medium text-fg1">{w.title}: {w.from} → {w.to}</p>
@@ -180,8 +205,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
           // если записалось.
           const proceed = afterConfirm;
           const saved = await submit();
-          setConfirming(false);
-          setAfterConfirm(null);
+          closeConfirm();
           if (saved) proceed?.();
         }}
       />
@@ -197,7 +221,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
           setLeave(null);
           const refused = localRefusals(module.settings, values);
           if (Object.keys(refused).length > 0) setErrors(refused);
-          else if (warnings.length > 0) { setAfterConfirm(() => proceed); setConfirming(true); }
+          else if (warnings.length > 0) askConfirm(proceed);
           else if (await submit()) proceed?.();
         }} />
     </CollapsibleSection>
