@@ -6,5 +6,15 @@
     "features/catalog/LoginPage.tsx": 1
   },
   "text-size": {},
-  "palette": {}
+  "palette": {},
+  "modal-width": {
+    "features/costs/InvoicePartyNote.tsx": 1,
+    "features/costs/SupplierMatchesDialog.tsx": 2,
+    "features/costs/SupplierTermsDialog.tsx": 1,
+    "features/datasets/PdfGroupingEditor.tsx": 2,
+    "features/document-sets/catalog/CatalogResource.tsx": 1,
+    "features/document-sets/fields/PasteMappingModal.tsx": 2,
+    "features/quality-docs/QualityDocsPage.tsx": 1,
+    "features/templates/EditorPanel.tsx": 1
+  }
 }

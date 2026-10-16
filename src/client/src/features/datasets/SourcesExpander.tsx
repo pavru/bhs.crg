@@ -64,7 +64,7 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
           </Button>
         </div>
       }>
-      <div className="min-w-[380px]">
+      <div>
         {hint && <p className="text-xs mb-3 text-fg3">{hint}</p>}
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           onKeyDown={e => { if (e.key === 'Enter' && canSave) onSubmit(trimmed); }} />

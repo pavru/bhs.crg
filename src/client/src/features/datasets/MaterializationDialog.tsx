@@ -256,7 +256,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           </Button>
         </div>
       }>
-      <div className="space-y-4 min-w-[560px]">
+      <div className="space-y-4">
         <p className="text-xs text-fg4">
           Источник разворачивает каждую строку (после всех обработок) в сущность выбранного типа.
           Маппинг задаётся здесь один раз — поля документов совместимого типа ссылаются на источник без маппинга.

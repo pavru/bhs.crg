@@ -128,7 +128,6 @@ export function BugReportDialog({ open, prefill, onClose }: {
       open={open && !capturing}
       onOpenChange={o => { if (!o) onClose(); }}
       title="Сообщить об ошибке"
-      wide
       isDirty={message.trim().length > 0}
       busy={sending}
       footer={

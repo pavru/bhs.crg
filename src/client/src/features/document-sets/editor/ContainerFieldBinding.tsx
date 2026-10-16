@@ -167,7 +167,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
             </div>
           </div>
         }>
-        <div className="space-y-4 min-w-[520px]">
+        <div className="space-y-4">
           {sources.length === 0 ? (
             <p className="text-xs text-fg4 py-2">
               Нет подходящих источников для этого поля. {isTabular || isComplexRef

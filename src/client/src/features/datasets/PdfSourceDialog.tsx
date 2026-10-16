@@ -71,7 +71,7 @@ export function PdfSourceDialog(
           </Button>
         </div>
       }>
-      <div className="space-y-4 min-w-[420px]">
+      <div className="space-y-4">
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           hint={current ? `Например: ${current.nameHint}` : undefined} />
 

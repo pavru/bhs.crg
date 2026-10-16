@@ -26,6 +26,13 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({ palette: 4 });
   });
 
+  it('своя ширина — только в файле с окном', () => {
+    const body = '<div className="space-y-4 min-w-[520px]"> <p className="max-w-[18rem] min-w-0 max-w-lg w-[5px] max-w-[45%]">';
+    expect(countViolations(`<Modal open wide>${body}</Modal>`)).toEqual({ 'modal-width': 2 });
+    expect(countViolations(body)).toEqual({});
+    expect(countViolations('<ModalExit /> min-w-[520px]')).toEqual({});
+  });
+
   it('токены и чёрно-белые слои палитрой не считаются', () => {
     expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
       .toEqual({});

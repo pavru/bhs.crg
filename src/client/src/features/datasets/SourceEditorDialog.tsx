@@ -219,7 +219,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
           </Button>
         </div>
       }>
-      <div className="space-y-4 min-w-[520px]">
+      <div className="space-y-4">
         {!nothingToPick && (
           <TextField label="Название" value={name}
             onChange={e => { setTypedName(e.target.value); setNameTouched(true); }}

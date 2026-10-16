@@ -461,7 +461,7 @@ export function RecognitionProfilesPage() {
           : <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите профиль</div>} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый профиль распознавания">
-        <div className="px-6 py-4">
+        <div>
           <CreateProfileForm kinds={kinds ?? []}
             onSaved={id => { setSelectedId(id); setCreateOpen(false); }}
             onCancel={() => setCreateOpen(false)} />

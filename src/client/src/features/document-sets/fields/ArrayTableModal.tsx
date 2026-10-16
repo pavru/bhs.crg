@@ -246,7 +246,7 @@ function ArrayTableModalBody({
   return (
     <Modal open onOpenChange={onOpenChange}
       title={`${compositeType?.name ?? field.title} — таблица`}
-      extraWide isDirty={edited}
+      wide isDirty={edited}
       footer={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">

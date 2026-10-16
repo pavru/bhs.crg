@@ -96,7 +96,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания" wide
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания"
       footer={
         <div className="flex items-center gap-2">
           {observation.status !== 'New' && (
