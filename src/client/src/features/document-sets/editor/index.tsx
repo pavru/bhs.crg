@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Pencil, Database, ArrowLeft } from 'lucide-react';
+import { Pencil, ArrowLeft } from 'lucide-react';
 import { DocumentObservationsChip } from './DocumentObservations';
 import { useRenameDocumentInstance, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
 import { useListDataSetBindings } from '@/shared/api/datasets';
@@ -66,7 +66,7 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
 // ─── Instance editor modal ────────────────────────────────────────────────────
 
-type InstanceTab = 'requisites' | 'quality' | 'generation';
+type InstanceTab = 'requisites' | 'quality' | 'generation' | 'sources';
 
 /** Основа идентификаторов вкладок и панелей: редактор открыт на экране один. */
 const TABS_ID = 'instance-editor';
@@ -86,13 +86,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   const brokenTabCount = useMemo(() => brokenRefPaths(editorDiagnostics).size, [editorDiagnostics]);
   // Устаревшие источники документа (issue #815) — счёт по ИСТОЧНИКАМ, а не по полям: действие
   // («Перераспознать») применяется к источнику, и «устарели источники: 2» отвечает на вопрос
-  // «сколько раз мне это делать». Признак висит здесь потому, что шапка видна всегда: секция
-  // связанных полей свёрнута по умолчанию, а из разделов формы виден только открытый.
+  // «сколько раз мне это делать». Признак висит на вкладке «Источники данных» потому, что ряд вкладок
+  // виден всегда: секция связанных полей свёрнута по умолчанию, а из разделов формы виден только открытый.
   const { data: docBindings = [] } = useListDataSetBindings({ ownerId: instance.id });
   const staleSourceCount = useMemo(
     () => new Set(docBindings.filter(b => b.source?.recognitionStale).map(b => b.sourceId)).size,
     [docBindings]);
-  const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<InstanceTab | null>(null);
   const [switching, setSwitching] = useState(false);
@@ -148,6 +147,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     ['requisites', 'Реквизиты'],
     ...(requiresQuality ? [['quality', 'Документы качества'] as [InstanceTab, string]] : []),
     ['generation', 'Генерация'],
+    ['sources', 'Источники данных'],
   ];
 
   function requestTab(next: InstanceTab) {
@@ -212,25 +212,6 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
               здесь нет: их связь с документом слабее, чем выглядит. */}
           <DocumentObservationsChip setId={instance.documentSetId} documentId={instance.id} />
-          {/* Источники данных (issue #296, фаза 3): пакетные операции уровня документа — обзор
-              привязок, «Проверить данные», «Из шаблона». Точечная привязка — на самих полях. */}
-          <Button variant="text" size="sm" icon={<Database size={15} />} onClick={() => setDataSourcesOpen(true)}
-            className="shrink-0"
-            title={staleSourceCount > 0
-              ? `${ruCount(staleSourceCount, 'источник устарел', 'источника устарели', 'источников устарели')}: данные от прежнего файла. Откройте, чтобы перераспознать.`
-              : 'Обзор привязок, проверка данных, шаблоны'}
-            // На узком окне подпись скрыта и кнопка становится icon-only, а title доступен только
-            // мышью — счётчик обязан попасть в доступное имя, иначе для клавиатуры и скринридера
-            // сигнала нет вовсе ровно там, где он единственный.
-            aria-label={staleSourceCount > 0 ? `Источники: устарели ${staleSourceCount}` : 'Источники'}>
-            <span className="hidden sm:inline">Источники</span>
-            {staleSourceCount > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
-                bg-warning-subtle text-warning text-caption font-medium tabular-nums align-middle">
-                {staleSourceCount}
-              </span>
-            )}
-          </Button>
           {editable && (
             <div className="flex items-center gap-2 shrink-0">
               {savedFlash && <span className="text-sm text-success hidden sm:inline">Сохранено</span>}
@@ -250,8 +231,18 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         <Tabs id={TABS_ID} aria-label="Разделы документа" className="px-3 sm:px-4" value={tab} onChange={requestTab}
           items={tabs.map(([key, label]) => ({
             value: key, label,
+            title: key === 'sources' && staleSourceCount > 0
+              ? `${ruCount(staleSourceCount, 'источник устарел', 'источника устарели', 'источников устарели')}: данные от прежнего файла. Откройте, чтобы перераспознать.`
+              : undefined,
             badge: <>
               {key === 'requisites' && <BrokenCountBadge count={brokenTabCount} className="align-middle" />}
+              {/* Счётчик — в доступном имени вкладки, а не только в title: тот виден лишь мышью. */}
+              {key === 'sources' && staleSourceCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
+                  bg-warning-subtle text-warning text-caption font-medium tabular-nums">
+                  <span className="sr-only">устарели: </span>{staleSourceCount}
+                </span>
+              )}
               {key === tab && dirty && <span className="text-warning" title="Есть несохранённые изменения">•</span>}
             </>,
           }))} />
@@ -267,17 +258,6 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           </ArchivedRefsProvider>
         </TabPanel>
       )}
-      <Modal open={dataSourcesOpen} onOpenChange={setDataSourcesOpen} title="Источники данных" wide>
-        {dataSourcesOpen && (
-          <div className="space-y-3">
-            <p className="text-xs text-fg4">
-              Точечная привязка полей — по иконке источника у каждого поля в реквизитах.
-              Здесь — обзор привязок, проверка данных и применение шаблонов на весь документ.
-            </p>
-            <DataSetsTab instance={instance} setId={setId} schemaFields={schemaFields} allDocTypes={allDocTypes} docType={docType} />
-          </div>
-        )}
-      </Modal>
       {tab === 'quality' && (
         <TabPanel id={TABS_ID} value="quality" className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <QualityLinksTab instance={instance} setId={setId} allDocTypes={allDocTypes} />
@@ -286,6 +266,18 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       {tab === 'generation' && (
         <TabPanel id={TABS_ID} value="generation" className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <GenerationTab instance={instance} setId={setId} schemaFieldKeys={schemaFields.map(f => f.key)} />
+        </TabPanel>
+      )}
+      {/* Источники данных (issue #296, фаза 3) — пакетные операции уровня документа: обзор привязок,
+          «Проверить данные», «Из шаблона». Точечная привязка — на самих полях. Вкладкой, а не окном
+          (issue #1384): окно стояло бы над страницей, а его «Из шаблона» и распознавание — над ним. */}
+      {tab === 'sources' && (
+        <TabPanel id={TABS_ID} value="sources" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
+          <p className="text-xs text-fg4">
+            Точечная привязка полей — по иконке источника у каждого поля в реквизитах.
+            Здесь — обзор привязок, проверка данных и применение шаблонов на весь документ.
+          </p>
+          <DataSetsTab instance={instance} setId={setId} schemaFields={schemaFields} allDocTypes={allDocTypes} docType={docType} />
         </TabPanel>
       )}
 
