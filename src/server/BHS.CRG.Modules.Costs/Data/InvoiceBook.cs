@@ -125,21 +125,62 @@ public static class InvoiceBook
             .OrderByDescending(e => e.Seq).Select(e => (decimal?)e.Tolerance).FirstOrDefaultAsync(ct);
 
     /// <summary>
-    /// Счета, у которых последняя запись книги посчитана НЕ этим допуском, — кого может понадобиться
-    /// выровнять к действующему (spec п. 1.9). Обычно пусто: смена допуска пишет книги сама.
+    /// Счета, у которых последняя запись книги посчитана НЕ этим допуском И чьи деньги при этом допуске
+    /// другие, — кого надо выровнять к действующему (spec п. 1.9). Обычно пусто: смена допуска пишет книги
+    /// сама.
+    ///
+    /// <para>Второе условие — не украшение. Смена, не тронувшая денег счёта, ему ничего не пишет, и
+    /// последняя запись остаётся при прежнем допуске навсегда; без условия каждый такой счёт выравнивался бы
+    /// после каждой смены и при каждом старте — транзакцией, замками и чтением, кончающимися ничем. Деньги
+    /// от допуска зависят только через «расхождение в допуске» (<see cref="AllocationMath.Of" />), и здесь
+    /// оно проверяется в базе: <see cref="Moves" />. Под блокировкой строки счёт проверяется заново.</para>
     /// </summary>
     public static Task<List<Guid>> BehindAsync(CostsDbContext db, decimal tolerance, CancellationToken ct) =>
         db.InvoiceBookEntries.AsNoTracking()
             .Where(e => !db.InvoiceBookEntries.Any(n => n.InvoiceId == e.InvoiceId && n.Seq > e.Seq) && e.Tolerance != tolerance)
-            .Select(e => e.InvoiceId)
+            .Join(db.Invoices, e => e.InvoiceId, i => i.Id, (e, i) => new
+            {
+                e.Tolerance,
+                i.Id,
+                Gap = Math.Abs(i.Total!.Value - db.InvoiceLines.Where(l => l.InvoiceId == i.Id).Sum(l => l.Amount ?? 0m)),
+            })
+            .Where(x => (x.Gap <= x.Tolerance) != (x.Gap <= tolerance))
+            .Select(x => x.Id)
             .OrderBy(id => id)
             .ToListAsync(ct);
+
+    /// <summary>
+    /// Счета, чьи деньги при одном допуске могут быть не теми, что при другом, — отбор в базе, до чтения
+    /// счетов в память. Допуск решает одно: лежит ли расхождение суммы к оплате со строками в нём
+    /// (<see cref="AllocationMath.Of" />, <c>|расхождение| ≤ допуск</c>). Если ответ при обоих допусках один,
+    /// деньги одни. Отбор шире точного: счёт без строк и счёт, разнесённый не весь, он пропускает, хотя
+    /// расхождение у них в деньги не уходит, — и вызывающий проверяет каждого кандидата сам.
+    /// </summary>
+    public static IQueryable<Invoice> Moves(CostsDbContext db, IQueryable<Invoice> invoices, decimal from, decimal to) =>
+        invoices
+            .Select(i => new
+            {
+                Invoice = i,
+                Gap = Math.Abs(i.Total!.Value - db.InvoiceLines.Where(l => l.InvoiceId == i.Id).Sum(l => l.Amount ?? 0m)),
+            })
+            .Where(x => (x.Gap <= from) != (x.Gap <= to))
+            .Select(x => x.Invoice);
 
     /// <summary>
     /// Запереть строку счёта до конца транзакции. Вне транзакции — отказ: замок снялся бы тем же
     /// запросом, и вызов выглядел бы защитой, не будучи ею.
     /// </summary>
     public static async Task LockAsync(CostsDbContext db, Guid invoiceId, CancellationToken ct)
+    {
+        if (!await TryLockAsync(db, invoiceId, ct)) throw new NotFoundException("Счёт не найден.");
+    }
+
+    /// <summary>
+    /// То же для того, кто держит идентификатор, найденный раньше, и отказом исчезнувшему счёту не отвечает
+    /// (смена допуска, выравнивание): счёт может исчезнуть под любым кодом — его удалили черновиком.
+    /// </summary>
+    /// <returns><c>false</c> — счёта больше нет.</returns>
+    public static async Task<bool> TryLockAsync(CostsDbContext db, Guid invoiceId, CancellationToken ct)
     {
         if (db.Database.CurrentTransaction is null)
             throw new InvalidOperationException(
@@ -148,6 +189,6 @@ public static class InvoiceBook
         var found = await db.Database
             .SqlQuery<Guid>($"SELECT id AS \"Value\" FROM costs.invoices WHERE id = {invoiceId} FOR UPDATE")
             .ToListAsync(ct);
-        if (found.Count == 0) throw new NotFoundException("Счёт не найден.");
+        return found.Count > 0;
     }
 }

@@ -63,25 +63,39 @@ public sealed partial class InvoiceDesk
         var today = await clock.TodayAsync(ct);
         var moved = new List<ToleranceMoved>();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        foreach (var id in candidates)
+        try
         {
-            await InvoiceBook.LockAsync(db, id, ct);
-            var (invoice, lines, parts) = await ReadForBookAsync(id, ct);
-            if (ClosedPeriodGuard.NeedOf(invoice, parts, held.Boundaries) is null) continue;
-            if (Retolerated(invoice, lines, parts, before, after) is not { } money) continue;
+            foreach (var id in candidates)
+            {
+                // Счёт исчез между поиском и замком (отменили оплату, вернули в черновик, удалили): писать
+                // нечего, и смене настройки это не отказ.
+                if (!await InvoiceBook.TryLockAsync(db, id, ct)) continue;
+                var (invoice, lines, parts) = await ReadForBookAsync(id, ct);
+                if (ClosedPeriodGuard.NeedOf(invoice, parts, held.Boundaries) is null) continue;
+                if (Retolerated(invoice, lines, parts, before, after) is not { } money) continue;
 
-            // Страховка (п. 1.3 шаг 2) — если книгу этого счёта последней писали при другом допуске: окно
-            // между фиксациями прошлой смены или сбой в нём.
-            await InvoiceBook.AppendAsync(db, invoice,
-                last => new BookChange(InvoiceBookKind.Alignment, money.Before, before, money.After, after,
-                    last is { } t && t != before ? MoneyAt(invoice, lines, parts, t) : null),
-                held, today, new BookAuthor(user.Id, reason), ct);
-            invoice.PostRemainder(money.Remainder);
-            moved.Add(new(id, InvoiceEndpoints.Label(invoice), before));
+                // Страховка (п. 1.3 шаг 2) — если книгу этого счёта последней писали при другом допуске: окно
+                // между фиксациями прошлой смены или сбой в нём.
+                var moneyAt = MoneyOf(invoice, lines, parts);
+                await InvoiceBook.AppendAsync(db, invoice,
+                    last => new BookChange(InvoiceBookKind.Alignment, money.Before, before, money.After, after,
+                        last is { } t && t != before ? moneyAt(t) : null),
+                    held, today, new BookAuthor(user.Id, reason), ct);
+                invoice.PostRemainder(money.Remainder);
+                moved.Add(new(id, InvoiceEndpoints.Label(invoice), before));
+            }
+
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            // Записанное в откаченную транзакцию осталось бы в контексте — и ушло бы с выравниванием, которое
+            // ядро зовёт следом тем же контекстом.
+            db.ChangeTracker.Clear();
+            throw;
         }
 
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
         return moved;
     }
 
@@ -108,7 +122,7 @@ public sealed partial class InvoiceDesk
             {
                 var done = await db.InOpenPeriodAsync(periods, async boundaries =>
                 {
-                    await InvoiceBook.LockAsync(db, id, ct);
+                    if (!await InvoiceBook.TryLockAsync(db, id, ct)) return null;
                     if (await InvoiceBook.LastToleranceAsync(db, id, ct) is not { } last || last == current) return null;
                     var (invoice, lines, parts) = await ReadForBookAsync(id, ct);
                     // Деньги при том и при другом допуске одни — писать нечего: смена, не тронувшая денег счёта,
@@ -155,19 +169,17 @@ public sealed partial class InvoiceDesk
             : (before, after, after.FirstOrDefault(g => g.Cell.Target is null)?.Day);
     }
 
-    private static IReadOnlyList<Grain> MoneyAt(
-        Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts, decimal tolerance) =>
-        InvoiceBookPosting.Grains(invoice.Id,
-            (invoice.SupplierId, invoice.Total, invoice.VatTotal, invoice.RemainderAccountingOn), lines, parts, tolerance);
-
     /// <summary>Оплаченные счета, чьи деньги смена сдвинет, — без отслеживания и без замков.</summary>
     private async Task<List<(Invoice Invoice, List<InvoiceLine> Lines, List<InvoiceAllocation> Parts)>> MovedByToleranceAsync(
         decimal before, decimal after, CancellationToken ct)
     {
         if (before == after) return [];
 
-        // Тремя запросами на все оплаченные счета: смена редкая, а запрос на каждый счёт — по их числу.
-        var paid = db.Invoices.AsNoTracking().Where(i => i.Payment == InvoicePaymentState.Paid);
+        // Тремя запросами на кандидатов: смена редкая, а запрос на каждый счёт — по их числу. Кандидаты
+        // отобраны в базе (InvoiceBook.Moves): смена идёт под замком записи в учёт, и читать в память все
+        // оплаченные счета ради горстки с расхождением значило бы держать закрытие периода всё это время.
+        var paid = InvoiceBook.Moves(db,
+            db.Invoices.AsNoTracking().Where(i => i.Payment == InvoicePaymentState.Paid), before, after);
         var invoices = await paid.ToListAsync(ct);
         var lines = (await db.InvoiceLines.AsNoTracking().Where(l => paid.Any(i => i.Id == l.InvoiceId))
             .OrderBy(l => l.Ordinal).ToListAsync(ct)).ToLookup(l => l.InvoiceId);

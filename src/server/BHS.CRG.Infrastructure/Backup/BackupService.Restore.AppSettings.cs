@@ -54,7 +54,20 @@ public partial class BackupService
             // В хранимом виде: «1» из копии другой сборки — то же, что «1.00» здесь.
             var value = settingKeys.Normalize(item.Key, item.Value);
             existing.TryGetValue(item.Key, out var row);
-            if (settingKeys.Change(item.Key, row?.Value, value) is { } change) changes.Add((item.Key, change));
+            if (settingKeys.Change(item.Key, row?.Value, value) is { } change)
+            {
+                // Смена настройки, которую модуль проводит своим обработчиком (допуск расхождения пишет книгу
+                // запертым счетам, E2): копия без данных модуля провела бы её над здешними счетами без книги.
+                if (await settingGuard.RestoreRefusalAsync(item.Key, row?.Value, value, moduleData, ct) is { } why)
+                {
+                    warnings.Add($"«{change.Label}»: в копии — {change.After}, на этой установке — {change.Before}. " +
+                                 "Значение НЕ изменено: копия не несёт данных модуля, а смена коснулась бы здешних " +
+                                 $"документов. {why} Смените её в настройках модулей — там она запишется как положено.");
+                    continue;
+                }
+
+                changes.Add((item.Key, change));
+            }
 
             if (row is not null) { row.SetValue(value); updated++; }
             else { db.AppSettings.Add(BHS.CRG.Domain.Settings.AppSetting.Create(item.Key, value)); created++; }

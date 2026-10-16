@@ -79,6 +79,9 @@ public static class ModulePorts
         // Запись настроек модулей вместе с обработчиками их смены (E2, issue #1100): адрес настроек и
         // выравнивание при старте. При любом составе модулей: без обработчиков это просто запись.
         services.AddScoped<ModuleSettingWriter>();
+        // Он же решает, может ли восстановление копии сменить настройку мимо обработчика.
+        services.AddScoped<BHS.CRG.Application.Settings.IModuleSettingRestoreGuard>(
+            sp => sp.GetRequiredService<ModuleSettingWriter>());
 
         // Кто выполняет фоновую работу модуля. Спрашивает её фоновый цикл в инфраструктуре — по
         // интерфейсу из слоя приложения, потому что о контрактах модулей ему знать нельзя.

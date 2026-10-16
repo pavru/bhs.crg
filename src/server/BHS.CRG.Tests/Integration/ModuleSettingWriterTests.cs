@@ -54,8 +54,24 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
 
         Assert.Equal("модуль отказал", refused.Message);
         Assert.Null(await StoredAsync());
-        // Модуль не зафиксировал ничего — выравнивать нечего.
-        Assert.Empty(probe.Aligned);
+        // Отказал ли модуль до своей фиксации или после — ядру не узнать: выравнивается к прежнему. Модулю, не
+        // записавшему ничего, выравнивание ничего и не сделает.
+        Assert.Equal(new string?[] { null }, probe.Aligned);
+    }
+
+    /// <summary>
+    /// Выравнивание берёт значение, действующее СЕЙЧАС, а не запомненное сменой: замок ключа к нему уже снят, и
+    /// следующая смена могла пройти — опоздавшее выравнивание вернуло бы книги к устаревшему. Здесь «следующая
+    /// смена» — запись в хранилище с чужого соединения, пока модуль работает; сам модуль после неё отказывает.
+    /// </summary>
+    [Fact]
+    public async Task Выравнивание_берёт_действующее_значение_а_не_запомненное()
+    {
+        var probe = new Probe(host.Services, refuse: true) { Overtake = "0.70" };
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SaveAsync([probe], new Dictionary<string, string?> { [Key] = "0.30" }));
+
+        Assert.Equal(["0.70"], probe.Aligned);
     }
 
     /// <summary>
@@ -74,7 +90,7 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
 
         Assert.Equal((true, false), (applied.HeldOnApply, applied.HeldOnAlign));
         Assert.Equal(new string?[] { null }, applied.Aligned);
-        Assert.Empty(refusing.Aligned);
+        Assert.Equal(new string?[] { null }, refusing.Aligned);
         Assert.Null(await StoredAsync());
     }
 
@@ -134,9 +150,17 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
         public Task<ModuleSettingImpact> PreviewAsync(string? before, string? after, CancellationToken ct = default) =>
             throw new NotSupportedException();
 
+        /// <summary>Что записать в хранилище с чужого соединения, пока модуль работает, — «следующая смена».</summary>
+        public string? Overtake { get; init; }
+
         public async Task ApplyAsync(ModuleSettingChange change, CancellationToken ct = default)
         {
             (Applied, HeldOnApply) = (change, await HeldAsync());
+            if (Overtake is not null)
+            {
+                using var scope = services.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().SetAsync(Setting.Key, Overtake);
+            }
             if (refuse) throw new InvalidOperationException("модуль отказал");
         }
 

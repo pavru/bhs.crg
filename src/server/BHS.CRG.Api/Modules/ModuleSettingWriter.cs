@@ -1,5 +1,6 @@
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Infrastructure.Persistence;
@@ -17,7 +18,8 @@ namespace BHS.CRG.Api.Modules;
 /// <para><b>Порядок.</b> Транзакция ядра → замки по ключам настроек (исключительные, по порядку ключей) →
 /// разделяемый замок записи в учёт, если у смены есть обработчик (закрытие периода ждёт всю смену) →
 /// границы периода под ним → «было» → обработчик модуля пишет и ФИКСИРУЕТ своё → значение и журнал →
-/// фиксация ядра → замки сняты → выравнивание модуля к действующему значению.</para>
+/// фиксация ядра → замки сняты → выравнивание модуля к действующему значению — под замком ключа, значение
+/// перечитывается под ним.</para>
 ///
 /// <para><b>Почему модуль первым.</b> Общей транзакции у ядра и модуля нет (решение 28.09.2026). Сорвись
 /// ядро после модуля — модуль окажется впереди настройки, и выравнивание тут же вернёт его к прежнему
@@ -29,7 +31,7 @@ namespace BHS.CRG.Api.Modules;
 /// </summary>
 public sealed class ModuleSettingWriter(
     IEnumerable<IModuleSettingChange> handlers, AppDbContext db, IAppSettingsStore store, IActivityLog journal,
-    IModulePeriods periods, ILogger<ModuleSettingWriter> log)
+    IModulePeriods periods, ILogger<ModuleSettingWriter> log) : IModuleSettingRestoreGuard
 {
     private readonly Dictionary<string, IModuleSettingChange> _handlers =
         handlers.ToDictionary(h => h.Setting.Key, StringComparer.Ordinal);
@@ -82,7 +84,7 @@ public sealed class ModuleSettingWriter(
     public async Task SaveAsync(IAppModule module, IReadOnlyDictionary<string, string?> values, CancellationToken ct)
     {
         var declared = module.Settings.ToDictionary(s => s.Key, StringComparer.Ordinal);
-        var applied = new List<(IModuleSettingChange Handler, string? Was, string? Now)>();
+        var applied = new List<IModuleSettingChange>();
         var committed = false;
 
         // ⚠️ Значения и записи журнала — ОДНОЙ транзакцией (ревью PR #1249). Хранилище и журнал сохраняют
@@ -113,8 +115,11 @@ public sealed class ModuleSettingWriter(
 
                 if (change is not null && _handlers.TryGetValue(key, out var handler))
                 {
+                    // В список — ДО вызова: модуль мог зафиксировать своё и отказать после (журнал, обрыв
+                    // запроса), и тогда выравнивать его обязательно. Выравнивание идемпотентно — модулю,
+                    // который не записал ничего, оно не сделает ничего.
+                    applied.Add(handler);
                     await handler.ApplyAsync(new ModuleSettingChange(was, now, boundaries!), ct);
-                    applied.Add((handler, was, now));
                 }
 
                 // Модуль уже зафиксировал своё: дальше обрыв запроса не должен сорвать запись ядра.
@@ -133,8 +138,11 @@ public sealed class ModuleSettingWriter(
         finally
         {
             await tx.DisposeAsync();
-            foreach (var (handler, was, now) in applied)
-                await AlignAsync(handler, committed ? now : was);
+            // Откаченное осталось бы в контексте — и ушло бы без транзакции с первым же сохранением
+            // выравнивания: запись журнала о смене, которой не было.
+            if (!committed) db.ChangeTracker.Clear();
+            foreach (var handler in applied)
+                await AlignAsync(handler);
         }
     }
 
@@ -144,8 +152,26 @@ public sealed class ModuleSettingWriter(
     /// </summary>
     public async Task AlignAllAsync(CancellationToken ct = default)
     {
-        foreach (var (key, handler) in _handlers)
-            await AlignAsync(handler, await store.GetAsync(key, ct));
+        foreach (var handler in _handlers.Values)
+            await AlignAsync(handler);
+    }
+
+    /// <summary>
+    /// Восстановление копии меняет настройку мимо обработчика — и это верно, когда копия несёт данные
+    /// модуля: настройка и записанное ею приходят одним срезом. Копия без них (конфигурационная, секция
+    /// пропущена) меняла бы настройку над ЗДЕШНИМИ данными, то есть была бы обычной сменой, проведённой
+    /// без книги. Такую смену, если она что-то запишет, восстановление не проводит.
+    /// </summary>
+    public async Task<string?> RestoreRefusalAsync(
+        string key, string? before, string? after, IReadOnlyList<BackupModuleSchema> data, CancellationToken ct = default)
+    {
+        if (!_handlers.TryGetValue(key, out var handler)) return null;
+        if (data.Any(s => string.Equals(s.Module, handler.Setting.Module, StringComparison.OrdinalIgnoreCase)
+                          && s.Tables.Any(t => t.Rows.Length > 0)))
+            return null;
+
+        var impact = await handler.PreviewAsync(before, after, ct);
+        return impact.Recorded > 0 ? impact.Text : null;
     }
 
     /// <summary>
@@ -159,19 +185,32 @@ public sealed class ModuleSettingWriter(
     }
 
     /// <summary>
-    /// Выравнивание не отменяется и не роняет ответ: значение уже записано (или смена уже отказала своим
-    /// отказом), а несведённое модуль сам называет в журнале приложения и выровняет при следующем старте.
+    /// Выровнять модуль к значению, которое действует СЕЙЧАС, — под замком ключа, перечитав его под ним.
+    /// Значение, запомненное сменой, к этому времени могло устареть: замок снят фиксацией, и следующая смена
+    /// успела бы пройти — опоздавшее выравнивание вернуло бы книги к прежнему допуску. Под замком следующая
+    /// смена ждёт, а выравнивание видит последнее записанное.
+    ///
+    /// <para>Замок записи в учёт ядро здесь не держит — его берёт модуль на своём соединении. Замок ключа
+    /// взаимной блокировки не даёт: его берут только смены этой настройки, и берут первым.</para>
+    ///
+    /// <para>Выравнивание не отменяется и не роняет ответ: значение уже записано (или смена уже отказала
+    /// своим отказом), а несведённое модуль сам называет в журнале приложения и выровняет при следующем
+    /// старте.</para>
     /// </summary>
-    private async Task AlignAsync(IModuleSettingChange handler, string? current)
+    private async Task AlignAsync(IModuleSettingChange handler)
     {
+        var key = handler.Setting.Key;
         try
         {
-            await handler.AlignAsync(current, CancellationToken.None);
+            await using var tx = await db.Database.BeginTransactionAsync();
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({key}))");
+            await handler.AlignAsync(await store.GetAsync(key), CancellationToken.None);
+            await tx.CommitAsync();
         }
         catch (Exception e)
         {
-            log.LogError(e, "Модуль не выровнял записанное к настройке {Key}: выровняет при следующем старте",
-                handler.Setting.Key);
+            db.ChangeTracker.Clear();
+            log.LogError(e, "Модуль не выровнял записанное к настройке {Key}: выровняет при следующем старте", key);
         }
     }
 }

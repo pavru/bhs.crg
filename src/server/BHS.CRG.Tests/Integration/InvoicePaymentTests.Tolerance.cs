@@ -1,9 +1,13 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Backup;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Ports;
@@ -268,6 +272,90 @@ public partial class InvoicePaymentTests
         Assert.Null(await RemainderAsync(invoice));
     }
 
+    /// <summary>
+    /// Предупреждение согласует со счётом всё сказуемое, а не одно существительное: «1 счёт заперт … или уже
+    /// исправлялся». Окно (0,98; 0,99] — расхождение 0,99 только у этого счёта: у соседей по общей базе
+    /// (и у <see cref="LockedGapAsync" />) расхождения другие.
+    /// </summary>
+    [Fact]
+    public async Task Предупреждение_согласует_сказуемое_с_числом_счетов()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        await LockedGapAsync(admin, total: 99_999.01m);
+
+        var text = (await ImpactOfAsync(admin, "0.98")).GetProperty("text").GetString();
+        Assert.Contains("Изменятся суммы 1 оплаченного счёта", text);
+        Assert.Contains("1 счёт заперт закрытым периодом или уже исправлялся: смена запишет книгу", text);
+    }
+
+    /// <summary>
+    /// Книга, последняя запись которой посчитана другим допуском, но деньги при нынешнем — те же, выравнивания не
+    /// ждёт: иначе такой счёт перечитывался бы под замками после каждой смены и при каждом старте, кончаясь ничем.
+    /// </summary>
+    [Fact]
+    public async Task Отставшая_книга_без_разницы_в_деньгах_выравнивания_не_ждёт()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var invoice = await LockedGapAsync(admin);
+        try
+        {
+            await ToleranceAsync(admin, OddTolerance);
+            Assert.Equal([1.00m, 0.97m], (await RecordsAsync(invoice)).Select(r => r.Tolerance));
+
+            using var scope = host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+            // Расхождение 0,98 сверх и 0,97, и 0,50 — деньги одни; в допуске 1,00 — другие.
+            Assert.DoesNotContain(invoice, await InvoiceBook.BehindAsync(db, 0.50m, default));
+            Assert.Contains(invoice, await InvoiceBook.BehindAsync(db, 1.00m, default));
+        }
+        finally
+        {
+            await ToleranceAsync(admin, null);
+        }
+    }
+
+    /// <summary>
+    /// Копия без данных модуля сменила бы допуск над здешними счетами — обычная смена, но без книги, и закрытый
+    /// месяц запертого счёта сдвинулся бы молча. Восстановление такую смену не проводит и говорит почему.
+    /// </summary>
+    [Fact]
+    public async Task Копия_без_данных_модуля_допуск_над_запертыми_счетами_не_меняет()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var invoice = await LockedGapAsync(admin);
+
+        RestoreReport report;
+        using (var scope = host.Services.CreateScope())
+        {
+            var backup = scope.ServiceProvider.GetRequiredService<BackupService>();
+            var (zip, _) = await backup.ExportAsync(BackupScope.Full);
+            BackupManifest manifest;
+            await using (zip)
+            using (var reader = new ZipArchive(zip, ZipArchiveMode.Read))
+            using (var entry = reader.GetEntry("manifest.json")!.Open())
+                manifest = JsonSerializer.Deserialize<BackupManifest>(entry)!;
+
+            // Конфигурационная: данных модулей нет, а допуск — другой.
+            var copy = new MemoryStream();
+            using (var writer = new ZipArchive(copy, ZipArchiveMode.Create, leaveOpen: true))
+            using (var entry = writer.CreateEntry("manifest.json").Open())
+                JsonSerializer.Serialize(entry, manifest with
+                {
+                    ModuleData = null,
+                    AppSettings = [.. (manifest.AppSettings ?? []).Where(a => a.Key != ToleranceKey),
+                        new BackupAppSetting(ToleranceKey, OddTolerance, DateTimeOffset.UtcNow)],
+                });
+            copy.Position = 0;
+            report = await backup.ImportAsync(copy);
+        }
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Contains(report.Warnings, w => w.Contains("Значение НЕ изменено") && w.Contains("закрытым периодом"));
+        using (var scope = host.Services.CreateScope())
+            Assert.Null(await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().GetAsync(ToleranceKey));
+        Assert.Equal((0, 0), await BookAsync(invoice));
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -288,13 +376,34 @@ public partial class InvoicePaymentTests
     /// <summary>Предупреждение смены допуска с умолчания на <paramref name="value" />: два числа.</summary>
     private static async Task<(int Changed, int Recorded)> ImpactAsync(HttpClient admin, string value)
     {
+        var impact = await ImpactOfAsync(admin, value);
+        Assert.False(string.IsNullOrWhiteSpace(impact.GetProperty("text").GetString()));
+        return (impact.GetProperty("changed").GetInt32(), impact.GetProperty("recorded").GetInt32());
+    }
+
+    private static async Task<JsonElement> ImpactOfAsync(HttpClient admin, string value)
+    {
         var response = await admin.PostAsJsonAsync("/api/settings/modules/costs/preview",
             new { values = new Dictionary<string, string?> { [ToleranceKey] = value } });
         await OkAsync(response);
         var impact = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("impacts").EnumerateArray().Single();
         Assert.Equal(ToleranceKey, impact.GetProperty("key").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(impact.GetProperty("text").GetString()));
-        return (impact.GetProperty("changed").GetInt32(), impact.GetProperty("recorded").GetInt32());
+        return impact;
+    }
+
+    /// <summary>
+    /// Допуск, при котором деньги меняются только у счёта <see cref="LockedGapAsync" />: его расхождение 0,98 —
+    /// между 0,97 и умолчанием, а у счетов соседних тестов расхождения другие.
+    /// </summary>
+    private const string OddTolerance = "0.97";
+
+    /// <summary>Оплаченный и запертый закрытием стройки Б счёт — по умолчанию с расхождением 0,98.</summary>
+    private async Task<Guid> LockedGapAsync(HttpClient admin, decimal total = 99_999.02m)
+    {
+        var today = await TodayAsync();
+        var (invoice, b) = await PaidOffAsync(admin, total, today.AddDays(-15));
+        await CloseAsync(b, today.AddDays(-10));
+        return invoice;
     }
 
     /// <summary>

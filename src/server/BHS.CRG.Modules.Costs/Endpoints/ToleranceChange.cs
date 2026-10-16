@@ -31,7 +31,9 @@ internal sealed class ToleranceChange(InvoiceDesk desk, IModuleActivityLog journ
     {
         var (was, now) = (Tolerance.Read(change.Before), Tolerance.Read(change.After));
         var moved = await desk.RetoleranceAsync(change, was, now, Reason(was, now), ct);
-        await RecordAsync(moved, now, ct);
+        // Книги уже зафиксированы: обрыв запроса не должен сорвать ни журнал, ни запись ядра. (Сорвись
+        // журнал сам — ядро выровняет книги обратно: обработчик для него уже «применён».)
+        await RecordAsync(moved, now, CancellationToken.None);
     }
 
     public async Task AlignAsync(string? current, CancellationToken ct = default)
@@ -68,9 +70,12 @@ internal sealed class ToleranceChange(InvoiceDesk desk, IModuleActivityLog journ
                    "по стройкам: расхождение перейдёт между последней частью разноски и остатком.";
         return impact.Booked == 0
             ? text + " Закрытых периодов и исправленных счетов среди них нет."
-            : text + $" {Count(impact.Booked, "счёт заперт", "счёта заперты", "счетов заперты")} закрытым периодом или уже " +
-              "исправлялись: смена запишет им книгу исправлений — закрытые месяцы останутся как были, а разница " +
-              "ляжет днём смены.";
+            // Сказуемое согласуется с числом целиком: «1 счёт заперт … или уже исправлялся».
+            : text + " " + Count(impact.Booked,
+                  "счёт заперт закрытым периодом или уже исправлялся",
+                  "счёта заперты закрытым периодом или уже исправлялись",
+                  "счетов заперты закрытым периодом или уже исправлялись") +
+              ": смена запишет книгу исправлений — закрытые месяцы останутся как были, а разница ляжет днём смены.";
     }
 
     private static string Count(int n, string one, string few, string many) =>
