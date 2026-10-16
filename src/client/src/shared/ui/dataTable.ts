@@ -41,6 +41,19 @@ export const dtTdCompact = 'px-2 py-1 border-b border-stroke align-middle';
  */
 export const dtTdEdit = 'px-2 py-1 border-b border-stroke align-top';
 
+/**
+ * Сетка правки «листом» (EditGrid, `sheet`): поле во всю клетку без отступов и линии между колонками —
+ * как в электронной таблице. Клетка с фокусом подсвечена: у поля без рамки другого признака нет.
+ */
+export const dtTdSheet = 'p-0 h-7 border-b border-r border-stroke align-middle focus-within:bg-brand-subtle';
+
+/**
+ * Ширина таблицы с ширинами колонок, заданными числом (EditGrid, `size`): таблица шириной по сумме
+ * колонок, но не уже карточки. При `w-full` фиксированная раскладка делила бы остаток между
+ * колонками, и заданная руками ширина не держалась бы.
+ */
+export const dtTableSized = 'table-fixed w-max! min-w-full';
+
 /** Класс строки: hover-подсветка. */
 export const dtRow = 'transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]';
 
