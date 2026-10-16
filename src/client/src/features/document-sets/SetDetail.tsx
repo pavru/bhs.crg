@@ -1,6 +1,6 @@
 import { formatDateTime } from '@/shared/format/format';
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams, useSearchParams, Link } from 'react-router';
+import { Navigate, useNavigate, useParams, useSearchParams, Link } from 'react-router';
 import { Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput, Layers, FileText, Mail, Database, Table2, Users, AlertTriangle, Target } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal } from '@/shared/ui/Modal';
@@ -29,11 +29,10 @@ import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListConstructions, useGetConstruction, useRenameDocumentSet, useDeleteDocumentSet } from '@/shared/api/constructions';
-import { useGetDocumentSet, useGetAvailableInstances, useAddDocumentToSet, useDeleteDocumentInstance, useDuplicateDocumentInstance, useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput, downloadGeneratedFile, previewGeneratedFile } from '@/shared/api/documentSets';
+import { useGetDocumentSet, useAddDocumentToSet, useDeleteDocumentInstance, useDuplicateDocumentInstance, useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput, downloadGeneratedFile, previewGeneratedFile } from '@/shared/api/documentSets';
 import type { DocumentInstance } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
-import { InstanceEditor } from './editor';
-import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
+import { documentPath, FROM_SET } from './documentPath';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
@@ -57,13 +56,10 @@ export function SetDetail() {
   const { data: set, isLoading } = useGetDocumentSet(setId);
   const { data: construction } = useGetConstruction(constructionId!);
   const { data: allConstructions = [] } = useListConstructions();
-  const { data: availableInstances = [] } = useGetAvailableInstances(setId);
   const { data: problems } = useRelatedProblems('Set', setId);
   const { data: plan } = usePlanSummary('Set', setId);
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addDocOpen, setAddDocOpen] = useState(false);
-  const [chosenInstance, setChosenInstance] = useState<DocumentInstance | null>(null);
-  const [editDirty, setEditDirty] = useState(false);
   const addMutation = useAddDocumentToSet();
   const deleteMutation = useDeleteDocumentInstance();
   const duplicateMutation = useDuplicateDocumentInstance();
@@ -105,49 +101,14 @@ export function SetDetail() {
   }, [watching, output]);
 
   /**
-   * Deep-link из результатов поиска: `?doc={instanceId}` открывает документ.
-   *
-   * <p>Открытый документ ВЫЧИСЛЯЕТСЯ: выбранный вручную, а если его нет — названный адресом
-   * (issue #858). Прежде адрес отрабатывал эффектом, который клал документ в состояние и тут же
-   * вычищал параметр; между приходом комплекта и запуском эффекта умещался кадр, где по ссылке
-   * ещё ничего не открыто.</p>
-   *
-   * <p>Отсюда одно изменение: параметр живёт, пока документ открыт, и снимается его закрытием, а
-   * не первым же рендером. Обновление страницы теперь открывает то же, что и было, — а прежде
-   * возвращало к списку.</p>
+   * Старый адрес документа — `?doc={instanceId}` (закладки, письма, ссылки до #1384). Документ теперь
+   * страница со своим адресом; старый ведёт туда же, заменяя себя в истории.
    */
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const docParam = searchParams.get('doc');
-  const linkedInstance = docParam && set ? set.instances.find(i => i.id === docParam) ?? null : null;
-  const editInstance = chosenInstance ?? linkedInstance;
+  useDocumentTitle(set ? `Комплект «${set.name}»` : null);
 
-  /**
-   * Появились несохранённые правки — закрепляем открытый документ в состоянии.
-   *
-   * <p>Открытый по ссылке документ до сих пор жил только вычислением из ответа сервера. Если бы
-   * ответ перестал его содержать (другой пользователь удалил документ, пока его правят), редактор
-   * закрылся бы сам — молча, мимо предупреждения о несохранённом. Закреплённый снимок это
-   * закрывает, а заодно уравнивает оба входа: открытый из списка вёл себя так и раньше (поймано
-   * ревью PR #865).</p>
-   */
-  function onEditorDirtyChange(dirty: boolean) {
-    setEditDirty(dirty);
-    if (dirty && !chosenInstance && linkedInstance) setChosenInstance(linkedInstance);
-  }
-
-  /** Закрытие редактора: снимаем и свой выбор, и параметр адреса — иначе он открылся бы снова. */
-  function closeEditor() {
-    setChosenInstance(null);
-    setEditDirty(false);
-    if (docParam) setSearchParams(prev => { prev.delete('doc'); return prev; }, { replace: true });
-  }
-
-  // Заголовок вкладки: открытый документ замещает имя комплекта («Документ — «Комплект»»).
-  const openDocName = editInstance
-    ? (editInstance.name || docTypes.find(t => t.id === editInstance.documentTypeId)?.name || 'Документ')
-    : null;
-  useDocumentTitle(set ? (openDocName ? `${openDocName} — «${set.name}»` : `Комплект «${set.name}»`) : null);
-
+  if (docParam) return <Navigate replace to={documentPath(constructionId!, setId!, docParam)} />;
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
 
@@ -203,12 +164,10 @@ export function SetDetail() {
 
   const docTypeMap = Object.fromEntries(docTypes.map(dt => [dt.id, dt]));
   const documentKindTypes = docTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
-  const otherInstances = editInstance
-    ? availableInstances.filter(i => i.id !== editInstance.id)
-    : availableInstances;
   const sectionName = construction?.sections.find(s => s.id === set.sectionId)?.name;
 
   const base = `/document-sets/${constructionId}/sets/${setId}`;
+  const openDocument = (inst: DocumentInstance) => navigate(documentPath(constructionId!, setId!, inst.id), { state: FROM_SET });
   const goPanel = (p: SetPanel) => navigate(p === 'documents' ? base : `${base}/${p}`);
 
   const contextCrumbs = (
@@ -330,7 +289,7 @@ export function SetDetail() {
               </>
             )}
             {pdfFiles.length > 1 && (
-              <button onClick={() => setChosenInstance(inst)}
+              <button onClick={() => openDocument(inst)}
                 className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
                 title="Несколько PDF — открыть документ для выбора">
                 <Eye size={11} /> {pdfFiles.length} PDF
@@ -368,7 +327,7 @@ export function SetDetail() {
             action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />
         </div>
       ) : (
-        <DataGrid columns={documentColumns} rows={set.instances} rowKey={inst => inst.id} onRowOpen={inst => setChosenInstance(inst)}
+        <DataGrid columns={documentColumns} rows={set.instances} rowKey={inst => inst.id} onRowOpen={openDocument}
           drag={{
             dragging: dragIndex, target: dropPos, onOver: onRowDragOver,
             onDrop: () => { if (dragIndex !== null && dropPos !== null) moveDocToPos(dragIndex, dropPos); endDrag(); },
@@ -420,30 +379,6 @@ export function SetDetail() {
         onSelect={handlePickDocType}
       />
 
-      {editInstance && setId && (() => {
-        const liveInstance = set.instances.find(i => i.id === editInstance.id) ?? editInstance;
-        return (
-          <Modal open={!!editInstance} onOpenChange={open => { if (!open) closeEditor(); }}
-            title={liveInstance.name || docTypeMap[liveInstance.documentTypeId]?.name || 'Редактировать документ'}
-            fullScreen headerless isDirty={editDirty} flushBody>
-            {requestClose => (
-              // Граница ошибок (issue #305): краш рендера редактора изолирован в панель ошибки
-              // вместо немого пустого экрана. Шапки у окна нет, поэтому выход из панели — её же
-              // кнопка «Закрыть» (issue #1237). Идёт она путём окна, через вопрос о правках: упавший
-              // редактор признак правок уже не снимет, и набранное пропало бы без единого слова
-              // (ревью PR #1312). resetKeys=[id] — смена документа сбрасывает ошибку.
-              <ErrorBoundary variant="inline" allowReload resetKeys={[liveInstance.id]}
-                title="Не удалось открыть документ" onClose={requestClose}>
-                <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
-                  allDocTypes={docTypes} otherInstances={otherInstances}
-                  onClose={closeEditor} onDirtyChange={onEditorDirtyChange}
-                  requestClose={requestClose} />
-              </ErrorBoundary>
-            )}
-          </Modal>
-        );
-      })()}
-
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={o => { if (!o) setDeleteTarget(null); }}
@@ -452,7 +387,6 @@ export function SetDetail() {
         onConfirm={async () => {
           if (!deleteTarget) return;
           await deleteMutation.mutateAsync({ setId: set.id, instanceId: deleteTarget.id });
-          if (editInstance?.id === deleteTarget.id) closeEditor();
         }}
       />
 

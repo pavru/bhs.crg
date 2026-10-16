@@ -569,9 +569,10 @@ await check('copy-dialog-reopens-at-picker-not-confirm', async () => {
 
 // ── Вкладка генерации: выбор шаблонов ─────────────────────────────────────────
 await page.getByText(AOSR, { exact: false }).first().click();
-await page.waitForSelector('[role=dialog]', { timeout: 15000 });
+// Документ — страница (issue #1384): ждём её, а не окно.
+const editor = page.getByTestId('document-editor');
+await editor.waitFor({ timeout: 15000 });
 await settled(page);
-const editor = page.locator('[role=dialog]').first();
 
 await check('generation-tab-shows-templates', async () => {
   // Вкладки редактора — не role=button (getByRole их не видит), поэтому ищем по тексту кнопки.
@@ -609,9 +610,9 @@ await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });
 await settled(page);
 await page.getByText(MATERIALS_DOC, { exact: false }).first().click();
-await page.waitForSelector('[role=dialog]', { timeout: 15000 });
+const matEditor = page.getByTestId('document-editor');
+await matEditor.waitFor({ timeout: 15000 });
 await settled(page);
-const matEditor = page.locator('[role=dialog]').first();
 await matEditor.locator('button').filter({ hasText: /^Документы качества$/ }).first().click();
 await settled(page);
 

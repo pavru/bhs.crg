@@ -1,7 +1,7 @@
 // Smoke по экранам, где выбор зависел от эффекта (issue #858, порция 5 — последняя по правилу).
 //
 // Здесь эффекты не переливали форму, а вели ВЫБОР: сбрасывали выбранный шаблон при смене типа,
-// раскрывали группу выбранного, открывали документ по адресу `?doc=`, разбирали `?view=` на
+// раскрывали группу выбранного, открывали документ по адресу (с #1384 — страница), разбирали `?view=` на
 // странице сверки, подставляли первого кандидата в диалоге источника. Всё это стало вычислением,
 // и ломается оно тихо: не то открыто, не то подставлено, выбор от прошлого типа.
 //
@@ -12,7 +12,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/pages-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, closeDialog } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -85,34 +85,108 @@ await check('templates-selection-does-not-leak-to-other-type', async () => {
     throw new Error(`у типа без шаблонов справа не приглашение, а что-то другое: ${t.slice(-300)}`);
 });
 
-// ── Комплект: документ по адресу ?doc= ────────────────────────────────────────
-await check('set-detail-deep-link-opens-document', async () => {
+// ── Документ — страница со своим адресом (issue #1384) ─────────────────────────
+const DOC_PATH = `/document-sets/${CONSTRUCTION}/sets/${SET}/docs/${AOSR_INSTANCE}`;
+const editorText = async () => {
+  const editor = page.getByTestId('document-editor');
+  await editor.waitFor({ timeout: 20000 }).catch(() => { throw new Error('страница документа не открылась'); });
+  await settled(page);
+  return editor.innerText();
+};
+
+await check('set-detail-old-doc-link-opens-document-page', async () => {
+  // Старый адрес `?doc=` (закладки, письма) ведёт на страницу документа, заменяя себя в истории.
   await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}?doc=${AOSR_INSTANCE}`);
-  await page.waitForSelector('[role=dialog]', { timeout: 20000 })
-    .catch(() => { throw new Error('редактор документа по ссылке не открылся'); });
-  await settled(page);
-  const t = await page.locator('[role=dialog]').first().innerText();
+  const t = await editorText();
   if (!/АОСР/.test(t)) throw new Error(`открылось не то: ${t.slice(0, 200)}`);
+  if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`адрес не стал адресом документа: ${page.url()}`);
 });
 
-await check('set-detail-deep-link-survives-reload', async () => {
-  // Параметр теперь живёт, пока документ открыт, — значит обновление страницы возвращает туда же.
+await check('document-page-survives-reload', async () => {
   await page.reload();
-  await page.waitForSelector('[role=dialog]', { timeout: 20000 })
-    .catch(() => { throw new Error('после обновления страницы документ не открылся'); });
-  await settled(page);
-  if (!/АОСР/.test(await page.locator('[role=dialog]').first().innerText()))
-    throw new Error('после обновления открылось не то');
+  if (!/АОСР/.test(await editorText())) throw new Error('после обновления открылось не то');
 });
 
-await check('set-detail-closing-clears-doc-param', async () => {
-  await page.keyboard.press('Escape');
-  // До закрытия параметр в адресе ЕСТЬ, поэтому ждать его исчезновения можно: раньше действия это
-  // утверждение истинным не станет.
-  await until(async () => {
-    if (new URL(page.url()).searchParams.get('doc'))
-      throw new Error(`закрытие не сняло параметр: ${page.url()}`);
-  });
+await check('document-page-back-returns-to-set', async () => {
+  await page.getByTestId('document-editor').getByRole('button', { name: 'К комплекту' }).click();
+  // Признак комплекта — строки его документов, а не только адрес: пустой экран по верному адресу
+  // утверждение об адресе прошёл бы.
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  const path = new URL(page.url()).pathname;
+  if (path !== `/document-sets/${CONSTRUCTION}/sets/${SET}`) throw new Error(`вернулись не к комплекту: ${path}`);
+});
+
+// Уход из документа с правками спрашивает (issue #1384): охрана страниц, а не вопрос окна. Правка
+// не сохраняется — «Не сохранять».
+await check('document-page-asks-before-leaving-with-edits', async () => {
+  await page.goto(`${BASE}${DOC_PATH}`);
+  await editorText();
+  const editor = page.getByTestId('document-editor');
+  await editor.getByRole('button', { name: /Прочее/ }).first().click();
+  const input = editor.getByLabel('Количество экземпляров');
+  await input.fill(String(Number(await input.inputValue() || 0) + 7));
+  // Охрана включается эффектом после ввода — ждём её признака на вкладке, иначе уход опередит её.
+  await editor.getByTitle('Есть несохранённые изменения').waitFor({ timeout: 5000 });
+
+  const back = editor.getByRole('button', { name: 'К комплекту' });
+  const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+  await back.click();
+  await ask.waitFor({ timeout: 5000 }).catch(() => { throw new Error('ушли из документа с правками без вопроса'); });
+  await ask.getByRole('button', { name: 'Отмена' }).click();
+  await ask.waitFor({ state: 'detached' });
+  if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`«Отмена» увела из документа: ${page.url()}`);
+
+  await back.click();
+  await ask.getByRole('button', { name: 'Не сохранять' }).click();
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+});
+
+// «Назад» браузера с правками тоже спрашивает (ревью PR #1388): окно редактора переживало его,
+// страница ушла бы молча. Документ открыт щелчком в комплекте: «Назад» к записи от ДРУГОЙ загрузки
+// страницы (`page.goto`) — уход из приложения, его сторожит `beforeunload`, а не охрана шага.
+await check('document-page-browser-back-asks-with-edits', async () => {
+  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  await page.locator('tbody tr').filter({ hasText: /АОСР/ }).first().click();
+  await editorText();
+  if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`открылся не тот документ: ${page.url()}`);
+  const editor = page.getByTestId('document-editor');
+  await editor.getByRole('button', { name: /Прочее/ }).first().click();
+  const input = editor.getByLabel('Количество экземпляров');
+  await input.fill(String(Number(await input.inputValue() || 0) + 7));
+  // Охрана включается эффектом после ввода — ждём её признака на вкладке, иначе уход опередит её.
+  await editor.getByTitle('Есть несохранённые изменения').waitFor({ timeout: 5000 });
+
+  const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+  await page.evaluate(() => history.back());
+  await ask.waitFor({ timeout: 5000 }).catch(() => { throw new Error('«Назад» увёл из документа с правками без вопроса'); });
+  if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`адрес ушёл с документа под вопросом: ${page.url()}`);
+  await ask.getByRole('button', { name: 'Отмена' }).click();
+  await ask.waitFor({ state: 'detached' });
+  if (!(await input.inputValue())) throw new Error('после «Отмены» правка пропала');
+
+  await page.evaluate(() => history.back());
+  await ask.waitFor({ timeout: 5000 }).catch(() => { throw new Error('второй «Назад» после «Отмены» ушёл без вопроса'); });
+  await ask.getByRole('button', { name: 'Не сохранять' }).click();
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  const path = new URL(page.url()).pathname;
+  if (path !== `/document-sets/${CONSTRUCTION}/sets/${SET}`) throw new Error(`«Назад» увёл не к комплекту: ${path}`);
+});
+
+// Пришли из комплекта — «К комплекту» шагает назад по истории, а не кладёт комплект новой записью:
+// иначе «Назад» с комплекта снова открывал бы документ (ревью PR #1388). Признак шага — «Вперёд»
+// возвращает документ.
+await check('document-page-from-set-steps-back', async () => {
+  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  await page.locator('tbody tr').filter({ hasText: /АОСР/ }).first().click();
+  await editorText();
+  const length = await page.evaluate(() => history.length);
+  await page.getByTestId('document-editor').getByRole('button', { name: 'К комплекту' }).click();
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  if (await page.evaluate(() => history.length) !== length) throw new Error('выход положил комплект новой записью');
+  await page.evaluate(() => history.forward());
+  await editorText();
 });
 
 // ── Сверка: секция из адреса ──────────────────────────────────────────────────

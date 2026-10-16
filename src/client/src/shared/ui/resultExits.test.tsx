@@ -99,7 +99,7 @@ describe('панель ошибки в окне без шапки', () => {
     // React пишет пойманное в консоль дважды — в отчёте теста это шум, а не сведения.
     const silenced = vi.spyOn(console, 'error').mockImplementation(() => {});
     const leave = vi.fn();
-    // Как редактор документа: во весь экран и без шапки — крестика у окна нет.
+    // Как редактор кода типа: во весь экран и без шапки — крестика у окна нет.
     render(
       <Modal open onOpenChange={() => {}} title="Документ" fullScreen headerless flushBody>
         <ErrorBoundary variant="inline" allowReload title="Не удалось открыть документ" onClose={leave}>

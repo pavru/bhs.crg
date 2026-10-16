@@ -174,9 +174,10 @@ await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });
 await settled(page);
 await page.getByText(AOSR, { exact: false }).first().click();
-await page.waitForSelector('[role=dialog]', { timeout: 15000 });
+// Документ — страница (issue #1384): ждём её, а не окно.
+const editor = page.getByTestId('document-editor');
+await editor.waitFor({ timeout: 15000 });
 await settled(page);
-const editor = page.locator('[role=dialog]').first();
 await editor.getByRole('button', { name: /Даты работ/ }).first().click();
 await settled(page);
 

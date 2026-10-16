@@ -8,8 +8,11 @@ import { Button } from './Button';
  * Общий компонент, а не часть редактора типов (где он появился, issue #197 / #210): тот же вопрос
  * задаёт форма счёта (G4, issue #1097), и разделу счетов незачем зависеть от редактора типов.
  */
-export function LeaveGuardDialog({ open, saving, onSave, onDiscard, onCancel }: {
+export function LeaveGuardDialog({ open, saving, saveBlocked, onSave, onDiscard, onCancel }: {
   open: boolean; saving: boolean;
+  /** Сохранить сейчас нельзя — почему (картинка ещё едет в хранилище, issue #532). Уйти без
+   *  сохранения и остаться можно: недоступна только кнопка сохранения, с причиной в подсказке. */
+  saveBlocked?: string;
   onSave: () => void; onDiscard: () => void; onCancel: () => void;
 }) {
   return (
@@ -21,7 +24,9 @@ export function LeaveGuardDialog({ open, saving, onSave, onDiscard, onCancel }: 
         <div className="flex items-center justify-end gap-2">
           <ModalExit />
           <Button variant="tonal" onClick={onDiscard} disabled={saving}>Не сохранять</Button>
-          <Button variant="filled" onClick={onSave} loading={saving}>Сохранить и перейти</Button>
+          <Button variant="filled" onClick={onSave} loading={saving} disabled={!!saveBlocked} title={saveBlocked}>
+            Сохранить и перейти
+          </Button>
         </div>
       }>
       <p className="text-sm text-fg2">
