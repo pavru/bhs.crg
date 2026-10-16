@@ -95,7 +95,7 @@ public class SiteCostsTests
         ]);
 
         // Называет раздел вызывающий — тем же вызовом, что реестр: у двух удалённых название одно.
-        SectionName Named(InvoiceAllocation part) =>
+        SectionName Named(AllocationTarget part) =>
             part.SectionId == floor ? new("А / 4 эт.", "4 эт.", floor)
             : part.SectionId is null ? new("А / без раздела", "без раздела", null)
             : new("раздел удалён", "раздел удалён", null);
@@ -220,7 +220,7 @@ public class SiteCostsTests
         ];
         var invoice = new CostInvoice(Guid.NewGuid(), Supplier, 40_000m, null, false, true, reversed ? [.. money.Reverse()] : money);
 
-        SectionName Named(InvoiceAllocation part) =>
+        SectionName Named(AllocationTarget part) =>
             part.SectionId is { } id && id != literal ? new("А / тёзка", "тёзка", id)
             : new("А / без раздела", "без раздела", part.SectionId);
 

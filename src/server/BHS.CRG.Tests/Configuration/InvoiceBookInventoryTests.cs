@@ -29,6 +29,9 @@ public class InvoiceBookInventoryTests
         [$"{Module}/Data/InvoiceBookEntry.cs"] = "сами сущности и их отображение на таблицы",
         [$"{Module}/CostsReferences.cs"] = "объявление колонок с идентификаторами ядра: запросов нет",
         [$"{Module}/Data/InvoiceVersion.cs"] = "сама версия и её отображение на таблицу",
+        [$"{Module}/Data/CostViews.cs"] =
+            "единственный читатель книги: взгляд «на момент закрытия» для отчёта и диалога закрытия (PR 4 E2) — " +
+            "только чтение, без отслеживания",
         [$"{Module}/Endpoints/InvoiceDesk.Correction.cs"] =
             "единственное место записи версий: исправление пишет версию под блокировкой строки счёта, " +
             "в одной транзакции с книгой; книгу — через InvoiceBook",
