@@ -52,7 +52,7 @@ function ColumnMatchPreview({
                 ? <CheckCircle2 size={12} className="text-success shrink-0" />
                 : <AlertCircle size={12} className="text-danger shrink-0" />
               }
-              <span className="truncate text-fg3 shrink-0" style={{ width: '120px' }} title={fieldKey}>
+              <span className="truncate text-fg3 shrink-0 w-30" title={fieldKey}>
                 {fieldKey}
               </span>
               <span className={`font-mono ${found ? 'text-fg1' : 'text-fg4'}`}>
@@ -161,6 +161,7 @@ export function ApplyTemplateDialog({
       open={true}
       onOpenChange={o => { if (!o) onClose(); }}
       title="Применить шаблон данных"
+      wide
       footer={
         <div className="flex gap-2">
           <button

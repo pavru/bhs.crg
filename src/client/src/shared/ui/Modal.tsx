@@ -12,8 +12,14 @@ interface ModalBaseProps {
   /** Тело диалога. Функция-форма получает requestClose (охраняемый выход) — содержимое само
    *  рисует свою шапку/крестик (для full-screen top app bar). */
   children: ReactNode | ((requestClose: () => void) => ReactNode);
+  /**
+   * Размер — по содержимому, а не по вкусу (issue #1382, docs/UI.md «Окна»): малая форма, пикер,
+   * просмотр записи — обычное окно; таблица, вставка, сопоставление колонок, список записей с
+   * действиями, большая форма, лист скана — `wide`; редактор на весь экран — `fullScreen`. Третьего
+   * размера нет: `extraWide` убран, а ширину окна изнутри (`min-w-[…]`) не подпирают — это ловит
+   * храповик интерфейса.
+   */
   wide?: boolean;
-  extraWide?: boolean;
   /** Полноэкранный диалог-оверлей (на весь вьюпорт) — для крупных форм. Рендерится НАД
    *  текущей страницей (она остаётся смонтированной): закрытие возвращает в прежний контекст. */
   fullScreen?: boolean;
@@ -70,7 +76,7 @@ export type ModalProps = ModalBaseProps & ModalDismissalProps;
  * экран»): плавающая карточка там оставляла бы по краям полосы в полтора пальца и резала бы поля.
  * Классами `max-sm:`, а не отдельной веткой: окно одно и то же, меняется только раскладка.
  */
-const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:max-w-none ' +
+const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:w-full max-sm:max-w-none ' +
   'max-sm:max-h-none max-sm:rounded-none max-sm:border-0';
 
 /**
@@ -112,7 +118,7 @@ export function ModalExit({ children = 'Отмена', variant = 'text', disable
 const BUSY_EXIT = 'opacity-40 pointer-events-none';
 
 function ModalBody({
-  onOpenChange, title, children, wide, extraWide, fullScreen, headerless, isDirty, flushBody, footer,
+  onOpenChange, title, children, wide, fullScreen, headerless, isDirty, flushBody, footer,
   busy = false, nothingToLose, acknowledge,
 }: ModalProps) {
   const [confirmClose, setConfirmClose] = useState(false);
@@ -194,7 +200,9 @@ function ModalBody({
           className={fullScreen
             ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-base'
             : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
-              extraWide ? 'w-full max-w-5xl' : wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'
+              // У широкого — зазор по краям: между телефоном и 896 px (планшет, 768) иначе окно
+              // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
+              wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
             } ${NARROW_FULL}`}
           style={fullScreen ? undefined : { boxShadow: 'var(--f-shadow28)' }}
           // «Тронуто»: первый же ввод внутри содержимого.

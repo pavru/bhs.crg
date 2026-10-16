@@ -109,7 +109,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
   const isGostDocuments = source.sheetOrPath === 'gost-documents';
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Результат обработки — ${source.name}`} extraWide nothingToLose>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Результат обработки — ${source.name}`} wide nothingToLose>
       <p className="text-xs mb-3 text-fg4">
         Результат после Filter/Transformation/Sort — то, что получит маппинг документа.
       </p>

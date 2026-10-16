@@ -34,7 +34,7 @@ export function RecognitionBlockedDialog(
           <Button type="button" variant="filled" onClick={onClose}>Понятно</Button>
         </div>
       }>
-      <div className="space-y-3 max-w-[520px]">
+      <div className="space-y-3">
         <p className="text-sm text-fg1">{message}</p>
         {/* Совет даём только там, где он лечит: отказ движка на середине или сбой сети в настройках
             не чинится, и отправлять туда человека значит тратить его время. */}

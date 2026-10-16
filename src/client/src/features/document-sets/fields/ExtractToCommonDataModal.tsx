@@ -263,7 +263,7 @@ export function ExtractToCommonDataModal({
   const blocked = blocking.length > 0 || violationList.length > 0 || noPlace;
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} wide
+    <Modal open={open} onOpenChange={onOpenChange}
       title={`Вынести в общие данные — ${compositeType.name}`}
       footer={
         <div className="flex justify-end gap-2">
@@ -274,7 +274,7 @@ export function ExtractToCommonDataModal({
           </Button>
         </div>
       }>
-      <div className="px-6 py-4 space-y-4">
+      <div className="space-y-4">
         {blocking.length > 0 && (
           <Note tone="danger" icon={<AlertTriangle size={14} />}
             title="Внутри есть ссылки, которые вне своего комплекта не разворачиваются">

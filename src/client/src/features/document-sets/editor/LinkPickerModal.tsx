@@ -150,7 +150,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
     : `Документ качества для ${count} материал(ов)`;
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} wide>
       <div className="flex gap-1 mb-3 bg-muted rounded-lg p-0.5 w-fit">
         {(['pick', 'search', 'create'] as const).map(t => (
           <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}

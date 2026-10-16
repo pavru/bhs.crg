@@ -518,7 +518,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               <Button variant="filled" onClick={() => setRowModal(null)}>Готово</Button>
             </div>
           }>
-          <div className="px-6 py-4 space-y-3">
+          <div className="space-y-3">
             {isUnionComposite ? (
               <UnionFieldGroup field={field} allDocTypes={allDocTypes}
                 value={allItems[rowModal] as Record<string, unknown>}
@@ -795,7 +795,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               <Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button>
             </div>
           }>
-          <div className="px-6 py-4">{subfieldsBody}</div>
+          {subfieldsBody}
         </Modal>
         {picker}
         {extractModal}
@@ -1008,7 +1008,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
           footer={<div className="flex justify-end"><Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button></div>}>
-          <div className="px-6 py-4 space-y-3">{bar}{activeEditor}</div>
+          <div className="space-y-3">{bar}{activeEditor}</div>
         </Modal>
       </>
     );
