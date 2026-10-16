@@ -1,8 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button, type ButtonProps } from './Button';
-import { ModalControlContext, useModalControl } from './modalControl';
+import {
+  ModalControlContext, WindowStepContext, useModalControl,
+  type WindowStepHost, type WindowStepSlots, type WindowStepState,
+} from './modalControl';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
 
 interface ModalBaseProps {
@@ -124,8 +127,13 @@ function ModalBody({
   const [confirmClose, setConfirmClose] = useState(false);
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
+  const { host, top, stepSlot } = useWindowSteps(content);
 
-  const state = modalState({ busy, acknowledge, isDirty, touched, nothingToLose });
+  // На шаге окно закрывается по правилам шага, а выход с него — назад, к форме окна.
+  const state = top
+    ? modalState({ busy: busy || top.busy, isDirty: top.isDirty, nothingToLose: !top.isDirty || undefined, touched: false })
+    : modalState({ busy, acknowledge, isDirty, touched, nothingToLose });
+  const leave = top ? top.back : () => onOpenChange(false);
   const rule = DISMISSAL[state];
   // Вопрос «Закрыть без сохранения?» живёт, только пока выход вообще возможен: начавшийся запрос
   // снимает его вместе с кнопкой «Закрыть» — иначе она закрыла бы окно мимо `busy`. А пока вопрос
@@ -147,7 +155,7 @@ function ModalBody({
       askedFrom.current ??= document.activeElement as HTMLElement | null;
       setConfirmClose(true);
     }
-    else onOpenChange(false);
+    else leave();
   }
 
   /** Показать выход — см. `pointAtExit`. */
@@ -160,6 +168,8 @@ function ModalBody({
    */
   function noteInput(e: { target: EventTarget }) {
     const field = e.target as Element;
+    // Набранное на шаге — его, а не формы окна: о нём шаг говорит сам (`isDirty`).
+    if (top) return;
     // Запрос поиска — не правка: его не сохраняют, и очищенное поле ничего не теряет. Поле поиска
     // называет себя само (`data-search`), иначе пикер с поиском переставал закрываться по Esc.
     if (content.current?.contains(field) && !field.closest?.('[data-search]')) setTouched(true);
@@ -231,7 +241,7 @@ function ModalBody({
               setConfirmClose(false);
               return;
             }
-            if (rule.escape === 'close') afterFields(() => onOpenChange(false));
+            if (rule.escape === 'close') afterFields(leave);
             else if (rule.escape === 'focusExit') afterFields(() => showExit(true));
           }}
           onPointerDownOutside={() => {
@@ -239,17 +249,19 @@ function ModalBody({
           }}
           // Запрет — на `onInteractOutside`, а не на указателе: туда же приходит уход фокуса к
           // тостам и порталам, и закрывать диалог он не должен точно так же.
+          // Промах на шаге не закрывает окно: Radix закрыл бы его целиком, а не вернул к форме.
           onInteractOutside={e => {
-            if (rule.outside !== 'close') e.preventDefault();
+            if (rule.outside !== 'close' || top) e.preventDefault();
           }}
         >
-          <ModalControlContext.Provider value={{ requestClose, busy }}>
-          <Dialog.Title className="sr-only">{title}</Dialog.Title>
-          {!headerless && (
+          <ModalControlContext.Provider value={{ requestClose, busy: busy || !!top?.busy }}>
+          <WindowStepContext.Provider value={host}>
+          <Dialog.Title className="sr-only">{top?.title ?? title}</Dialog.Title>
+          {(!headerless || top) && (
             <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5" inert={asking}>
               {/* truncate: заголовком бывает имя объекта (материал в пикере документа качества
                   доходит до сотни знаков) — без обрезки оно выдавливает крестик за край. */}
-              <span className="text-base font-semibold text-fg1 truncate" title={title}>{title}</span>
+              <span className="text-base font-semibold text-fg1 truncate" title={top?.title ?? title}>{top?.title ?? title}</span>
               {/* У результата выход один, и называет его диалог — крестика нет. При запросе крестик
                   виден, но недоступен: исчезнувший читался бы как поломка вёрстки. */}
               {!acknowledge && (
@@ -266,24 +278,35 @@ function ModalBody({
               )}
             </div>
           )}
+          {/* Форма окна под шагом остаётся смонтированной, только скрыта: выход с шага вернёт её
+              такой, какой оставили. Тело и подвал шага ложатся в его места (`WindowStep`). */}
           {flushBody ? (
-            <div className="flex-1 min-h-0 flex flex-col" inert={asking}>
-              {typeof children === 'function' ? children(requestClose) : children}
-            </div>
+            <>
+              <div className="flex-1 min-h-0 flex flex-col" inert={asking} hidden={!!top}>
+                {typeof children === 'function' ? children(requestClose) : children}
+              </div>
+              {top && <div className="overflow-y-auto flex-1 px-6 pt-2 pb-4" inert={asking}>{stepSlot('body')}</div>}
+            </>
           ) : (
-            <div className={`overflow-y-auto flex-1 px-6 pt-2 ${footer || acknowledge ? 'pb-4' : 'pb-6'}`} inert={asking}>
-              {typeof children === 'function' ? children(requestClose) : children}
+            <div className={`overflow-y-auto flex-1 px-6 pt-2 ${footer || acknowledge || top ? 'pb-4' : 'pb-6'}`} inert={asking}>
+              <div className="contents" hidden={!!top}>
+                {typeof children === 'function' ? children(requestClose) : children}
+              </div>
+              {stepSlot('body')}
             </div>
           )}
 
-          {(footer || acknowledge) && (
+          {(footer || acknowledge || top) && (
             <div className="shrink-0 px-6 py-3 border-t border-stroke bg-surface" inert={asking}>
               {acknowledge ? (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">{typeof footer === 'function' ? footer(requestClose) : footer}</div>
                   <ModalExit variant="filled">{acknowledge}</ModalExit>
                 </div>
-              ) : typeof footer === 'function' ? footer(requestClose) : footer}
+              ) : (
+                <div className="contents" hidden={!!top}>{typeof footer === 'function' ? footer(requestClose) : footer}</div>
+              )}
+              {stepSlot('footer')}
             </div>
           )}
 
@@ -303,15 +326,73 @@ function ModalBody({
                     Продолжить редактирование
                   </Button>
                   <Button variant="filled" danger size="sm"
-                    onClick={() => { setConfirmClose(false); onOpenChange(false); }}>
+                    onClick={() => { setConfirmClose(false); leave(); }}>
                     Закрыть
                   </Button>
                 </div>
               </div>
             </div>
           )}
+          </WindowStepContext.Provider>
           </ModalControlContext.Provider>
         </Dialog.Content>
     </Dialog.Portal>
   );
+}
+
+type StepEntry = WindowStepState & { id: string; back: () => void };
+
+/**
+ * Стопка шагов окна (issue #1384): верхний шаг виден, нижние и форма окна смонтированы и скрыты.
+ * Под каждый шаг окно заводит свои места — тело и подвал, — и шаг рисует туда порталом: так его
+ * состояние живёт там, где он отрисован, и шаг на шаге не стирает нижний.
+ */
+function useWindowSteps(content: RefObject<HTMLDivElement | null>) {
+  const [steps, setSteps] = useState<StepEntry[]>([]);
+  const [slots, setSlots] = useState<Record<string, WindowStepSlots>>({});
+  // Откуда ушли на шаг — туда фокус и вернётся: кнопка, открывшая шаг, снова видна.
+  const openers = useRef(new Map<string, HTMLElement | null>());
+  const restore = useRef<HTMLElement | null>(null);
+
+  const push = useCallback((id: string, back: () => void) => {
+    openers.current.set(id, document.activeElement as HTMLElement | null);
+    setSteps(s => s.some(x => x.id === id) ? s : [...s, { id, back, title: '', busy: false, isDirty: false }]);
+  }, []);
+  const update = useCallback((id: string, next: WindowStepState) => {
+    setSteps(s => s.map(x => x.id === id ? { ...x, ...next } : x));
+  }, []);
+  const pop = useCallback((id: string) => {
+    restore.current = openers.current.get(id) ?? null;
+    openers.current.delete(id);
+    setSteps(s => s.filter(x => x.id !== id));
+    setSlots(s => { const rest = { ...s }; delete rest[id]; return rest; });
+  }, []);
+  const host = useMemo<WindowStepHost>(() => ({ push, update, pop, slots }), [push, update, pop, slots]);
+
+  // Стабильные ref-колбэки мест: новый колбэк на каждой отрисовке звал бы setSlots без конца.
+  const refs = useRef(new Map<string, (el: HTMLElement | null) => void>());
+  function slotRef(id: string, kind: keyof WindowStepSlots) {
+    const key = `${id}:${kind}`;
+    let ref = refs.current.get(key);
+    if (!ref) {
+      ref = el => setSlots(s => s[id]?.[kind] === el || (!el && !s[id]) ? s : { ...s, [id]: { ...s[id], [kind]: el } });
+      refs.current.set(key, ref);
+    }
+    return ref;
+  }
+
+  const top = steps.at(-1) ?? null;
+  const topId = top?.id;
+  useEffect(() => {
+    if (topId) {
+      // Кнопка, открывшая шаг, скрылась вместе с формой — фокус держит окно, пока шаг не взял свой.
+      if (!content.current?.contains(document.activeElement)) content.current?.focus();
+    } else if (restore.current?.isConnected) restore.current.focus();
+    restore.current = null;
+  }, [topId, content]);
+
+  const stepSlot = (kind: keyof WindowStepSlots) => steps.map(s => (
+    <div key={s.id} ref={slotRef(s.id, kind)} className="contents" hidden={s.id !== topId} />
+  ));
+  return { host, top, stepSlot };
 }

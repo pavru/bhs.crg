@@ -13,6 +13,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { WindowStep } from '@/shared/ui/WindowStep';
+import { useOwnWindow } from '@/shared/ui/modalControl';
+import { SubfieldLabel } from './SubfieldLabel';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import type { CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
@@ -497,7 +500,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         confirmLabel={`Удалить (${chosen.length})`}
         onConfirm={deleteSelected} />
       {rowModal !== null && allItems[rowModal] != null && !isFieldRef(allItems[rowModal]) && (
-        <Modal open onOpenChange={o => { if (!o) setRowModal(null); }} wide
+        <WindowStep onBack={() => { setRowModal(null); setExtractRow(null); }} wide
           title={`${compositeType?.name ?? field.title} — строка ${rowModal + 1}`}
           footer={
             <div className="flex items-center justify-between gap-2">
@@ -511,7 +514,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)
                     || !!unionRef(allItems[rowModal] as Record<string, unknown>)}
                   title="Создать запись общих данных из этой строки"
-                  onClick={() => { const i = rowModal; setRowModal(null); setExtractRow(i); }}>
+                  onClick={() => setExtractRow(rowModal)}>
                   Вынести в общие данные…
                 </Button>
               ) : <span />}
@@ -531,11 +534,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               const invalid = showValidation && isMissing(sf, subVal);
               return (
                 <div key={sf.key}>
-                  {['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file'].includes(sf.type) && (
-                    <label className="block text-sm font-medium text-fg2 mb-1">
-                      {sf.title}{sf.required && <span className="ml-0.5 text-danger">*</span>}
-                    </label>
-                  )}
+                  <SubfieldLabel sf={sf} />
                   {sf.type === 'complex' ? (
                     <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={subVal}
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })}
@@ -566,7 +565,26 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               );
             })}
           </div>
-        </Modal>
+          {/* Шаг окна строки (issue #1384): «Отмена» возвращает к строке. Строка заменяется ссылкой
+              НА СВОЁМ МЕСТЕ: порядок строк значим, вынесенное не уезжает в конец (issue #663). */}
+          {compositeType && extractRow === rowModal && (
+            <ExtractToCommonDataModal
+              open onOpenChange={o => { if (!o) setExtractRow(null); }}
+              values={allItems[extractRow] as Record<string, unknown>}
+              compositeType={compositeType} allDocTypes={allDocTypes}
+              setId={setId} scope={scope} scopeId={scopeId}
+              onExtracted={ref => {
+                onChange(allItems.map((item, i) => (i === extractRow ? ref : item)));
+                // Строка стала ссылкой на ТОЛЬКО ЧТО созданную запись — битой она быть не может, а
+                // серверная метка по её прежнему номеру относилась к прежнему содержимому (issue #759).
+                setMarks(m => ({
+                  ...m, origins: m.origins.map((o, i) => (i === extractRow ? null : o)),
+                }));
+                setExtractRow(null);
+                setRowModal(null);
+              }} />
+          )}
+        </WindowStep>
       )}
       <ArrayTableModal
         open={tableOpen} onOpenChange={setTableOpen}
@@ -613,25 +631,6 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           onSelect={addFromCatalog}
         />
       )}
-      {/* Строка заменяется ссылкой НА СВОЁМ МЕСТЕ: порядок строк значим, и вынесенный материал не
-          должен уезжать в конец таблицы (issue #663). */}
-      {compositeType && extractRow !== null
-        && allItems[extractRow] != null && !isFieldRef(allItems[extractRow]) && (
-        <ExtractToCommonDataModal
-          open onOpenChange={o => { if (!o) setExtractRow(null); }}
-          values={allItems[extractRow] as Record<string, unknown>}
-          compositeType={compositeType} allDocTypes={allDocTypes}
-          setId={setId} scope={scope} scopeId={scopeId}
-          onExtracted={ref => {
-            onChange(allItems.map((item, i) => (i === extractRow ? ref : item)));
-            // Строка стала ссылкой на ТОЛЬКО ЧТО созданную запись — битой она быть не может, а
-            // серверная метка по её прежнему номеру относилась к прежнему содержимому (issue #759).
-            setMarks(m => ({
-              ...m, origins: m.origins.map((o, i) => (i === extractRow ? null : o)),
-            }));
-            setExtractRow(null);
-          }} />
-      )}
     </div>
   );
 }
@@ -657,6 +656,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const [collapsed, setCollapsed] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false); // issue #663
+  // Внутри окна вложенное раскрывается на месте: окно над окном — только пикер (issue #1384).
+  const asWindow = useOwnWindow(nested);
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
   const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке (issue #611)
@@ -744,12 +745,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         const invalid = showValidation && isMissing(sf, subVal);
         return (
           <div key={sf.key}>
-            {['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file'].includes(sf.type) && (
-              <label className="block text-sm font-medium text-fg2 mb-1">
-                {sf.title}
-                {sf.required && <span className="ml-0.5 text-danger">*</span>}
-              </label>
-            )}
+            <SubfieldLabel sf={sf} />
             <SubfieldEditor sf={sf} value={subVal} onChange={v => setSubValue(sf.key, v)}
               allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
               otherInstances={otherInstances} scope={scope} scopeId={scopeId}
@@ -761,8 +757,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
     </div>
   );
 
-  // Вложенное составное (глубина ≥1): строка-сводка + правка в модалке — глубина формы не растёт.
-  if (nested) {
+  // Вложенное составное (глубина ≥1) на странице: строка-сводка + правка в окне — глубина формы не растёт.
+  if (asWindow) {
     return (
       <>
         <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
@@ -788,7 +784,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               {canExtract ? (
                 <Button variant="text" size="sm" icon={<Share2 size={13} />} disabled={isEmpty}
                   title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
-                  onClick={() => { setModalOpen(false); setExtractOpen(true); }}>
+                  onClick={() => setExtractOpen(true)}>
                   Вынести в общие данные…
                 </Button>
               ) : <span />}
@@ -796,9 +792,9 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             </div>
           }>
           {subfieldsBody}
+          {extractModal /* шаг этого окна (issue #1384) */}
         </Modal>
         {picker}
-        {extractModal}
       </>
     );
   }
@@ -928,6 +924,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   // persist хранит ОДИН ключ, данные другого варианта живут в локальном стэше до закрытия редактора.
   const [stash, setStash] = useState<Record<string, unknown>>({});
   const [modalOpen, setModalOpen] = useState(false);
+  const asWindow = useOwnWindow(nested); // внутри окна — на месте (issue #1384)
 
   const activeKey = presentKey ?? chosen ?? subFields[0]?.key ?? '';
 
@@ -985,8 +982,8 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
     </div>
   );
 
-  // Вложенный union (глубина ≥1) — строка-сводка активного варианта + правка в модалке.
-  if (nested) {
+  // Вложенный union (глубина ≥1) на странице — строка-сводка активного варианта + правка в окне.
+  if (asWindow) {
     return (
       <>
         <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">

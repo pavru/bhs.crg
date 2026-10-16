@@ -100,9 +100,12 @@ await check('array-table-keeps-column-widths', async () => {
 await table.getByRole('button', { name: /вставить из excel/i }).first().click();
 await settled(page);
 
+// Вставка — шаг окна таблицы, а не окно над ним (issue #1384): окно на экране одно.
 await check('paste-opens-on-input-step', async () => {
   const t = await page.locator('[role=dialog]').last().innerText();
   if (!/вставьте|excel/i.test(t)) throw new Error(`не шаг ввода: ${t.slice(0, 140)}`);
+  const open = await page.locator('[role=dialog]').count();
+  if (open !== 1) throw new Error(`вставка открылась ${open}-м окном, а должна — шагом окна таблицы`);
 });
 
 await check('paste-detects-header-and-counts-rows', async () => {
@@ -116,10 +119,52 @@ await check('paste-detects-header-and-counts-rows', async () => {
   if (!/импортировать\s*\(1 стр/i.test(t)) throw new Error(`строки посчитаны неверно: ${t.slice(-300)}`);
 });
 
-// Во вставке набирали — голый Esc её уже не закрывает (issue #1235): закрываем и проверяем.
-await closeDialog(page);   // вставка
-await settled(page);
+// «Отмена» вставки возвращает к таблице с её строками, а не закрывает окно. Во вставке набирали —
+// выход спрашивает (issue #1235), и «Закрыть» уходит только с шага.
+await check('paste-cancel-returns-to-table', async () => {
+  const dlg = page.locator('[role=dialog]').last();
+  await dlg.getByRole('button', { name: 'Отмена' }).click();
+  await dlg.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+  await settled(page);
+  const t = await dlg.innerText();
+  if (!/таблица/i.test(t)) throw new Error(`после отмены вставки — не таблица: ${t.slice(0, 140)}`);
+  const rows = await dlg.locator('tbody tr').count();
+  if (rows !== WORKS_ROWS) throw new Error(`таблица вернулась с ${rows} строками вместо ${WORKS_ROWS}`);
+});
 await closeDialog(page);   // таблица
+await settled(page);
+
+// ── Окно строки: без второго уровня (issue #1384) ─────────────────────────────────
+// Строка «Работ» несёт составные «Единица измерения» и «Вид работы». Раньше каждое открывалось окном
+// над окном строки (сводка с карандашом «Редактировать»); теперь раскрывается на месте.
+const rowTitle = /— строка 1$/;
+const dialogTitle = dlg => dlg.locator('span[title]').first().innerText();
+// Список строк свёрнут по умолчанию (кнопка «Таблица» видна и так) — раскрываем.
+if (!(await editor.getByRole('button', { name: /^Редактировать$/ }).count())) {
+  await editor.getByRole('button', { name: /Работы/ }).first().click();
+  await settled(page);
+}
+await editor.getByRole('button', { name: /^Редактировать$/ }).first().click();
+await settled(page);
+await check('nested-composite-in-row-opens-in-place', async () => {
+  const dlg = page.locator('[role=dialog]').last();
+  if (!rowTitle.test(await dialogTitle(dlg))) throw new Error(`открылась не строка: «${await dialogTitle(dlg)}»`);
+  const pencils = await dlg.getByTitle('Редактировать').count();
+  if (pencils) throw new Error(`в окне строки ${pencils} составных открываются своим окном — окно над окном`);
+});
+
+// Вынос строки в общие данные — шаг окна строки: «Отмена» возвращает к ней, а не на страницу.
+await check('row-extract-is-a-step', async () => {
+  const dlg = page.locator('[role=dialog]').last();
+  await dlg.getByRole('button', { name: /Вынести в общие данные/ }).click();
+  await settled(page);
+  if ((await page.locator('[role=dialog]').count()) !== 1) throw new Error('вынос открылся вторым окном');
+  if (!/^Вынести в общие данные/.test(await dialogTitle(dlg))) throw new Error('шаг выноса не показан');
+  await dlg.getByRole('button', { name: 'Отмена' }).click();
+  await settled(page);
+  if (!rowTitle.test(await dialogTitle(dlg))) throw new Error(`«Отмена» выноса привела не к строке: «${await dialogTitle(dlg)}»`);
+});
+await closeDialog(page);   // строка
 await settled(page);
 
 // ── Пикер ссылки ───────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { useContext, useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, ArchiveRestore, Link2, X } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
+import { ModalExit } from '@/shared/ui/Modal';
+import { WindowStep } from '@/shared/ui/WindowStep';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
@@ -262,12 +263,14 @@ export function ExtractToCommonDataModal({
   const violationList = Object.entries(violations);
   const blocked = blocking.length > 0 || violationList.length > 0 || noPlace;
 
-  return (
-    <Modal open={open} onOpenChange={onOpenChange}
+  // Внутри окна поля (строка массива, составное) — его шаг, и «Отмена» возвращает к форме; на
+  // странице — своё окно (issue #1384).
+  return open ? (
+    <WindowStep onBack={() => onOpenChange(false)} busy={busy}
       title={`Вынести в общие данные — ${compositeType.name}`}
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" onClick={submit} loading={busy}
             disabled={busy || blocked || !name.trim()}>
             {duplicate ? 'Всё равно создать новую' : 'Создать запись'}
@@ -414,8 +417,8 @@ export function ExtractToCommonDataModal({
 
         {error && <p className="text-sm text-danger">{error}</p>}
       </div>
-    </Modal>
-  );
+    </WindowStep>
+  ) : null;
 }
 
 // ─── Вспомогательное ──────────────────────────────────────────────────────────
