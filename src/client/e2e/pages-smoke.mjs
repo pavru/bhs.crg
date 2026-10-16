@@ -189,6 +189,28 @@ await check('document-page-from-set-steps-back', async () => {
   await editorText();
 });
 
+// Источники данных — вкладка редактора, а не окно над страницей (issue #1384): «Из шаблона» над ней —
+// окно ПЕРВОГО уровня. Ломается: вернуть кнопку с окном в шапку — вкладки нет, а шаблон открывался бы
+// окном над окном.
+await check('document-sources-is-an-editor-tab', async () => {
+  await page.goto(`${BASE}${DOC_PATH}`);
+  await editorText();
+  const editor = page.getByTestId('document-editor');
+  if (await editor.getByRole('button', { name: /^Источники/ }).count())
+    throw new Error('в шапке документа осталась кнопка «Источники» — источники обязаны быть вкладкой');
+  await editor.getByRole('tab', { name: /^Источники данных/ }).click();
+  const panel = editor.getByRole('tabpanel', { name: /^Источники данных/ });
+  await panel.getByRole('button', { name: 'Из шаблона' }).waitFor({ timeout: 10000 })
+    .catch(() => { throw new Error('вкладка «Источники данных» не показала свои действия'); });
+  if (await page.getByRole('dialog').count()) throw new Error('вкладка источников открыла окно');
+  await panel.getByRole('button', { name: 'Из шаблона' }).click();
+  await page.getByRole('dialog').first().waitFor({ timeout: 5000 });
+  const dialogs = await page.getByRole('dialog').count();
+  await page.keyboard.press('Escape');
+  await settled(page);
+  if (dialogs !== 1) throw new Error(`«Из шаблона» открылось ${dialogs}-м окном, а должно — единственным`);
+});
+
 // ── Сверка: секция из адреса ──────────────────────────────────────────────────
 await check('reconciliations-view-param-opens-section', async () => {
   await page.goto(`${BASE}/reconciliations?view=aliases`);
