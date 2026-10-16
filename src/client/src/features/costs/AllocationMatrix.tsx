@@ -9,6 +9,7 @@ import {
 } from '@/shared/api/allocationMatrix';
 import { formatMoney, formatQuantity } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
+import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
 import { useDraftBase, type DraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import {
@@ -195,72 +196,68 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
 
         {pending && <PendingNote view={view} places={places} />}
 
-        <div className="overflow-auto max-h-[65vh] border border-stroke rounded">
-          <table className="text-xs border-separate border-spacing-0">
-            <thead>
-              <tr className="text-left text-fg4 align-bottom">
-                <th className={`${STICKY_LEFT} font-normal`}>Строка</th>
-                {targets.map((target, index) => (
-                  <th key={target.key} className="border-b border-stroke px-2 py-1.5 font-normal min-w-44">
-                    {editable
-                      ? <TargetHeader target={target} number={index + 1} places={places}
-                          onChange={patch => retarget(target.key, patch)} onRemove={() => remove(target.key)} />
-                      : <span className="text-fg2">{targetName(target, places)}</span>}
-                  </th>
-                ))}
-                <th className={`${STICKY_RIGHT} font-normal`}>Не разнесено</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => {
+        {/* Закреплены первая колонка (строка) и последняя («не разнесено»): при восьми объектах
+            остаток обязан остаться на виду после прокрутки вбок — ради него матрица и открыта. */}
+        <EditGrid label="Матрица разноски" className="max-h-[65vh]" rows={rows} rowKey={row => row.key}
+          columns={[
+            {
+              key: 'row', label: 'Строка', rowHeader: true, pin: 'start',
+              cell: row => (
+                <>
+                  <div className="text-fg1 max-w-64 truncate" title={row.title}>{row.title}</div>
+                  <div className="text-fg4">
+                    {row.mode === 'quantity'
+                      ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
+                        + (row.amount === null ? '' : ` · ${formatMoney(row.amount)}`)
+                      : row.whole === null ? 'суммы нет' : formatMoney(row.whole)}
+                  </div>
+                </>
+              ),
+            },
+            ...targets.map((target, index): EditGridColumn<MatrixRow> => ({
+              key: target.key, label: targetName(target, places), width: 'min-w-44',
+              header: editable
+                ? <TargetHeader target={target} number={index + 1} places={places}
+                    onChange={patch => retarget(target.key, patch)} onRemove={() => remove(target.key)} />
+                : <span className="text-fg2">{targetName(target, places)}</span>,
+              cell: row => {
                 const allocation = allocations[row.key];
-                const rest = dirty && !preview ? estimateRest(row, targets, cells) : null;
                 return (
-                  <tr key={row.key} className="align-top">
-                    <th className={`${STICKY_LEFT} font-normal text-left`}>
-                      <div className="text-fg1 max-w-64 truncate" title={row.title}>{row.title}</div>
-                      <div className="text-fg4">
-                        {row.mode === 'quantity'
-                          ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
-                            + (row.amount === null ? '' : ` · ${formatMoney(row.amount)}`)
-                          : row.whole === null ? 'суммы нет' : formatMoney(row.whole)}
+                  <div className="tabular-nums">
+                    {editable && row.mode !== 'none' && (
+                      <NumberInput value={cells[row.key]?.[target.key] ?? ''} placeholder="0"
+                        label={`${row.title}, ${targetName(target, places)}`}
+                        onChange={value => edit(row.key, target.key, value)} />
+                    )}
+                    {partAt(allocation, target)?.mismatched && (
+                      <div className="text-right text-warning"
+                        title="У строки сменился вид (появилось или пропало количество): такая часть не разносит ничего">
+                        часть не того вида — уйдёт при сохранении
                       </div>
-                    </th>
-                    {targets.map(target => (
-                      <td key={target.key} className="border-b border-stroke px-2 py-1 tabular-nums">
-                        {editable && row.mode !== 'none' && (
-                          <NumberInput value={cells[row.key]?.[target.key] ?? ''} placeholder="0"
-                            label={`${row.title}, ${targetName(target, places)}`}
-                            onChange={value => edit(row.key, target.key, value)} />
+                    )}
+                    {!dirty && (
+                      <div className="text-right text-fg2">
+                        {cellText(row, partAt(allocation, target))}
+                        {remainder(row, target) && (
+                          <span className="ml-1 text-warning"
+                            title="Сюда ушёл остаток округления — так части складываются ровно в строку">◆</span>
                         )}
-                        {partAt(allocation, target)?.mismatched && (
-                          <div className="text-right text-warning"
-                            title="У строки сменился вид (появилось или пропало количество): такая часть не разносит ничего">
-                            часть не того вида — уйдёт при сохранении
-                          </div>
-                        )}
-                        {!dirty && (
-                          <div className="text-right text-fg2">
-                            {cellText(row, partAt(allocation, target))}
-                            {remainder(row, target) && (
-                              <span className="ml-1 text-warning"
-                                title="Сюда ушёл остаток округления — так части складываются ровно в строку">◆</span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    ))}
-                    <td className={`${STICKY_RIGHT} tabular-nums text-right`}>
-                      {rest !== null
-                        ? <span className="text-fg4">≈ {row.mode === 'quantity' ? `${formatQuantity(rest)} ${row.unit ?? ''}`.trim() : formatMoney(rest)}</span>
-                        : restText(row, allocation)}
-                    </td>
-                  </tr>
+                      </div>
+                    )}
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
+              },
+            })),
+            {
+              key: 'rest', label: 'Не разнесено', align: 'right', pin: 'end',
+              cell: row => {
+                const rest = dirty && !preview ? estimateRest(row, targets, cells) : null;
+                return rest !== null
+                  ? <span className="text-fg4">≈ {row.mode === 'quantity' ? `${formatQuantity(rest)} ${row.unit ?? ''}`.trim() : formatMoney(rest)}</span>
+                  : restText(row, allocations[row.key]);
+              },
+            },
+          ]} />
       </div>
     </Modal>
   );
@@ -312,7 +309,3 @@ function PendingNote({ view, places }: { view: InvoiceView; places: Places }) {
     </p>
   );
 }
-
-const STICKY_LEFT = 'sticky left-0 z-10 bg-surface border-b border-r border-stroke px-2 py-1.5';
-const STICKY_RIGHT = 'sticky right-0 z-10 bg-surface border-b border-l border-stroke px-2 py-1.5';
-

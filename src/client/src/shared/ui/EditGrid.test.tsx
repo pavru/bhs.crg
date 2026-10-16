@@ -113,4 +113,34 @@ describe('EditGrid (#1354)', () => {
       columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
     expect(document.querySelector('[data-readiness="line-1"]')?.textContent).toBe('А');
   });
+
+  it('закреплённые колонки липнут к своим краям, название строки — заголовок строки', () => {
+    render(<EditGrid rows={[line('А')]} rowKey={r => r.key} columns={[
+      { key: 'name', label: 'Строка', rowHeader: true, pin: 'start', cell: r => r.name },
+      { key: 'mid', label: 'Объект', cell: () => '1' },
+      { key: 'rest', label: 'Остаток', pin: 'end', cell: () => '0' },
+    ]} />);
+    const head = screen.getByRole('rowheader', { name: 'А' });
+    expect(head.className).toContain('sticky');
+    expect(head.style.left).toBe('0px');
+    const rest = screen.getAllByRole('cell').at(-1)!;
+    expect(rest.style.right).toBe('0px');
+    expect(screen.getByRole('columnheader', { name: 'Остаток' }).style.right).toBe('0px');
+  });
+
+  it('ширина в пикселях делает раскладку фиксированной', () => {
+    render(<EditGrid rows={[line('А')]} rowKey={r => r.key}
+      columns={[{ key: 'name', label: 'Имя', size: 120, cell: r => r.name }]} />);
+    expect(screen.getByRole('table').className).toContain('table-fixed');
+    expect(screen.getByRole('columnheader', { name: 'Имя' }).style.width).toBe('120px');
+  });
+
+  it('выбранная строка подсвечена', () => {
+    const rows = [line('А'), line('Б')];
+    render(<EditGrid rows={rows} rowKey={r => r.key} selected={r => r.name === 'Б'}
+      columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
+    const [, a, b] = screen.getAllByRole('row');
+    expect(a.className).not.toContain('bg-brand-subtle');
+    expect(b.className).toContain('bg-brand-subtle');
+  });
 });

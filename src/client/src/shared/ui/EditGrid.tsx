@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from './Button';
-import { dtCard, dtNum, dtRow, dtTableCompact, dtTdEdit, dtThCompact } from './dataTable';
+import { dtCard, dtNum, dtRow, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact } from './dataTable';
+import type { DataGridDrag } from './DataGrid';
 
 /**
  * Сетка правки (#1354): черновик строк, которые правят вместе и сохраняют целиком, — строки
@@ -32,6 +33,18 @@ export interface EditGridColumn<Row> {
   header?: ReactNode;
   /** Ширина колонки классом Tailwind (`w-28`); нет — колонка делит остаток. */
   width?: string;
+  /**
+   * Ширина в пикселях — когда её задаёт человек (растягивает колонку руками). Есть хоть у одной
+   * колонки — раскладка фиксированная, и таблица шириной по сумме колонок.
+   */
+  size?: number;
+  /** Клетка — заголовок строки (`<th scope="row">`): по ней читалка экрана называет строку. */
+  rowHeader?: boolean;
+  /**
+   * Колонка закреплена у края и не уезжает при прокрутке вбок: `start` — первая (название строки),
+   * `end` — последняя (остаток, ради которого сетку открыли). Закрепляется только крайняя колонка.
+   */
+  pin?: 'start' | 'end';
   align?: 'left' | 'right';
   /** Подсказка шапки. */
   hint?: string;
@@ -56,7 +69,7 @@ const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), button:not([
 
 export function EditGrid<Row>({
   columns, rows, rowKey, label, numbered = false, add, onRemove, removeLabel, empty = 'Строк нет',
-  framed = true, className = '', minWidth = '', rowData,
+  framed = true, className = '', minWidth = '', rowData, sheet = false, selected, drag,
 }: {
   columns: EditGridColumn<Row>[];
   rows: Row[];
@@ -76,7 +89,17 @@ export function EditGrid<Row>({
   empty?: ReactNode;
   /** Своя рамка-карточка; false — сетка внутри чужой карточки (иначе рамка в рамке). */
   framed?: boolean;
+  /** Классы прокручиваемой карточки — например, её наибольшая высота (`max-h-[65vh]`). */
   className?: string;
+  /**
+   * «Лист»: поле во всю клетку, без отступов, с линиями между колонками — для сетки, где клетка и
+   * есть поле (строки массива в документе). Поля такой сетки рисуются без рамки.
+   */
+  sheet?: boolean;
+  /** Строка выбрана (флажком в своей колонке) — она подсвечена. */
+  selected?: (row: Row, index: number) => boolean;
+  /** Строки переставляют перетаскиванием — как у `DataGrid`: что тащат и куда ляжет, знает экран. */
+  drag?: DataGridDrag;
   /**
    * Наименьшая ширина таблицы классом (`min-w-[70rem]`): колонок много, и в узком окне сетка
    * прокручивается вбок, а не сжимает поля до нечитаемых.
@@ -100,7 +123,7 @@ export function EditGrid<Row>({
     pendingFocus.current = null;
     if (wanted.kind === 'added') {
       const row = table.current.querySelector<HTMLElement>(`tbody tr[data-row="${rows.length - 1}"]`);
-      row?.querySelector<HTMLElement>(`td[data-cell] :is(${FOCUSABLE})`)?.focus();
+      row?.querySelector<HTMLElement>(`[data-cell] :is(${FOCUSABLE})`)?.focus();
       return;
     }
     const next = Math.min(wanted.index, rows.length - 1);
@@ -111,7 +134,7 @@ export function EditGrid<Row>({
   }, [rows.length]);
 
   function focusCell(r: number, c: number): boolean {
-    const cell = table.current?.querySelector<HTMLElement>(`td[data-r="${r}"][data-c="${c}"]`);
+    const cell = table.current?.querySelector<HTMLElement>(`[data-cell][data-r="${r}"][data-c="${c}"]`);
     const control = cell?.querySelector<HTMLElement>(FOCUSABLE);
     if (!control) return false;
     control.focus();
@@ -124,7 +147,7 @@ export function EditGrid<Row>({
     const target = e.target as HTMLElement;
     // Событие из выпадающего списка, вынесенного порталом, всплывает сюда по дереву React — но в
     // клетке он не лежит, и его стрелки сетке не принадлежат.
-    const cell = target.closest<HTMLElement>('td[data-cell]');
+    const cell = target.closest<HTMLElement>('[data-cell]');
     if (!cell || !table.current?.contains(cell)) return;
     const r = Number(cell.dataset.r);
     const c = Number(cell.dataset.c);
@@ -145,18 +168,28 @@ export function EditGrid<Row>({
     }
   }
 
-  const th = (extra = '') => `${dtThCompact} ${extra}`;
+  const sized = columns.some(c => c.size !== undefined);
+  const td = sheet ? dtTdSheet : dtTdEdit;
+  const th = (extra = '') => `${dtThCompact} ${sheet ? 'border-r' : ''} ${extra}`;
+  // Закреплённая клетка липнет к своему краю и лежит НАД соседями: слой задан стилем, а не классом —
+  // у шапки уже есть свой класс слоя, и два класса на одно свойство спорили бы порядком в CSS.
+  const pinClass = (c: EditGridColumn<Row>) => (c.pin === 'start' ? 'sticky border-r'
+    : c.pin === 'end' ? 'sticky border-l' : '');
+  const pinStyle = (c: EditGridColumn<Row>, layer: number): CSSProperties | undefined => (c.pin === 'start'
+    ? { left: 0, zIndex: layer } : c.pin === 'end' ? { right: 0, zIndex: layer } : undefined);
+  const sizeStyle = (c: EditGridColumn<Row>): CSSProperties | undefined => (c.size === undefined ? undefined : { width: c.size });
 
   return (
-    <div className={`space-y-2 ${className}`}>
-      <div className={framed ? dtCard : 'overflow-auto'}>
-        <table ref={table} aria-label={label} onKeyDown={onKeyDown} className={`${dtTableCompact} ${minWidth}`}>
+    <div className="space-y-2">
+      <div className={`${framed ? dtCard : 'overflow-auto'} ${className}`}>
+        <table ref={table} aria-label={label} onKeyDown={onKeyDown}
+          className={`${dtTableCompact} ${sized ? dtTableSized : ''} ${minWidth}`}>
           <thead>
             <tr>
               {numbered && <th className={th('w-8')}>№</th>}
               {columns.map(c => (
-                <th key={c.key} title={c.hint}
-                  className={th(`${c.width ?? ''} ${c.align === 'right' ? 'text-right' : ''}`)}>
+                <th key={c.key} title={c.hint} style={{ ...sizeStyle(c), ...pinStyle(c, 30) }}
+                  className={th(`${c.width ?? ''} ${c.align === 'right' ? 'text-right' : ''} ${pinClass(c)}`)}>
                   {c.header ?? c.label}
                 </th>
               ))}
@@ -168,33 +201,54 @@ export function EditGrid<Row>({
               <tr>
                 <td colSpan={span} className={`${dtTdEdit} py-3 text-center text-fg4`}>{empty}</td>
               </tr>
-            ) : rows.map((row, i) => (
-              <tr key={rowKey(row, i)} data-row={i} className={dtRow} {...rowData?.(row, i)}>
-                {numbered && <th scope="row" className={`${dtTdEdit} text-left font-normal text-fg4 tabular-nums`}>{i + 1}</th>}
-                {columns.map((c, ci) => (
-                  <td key={c.key} data-cell data-r={i} data-c={ci}
-                    className={`${dtTdEdit} text-fg1 ${c.align === 'right' ? dtNum : ''}`}>
-                    {c.cell(row, i)}
-                  </td>
-                ))}
-                {removable && (
-                  <td className={`${dtTdEdit} text-center`}>
-                    <RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
-                      onClick={() => {
-                        pendingFocus.current = { kind: 'removed', index: i };
-                        onRemove(row, i);
-                      }} />
-                  </td>
-                )}
-              </tr>
-            ))}
+            ) : rows.map((row, i) => {
+              const chosen = selected?.(row, i) ?? false;
+              // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью, а не
+              // рамкой — рамка сдвинула бы строки на её толщину, и строка уехала бы из-под курсора.
+              const dropMark = !drag || drag.dragging === null ? null
+                : drag.target === i ? 'inset 0 2px 0 0 var(--color-brand)'
+                : drag.target === rows.length && i === rows.length - 1 ? 'inset 0 -2px 0 0 var(--color-brand)'
+                : null;
+              return (
+                <tr key={rowKey(row, i)} data-row={i} {...rowData?.(row, i)}
+                  className={`${dtRow} ${chosen ? 'bg-brand-subtle' : ''} ${drag?.dragging === i ? 'opacity-40' : ''}`}
+                  style={dropMark ? { boxShadow: dropMark } : undefined}
+                  {...(drag ? {
+                    onDragOver: (e: DragEvent) => drag.onOver(e, i),
+                    onDrop: drag.onDrop,
+                  } : {})}>
+                  {numbered && <th scope="row" className={`${td} text-left font-normal text-fg4 tabular-nums`}>{i + 1}</th>}
+                  {columns.map((c, ci) => {
+                    const Cell = c.rowHeader ? 'th' : 'td';
+                    return (
+                      <Cell key={c.key} data-cell data-r={i} data-c={ci} scope={c.rowHeader ? 'row' : undefined}
+                        style={pinStyle(c, 5)}
+                        className={`${td} text-fg1 ${c.rowHeader ? 'text-left font-normal' : ''} `
+                          + `${c.align === 'right' ? dtNum : ''} ${pinClass(c)} ${c.pin ? (chosen ? 'bg-brand-subtle' : 'bg-surface') : ''}`}>
+                        {c.cell(row, i)}
+                      </Cell>
+                    );
+                  })}
+                  {removable && (
+                    <td className={`${td} text-center`}>
+                      <RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
+                        onClick={() => {
+                          pendingFocus.current = { kind: 'removed', index: i };
+                          onRemove(row, i);
+                        }} />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
           {hasTotal && (
             <tfoot>
               <tr>
                 {numbered && <td className={FOOT} />}
                 {columns.map(c => (
-                  <td key={c.key} className={`${FOOT} ${c.align === 'right' ? dtNum : ''}`}>{c.total?.()}</td>
+                  <td key={c.key} style={pinStyle(c, 30)}
+                    className={`${FOOT} ${c.align === 'right' ? dtNum : ''} ${pinClass(c)}`}>{c.total?.()}</td>
                 ))}
                 {removable && <td className={FOOT} />}
               </tr>

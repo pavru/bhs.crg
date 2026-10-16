@@ -1,8 +1,5 @@
 {
-  "table": {
-    "features/costs/AllocationMatrix.tsx": 1,
-    "features/document-sets/fields/ArrayTableModal.tsx": 1
-  },
+  "table": {},
   "select": {},
   "h1": {
     "features/auth/AuthCard.tsx": 1,
