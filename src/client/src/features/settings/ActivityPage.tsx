@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useActivity, useActivityActions, type ActivityRecord } from '@/shared/api/activity';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 
 /**
  * Журнал действий (issue #950, ТЗ CORE-28).
@@ -19,6 +20,21 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 
 const PAGE = 50;
 const ALL = 'all';
+
+const COLUMNS: DataGridColumn<ActivityRecord>[] = [
+  { key: 'occurredAt', label: 'Когда', width: 'w-36',
+    cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.occurredAt)}</span> },
+  { key: 'actorName', label: 'Кто', width: 'w-52', wrap: true,
+    cell: r => <span className="text-fg2 break-all">{r.actorName}</span> },
+  { key: 'actionTitle', label: 'Что', wrap: true,
+    cell: r => (
+      <>
+        <div>{r.actionTitle}</div>
+        {r.target && <div className="text-fg3 text-xs break-all">{r.target}</div>}
+      </>
+    ) },
+  { key: 'change', label: 'Было → стало', wrap: true, cell: r => <Change record={r} /> },
+];
 
 function Change({ record }: { record: ActivityRecord }) {
   // Стрелка рисуется только когда есть и то и другое: «— → Администратор» читалось бы как потеря
@@ -70,33 +86,7 @@ export function ActivityPage() {
         </div>
       ) : (
         <>
-          <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
-            <table className="w-full text-sm">
-              <thead className="bg-base border-b border-stroke">
-                <tr>
-                  <th className="text-left px-4 py-2.5 font-medium text-fg2 w-36">Когда</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-fg2 w-52">Кто</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-fg2">Что</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-fg2">Было → стало</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-muted">
-                {records.map(r => (
-                  <tr key={r.id} className="hover:bg-base align-top">
-                    <td className="px-4 py-2.5 text-fg3 whitespace-nowrap tabular-nums">{formatDateTime(r.occurredAt)}</td>
-                    <td className="px-4 py-2.5 text-fg2 break-all">{r.actorName}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="text-fg1">{r.actionTitle}</div>
-                      {r.target && <div className="text-fg3 text-xs break-all">{r.target}</div>}
-                    </td>
-                    <td className="px-4 py-2.5 break-words">
-                      <Change record={r} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataGrid columns={COLUMNS} rows={records} rowKey={r => r.id} />
 
           {/* Страницами, а не кнопкой «показать ещё»: журнал копится годами, и растущий запрос
               рано или поздно упёрся бы в потолок страницы на сервере — список перестал бы

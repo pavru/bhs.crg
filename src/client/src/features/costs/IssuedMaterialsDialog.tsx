@@ -3,10 +3,25 @@ import { TriangleAlert } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import type { CostsConstruction } from '@/shared/api/invoices';
-import { useIssuedMaterials } from '@/shared/api/waybills';
+import { useIssuedMaterials, type IssuedMaterial } from '@/shared/api/waybills';
 import { formatCount, formatDate, formatQuantity } from '@/shared/format/format';
 import { linesWord } from './waybills';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
+
+const COLUMNS: DataGridColumn<IssuedMaterial>[] = [
+  { key: 'name', label: 'Позиция', wrap: true, cell: item => item.name ?? 'позиция без названия' },
+  { key: 'quantity', label: 'Количество', align: 'right', width: 'w-28', cell: item => formatQuantity(item.quantity) },
+  { key: 'unit', label: 'Ед.', width: 'w-16', cell: item => <span className="text-fg3">{item.unit ?? ''}</span> },
+  { key: 'first', label: 'Отпуск', width: 'w-44',
+    cell: item => (
+      <span className="text-fg3">
+        {item.first === item.last ? formatDate(item.first) : `${formatDate(item.first)} — ${formatDate(item.last)}`}
+      </span>
+    ) },
+  { key: 'waybills', label: 'Накладных', align: 'right', width: 'w-20',
+    cell: item => <span className="text-fg3">{formatCount(item.waybills)}</span> },
+];
 
 /**
  * «Материалы на объекте»: что выдано на стройку проведёнными накладными (ТЗ COST-17; задача D1,
@@ -58,32 +73,8 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
                 </p>
               )
               : (
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-fg4">
-                      <th className="py-1 font-normal">Позиция</th>
-                      <th className="w-28 py-1 font-normal text-right">Количество</th>
-                      <th className="w-16 py-1 pl-2 font-normal">Ед.</th>
-                      <th className="w-44 py-1 font-normal">Отпуск</th>
-                      <th className="w-20 py-1 font-normal text-right">Накладных</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.items.map(item => (
-                      <tr key={`${item.nomenclatureId}|${item.unit ?? ''}`} className="border-t border-stroke">
-                        <td className="py-1 text-fg1">{item.name ?? 'позиция без названия'}</td>
-                        <td className="py-1 text-right tabular-nums text-fg1">{formatQuantity(item.quantity)}</td>
-                        <td className="py-1 pl-2 text-fg3">{item.unit ?? ''}</td>
-                        <td className="py-1 text-fg3">
-                          {item.first === item.last
-                            ? formatDate(item.first)
-                            : `${formatDate(item.first)} — ${formatDate(item.last)}`}
-                        </td>
-                        <td className="py-1 text-right tabular-nums text-fg3">{formatCount(item.waybills)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataGrid density="compact" columns={COLUMNS} rows={data.items}
+                  rowKey={item => `${item.nomenclatureId}|${item.unit ?? ''}`} />
               )}
           </>
         )}

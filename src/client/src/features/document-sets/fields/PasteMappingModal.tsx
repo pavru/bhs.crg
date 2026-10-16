@@ -69,6 +69,9 @@ interface PasteMappingModalProps {
  * Вставка из Excel. Тело монтируется по открытию (issue #858): каждое открытие начинается с того
  * текста, с которым диалог позвали, и разбирает его до первого рендера — а не эффектом после него.
  */
+const MAP_HEAD = 'bg-base px-2 py-1.5 text-fg3 font-medium border-b border-stroke';
+const MAP_CELL = 'px-2 py-1.5 border-b border-stroke';
+
 export function PasteMappingModal(props: PasteMappingModalProps) {
   return props.open ? <PasteMappingModalBody {...props} /> : null;
 }
@@ -414,58 +417,54 @@ function PasteMappingModalBody({
           </label>
           <span className="text-xs text-fg4">Найдено строк данных: {importCount}</span>
         </div>
+        {/* Форма, а не таблица данных (#1354): строка — поле, в клетках — выбор. Поэтому сетка
+            раскладки, а не таблица: читать здесь нечего, здесь задают. */}
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-base">
-                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium w-1/3">Поле таблицы</th>
-                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium">Столбец из Excel</th>
-                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium">Сопоставить по</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableFields.map(f => {
-                const ci = fieldCol[f.key];
-                const needsMatch = f.type === 'complex';
-                const hasIdentity = needsMatch && complexMeta(f).identityKeys.length > 0;
-                return (
-                  <tr key={f.key} className="hover:bg-base">
-                    <td className="border border-stroke px-2 py-1.5">
-                      <span className="text-fg1 font-medium">{f.title}</span>
-                      {f.required && <span className="text-danger ml-0.5">*</span>}
-                    </td>
-                    <td className="border border-stroke px-2 py-1.5">
-                      <Select size="sm" className={selectCls} aria-label={`Колонка для «${f.title}»`}
-                        value={ci == null ? '' : String(ci)} emptyItem="— пропустить —"
-                        onValueChange={v => {
-                          clearPending();
-                          setFieldCol(prev => {
-                            const n = { ...prev };
-                            if (v === '') delete n[f.key]; else n[f.key] = Number(v);
-                            return n;
-                          });
-                        }}>
-                        {Array.from({ length: maxCols }, (_, i) => (
-                          <SelectItem key={i} value={String(i)}>{colLabel(i)}</SelectItem>
-                        ))}
+          <div className="grid grid-cols-3 min-w-[480px] text-xs border border-stroke rounded-md overflow-hidden [&>div:last-child>div]:border-b-0">
+            <div className={MAP_HEAD}>Поле таблицы</div>
+            <div className={MAP_HEAD}>Столбец из Excel</div>
+            <div className={MAP_HEAD}>Сопоставить по</div>
+            {tableFields.map(f => {
+              const ci = fieldCol[f.key];
+              const needsMatch = f.type === 'complex';
+              const hasIdentity = needsMatch && complexMeta(f).identityKeys.length > 0;
+              return (
+                <div key={f.key} className="contents">
+                  <div className={MAP_CELL}>
+                    <span className="text-fg1 font-medium">{f.title}</span>
+                    {f.required && <span className="text-danger ml-0.5">*</span>}
+                  </div>
+                  <div className={MAP_CELL}>
+                    <Select size="sm" className={selectCls} aria-label={`Колонка для «${f.title}»`}
+                      value={ci == null ? '' : String(ci)} emptyItem="— пропустить —"
+                      onValueChange={v => {
+                        clearPending();
+                        setFieldCol(prev => {
+                          const n = { ...prev };
+                          if (v === '') delete n[f.key]; else n[f.key] = Number(v);
+                          return n;
+                        });
+                      }}>
+                      {Array.from({ length: maxCols }, (_, i) => (
+                        <SelectItem key={i} value={String(i)}>{colLabel(i)}</SelectItem>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className={MAP_CELL}>
+                    {needsMatch && ci != null && (
+                      <Select size="sm" className={selectCls} aria-label={`Как сопоставлять «${f.title}»`}
+                        value={matchFields[f.key] ?? ''} placeholder="— выберите —"
+                        onValueChange={m => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: m as 'name' | 'key' | 'inline' })); }}>
+                        <SelectItem value="name">🔗 Наименование</SelectItem>
+                        {hasIdentity && <SelectItem value="key">🔗 Ключ</SelectItem>}
+                        <SelectItem value="inline">{'{}'} Встроенно (без поиска)</SelectItem>
                       </Select>
-                    </td>
-                    <td className="border border-stroke px-2 py-1.5">
-                      {needsMatch && ci != null && (
-                        <Select size="sm" className={selectCls} aria-label={`Как сопоставлять «${f.title}»`}
-                          value={matchFields[f.key] ?? ''} placeholder="— выберите —"
-                          onValueChange={m => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: m as 'name' | 'key' | 'inline' })); }}>
-                          <SelectItem value="name">🔗 Наименование</SelectItem>
-                          {hasIdentity && <SelectItem value="key">🔗 Ключ</SelectItem>}
-                          <SelectItem value="inline">{'{}'} Встроенно (без поиска)</SelectItem>
-                        </Select>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </Modal>

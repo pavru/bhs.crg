@@ -70,16 +70,15 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
 function ScalarPreview({ data, columns }: { data: Record<string, unknown>; columns: DataGridColumn[] }) {
   return (
     <div className="px-3 py-2 overflow-x-auto bg-surface">
-      <table className="text-xs w-full">
-        <tbody>
-          {columns.map(c => (
-            <tr key={c.key} className="border-b border-stroke last:border-0">
-              <td className="py-1 pr-4 font-medium w-1/3 text-fg3">{c.label}</td>
-              <td className="py-1 text-fg1"><DataGridValue row={data} column={c} renderValue={renderPreviewValue} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Одна запись — «поле — значение», а не таблица: колонок у неё нет, есть пары (#1354). */}
+      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] text-xs">
+        {columns.map(c => (
+          <div key={c.key} className="contents [&:not(:last-child)>*]:border-b [&>*]:border-stroke">
+            <dt className="py-1 pr-4 font-medium text-fg3">{c.label}</dt>
+            <dd className="py-1 text-fg1"><DataGridValue row={data} column={c} renderValue={renderPreviewValue} /></dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
