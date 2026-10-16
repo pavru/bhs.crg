@@ -119,3 +119,13 @@ export function serviceRecords(preview: CorrectionPreview): CorrectionRecordView
 export function signed(value: number, money: (value: number) => string): string {
   return value > 0 ? `+${money(value)}` : money(value);
 }
+
+/**
+ * Показывать ли «Исправить»: счёт требует исправления (сервер назвал его запертым), он ещё есть, и у
+ * человека и правка счетов, и право исправления. Без любого из прав кнопки нет вовсе — и о режиме ни
+ * слова: путь, который откажет, не предлагают.
+ */
+export function mayCorrect(view: InvoiceView, permission: (code: string) => boolean, gone: boolean): boolean {
+  return view.payment.lockedBy !== null && !gone
+    && permission('costs.invoice.edit') && permission('costs.invoice.correct');
+}

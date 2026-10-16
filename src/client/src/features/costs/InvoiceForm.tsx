@@ -43,6 +43,7 @@ import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { CorrectionBar } from './CorrectionBar';
 import { CorrectionContext, useCorrecting, useCorrectionDraft } from './useCorrectionDraft';
+import { mayCorrect } from './correction';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -152,7 +153,7 @@ export function InvoiceForm({
   // Запертый счёт правится ИСПРАВЛЕНИЕМ (E2, issue #1100, PR 6b-1): та же форма, переключённая на месте, —
   // причина, версия и книга, всё одним телом. Кнопка — тому, у кого и правка, и право исправления;
   // остальным о режиме ни слова.
-  const mayCorrect = closed && canEdit && can.permission('costs.invoice.correct');
+  const correctable = mayCorrect(view, can.permission, gone);
   const correcting = correction.active && !gone;
   const locked = (closed && !correcting) || !canEdit;
   // Всё, что пишет само, в исправлении убрано: запись у него одна (скан, распознавание, «Ещё», «Сохранить»).
@@ -248,7 +249,7 @@ export function InvoiceForm({
                 attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Файл не приложен'));
               }} />
           )}
-          {mayCorrect && !correcting && (
+          {correctable && !correcting && (
             <Button variant="outlined" size="sm" icon={<PencilLine size={14} />} onClick={correction.start}>
               Исправить
             </Button>

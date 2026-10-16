@@ -15,11 +15,12 @@
 //   3. `locked-invoice-says-why` — оплаченный счёт, попавший в закрытый период: полоса с причиной,
 //      кнопок сохранения и отмены оплаты нет вовсе (а не «есть и получают 409»), и ни один запрос
 //      экрана отказа не получил.
-//   4. `reader-has-no-correct-button` — руководитель (чтение без правки) кнопки «Исправить» не видит, и
-//      полоса о пути исправления ему молчит (E2, issue #1100, PR 6b-1).
-//   4а. `accountant-corrects-locked-invoice` — бухгалтер исправляет запертый счёт: без причины проверка не
-//      нажимается, предпросмотр называет день исправления, запись проходит без отказов, и сервер хранит
-//      ровно набранное — в шапке и в строке.
+//   4. `admin-corrects-locked-invoice` — исправление запертого счёта (E2, issue #1100, PR 6b-1): без
+//      причины проверка не нажимается, у строк нет своей кнопки записи, предпросмотр называет день
+//      исправления, запись проходит без отказов, и сервер хранит ровно набранное — в шапке и в строке.
+//      ⚠️ Под АДМИНИСТРАТОРОМ прогона, а не под бухгалтером: входы всех наборов CI уже упираются в предел
+//      частоты (`suites.test.mjs`), и второй вход здесь сделал бы красным соседний набор. Кто видит кнопку
+//      («Бухгалтер» — да, «Руководитель» — нет), проверяет `mayCorrect` модульно.
 //
 // ⚠️ ЗАКРЫТИЕ ПЕРИОДА ЗДЕСЬ — ТОЛЬКО СВОЕЙ СТРОЙКИ, И ОНО ОТМЕНЯЕТСЯ. База прогонов общая на все
 // наборы, и закрытие компании осталось бы соседям. Стройка прогона своя (заводится один раз), закрытие
@@ -32,10 +33,6 @@
 
 import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
 
-// Учётные записи посева (`seed-invoices.mjs`): бухгалтер исправляет, руководитель только читает.
-const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
-const READER_EMAIL = process.env.SMOKE_READER_EMAIL || 'ruk@bhs.local';
-const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -373,67 +370,42 @@ await check('locked-invoice-says-why', async () => {
 });
 
 // ── 4. Исправление запертого счёта (E2, issue #1100, PR 6b-1) ──────────────────────────────────────────
-/** Вторая учётная запись — в своём окне: администратор прогона остаётся в своём, со своим токеном. */
-async function seat(email) {
-  const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
-  const other = await context.newPage();
-  await login(other, email, USER_PASSWORD);
-  // Стартовой странице дают догрузиться: переход раньше оборвал бы её запросы (см. allocation-matrix-smoke).
-  await other.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
-  await other.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
-  await other.getByRole('button', { name: new RegExp(lockedNumber) }).first().click();
-  await settled(other);
-  await other.getByText(/Счёт заперт: период закрыт по/).waitFor({ timeout: 10_000 });
-  return { other, context };
-}
-
-await check('reader-has-no-correct-button', async () => {
-  const { other, context } = await seat(READER_EMAIL);
-  try {
-    if (await other.getByRole('button', { name: 'Исправить', exact: true }).count())
-      throw new Error('у руководителя есть «Исправить», хотя правки счетов у него нет');
-    if ((await other.locator('main').innerText()).includes('исправлением'))
-      throw new Error('полоса назвала руководителю путь исправления, которого у него нет');
-  } finally {
-    await context.close();
-  }
-});
-
-await check('accountant-corrects-locked-invoice', async () => {
-  const { other, context } = await seat(ACCOUNTANT_EMAIL);
+await check('admin-corrects-locked-invoice', async () => {
   const refused = [];
-  other.on('response', r => { if (r.status() >= 400 && r.url().includes('/api/')) refused.push(`${r.status()} ${r.url()}`); });
+  const listen = r => { if (r.status() >= 400 && r.url().includes('/api/')) refused.push(`${r.status()} ${r.url()}`); };
+  page.on('response', listen);
   try {
-    await other.getByRole('button', { name: 'Исправить', exact: true }).click();
-    const bar = other.getByTestId('correction-bar');
+    await open(lockedNumber);
+    await page.getByRole('button', { name: 'Исправить', exact: true }).click();
+    const bar = page.getByTestId('correction-bar');
     await bar.waitFor({ timeout: 10_000 });
     const verify = bar.getByRole('button', { name: 'Проверить исправление…' });
     if (await verify.isEnabled()) throw new Error('проверка доступна без причины и правок');
 
-    await other.getByLabel('Назначение', { exact: true }).fill('исправлено прогоном');
+    await page.getByLabel('Назначение', { exact: true }).fill('исправлено прогоном');
     // И строку: у неё своей записи в исправлении нет — набранное обязано уехать тем же телом.
-    await other.getByLabel('Примечание, строка 1').fill('примечание исправления');
-    if (await other.getByRole('button', { name: 'Сохранить строки', exact: true }).count())
+    await page.getByLabel('Примечание, строка 1').fill('примечание исправления');
+    if (await page.getByRole('button', { name: 'Сохранить строки', exact: true }).count())
       throw new Error('в исправлении у строк осталась своя кнопка записи');
     await bar.getByLabel(/Причина исправления/).fill('опечатка в назначении');
     await verify.click();
 
-    const dialog = other.getByRole('dialog');
+    const dialog = page.getByRole('dialog');
     await dialog.getByText(/Исправление ляжет днём/).waitFor({ timeout: 10_000 });
     const text = await dialog.innerText();
     if (!text.includes(`днём ${ru(today)}`)) throw new Error(`предпросмотр не назвал день исправления ${ru(today)}: ${text.slice(0, 300)}`);
     if (!/Деньги не меняются/.test(text)) throw new Error(`правка назначения показана как движение денег: ${text.slice(0, 300)}`);
 
-    const written = other.waitForResponse(r => r.url().endsWith(`/costs/invoices/${lockedId}/correction`)
+    const written = page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${lockedId}/correction`)
       && r.request().method() === 'POST');
     await dialog.getByRole('button', { name: 'Записать исправление' }).click();
     const response = await written;
     if (!response.ok()) throw new Error(`запись исправления отказала: ${response.status()} ${await response.text()}`);
-    await other.getByText(/Исправление записано: версия 1 ушла в историю/).waitFor({ timeout: 10_000 });
-    if (await other.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
+    await page.getByText(/Исправление записано: версия 1 ушла в историю/).waitFor({ timeout: 10_000 });
+    if (await page.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
     if (refused.length) throw new Error(`экран исправления получил отказы: ${refused.join('; ')}`);
   } finally {
-    await context.close();
+    page.off('response', listen);
   }
 
   // Сервер хранит ровно набранное, и счёт по-прежнему заперт: исправление закрытый месяц не открывает.

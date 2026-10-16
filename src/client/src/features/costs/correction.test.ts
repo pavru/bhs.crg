@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView } from '@/shared/api/invoices';
 import type { CorrectionPreview } from '@/shared/api/invoiceCorrection';
-import { conflictKind, correctionBody, correctionRows, readyToCheck, signed, type CorrectionContent } from './correction';
+import {
+  conflictKind, correctionBody, correctionRows, mayCorrect, readyToCheck, signed, type CorrectionContent,
+} from './correction';
 import { emptyDraft, toDrafts } from './invoiceLines';
 import { draftRows, targetsOfState } from './matrix';
 
@@ -166,5 +168,34 @@ describe('матрица исправления', () => {
       document: [{ construction: 'B', section: null, article: null, quantity: null, amount: 1 }],
     });
     expect(targets.map(t => t.construction)).toEqual(['B', 'A']);
+  });
+});
+
+describe('кнопка «Исправить»', () => {
+  // Наборы прав системных ролей (SystemRoles): руководитель читает всё без правки, бухгалтер исправляет.
+  const reader = new Set(['costs.invoice.read', 'costs.report.read']);
+  const accountant = new Set(['costs.invoice.read', 'costs.invoice.pay', 'costs.invoice.correct', 'costs.invoice.edit',
+    'costs.allocation.edit']);
+  const has = (set: Set<string>) => (code: string) => set.has(code);
+
+  it('бухгалтеру у запертого счёта — есть', () => {
+    expect(mayCorrect(invoice([]), has(accountant), false)).toBe(true);
+  });
+
+  it('руководителю — нет: правки счетов у него нет', () => {
+    expect(mayCorrect(invoice([]), has(reader), false)).toBe(false);
+  });
+
+  it('с правкой, но без права исправления — нет', () => {
+    expect(mayCorrect(invoice([]), has(new Set(['costs.invoice.edit'])), false)).toBe(false);
+  });
+
+  it('с правом исправления, но без правки счетов — нет: исправление пишет счёт, и адрес откажет 403', () => {
+    expect(mayCorrect(invoice([]), has(new Set(['costs.invoice.read', 'costs.invoice.correct'])), false)).toBe(false);
+  });
+
+  it('у незапертого и у удалённого счёта — нет', () => {
+    expect(mayCorrect(invoice([], [], null), has(accountant), false)).toBe(false);
+    expect(mayCorrect(invoice([]), has(accountant), true)).toBe(false);
   });
 });
