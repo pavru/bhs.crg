@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
@@ -166,6 +167,7 @@ export function ReconciliationsPage() {
   const { view, selectedId, runId } = place;
   const setView = (v: ReconciliationView) => setPlace(p => ({ ...p, view: v }));
   const setSelectedId = (id: string | null) => setPlace(p => ({ ...p, selectedId: id }));
+  const ld = useListDetailView();
   const setRunId = (id: string | null) => setPlace(p => ({ ...p, runId: id }));
 
   const { data: items = [], isLoading } = useReconciliations();
@@ -366,7 +368,7 @@ export function ReconciliationsPage() {
 
   return (
     <>
-      <ListDetailShell
+      <ListDetailShell view={ld}
         title="Сверка"
         subtitle="Сопоставление источников по доменному ключу"
         actions={

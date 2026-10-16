@@ -5,6 +5,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ListDetailShell, NavSection } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useRoles, usePermissionCatalog, useCreateRole, useRenameRole, useSetRolePermissions, useDeleteRole,
@@ -38,6 +39,7 @@ export function RolesPage() {
   const del = useDeleteRole();
 
   const [picked, setPicked] = useState<string | null>(null);
+  const ld = useListDetailView();
   // Черновик помнит, ЧЬИ это галки. Без имени роли внутри его пришлось бы сбрасывать эффектом на
   // смену выбора, а эффект, досылающий состояние, — это лишний кадр с чужими галками и правило
   // линта, которое в этом проекте уже вычищали (issue #858).
@@ -88,6 +90,7 @@ export function RolesPage() {
   }
 
   function pick(name: string) {
+    ld.showDetail();
     setPicked(name);
     setError('');
   }
@@ -109,7 +112,7 @@ export function RolesPage() {
 
   return (
     <>
-    <ListDetailShell
+    <ListDetailShell view={ld}
       title="Роли и права"
       subtitle="Роль — это набор прав. Состав правится здесь, выдаётся роль на экране «Пользователи»."
       actions={

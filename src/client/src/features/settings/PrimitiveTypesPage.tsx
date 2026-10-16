@@ -7,6 +7,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -634,6 +635,7 @@ export function PrimitiveTypesPage() {
   const { values, remember } = useRememberedSelection(FIELD_TYPES_LAST_KEY, SELECTION_KEYS);
   const mode: Mode = values.mode === 'enum' ? 'enum' : 'primitive';
   const selectedId = values.type || null;
+  const ld = useListDetailView();
   const setSelection = (m: Mode, id: string | null) => remember({ mode: m, type: id ?? '' });
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -654,7 +656,7 @@ export function PrimitiveTypesPage() {
     isDirty: anyDirty, saving, saveAll,
     onCommit: ({ mode: m, id }) => setSelection(m, id),
   });
-  const requestSelect = (id: string) => { if (id !== selectedId) request({ mode, id }); };
+  const requestSelect = (id: string) => { ld.showDetail(); if (id !== selectedId) request({ mode, id }); };
   const requestMode = (m: Mode) => { if (m !== mode) request({ mode: m, id: null }); };
 
   // Гард ухода со страницы по маршруту (issue #307): тот же диалог при сайдбар-навигации/перезагрузке.
@@ -692,7 +694,7 @@ export function PrimitiveTypesPage() {
   return (
     <>
       <TypeEditorProvider value={registry}>
-        <ListDetailShell
+        <ListDetailShell view={ld}
           title="Типы полей"
           subtitle="Пользовательские типы реквизитов (строка/число/дата) и перечисления"
           actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}

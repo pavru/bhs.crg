@@ -13,7 +13,11 @@ import type { NavItem } from './navConfig';
  * issue #1001). Меню само говорит, что скрыто: без этой строки к скрытому разделу вёл бы только
  * поиск, то есть нужно было бы заранее знать ответ. Переход открывает раздел БЕЗ смены пространства.
  */
-export function OutsideNav({ items, collapsed = false }: { items: NavItem[]; collapsed?: boolean }) {
+export function OutsideNav({ items, collapsed = false, onPick }: {
+  items: NavItem[]; collapsed?: boolean;
+  /** Выбран раздел — выдвижное меню по нему закрывается (см. `RailBody`). */
+  onPick?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const guardedClick = useGuardedNavClick();
   if (items.length === 0) return null;
@@ -32,7 +36,7 @@ export function OutsideNav({ items, collapsed = false }: { items: NavItem[]; col
       {open && (
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} onClick={guardedClick(to)} title={collapsed ? label : undefined}
+            <NavLink key={to} to={to} onClick={e => { onPick?.(); guardedClick(to)(e); }} title={collapsed ? label : undefined}
               className={({ isActive }) =>
                 `flex items-center rounded-full text-sm select-none transition-colors ` +
                 `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${

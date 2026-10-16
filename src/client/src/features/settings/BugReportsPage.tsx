@@ -11,6 +11,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useToast } from '@/shared/ui/Toast';
 import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -45,6 +46,7 @@ export function BugReportsPage() {
   const { data, isLoading } = useBugReports();
   const reports = data?.items;
   const [picked, setPicked] = useState<string | null>(null);
+  const ld = useListDetailView();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -61,7 +63,7 @@ export function BugReportsPage() {
   const closed = filtered.filter(r => r.status === 'Fixed' || r.status === 'Rejected');
 
   const row = (r: BugReportListItem) => (
-    <button key={r.id} type="button" onClick={() => setPicked(r.id)}
+    <button key={r.id} type="button" onClick={() => { ld.showDetail(); setPicked(r.id); }}
       aria-current={r.id === selectedId ? 'true' : undefined}
       className={`w-full text-left px-3 py-2 rounded-xl transition-colors ${
         r.id === selectedId ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
@@ -82,7 +84,7 @@ export function BugReportsPage() {
   );
 
   return (
-    <ListDetailShell
+    <ListDetailShell view={ld}
       title="Сообщения об ошибках"
       subtitle={data && data.total > data.items.length
         ? `Показаны последние ${data.items.length} из ${data.total} — более старые в списке не видны`

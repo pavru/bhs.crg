@@ -5,6 +5,7 @@ import { CalendarClock, FileText, Link2, Plus, ScanLine, Tags } from 'lucide-rea
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
 import { useToast } from '@/shared/ui/Toast';
 import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
@@ -58,10 +59,13 @@ import {
 export function InvoicesPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get(INVOICE_RECORD.param) || null;
+  // Узкое место (#1355): адрес назвал счёт — начинаем с карточки, иначе со списка.
+  const ld = useListDetailView(selected ? 'detail' : 'list');
   // Счёт, на который привёл переход очереди: его форма при открытии берёт фокус на шапку. Любой
   // другой выбор счёта это снимает — иначе счёт забирал бы фокус при каждом следующем открытии.
   const [led, setLed] = useState<string | null>(null);
   const setSelected = (id: string) => {
+    ld.showDetail();
     setLed(null);
     setParams(prev => {
       const next = new URLSearchParams(prev);
@@ -317,7 +321,7 @@ export function InvoicesPage() {
   const hasScan = scan != null && typeof scan === 'object';
 
   return (
-    <ListDetailShell
+    <ListDetailShell view={ld}
       title="Счета на оплату"
       subtitle="Черновик сохраняется без строк и сразу попадает в список"
       actions={
