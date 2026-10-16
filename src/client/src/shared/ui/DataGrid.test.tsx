@@ -49,4 +49,22 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     grid([{ key: 'name', label: 'Имя', width: 'w-36' }]);
     expect(screen.getByRole('columnheader', { name: 'Имя' }).className).toContain('w-36');
   });
+
+  it('тон строки — заливкой; у открытой строки её перекрывает подсветка открытия', () => {
+    grid([{ key: 'name', label: 'Имя' }], { tone: () => 'warning', rowOpen: p => p.id === '2' });
+    const [, anna, boris] = screen.getAllByRole('row');
+    expect(anna.className).toContain('bg-warning-subtle');
+    expect(boris.className).not.toContain('bg-warning-subtle');
+    expect(boris.className).toContain('bg-brand-subtle');
+  });
+
+  it('шапка рисует своё, а имя колонки остаётся подписью', () => {
+    grid([{ key: 'name', label: 'Имя', header: <>Имя <span data-testid="count">2 из 4</span></> }]);
+    expect(screen.getByTestId('count').textContent).toBe('2 из 4');
+  });
+
+  it('фиксированная раскладка — table-fixed на самой таблице', () => {
+    grid([{ key: 'name', label: 'Имя' }], { fixed: true });
+    expect(screen.getByRole('table').className).toContain('table-fixed');
+  });
 });

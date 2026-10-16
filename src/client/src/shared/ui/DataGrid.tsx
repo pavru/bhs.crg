@@ -26,6 +26,11 @@ import {
 export interface DataGridColumn<Row = Record<string, unknown>> {
   key: string;
   label: string;
+  /**
+   * Что стоит в шапке вместо подписи — когда рядом с ней нужно ещё что-то (число показанного из
+   * всего). Подпись остаётся именем колонки: по ней колонку называют подсказки и действия шапки.
+   */
+  header?: ReactNode;
   /** Почему значений колонки не видно; null — видно. */
   unavailable?: ColumnUnavailable | null;
   align?: 'left' | 'right';
@@ -87,7 +92,7 @@ export function DataGridValue<Row>({ row, column, renderValue }: {
 
 export function DataGrid<Row extends object>({
   columns, rows, state, renderValue, rowKey, framed = true, className = '', density = 'regular',
-  sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, rowLink, onRemoveColumn, emphasized,
+  sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, rowLink, onRemoveColumn, emphasized, tone, fixed = false,
 }: {
   columns: DataGridColumn<Row>[];
   rows: Row[];
@@ -132,6 +137,17 @@ export function DataGrid<Row extends object>({
   /** Строка выделена начертанием — например, названная отбором. Цвет и жирность читалка не
    *  произносит: смысл выделения экран обязан назвать и словом (своей колонкой). */
   emphasized?: (row: Row, index: number) => boolean;
+  /**
+   * Строка помечена тоном — например, изменилась, пока человек смотрел. Тон — заливка строки; как
+   * и у начертания, смысл пометки экран называет и словами.
+   */
+  tone?: (row: Row, index: number) => 'warning' | null;
+  /**
+   * Фиксированная раскладка: ширины берутся из шапки (`width`), а не из содержимого. Нужна, когда
+   * в клетке обрезается длинный текст (`truncate`): при обычной раскладке клетка растягивается по
+   * содержимому, обрезка не работает, и правые колонки уезжают за край (#680).
+   */
+  fixed?: boolean;
 }) {
   const shown = state === 'module-off' ? [] : rows;
   const empty = shown.length === 0 ? DATA_GRID_STATES[state ?? 'no-data'] : null;
@@ -151,7 +167,7 @@ export function DataGrid<Row extends object>({
 
   return (
     <div className={`${framed ? dtCard : 'overflow-auto'} ${className}`}>
-      <table ref={table} className={compact ? dtTableCompact : dtTable}>
+      <table ref={table} className={`${compact ? dtTableCompact : dtTable} ${fixed ? 'table-fixed' : ''}`}>
         <thead>
           <tr>
             {columns.map((c, i) => {
@@ -162,7 +178,7 @@ export function DataGrid<Row extends object>({
               const label = (
                 <span className={`inline-flex items-center gap-1 ${reason ? 'text-fg4' : ''}`}>
                   {c.unavailable && COLUMN_ICON[c.unavailable]}
-                  <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.label}</span>
+                  <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.header ?? c.label}</span>
                   {sorted && (sorted.descending ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />)}
                   {sorted && sort!.length > 1 && <span className="text-caption text-fg4">{order + 1}</span>}
                 </span>
@@ -203,9 +219,12 @@ export function DataGrid<Row extends object>({
             const open = rowOpen?.(row, i) ?? false;
             const link = rowLink?.(row, i) ?? null;
             const strong = emphasized?.(row, i) ?? false;
+            const marked = !open && tone?.(row, i) === 'warning';
+            // Строка — именованная группа `group/row`: действия строки, видимые по наведению,
+            // проявляются классом `group-hover/row:` и не путаются с группами внутри клетки.
             return (
               <tr key={rowKey ? rowKey(row, i) : i}
-                className={`${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : ''} ${strong ? 'font-medium' : ''}`}
+                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : ''} ${strong ? 'font-medium' : ''}`}
                 {...(onRowOpen ? {
                   tabIndex: 0,
                   'aria-selected': open,
@@ -220,7 +239,7 @@ export function DataGrid<Row extends object>({
                   <td key={c.key} style={pinStyle(ci, 5)}
                     className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-fg1 `
                       + `${c.align === 'right' ? dtNum : ''} `
-                      + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : 'bg-surface') : ''}`}>
+                      + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : 'bg-surface') : ''}`}>
                     {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
                         перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
                     {ci === 0 && link && (

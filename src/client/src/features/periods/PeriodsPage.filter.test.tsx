@@ -88,6 +88,8 @@ async function shown(filter: Filter = {}, periods: unknown = PERIODS) {
 /** Имена контуров в таблице границ — первой таблице страницы. */
 const contours = () => within(screen.getAllByRole('table')[0]).getAllByRole('row').slice(1)
   .map(row => row.querySelector('td')!.textContent);
+/** Стройки ещё не известны — строка под сеткой, а не строка контура. */
+const loadingSites = () => screen.queryByText('Загрузка строек...');
 
 /** Открыть закрытие компании, прочитать пояснение и закрыть; вернуть всё, что ушло на сервер. */
 async function closeCompany() {
@@ -125,7 +127,8 @@ describe('Учётный период под фильтром избранног
 
   it('пока фильтр не известен — компания с кнопками, строек нет', async () => {
     await shown({ status: 'loading' });
-    expect(contours()).toEqual(['Компания', 'Загрузка строек...']);
+    expect(contours()).toEqual(['Компания']);
+    expect(loadingSites()).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Закрыть период' })).toHaveLength(1);
   });
 

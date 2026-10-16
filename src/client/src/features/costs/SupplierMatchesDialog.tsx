@@ -4,6 +4,7 @@ import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useToast } from '@/shared/ui/Toast';
 import { formatDate } from '@/shared/format/format';
 import { apiError } from '@/shared/utils/apiError';
@@ -78,6 +79,48 @@ export function SupplierMatchesDialog({ initial, onClose }: {
     } catch (e) { toast.apiError(e, 'Соответствие не изменено'); }
   }
 
+  const columns: DataGridColumn<SupplierMatchItem>[] = [
+    ...(filter.supplierId === null ? [{
+      key: 'supplier', label: 'Поставщик', wrap: true,
+      cell: (item: SupplierMatchItem) => (
+        <span className="text-fg2">
+          {supplierLabel({ name: item.supplierName, lost: item.supplierLost })}
+          {item.supplierArchived && <ArchivedMark className="ml-1" />}
+        </span>
+      ),
+    }] : []),
+    { key: 'source', label: 'У поставщика', wrap: true,
+      cell: item => (
+        <span title={item.source}>
+          <span className="text-fg4">{item.by === 'code' ? 'артикул ' : ''}</span>
+          {item.source}
+        </span>
+      ) },
+    { key: 'nomenclature', label: 'Позиция номенклатуры', width: 'w-[38%]', wrap: true,
+      cell: item => (
+        <>
+          {/* Тот же выбор позиции, что в строке счёта: смена сохраняется сразу. Снять позицию
+              здесь нельзя — соответствие без позиции есть забытое соответствие. */}
+          <NomenclaturePicker chosen name={item.nomenclatureName} clearable={false}
+            lost={item.issue === 'lost'} archived={item.issue === 'archived'}
+            from={item.by === 'code' ? { code: item.source } : { name: item.source }}
+            onPick={id => void repoint(item, id)} onClear={() => {}} />
+          {issueNote(item.issue) && (
+            <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-danger' : 'text-fg4'}`}>
+              {issueNote(item.issue)}
+            </p>
+          )}
+        </>
+      ) },
+    { key: 'updatedAt', label: 'Изменено',
+      cell: item => <span className="text-fg3">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
+    { key: 'forget', label: '', width: 'w-8',
+      cell: item => (
+        <button type="button" title="Забыть соответствие" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
+          className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+      ) },
+  ];
+
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Соответствия наименований" extraWide>
       <p className="text-xs text-fg3 mb-3">
@@ -142,55 +185,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         )
       ) : (
         <>
-          <div className="max-h-[55vh] overflow-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-surface text-fg4">
-                <tr className="text-left">
-                  {filter.supplierId === null && <th className="py-1 pr-2 font-normal">Поставщик</th>}
-                  <th className="py-1 pr-2 font-normal">У поставщика</th>
-                  <th className="py-1 pr-2 font-normal w-[38%]">Позиция номенклатуры</th>
-                  <th className="py-1 pr-2 font-normal">Изменено</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map(item => (
-                  <tr key={item.id} className="border-t border-stroke align-top">
-                    {filter.supplierId === null && (
-                      <td className="py-1.5 pr-2 text-fg2">
-                        {supplierLabel({ name: item.supplierName, lost: item.supplierLost })}
-                        {item.supplierArchived && <ArchivedMark className="ml-1" />}
-                      </td>
-                    )}
-                    <td className="py-1.5 pr-2 text-fg1" title={item.source}>
-                      <span className="text-fg4">{item.by === 'code' ? 'артикул ' : ''}</span>
-                      {item.source}
-                    </td>
-                    <td className="py-1.5 pr-2">
-                      {/* Тот же выбор позиции, что в строке счёта: смена сохраняется сразу. Снять позицию
-                          здесь нельзя — соответствие без позиции есть забытое соответствие. */}
-                      <NomenclaturePicker chosen name={item.nomenclatureName} clearable={false}
-                        lost={item.issue === 'lost'} archived={item.issue === 'archived'}
-                        from={item.by === 'code' ? { code: item.source } : { name: item.source }}
-                        onPick={id => void repoint(item, id)} onClear={() => {}} />
-                      {issueNote(item.issue) && (
-                        <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-danger' : 'text-fg4'}`}>
-                          {issueNote(item.issue)}
-                        </p>
-                      )}
-                    </td>
-                    <td className="py-1.5 pr-2 text-fg3 whitespace-nowrap">
-                      {formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}
-                    </td>
-                    <td className="py-1.5">
-                      <button type="button" title="Забыть соответствие" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
-                        className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataGrid density="compact" className="max-h-[55vh]" columns={columns} rows={data.items} rowKey={item => item.id} />
           <div className="mt-2 flex items-center gap-3 text-xs text-fg3">
             <span>{shownOf(data.items.length, data.total)}</span>
             {list.hasNextPage && (
