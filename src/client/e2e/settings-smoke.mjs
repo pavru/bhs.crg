@@ -16,6 +16,7 @@
 import { BASE, launchBrowser, login, createChecks, settled, callApi } from './harness.mjs';
 import { workspaceChecks } from './workspaces-checks.mjs';
 import { favoritesChecks } from './favorites-checks.mjs';
+import { railChecks } from './rail-checks.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -299,6 +300,9 @@ await workspaceChecks(page, check);
 
 // Избранные стройки (issue #1218) — под этим же входом; настройки избранного проверки сбрасывают сами.
 await favoritesChecks(page, check);
+
+// Свёрнутая боковая панель (issue #1355) — под этим же входом; настройку панели проверки сбрасывают сами.
+await railChecks(page, check);
 
 // Секция «Название и логотип» о значках из логотипа (issue #1315): что вышло — картинками, что не
 // вышло — словами. Идёт ПОСЛЕДНЕЙ: раскрытая секция запоминается в localStorage, а проверки выше
