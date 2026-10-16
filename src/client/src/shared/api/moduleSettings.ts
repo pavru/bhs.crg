@@ -82,3 +82,32 @@ export function useSaveModuleSettings() {
     onSettled: () => qc.invalidateQueries({ queryKey: MODULE_SETTINGS_KEY }),
   });
 }
+
+/**
+ * Что смена сделает с записанными данными (E2, issue #1100) — у настройки, чей модуль умеет это сказать:
+ * сколько документов изменится, сколько из них получат запись о смене, и то же словами модуля. Склонять
+ * чужие документы экран не умеет — показывает `text`.
+ */
+export interface ModuleSettingImpact {
+  key: string;
+  title: string;
+  changed: number;
+  recorded: number;
+  text: string;
+}
+
+/**
+ * Предупреждение числами перед сохранением: тело — то же, что у записи, в базу ничего не пишется. Пока
+ * окно подтверждения закрыто, запроса нет. Не повторяется и не кэшируется: числа — о данных этой минуты,
+ * а отказ обязан стать отказом на экране, а не тремя попытками молчания.
+ */
+export function useModuleSettingsImpact(code: string, values: Record<string, string | null>, enabled: boolean) {
+  return useQuery<ModuleSettingImpact[]>({
+    queryKey: [...MODULE_SETTINGS_KEY, code, 'preview', values],
+    queryFn: () => apiClient.post(`/settings/modules/${code}/preview`, { values }).then(r => r.data.impacts),
+    enabled,
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
+  });
+}

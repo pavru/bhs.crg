@@ -1,4 +1,4 @@
-import type { ModuleMappingSignal, ModuleSetting } from '@/shared/api/moduleSettings';
+import type { ModuleMappingSignal, ModuleSetting, ModuleSettingImpact } from '@/shared/api/moduleSettings';
 import { currencySign } from '@/shared/format/format';
 
 /**
@@ -171,4 +171,24 @@ export function fieldErrors(e: unknown): Record<string, string> {
 /** Первая буква — заглавная: причина сервера начинается со строчной («допустимо от…»). */
 export function sentence(text: string): string {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
+}
+
+/** Строка чисел под предупреждением настройки в окне подтверждения; `null` — сказать модулю нечего. */
+export type ImpactLine = { tone: 'pending' | 'refused' | 'told'; text: string } | null;
+
+/**
+ * Что показать под предупреждением настройки, пока считается и когда посчитано (E2, issue #1100).
+ *
+ * ⚠️ Отказ предпросмотра — отказ на экране, а не пустое место: молчание читалось бы как «смена ничего не
+ * тронет», а это ровно то, о чём окно спрашивает. Сохранить при этом можно — запись проверит всё сама, а
+ * текст предупреждения из объявления остаётся.
+ */
+export function impactLine(
+  key: string, impact: { data?: ModuleSettingImpact[]; isError: boolean },
+): ImpactLine {
+  if (impact.isError)
+    return { tone: 'refused', text: 'Не удалось посчитать, что смена сделает с уже записанными данными.' };
+  if (!impact.data) return { tone: 'pending', text: 'Считаем, что изменится…' };
+  const told = impact.data.find(i => i.key === key);
+  return told ? { tone: 'told', text: told.text } : null;
 }

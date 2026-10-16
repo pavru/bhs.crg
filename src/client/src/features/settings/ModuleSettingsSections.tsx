@@ -8,11 +8,11 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import {
-  useModuleSettings, useSaveModuleSettings, type ModuleSettings,
+  useModuleSettings, useModuleSettingsImpact, useSaveModuleSettings, type ModuleSettings,
 } from '@/shared/api/moduleSettings';
 import { ModuleMappingSignal } from './ModuleMappingSignal';
 import {
-  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, flagOn, localRefusals, mappingNeedsAttention,
+  boundsHint, changedValues, changeWarnings, fieldErrors, fieldText, flagOn, impactLine, localRefusals, mappingNeedsAttention,
   sentence, staleStored,
   unitOf,
   type SettingsDraft,
@@ -52,6 +52,9 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
   const values = changedValues(module.settings, draft);
   const dirty = Object.keys(values).length > 0;
   const warnings = changeWarnings(module.settings, values);
+  // Числа к предупреждению — только пока открыто окно подтверждения: считать их на каждую набранную цифру
+  // незачем, а на момент вопроса они должны быть свежими.
+  const impact = useModuleSettingsImpact(module.code, values, confirming);
 
   useLeaveGuard(dirty, proceed => setLeave(() => proceed));
 
@@ -153,12 +156,20 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
         title="Изменить настройку?"
         description={
           <div className="space-y-3">
-            {warnings.map(w => (
-              <div key={w.key}>
-                <p className="font-medium text-fg1">{w.title}: {w.from} → {w.to}</p>
-                <p className="mt-1">{w.warning}</p>
-              </div>
-            ))}
+            {warnings.map(w => {
+              const line = impactLine(w.key, impact);
+              return (
+                <div key={w.key}>
+                  <p className="font-medium text-fg1">{w.title}: {w.from} → {w.to}</p>
+                  <p className="mt-1">{w.warning}</p>
+                  {line && (
+                    <p className={`mt-2 ${line.tone === 'told' ? 'text-fg1' : line.tone === 'refused' ? 'text-danger' : 'text-fg3'}`}>
+                      {line.text}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
             <p>Смена будет записана в журнал действий.</p>
           </div>
         }
