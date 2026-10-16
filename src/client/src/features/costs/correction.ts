@@ -167,3 +167,19 @@ export function bookEntryRows(entry: { kind: string; seq: number; day: string; l
     ? plainRows(`${entry.seq}`, entry.lines)
     : dayRows(entry.lines, entry.day, `Днём записи ${day(entry.day)}`);
 }
+
+/**
+ * «Кто» у записи истории. У служебной записи (открытие книги, выравнивание внутри чужой записи) имени
+ * нет нарочно — её пишет не человек, и прочерк там читался бы «автор потерян».
+ */
+export function bookAuthor(entry: { kind: string; author: string | null; reason: string | null }): string {
+  if (entry.author) return entry.author;
+  return entry.kind === 'opening' || (entry.kind === 'alignment' && !entry.reason) ? 'служебная запись' : '—';
+}
+
+/** Запись без строк — словами её вида: версия и причина есть только у исправления. */
+export function bookEmpty(kind: string): string {
+  return kind === 'correction'
+    ? 'деньги не менялись: записаны версия и причина.'
+    : 'строк нет: деньги счёта эта запись не сдвинула.';
+}

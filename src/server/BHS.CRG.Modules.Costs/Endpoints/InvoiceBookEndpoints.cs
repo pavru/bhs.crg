@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -14,7 +15,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// теми же словами, что предпросмотр исправления.</param>
 /// <param name="Day">День записи: им исправление легло в книгу.</param>
 /// <param name="At">Когда записано.</param>
-/// <param name="Author">Имя автора на момент записи; <c>null</c> — запись старше этого поля.</param>
+/// <param name="Author">Имя автора на момент записи; <c>null</c> — служебная запись (открытие, страховочное
+/// выравнивание) или запись старше этого поля.</param>
 /// <param name="Reason">Причина: у исправления и отмены оплаты — от человека, у выравнивания — «допуск X → Y».</param>
 /// <param name="Version">Номер версии, ушедшей в историю с исправлением; у прочих видов — <c>null</c>.</param>
 /// <param name="Gross">Сумма строк записи с НДС: у открытия — деньги счёта целиком, у прочих — сдвиг.</param>
@@ -45,7 +47,7 @@ public static class InvoiceBookEndpoints
     {
         // Удалённый счёт — 404, как у чтения счёта, а не пустая история: пустая читалась бы «исправлений
         // не было» у счёта, которого нет.
-        await InvoiceEndpoints.FindAsync(db, id, ct);
+        if (!await db.Invoices.AnyAsync(i => i.Id == id, ct)) throw new NotFoundException("Счёт не найден.");
 
         IReadOnlyList<InvoiceBookEntryView> entries = [.. (await InvoiceBook.HistoryAsync(db, id, ct)).Select(h =>
             new InvoiceBookEntryView(h.Entry.Seq, InvoiceCorrections.Kind(h.Entry.Kind), h.Entry.Day, h.Entry.At,

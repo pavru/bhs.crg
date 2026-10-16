@@ -51,7 +51,8 @@ public partial class InvoicePaymentTests
         var author = correction.GetProperty("author").GetString();
         Assert.False(string.IsNullOrWhiteSpace(author));
         Assert.Equal(await CorrectedByAsync(invoice), author);
-        Assert.Equal(author, opening.GetProperty("author").GetString());
+        // Открытие — служебная запись, следствие исправления: имени у неё нет, как нет причины и версии.
+        Assert.Equal(JsonValueKind.Null, opening.GetProperty("author").ValueKind);
     }
 
     /// <summary>

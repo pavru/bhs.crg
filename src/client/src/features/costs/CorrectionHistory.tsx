@@ -4,7 +4,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { useInvoiceBook, type InvoiceBookEntry } from '@/shared/api/invoiceCorrection';
-import { bookEntryRows, bookKindTitle, bookTotal } from './correction';
+import { bookAuthor, bookEmpty, bookEntryRows, bookKindTitle, bookTotal } from './correction';
 import { usePlaces } from './places';
 import { BookLines } from './BookLines';
 
@@ -16,8 +16,10 @@ import { BookLines } from './BookLines';
  * <p>Новые записи — сверху: историю открывают, чтобы узнать, что случилось последним. Щелчок по записи
  * показывает её строки — тем же видом, что предпросмотр исправления.</p>
  */
-export function CorrectionHistory({ view }: { view: InvoiceView }) {
-  const shown = (view.book ?? 0) > 0;
+export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boolean }) {
+  // Удалённый счёт истории не спрашивает: адрес ответил бы 404, и под «счёта больше нет» встало бы
+  // второе, красное «не загрузилась».
+  const shown = (view.book ?? 0) > 0 && !gone;
   const book = useInvoiceBook(view, shown);
   const places = usePlaces();
   const [open, setOpen] = useState<number | null>(null);
@@ -27,7 +29,7 @@ export function CorrectionHistory({ view }: { view: InvoiceView }) {
   const selected = entries.find(e => e.seq === open) ?? null;
   const columns: DataGridColumn<InvoiceBookEntry>[] = [
     { key: 'at', label: 'Когда', cell: e => formatDateTime(e.at) },
-    { key: 'author', label: 'Кто', cell: e => e.author ?? '—' },
+    { key: 'author', label: 'Кто', cell: e => bookAuthor(e) },
     { key: 'kind', label: 'Вид', cell: e => (e.version != null ? `${bookKindTitle(e.kind)} (версия ${e.version})` : bookKindTitle(e.kind)) },
     { key: 'reason', label: 'Причина', wrap: true, cell: e => e.reason ?? '—' },
     { key: 'day', label: 'День', cell: e => formatDate(e.day) },
@@ -36,7 +38,7 @@ export function CorrectionHistory({ view }: { view: InvoiceView }) {
 
   return (
     <section className="space-y-3" aria-label="Исправления">
-      <h2 className="text-sm font-medium text-fg2">Исправления</h2>
+      <h2 className="text-base font-semibold">Исправления</h2>
       {book.isPending && <p className="text-xs text-fg3">Загружаем историю счёта…</p>}
       {book.error != null && <p className="text-xs text-danger">История счёта не загрузилась: {apiError(book.error)}</p>}
       {book.data && (
@@ -47,7 +49,7 @@ export function CorrectionHistory({ view }: { view: InvoiceView }) {
             <div className="space-y-2">
               <p className="text-xs text-fg2">
                 {bookKindTitle(selected.kind)} от {formatDate(selected.day)}
-                {selected.lines.length === 0 ? ' — деньги не менялись: записаны версия и причина.' : ':'}
+                {selected.lines.length === 0 ? ` — ${bookEmpty(selected.kind)}` : ':'}
               </p>
               {selected.lines.length > 0 && (
                 <BookLines places={places} rows={bookEntryRows(selected, formatDate)} />

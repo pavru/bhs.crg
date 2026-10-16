@@ -6,7 +6,7 @@ import { apiClient } from '@/shared/api/client';
 import type { InvoiceView } from '@/shared/api/invoices';
 import type { InvoiceBookEntry } from '@/shared/api/invoiceCorrection';
 import { CorrectionHistory } from './CorrectionHistory';
-import { bookEntryRows, bookKindTitle, bookTotal } from './correction';
+import { bookEmpty, bookEntryRows, bookKindTitle, bookTotal } from './correction';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 
@@ -22,7 +22,7 @@ const line = (day: string, gross: number) => ({
 });
 
 const entries: InvoiceBookEntry[] = [
-  { seq: 1, kind: 'opening', day: '2026-10-16', at: '2026-10-16T05:00:00Z', author: 'Бухгалтер Иванова',
+  { seq: 1, kind: 'opening', day: '2026-10-16', at: '2026-10-16T05:00:00Z', author: null,
     reason: null, version: null, gross: 1000, net: 1000, lines: [line('2026-09-10', 1000)] },
   { seq: 2, kind: 'correction', day: '2026-10-16', at: '2026-10-16T05:00:00Z', author: 'Бухгалтер Иванова',
     reason: 'опечатка в цене', version: 1, gross: 50, net: 50, lines: [line('2026-10-16', 50)] },
@@ -40,14 +40,20 @@ beforeEach(() => {
   }) as never);
 });
 
-function mount(book: number) {
+function mount(book: number, gone = false) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={qc}><CorrectionHistory view={view(book)} /></QueryClientProvider>);
+  render(<QueryClientProvider client={qc}><CorrectionHistory view={view(book)} gone={gone} /></QueryClientProvider>);
 }
 
 describe('секция «Исправления»', () => {
   it('у счёта без книги её нет и историю не спрашивают', () => {
     mount(0);
+    expect(screen.queryByText('Исправления')).toBeNull();
+    expect(asked).not.toContain('/costs/invoices/i1/book');
+  });
+
+  it('у удалённого счёта её нет: адрес ответил бы 404 вторым отказом под «счёта больше нет»', () => {
+    mount(2, true);
     expect(screen.queryByText('Исправления')).toBeNull();
     expect(asked).not.toContain('/costs/invoices/i1/book');
   });
@@ -62,6 +68,8 @@ describe('секция «Исправления»', () => {
     expect(opening).toBeGreaterThan(correction);
     expect(rows[correction]).toContain('Бухгалтер Иванова');
     expect(rows[correction]).toMatch(/\+50/);
+    // Открытие пишет не человек: «служебная запись», а не прочерк «автор потерян».
+    expect(rows[opening]).toContain('служебная запись');
 
     fireEvent.click(reason);
     expect(await screen.findByText(/Днём записи 16\.10\.2026/)).toBeTruthy();
@@ -72,6 +80,11 @@ describe('слова истории', () => {
   it('вид записи — словами, незнакомый — как пришёл', () => {
     expect(bookKindTitle('unpayment')).toBe('Отмена оплаты');
     expect(bookKindTitle('новый-вид')).toBe('новый-вид');
+  });
+
+  it('запись без строк — словами её вида: версия и причина есть только у исправления', () => {
+    expect(bookEmpty('correction')).toMatch(/версия и причина/);
+    expect(bookEmpty('payment')).not.toMatch(/версия/);
   });
 
   it('итог открытия — сумма, а не прибавка; у сдвига знак явный', () => {

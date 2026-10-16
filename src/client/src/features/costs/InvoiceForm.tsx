@@ -325,7 +325,7 @@ export function InvoiceForm({
           по отдельности — колонка «Разноска». Сохранение их не ждёт: черновик уже в реестре.
         </p>
 
-        <CorrectionHistory view={view} />
+        <CorrectionHistory view={view} gone={gone} />
       </div>
     </div>
     </InvoiceDeleteProvider>

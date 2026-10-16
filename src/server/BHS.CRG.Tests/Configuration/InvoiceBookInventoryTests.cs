@@ -68,6 +68,30 @@ public class InvoiceBookInventoryTests
             "MayTouchTheBook с причиной.");
     }
 
+    /// <summary>
+    /// Автора записи книги модуль собирает только фабрикой <c>BookAuthor.Of(user, …)</c> — с именем на
+    /// момент записи (PR 6b-2 E2). Позиционный конструктор собирается и без имени, и место записи,
+    /// написанное по образцу тестов, оставило бы в истории счёта «—» у записей, автор которых известен.
+    /// </summary>
+    [Fact]
+    public void Автор_книги_собирается_только_фабрикой_с_именем()
+    {
+        var bypass = new List<string>();
+        foreach (var file in SourceTree.Files(Module))
+        {
+            var rel = SourceTree.Relative(file);
+            if (rel == $"{Module}/Data/InvoiceBook.cs") continue;
+
+            var text = string.Join("\n", File.ReadAllLines(file).Select(l => l.TrimStart().StartsWith("//") ? "" : l));
+            foreach (Match m in Regex.Matches(text, @"\bnew\s+BookAuthor\s*\("))
+                bypass.Add($"{rel}:{SourceTree.LineOf(text, m.Index)}");
+        }
+
+        Assert.True(bypass.Count == 0,
+            "Автор записи книги собран конструктором, а не BookAuthor.Of(user, …):\n" + string.Join("\n", bypass) +
+            "\n\nБез имени история счёта покажет прочерк у записи, автор которой известен.");
+    }
+
     [Fact]
     public void Перепись_не_хранит_умерших_записей()
     {
