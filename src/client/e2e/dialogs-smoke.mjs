@@ -602,6 +602,25 @@ await check('generation-tab-selection-follows-click', async () => {
   if ((await box.isChecked()) !== before) throw new Error('галка не вернулась в исходное состояние');
 });
 
+// Источники данных — вкладка редактора, а не окно над страницей (issue #1384): «Из шаблона» над ней —
+// окно ПЕРВОГО уровня. Ломается: вернуть кнопку с окном в шапку — вкладки нет, а шаблон открывался бы
+// окном над окном.
+await check('document-sources-is-an-editor-tab', async () => {
+  if (await editor.getByRole('button', { name: /^Источники/ }).count())
+    throw new Error('в шапке документа осталась кнопка «Источники» — источники обязаны быть вкладкой');
+  await editor.getByRole('tab', { name: /^Источники данных/ }).click();
+  const panel = editor.getByRole('tabpanel', { name: /^Источники данных/ });
+  await panel.getByRole('button', { name: 'Из шаблона' }).waitFor({ timeout: 10000 })
+    .catch(() => { throw new Error('вкладка «Источники данных» не показала свои действия'); });
+  if (await page.getByRole('dialog').count()) throw new Error('вкладка источников открыла окно');
+  await panel.getByRole('button', { name: 'Из шаблона' }).click();
+  await page.getByRole('dialog').first().waitFor({ timeout: 5000 });
+  const dialogs = await page.getByRole('dialog').count();
+  await page.keyboard.press('Escape');
+  await settled(page);
+  if (dialogs !== 1) throw new Error(`«Из шаблона» открылось ${dialogs}-м окном, а должно — единственным`);
+});
+
 // ── Пикер документа качества: выбранный тип поиска переживает закрытие ─────────
 // Прежний эффект сбрасывал при открытии всё, кроме типа для веб-поиска, — это было сделано
 // намеренно: материалы связывают подряд, десятками, и выбирать тип заново на каждый значит делать

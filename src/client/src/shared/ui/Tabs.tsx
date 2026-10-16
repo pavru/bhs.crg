@@ -27,9 +27,12 @@ const tabId = (id: string, value: string) => `${id}-tab-${value}`;
 const panelId = (id: string, value: string) => `${id}-panel-${value}`;
 
 const STYLE = {
+  // Не влезающий ряд прокручивается вбок, а подписи не переносятся (issue #1384): у редактора документа
+  // четыре вкладки, и на телефоне они иначе ломались в две строки и раздвигали страницу. Отсюда и черта
+  // под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы её, наезжающую на линию ряда.
   underline: {
-    list: 'flex border-b border-stroke',
-    tab: 'inline-flex items-center gap-1.5 h-12 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ' +
+    list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-stroke',
+    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ' +
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand',
     on: 'border-brand text-brand',
     off: 'border-transparent text-fg3 hover:text-fg1',
