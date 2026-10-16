@@ -23,6 +23,7 @@ import { useInvoiceLineColumns } from './invoiceLineColumns';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { InvoiceReadinessLine } from './InvoiceReadinessLine';
 import { READINESS_ATTR, lineAnchor, readinessItems } from './invoiceReadiness';
+import { useCorrecting } from './useCorrectionDraft';
 
 const blank = (value: string) => value.trim() || null;
 
@@ -65,11 +66,17 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   /** В шапке есть несохранённое: строка готовности — о сохранённом счёте и обязана это сказать. */
   headerDirty?: boolean;
 }) {
-  const still = locked || readOnly;
+  // Исправление запертого счёта (E2, issue #1100, PR 6b-1): строки открыты, но своей записи у них нет —
+  // набранное уходит в черновик исправления и записывается вместе с шапкой и разноской.
+  const correcting = useCorrecting();
+  const still = (locked && !correcting) || readOnly;
   const { data: access = NO_ACCESS } = useAccess();
   const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
   const [dirty, setDirty] = useState(false);
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
+  const report = correcting?.setLines;
+  // Нетронутые строки — `null`, а не набор: исправление шлёт их такими, какими они лежат в счёте.
+  useEffect(() => report?.(dirty ? drafts : null), [report, dirty, drafts]);
 
   // На чём собран черновик строк (issue #1176). Подпись — сами строки, как их принял бы сервер: правка
   // шапки или разноски версию счёта двигает, а строк не касается — и черновик остаётся в силе.
@@ -202,7 +209,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const settled = readiness?.length === 0 && !dirty && !headerDirty;
 
   const columns = useInvoiceLineColumns({
-    view, still, allocationLocked: locked,
+    view, still, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
     offerFor, hasSupplier: supplierId !== null, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit,
@@ -262,15 +269,17 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {!still && (
           <>
             <InvoiceLinesPaste onAdd={add} />
-            <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
-              loading={replace.isPending} onClick={save}>
-              Сохранить строки
-            </Button>
+            {!correcting && (
+              <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
+                loading={replace.isPending} onClick={save}>
+                Сохранить строки
+              </Button>
+            )}
           </>
         )}
       </div>
 
-      {base.stale && dirty && <StaleInvoiceNotice what="строки" onReread={reread} />}
+      {base.stale && dirty && !correcting && <StaleInvoiceNotice what="строки" onReread={reread} />}
 
       {!still && drafts.length > 0 && (
         <SupplierMatchNote hasSupplier={supplierId !== null}
@@ -297,7 +306,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
 
       <div className="flex items-center gap-2 flex-wrap">
         {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
-        {still ? null : parsed || rejected
+        {still || correcting ? null : parsed || rejected
           ? (
             <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
               onClick={() => move('draft')}>

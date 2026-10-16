@@ -54,6 +54,9 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/costs/InvoiceObject.tsx': {
     filters: false, because: 'объект счёта урезает PlaceSelect (useSiteChoices, #1219)',
   },
+  '/src/features/costs/CorrectionPreviewDialog.tsx': {
+    filters: false, because: 'справочник лишь называет цели строк книги: исправление пишется целиком, и отбор спрятал бы его часть',
+  },
   '/src/features/costs/InvoicesPage.tsx': {
     filters: true,
     until: {

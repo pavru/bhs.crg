@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import type { InvoiceView } from '@/shared/api/invoices';
+import type { MatrixState } from '@/shared/api/allocationMatrix';
 import {
   usePreviewAllocation, useReplaceMatrix, type AllocationPreview, type SplitMethod,
 } from '@/shared/api/allocationMatrix';
@@ -13,9 +14,10 @@ import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
 import { useDraftBase, type DraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import {
-  allocationsOf, cellText, cellsFromState, cellsOf, estimateRest, matrixSignature, newTarget, partAt, restText, rowsOf,
-  targetName, targetsOf, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
+  allocationsOf, cellText, cellsFromState, cellsOf, draftRows, estimateRest, matrixSignature, newTarget, partAt, restText,
+  rowsOf, targetName, targetsOf, targetsOfState, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
+import { toDrafts, type LineDraft } from './invoiceLines';
 import { PlaceSelect } from './PlaceSelect';
 import { chosen, missingSection, placeOfPart, samePlace, usePlaces, type Places } from './places';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -32,8 +34,13 @@ import { Select, SelectItem } from '@/shared/ui/Select';
  *
  * <p>Без права разноски матрица открывается ТОЛЬКО для чтения: ни полей, ни кнопок «поровну» и «по %» —
  * а не кнопки, которые нажимаются и получают отказ.</p>
+ *
+ * <p><b>Черновой режим</b> (`draft`, исправление запертого счёта — E2, issue #1100, PR 6b-1): матрица ничего
+ * не записывает, «Готово» отдаёт набор черновику исправления — он запишется одним телом с шапкой и
+ * строками. Строки матрицы — строки ЧЕРНОВИКА, и новую строку можно разнести, не записывая её отдельно.
+ * «Поровну» и «по %» считает сервер по ЗАПИСАННЫМ строкам — поэтому только пока строки не тронуты.</p>
  */
-export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose }: {
+export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, onClose }: {
   view: InvoiceView;
   /** Сумма к оплате — ею разносится счёт без строк. */
   total: number | null;
@@ -44,6 +51,8 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
    * обязан быть тот, а не пришедший к монтированию.
    */
   initialPreview?: { preview: AllocationPreview; targets: MatrixTarget[]; stamp: string; base: DraftBase };
+  /** Черновой режим исправления: строки черновика (`null` — не тронуты), набранная разноска и куда её отдать. */
+  draft?: { lines: LineDraft[] | null; state: MatrixState | null; onApply: (state: MatrixState) => void };
   onClose: () => void;
 }) {
   const places = usePlaces();
@@ -51,17 +60,26 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   const replace = useReplaceMatrix();
   const toast = useToast();
 
-  const rows = useMemo(() => rowsOf(view, total), [view, total]);
+  const drafting = draft !== undefined;
+  const draftLines = draft?.lines ?? null;
+  const rowsFor = (of: InvoiceView) => (drafting ? draftRows(draftLines ?? toDrafts(of.lines), total) : rowsOf(of, total));
+  const rows = useMemo(() => (drafting ? draftRows(draftLines ?? toDrafts(view.lines), total) : rowsOf(view, total)),
+    [drafting, draftLines, view, total]);
+  // Набор, уже лежащий в черновике исправления: матрица открывается им, а не записанной разноской.
+  const [opened] = useState(() => (draft?.state ? { state: draft.state, targets: targetsOfState(draft.state) } : null));
   const [targets, setTargets] = useState<MatrixTarget[]>(() => {
     if (initialPreview) return initialPreview.targets;
+    if (opened && opened.targets.length > 0) return opened.targets;
     const known = targetsOf(view);
     return known.length > 0 ? known : [newTarget()];
   });
   const [preview, setPreview] = useState<AllocationPreview | null>(initialPreview?.preview ?? null);
   const [cells, setCells] = useState<MatrixCells>(() => initialPreview
     ? cellsFromState(rows, initialPreview.targets, initialPreview.preview.apply)
+    : opened ? cellsFromState(rows, opened.targets, opened.state)
     : cellsOf(rows, targets, allocationsOf(view, null)));
-  const [dirty, setDirty] = useState(false);
+  // Набор черновика — уже правка: под клетками показывается оценка, а не записанные числа.
+  const [dirty, setDirty] = useState(opened !== null);
   // Версия разноски, с которой матрица открыта: запись пошлёт её, и набор по устаревшему виду откажет.
   const [stamp, setStamp] = useState(() => initialPreview?.stamp ?? view.allocation.stamp);
 
@@ -73,13 +91,15 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
 
   const allocations = allocationsOf(view, preview);
   const editable = canEdit && preview === null;
+  // Сервер раскладывает записанные строки: по тронутым черновым его ответ был бы про другой счёт.
+  const splitOff = draftLines !== null;
   const pending = view.allocation.document.pending;
 
   function reset(next: InvoiceView) {
     const known = targetsOf(next);
     const columns = known.length > 0 ? known : [newTarget()];
     setTargets(columns);
-    setCells(cellsOf(rowsOf(next, total), columns, allocationsOf(next, null)));
+    setCells(cellsOf(rowsFor(next), columns, allocationsOf(next, null)));
     setPreview(null);
     setDirty(false);
     setStamp(next.allocation.stamp);
@@ -105,6 +125,11 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
   }
 
   async function save() {
+    if (draft) {
+      draft.onApply(preview ? preview.apply : toState(rows, targets, cells));
+      onClose();
+      return;
+    }
     try {
       const state = { ...(preview ? preview.apply : toState(rows, targets, cells)), stamp };
       reset(await base.save(seen => replace.mutateAsync({ id: view.id, seen, state })));
@@ -141,7 +166,9 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
       footer={(
         <>
           <span className="text-xs text-fg4 mr-auto">
-            {preview
+            {drafting
+              ? 'Разноска войдёт в исправление: запишется вместе с ним, после проверки. «Не разнесено» — оценка.'
+              : preview
               ? 'Предпросмотр — ещё не записано. Числа посчитал сервер; «Применить» запишет ровно их.'
               : dirty
                 ? '«Не разнесено» — оценка до записи: копейки окончательно считает сервер.'
@@ -158,9 +185,9 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
             <>
               <ModalExit>Закрыть</ModalExit>
               {canEdit && (
-                <Button variant="filled" icon={<Save size={13} />} disabled={!dirty} loading={replace.isPending}
-                  onClick={save}>
-                  Сохранить разноску
+                <Button variant="filled" icon={drafting ? <Check size={13} /> : <Save size={13} />} disabled={!dirty}
+                  loading={replace.isPending} onClick={save}>
+                  {drafting ? 'Готово' : 'Сохранить разноску'}
                 </Button>
               )}
             </>
@@ -177,16 +204,16 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
               onClick={() => { setTargets(prev => [...prev, newTarget()]); setDirty(true); }}>
               Добавить объект
             </Button>
-            <Button size="sm" variant="outlined" icon={<Divide size={13} />} disabled={!editable}
+            <Button size="sm" variant="outlined" icon={<Divide size={13} />} disabled={!editable || splitOff}
               loading={previewing.isPending} onClick={() => split('equal')}>
               Поровну
             </Button>
-            <Button size="sm" variant="outlined" icon={<Percent size={13} />} disabled={!editable}
+            <Button size="sm" variant="outlined" icon={<Percent size={13} />} disabled={!editable || splitOff}
               loading={previewing.isPending} onClick={() => split('percent')}>
               По %
             </Button>
             {pending && (
-              <Button size="sm" variant="outlined" icon={<Calculator size={13} />} disabled={!editable}
+              <Button size="sm" variant="outlined" icon={<Calculator size={13} />} disabled={!editable || splitOff}
                 loading={previewing.isPending} onClick={() => split('document')}>
                 Пересчитать по строкам
               </Button>
@@ -194,6 +221,12 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, onClose
           </div>
         )}
 
+        {canEdit && splitOff && (
+          <p className="text-xs text-fg4">
+            «Поровну» и «по %» считает сервер по записанным строкам, а строки в исправлении изменены — клетки
+            набирайте руками.
+          </p>
+        )}
         {pending && <PendingNote view={view} places={places} />}
 
         {/* Закреплены первая колонка (строка) и последняя («не разнесено»): при восьми объектах

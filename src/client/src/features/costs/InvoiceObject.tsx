@@ -6,6 +6,7 @@ import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { usePreviewAllocation, useReplaceMatrix } from '@/shared/api/allocationMatrix';
 import { AllocationMatrix } from './AllocationMatrix';
+import { useCorrecting } from './useCorrectionDraft';
 import { K } from './invoiceFields';
 import { toNumber } from './invoiceLines';
 import { headerObject, matrixSignature, newTarget, targetName, targetsOf } from './matrix';
@@ -28,7 +29,11 @@ export function InvoiceObject({ view, locked }: {
   locked: boolean;
 }) {
   const { data: access = NO_ACCESS } = useAccess();
-  const canEdit = hasPermission(access, 'costs.allocation.edit') && !locked;
+  const allocate = hasPermission(access, 'costs.allocation.edit');
+  const canEdit = allocate && !locked;
+  // Исправление (E2, issue #1100, PR 6b-1): выбор объекта записал бы разноску сразу — его нет; матрица
+  // открывается в черновом режиме и отдаёт набор исправлению.
+  const correcting = useCorrecting();
   const places = usePlaces();
   const previewing = usePreviewAllocation();
   const replace = useReplaceMatrix();
@@ -68,7 +73,7 @@ export function InvoiceObject({ view, locked }: {
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs" data-readiness="allocation">
       <span className="text-fg4">Объект</span>
-      {canEdit ? (
+      {canEdit && !correcting ? (
         <PlaceSelect label="Объект счёта" places={places} disabled={previewing.isPending || replace.isPending}
           value={current.kind === 'one' ? current.place : NO_PLACE}
           placeholder={current.kind === 'many' ? '— несколько объектов —' : '— выберите —'}
@@ -80,13 +85,17 @@ export function InvoiceObject({ view, locked }: {
         </span>
       )}
       <span className={current.kind === 'one' && current.complete ? 'text-fg4' : 'text-warning'}>{status}</span>
+      {correcting?.allocation && <span className="text-warning">разноска изменена в исправлении — запишется с ним</span>}
       <Button size="sm" variant="text" icon={<Grid3x3 size={13} />} onClick={() => setMatrix({})}>
-        {canEdit ? 'на несколько объектов' : 'разноска по объектам'}
+        {canEdit && !correcting ? 'на несколько объектов' : 'разноска по объектам'}
       </Button>
 
       {matrix && (
-        <AllocationMatrix view={view} total={total} canEdit={canEdit} initialPreview={matrix.initial}
-          onClose={() => setMatrix(null)} />
+        <AllocationMatrix view={view} total={total} canEdit={correcting ? allocate : canEdit}
+          initialPreview={matrix.initial} onClose={() => setMatrix(null)}
+          draft={correcting
+            ? { lines: correcting.lines, state: correcting.allocation, onApply: correcting.setAllocation }
+            : undefined} />
       )}
     </div>
   );
