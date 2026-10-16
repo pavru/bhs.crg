@@ -153,7 +153,11 @@ public sealed record InvoiceListItem(
     // клиент. Пусто — счёт не разнесён ни на одну стройку (или только на статьи вне строек). Удалённая
     // стройка остаётся здесь своим идентификатором: что она удалена, решает правило фильтра, а не ответ.
     // ⚠️ null — под отбором очереди: там фильтр не действует, и стройки не считаются вовсе.
-    IReadOnlyList<Guid>? ConstructionIds = null);
+    IReadOnlyList<Guid>? ConstructionIds = null,
+    // У счёта есть книга исправлений (E2, issue #1100, PR 6c): менялся после закрытия периода —
+    // исправлением, отменой или новой оплатой, сменой допуска. Тот же признак, что у колонки реестра
+    // «Исправлен после закрытия»: номер последней записи книги лежит в строке счёта, книгу список не читает.
+    bool Corrected = false);
 
 /// <summary>
 /// Срок «оплатить до» глазами правила (C4, issue #1080): сам срок едет реквизитом «Срок», а здесь — то,
@@ -273,7 +277,8 @@ public static class InvoiceViews
         withoutNomenclature,
         ScanFileName: invoice.ScanFileName,
         DaysLeft: (int?)InvoiceDue.DaysLeftOf(invoice, today),
-        Overdue: InvoiceDue.OverdueOf(invoice, today) == true);
+        Overdue: InvoiceDue.OverdueOf(invoice, today) == true,
+        Corrected: invoice.BookSeq > 0);
 
     public static InvoiceDuplicate Duplicate(Invoice invoice) =>
         new(invoice.Id, invoice.Number, invoice.IssuedOn, invoice.Total);

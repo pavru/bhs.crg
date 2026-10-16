@@ -42,12 +42,16 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="UnmatchedLinked">То же — у «без позиции номенклатуры».</param>
 /// <param name="Other">Итог затрат другим взглядом — полоса называет его рядом с переключателем, чтобы
 /// «закрытый месяц изменился» не было молчаливым (PR 6b-3 E2); null — взгляды не различаются.</param>
+/// <param name="UnmatchedNow">Во взгляде «на момент закрытия» — счета без позиции номенклатуры СЕЙЧАС, как их
+/// найдёт реестр (PR 6c E2): признак «без позиции» у строки книги — сегодняшний, и «из них» под итогом закрытия
+/// смешивало бы два времени. Клиент ставит указатель «сумма и список — во взгляде „с исправлениями“». null — в
+/// первом взгляде или таких счетов нет.</param>
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
     IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
     IReadOnlyList<CostLine> Suppliers, IReadOnlyList<CostLine> Sections,
     CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown,
-    string View, string? Differs, bool TotalLinked, bool UnmatchedLinked, CostFigure? Other);
+    string View, string? Differs, bool TotalLinked, bool UnmatchedLinked, CostFigure? Other, CostFigure? UnmatchedNow);
 
 /// <summary>
 /// «Затраты по стройке» (задача G5 этапа 2, issue #1098, ТЗ COST-20).
@@ -211,7 +215,8 @@ public static class SiteCostsEndpoints
             differs switch { ViewsDiffer.Totals => "totals", ViewsDiffer.Details => "details", _ => null },
             result.Total == registry.Total,
             result.Unmatched == registry.Unmatched,
-            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total));
+            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total,
+            closing ? registry.Unmatched : null));
     }
 
     /// <summary>

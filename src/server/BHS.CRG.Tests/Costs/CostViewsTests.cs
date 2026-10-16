@@ -101,4 +101,33 @@ public class CostViewsTests
         // С НДС «учтено полной суммой» не называется вовсе.
         Assert.Null(SiteCosts.Of(book, Autumn.From, Autumn.Through, SiteA, withVat: true).VatUnknown);
     }
+
+    /// <summary>
+    /// «N счетов» — счета, чьи деньги в строке не ноль (решение владельца 16.10.2026). Исправление
+    /// перенесло деньги со стройки А на Б: у А в книге «+120 и −120», и «1 счёт, 0,00» читалось бы как
+    /// «счёт здесь есть». Итог считает счёт, посчитанный хоть в одной строке, — и при нулевой сумме счёта:
+    /// перенос между объектами законен.
+    /// </summary>
+    [Fact]
+    public void Счёт_с_нулём_в_строке_в_ней_не_считается_а_в_итоге_считается_по_строкам()
+    {
+        var moved = SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100), On(SiteB, D(10, 5), 120, 100)],
+            Autumn.From, Autumn.Through, null, withVat: true);
+        Assert.False(moved.Sites.ContainsKey(SiteA));
+        Assert.Equal(new CostFigure(1, 120m), moved.Sites[SiteB]);
+        Assert.Equal(new CostFigure(1, 120m), moved.Total);
+
+        // Только перенос в октябре: у А −120, у Б +120 — итог ноль, но счёт в обеих строках.
+        var october = SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100), On(SiteB, D(10, 5), 120, 100)],
+            D(10, 1), D(10, 31), null, withVat: true);
+        Assert.Equal(new CostFigure(1, -120m), october.Sites[SiteA]);
+        Assert.Equal(new CostFigure(1, 0m), october.Total);
+
+        // Сложилось в ноль всё — ни строк, ни счёта в итоге.
+        var gone = SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100)], Autumn.From, Autumn.Through, null, withVat: true);
+        Assert.Empty(gone.Sites);
+        Assert.Equal(new CostFigure(0, 0m), gone.Total);
+        // На экране стройки — та же мера по поставщикам.
+        Assert.Empty(SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100)], Autumn.From, Autumn.Through, SiteA, withVat: true).Suppliers);
+    }
 }

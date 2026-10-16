@@ -128,28 +128,53 @@ public static class SiteCosts
                 VatUnknown: !withVat && m.Grain.VatUnknown))
             .ToList();
 
+        // «N счетов» строки — счета, чьи деньги в ней не ноль (решение владельца 16.10.2026, разбор
+        // Дизайнера): исправление, перенёсшее деньги на другой объект, оставляет в книге «+120 и −120», и
+        // «1 счёт, 0,00» читалось бы как «счёт здесь есть». Деньги строки от этого не меняются.
         static CostFigure Figure(IEnumerable<(CostMoney Money, AllocationTarget? Target, decimal Amount, bool VatUnknown)> rows)
         {
             var list = rows.ToList();
-            return new(list.Select(r => r.Money.Invoice).Distinct().Count(), list.Sum(r => r.Amount));
+            return new(list.GroupBy(r => r.Money.Invoice).Count(g => g.Sum(r => r.Amount) != 0), list.Sum(r => r.Amount));
         }
         static CostFigure? Some(CostFigure figure) => figure.Invoices == 0 ? null : figure;
+        // Строка, в которой ни один счёт не посчитан, — ноль из нулей: её нет вовсе, как нет «Удалённых», когда
+        // их не набралось.
+        static Dictionary<Guid, CostFigure> Rows<T>(IEnumerable<IGrouping<Guid, T>> groups, Func<IEnumerable<T>, CostFigure> figure) =>
+            groups.Select(g => (g.Key, Figure: figure(g))).Where(g => g.Figure.Invoices > 0).ToDictionary(g => g.Key, g => g.Figure);
+
+        // Итог считает счёт, посчитанный хоть в одной строке экрана — а не по сумме счёта целиком: перенос
+        // между объектами даёт счёту ноль в итоге, но в двух строках он есть, и итог «0 счетов» под ними
+        // противоречил бы им. Строки — те, что на экране: стройки, статьи, удалённые и «не разнесено» у всех
+        // строек; поставщики и разделы — у одной.
+        IReadOnlyList<Func<(CostMoney Money, AllocationTarget? Target, decimal Amount, bool VatUnknown), object?>> screen = site is null
+            ? [e => e.Target is not { } target ? "unallocated"
+                : Known(target.ConstructionId) ? target.ConstructionId
+                : Known(target.ArticleId) ? target.ArticleId : "lost"]
+            : section is null
+                ? [e => e.Money.Grain.Cell.SupplierId]
+                : [e => e.Money.Grain.Cell.SupplierId, e => section(e.Target!.Value).Registry];
+        var counted = entries.GroupBy(e => e.Money.Invoice)
+            .Where(g => screen.Any(row => g.GroupBy(row).Any(r => r.Sum(e => e.Amount) != 0)))
+            .Select(g => g.Key).ToHashSet();
+        CostFigure Within(IEnumerable<(CostMoney Money, AllocationTarget? Target, decimal Amount, bool VatUnknown)> rows)
+        {
+            var list = rows.ToList();
+            return new(list.Select(r => r.Money.Invoice).Distinct().Count(counted.Contains), list.Sum(r => r.Amount));
+        }
 
         return new(
             site is null
-                ? entries.Where(e => Known(e.Target?.ConstructionId))
-                    .GroupBy(e => e.Target!.Value.ConstructionId!.Value).ToDictionary(g => g.Key, Figure)
+                ? Rows(entries.Where(e => Known(e.Target?.ConstructionId)).GroupBy(e => e.Target!.Value.ConstructionId!.Value), Figure)
                 : new Dictionary<Guid, CostFigure>(),
             site is null
-                ? entries.Where(e => Known(e.Target?.ArticleId))
-                    .GroupBy(e => e.Target!.Value.ArticleId!.Value).ToDictionary(g => g.Key, Figure)
+                ? Rows(entries.Where(e => Known(e.Target?.ArticleId)).GroupBy(e => e.Target!.Value.ArticleId!.Value), Figure)
                 : new Dictionary<Guid, CostFigure>(),
             site is null
                 ? Some(Figure(entries.Where(e => e.Target is { } target && !Known(target.ConstructionId ?? target.ArticleId))))
                 : null,
             site is null ? Some(Figure(entries.Where(e => e.Target is null))) : null,
             // Поставщик — ячейки зерна: у строки книги он тот, что был при записи (spec п. 0.3).
-            site is null ? [] : [.. entries.GroupBy(e => e.Money.Grain.Cell.SupplierId).Select(g => (g.Key, Figure(g)))],
+            site is null ? [] : [.. entries.GroupBy(e => e.Money.Grain.Cell.SupplierId).Select(g => (g.Key, Figure: Figure(g))).Where(g => g.Figure.Invoices > 0)],
             // Тот же набор долей, сгруппированный иначе: сумма строк обоих срезов — один итог. А число
             // счетов по разделам в итог НЕ складывается: счёт на два раздела стоит в двух строках.
             // Группа — название в реестре: одноимённые разделы и разделы, которых больше нет, — одной
@@ -162,9 +187,11 @@ public static class SiteCosts
                 .Select(e => (Entry: e, Section: section(e.Target!.Value)))
                 .GroupBy(e => e.Section.Registry, StringComparer.Ordinal)
                 .Select(g => (g.Select(e => e.Section).OrderBy(s => s.Id is not null).ThenBy(s => s.Id).First(),
-                    Figure(g.Select(e => e.Entry))))],
-            Figure(entries),
-            Some(Figure(entries.Where(e => e.Money.Unmatched))),
+                    Figure: Figure(g.Select(e => e.Entry))))
+                .Where(g => g.Figure.Invoices > 0)],
+            Within(entries),
+            // «Из них» — из счетов итога: счёт, которого итог не считает, не считается и здесь.
+            Some(Within(entries.Where(e => e.Money.Unmatched))),
             withVat ? null : Some(Figure(entries.Where(e => e.VatUnknown))));
     }
 

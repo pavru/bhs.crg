@@ -12,7 +12,14 @@ import { lostSummary } from './lostReferences';
  * стираются. Действия здесь не предложено нарочно — «восстановить запись» некуда вести; исправляют
  * потерю в самом поле, выбрав другую запись.</p>
  */
-export function LostReferencesNote({ view, locked }: { view: InvoiceView; locked: boolean }) {
+export function LostReferencesNote({ view, locked }: {
+  view: InvoiceView;
+  /**
+   * Почему ссылку в поле не заменить: `closed` — счёт закрытого периода, запись меняют только исправлением
+   * с причиной (E2, issue #1100); `gone` — счёт удалён; `null` — правится как обычно.
+   */
+  locked: 'closed' | 'gone' | null;
+}) {
   const summary = lostSummary(view);
   if (!summary) return null;
 
@@ -29,8 +36,11 @@ export function LostReferencesNote({ view, locked }: { view: InvoiceView; locked
           <p>
             Удалённые записи справочников — в {summary.count}{' '}
             {summary.count === 1 ? 'месте' : 'местах'}: {summary.places}.{' '}
-            {locked
-              ? 'Счёт заперт, исправить это нельзя — в число потерянных ссылок он не входит.'
+            {/* «Исправить нельзя» у счёта закрытого периода стало неправдой с исправлением (E2, PR 6c). */}
+            {locked === 'closed'
+              ? 'Счёт закрытого периода: запись заменяют исправлением с причиной. В число потерянных ссылок он не входит.'
+              : locked === 'gone'
+              ? 'Счёт удалён, исправить это нельзя — в число потерянных ссылок он не входит.'
               : 'Счёт сохраняется и так; исправить — выбрать в поле другую запись.'}
           </p>
         )}

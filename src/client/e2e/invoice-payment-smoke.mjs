@@ -228,7 +228,7 @@ await check('closing-dialog-lists-what-it-records', async () => {
   // «История» показывает то, что показал диалог, — из записи о закрытии.
   const record = page.locator('tbody tr').filter({ hasText: 'Закрыт период' }).filter({ hasText: SITE }).first();
   await record.getByRole('button', { name: 'Что показал диалог при закрытии' }).click();
-  await record.getByText('Числа на момент закрытия').waitFor({ timeout: 10_000 });
+  await record.getByText('Так диалог выглядел в день закрытия', { exact: false }).waitFor({ timeout: 10_000 });
   const recorded = (await record.innerText()).replace(/[  ]/g, ' ');
   if (!recorded.includes(`Оплачены в периоде, но не разобраны: ${unsettled}`))
     throw new Error(`в «Истории» не то, что показал диалог («${unsettled}»): ${recorded.slice(0, 500)}`);
