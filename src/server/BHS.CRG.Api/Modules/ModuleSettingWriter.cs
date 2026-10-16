@@ -59,6 +59,9 @@ public sealed class ModuleSettingWriter(
             throw new InvalidOperationException("Негодные обработчики смены настроек модулей:\n" + string.Join("\n", problems));
     }
 
+    /// <summary>У настройки есть обработчик — значит, <see cref="PreviewAsync" /> называет её следствие числами.</summary>
+    public bool Previews(string key) => _handlers.ContainsKey(key);
+
     /// <summary>
     /// Что сделает смена с записанными данными — у настроек с обработчиком, чьё действующее значение
     /// меняется. Значения уже проверены.
