@@ -59,6 +59,33 @@ public partial class InvoicePaymentTests
     }
 
     /// <summary>
+    /// «Без позиции номенклатуры сейчас» во взгляде закрытия — число ПЕРВОГО взгляда, как его найдёт реестр
+    /// (PR 6c; ревью PR #1392): клиент ставит его указателем вместо «из них». В первом взгляде поля нет.
+    /// </summary>
+    [Fact]
+    public async Task Без_позиции_сейчас_во_взгляде_закрытия_число_первого_взгляда()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var invoice = await CreateAsync(admin, complete: true);
+        var view = await LinesAsync(admin, invoice, [Line(null, 10, 100)]);
+        var (site, _) = await SiteAsync("Без позиции сейчас");
+        await AllocateAsync(admin, invoice, LineId(view, 1), [Part(site, quantity: 10)]);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 1_000m) }));
+        await PayAsync(admin, invoice, today, await PreviewAsync(admin, invoice, today), null);
+        var range = $"site={site}&from={today:yyyy-MM}&to={today:yyyy-MM}";
+
+        var corrected = await admin.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?{range}");
+        var closing = await admin.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?{range}&view=closing");
+
+        Assert.Equal((1, 1_000m), (corrected.GetProperty("unmatched").GetProperty("invoices").GetInt32(),
+            corrected.GetProperty("unmatched").GetProperty("amount").GetDecimal()));
+        Assert.Equal(JsonValueKind.Null, corrected.GetProperty("unmatchedNow").ValueKind);
+        Assert.Equal(corrected.GetProperty("unmatched").GetRawText(), closing.GetProperty("unmatchedNow").GetRawText());
+    }
+
+    /// <summary>
     /// «Затраты по стройке» — два взгляда (spec п. 1.7): по умолчанию «с исправлениями», как реестр;
     /// <c>view=closing</c> — по книге. Полоса знает, чем они различаются; ссылка у строки «на момент
     /// закрытия» — только под числом, которое покажет реестр.
@@ -77,14 +104,17 @@ public partial class InvoicePaymentTests
 
         // Без книги взгляды равны: полосы нет, ссылки на месте.
         var plain = await CostsAsync("&view=closing");
+        Assert.False((await admin.GetFromJsonAsync<JsonElement>("/api/costs/invoices"))
+            .EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice).GetProperty("corrected").GetBoolean());
         Assert.Equal("closing", plain.GetProperty("view").GetString());
         Assert.Equal(JsonValueKind.Null, plain.GetProperty("differs").ValueKind);
         Assert.Equal(40_000m, Amount(plain.GetProperty("total")));
         Assert.Equal(JsonValueKind.Null, plain.GetProperty("other").ValueKind);
 
         // После отмены оплаты счёта в документах нет, а книга держит его 40 000 днём оплаты и −40 000
-        // сегодня: итоги равны нулю, различаются дни. Счёт в книге — «один счёт на ноль», и реестр,
-        // где его нет, такой ссылки не подтвердит.
+        // сегодня: итоги равны нулю, различаются дни. Счёт, чьи деньги сложились в ноль, не считается и во
+        // взгляде книги (решение владельца 16.10.2026, PR 6c): «один счёт на ноль» читался бы «счёт здесь есть».
+        // Итог тогда тот же, что у реестра, — и ссылка на него честная.
         await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }));
         var corrected = await CostsAsync("");
         Assert.Equal("corrected", corrected.GetProperty("view").GetString());
@@ -92,11 +122,18 @@ public partial class InvoicePaymentTests
         Assert.Equal(0, corrected.GetProperty("total").GetProperty("invoices").GetInt32());
         Assert.True(corrected.GetProperty("totalLinked").GetBoolean());
         var closing = await CostsAsync("&view=closing");
-        Assert.Equal((1, 0m), (closing.GetProperty("total").GetProperty("invoices").GetInt32(), Amount(closing.GetProperty("total"))));
-        Assert.False(closing.GetProperty("totalLinked").GetBoolean());
+        Assert.Equal((0, 0m), (closing.GetProperty("total").GetProperty("invoices").GetInt32(), Amount(closing.GetProperty("total"))));
+        Assert.True(closing.GetProperty("totalLinked").GetBoolean());
+        Assert.Empty(closing.GetProperty("suppliers").EnumerateArray());
         // Полоса называет итог другого взгляда (PR 6b-3): у каждого — итог соседа.
-        Assert.Equal(1, corrected.GetProperty("other").GetProperty("invoices").GetInt32());
-        Assert.Equal(0, closing.GetProperty("other").GetProperty("invoices").GetInt32());
+        Assert.Equal(0m, Amount(corrected.GetProperty("other")));
+        Assert.Equal(0m, Amount(closing.GetProperty("other")));
+        // «Без позиции сейчас» — только во взгляде закрытия (PR 6c): в первом под итогом стоит «из них».
+        Assert.Equal(JsonValueKind.Null, corrected.GetProperty("unmatchedNow").ValueKind);
+        // Список «Счета» помечает счёт с книгой исправлений (PR 6c).
+        var listed = (await admin.GetFromJsonAsync<JsonElement>("/api/costs/invoices"))
+            .EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice);
+        Assert.True(listed.GetProperty("corrected").GetBoolean());
 
         // Новая оплата: документ — 40 000 «9 дней назад», книга — те же 40 000 тремя строками. Итоги равны,
         // и строки «на момент закрытия» сошлись с реестром — ссылки у них есть.

@@ -73,6 +73,12 @@ export interface SiteCosts {
   unmatchedLinked?: boolean;
   /** Итог затрат другим взглядом — полоса называет его рядом с переключателем; null — взгляды совпали. */
   other?: CostFigure | null;
+  /**
+   * Во взгляде «на момент закрытия» — счета без позиции номенклатуры СЕЙЧАС, как их найдёт реестр (PR 6c
+   * E2): строкой-указателем вместо «из них» — признак у строки книги сегодняшний. null — первый взгляд или
+   * таких нет.
+   */
+  unmatchedNow?: CostFigure | null;
 }
 
 export interface SiteCostsQuery {

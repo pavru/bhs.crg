@@ -35,7 +35,7 @@ function report(closing: boolean, differs: SiteCosts['differs']): SiteCosts {
   const diverged = closing && !!differs;
   return {
     site: null, from: '2026-09', to: '2026-09', withVat: true, months: ['09.2026'], articles: [], lost: null,
-    unallocated: null, suppliers: [], unmatched: null, payable: zero, vatUnknown: null, payableVatUnknown: null,
+    unallocated: null, suppliers: [], unmatched: { invoices: 1, amount: 20 }, payable: zero, vatUnknown: null, payableVatUnknown: null,
     sites: [
       { id: 'a', name: 'Комарова 36', invoices: 1, amount: diverged ? 70 : 100, linked: !diverged },
       { id: 'b', name: 'Ленина 5', invoices: 1, amount: 20, linked: true },
@@ -43,6 +43,7 @@ function report(closing: boolean, differs: SiteCosts['differs']): SiteCosts {
     total: { invoices: 2, amount: diverged ? 90 : 120 },
     view: closing ? 'closing' : 'corrected', differs, totalLinked: !diverged, unmatchedLinked: true,
     other: differs ? { invoices: 2, amount: diverged ? 120 : 90 } : null,
+    unmatchedNow: closing ? { invoices: 1, amount: 20 } : null,
   };
 }
 
@@ -98,6 +99,12 @@ describe('два взгляда на закрытые периоды', () => {
     expect(arrow('Комарова 36')).toBeNull();
     // Ленина 5 сошлась с реестром — её стрелка на месте.
     expect(arrow('Ленина 5')).not.toBeNull();
+    // «Без позиции» — не «из них» под итогом закрытия, а указатель на первый взгляд; он же переключает.
+    expect(screen.queryByText(/из них без позиции/)).toBeNull();
+    expect(screen.getByText(/Без позиции номенклатуры сейчас: 1 счёт/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'сумма и список во взгляде «с исправлениями»' }));
+    await screen.findByRole('tab', { name: 'С исправлениями', selected: true });
+    await screen.findByText(/из них без позиции номенклатуры/);
   });
 
   it('вкладка следует адресу сразу, не дожидаясь ответа; вкладка указывает на панель затрат', async () => {

@@ -62,6 +62,8 @@ public sealed record LineVat(decimal? Amount, decimal? VatAmount);
 /// суммой; null — таких нет либо суммы показаны с НДС. Во взгляде «на момент закрытия» — строки книги с
 /// признаком «НДС неизвестен» их суммой без НДС (spec п. 1.3 шаг 4): признак исторический, и строка,
 /// которая правит прежнюю заглушку, бывает и отрицательной.</param>
+/// <param name="LostSuppliers">На экране стройки — деньги поставщиков, которых больше нет в справочнике,
+/// одной строкой (реестр их не называет); в <paramref name="Suppliers" /> их нет. null — таких нет.</param>
 public sealed record SiteCostsResult(
     IReadOnlyDictionary<Guid, CostFigure> Sites,
     IReadOnlyDictionary<Guid, CostFigure> Articles,
@@ -71,7 +73,8 @@ public sealed record SiteCostsResult(
     IReadOnlyList<(SectionName Section, CostFigure Figure)> Sections,
     CostFigure Total,
     CostFigure? Unmatched,
-    CostFigure? VatUnknown);
+    CostFigure? VatUnknown,
+    CostFigure? LostSuppliers = null);
 
 /// <summary>
 /// «Затраты по стройке» (задача G5, issue #1098, ТЗ COST-20): деньги оплаченных счетов, вошедшие в
@@ -115,41 +118,76 @@ public static class SiteCosts
 
     /// <summary>Затраты за период — по зёрнам любого взгляда.</summary>
     /// <param name="money">Зёрна с деньгами и днём: основной таблицы или книги исправлений.</param>
+    /// <param name="suppliers">Поставщики, которые есть в справочнике, — на экране стройки; остальные
+    /// идут одной строкой <see cref="SiteCostsResult.LostSuppliers" />. null — есть все.</param>
     public static SiteCostsResult Of(
         IReadOnlyList<CostMoney> money, DateOnly from, DateOnly through, Guid? site, bool withVat,
-        IReadOnlySet<Guid>? known = null, Func<AllocationTarget, SectionName>? section = null)
+        IReadOnlySet<Guid>? known = null, Func<AllocationTarget, SectionName>? section = null,
+        IReadOnlySet<Guid>? suppliers = null)
     {
         bool Known(Guid? id) => id is { } key && known?.Contains(key) != false;
 
         var entries = money
             .Where(m => m.Grain.Day >= from && m.Grain.Day <= through)
             .Where(m => site is null || m.Grain.Cell.Target?.ConstructionId == site)
-            .Select(m => (Money: m, Target: m.Grain.Cell.Target, Amount: withVat ? m.Grain.Gross : m.Grain.Net,
-                VatUnknown: !withVat && m.Grain.VatUnknown))
+            .Select(m => new Entry(m, m.Grain.Cell.Target, withVat ? m.Grain.Gross : m.Grain.Net, !withVat && m.Grain.VatUnknown))
             .ToList();
 
-        static CostFigure Figure(IEnumerable<(CostMoney Money, AllocationTarget? Target, decimal Amount, bool VatUnknown)> rows)
+        // «N счетов» строки — счета, чьи деньги в ней не ноль (решение владельца 16.10.2026, разбор
+        // Дизайнера): исправление, перенёсшее деньги на другой объект, оставляет в книге «+120 и −120», и
+        // «1 счёт, 0,00» читалось бы как «счёт здесь есть». Деньги строки от этого не меняются. Строка, где
+        // не посчитан ни один счёт, — ноль из нулей: её нет вовсе, как нет «Удалённых», когда их не набралось.
+        //
+        // Итог считает счёт, посчитанный хоть в одной строке ОСНОВНОГО среза, — собранного здесь же, из тех
+        // строк, что уйдут на экран (ревью PR #1392: список «строк экрана» отдельно от них разошёлся бы с
+        // ними). Основной срез — тот, где счёт стоит в одной строке: объекты у всех строек, поставщики у одной.
+        // Разделы — второй срез, их числа счетов в итог не складывались и раньше (счёт на два раздела — в двух
+        // строках); итог по ним не считается, иначе «1 счёт» стоял бы над пустым списком поставщиков.
+        // Не по сумме счёта целиком: перенос между объектами даёт счёту ноль в итоге, но в двух строках он есть.
+        var inTotal = new HashSet<Guid>();
+        CostFigure Row(IEnumerable<Entry> rows, bool main = true)
         {
             var list = rows.ToList();
-            return new(list.Select(r => r.Money.Invoice).Distinct().Count(), list.Sum(r => r.Amount));
+            var counted = list.GroupBy(r => r.Money.Invoice).Where(g => g.Sum(r => r.Amount) != 0).Select(g => g.Key).ToList();
+            if (main) inTotal.UnionWith(counted);
+            return new(counted.Count, list.Sum(r => r.Amount));
+        }
+        // «Из них» — только из счетов итога: счёт, которого итог не считает, не считается и в расшифровке.
+        // ownMoney — счёт ещё и с ненулевыми деньгами в самой расшифровке: признак «НДС неизвестен» стоит у
+        // строки денег, и «−120 без НДС и +120 с НДС» у счёта — не «учтён полной суммой». «Без позиции» —
+        // признак счёта, и счёт итога в нём — весь.
+        CostFigure Part(IEnumerable<Entry> rows, bool ownMoney)
+        {
+            var list = rows.ToList();
+            return new(list.GroupBy(r => r.Money.Invoice).Count(g => inTotal.Contains(g.Key) && (!ownMoney || g.Sum(r => r.Amount) != 0)),
+                list.Sum(r => r.Amount));
         }
         static CostFigure? Some(CostFigure figure) => figure.Invoices == 0 ? null : figure;
+        Dictionary<Guid, CostFigure> Rows(IEnumerable<IGrouping<Guid, Entry>> groups) =>
+            groups.Select(g => (g.Key, Figure: Row(g))).Where(g => g.Figure.Invoices > 0).ToDictionary(g => g.Key, g => g.Figure);
 
-        return new(
-            site is null
-                ? entries.Where(e => Known(e.Target?.ConstructionId))
-                    .GroupBy(e => e.Target!.Value.ConstructionId!.Value).ToDictionary(g => g.Key, Figure)
-                : new Dictionary<Guid, CostFigure>(),
-            site is null
-                ? entries.Where(e => Known(e.Target?.ArticleId))
-                    .GroupBy(e => e.Target!.Value.ArticleId!.Value).ToDictionary(g => g.Key, Figure)
-                : new Dictionary<Guid, CostFigure>(),
-            site is null
-                ? Some(Figure(entries.Where(e => e.Target is { } target && !Known(target.ConstructionId ?? target.ArticleId))))
-                : null,
-            site is null ? Some(Figure(entries.Where(e => e.Target is null))) : null,
-            // Поставщик — ячейки зерна: у строки книги он тот, что был при записи (spec п. 0.3).
-            site is null ? [] : [.. entries.GroupBy(e => e.Money.Grain.Cell.SupplierId).Select(g => (g.Key, Figure(g)))],
+        Dictionary<Guid, CostFigure> sites = [], articles = [];
+        CostFigure? lost = null, unallocated = null, lostSuppliers = null;
+        List<(Guid? Supplier, CostFigure Figure)> bySupplier = [];
+        List<(SectionName Section, CostFigure Figure)> bySection = [];
+        if (site is null)
+        {
+            sites = Rows(entries.Where(e => Known(e.Target?.ConstructionId)).GroupBy(e => e.Target!.Value.ConstructionId!.Value));
+            articles = Rows(entries.Where(e => Known(e.Target?.ArticleId)).GroupBy(e => e.Target!.Value.ArticleId!.Value));
+            lost = Some(Row(entries.Where(e => e.Target is { } target && !Known(target.ConstructionId ?? target.ArticleId))));
+            unallocated = Some(Row(entries.Where(e => e.Target is null)));
+        }
+        else
+        {
+            // Поставщик — ячейки зерна: у строки книги он тот, что был при записи (spec п. 0.3). Удалённые из
+            // справочника — ОДНОЙ строкой, собранной из денег, а не из чисел строк (ревью PR #1392): во взгляде
+            // книги счёт, у которого исправление сменило поставщика, стоит у обоих, и сложенные числа дали бы
+            // «2 счёта, 0,00» за один счёт.
+            bool Listed(Guid? supplier) => supplier is not { } id || suppliers?.Contains(id) != false;
+            bySupplier = [.. entries.Where(e => Listed(e.Money.Grain.Cell.SupplierId))
+                .GroupBy(e => e.Money.Grain.Cell.SupplierId)
+                .Select(g => (g.Key, Figure: Row(g))).Where(g => g.Figure.Invoices > 0)];
+            lostSuppliers = Some(Row(entries.Where(e => !Listed(e.Money.Grain.Cell.SupplierId))));
             // Тот же набор долей, сгруппированный иначе: сумма строк обоих срезов — один итог. А число
             // счетов по разделам в итог НЕ складывается: счёт на два раздела стоит в двух строках.
             // Группа — название в реестре: одноимённые разделы и разделы, которых больше нет, — одной
@@ -158,15 +196,25 @@ public static class SiteCosts
             // побеждает раздел, названный так же (строка тогда — не название, а его отсутствие), а из
             // тёзок берётся один и тот же. Возьми мы первую попавшуюся долю, вид и место строки на
             // экране менялись бы от запроса к запросу (так и упал тест на master после PR #1209).
-            site is null || section is null ? [] : [.. entries
-                .Select(e => (Entry: e, Section: section(e.Target!.Value)))
-                .GroupBy(e => e.Section.Registry, StringComparer.Ordinal)
-                .Select(g => (g.Select(e => e.Section).OrderBy(s => s.Id is not null).ThenBy(s => s.Id).First(),
-                    Figure(g.Select(e => e.Entry))))],
-            Figure(entries),
-            Some(Figure(entries.Where(e => e.Money.Unmatched))),
-            withVat ? null : Some(Figure(entries.Where(e => e.VatUnknown))));
+            if (section is not null)
+                bySection = [.. entries
+                    .Select(e => (Entry: e, Section: section(e.Target!.Value)))
+                    .GroupBy(e => e.Section.Registry, StringComparer.Ordinal)
+                    .Select(g => (g.Select(e => e.Section).OrderBy(s => s.Id is not null).ThenBy(s => s.Id).First(),
+                        Figure: Row(g.Select(e => e.Entry), main: false)))
+                    .Where(g => g.Figure.Invoices > 0)];
+        }
+
+        // Итог — после всех строк основного среза: его счета собраны ими.
+        return new(sites, articles, lost, unallocated, bySupplier, bySection,
+            new(inTotal.Count, entries.Sum(e => e.Amount)),
+            Some(Part(entries.Where(e => e.Money.Unmatched), ownMoney: false)),
+            withVat ? null : Some(Part(entries.Where(e => e.VatUnknown), ownMoney: true)),
+            lostSuppliers);
     }
+
+    /// <summary>Зерно отчёта: деньги, их объект, сумма в выбранном виде и признак «НДС неизвестен».</summary>
+    private readonly record struct Entry(CostMoney Money, AllocationTarget? Target, decimal Amount, bool VatUnknown);
 
     /// <summary>
     /// «К оплате»: неоплаченные неотклонённые счета — от периода не зависит, неоплаченный счёт не

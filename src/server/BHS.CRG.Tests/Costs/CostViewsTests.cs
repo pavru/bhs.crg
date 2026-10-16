@@ -101,4 +101,102 @@ public class CostViewsTests
         // С НДС «учтено полной суммой» не называется вовсе.
         Assert.Null(SiteCosts.Of(book, Autumn.From, Autumn.Through, SiteA, withVat: true).VatUnknown);
     }
+
+    /// <summary>
+    /// «N счетов» — счета, чьи деньги в строке не ноль (решение владельца 16.10.2026). Исправление
+    /// перенесло деньги со стройки А на Б: у А в книге «+120 и −120», и «1 счёт, 0,00» читалось бы как
+    /// «счёт здесь есть». Итог считает счёт, посчитанный хоть в одной строке, — и при нулевой сумме счёта:
+    /// перенос между объектами законен.
+    /// </summary>
+    [Fact]
+    public void Счёт_с_нулём_в_строке_в_ней_не_считается_а_в_итоге_считается_по_строкам()
+    {
+        var moved = SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100), On(SiteB, D(10, 5), 120, 100)],
+            Autumn.From, Autumn.Through, null, withVat: true);
+        Assert.False(moved.Sites.ContainsKey(SiteA));
+        Assert.Equal(new CostFigure(1, 120m), moved.Sites[SiteB]);
+        Assert.Equal(new CostFigure(1, 120m), moved.Total);
+
+        // Только перенос в октябре: у А −120, у Б +120 — итог ноль, но счёт в обеих строках.
+        var october = SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100), On(SiteB, D(10, 5), 120, 100)],
+            D(10, 1), D(10, 31), null, withVat: true);
+        Assert.Equal(new CostFigure(1, -120m), october.Sites[SiteA]);
+        Assert.Equal(new CostFigure(1, 0m), october.Total);
+
+        // Сложилось в ноль всё — ни строк, ни счёта в итоге.
+        var gone = SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100)], Autumn.From, Autumn.Through, null, withVat: true);
+        Assert.Empty(gone.Sites);
+        Assert.Equal(new CostFigure(0, 0m), gone.Total);
+        // На экране стройки — та же мера по поставщикам.
+        Assert.Empty(SiteCosts.Of([On(SiteA, D(9, 15), 120, 100), On(SiteA, D(10, 5), -120, -100)], Autumn.From, Autumn.Through, SiteA, withVat: true).Suppliers);
+    }
+
+    private static readonly Guid SectionX = Guid.NewGuid();
+    private static readonly Guid SectionY = Guid.NewGuid();
+
+    private static CostMoney At(Guid? section, Guid supplier, decimal gross, bool vatUnknown = false) =>
+        new(Invoice, false, new Grain(new BookCell(AllocationTarget.Site(SiteA, section), supplier), D(10, 5), gross, gross, vatUnknown));
+
+    private static SiteCostsResult October(CostMoney[] money, bool withVat = true, IReadOnlySet<Guid>? suppliers = null) =>
+        SiteCosts.Of(money, D(10, 1), D(10, 31), SiteA, withVat, section: t => new SectionName($"{t.SectionId}", $"{t.SectionId}", t.SectionId),
+            suppliers: suppliers);
+
+    /// <summary>
+    /// Итог экрана стройки — по строкам поставщиков, а не разделов (ревью PR #1392): разделы — второй срез, и
+    /// счёт, перенесённый между разделами у того же поставщика, дал бы «1 счёт» над пустым списком поставщиков.
+    /// </summary>
+    [Fact]
+    public void Итог_экрана_стройки_считает_счета_строк_поставщиков()
+    {
+        var moved = October([At(SectionX, Supplier, -120), At(SectionY, Supplier, 120)]);
+
+        Assert.Empty(moved.Suppliers);
+        Assert.Equal(new CostFigure(0, 0m), moved.Total);
+        Assert.Equal([new CostFigure(1, -120m), new CostFigure(1, 120m)],
+            moved.Sections.OrderBy(s => s.Figure.Amount).Select(s => s.Figure));
+    }
+
+    /// <summary>
+    /// Удалённые поставщики — одной строкой, собранной из денег (ревью PR #1392): у счёта, которому
+    /// исправление сменило поставщика, в книге оба, и сложенные числа строк дали бы два счёта за один.
+    /// </summary>
+    [Fact]
+    public void Удалённые_поставщики_одной_строкой_считают_счёт_один_раз()
+    {
+        var (x, y) = (Guid.NewGuid(), Guid.NewGuid());
+        var result = October([At(null, x, -120), At(null, y, 200)], suppliers: new HashSet<Guid>());
+
+        Assert.Empty(result.Suppliers);
+        Assert.Equal(new CostFigure(1, 80m), result.LostSuppliers);
+        Assert.Equal(new CostFigure(1, 80m), result.Total);
+    }
+
+    /// <summary>
+    /// Диалог закрытия считает каждый счёт, чьи деньги лежат в закрываемых днях, — и с нулём (ревью PR
+    /// #1392): строка говорит, что запрётся, а «−120 и +120» запрётся тоже. Правило отчёта «нулевой не
+    /// считается» здесь потеряло бы его, и счёт запирался бы молча.
+    /// </summary>
+    [Fact]
+    public void Диалог_закрытия_считает_и_счёт_с_нулём()
+    {
+        CostMoney[] book = [At(SectionX, Supplier, -120), At(SectionY, Supplier, 120)];
+
+        Assert.Equal(new CostFigure(1, 0m), CostsClosingReport.Locking(book, D(10, 1), D(10, 31), SiteA));
+        Assert.Equal(new CostFigure(1, 0m), CostsClosingReport.Locking(book, D(10, 1), D(10, 31), null));
+        Assert.Equal(new CostFigure(0, 0m), CostsClosingReport.Locking(book, D(10, 1), D(10, 31), SiteB));
+        Assert.Equal(new CostFigure(0, 0m), CostsClosingReport.Locking(book, D(11, 1), D(11, 30), null));
+    }
+
+    /// <summary>
+    /// «НДС не указан» — из счетов итога и по своим деньгам (ревью PR #1392): «−120 без НДС и +120 с НДС» в
+    /// одной строке — счёт, которого итог не считает, и расшифровка больше итога быть не может.
+    /// </summary>
+    [Fact]
+    public void НДС_не_указан_не_считает_счёт_которого_нет_в_итоге()
+    {
+        var result = October([At(null, Supplier, -120, vatUnknown: true), At(null, Supplier, 120)], withVat: false);
+
+        Assert.Equal(new CostFigure(0, 0m), result.Total);
+        Assert.Null(result.VatUnknown);
+    }
 }

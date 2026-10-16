@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AlarmClock, Archive, Ban, Check, Clock, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
+import { AlarmClock, Archive, Ban, Check, Clock, History, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
@@ -89,6 +89,14 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {rejected && (
           <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0" title="По счёту не платим">
             <Ban size={11} aria-hidden />отклонён
+          </span>
+        )}
+        {/* Исправленный — тихим словом, как «отклонён» (разбор Дизайнера, п. 6): это не задача, а след. Без
+            пометки счёт закрытого месяца выглядел бы таким, каким его закрыли. */}
+        {item.corrected && (
+          <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0"
+            title="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
+            <History size={11} aria-hidden />исправлен
           </span>
         )}
         {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».

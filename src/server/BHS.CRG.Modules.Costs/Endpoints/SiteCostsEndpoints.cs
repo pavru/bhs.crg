@@ -42,12 +42,16 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="UnmatchedLinked">То же — у «без позиции номенклатуры».</param>
 /// <param name="Other">Итог затрат другим взглядом — полоса называет его рядом с переключателем, чтобы
 /// «закрытый месяц изменился» не было молчаливым (PR 6b-3 E2); null — взгляды не различаются.</param>
+/// <param name="UnmatchedNow">Во взгляде «на момент закрытия» — счета без позиции номенклатуры СЕЙЧАС, как их
+/// найдёт реестр (PR 6c E2): признак «без позиции» у строки книги — сегодняшний, и «из них» под итогом закрытия
+/// смешивало бы два времени. Клиент ставит указатель «сумма и список — во взгляде „с исправлениями“». null — в
+/// первом взгляде или таких счетов нет.</param>
 public sealed record SiteCostsView(
     CostLine? Site, string From, string To, bool WithVat, IReadOnlyList<string> Months,
     IReadOnlyList<CostLine> Sites, IReadOnlyList<CostLine> Articles, CostLine? Lost, CostFigure? Unallocated,
     IReadOnlyList<CostLine> Suppliers, IReadOnlyList<CostLine> Sections,
     CostFigure Total, CostFigure? Unmatched, CostFigure Payable, CostFigure? VatUnknown, CostFigure? PayableVatUnknown,
-    string View, string? Differs, bool TotalLinked, bool UnmatchedLinked, CostFigure? Other);
+    string View, string? Differs, bool TotalLinked, bool UnmatchedLinked, CostFigure? Other, CostFigure? UnmatchedNow);
 
 /// <summary>
 /// «Затраты по стройке» (задача G5 этапа 2, issue #1098, ТЗ COST-20).
@@ -156,30 +160,31 @@ public static class SiteCostsEndpoints
         var closed = CostViews.Closing(costs, lines, await CostViews.BookAsync(db, first, through, site, ct));
         var differs = CostViews.Differ(corrected, closed, first, through, site);
 
+        // Контрагенты — только на экране стройки: без неё справочник не читаем. До расчёта: удалённых из
+        // справочника расчёт складывает одной строкой сам, из денег (ревью PR #1392).
+        var suppliers = site is null
+            ? []
+            : (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
+        var listed = suppliers.Keys.ToHashSet();
+
         // Доля в срезе стройки — всегда на стройку, раздел у неё есть (хотя бы «без раздела»).
         var named = labels.Keys.ToHashSet();
         SiteCostsResult Costs(IReadOnlyList<CostMoney> money) =>
-            SiteCosts.Of(money, first, through, site, withVat, named, target => shares.SectionOf(target)!);
+            SiteCosts.Of(money, first, through, site, withVat, named, target => shares.SectionOf(target)!, listed);
         var registry = Costs(corrected);
         // «На момент закрытия» — всегда по книге, и при равных взглядах тоже (ревью PR #1390): равенство
-        // зёрен не равенство чисел отчёта — счёт с книгой «+120 и −120 в один день» в зёрнах ноль, а счётом
-        // в строке считается, и признак «НДС неизвестен» у книги исторический. Числа отчёта обязаны совпасть
-        // с диалогом закрытия, который считает той же книгой.
+        // зёрен не равенство чисел отчёта — признак «НДС неизвестен» у книги исторический, и он в равенстве
+        // зёрен не участвует. Суммы отчёта обязаны совпасть с диалогом закрытия, который считает той же книгой;
+        // числа счетов — нет: диалог считает и счёт с нулём, он запрётся (PR 6c, ревью PR #1392).
         var atClosing = Costs(closed);
         var result = closing ? atClosing : registry;
         var (payable, payableVatUnknown) = SiteCosts.Payable(waiting, waitingLines, site, withVat);
 
-        // Контрагенты — только на экране стройки: без неё справочник не читаем.
-        var suppliers = site is null
-            ? []
-            : (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
         var byName = InvoiceShares.ByName;
         // Ссылка — только под числом, которое реестр покажет: во взгляде «на момент закрытия» строка, чьё
         // число разошлось с «с исправлениями», её теряет.
         CostLine Line(Guid? id, string name, CostFigure figure, CostFigure? listed, bool linked = true) =>
             new(id, name, figure.Invoices, figure.Amount, linked && figure == listed);
-        CostFigure Sum(IEnumerable<CostFigure> figures) => figures.Aggregate(new CostFigure(0, 0), (a, b) => new(a.Invoices + b.Invoices, a.Amount + b.Amount));
-        var lostSuppliers = result.Suppliers.Where(s => s.Supplier is { } id && !suppliers.ContainsKey(id)).ToList();
         var listedSuppliers = registry.Suppliers.ToDictionary(s => s.Supplier ?? Guid.Empty, s => s.Figure);
         var listedSections = registry.Sections.ToDictionary(s => s.Section.Registry, s => s.Figure, StringComparer.Ordinal);
 
@@ -191,12 +196,11 @@ public static class SiteCostsEndpoints
             [.. result.Articles.Select(a => Line(a.Key, labels[a.Key], a.Value, registry.Articles.GetValueOrDefault(a.Key))).OrderBy(l => l.Name, byName)],
             result.Lost is { } lost ? Line(null, InvoiceShares.Lost, lost, registry.Lost) : null,
             result.Unallocated,
-            [.. result.Suppliers.Except(lostSuppliers)
+            [.. result.Suppliers
                 .Select(s => Line(s.Supplier, s.Supplier is { } id ? suppliers[id] : NoSupplier, s.Figure,
                     listedSuppliers.GetValueOrDefault(s.Supplier ?? Guid.Empty)))
-                // Удалённые — одной строкой и без ссылки: реестр их не называет, отбора под них нет. Число
-                // счетов складывается: поставщик у счёта один.
-                .Concat(lostSuppliers.Count == 0 ? [] : [Line(null, LostSupplier, Sum(lostSuppliers.Select(s => s.Figure)), null, linked: false)])
+                // Удалённые — одной строкой и без ссылки: реестр их не называет, отбора под них нет.
+                .Concat(result.LostSuppliers is { } gone ? [Line(null, LostSupplier, gone, null, linked: false)] : [])
                 // Строки без названия — последними: это не название, а его отсутствие.
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
             // Разделы — на экране стройки. В отчёте раздел назван коротко («4 эт.»): стройка стоит в
@@ -211,7 +215,8 @@ public static class SiteCostsEndpoints
             differs switch { ViewsDiffer.Totals => "totals", ViewsDiffer.Details => "details", _ => null },
             result.Total == registry.Total,
             result.Unmatched == registry.Unmatched,
-            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total));
+            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total,
+            closing ? registry.Unmatched : null));
     }
 
     /// <summary>

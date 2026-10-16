@@ -204,8 +204,19 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
               footer={c => <span className="text-sm font-medium text-fg1">{c.cell?.(total, -1)}</span>} />
           )}
 
+          {/* Во взгляде «на момент закрытия» — не «из них», а указатель (разбор Дизайнера, п. 7): «без позиции»
+              — признак сегодняшний, и сумма под итогом закрытия смешивала бы два времени. Слова про взгляд —
+              кнопка переключения. */}
+          {closing && data.unmatchedNow && (
+            <p className="mt-1 pl-4 text-sm text-fg3">
+              Без позиции номенклатуры сейчас: {invoicesText(data.unmatchedNow.invoices)} —{' '}
+              <button type="button" onClick={() => onView('corrected')} className="text-brand hover:underline">
+                сумма и список во взгляде «с исправлениями»
+              </button>
+            </p>
+          )}
           {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
-          {data.unmatched && (
+          {!closing && data.unmatched && (
             <p className="mt-1 pl-4 text-sm text-fg3">
               из них без позиции номенклатуры: {invoicesText(data.unmatched.invoices)} на {formatMoney(data.unmatched.amount)} —
               в затраты вошли, в материалы нет{' '}
