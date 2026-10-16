@@ -42,6 +42,7 @@ import { explainedByRecognition } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { CorrectionBar } from './CorrectionBar';
+import { CorrectionHistory } from './CorrectionHistory';
 import { CorrectionContext, useCorrecting, useCorrectionDraft } from './useCorrectionDraft';
 import { mayCorrect } from './correction';
 
@@ -323,6 +324,8 @@ export function InvoiceForm({
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
           по отдельности — колонка «Разноска». Сохранение их не ждёт: черновик уже в реестре.
         </p>
+
+        <CorrectionHistory view={view} gone={gone} />
       </div>
     </div>
     </InvoiceDeleteProvider>

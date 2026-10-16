@@ -24,13 +24,15 @@ public class InvoiceBookInventoryTests
     /// <summary>Кому позволено обращаться к книге — и почему.</summary>
     private static readonly Dictionary<string, string> MayTouchTheBook = new()
     {
-        [$"{Module}/Data/InvoiceBook.cs"] = "единственное место записи: блокировка строки счёта, сверка, номер записи",
+        [$"{Module}/Data/InvoiceBook.cs"] =
+            "единственное место записи: блокировка строки счёта, сверка, номер записи; и чтение книги одного счёта — " +
+            "для записи и для истории на форме (адрес …/book, PR 6b-2 E2)",
         [$"{Module}/Data/CostsDbContext.cs"] = "объявление наборов",
         [$"{Module}/Data/InvoiceBookEntry.cs"] = "сами сущности и их отображение на таблицы",
         [$"{Module}/CostsReferences.cs"] = "объявление колонок с идентификаторами ядра: запросов нет",
         [$"{Module}/Data/InvoiceVersion.cs"] = "сама версия и её отображение на таблицу",
         [$"{Module}/Data/CostViews.cs"] =
-            "единственный читатель книги: взгляд «на момент закрытия» для отчёта и диалога закрытия (PR 4 E2) — " +
+            "читатель книги по многим счетам: взгляд «на момент закрытия» для отчёта и диалога закрытия (PR 4 E2) — " +
             "только чтение, без отслеживания",
         [$"{Module}/Endpoints/InvoiceDesk.Correction.cs"] =
             "единственное место записи версий: исправление пишет версию под блокировкой строки счёта, " +
@@ -64,6 +66,30 @@ public class InvoiceBookInventoryTests
             "Книгу пишет только InvoiceBook.AppendAsync: только он запирает строку счёта, сверяет книгу с " +
             "документом и двигает номер записи. Если обращение нужно (чтение для отчёта) — впишите файл в " +
             "MayTouchTheBook с причиной.");
+    }
+
+    /// <summary>
+    /// Автора записи книги модуль собирает только фабрикой <c>BookAuthor.Of(user, …)</c> — с именем на
+    /// момент записи (PR 6b-2 E2). Позиционный конструктор собирается и без имени, и место записи,
+    /// написанное по образцу тестов, оставило бы в истории счёта «—» у записей, автор которых известен.
+    /// </summary>
+    [Fact]
+    public void Автор_книги_собирается_только_фабрикой_с_именем()
+    {
+        var bypass = new List<string>();
+        foreach (var file in SourceTree.Files(Module))
+        {
+            var rel = SourceTree.Relative(file);
+            if (rel == $"{Module}/Data/InvoiceBook.cs") continue;
+
+            var text = string.Join("\n", File.ReadAllLines(file).Select(l => l.TrimStart().StartsWith("//") ? "" : l));
+            foreach (Match m in Regex.Matches(text, @"\bnew\s+BookAuthor\s*\("))
+                bypass.Add($"{rel}:{SourceTree.LineOf(text, m.Index)}");
+        }
+
+        Assert.True(bypass.Count == 0,
+            "Автор записи книги собран конструктором, а не BookAuthor.Of(user, …):\n" + string.Join("\n", bypass) +
+            "\n\nБез имени история счёта покажет прочерк у записи, автор которой известен.");
     }
 
     [Fact]

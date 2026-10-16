@@ -1,6 +1,6 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
+import { invoiceQuery, seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
 import type { MatrixPart } from './allocationMatrix';
 
 /**
@@ -70,4 +70,41 @@ export function useCorrectInvoice() {
   }) =>
     apiClient.post<InvoiceView>(`/costs/invoices/${id}/correction`, { ...body, stamp }, seenBy(seen))
       .then(r => r.data));
+}
+
+/** Запись книги проводок счёта — строка истории на форме (E2, PR 6b-2). */
+export interface InvoiceBookEntry {
+  seq: number;
+  /**
+   * `opening`, `correction`, `payment`, `unpayment`, `alignment` — теми же словами, что предпросмотр.
+   * Строкой, а не объединением: незнакомый вид (сервер новее клиента) показывается как пришёл.
+   */
+  kind: string;
+  /** День записи: им исправление легло в книгу. */
+  day: string;
+  /** Когда записано. */
+  at: string;
+  /** Имя автора на момент записи; `null` — служебная запись (открытие, выравнивание) или запись старше поля. */
+  author: string | null;
+  reason: string | null;
+  /** Версия, ушедшая в историю с исправлением. */
+  version: number | null;
+  /** Сумма строк: у открытия — деньги счёта целиком, у прочих — сдвиг. */
+  gross: number;
+  net: number;
+  lines: CorrectionLineView[];
+}
+
+/**
+ * История счёта — его книга проводок. Ключ — ПОД ключом счёта и без версии: запись счёта сбрасывает ключ
+ * счетов целиком (`useInvoiceWrite`), отказ 409 и удаление — ключ счёта, и история перечитывается вместе с
+ * ним одним запросом. Версия в ключе дала бы второй: сброс перечитал бы ещё наблюдаемый старый ключ, а
+ * перерисовка — новый.
+ */
+export function useInvoiceBook(view: InvoiceView, enabled: boolean) {
+  return useQuery({
+    queryKey: [...invoiceQuery(view.id).queryKey, 'book'] as const,
+    queryFn: () => apiClient.get<InvoiceBookEntry[]>(`/costs/invoices/${view.id}/book`).then(r => r.data),
+    enabled,
+  });
 }

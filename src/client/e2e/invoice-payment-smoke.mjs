@@ -18,6 +18,7 @@
 //   4. `admin-corrects-locked-invoice` — исправление запертого счёта (E2, issue #1100, PR 6b-1): без
 //      причины проверка не нажимается, у строк нет своей кнопки записи, предпросмотр называет день
 //      исправления, запись проходит без отказов, и сервер хранит ровно набранное — в шапке и в строке.
+//      После записи секция «Исправления» (PR 6b-2) показывает исправление с версией и причиной.
 //      ⚠️ Под АДМИНИСТРАТОРОМ прогона, а не под бухгалтером: входы всех наборов CI уже упираются в предел
 //      частоты (`suites.test.mjs`), и второй вход здесь сделал бы красным соседний набор. Кто видит кнопку
 //      («Бухгалтер» — да, «Руководитель» — нет), проверяет `mayCorrect` модульно.
@@ -403,6 +404,13 @@ await check('admin-corrects-locked-invoice', async () => {
     if (!response.ok()) throw new Error(`запись исправления отказала: ${response.status()} ${await response.text()}`);
     await page.getByText(/Исправление записано: версия 1 ушла в историю/).waitFor({ timeout: 10_000 });
     if (await page.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
+
+    // История на форме (PR 6b-2): записанное исправление видно сразу — с версией и причиной.
+    const history = page.getByRole('region', { name: 'Исправления' });
+    const row = history.getByRole('row').filter({ hasText: 'опечатка в назначении' });
+    await row.waitFor({ timeout: 10_000 });
+    if (!(await row.innerText()).includes('Исправление (версия 1)'))
+      throw new Error(`история не назвала исправление и версию: ${await row.innerText()}`);
     if (refused.length) throw new Error(`экран исправления получил отказы: ${refused.join('; ')}`);
   } finally {
     page.off('response', listen);

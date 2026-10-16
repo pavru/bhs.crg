@@ -116,12 +116,15 @@ internal static class InvoiceCorrections
     public static CorrectionPreviewView Preview(CorrectionDone done) => new(
         done.Version, done.Records[^1].Day,
         [.. done.Records.Select(r => new CorrectionRecordView(Kind(r.Kind), r.Day, r.Tolerance,
-            [.. r.Lines.Select(l => new CorrectionLineView(l.Cell.Target?.ConstructionId, l.Cell.Target?.SectionId,
-                l.Cell.Target?.ArticleId, l.Day, l.Gross, l.Net, l.VatUnknown))]))],
+            [.. r.Lines.Select(Line)]))],
         done.Stamp);
 
-    /// <summary>Вид записи словом ответа. Оплату и её отмену исправление не пишет, но слово есть у каждого вида.</summary>
-    private static string Kind(InvoiceBookKind kind) => kind switch
+    /// <summary>Строка книги ответом — одна на предпросмотр и историю счёта.</summary>
+    public static CorrectionLineView Line(Grain line) => new(line.Cell.Target?.ConstructionId,
+        line.Cell.Target?.SectionId, line.Cell.Target?.ArticleId, line.Day, line.Gross, line.Net, line.VatUnknown);
+
+    /// <summary>Вид записи словом ответа — один на предпросмотр и историю счёта.</summary>
+    public static string Kind(InvoiceBookKind kind) => kind switch
     {
         InvoiceBookKind.Opening => "opening",
         InvoiceBookKind.Alignment => "alignment",
