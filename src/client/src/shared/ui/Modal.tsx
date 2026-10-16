@@ -66,6 +66,14 @@ type ModalDismissalProps =
 export type ModalProps = ModalBaseProps & ModalDismissalProps;
 
 /**
+ * На узком экране (< 640 px) окно любого размера — во весь экран (issue #1355, docs/UI.md «Узкий
+ * экран»): плавающая карточка там оставляла бы по краям полосы в полтора пальца и резала бы поля.
+ * Классами `max-sm:`, а не отдельной веткой: окно одно и то же, меняется только раскладка.
+ */
+const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:max-w-none ' +
+  'max-sm:max-h-none max-sm:rounded-none max-sm:border-0';
+
+/**
  * Содержимое живёт ровно пока диалог открыт (issue #858).
  *
  * <p>`Dialog.Root` остаётся смонтированным всегда — он и есть машина состояния Radix, и focus-scope
@@ -187,7 +195,7 @@ function ModalBody({
             ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-base'
             : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
               extraWide ? 'w-full max-w-5xl' : wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'
-            }`}
+            } ${NARROW_FULL}`}
           style={fullScreen ? undefined : { boxShadow: 'var(--f-shadow28)' }}
           // «Тронуто»: первый же ввод внутри содержимого.
           // ⚠️ НЕ `onInputCapture`. React исполняет перехват `input` отдельным заходом, ДО того как

@@ -58,8 +58,88 @@ export async function railChecks(page, check) {
         if (w <= 200) throw new Error(`панель не развернулась обратно: ${w}px`);
       });
     });
+
+    await narrowChecks(page, check);
   } finally {
     await callApi(page, 'PUT', '/account/settings', RESET);
     await page.evaluate(() => localStorage.removeItem('crg-rail'));
+  }
+}
+
+const sideScroll = page => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+/**
+ * Узкий экран (issue #1355): 390 px — ширина обычного телефона. Размер окна возвращается в finally:
+ * следующие проверки набора идут на рабочем столе, и оставленный телефон уронил бы их на чужом.
+ */
+async function narrowChecks(page, check) {
+  const desktop = page.viewportSize();
+  const sections = await page.locator('#app-rail-nav a').count();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/document-sets`);
+    await settled(page);
+
+    await check('narrow-screen-menu-reaches-every-section', async () => {
+      if (await page.getByTestId('rail').isVisible()) throw new Error('на 390 px панель осталась у края');
+      const extra = await sideScroll(page);
+      if (extra > 0) throw new Error(`каркас шире экрана на ${extra}px — страница едет вбок`);
+
+      await page.getByRole('button', { name: 'Меню' }).click();
+      const drawer = page.getByTestId('rail-drawer');
+      await drawer.waitFor();
+      // Тот же список, что у панели на рабочем столе: копия, разошедшаяся с ней, прятала бы разделы.
+      const shown = await drawer.locator('#app-drawer-nav a').count();
+      if (shown !== sections) throw new Error(`в меню ${shown} разделов, на рабочем столе ${sections}`);
+
+      // Выбор раздела закрывает меню — иначе оно лежало бы поверх открытого раздела.
+      await drawer.getByRole('link', { name: 'Роли и права' }).click();
+      await page.waitForURL(/\/roles/);
+      await drawer.waitFor({ state: 'detached' });
+    });
+
+    await check('narrow-list-and-card-take-turns', async () => {
+      await settled(page);
+      const nav = page.getByTestId('ld-nav');
+      const card = page.getByTestId('ld-detail');
+      if (!(await nav.isVisible()) || await card.isVisible()) {
+        throw new Error('сплит на узком экране начал не со списка');
+      }
+      await nav.getByRole('button').last().click();
+      await card.waitFor({ state: 'visible' });
+      if (await nav.isVisible()) throw new Error('после выбора роли список остался рядом с карточкой');
+
+      await card.getByRole('button', { name: 'К списку' }).click();
+      await nav.waitFor({ state: 'visible' });
+      if (await card.isVisible()) throw new Error('«К списку» не убрал карточку');
+      const extra = await sideScroll(page);
+      if (extra > 0) throw new Error(`страница ролей шире экрана на ${extra}px`);
+    });
+
+    // Окно обычного размера на телефоне — во весь экран: плавающая карточка резала бы поля.
+    await check('narrow-dialog-fills-the-screen', async () => {
+      await page.getByRole('button', { name: 'Новая роль' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Новая роль' });
+      await dialog.waitFor();
+      const box = await dialog.boundingBox();
+      if (!box || box.x > 0 || box.y > 0 || box.width < 389 || box.height < 843) {
+        throw new Error(`окно не во весь экран: ${JSON.stringify(box)}`);
+      }
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached' });
+    });
+
+    // Меню, открытое на телефоне, закрывается, когда окно расширили: иначе оно лежало бы поверх
+    // панели, вернувшейся к краю, и держало бы страницу под затемнением.
+    await check('narrow-menu-closes-when-window-widens', async () => {
+      await page.getByRole('button', { name: 'Меню' }).click();
+      const drawer = page.getByTestId('rail-drawer');
+      await drawer.waitFor();
+      await page.setViewportSize(desktop ?? { width: 1280, height: 720 });
+      await drawer.waitFor({ state: 'detached' });
+      if (!(await page.getByTestId('rail').isVisible())) throw new Error('на рабочем столе панель не вернулась к краю');
+    });
+  } finally {
+    if (desktop) await page.setViewportSize(desktop);
   }
 }

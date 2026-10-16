@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router';
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { ruCount } from '@/shared/utils/pluralize';
-import { useGuardedNavClick, useGuardedNavigate } from './NavigationGuard';
+import { useGuardedNavigate, useGuardedPick } from './NavigationGuard';
 import { useWorkspace } from './workspaceContext';
 import { outsideItem } from './workspaces';
 import type { NavItem } from './navConfig';
@@ -13,9 +13,13 @@ import type { NavItem } from './navConfig';
  * issue #1001). Меню само говорит, что скрыто: без этой строки к скрытому разделу вёл бы только
  * поиск, то есть нужно было бы заранее знать ответ. Переход открывает раздел БЕЗ смены пространства.
  */
-export function OutsideNav({ items, collapsed = false }: { items: NavItem[]; collapsed?: boolean }) {
+export function OutsideNav({ items, collapsed = false, onPick }: {
+  items: NavItem[]; collapsed?: boolean;
+  /** Выбран раздел — выдвижное меню по нему закрывается (см. `RailBody`). */
+  onPick?: () => void;
+}) {
   const [open, setOpen] = useState(false);
-  const guardedClick = useGuardedNavClick();
+  const guardedClick = useGuardedPick(onPick);
   if (items.length === 0) return null;
 
   // В свёрнутой панели (issue #1355) строка остаётся — иконкой с тем же текстом в подсказке:

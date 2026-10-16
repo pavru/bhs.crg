@@ -400,7 +400,7 @@ export function SetDetail() {
     <>
       <ListDetailShell title={set.name} icon={<FolderOpen size={20} />} breadcrumb={contextCrumbs}
         badge={<PlanProgressBadge progress={plan?.own} />}
-        actions={headerAction} nav={nav} detail={detail} />
+        actions={headerAction} nav={nav} detail={detail} backLabel="К разделам" />
 
       {canSend && (
         <EmailSendDialog open={emailKitOpen} onClose={() => setEmailKitOpen(false)}

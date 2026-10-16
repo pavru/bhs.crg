@@ -147,7 +147,7 @@ export function ConstructionDetail() {
     <>
       <ListDetailShell title={construction.name} icon={<Building2 size={20} />} breadcrumb={contextCrumbs}
         badge={<PlanProgressBadge progress={plan?.own} />}
-        actions={headerAction} nav={nav} detail={detail} />
+        actions={headerAction} nav={nav} detail={detail} backLabel="К разделам" />
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
         footer={

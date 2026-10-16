@@ -11,6 +11,7 @@ import { useServerForm } from '@/shared/hooks/useServerForm';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
+import { useListDetailView } from '@/shared/ui/listDetailView';
 import {
   useListRecognitionProfiles, useRecognitionKinds, useCreateRecognitionProfile,
   useUpdateRecognitionProfile, useResetRecognitionProfile, useDeleteRecognitionProfile,
@@ -362,6 +363,7 @@ export function RecognitionProfilesPage() {
   const { values, remember } = useRememberedSelection(PROFILES_LAST_KEY, SELECTION_KEYS);
   const selectedId = values.profile || null;
   const setSelectedId = (id: string | null) => remember({ profile: id ?? '' });
+  const ld = useListDetailView();
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -385,7 +387,7 @@ export function RecognitionProfilesPage() {
   const outsideFilter = selected && !filtered.some(p => p.id === selected.id) ? selected : null;
 
   const row = (p: RecognitionProfile) => (
-    <button key={p.id} type="button" onClick={() => setSelectedId(p.id)}
+    <button key={p.id} type="button" onClick={() => { ld.showDetail(); setSelectedId(p.id); }}
       className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
         selected?.id === p.id ? 'bg-brand-subtle text-brand-pressed' : 'text-fg2 hover:bg-base'}`}>
       <span className="flex items-center gap-1.5">
@@ -401,7 +403,7 @@ export function RecognitionProfilesPage() {
 
   return (
     <>
-      <ListDetailShell
+      <ListDetailShell view={ld}
         title="Профили распознавания"
         subtitle="Параметры к промптам распознавания: какие поля и колонки извлекать из документа"
         icon={<ScanText size={20} className="text-fg3" />}
