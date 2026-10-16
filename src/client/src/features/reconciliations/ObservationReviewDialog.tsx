@@ -48,7 +48,7 @@ export function ObservationReferences({ o, setPath, nameOf }: {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-caption">
       {docs.map(id => setPath ? (
-        <Link key={id} to={`${setPath}?doc=${id}`}
+        <Link key={id} to={`${setPath}/docs/${id}`}
           className="inline-flex items-center gap-1 text-brand hover:underline">
           <FileText size={11} /> {label(id)}
         </Link>

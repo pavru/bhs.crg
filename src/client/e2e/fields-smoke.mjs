@@ -45,9 +45,11 @@ async function openInstance(name) {
   await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
   await page.waitForSelector('tbody tr', { timeout: 15000 });
   await page.getByText(name, { exact: false }).first().click();
-  await page.waitForSelector('[role=dialog]', { timeout: 15000 });
+  // Документ — страница (issue #1384), а не окно: окна внутри него — его поля и пикеры.
+  const editor = page.getByTestId('document-editor');
+  await editor.waitFor({ timeout: 15000 });
   await settled(page);
-  return page.locator('[role=dialog]').first();
+  return editor;
 }
 
 try {
@@ -243,8 +245,6 @@ await check('file-preview-shows-attachment', async () => {
   if (!src || !src.startsWith('blob:')) throw new Error(`ожидали blob:-URL, получили «${src}»`);
 });
 
-await page.keyboard.press('Escape');
-await settled(page);
 await page.keyboard.press('Escape');
 await settled(page);
 

@@ -152,24 +152,14 @@ await check('sidebar-shows-the-version-label', async () => {
 // диагностика ссылок. Ворота, поставленные на любой из них, видны здесь, а не на списке строек.
 await check('document-editor-opens-under-limited-rights', async () => {
   screen = 'редактор документа';
-  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}?doc=${INSTANCE}`);
-  try {
-    await page.waitForSelector('[role=dialog]', { timeout: 20000 })
-      .catch(() => { throw new Error('редактор документа не открылся'); });
-    await settled(page);
-    const dialog = await page.locator('[role=dialog]').first().innerText();
-    if (!/АОСР/.test(dialog)) throw new Error(`открылось не то: ${dialog.slice(0, 200)}`);
-  } finally {
-    // ⚠️ Закрываем ОБЯЗАТЕЛЬНО — в том числе когда проверка упала. Редактор открыт на весь экран
-    // (`inset-0` над оверлеем), и оставленный открытым он перекрывает боковую панель: следующая
-    // проверка полминуты ждёт кнопку «Сообщить об ошибке», падает чужим сообщением — и вложение,
-    // то есть сторож поломки 3 из #974, не выполняется ВОВСЕ. Счётчик отказов при этом зелёный,
-    // потому что запросов не было. Найдено ревью PR #1062.
-    await page.keyboard.press('Escape').catch(() => {});
-    // Отказ ожидания здесь глотаем: брошенный из `finally`, он подменил бы настоящую причину
-    // падения проверки своей — «страница не затихла».
-    await settled(page).catch(() => {});
-  }
+  // Документ — страница со своим адресом (issue #1384), а не окно во весь экран над комплектом:
+  // закрывать его перед следующей проверкой больше не нужно — боковую панель он не перекрывает.
+  await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}/docs/${INSTANCE}`);
+  const editor = page.getByTestId('document-editor');
+  await editor.waitFor({ timeout: 20000 }).catch(() => { throw new Error('редактор документа не открылся'); });
+  await settled(page);
+  const text = await editor.innerText();
+  if (!/АОСР/.test(text)) throw new Error(`открылось не то: ${text.slice(0, 200)}`);
 });
 
 // ── «Сообщить об ошибке» со вложением (issue #974, поломка 3) ─────────────────
