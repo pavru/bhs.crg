@@ -34,6 +34,11 @@ export function lineKey(code: string | null, text: string | null): { by: 'code' 
   return byName ? { by: 'name', value: byName } : null;
 }
 
+/** Тот же ли у двух строк ключ соответствия. */
+export function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): boolean {
+  return a?.by === b?.by && a?.value === b?.value;
+}
+
 function normalize(text: string | null): string {
   return (text ?? '').trim().replace(/\s+/g, ' ').toLowerCase().replaceAll('ё', 'е');
 }

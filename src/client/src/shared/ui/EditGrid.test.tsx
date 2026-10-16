@@ -107,4 +107,10 @@ describe('EditGrid (#1354)', () => {
     const foot = document.querySelector('tfoot');
     expect(foot?.textContent).toBe('Итого');
   });
+
+  it('атрибуты строки — якорь, к которому ведёт ссылка из перечня', () => {
+    render(<EditGrid rows={[line('А')]} rowKey={r => r.key} rowData={(_, i) => ({ 'data-readiness': `line-${i + 1}` })}
+      columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
+    expect(document.querySelector('[data-readiness="line-1"]')?.textContent).toBe('А');
+  });
 });

@@ -56,7 +56,7 @@ const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), button:not([
 
 export function EditGrid<Row>({
   columns, rows, rowKey, label, numbered = false, add, onRemove, removeLabel, empty = 'Строк нет',
-  framed = true, className = '',
+  framed = true, className = '', minWidth = '', rowData,
 }: {
   columns: EditGridColumn<Row>[];
   rows: Row[];
@@ -77,6 +77,13 @@ export function EditGrid<Row>({
   /** Своя рамка-карточка; false — сетка внутри чужой карточки (иначе рамка в рамке). */
   framed?: boolean;
   className?: string;
+  /**
+   * Наименьшая ширина таблицы классом (`min-w-[70rem]`): колонок много, и в узком окне сетка
+   * прокручивается вбок, а не сжимает поля до нечитаемых.
+   */
+  minWidth?: string;
+  /** Атрибуты `data-*` строки — якорь, по которому к строке ведёт ссылка из перечня («строка 3»). */
+  rowData?: (row: Row, index: number) => Record<`data-${string}`, string>;
 }) {
   const table = useRef<HTMLTableElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
@@ -143,7 +150,7 @@ export function EditGrid<Row>({
   return (
     <div className={`space-y-2 ${className}`}>
       <div className={framed ? dtCard : 'overflow-auto'}>
-        <table ref={table} aria-label={label} onKeyDown={onKeyDown} className={dtTableCompact}>
+        <table ref={table} aria-label={label} onKeyDown={onKeyDown} className={`${dtTableCompact} ${minWidth}`}>
           <thead>
             <tr>
               {numbered && <th className={th('w-8')}>№</th>}
@@ -162,7 +169,7 @@ export function EditGrid<Row>({
                 <td colSpan={span} className={`${dtTdEdit} py-3 text-center text-fg4`}>{empty}</td>
               </tr>
             ) : rows.map((row, i) => (
-              <tr key={rowKey(row, i)} data-row={i} className={dtRow}>
+              <tr key={rowKey(row, i)} data-row={i} className={dtRow} {...rowData?.(row, i)}>
                 {numbered && <th scope="row" className={`${dtTdEdit} text-left font-normal text-fg4 tabular-nums`}>{i + 1}</th>}
                 {columns.map((c, ci) => (
                   <td key={c.key} data-cell data-r={i} data-c={ci}

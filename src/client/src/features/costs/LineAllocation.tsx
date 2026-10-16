@@ -22,7 +22,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 /**
  * Разноска строки счёта по стройкам (задача F1, issue #1085, ТЗ COST-10, COST-11, COST-13).
  *
- * <p><b>Разносится строка, а не счёт.</b> Клетка в таблице строк говорит состояние одной фразой и
+ * <p><b>Разносится строка, а не счёт.</b> Содержимое клетки в сетке строк говорит состояние одной фразой и
  * открывает диалог частей. Быстрая разноска всего счёта одной пропорцией и матрица «строки × объекты» —
  * задача F2; здесь — единица, из которой они сложатся.</p>
  *
@@ -60,17 +60,17 @@ export function LineAllocationCell({ view, line, number, blocked, locked, onOpen
 
   if (!line || blocked)
     return (
-      <td className="py-1 pr-2 text-fg4" title={blocked ?? 'Строка не сохранена'}>
+      <span className="text-fg4" title={blocked ?? 'Строка не сохранена'}>
         {blocked ? 'сохраните строки' : '—'}
         {dialog}
-      </td>
+      </span>
     );
 
   const status = allocationStatus(line.allocation, line.unit);
   const tone = status.tone === 'ok' ? 'text-success' : status.tone === 'warning' ? 'text-warning' : 'text-fg4';
 
   return (
-    <td className="py-1 pr-2">
+    <>
       <button type="button" onClick={() => toggle(line)} disabled={line.allocation.mode === 'none'
         && line.allocation.parts.length === 0}
         aria-label={`Разноска, строка ${number}`}
@@ -78,7 +78,7 @@ export function LineAllocationCell({ view, line, number, blocked, locked, onOpen
         {status.text}
       </button>
       {dialog}
-    </td>
+    </>
   );
 }
 

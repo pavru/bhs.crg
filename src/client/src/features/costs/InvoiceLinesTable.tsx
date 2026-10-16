@@ -1,44 +1,30 @@
-import { LOST } from './lostReferences';
 import { useEffect, useRef, useState } from 'react';
-import { CircleCheck, Plus, Save, Trash2, Undo2 } from 'lucide-react';
+import { CircleCheck, Save, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { EditGrid } from '@/shared/ui/EditGrid';
 import { useToast } from '@/shared/ui/Toast';
-import {
-  useInvoiceState, useReplaceInvoiceLines, type InvoiceLineView, type InvoiceView,
-} from '@/shared/api/invoices';
+import { useInvoiceState, useReplaceInvoiceLines, type InvoiceView } from '@/shared/api/invoices';
 import { K, PARSED, REJECTED, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
-import { LineMatchChip } from './LineMatchChip';
 import { SupplierMatchNote } from './SupplierMatchNote';
 import {
-  applyOffer, cancelMatch, lineKey, memoryFailure, memoryFate, memoryToast, pending, pickByHand, usable,
-  type MatchOffer,
+  applyOffer, lineKey, memoryFailure, memoryToast, pending, sameKey, usable, type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
-import { formatInputAmount, formatMoney } from '@/shared/format/format';
-import { NumberInput } from '@/shared/ui/NumberInput';
+import { formatMoney } from '@/shared/format/format';
 import {
-  emptyDraft, mismatch, preview, toDrafts, toPayload, totals, type LineDraft,
+  emptyDraft, mismatch, toDrafts, toPayload, totals, type LineDraft,
 } from './invoiceLines';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
-import { NomenclaturePicker } from './NomenclaturePicker';
-import { withArchiveWord } from '@/shared/ui/archive';
-import { AllocationSummary, LineAllocationCell } from './LineAllocation';
+import { AllocationSummary } from './LineAllocation';
+import { useInvoiceLineColumns } from './invoiceLineColumns';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { InvoiceReadinessLine } from './InvoiceReadinessLine';
 import { READINESS_ATTR, lineAnchor, readinessItems } from './invoiceReadiness';
 
-/** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
-const NO_MARKS = { nomenclatureLost: false, nomenclatureMoved: false, nomenclatureArchived: false } as const;
-
 const blank = (value: string) => value.trim() || null;
-
-/** Тот же ли у двух строк ключ соответствия. */
-function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof lineKey>): boolean {
-  return a?.by === b?.by && a?.value === b?.value;
-}
 
 /**
  * Строки счёта (задача C2, issue #1078, ТЗ COST-7, COST-7.2, COST-6.2).
@@ -215,6 +201,13 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   // по прежнему состоянию, а правка осталась бы на экране несохранённой.
   const settled = readiness?.length === 0 && !dirty && !headerDirty;
 
+  const columns = useInvoiceLineColumns({
+    view, still, allocationLocked: locked,
+    blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
+    offerFor, hasSupplier: supplierId !== null, onBorn: draft => void suggest([draft]),
+    onAllocating: setAllocating, onEdit: edit,
+  });
+
   function edit(key: string, patch: Partial<LineDraft>) {
     setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
     setDirty(true);
@@ -269,9 +262,6 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {!still && (
           <>
             <InvoiceLinesPaste onAdd={add} />
-            <Button size="sm" variant="outlined" icon={<Plus size={13} />} onClick={() => add([emptyDraft()])}>
-              Добавить строку
-            </Button>
             <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
               loading={replace.isPending} onClick={save}>
               Сохранить строки
@@ -290,46 +280,17 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           onApply={applyReady} />
       )}
 
-      {drafts.length === 0
-        ? (
-          <p className="text-xs text-fg4">
+      <EditGrid label="Строки счёта" numbered rows={drafts} rowKey={draft => draft.key} minWidth="min-w-[70rem]"
+        empty={(
+          <>
             Строк нет. Черновик живёт и без них — заведите их с клавиатуры или вставьте таблицу из
             счёта. «Разобран» без строк не проходит, и это единственное, чего они стоят.
-          </p>
-        )
-        : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[70rem] text-xs">
-              <thead className="text-fg4">
-                <tr className="text-left">
-                  <th className="w-8 font-normal py-1">№</th>
-                  <th className="w-64 font-normal py-1">Позиция номенклатуры</th>
-                  <th className="w-56 font-normal py-1">Наименование в счёте</th>
-                  <th className="w-24 font-normal py-1">Артикул</th>
-                  <th className="w-16 font-normal py-1">Ед.</th>
-                  <th className="w-20 font-normal py-1 text-right">Кол-во</th>
-                  <th className="w-24 font-normal py-1 text-right">Цена</th>
-                  <th className="w-16 font-normal py-1 text-right">НДС&nbsp;%</th>
-                  <th className="w-24 font-normal py-1 text-right">Сумма НДС</th>
-                  <th className="w-28 font-normal py-1 text-right">Сумма</th>
-                  <th className="w-40 font-normal py-1">Примечание</th>
-                  <th className="w-32 font-normal py-1">Разноска</th>
-                  <th className="w-8 py-1" />
-                </tr>
-              </thead>
-              <tbody>
-                {drafts.map((draft, index) => (
-                  <Row key={draft.key} draft={draft} number={index + 1} view={view}
-                    line={view.lines.find(line => line.id === draft.id)} onAllocating={setAllocating}
-                    blocked={dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null}
-                    locked={still} allocationLocked={locked}
-                    offer={offerFor(draft)} hasSupplier={supplierId !== null} onBorn={() => void suggest([draft])}
-                    onEdit={patch => edit(draft.key, patch)} onRemove={() => remove(draft.key)} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          </>
         )}
+        rowData={(_, index) => ({ [READINESS_ATTR]: lineAnchor(index + 1) })}
+        add={still ? undefined : { label: 'Добавить строку', onAdd: () => add([emptyDraft()]) }}
+        onRemove={still ? undefined : draft => remove(draft.key)}
+        columns={columns} />
 
       <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty}
         matched={drafts.filter(d => d.matchedBy !== null).length} />
@@ -421,191 +382,4 @@ function Reconciliation({ sums, paper, difference, unsaved, matched }: {
 /** Из чего собран черновик строк: сами строки, как их принял бы сервер. */
 function linesSignature(view: InvoiceView): string {
   return JSON.stringify(toPayload(toDrafts(view.lines)));
-}
-
-function Row({
-  draft, number, view, line, blocked, locked, allocationLocked, offer, hasSupplier, onBorn, onAllocating, onEdit,
-  onRemove,
-}: {
-  /** Запомненное для этой строки, известное форме (C3, issue #1079). */
-  offer: MatchOffer | null;
-  /** У счёта сохранён поставщик: без него ни подставить, ни запомнить. */
-  hasSupplier: boolean;
-  /** У строки появился новый ключ (наименование или артикул) — спросить запомненное. */
-  onBorn: () => void;
-  draft: LineDraft;
-  number: number;
-  /** Счёт целиком: разноска строки называет его версию (issue #1176). */
-  view: InvoiceView;
-  /** Строка, как её вернул сервер, — с разноской; у новой строки её нет. */
-  line: InvoiceLineView | undefined;
-  blocked: string | null;
-  locked: boolean;
-  /** Разноску запирает только закрытый период: без права на счета её по-прежнему решает своё право. */
-  allocationLocked: boolean;
-  /** Диалог разноски строки открыт или закрыт — пока открыт, таблица не пересобирается. */
-  onAllocating: (open: boolean) => void;
-  onEdit: (patch: Partial<LineDraft>) => void;
-  onRemove: () => void;
-}) {
-  const shown = preview(draft);
-
-  if (locked)
-    return (
-      <LockedRow draft={draft} number={number} view={view} line={line}
-        allocationLocked={allocationLocked} onAllocating={onAllocating} />
-    );
-
-  /**
-   * Правка наименования или артикула меняет КЛЮЧ строки: запомненное для прежнего ключа к ней больше не
-   * относится. Подстановка снимается вместе с позицией — и у сохранённой строки тоже: «Кабель»,
-   * переписанный в «Доставку», иначе остался бы с позицией кабеля и пометкой «запомнено», а сервер
-   * такую пометку отвергает («соответствие эту строку не узнаёт»). Регистр и пробелы ключа не меняют.
-   */
-  function editKey(patch: Partial<LineDraft>) {
-    const next = { ...draft, ...patch };
-    const moved = !sameKey(lineKey(draft.supplierCode, draft.supplierText), lineKey(next.supplierCode, next.supplierText));
-    if (!moved) { onEdit(patch); return; }
-    onEdit({
-      ...patch, offer: null, declined: false,
-      ...(draft.matchedBy !== null ? { nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null } : {}),
-    });
-  }
-
-  /** Строка «родилась» — новая либо с ключом, которого в сохранённой не было: лежащие ждут кнопки. */
-  function keyLeft() {
-    const saved = line ? lineKey(line.supplierCode, line.supplierText) : null;
-    if (!line || !sameKey(saved, lineKey(draft.supplierCode, draft.supplierText))) onBorn();
-  }
-
-  return (
-    <tr className="border-t border-stroke align-top" {...{ [READINESS_ATTR]: lineAnchor(number) }}>
-      <td className="py-1 text-fg4">{number}</td>
-      <td className="py-1 pr-2">
-        {/* Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
-            только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
-            ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится. */}
-        <NomenclaturePicker chosen={draft.nomenclatureId !== null} name={draft.nomenclatureName}
-          lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
-          archived={draft.nomenclatureArchived}
-          clearable={draft.matchedBy === null}
-          from={{ name: draft.supplierText, code: draft.supplierCode, unit: draft.unit }}
-          mark={(
-            <LineMatchChip draft={draft} offer={offer} fate={memoryFate(draft, line, hasSupplier, offer)}
-              supplierId={refEntryId(view.requisites[K.supplier])}
-              onCancel={() => onEdit(cancelMatch(draft))}
-              onRestore={restored => onEdit(applyOffer(restored))}
-              onRemember={remember => onEdit({ remember })} />
-          )}
-          onPick={(id, name) => onEdit(pickByHand(id, name))}
-          onClear={() => onEdit({
-            nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null, ...NO_MARKS,
-          })} />
-      </td>
-      <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${number}`}
-        onChange={value => editKey({ supplierText: value })} onBlur={keyLeft} />
-      <Cell value={draft.supplierCode} label={`Артикул, строка ${number}`}
-        onChange={value => editKey({ supplierCode: value })} onBlur={keyLeft} />
-      <Cell value={draft.unit} label={`Единица, строка ${number}`}
-        onChange={value => onEdit({ unit: value })} />
-      <Cell value={draft.quantity} label={`Количество, строка ${number}`} numeric
-        onChange={value => onEdit({ quantity: value })} />
-      <Cell value={draft.price} label={`Цена, строка ${number}`} numeric
-        onChange={value => onEdit({ price: value })} />
-      <Cell value={draft.vatRate} label={`Ставка НДС, строка ${number}`} numeric
-        onChange={value => onEdit({ vatRate: value })} />
-      <Cell value={draft.vatAmount} label={`Сумма НДС, строка ${number}`} numeric
-        placeholder={shown.vat === null ? '' : formatInputAmount(shown.vat)}
-        onChange={value => onEdit({ vatAmount: value })} />
-      <Cell value={draft.amount} label={`Сумма, строка ${number}`} numeric
-        placeholder={shown.amount === null ? '' : formatInputAmount(shown.amount)}
-        onChange={value => onEdit({ amount: value })} />
-      <Cell value={draft.note} label={`Примечание, строка ${number}`}
-        onChange={value => onEdit({ note: value })} />
-      <LineAllocationCell view={view} line={line} number={number} blocked={blocked}
-        locked={false} onOpenChange={onAllocating} />
-      <td className="py-1">
-        <button type="button" onClick={onRemove} title={`Удалить строку ${number}`}
-          className="text-fg4 hover:text-danger p-0.5">
-          <Trash2 size={13} />
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-/**
- * Строка запертого счёта — текстом, без полей: править её нельзя, и поле, в которое можно печатать,
- * обещало бы обратное. Разноска открывается — посмотреть.
- */
-function LockedRow({ draft, number, view, line, allocationLocked, onAllocating }: {
-  draft: LineDraft; number: number; view: InvoiceView;
-  line: InvoiceLineView | undefined; allocationLocked: boolean; onAllocating: (open: boolean) => void;
-}) {
-  const shown = preview(draft);
-  const text = (value: string, numeric = false) => (
-    <td className={`py-1 pr-2 text-fg1 ${numeric ? 'text-right tabular-nums' : ''}`}>{value || '—'}</td>
-  );
-
-  return (
-    <tr className="border-t border-stroke align-top" {...{ [READINESS_ATTR]: lineAnchor(number) }}>
-      <td className="py-1 text-fg4">{number}</td>
-      <td className={`py-1 pr-2 ${draft.nomenclatureLost ? 'text-danger' : 'text-fg1'}`}>
-        {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)
-          : draft.nomenclatureName === null ? '—'
-          : withArchiveWord(draft.nomenclatureName, !!draft.nomenclatureArchived)}
-        {/* У запертой строки пометка — словом в тексте: отменять здесь нечего. */}
-        {draft.matchedBy !== null && !draft.nomenclatureLost && <span className="text-fg4"> (запомнено)</span>}
-      </td>
-      {text(draft.supplierText)}
-      {text(draft.supplierCode)}
-      {text(draft.unit)}
-      {text(draft.quantity, true)}
-      {text(draft.price, true)}
-      {text(draft.vatRate, true)}
-      {text(draft.vatAmount || (shown.vat === null ? '' : formatInputAmount(shown.vat)), true)}
-      {text(draft.amount || (shown.amount === null ? '' : formatInputAmount(shown.amount)), true)}
-      {text(draft.note)}
-      <LineAllocationCell view={view} line={line} number={number} blocked={null}
-        locked={allocationLocked} onOpenChange={onAllocating} />
-      <td />
-    </tr>
-  );
-}
-
-/**
- * Клетка таблицы — своим полем, а не общим `TextField`: тот рисует подпись над полем, а в таблице
- * подпись стоит в шапке колонки, и повторять её двенадцать раз значит потерять таблицу.
- *
- * <p>Подпись при этом есть — невидимая (`aria-label`): без неё поле не имеет имени ни для чтения с
- * экрана, ни для живого прогона, который ищет клетку по имени.</p>
- *
- * <p>⚠️ Подсказка в пустом числовом поле — это ПОСЧИТАННОЕ значение («48,50»), а не пример. Так видно,
- * что сумму можно не набирать: её досчитают по количеству и цене. Набранное значение подсказку
- * перекрывает, и досчитанного тогда нет — присланное не пересчитывается.</p>
- */
-function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
-  value: string;
-  label: string;
-  numeric?: boolean;
-  placeholder?: string;
-  onChange: (value: string) => void;
-  /** Поле покинули — у текстовых клеток ключа строки (наименование, артикул). */
-  onBlur?: () => void;
-}) {
-  if (numeric) {
-    return (
-      <td className="py-1 pr-2">
-        <NumberInput value={value} label={label} placeholder={placeholder} onChange={onChange} />
-      </td>
-    );
-  }
-  return (
-    <td className="py-1 pr-2">
-      <input value={value} aria-label={label} placeholder={placeholder}
-        onChange={e => onChange(e.target.value)} onBlur={onBlur}
-        className="w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1
-          outline-none focus:border-brand placeholder:text-fg4" />
-    </td>
-  );
 }
