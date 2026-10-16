@@ -39,19 +39,25 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
       label={label} required={required} invalid={invalid} error={error} hint={hint}
       raise="always" focused={focused} readOnly={rest.readOnly} htmlFor={areaId} containerClassName={containerClassName}
     >
-      <textarea
-        ref={ref} id={areaId} required={required} rows={rows}
-        // Отступ под метку — ВНЕШНИЙ (`mt-4`), а не верхний padding. `<textarea>` обрезает
-        // содержимое по padding-box, поэтому при прокрутке строки проезжают сквозь верхний padding
-        // и перечёркивают метку, сидящую в вырезе рамки (видно на «Домены для тиров поиска», где
-        // строк больше двенадцати). С внешним отступом прокручиваемая область начинается ниже
-        // метки, и наехать на неё нечему.
-        className={`block w-full rounded-md bg-transparent mt-4 px-4 pb-2 text-sm text-fg1 ` +
-          `outline-none disabled:opacity-50 ${className}`}
-        onFocus={e => { setFocused(true); onFocus?.(e); }}
-        onBlur={e => { setFocused(false); onBlur?.(e); }}
-        {...rest}
-      />
+      {/* Отступ под метку — padding ОБЁРТКИ, а не самого поля и не его margin.
+          - Не padding `<textarea>`: она обрезает содержимое по padding-box, и при прокрутке строки
+            проезжают сквозь верхний отступ и перечёркивают метку в вырезе рамки (видно на «Домены
+            для тиров поиска», где строк больше двенадцати).
+          - Не `mt-4` у `<textarea>`, как было: у оболочки поля нет ни padding, ни рамки, и отступ
+            первого ребёнка схлопывался с её отступом — уходил НАРУЖУ. Вниз сдвигалось всё поле
+            вместе с меткой, а первая строка оставалась прижатой к ней: метка заходила на текст на
+            5 px (#1356, замер на живой странице).
+          Padding не схлопывается: прокручиваемая область начинается на 16 px ниже верха рамки. */}
+      <div className="pt-4">
+        <textarea
+          ref={ref} id={areaId} required={required} rows={rows}
+          className={`block w-full rounded-md bg-transparent px-4 pb-2 text-sm text-fg1 ` +
+            `outline-none disabled:opacity-50 ${className}`}
+          onFocus={e => { setFocused(true); onFocus?.(e); }}
+          onBlur={e => { setFocused(false); onBlur?.(e); }}
+          {...rest}
+        />
+      </div>
     </OutlinedField>
   );
 });
