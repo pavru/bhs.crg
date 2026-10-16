@@ -4,18 +4,11 @@
     "features/costs/InvoiceLinesPaste.tsx": 1,
     "features/costs/InvoiceLinesTable.tsx": 1,
     "features/costs/LineAllocation.tsx": 1,
-    "features/costs/PaymentPostingTable.tsx": 1,
     "features/costs/SiteCostsPage.tsx": 2,
-    "features/costs/SupplierMatchesDialog.tsx": 1,
-    "features/costs/SupplierTermsDialog.tsx": 1,
     "features/costs/WaybillForm.tsx": 1,
     "features/datasets/MaterializationDialog.tsx": 1,
     "features/document-sets/SetDetail.tsx": 1,
-    "features/document-sets/catalog/PurgeBatchDialog.tsx": 1,
-    "features/document-sets/editor/MaterialsTable.tsx": 1,
-    "features/document-sets/fields/ArrayTableModal.tsx": 1,
-    "features/periods/PeriodsPage.tsx": 2,
-    "features/settings/UsersPage.tsx": 1
+    "features/document-sets/fields/ArrayTableModal.tsx": 1
   },
   "select": {},
   "h1": {

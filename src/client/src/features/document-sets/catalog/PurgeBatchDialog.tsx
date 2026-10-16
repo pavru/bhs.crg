@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -53,6 +54,35 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
     gcTime: 0, staleTime: Infinity, retry: false, refetchOnWindowFocus: false,
   });
   const preview = fresh?.now ?? asked.data;
+
+  const columns: DataGridColumn<PurgeBatchPreview['records'][number]>[] = [
+    { key: 'name', label: 'Будут удалены', wrap: true,
+      cell: r => {
+        const shown = open.has(r.id);
+        return (
+          <>
+            <button type="button" aria-expanded={shown} onClick={() => setOpen(was => toggleInSet(was, r.id))}
+              className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand rounded">
+              {shown ? <ChevronDown size={13} className="mt-0.5 shrink-0 text-fg4" /> : <ChevronRight size={13} className="mt-0.5 shrink-0 text-fg4" />}
+              <span>{r.name}{r.archived && <ArchivedMark className="ml-1.5" />}</span>
+            </button>
+            {r.untraceable > 0 && !shown && <div className="pl-[17px] text-warning">{r.untraceable} не покажет никто</div>}
+            {shown && r.holders.map((h, i) => (
+              <div key={i} className="pl-[17px] text-fg2">
+                {holderLabel(h)} — {h.rows}
+                {h.documents && <span className="text-fg3"> ({h.documents})</span>}
+                {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
+              </div>
+            ))}
+          </>
+        );
+      } },
+    { key: 'references', label: 'Ссылок', align: 'right', width: 'w-24',
+      cell: r => {
+        const was = wasNote(fresh?.before ?? null, r.id, r.references);
+        return <>{r.references}{was && <span className="text-warning"> ({was})</span>}</>;
+      } },
+  ];
   const offer: PurgeOffer | null = preview
     ? { allowed: true, references: preview.references, untraceable: preview.untraceable, holders: [] } : null;
   const matches = !!offer && countMatches(input, offer);
@@ -136,41 +166,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
         ) : (
           <>
             {/* Все строки, прокрутка внутри: удаляемое обязано быть обозримо целиком, без «показать ещё». */}
-            <div className="mt-3 max-h-64 overflow-y-auto border border-stroke rounded-md">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-surface text-fg3">
-                  <tr><th className="text-left font-medium px-2 py-1">Будут удалены</th><th className="text-right font-medium px-2 py-1">Ссылок</th></tr>
-                </thead>
-                <tbody>
-                  {preview.records.map(r => {
-                    const shown = open.has(r.id);
-                    const was = wasNote(fresh?.before ?? null, r.id, r.references);
-                    return (
-                      <tr key={r.id} className="border-t border-stroke align-top">
-                        <td className="px-2 py-1 text-fg1">
-                          <button type="button" aria-expanded={shown} onClick={() => setOpen(s => toggleInSet(s, r.id))}
-                            className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand rounded">
-                            {shown ? <ChevronDown size={13} className="mt-0.5 shrink-0 text-fg4" /> : <ChevronRight size={13} className="mt-0.5 shrink-0 text-fg4" />}
-                            <span>{r.name}{r.archived && <ArchivedMark className="ml-1.5" />}</span>
-                          </button>
-                          {r.untraceable > 0 && !shown && <div className="pl-[17px] text-warning">{r.untraceable} не покажет никто</div>}
-                          {shown && r.holders.map((h, i) => (
-                            <div key={i} className="pl-[17px] text-fg2">
-                              {holderLabel(h)} — {h.rows}
-                              {h.documents && <span className="text-fg3"> ({h.documents})</span>}
-                              {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
-                            </div>
-                          ))}
-                        </td>
-                        <td className="px-2 py-1 text-right tabular-nums text-fg1 whitespace-nowrap">
-                          {r.references}{was && <span className="text-warning"> ({was})</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataGrid density="compact" className="mt-3 max-h-64" columns={columns} rows={preview.records} rowKey={r => r.id} />
             {/* Итог — вне прокрутки, всегда на виду. Число нарочно не повторено ни в подписи поля,
                 ни внутри него: чтобы его перепечатать, взгляд обязан пройти по списку. */}
             <div className="flex justify-between px-2 py-1.5 text-xs font-semibold text-fg1">

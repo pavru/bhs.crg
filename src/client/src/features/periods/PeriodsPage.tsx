@@ -21,6 +21,7 @@ import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
 import { ClosingSections } from './ClosingSections';
 import { unfinishedSummary, visiblyChanged } from './closing';
 import { companyClosingNote, companyReopenNote, shownSitesCount, type PeriodSites } from './periodSites';
+import { DataGrid } from '@/shared/ui/DataGrid';
 import { PageHeader } from '@/shared/ui/PageHeader';
 
 /**
@@ -96,55 +97,36 @@ export function PeriodsPage() {
         закрываются только прошедшие дни.
       </p>
 
-      <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
-        <table className="w-full text-sm">
-          <thead className="bg-base border-b border-stroke">
-            <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-fg2">
-                Контур
-                {/* Число — и в шапке: строка под таблицей уходит за сгиб, а урезанную таблицу видно сразу. */}
-                {sites.hidden > 0 && (
-                  <span className="ml-2 font-normal text-fg3" data-testid="period-sites-count">
-                    {shownSitesCount(shownSites.length, sites.total)}
-                  </span>
-                )}
-              </th>
-              <th className="text-left px-4 py-2.5 font-medium text-fg2 w-72">Закрыто</th>
-              <th className="px-4 py-2.5 w-72" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-muted">
-            {[data.company, ...shownSites].map(state => {
-              const name = nameOf(state.constructionId);
-              return (
-                <tr key={state.constructionId ?? 'company'} className="hover:bg-base">
-                  <td className={`px-4 py-2 ${state.constructionId ? 'text-fg1' : 'text-fg1 font-medium'}`}>
-                    {name}
-                  </td>
-                  <td className="px-4 py-2"><Closed state={state} /></td>
-                  <td className="px-4 py-2">
-                    <div className="flex items-center justify-end gap-1">
-                      {state.reopenable && (
-                        <Button size="sm" icon={<Undo2 size={14} />}
-                          onClick={() => setDialog({ kind: 'reopen', constructionId: state.constructionId })}>
-                          Отменить закрытие
-                        </Button>
-                      )}
-                      <Button size="sm" variant="tonal" icon={<Lock size={14} />}
-                        onClick={() => setDialog({ kind: 'close', constructionId: state.constructionId })}>
-                        Закрыть период
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {!sitesKnown && (
-              <tr><td colSpan={3} className="px-4 py-2 text-fg4">Загрузка строек...</td></tr>
+      <DataGrid rows={[data.company, ...shownSites]} rowKey={state => state.constructionId ?? 'company'} columns={[
+        { key: 'contour', label: 'Контур',
+          // Число — и в шапке: строка под таблицей уходит за сгиб, а урезанную таблицу видно сразу.
+          header: <>
+            Контур
+            {sites.hidden > 0 && (
+              <span className="ml-2 font-normal" data-testid="period-sites-count">
+                {shownSitesCount(shownSites.length, sites.total)}
+              </span>
             )}
-          </tbody>
-        </table>
-      </div>
+          </>,
+          cell: state => <span className={state.constructionId ? '' : 'font-medium'}>{nameOf(state.constructionId)}</span> },
+        { key: 'closed', label: 'Закрыто', width: 'w-72', cell: state => <Closed state={state} /> },
+        { key: 'actions', label: '', width: 'w-72',
+          cell: state => (
+            <div className="flex items-center justify-end gap-1">
+              {state.reopenable && (
+                <Button size="sm" icon={<Undo2 size={14} />}
+                  onClick={() => setDialog({ kind: 'reopen', constructionId: state.constructionId })}>
+                  Отменить закрытие
+                </Button>
+              )}
+              <Button size="sm" variant="tonal" icon={<Lock size={14} />}
+                onClick={() => setDialog({ kind: 'close', constructionId: state.constructionId })}>
+                Закрыть период
+              </Button>
+            </div>
+          ) },
+      ]} />
+      {!sitesKnown && <p className="mt-2 text-note text-fg4">Загрузка строек...</p>}
       {sites.hidden > 0 && <div className="mt-2"><SiteFilterNote hidden={sites.hidden} /></div>}
 
       <History records={history} nameOf={nameOf} />
@@ -373,52 +355,41 @@ function History({ records, nameOf }: {
   return (
     <>
       <h2 className="text-sm font-semibold text-fg2 mt-6 mb-2">История</h2>
-      <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
-        <table className="w-full text-sm">
-          <thead className="bg-base border-b border-stroke">
-            <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-fg2 w-36">Когда</th>
-              <th className="text-left px-4 py-2.5 font-medium text-fg2 w-52">Кто</th>
-              <th className="text-left px-4 py-2.5 font-medium text-fg2">Что</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-muted">
-            {records.map(r => (
-              <tr key={r.id} className="hover:bg-base align-top">
-                <td className="px-4 py-2 text-fg3 whitespace-nowrap tabular-nums">{formatDateTime(r.at)}</td>
-                <td className="px-4 py-2 text-fg2 break-all">{r.byName}</td>
-                <td className="px-4 py-2">
-                  <div className="text-fg1">
-                    {r.kind === 'Close' ? 'Закрыт период' : 'Отменено закрытие'}
-                    {' '}с {ruDate(r.from)} по {ruDate(r.through)} — {nameOf(r.constructionId)}
-                  </div>
-                  {r.reason && <div className="text-fg3 text-xs break-words">{r.reason}</div>}
-                  {r.kind === 'Close' && (r.report ? (
-                    <>
-                      <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
-                        className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-brand hover:underline">
-                        {open.has(r.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                        Что показал диалог при закрытии
-                      </button>
-                      {open.has(r.id) && (
-                        <div className="mt-1.5 mb-1 border-l-2 border-stroke pl-3">
-                          <p className="text-xs text-fg3 mb-2">
-                            Числа на момент закрытия; сейчас могут быть другими.
-                          </p>
-                          <ClosingSections sections={r.report} />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    // Закрытие сделано до появления перечня: молчание выглядело бы как «незавершённого не было».
-                    <div className="text-fg4 text-xs">Перечень не записывался.</div>
-                  ))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataGrid rows={records} rowKey={r => r.id} columns={[
+        { key: 'at', label: 'Когда', width: 'w-36',
+          cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.at)}</span> },
+        { key: 'byName', label: 'Кто', width: 'w-52', wrap: true, cell: r => <span className="text-fg2 break-all">{r.byName}</span> },
+        { key: 'what', label: 'Что', wrap: true,
+          cell: r => (
+            <>
+              <div>
+                {r.kind === 'Close' ? 'Закрыт период' : 'Отменено закрытие'}
+                {' '}с {ruDate(r.from)} по {ruDate(r.through)} — {nameOf(r.constructionId)}
+              </div>
+              {r.reason && <div className="text-fg3 text-xs">{r.reason}</div>}
+              {r.kind === 'Close' && (r.report ? (
+                <>
+                  <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
+                    className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-brand hover:underline">
+                    {open.has(r.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    Что показал диалог при закрытии
+                  </button>
+                  {open.has(r.id) && (
+                    <div className="mt-1.5 mb-1 border-l-2 border-stroke pl-3 whitespace-normal">
+                      <p className="text-xs text-fg3 mb-2">
+                        Числа на момент закрытия; сейчас могут быть другими.
+                      </p>
+                      <ClosingSections sections={r.report} />
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Закрытие сделано до появления перечня: молчание выглядело бы как «незавершённого не было».
+                <div className="text-fg4 text-xs">Перечень не записывался.</div>
+              ))}
+            </>
+          ) },
+      ]} />
     </>
   );
 }

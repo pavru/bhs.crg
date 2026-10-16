@@ -4,6 +4,7 @@ import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
@@ -88,6 +89,39 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const columns: DataGridColumn<SupplierTermsItem>[] = [
+    { key: 'supplier', label: 'Поставщик', wrap: true,
+      cell: item => (
+        <span className={item.supplierLost ? 'text-danger' : 'text-fg2'}>
+          {termsSupplier(item)}
+          {item.supplierArchived && <ArchivedMark className="ml-1" />}
+        </span>
+      ) },
+    { key: 'deferralDays', label: 'Отсрочка, дней', width: 'w-32',
+      cell: item => {
+        const text = typed[item.supplierId] ?? String(item.deferralDays);
+        const days = parseDays(text);
+        return (
+          <input value={text} inputMode="numeric" readOnly={saving.has(item.supplierId)} aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
+            aria-invalid={typeof days !== 'number' || undefined}
+            title={typeof days !== 'number' ? BAD_DAYS : undefined}
+            onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
+            onBlur={() => void change(item)}
+            onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
+            className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg1
+              ${typeof days !== 'number' ? 'border-danger' : 'border-stroke'}`} />
+        );
+      } },
+    { key: 'updatedAt', label: 'Изменено',
+      cell: item => <span className="text-fg3">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
+    { key: 'remove', label: '', width: 'w-8',
+      cell: item => (
+        <button type="button" title="Снять условия" disabled={saving.has(item.supplierId)}
+          onClick={() => setRemovingId(item.supplierId)}
+          className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+      ) },
+  ];
+
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Условия поставщиков" wide isDirty={dirty}>
       <p className="text-xs text-fg3 mb-3">
@@ -127,50 +161,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
           Условий пока нет. Выберите поставщика и укажите отсрочку — новые счета получат её сами.
         </p>
       ) : (
-        <div className="max-h-[55vh] overflow-auto">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-surface text-fg4">
-              <tr className="text-left">
-                <th className="py-1 pr-2 font-normal">Поставщик</th>
-                <th className="py-1 pr-2 font-normal w-32">Отсрочка, дней</th>
-                <th className="py-1 pr-2 font-normal">Изменено</th>
-                <th className="w-8" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(item => {
-                const text = typed[item.supplierId] ?? String(item.deferralDays);
-                const days = parseDays(text);
-                return (
-                  <tr key={item.supplierId} className="border-t border-stroke align-top" data-testid="terms-row">
-                    <td className={`py-1.5 pr-2 ${item.supplierLost ? 'text-danger' : 'text-fg2'}`}>
-                      {termsSupplier(item)}
-                      {item.supplierArchived && <ArchivedMark className="ml-1" />}
-                    </td>
-                    <td className="py-1 pr-2">
-                      <input value={text} inputMode="numeric" readOnly={saving.has(item.supplierId)} aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
-                        aria-invalid={typeof days !== 'number' || undefined}
-                        title={typeof days !== 'number' ? BAD_DAYS : undefined}
-                        onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
-                        onBlur={() => void change(item)}
-                        onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-                        className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg1
-                          ${typeof days !== 'number' ? 'border-danger' : 'border-stroke'}`} />
-                    </td>
-                    <td className="py-1.5 pr-2 text-fg3 whitespace-nowrap">
-                      {formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}
-                    </td>
-                    <td className="py-1">
-                      <button type="button" title="Снять условия" disabled={saving.has(item.supplierId)}
-                        onClick={() => setRemovingId(item.supplierId)}
-                        className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataGrid density="compact" className="max-h-[55vh]" columns={columns} rows={items} rowKey={item => item.supplierId} />
       )}
 
       <ConfirmDialog open={removingId !== null} onOpenChange={o => { if (!o) setRemovingId(null); }}
