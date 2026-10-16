@@ -1,6 +1,6 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
+import { invoiceQuery, seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
 import type { MatrixPart } from './allocationMatrix';
 
 /**
@@ -70,4 +70,39 @@ export function useCorrectInvoice() {
   }) =>
     apiClient.post<InvoiceView>(`/costs/invoices/${id}/correction`, { ...body, stamp }, seenBy(seen))
       .then(r => r.data));
+}
+
+/** Вид записи книги — теми же словами, что предпросмотр. */
+export type BookKind = 'opening' | 'correction' | 'payment' | 'unpayment' | 'alignment';
+
+/** Запись книги проводок счёта — строка истории на форме (E2, PR 6b-2). */
+export interface InvoiceBookEntry {
+  seq: number;
+  kind: BookKind | string;
+  /** День записи: им исправление легло в книгу. */
+  day: string;
+  /** Когда записано. */
+  at: string;
+  /** Имя автора на момент записи; `null` — запись старше этого поля. */
+  author: string | null;
+  reason: string | null;
+  /** Версия, ушедшая в историю с исправлением. */
+  version: number | null;
+  /** Сумма строк: у открытия — деньги счёта целиком, у прочих — сдвиг. */
+  gross: number;
+  net: number;
+  lines: CorrectionLineView[];
+}
+
+/**
+ * История счёта — его книга проводок. Ключ — под ключом счёта и с его версией: любая запись в книгу
+ * двигает версию счёта, так что история перечитывается вместе с формой, а сброс счёта (отказ 409,
+ * удаление) сбрасывает и её.
+ */
+export function useInvoiceBook(view: InvoiceView, enabled: boolean) {
+  return useQuery({
+    queryKey: [...invoiceQuery(view.id).queryKey, 'book', view.version] as const,
+    queryFn: () => apiClient.get<InvoiceBookEntry[]>(`/costs/invoices/${view.id}/book`).then(r => r.data),
+    enabled,
+  });
 }

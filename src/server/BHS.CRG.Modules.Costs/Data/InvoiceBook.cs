@@ -7,7 +7,19 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Modules.Costs.Data;
 
 /// <summary>Кто и почему пишет запись: у исправления — причина и номер версии.</summary>
-public sealed record BookAuthor(Guid? UserId, string? Reason = null, int? Version = null);
+/// <param name="Name">Имя автора на момент записи — его показывает история счёта (PR 6b-2 E2).</param>
+public sealed record BookAuthor(Guid? UserId, string? Reason = null, int? Version = null, string? Name = null)
+{
+    /// <summary>
+    /// Автор — тот, кто действует сейчас, с его нынешним именем. Только так в производственном коде: имя,
+    /// забытое одним из мест записи, оставило бы в истории «—» у записей, автор которых известен.
+    /// </summary>
+    public static BookAuthor Of(IModuleUser user, string? reason = null, int? version = null) =>
+        new(user.Id, reason, version, user.Name);
+}
+
+/// <summary>Запись книги со строками — как её показывает история счёта.</summary>
+public sealed record BookHistoryEntry(InvoiceBookEntry Entry, IReadOnlyList<InvoiceBookLine> Lines);
 
 /// <summary>Что легло в книгу: записи и их значения — открытие, выравнивание и сама запись.</summary>
 /// <param name="Records">Посчитанное проводкой — по нему отметка предпросмотра (<see cref="InvoiceBookPosting.Stamp" />).</param>
@@ -88,7 +100,7 @@ public static class InvoiceBook
         {
             // Причина и версия — только у самой записи (она последняя): открытие и страховку пишет не человек.
             var own = ReferenceEquals(record, records[^1]);
-            var entry = InvoiceBookEntry.Create(invoice.Id, ++seq, record, author.UserId,
+            var entry = InvoiceBookEntry.Create(invoice.Id, ++seq, record, author.UserId, author.Name,
                 own ? author.Reason : null, own ? author.Version : null);
             db.InvoiceBookEntries.Add(entry);
             db.InvoiceBookLines.AddRange(record.Lines.Select((line, i) => InvoiceBookLine.Create(entry.Id, i, line)));
@@ -101,6 +113,15 @@ public static class InvoiceBook
 
     /// <summary>Книга счёта, как она лежит, — по порядку записей.</summary>
     public static async Task<IReadOnlyList<(int Seq, BookRecord Record)>> ReadAsync(
+        CostsDbContext db, Guid invoiceId, CancellationToken ct) =>
+        [.. (await HistoryAsync(db, invoiceId, ct)).Select(h => (h.Entry.Seq,
+            new BookRecord(h.Entry.Kind, h.Entry.Day, h.Entry.Tolerance, [.. h.Lines.Select(l => l.Value)])))];
+
+    /// <summary>
+    /// Книга счёта записями со строками — по порядку записей. Её читает и запись в книгу (под замками), и
+    /// история счёта на форме (PR 6b-2 E2) — только показ, без отслеживания.
+    /// </summary>
+    public static async Task<IReadOnlyList<BookHistoryEntry>> HistoryAsync(
         CostsDbContext db, Guid invoiceId, CancellationToken ct)
     {
         // Одним запросом (ревью PR #1357): запись в книгу читает её под двумя замками, и лишний проход с
@@ -114,9 +135,8 @@ public static class InvoiceBook
             .ToListAsync(ct);
 
         // Группы — в порядке первого появления, то есть по номеру записи.
-        return [.. rows.GroupBy(r => r.Entry.Id, (_, g) => g.ToList()).Select(g => (g[0].Entry.Seq,
-            new BookRecord(g[0].Entry.Kind, g[0].Entry.Day, g[0].Entry.Tolerance,
-                [.. g.Where(r => r.Line is not null).Select(r => r.Line!.Value)])))];
+        return [.. rows.GroupBy(r => r.Entry.Id, (_, g) => g.ToList()).Select(g => new BookHistoryEntry(g[0].Entry,
+            [.. g.Where(r => r.Line is not null).Select(r => r.Line!)]))];
     }
 
     /// <summary>Допуск, которым посчитана последняя запись книги счёта; книги нет — <c>null</c>.</summary>

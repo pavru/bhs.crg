@@ -57,6 +57,9 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/costs/CorrectionPreviewDialog.tsx': {
     filters: false, because: 'справочник лишь называет цели строк книги: исправление пишется целиком, и отбор спрятал бы его часть',
   },
+  '/src/features/costs/CorrectionHistory.tsx': {
+    filters: false, because: 'справочник лишь называет цели строк книги: история счёта — его целиком, и отбор спрятал бы её часть',
+  },
   '/src/features/costs/InvoicesPage.tsx': {
     filters: true,
     until: {

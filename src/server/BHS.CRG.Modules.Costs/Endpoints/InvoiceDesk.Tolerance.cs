@@ -80,7 +80,7 @@ public sealed partial class InvoiceDesk
                 await InvoiceBook.AppendAsync(db, invoice,
                     last => new BookChange(InvoiceBookKind.Alignment, money.Before, before, money.After, after,
                         last is { } t && t != before ? moneyAt(t) : null),
-                    held, today, new BookAuthor(user.Id, reason), ct);
+                    held, today, BookAuthor.Of(user, reason), ct);
                 invoice.PostRemainder(money.Remainder);
                 moved.Add(new(id, InvoiceEndpoints.Label(invoice), before));
             }
@@ -131,7 +131,7 @@ public sealed partial class InvoiceDesk
 
                     await InvoiceBook.AppendAsync(db, invoice,
                         new BookChange(InvoiceBookKind.Alignment, money.Before, last, money.After, current),
-                        boundaries, today, new BookAuthor(user.Id, reason(last)), ct);
+                        boundaries, today, BookAuthor.Of(user, reason(last)), ct);
                     invoice.PostRemainder(money.Remainder);
                     await db.SaveChangesAsync(ct);
                     return new ToleranceMoved(id, InvoiceEndpoints.Label(invoice), last);

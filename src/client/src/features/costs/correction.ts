@@ -99,15 +99,25 @@ export type PreviewRow =
  */
 export function correctionRows(preview: CorrectionPreview, day: (iso: string) => string): PreviewRow[] {
   const record = preview.records.find(r => r.kind === 'correction');
-  if (!record) return [];
-  const ours = record.lines.filter(l => l.day === preview.day);
-  const own = record.lines.filter(l => l.day !== preview.day);
-  const group = (key: string, title: string, lines: CorrectionLineView[]): PreviewRow[] => lines.length === 0 ? []
-    : [{ kind: 'group', key, title }, ...lines.map((line, i): PreviewRow => ({ kind: 'line', key: `${key}-${i}`, line }))];
+  return record ? dayRows(record.lines, preview.day, `Днём исправления ${day(preview.day)}`) : [];
+}
+
+/**
+ * Строки записи двумя группами: легшие днём записи и своим днём (период открыт). Одна функция на
+ * предпросмотр и историю счёта — иначе одно исправление до записи и после читалось бы по-разному.
+ */
+export function dayRows(lines: CorrectionLineView[], day: string, today: string): PreviewRow[] {
+  const group = (key: string, title: string, part: CorrectionLineView[]): PreviewRow[] => part.length === 0 ? []
+    : [{ kind: 'group', key, title }, ...part.map((line, i): PreviewRow => ({ kind: 'line', key: `${key}-${i}`, line }))];
   return [
-    ...group('today', `Днём исправления ${day(preview.day)}`, ours),
-    ...group('own', 'Своим днём (период открыт)', own),
+    ...group('today', today, lines.filter(l => l.day === day)),
+    ...group('own', 'Своим днём (период открыт)', lines.filter(l => l.day !== day)),
   ];
+}
+
+/** Строки без групп — у открытия книги и выравнивания: там «днём записи» ничего не значит. */
+export function plainRows(key: string, lines: CorrectionLineView[]): PreviewRow[] {
+  return lines.map((line, i): PreviewRow => ({ kind: 'line', key: `${key}-${i}`, line }));
 }
 
 /** Записи книги кроме самого исправления — открытие и выравнивание: показываются свёрнутыми. */
@@ -128,4 +138,32 @@ export function signed(value: number, money: (value: number) => string): string 
 export function mayCorrect(view: InvoiceView, permission: (code: string) => boolean, gone: boolean): boolean {
   return view.payment.lockedBy !== null && !gone
     && permission('costs.invoice.edit') && permission('costs.invoice.correct');
+}
+
+/** Вид записи книги словами истории. Незнакомый (сервер новее клиента) — как пришёл, а не пустотой. */
+export function bookKindTitle(kind: string): string {
+  switch (kind) {
+    case 'opening': return 'Открытие книги';
+    case 'correction': return 'Исправление';
+    case 'payment': return 'Оплата';
+    case 'unpayment': return 'Отмена оплаты';
+    case 'alignment': return 'Выравнивание допуском';
+    default: return kind;
+  }
+}
+
+/**
+ * Итог записи: у открытия — деньги счёта, как они лежали (сумма, а не разница), у прочих — сдвиг со
+ * знаком. Открытие со знаком «+» читалось бы «счёт подорожал на всю сумму».
+ */
+export function bookTotal(entry: { kind: string; gross: number }, money: (value: number) => string): string {
+  return entry.kind === 'opening' ? money(entry.gross) : signed(entry.gross, money);
+}
+
+/** Строки записи истории: у записей со сдвигом — группами по дню, у открытия и выравнивания — без групп. */
+export function bookEntryRows(entry: { kind: string; seq: number; day: string; lines: CorrectionLineView[] },
+  day: (iso: string) => string): PreviewRow[] {
+  return entry.kind === 'opening' || entry.kind === 'alignment'
+    ? plainRows(`${entry.seq}`, entry.lines)
+    : dayRows(entry.lines, entry.day, `Днём записи ${day(entry.day)}`);
 }
