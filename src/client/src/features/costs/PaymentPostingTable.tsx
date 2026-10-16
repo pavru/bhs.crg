@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ArrowRightLeft, ChevronDown, ChevronRight } from 'lucide-react';
-import type { PaymentPosting, PostingRow } from '@/shared/api/invoicePayment';
+import type { PaymentPosting, PostingPart, PostingRow } from '@/shared/api/invoicePayment';
 import { formatDate, formatMoney } from '@/shared/format/format';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { CALM_ROWS_SHOWN, foldedLabel, movedWarning, rowKey, summarize } from './paymentPosting';
 
 /**
@@ -23,6 +25,8 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
   const summary = summarize(posting.rows);
   const [shown, setShown] = useState(expanded);
   const [unfolded, setUnfolded] = useState(false);
+  // Раскрытые до долей контуры — по ключу строки: расклад перечитывается после каждой правки.
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const warning = movedWarning(summary, posting.total);
 
   const calm = unfolded ? summary.calm : summary.calm.slice(0, CALM_ROWS_SHOWN);
@@ -39,6 +43,35 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
       </div>
     );
 
+  const columns: DataGridColumn<Line>[] = [
+    { key: 'name', label: 'Контур', wrap: true,
+      cell: ({ key, row, part }) => {
+        if (part) return <span className="pl-5 text-fg3">{part.label}</span>;
+        const expandable = row.parts.length > 0;
+        return (
+          <>
+            <button type="button" disabled={!expandable} onClick={() => setOpen(was => toggleInSet(was, key))}
+              aria-expanded={expandable ? open.has(key) : undefined}
+              className="inline-flex items-center gap-1 text-left disabled:cursor-default">
+              {expandable && (open.has(key) ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+              {row.name}
+            </button>
+            {row.note && <div className="text-warning mt-0.5">{row.note}</div>}
+          </>
+        );
+      } },
+    { key: 'amount', label: 'Сумма', align: 'right', width: 'w-36',
+      cell: ({ row, part }) => part
+        ? <span className="text-fg3">{money(part.amount)}</span>
+        : money(row.amount) },
+    { key: 'accountingOn', label: 'Учётная дата', width: 'w-28',
+      cell: ({ row, part }) => part ? null : (
+        <span className={`tabular-nums ${row.moved ? 'text-warning font-medium' : 'text-fg2'}`}>
+          {formatDate(row.accountingOn)}
+        </span>
+      ) },
+  ];
+
   return (
     <div className="space-y-2">
       {warning && (
@@ -46,66 +79,35 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
           <ArrowRightLeft size={14} className="shrink-0 mt-0.5" /> {warning}
         </p>
       )}
-      <div className="max-h-72 overflow-y-auto rounded-lg border border-stroke">
-        <table className="w-full text-xs">
-          <thead className="bg-base text-fg3 sticky top-0">
-            <tr className="text-left">
-              <th className="px-3 py-1.5 font-medium">Контур</th>
-              <th className="px-3 py-1.5 font-medium text-right w-36">Сумма</th>
-              <th className="px-3 py-1.5 font-medium w-28">Учётная дата</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-muted">
-            {[...summary.moved, ...calm].map(row => (
-              <Row key={rowKey(row)} row={row} highlighted={changed?.has(rowKey(row)) === true} />
-            ))}
-            {folded.length > 0 && (
-              <tr>
-                <td colSpan={3} className="px-3 py-1.5">
-                  <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
-                    onClick={() => setUnfolded(true)}>
-                    {foldedLabel(folded)}
-                  </button>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataGrid density="compact" className="max-h-72" columns={columns} rowKey={line => line.key}
+        rows={lines([...summary.moved, ...calm], open)}
+        tone={line => line.part === null && changed?.has(line.key) ? 'warning' : null} />
+      {folded.length > 0 && (
+        <button type="button" className="px-2 text-note underline decoration-dotted underline-offset-2 text-fg3"
+          onClick={() => setUnfolded(true)}>
+          {foldedLabel(folded)}
+        </button>
+      )}
     </div>
   );
 }
 
-function Row({ row, highlighted }: { row: PostingRow; highlighted: boolean }) {
-  const [open, setOpen] = useState(false);
-  const expandable = row.parts.length > 0;
-
-  return (
-    <>
-      <tr className={`align-top ${highlighted ? 'bg-warning-subtle' : ''}`}>
-        <td className="px-3 py-1.5">
-          <button type="button" disabled={!expandable} onClick={() => setOpen(o => !o)}
-            aria-expanded={expandable ? open : undefined}
-            className="inline-flex items-center gap-1 text-left text-fg1 disabled:cursor-default">
-            {expandable && (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
-            {row.name}
-          </button>
-          {row.note && <div className="text-warning mt-0.5">{row.note}</div>}
-        </td>
-        <td className="px-3 py-1.5 text-right tabular-nums text-fg1">
-          {row.amount === null ? '—' : formatMoney(row.amount)}
-        </td>
-        <td className={`px-3 py-1.5 tabular-nums ${row.moved ? 'text-warning font-medium' : 'text-fg2'}`}>
-          {formatDate(row.accountingOn)}
-        </td>
-      </tr>
-      {open && row.parts.map((part, index) => (
-        <tr key={index} className="text-fg3">
-          <td className="pl-8 pr-3 py-1">{part.label}</td>
-          <td className="px-3 py-1 text-right tabular-nums">{part.amount === null ? '—' : formatMoney(part.amount)}</td>
-          <td />
-        </tr>
-      ))}
-    </>
-  );
+/**
+ * Строка сетки: контур или одна его доля. Доли — своими строками, а не текстом в клетке контура:
+ * так их суммы стоят в колонке «Сумма», под суммой контура.
+ */
+interface Line {
+  key: string;
+  row: PostingRow;
+  part: PostingPart | null;
 }
+
+function lines(rows: PostingRow[], open: ReadonlySet<string>): Line[] {
+  return rows.flatMap(row => {
+    const key = rowKey(row);
+    const head: Line = { key, row, part: null };
+    return open.has(key) ? [head, ...row.parts.map((part, i) => ({ key: `${key}#${i}`, row, part }))] : [head];
+  });
+}
+
+const money = (amount: number | null) => amount === null ? '—' : formatMoney(amount);

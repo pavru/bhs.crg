@@ -14,6 +14,7 @@ import {
   type AppUser,
 } from '@/shared/api/users';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 
 function apiError(e: unknown): string {
   const err = e as { response?: { data?: { error?: string } }; message?: string };
@@ -39,6 +40,53 @@ export function UsersPage() {
   }
 
 
+  const columns: DataGridColumn<AppUser>[] = [
+    { key: 'user', label: 'Пользователь', wrap: true,
+      cell: u => {
+        const isSelf = u.id === me?.sub;
+        return (
+          <>
+            <div className="text-fg1 font-medium flex items-center gap-2">
+              {/* Щит — у роли «все права», а не у роли с именем «Admin»: признак
+                  приходит с сервера, а имя ничего не значит (issues #989/#990).
+                  Ролей может быть несколько, и щит ставится, если ТАКАЯ есть хотя бы
+                  одна: «все права» плюс что-то ещё — всё равно все права. */}
+              {u.roles.some(ur => roles.find(r => r.name === ur.name)?.allPermissions)
+                ? <ShieldCheck size={14} className="text-brand shrink-0" />
+                : <UserIcon size={14} className="text-fg4 shrink-0" />}
+              {u.displayName || u.email}
+              {isSelf && <span className="text-caption text-fg4 font-normal">(вы)</span>}
+            </div>
+            {u.displayName && <div className="text-xs text-fg4 mt-0.5">{u.email}</div>}
+            {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
+          </>
+        );
+      } },
+    { key: 'roles', label: 'Роли', width: 'w-56',
+      cell: u => (
+        <RolePicker value={u.roles.map(r => r.name)} known={u.roles}
+          onChange={next => onRolesChange(u, next)}
+          disabled={changeRoles.isPending}
+          ariaLabel={`Роли — ${u.displayName || u.email}`} className="w-52" />
+      ) },
+    { key: 'actions', label: '', width: 'w-24',
+      cell: u => {
+        const isSelf = u.id === me?.sub;
+        return (
+          <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity">
+            <IconButton label="Сбросить пароль" size="sm" onClick={() => setResetFor(u)}>
+              <KeyRound size={14} />
+            </IconButton>
+            <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(u)}
+              disabled={isSelf || del.isPending}
+              title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}>
+              <Trash2 size={14} />
+            </IconButton>
+          </div>
+        );
+      } },
+  ];
+
   return (
     <div className="px-6 py-4 max-w-4xl">
       <PageHeader title="Пользователи" className="mb-4" actions={<>
@@ -56,59 +104,7 @@ export function UsersPage() {
       {isLoading ? (
         <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
       ) : (
-        <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
-          <table className="w-full text-sm">
-            <thead className="bg-base border-b border-stroke">
-              <tr>
-                <th className="text-left px-4 py-2.5 font-medium text-fg2">Пользователь</th>
-                <th className="text-left px-4 py-2.5 font-medium text-fg2 w-56">Роли</th>
-                <th className="px-4 py-2.5 w-24" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-muted">
-              {users.map(u => {
-                const isSelf = u.id === me?.sub;
-                return (
-                  <tr key={u.id} className="group hover:bg-base align-top">
-                    <td className="px-4 py-2.5">
-                      <div className="text-fg1 font-medium flex items-center gap-2">
-                        {/* Щит — у роли «все права», а не у роли с именем «Admin»: признак
-                            приходит с сервера, а имя ничего не значит (issues #989/#990).
-                            Ролей может быть несколько, и щит ставится, если ТАКАЯ есть хотя бы
-                            одна: «все права» плюс что-то ещё — всё равно все права. */}
-                        {u.roles.some(ur => roles.find(r => r.name === ur.name)?.allPermissions)
-                          ? <ShieldCheck size={14} className="text-brand shrink-0" />
-                          : <UserIcon size={14} className="text-fg4 shrink-0" />}
-                        {u.displayName || u.email}
-                        {isSelf && <span className="text-caption text-fg4 font-normal">(вы)</span>}
-                      </div>
-                      {u.displayName && <div className="text-xs text-fg4 mt-0.5">{u.email}</div>}
-                      {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <RolePicker value={u.roles.map(r => r.name)} known={u.roles}
-                        onChange={next => onRolesChange(u, next)}
-                        disabled={changeRoles.isPending}
-                        ariaLabel={`Роли — ${u.displayName || u.email}`} className="w-52" />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                        <IconButton label="Сбросить пароль" size="sm" onClick={() => setResetFor(u)}>
-                          <KeyRound size={14} />
-                        </IconButton>
-                        <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(u)}
-                          disabled={isSelf || del.isPending}
-                          title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}>
-                          <Trash2 size={14} />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataGrid columns={columns} rows={users} rowKey={u => u.id} />
       )}
 
       <p className="text-xs text-fg4 mt-3">
