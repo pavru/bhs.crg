@@ -13,28 +13,33 @@ import type { NavItem } from './navConfig';
  * issue #1001). Меню само говорит, что скрыто: без этой строки к скрытому разделу вёл бы только
  * поиск, то есть нужно было бы заранее знать ответ. Переход открывает раздел БЕЗ смены пространства.
  */
-export function OutsideNav({ items }: { items: NavItem[] }) {
+export function OutsideNav({ items, collapsed = false }: { items: NavItem[]; collapsed?: boolean }) {
   const [open, setOpen] = useState(false);
   const guardedClick = useGuardedNavClick();
   if (items.length === 0) return null;
 
+  // В свёрнутой панели (issue #1355) строка остаётся — иконкой с тем же текстом в подсказке:
+  // пропади она, к скрытым разделам снова вёл бы только поиск.
+  const caption = `Ещё ${ruCount(items.length, 'раздел', 'раздела', 'разделов')} вне пространства`;
+  const pill = collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-2 px-3 py-2';
   return (
     <div data-testid="outside-nav" className="mt-1">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} title={collapsed ? caption : undefined}
+        className={`w-full flex items-center rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${pill}`}>
         {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
-        <span>Ещё {ruCount(items.length, 'раздел', 'раздела', 'разделов')} вне пространства</span>
+        <span className={collapsed ? 'sr-only' : undefined}>{caption}</span>
       </button>
       {open && (
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} onClick={guardedClick(to)}
+            <NavLink key={to} to={to} onClick={guardedClick(to)} title={collapsed ? label : undefined}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-full text-sm select-none transition-colors ` +
+                `flex items-center rounded-full text-sm select-none transition-colors ` +
                 `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                  collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2'} ${
                   isActive ? 'bg-tonal text-on-tonal' : 'text-fg2 hover:bg-black/5 dark:hover:bg-white/10'}`}>
               <Icon size={16} className="shrink-0 text-fg4" />
-              <span>{label}</span>
+              <span className={collapsed ? 'sr-only' : undefined}>{label}</span>
             </NavLink>
           ))}
         </div>

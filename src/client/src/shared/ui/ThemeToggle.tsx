@@ -17,22 +17,27 @@ const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
  *
  * Где значение хранится, компонент не знает: это забота `ThemeProvider` (сервер + зеркало,
  * issue #953).
+ *
+ * `vertical` — сегменты столбиком, для свёрнутой боковой панели (issue #1355): в её 40 px три
+ * сегмента в ряд стали бы по 13 px. Выбор тот же, меняется только раскладка.
  */
-export function ThemeToggle({ label = 'Тема оформления' }: { label?: string }) {
+export function ThemeToggle({ label = 'Тема оформления', vertical = false }: { label?: string; vertical?: boolean }) {
   const { theme, setTheme } = useTheme();
   return (
     <div role="group" aria-label={label}
-      className="flex h-10 rounded-full border border-stroke-strong overflow-hidden">
+      className={`flex rounded-full border border-stroke-strong overflow-hidden ${vertical ? 'flex-col w-10' : 'h-10'}`}>
       {themeOptions.map(({ value, icon: Icon, label: optionLabel }, i) => {
         const active = theme === value;
         return (
           <button key={value} type="button" onClick={() => setTheme(value)}
             title={optionLabel} aria-label={optionLabel} aria-pressed={active}
-            className={`flex-1 flex items-center justify-center gap-1 text-xs transition-colors ` +
+            // В столбике — своя высота, а не flex-1: нулевая основа перебила бы её, и сегмент
+            // сжался бы до иконки.
+            className={`${vertical ? 'h-8' : 'flex-1'} flex items-center justify-center gap-1 text-xs transition-colors ` +
               `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ` +
-              `${i > 0 ? 'border-l border-stroke-strong' : ''} ` +
+              `${i > 0 ? (vertical ? 'border-t' : 'border-l') + ' border-stroke-strong' : ''} ` +
               (active ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
-            {active && <Check size={14} className="shrink-0" />}
+            {active && !vertical && <Check size={14} className="shrink-0" />}
             <Icon size={16} />
           </button>
         );

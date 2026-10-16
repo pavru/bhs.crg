@@ -27,20 +27,33 @@ import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { splitNav } from '@/shared/ui/workspaces';
 import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
 import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
-import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
+import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
+import {
+  LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+} from 'lucide-react';
 
+/**
+ * Боковая панель свёрнута в иконки (issue #1355). Выбор — настройка человека, как тема: лежит на
+ * сервере и едет за ним на другую машину, а зеркало в браузере даёт первый кадр без прыжка ширины.
+ */
+const RAIL_KEY = 'rail';
+const RAIL_MIRROR = 'crg-rail';
 
 function NavSection({
   label,
   items,
+  collapsed,
 }: {
   label: string;
   items: NavItem[];
+  collapsed: boolean;
 }) {
   const guardedClick = useGuardedNavClick();
   return (
     <div>
-      <p className="px-3 mb-1 text-caption font-semibold uppercase tracking-widest select-none text-fg4">
+      {/* Заголовок группы в свёрнутой панели не помещается: группы там делит черта. */}
+      <p className={collapsed ? 'sr-only'
+        : 'px-3 mb-1 text-caption font-semibold uppercase tracking-widest select-none text-fg4'}>
         {label}
       </p>
       <div className="space-y-0.5">
@@ -49,9 +62,12 @@ function NavSection({
             key={to}
             to={to}
             onClick={guardedClick(to)}
+            // Подсказка — только у иконки: в развёрнутой панели она повторила бы видимую подпись.
+            title={collapsed ? itemLabel : undefined}
             className={({ isActive }) =>
-              `group flex items-center gap-3 px-3 py-2.5 rounded-full text-sm font-medium select-none transition-colors ` +
+              `group flex items-center rounded-full text-sm font-medium select-none transition-colors ` +
               `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2.5'} ${
                 isActive
                   ? 'bg-tonal text-on-tonal'
                   : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'
@@ -64,13 +80,28 @@ function NavSection({
                   size={18}
                   className={`shrink-0 ${isActive ? 'text-on-tonal' : 'text-fg3'}`}
                 />
-                <span>{itemLabel}</span>
+                <span className={collapsed ? 'sr-only' : undefined}>{itemLabel}</span>
               </>
             )}
           </NavLink>
         ))}
       </div>
     </div>
+  );
+}
+
+/** Кнопка низа панели: в свёрнутой — иконка с подсказкой, подпись остаётся для диктора. */
+function RailButton({ icon: Icon, label, onClick, collapsed }: {
+  icon: LucideIcon; label: string; onClick: () => void; collapsed: boolean;
+}) {
+  return (
+    <button type="button" onClick={onClick} title={collapsed ? label : undefined}
+      className={`flex items-center gap-3 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 ` +
+        `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        collapsed ? 'justify-center w-10 h-10 mx-auto' : 'w-full h-14 px-4'}`}>
+      <Icon size={collapsed ? 20 : 22} className="text-fg3 shrink-0" />
+      <span className={collapsed ? 'sr-only' : 'text-sm font-medium text-fg1'}>{label}</span>
+    </button>
   );
 }
 
@@ -112,6 +143,9 @@ function Shell() {
   const bugReport = useBugReportDialog();
   const guardedProfileClick = useGuardedNavClick();
   const guardedLeave = useGuardedLeave();
+  const [rail, setRail] = useSyncedPreference(RAIL_KEY, RAIL_MIRROR, 'expanded');
+  const collapsed = rail === 'collapsed';
+  const railToggle = collapsed ? 'Развернуть панель' : 'Свернуть панель';
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -141,47 +175,58 @@ function Shell() {
   return (
     <div className="flex h-screen bg-base">
       {/* Navigation rail */}
-      <aside className="w-56 flex flex-col border-r border-stroke bg-surface">
+      <aside data-testid="rail" data-collapsed={collapsed || undefined}
+        className={`${collapsed ? 'w-16' : 'w-56'} shrink-0 flex flex-col border-r border-stroke bg-surface`}>
         {/* Brand */}
-        {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. */}
-        <div className="flex items-center gap-2 px-4 h-12 border-b border-stroke shrink-0">
-          <BrandLogo className="w-6 h-6 text-brand" iconSize={18} />
-          <span className="text-base font-semibold tracking-tight text-brand truncate">
-            {productName}
-          </span>
+        {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. В свёрнутой
+            панели от строки остаётся кнопка разворота: логотип без названия ничего не называет. */}
+        <div className={`flex items-center gap-2 h-12 border-b border-stroke shrink-0 ${collapsed ? 'justify-center' : 'pl-4 pr-2'}`}>
+          {!collapsed && <>
+            <BrandLogo className="w-6 h-6 text-brand" iconSize={18} />
+            <span className="flex-1 min-w-0 text-base font-semibold tracking-tight text-brand truncate">
+              {productName}
+            </span>
+          </>}
+          <button type="button" onClick={() => setRail(collapsed ? 'expanded' : 'collapsed')}
+            aria-label={railToggle} title={railToggle} aria-expanded={!collapsed} aria-controls="app-rail-nav"
+            className="shrink-0 p-2 rounded-full text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
         </div>
 
         {/* Nav sections */}
-        <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
+        <nav id="app-rail-nav" className={`flex-1 py-3 space-y-4 overflow-y-auto ${collapsed ? 'px-3' : 'px-2'}`}>
           {/* Группа есть, пока в ней есть хоть что-то — пункты пространства ИЛИ строка скрытых (ревью
               PR #1330): иначе «Ещё N разделов» стояла бы без заголовка и без черты перед настройкой. */}
           {hasWork && (
             <div>
-              <NavSection label="Документы и данные" items={work} />
-              <OutsideNav items={outside} />
+              <NavSection label="Документы и данные" items={work} collapsed={collapsed} />
+              <OutsideNav items={outside} collapsed={collapsed} />
             </div>
           )}
           {settings.length > 0 && (
             <>
               {hasWork && <div className="border-t border-stroke mt-2" />}
-              <NavSection label="Настройка системы" items={settings} />
+              <NavSection label="Настройка системы" items={settings} collapsed={collapsed} />
             </>
           )}
         </nav>
 
         {/* Bottom: theme + user (MD3 drawer footer, issue #157) */}
         <div className="px-3 pt-3 pb-1 border-t border-stroke shrink-0">
-          <div className="mb-3"><ThemeToggle /></div>
+          <div className={collapsed ? 'mb-3 flex justify-center' : 'mb-3'}><ThemeToggle vertical={collapsed} /></div>
 
           <div className="space-y-0.5">
-            {/* Блок пользователя — пилюля с аватаром */}
+            {/* Блок пользователя — пилюля с аватаром; в свёрнутой панели — один аватар. */}
             <NavLink to="/profile" onClick={guardedProfileClick('/profile')}
-              className={({ isActive }) => `flex items-center gap-3 h-14 px-4 rounded-[28px] transition-colors ` +
+              title={collapsed ? (user?.displayName || user?.email) : undefined}
+              className={({ isActive }) => `flex items-center gap-3 rounded-[28px] transition-colors ` +
                 `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
+                (collapsed ? 'justify-center w-12 h-12 mx-auto ' : 'h-14 px-4 ') +
                 (isActive ? 'bg-tonal' : 'hover:bg-black/5 dark:hover:bg-white/10')}>
               <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} />
 
-              <span className="flex-1 min-w-0">
+              <span className={collapsed ? 'sr-only' : 'flex-1 min-w-0'}>
                 <span className="block text-sm font-medium text-fg1 truncate">{user?.displayName || user?.email}</span>
                 {/* Роли — справочная подпись, и берутся они с СЕРВЕРА целиком, вместе с названиями
                     (issue #951). Собирать подпись по техническому имени клиент больше не умеет и не
@@ -193,29 +238,18 @@ function Shell() {
                   {account?.roles.map(r => r.title).join(', ') || ''}
                 </span>
               </span>
-              <ChevronsUpDown size={18} className="text-fg3 shrink-0" />
+              {!collapsed && <ChevronsUpDown size={18} className="text-fg3 shrink-0" />}
             </NavLink>
 
-            <button type="button" onClick={() => setPwOpen(true)}
-              className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-              <KeyRound size={22} className="text-fg3 shrink-0" />
-              <span className="text-sm font-medium text-fg1">Сменить пароль</span>
-            </button>
+            <RailButton icon={KeyRound} label="Сменить пароль" onClick={() => setPwOpen(true)} collapsed={collapsed} />
             {/* Постоянная дверь к форме сообщения об ошибке (issue #834): она нужна и тогда, когда
                 ошибка НЕ показала своего экрана — «работает не так, как ожидал» тоже сообщение. */}
-            <button type="button" onClick={() => bugReport.open({ origin: 'rail' })}
-              className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-              <Bug size={22} className="text-fg3 shrink-0" />
-              <span className="text-sm font-medium text-fg1">Сообщить об ошибке</span>
-            </button>
-            <button type="button" onClick={() => guardedLeave(logout)}
-              className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-              <LogOut size={22} className="text-fg3 shrink-0" />
-              <span className="text-sm font-medium text-fg1">Выйти</span>
-            </button>
+            <RailButton icon={Bug} label="Сообщить об ошибке" onClick={() => bugReport.open({ origin: 'rail' })}
+              collapsed={collapsed} />
+            <RailButton icon={LogOut} label="Выйти" onClick={() => guardedLeave(logout)} collapsed={collapsed} />
           </div>
 
-          <VersionLabel />
+          <VersionLabel collapsed={collapsed} />
         </div>
       </aside>
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
@@ -281,7 +315,10 @@ function EmailConfirmBanner() {
 // Здесь же — ПАССИВНЫЙ носитель новости о новой версии (issue #813): виден на каждом экране, всем и
 // всегда, и никого не дёргает. Уведомлением тревожим только администратора — того, у кого есть путь
 // к действию; остальным знать полезно («мы на свежей?»), но требовать от них нечего.
-function VersionLabel() {
+//
+// В свёрнутой панели (issue #1355) — один номер, а новость о версии — его цветом: носитель обязан
+// остаться виден и там, подробности те же, в подсказке.
+function VersionLabel({ collapsed }: { collapsed: boolean }) {
   const { data } = useAppVersion();
   const { user } = useAuth();
   const { data: update } = useUpdateStatus(!!user);
@@ -296,6 +333,13 @@ function VersionLabel() {
     // и сказать ему, то есть открывает читателю задачу вместо того, чтобы закрыть вопрос.
     newer && `доступна версия ${newer} — обновление устанавливает администратор, он уже уведомлён`,
   ].filter(Boolean).join(' · ');
+  if (collapsed) {
+    return (
+      <div className={`text-caption truncate text-center pt-2.5 pb-1.5 ${newer ? 'text-brand' : 'text-fg3'}`} title={title}>
+        v{data.version}
+      </div>
+    );
+  }
   return (
     <div className="text-caption text-fg3 truncate px-4 pt-2.5 pb-1.5" title={title}>
       v{data.version}{data.commit ? ` · ${data.commit}` : ''}
