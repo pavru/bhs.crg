@@ -30,9 +30,10 @@ function Host({ onClose = vi.fn(), dirtyStep = false }: { onClose?: () => void; 
       <input aria-label="поле" />
       <button type="button" onClick={() => setStep(true)}>Вынести</button>
       {step && (
-        <WindowStep title="Вынос" onBack={() => setStep(false)} isDirty={dirtyStep}
+        <WindowStep title="Вынос" onBack={() => setStep(false)} isDirty={dirtyStep || undefined}
           footer={<><ModalExit /><button type="button" onClick={() => setInner(true)}>Дальше</button></>}>
           <p>тело шага</p>
+          <input aria-label="поле шага" />
           {inner && (
             <WindowStep title="Второй шаг" onBack={() => setInner(false)} footer={<ModalExit>Назад</ModalExit>}>
               <p>тело второго шага</p>
@@ -107,6 +108,50 @@ describe('WindowStep', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Закрыть' }).find(b => !b.hasAttribute('data-modal-cross'))!);
     expect(onClose).not.toHaveBeenCalled();
     expect(title()).toBe('Строка');
+  });
+});
+
+describe('WindowStep: набранное и фокус', () => {
+  it('без isDirty шаг судит по вводу сам: Esc после набора не уходит с шага, а показывает выход', async () => {
+    const onClose = vi.fn();
+    render(<Host onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Вынести' }));
+    fireEvent.change(screen.getByLabelText('поле шага'), { target: { value: 'набрано' } });
+    await escape();
+    expect(title()).toBe('Вынос');
+    expect((screen.getByLabelText('поле шага') as HTMLInputElement).value).toBe('набрано');
+    expect(document.activeElement?.textContent).toBe('Отмена');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('набранное в форме окна шагу не приписывается: Esc на чистом шаге уходит с него', async () => {
+    render(<Host />);
+    fireEvent.change(screen.getByLabelText('поле'), { target: { value: 'набрано' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Вынести' }));
+    await escape();
+    expect(title()).toBe('Строка');
+  });
+
+  it('фокус: открыли шаг — уходит со скрытой кнопки; сняли верхний шаг — к кнопке, что его открыла', async () => {
+    render(<Host />);
+    const open = screen.getByRole('button', { name: 'Вынести' });
+    open.focus();
+    fireEvent.click(open);
+    await act(async () => {});
+    expect(document.activeElement?.closest('[hidden]')).toBeNull();
+    expect(document.activeElement).not.toBe(open);
+
+    const next = screen.getByRole('button', { name: 'Дальше' });
+    next.focus();
+    fireEvent.click(next);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    await act(async () => {});
+    expect(document.activeElement).toBe(next);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await act(async () => {});
+    expect(document.activeElement).toBe(open);
   });
 });
 

@@ -11,7 +11,8 @@ interface WindowStepProps {
   /** Уйти с шага — к форме окна (или закрыть окно, если шаг сам стал окном). */
   onBack: () => void;
   busy?: boolean;
-  /** На шаге набрано то, что выход назад потеряет, — спросить перед ним. */
+  /** На шаге набрано то, что выход назад потеряет, — спросить перед ним. Не сказано — окно судит
+   *  по вводу на шаге само, как о своей форме. */
   isDirty?: boolean;
   /** Размер, если шаг стал окном сам (снаружи любого окна). Внутри окна размер — его. */
   wide?: boolean;
@@ -40,7 +41,7 @@ export function WindowStep(props: WindowStepProps) {
   return <HostedStep host={host} {...props} />;
 }
 
-function HostedStep({ host, title, footer, children, onBack, busy = false, isDirty = false }: WindowStepProps & {
+function HostedStep({ host, title, footer, children, onBack, busy = false, isDirty }: WindowStepProps & {
   host: WindowStepHost;
 }) {
   const id = useId();

@@ -22,7 +22,8 @@ export function useModalControl(): ModalControl {
 export interface WindowStepState {
   title: string;
   busy: boolean;
-  isDirty: boolean;
+  /** Не сказано — окно судит по вводу на шаге само, как о своей форме (`touched`). */
+  isDirty?: boolean;
 }
 
 /** Куда шаг кладёт своё тело и подвал — места окно заводит под каждый шаг в стопке. */

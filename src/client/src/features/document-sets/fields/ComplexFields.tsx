@@ -569,7 +569,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               НА СВОЁМ МЕСТЕ: порядок строк значим, вынесенное не уезжает в конец (issue #663). */}
           {compositeType && extractRow === rowModal && (
             <ExtractToCommonDataModal
-              open onOpenChange={o => { if (!o) setExtractRow(null); }}
+              onClose={() => setExtractRow(null)}
               values={allItems[extractRow] as Record<string, unknown>}
               compositeType={compositeType} allDocTypes={allDocTypes}
               setId={setId} scope={scope} scopeId={scopeId}
@@ -729,7 +729,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   // окно смонтированным значило бы подсказывать имя от прошлого выноса.
   const extractModal = compositeType && extractOpen && (
     <ExtractToCommonDataModal
-      open onOpenChange={o => { if (!o) setExtractOpen(false); }}
+      onClose={() => setExtractOpen(false)}
       values={subValues} compositeType={compositeType} allDocTypes={allDocTypes}
       setId={setId} scope={scope} scopeId={scopeId}
       onExtracted={ref => onChange(ref)} />

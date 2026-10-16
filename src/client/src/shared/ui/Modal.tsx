@@ -127,11 +127,11 @@ function ModalBody({
   const [confirmClose, setConfirmClose] = useState(false);
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
-  const { host, top, stepSlot } = useWindowSteps(content);
+  const { host, top, touchTop, stepSlot } = useWindowSteps(content);
 
   // На шаге окно закрывается по правилам шага, а выход с него — назад, к форме окна.
   const state = top
-    ? modalState({ busy: busy || top.busy, isDirty: top.isDirty, nothingToLose: !top.isDirty || undefined, touched: false })
+    ? modalState({ busy: busy || top.busy, isDirty: top.isDirty, touched: top.touched })
     : modalState({ busy, acknowledge, isDirty, touched, nothingToLose });
   const leave = top ? top.back : () => onOpenChange(false);
   const rule = DISMISSAL[state];
@@ -168,11 +168,12 @@ function ModalBody({
    */
   function noteInput(e: { target: EventTarget }) {
     const field = e.target as Element;
-    // Набранное на шаге — его, а не формы окна: о нём шаг говорит сам (`isDirty`).
-    if (top) return;
     // Запрос поиска — не правка: его не сохраняют, и очищенное поле ничего не теряет. Поле поиска
     // называет себя само (`data-search`), иначе пикер с поиском переставал закрываться по Esc.
-    if (content.current?.contains(field) && !field.closest?.('[data-search]')) setTouched(true);
+    if (!content.current?.contains(field) || field.closest?.('[data-search]')) return;
+    // Набранное на шаге — его, а не формы окна: выход с шага теряет именно его.
+    if (top) touchTop();
+    else setTouched(true);
   }
 
   /**
@@ -340,7 +341,7 @@ function ModalBody({
   );
 }
 
-type StepEntry = WindowStepState & { id: string; back: () => void };
+type StepEntry = WindowStepState & { id: string; back: () => void; touched: boolean };
 
 /**
  * Стопка шагов окна (issue #1384): верхний шаг виден, нижние и форма окна смонтированы и скрыты.
@@ -356,7 +357,7 @@ function useWindowSteps(content: RefObject<HTMLDivElement | null>) {
 
   const push = useCallback((id: string, back: () => void) => {
     openers.current.set(id, document.activeElement as HTMLElement | null);
-    setSteps(s => s.some(x => x.id === id) ? s : [...s, { id, back, title: '', busy: false, isDirty: false }]);
+    setSteps(s => s.some(x => x.id === id) ? s : [...s, { id, back, title: '', busy: false, touched: false }]);
   }, []);
   const update = useCallback((id: string, next: WindowStepState) => {
     setSteps(s => s.map(x => x.id === id ? { ...x, ...next } : x));
@@ -383,16 +384,24 @@ function useWindowSteps(content: RefObject<HTMLDivElement | null>) {
 
   const top = steps.at(-1) ?? null;
   const topId = top?.id;
+  const touchTop = () => {
+    if (topId && !top?.touched) setSteps(s => s.map(x => x.id === topId ? { ...x, touched: true } : x));
+  };
   useEffect(() => {
-    if (topId) {
-      // Кнопка, открывшая шаг, скрылась вместе с формой — фокус держит окно, пока шаг не взял свой.
-      if (!content.current?.contains(document.activeElement)) content.current?.focus();
-    } else if (restore.current?.isConnected) restore.current.focus();
+    // Ушли с шага — к кнопке, которая его открыла: она снова видна, будь она в форме окна или в шаге
+    // под снятым.
+    const back = restore.current;
     restore.current = null;
+    if (back?.isConnected && !back.closest('[hidden]')) { back.focus(); return; }
+    if (!topId) return;
+    // Кнопка, открывшая шаг, скрылась вместе с формой, но браузер снимет с неё фокус не сразу —
+    // поэтому «вне окна» мало: фокус в скрытом тоже не годится. Окно держит его, пока шаг не взял свой.
+    const active = document.activeElement;
+    if (!content.current?.contains(active) || active?.closest('[hidden]')) content.current?.focus();
   }, [topId, content]);
 
   const stepSlot = (kind: keyof WindowStepSlots) => steps.map(s => (
     <div key={s.id} ref={slotRef(s.id, kind)} className="contents" hidden={s.id !== topId} />
   ));
-  return { host, top, stepSlot };
+  return { host, top, touchTop, stepSlot };
 }
