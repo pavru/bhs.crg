@@ -51,34 +51,35 @@ public static class CostViews
                 from line in db.InvoiceBookLines.AsNoTracking()
                 join entry in db.InvoiceBookEntries.AsNoTracking() on line.EntryId equals entry.Id
                 where line.Day >= first && line.Day <= through && (site == null || line.ConstructionId == site)
-                select new
-                {
-                    entry.InvoiceId,
-                    Line = line,
-                    Unmatched = db.InvoiceLines.Any(l => l.InvoiceId == entry.InvoiceId && l.NomenclatureId == null),
-                })
+                select new { entry.InvoiceId, Line = line })
             .ToListAsync(ct);
+        if (rows.Count == 0) return [];
 
-        return [.. rows.Select(r => new CostMoney(r.InvoiceId, r.Unmatched, r.Line.Value))];
+        // Один запрос на счета, а не подзапрос на каждую строку: у счёта строк книги много, а при первом
+        // закрытии компании читается вся книга.
+        var owners = rows.Select(r => r.InvoiceId).Distinct().ToList();
+        var unmatched = (await db.InvoiceLines.AsNoTracking()
+                .Where(l => owners.Contains(l.InvoiceId) && l.NomenclatureId == null)
+                .Select(l => l.InvoiceId).Distinct().ToListAsync(ct))
+            .ToHashSet();
+
+        return [.. rows.Select(r => new CostMoney(r.InvoiceId, unmatched.Contains(r.InvoiceId), r.Line.Value))];
     }
 
     /// <summary>
     /// Различаются ли взгляды на отрезке и в охвате отчёта (spec п. 1.7). Сравниваются СУММЫ зерна —
     /// ячейки с разделом и поставщиком в один день — и только с НДС и без: строки книги одного зерна
-    /// складываются, а «НДС неизвестен» в равенствах не участвует (п. 1.3 шаг 4).
+    /// складываются, а «НДС неизвестен» в равенствах не участвует (п. 1.3 шаг 4). Пары — той же функцией,
+    /// что у проводки (<see cref="InvoiceBookPosting.Pairs" />): зерно, сложившееся в ноль, — не зерно, и
+    /// строки книги «+120 и −120 в один день» дают то же, что пустая основная таблица.
     /// </summary>
     public static ViewsDiffer Differ(
         IReadOnlyList<CostMoney> corrected, IReadOnlyList<CostMoney> closing, DateOnly from, DateOnly through, Guid? site)
     {
         Dictionary<(BookCell Cell, DateOnly Day), (decimal Gross, decimal Net)> Grains(IEnumerable<CostMoney> money) =>
-            money.Select(m => m.Grain)
-                .Where(g => g.Day >= from && g.Day <= through && (site is null || g.Cell.Target?.ConstructionId == site))
-                .GroupBy(g => (g.Cell, g.Day))
-                .Select(g => (g.Key, Gross: g.Sum(x => x.Gross), Net: g.Sum(x => x.Net)))
-                // Зерно, сложившееся в ноль, — не зерно: строки книги «+120 и −120 в один день» дают то же,
-                // что пустая основная таблица.
-                .Where(g => g.Gross != 0 || g.Net != 0)
-                .ToDictionary(g => g.Key, g => (g.Gross, g.Net));
+            InvoiceBookPosting.Pairs(money.Select(m => m.Grain)
+                    .Where(g => g.Day >= from && g.Day <= through && (site is null || g.Cell.Target?.ConstructionId == site)))
+                .ToDictionary(p => p.Key, p => (p.Value.Gross, p.Value.Net));
 
         var (left, right) = (Grains(corrected), Grains(closing));
         if (left.Values.Sum(v => v.Gross) != right.Values.Sum(v => v.Gross)

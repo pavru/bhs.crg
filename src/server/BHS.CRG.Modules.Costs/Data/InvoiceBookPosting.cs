@@ -220,7 +220,7 @@ public static class InvoiceBookPosting
                                       && x.Gross == y.Gross && x.Net == y.Net);
 
     /// <summary>Деньги пары (ячейка, день); нулевые пары отбрасываются — их нет ни в книге, ни в документе.</summary>
-    private static Dictionary<(BookCell Cell, DateOnly Day), Money> Pairs(IEnumerable<Grain> grains) =>
+    internal static Dictionary<(BookCell Cell, DateOnly Day), Money> Pairs(IEnumerable<Grain> grains) =>
         grains.GroupBy(g => (g.Cell, g.Day))
             .Select(g => (g.Key, Money: new Money(g.Sum(x => x.Gross), g.Sum(x => x.Net), g.Any(x => x.VatUnknown))))
             .Where(p => p.Money.Gross != 0 || p.Money.Net != 0)
@@ -236,5 +236,5 @@ public static class InvoiceBookPosting
             .ThenBy(p => p.Key.Cell.SupplierId)
             .ThenBy(p => p.Key.Day);
 
-    private readonly record struct Money(decimal Gross, decimal Net, bool VatUnknown);
+    internal readonly record struct Money(decimal Gross, decimal Net, bool VatUnknown);
 }

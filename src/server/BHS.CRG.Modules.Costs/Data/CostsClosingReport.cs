@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using BHS.CRG.Modules.Costs.Endpoints;
@@ -57,6 +58,12 @@ public sealed class CostsClosingReport(
         var first = scope.From ?? DateOnly.MinValue;
         var site = scope.ConstructionId;
 
+        // Один снимок на все чтения — как у отчёта (ревью PR #1372): признак «есть книга» и строки книги
+        // читаются разными запросами. При самом закрытии исправления ждут замка периода, а предпросмотр
+        // его не держит — расхождение там поймала бы отметка, но лучше его не рождать.
+        await using var snapshot = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
+            : null;
         var (read, lines) = await SiteCostsEndpoints.InvoicesAsync(db, SiteCostsEndpoints.Paid(db, first, scope.Through, site),
             await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct);
         // У каждого счёта оставлены только деньги впервые закрываемых дней — дальше всё считается по ним.
@@ -77,14 +84,17 @@ public sealed class CostsClosingReport(
 
         // Вошедшие в период — счета без книги: их деньги во впервые закрываемых днях лежат в основной
         // таблице, и закрытый месяц покажет ровно их. Счета с книгой — её строками этих дней (spec п. 1.8).
-        var anew = SiteCosts.Corrected(invoices, lines);
+        // Только деньги этой стройки (у стройки) — иначе счёт с деньгами на другой стройке выпал бы из
+        // «запрутся» как будто «вошедший» (ревью PR #1372).
+        var anew = SiteCosts.Corrected(invoices, lines)
+            .Where(m => site is null || m.Grain.Cell.Target?.ConstructionId == site).ToList();
         var booked = read.Where(i => i.Booked).Select(i => i.Id).ToHashSet();
         var plain = anew.Where(m => !booked.Contains(m.Invoice)).ToList();
         var book = (await CostViews.BookAsync(db, first, scope.Through, site, ct))
             .Where(m => scope.ClosesAnew(m.Grain.Cell.Target?.ConstructionId, m.Grain.Day)).ToList();
         var entering = Money(plain);
         var corrections = Money(book);
-        var locked = Locked(invoices, site);
+        var locked = await LockedAsync(scope, invoices, first, ct);
 
         List<ModuleClosingLine> unfinished = [], frozen = [];
         if (unsettled.Invoices > 0)
@@ -100,9 +110,7 @@ public sealed class CostsClosingReport(
                 "Их оплату, учётный период и разноску изменить будет нельзя. Неоплаченные счета к периоду не относятся и остаются открытыми.",
                 // ⚠️ Реестр показывает документы, а не книгу: счёт с книгой, чьи деньги лежат в этих днях,
                 // реестр под ссылкой перечислит, а строка — нет (spec п. 1.8).
-                anew.Any(m => booked.Contains(m.Invoice) && (site is null || m.Grain.Cell.Target?.ConstructionId == site))
-                    ? null
-                    : await RegistryLinkAsync(scope, entering.Invoices, ct)));
+                anew.Any(m => booked.Contains(m.Invoice)) ? null : await RegistryLinkAsync(scope, entering.Invoices, ct)));
         if (corrections.Invoices > 0)
             frozen.Add(new("corrected", "Счета с книгой исправлений", corrections.Invoices, Invoices, corrections.Amount, Amounts,
                 // Без ссылки: реестр показывает счета как они есть сейчас, а не их книгу.
@@ -186,12 +194,25 @@ public sealed class CostsClosingReport(
     /// Какие счета запрутся. Запирается счёт целиком и по ЛЮБОЙ закрытой учётной дате — и с долей без
     /// денег, которой в затратах периода нет.
     ///
-    /// <para>⚠️ День остатка — тот, каким его ЧИТАЮТ (<see cref="PaymentPosting.Money" />), а не сырая
-    /// колонка (spec v3.3 разд. 3, ревизия Архитектора, разд. 6): у счёта без штампа дня остатка (данные
-    /// до E2) деньги остатка «вошедшие в период» видят в дне самой поздней доли, и «запрутся» обязано
-    /// видеть его там же — иначе строки разошлись бы на один счёт.</para>
+    /// <para>⚠️ <b>День остатка — по обоим правилам сразу.</b> Деньги «вошедших» видят остаток там, где его
+    /// ЧИТАЮТ (<see cref="PaymentPosting.Money" />): у счёта без штампа дня остатка (данные до E2) — в дне
+    /// самой поздней доли (ревизия Архитектора, разд. 6). А запирает счёт <see cref="ClosedPeriodGuard.LockOf" />
+    /// по СЫРОЙ колонке — и колонку, оставшуюся у нулевого остатка («фантом», spec v3.3 разд. 3), он тоже
+    /// видит (ревью PR #1372). Возьми одно правило — строка разошлась бы либо с деньгами диалога, либо с
+    /// тем, что запрётся на деле. При соблюдённом инварианте колонки правила совпадают.</para>
     /// </summary>
     /// <param name="invoices">Оплаченные счета отрезка — с деньгами только впервые закрываемых дней.</param>
-    private static HashSet<Guid> Locked(IReadOnlyList<CostInvoice> invoices, Guid? site) =>
-        [.. invoices.Where(i => i.Money.Any(m => site is null || m.Part?.ConstructionId == site)).Select(i => i.Id)];
+    private async Task<HashSet<Guid>> LockedAsync(
+        ModuleClosingScope scope, IReadOnlyList<CostInvoice> invoices, DateOnly first, CancellationToken ct)
+    {
+        var site = scope.ConstructionId;
+        HashSet<Guid> locked = [.. invoices.Where(i => i.Money.Any(m => site is null || m.Part?.ConstructionId == site)).Select(i => i.Id)];
+        if (site is not null) return locked;
+
+        var stamped = await SiteCostsEndpoints.Paid(db, first, scope.Through, site: null)
+            .Where(i => i.RemainderAccountingOn >= first && i.RemainderAccountingOn <= scope.Through)
+            .Select(i => new { i.Id, Day = i.RemainderAccountingOn!.Value }).ToListAsync(ct);
+        locked.UnionWith(stamped.Where(r => scope.ClosesAnew(null, r.Day)).Select(r => r.Id));
+        return locked;
+    }
 }

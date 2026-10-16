@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Modules.Costs.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -108,6 +111,26 @@ public partial class InvoicePaymentTests
         var bogus = await admin.GetAsync($"/api/costs/site-costs?{range}&view=closed");
         Assert.Equal(HttpStatusCode.BadRequest, bogus.StatusCode);
         Assert.Contains("closing", await ErrorAsync(bogus));
+    }
+
+    /// <summary>
+    /// «Запрутся целиком» у закрытия стройки сравнивает запираемые счета с денежными строками ЭТОЙ
+    /// стройки (ревью PR #1372): счёт с долей на неё без денег и деньгами на другой стройке в «вошедшие»
+    /// не входит — значит, назван строкой «запрутся».
+    /// </summary>
+    [Fact]
+    public async Task Запрётся_и_счёт_чьи_деньги_на_другой_стройке()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, a) = await PaidAsync(admin, today.AddDays(-20));
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoice_lines SET amount = NULL WHERE invoice_id = {invoice} AND ordinal = 1");
+
+        var preview = await ClosingPreviewAsync(admin, today.AddDays(-40), today.AddDays(-1), a);
+        Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
+        Assert.Equal(1, Line(preview, "frozen", "locked").Count);
     }
 
     /// <summary>Запертый счёт с книгой: отмена оплаты и новая оплата тем же днём (S21 (д), (е)).</summary>
