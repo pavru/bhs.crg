@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
@@ -11,6 +11,7 @@ import { formatMoney, formatQuantity } from '@/shared/format/format';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { NumberInput } from '@/shared/ui/NumberInput';
+import { EditGrid } from '@/shared/ui/EditGrid';
 import {
   allocationStatus, emptyPart, estimateRemainder, toPartDrafts, toPartsPayload, type PartDraft,
 } from './allocation';
@@ -181,97 +182,82 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
           <StaleInvoiceNotice what={gone ? 'строку: её больше нет в счёте' : 'части разноски'} onReread={reread} />
         </div>
       )}
-      <table className="w-full text-xs">
-        <thead className="text-fg4">
-          <tr className="text-left">
-            <th className="font-normal py-1">Куда</th>
-            <th className="font-normal py-1">Раздел</th>
-            <th className="w-28 font-normal py-1 text-right">{byQuantity ? `Кол-во${unit ? `, ${unit}` : ''}` : 'Сумма'}</th>
-            {byQuantity && <th className="w-32 font-normal py-1 text-right">Сумма части</th>}
-            <th className="w-8 py-1" />
-          </tr>
-        </thead>
-        <tbody>
-          {drafts.map((draft, index) => {
-            const saved = line.allocation.parts.find(p => p.id === draft.id);
-            const site = places.sites?.find(s => s.id === draft.constructionId);
-            return (
-              <tr key={draft.key} className="border-t border-stroke align-top">
-                <td className="py-1 pr-2">
-                  {/* Стройка или статья вне строек (F3) — одним выбором двумя группами. */}
-                  <PlaceSelect value={{ construction: draft.constructionId || null, section: null, article: draft.articleId || null }}
-                    places={places} label={`Куда, часть ${index + 1}`} disabled={!canEdit}
-                    onChange={place => edit(draft.key, {
-                      constructionId: place.construction ?? '', articleId: place.article ?? '', sectionId: '',
-                    })} />
-                </td>
-                <td className="py-1 pr-2">
-                  {/* Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
-                      и без своего пункта поле показало бы «вся стройка», а уехал бы удалённый раздел. */}
-                  <Select size="sm" value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
-                    disabled={!canEdit || !site || (site.sections.length === 0 && !draft.sectionId)}
-                    onValueChange={sectionId => edit(draft.key, { sectionId })} emptyItem="— вся стройка —">
-                    {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
-                      <SelectItem value={draft.sectionId}>{missingSection(draft.sectionId, places)}</SelectItem>
-                    )}
-                    {site?.sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </Select>
-                </td>
-                <td className="py-1 pr-2">
-                  <NumberInput value={draft.value} disabled={!canEdit}
-                    label={`${byQuantity ? 'Количество' : 'Сумма'}, часть ${index + 1}`}
-                    onChange={value => edit(draft.key, { value })} />
-                </td>
-                {byQuantity && (
-                  <td className="py-1 pr-2 text-right tabular-nums text-fg2">
-                    {/* Сумма части — ответ сервера, и только для несменённой части: у правленой
-                        прежнее число уже неверно, а своё форма не считает. */}
-                    {!dirty && saved?.amount != null ? formatMoney(saved.amount) : '—'}
-                    {!dirty && saved && saved.rounding !== 0 && (
-                      <div className="text-fg4" title="Копейки округления уходят в последнюю часть — так сумма частей равна сумме строки">
-                        копейки округления: {formatMoney(saved.rounding)}
-                      </div>
-                    )}
-                    {!dirty && saved && saved.discrepancy !== 0 && (
-                      <div className="text-fg4" title="Расхождение суммы строк с суммой к оплате в пределах допуска уходит в последнюю часть счёта">
-                        расхождение со счётом: {formatMoney(saved.discrepancy)}
-                      </div>
-                    )}
-                  </td>
-                )}
-                <td className="py-1">
-                  {canEdit && <button type="button" title={`Удалить часть ${index + 1}`}
-                    onClick={() => { setDrafts(prev => prev.filter(d => d.key !== draft.key)); setDirty(true); }}
-                    className="text-fg4 hover:text-danger p-0.5">
-                    <Trash2 size={13} />
-                  </button>}
-                </td>
-              </tr>
-            );
-          })}
-          <tr className="border-t border-stroke">
-            <td colSpan={2} className="py-1.5 text-fg2">
-              Не разнесено{dirty && <span className="text-fg4"> (оценка до сохранения)</span>}
-            </td>
-            <td className={`py-1.5 pr-2 text-right tabular-nums ${remains(rest, byQuantity) ? 'text-warning' : 'text-fg2'}`}>
-              {byQuantity ? (rest.quantity === null ? '' : formatQuantity(rest.quantity)) : rest.amount === null ? '—' : formatMoney(rest.amount)}
-            </td>
-            {byQuantity && (
-              <td className="py-1.5 pr-2 text-right tabular-nums text-fg2">
-                {rest.amount === null ? '—' : formatMoney(rest.amount)}
-              </td>
-            )}
-            <td />
-          </tr>
-        </tbody>
-      </table>
-
-      {canEdit && <div className="mt-2">
-        <Button size="sm" variant="outlined" icon={<Plus size={13} />}
-          onClick={() => { setDrafts(prev => [...prev, emptyPart()]); setDirty(true); }}>
-          Добавить часть
-        </Button>
-      </div>}
+      <EditGrid label="Части разноски" rows={drafts} rowKey={draft => draft.key} framed={false}
+        empty="Частей нет — строка не разнесена"
+        add={canEdit ? { label: 'Добавить часть', onAdd: () => { setDrafts(prev => [...prev, emptyPart()]); setDirty(true); } } : undefined}
+        onRemove={canEdit ? draft => { setDrafts(prev => prev.filter(d => d.key !== draft.key)); setDirty(true); } : undefined}
+        removeLabel={(_, index) => `Удалить часть ${index + 1}`}
+        columns={[
+          {
+            key: 'place', label: 'Куда',
+            // Стройка или статья вне строек (F3) — одним выбором двумя группами.
+            cell: (draft, index) => (
+              <PlaceSelect value={{ construction: draft.constructionId || null, section: null, article: draft.articleId || null }}
+                places={places} label={`Куда, часть ${index + 1}`} disabled={!canEdit}
+                onChange={place => edit(draft.key, {
+                  constructionId: place.construction ?? '', articleId: place.article ?? '', sectionId: '',
+                })} />
+            ),
+            total: () => (
+              <>Не разнесено{dirty && <span className="text-fg4"> (оценка до сохранения)</span>}</>
+            ),
+          },
+          {
+            key: 'section', label: 'Раздел',
+            cell: (draft, index) => {
+              const site = places.sites?.find(s => s.id === draft.constructionId);
+              // Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
+              // и без своего пункта поле показало бы «вся стройка», а уехал бы удалённый раздел.
+              return (
+                <Select size="sm" value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
+                  disabled={!canEdit || !site || (site.sections.length === 0 && !draft.sectionId)}
+                  onValueChange={sectionId => edit(draft.key, { sectionId })} emptyItem="— вся стройка —">
+                  {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (
+                    <SelectItem value={draft.sectionId}>{missingSection(draft.sectionId, places)}</SelectItem>
+                  )}
+                  {site?.sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </Select>
+              );
+            },
+          },
+          {
+            key: 'value', label: byQuantity ? `Кол-во${unit ? `, ${unit}` : ''}` : 'Сумма', width: 'w-28', align: 'right',
+            cell: (draft, index) => (
+              <NumberInput value={draft.value} disabled={!canEdit}
+                label={`${byQuantity ? 'Количество' : 'Сумма'}, часть ${index + 1}`}
+                onChange={value => edit(draft.key, { value })} />
+            ),
+            total: () => (
+              <span className={remains(rest, byQuantity) ? 'text-warning' : undefined}>
+                {byQuantity ? (rest.quantity === null ? '' : formatQuantity(rest.quantity)) : rest.amount === null ? '—' : formatMoney(rest.amount)}
+              </span>
+            ),
+          },
+          ...(byQuantity ? [{
+            key: 'amount', label: 'Сумма части', width: 'w-32', align: 'right' as const,
+            cell: (draft: PartDraft) => {
+              const saved = line.allocation.parts.find(p => p.id === draft.id);
+              // Сумма части — ответ сервера, и только для несменённой части: у правленой прежнее
+              // число уже неверно, а своё форма не считает.
+              return (
+                <div className="text-fg2">
+                  {!dirty && saved?.amount != null ? formatMoney(saved.amount) : '—'}
+                  {!dirty && saved && saved.rounding !== 0 && (
+                    <div className="text-fg4" title="Копейки округления уходят в последнюю часть — так сумма частей равна сумме строки">
+                      копейки округления: {formatMoney(saved.rounding)}
+                    </div>
+                  )}
+                  {!dirty && saved && saved.discrepancy !== 0 && (
+                    <div className="text-fg4" title="Расхождение суммы строк с суммой к оплате в пределах допуска уходит в последнюю часть счёта">
+                      расхождение со счётом: {formatMoney(saved.discrepancy)}
+                    </div>
+                  )}
+                </div>
+              );
+            },
+            total: () => (rest.amount === null ? '—' : formatMoney(rest.amount)),
+          }] : []),
+        ]} />
     </Modal>
   );
 }

@@ -3,8 +3,6 @@
     "features/costs/AllocationMatrix.tsx": 1,
     "features/costs/InvoiceLinesPaste.tsx": 1,
     "features/costs/InvoiceLinesTable.tsx": 1,
-    "features/costs/LineAllocation.tsx": 1,
-    "features/costs/WaybillForm.tsx": 1,
     "features/document-sets/fields/ArrayTableModal.tsx": 1
   },
   "select": {},

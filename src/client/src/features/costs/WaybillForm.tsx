@@ -1,6 +1,6 @@
 import { LOST, MISSING } from './lostReferences';
 import { useEffect, useRef, useState } from 'react';
-import { CircleCheck, Lock, Plus, RefreshCw, Save, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
+import { CircleCheck, Lock, RefreshCw, Save, TriangleAlert, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -16,6 +16,7 @@ import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/sit
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { formatDate } from '@/shared/format/format';
 import { NumberInput } from '@/shared/ui/NumberInput';
+import { EditGrid } from '@/shared/ui/EditGrid';
 import {
   emptyLine, headerPayload, isDirty, linesPayload, toDraft, unmatchedCount, unmatchedNote, withoutBlanks,
   type WaybillDraft, type WaybillLineDraft,
@@ -311,82 +312,59 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           <div className="flex items-center gap-3">
             <h3 className="text-sm font-medium text-fg2">Строки накладной</h3>
             <span className="text-xs text-fg4">Денег здесь нет: сколько материал стоил, знает счёт.</span>
-            <div className="flex-1" />
-            {!locked && (
-              <Button size="sm" variant="outlined" icon={<Plus size={13} />}
-                onClick={() => edit({ lines: [...draft.lines, emptyLine()] })}>
-                Строка
-              </Button>
-            )}
           </div>
 
-          {draft.lines.length === 0
-            ? <p className="text-xs text-fg4">Строк нет. Без строк накладную не провести.</p>
-            : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-left text-fg4">
-                    <th className="w-8 py-1 font-normal">№</th>
-                    <th className="w-[30%] py-1 font-normal">Позиция номенклатуры</th>
-                    <th className="py-1 font-normal">Наименование в накладной</th>
-                    <th className="w-20 py-1 font-normal">Ед.</th>
-                    <th className="w-28 py-1 font-normal text-right pr-2">Количество</th>
-                    <th className="w-8" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.lines.map((line, index) => (
-                    <tr key={line.key} className="border-t border-stroke align-top">
-                      <td className="py-1 text-fg4">{index + 1}</td>
-                      <td className="py-1 pr-2">
-                        {canEdit && !closed ? (
-                          <NomenclaturePicker chosen={line.nomenclatureId !== null} name={line.nomenclatureName}
-                            lost={line.nomenclatureLost} archived={line.nomenclatureArchived}
-                            from={{ name: line.sourceText, unit: line.unit }}
-                            onPick={(id, name) => posted
-                              ? void matchLine(line, id)
-                              : editLine(line.key, { nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureArchived: false })}
-                            onClear={() => posted
-                              ? void matchLine(line, null)
-                              : editLine(line.key, { nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false, nomenclatureArchived: false })} />
-                        ) : (
-                          <span className={line.nomenclatureId ? 'text-fg1' : 'text-warning'}>
-                            {line.nomenclatureLost ? LOST.position
-                              : line.nomenclatureId
-                                ? withArchiveWord(line.nomenclatureName ?? 'позиция без названия', !!line.nomenclatureArchived)
-                                : 'не сопоставлена'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-1 pr-2">
-                        <input className={cell} value={line.sourceText} disabled={locked}
-                          aria-label={`Наименование в накладной, строка ${index + 1}`}
-                          onChange={e => editLine(line.key, { sourceText: e.target.value })} />
-                      </td>
-                      <td className="py-1 pr-2">
-                        <input className={cell} value={line.unit} disabled={locked}
-                          aria-label={`Единица, строка ${index + 1}`}
-                          onChange={e => editLine(line.key, { unit: e.target.value })} />
-                      </td>
-                      <td className="py-1 pr-2">
-                        <NumberInput value={line.quantity} disabled={locked}
-                          label={`Количество, строка ${index + 1}`}
-                          onChange={quantity => editLine(line.key, { quantity })} />
-                      </td>
-                      <td className="py-1">
-                        {!locked && (
-                          <button type="button" title="Убрать строку" aria-label={`Убрать строку ${index + 1}`}
-                            className="text-fg4 hover:text-danger p-1"
-                            onClick={() => edit({ lines: draft.lines.filter(l => l.key !== line.key) })}>
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          <EditGrid label="Строки накладной" numbered rows={draft.lines} rowKey={line => line.key}
+            empty="Строк нет. Без строк накладную не провести."
+            add={locked ? undefined : { label: 'Добавить строку', onAdd: () => edit({ lines: [...draft.lines, emptyLine()] }) }}
+            onRemove={locked ? undefined : line => edit({ lines: draft.lines.filter(l => l.key !== line.key) })}
+            columns={[
+              {
+                key: 'nomenclature', label: 'Позиция номенклатуры', width: 'w-[30%]',
+                cell: line => canEdit && !closed ? (
+                  <NomenclaturePicker chosen={line.nomenclatureId !== null} name={line.nomenclatureName}
+                    lost={line.nomenclatureLost} archived={line.nomenclatureArchived}
+                    from={{ name: line.sourceText, unit: line.unit }}
+                    onPick={(id, name) => posted
+                      ? void matchLine(line, id)
+                      : editLine(line.key, { nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureArchived: false })}
+                    onClear={() => posted
+                      ? void matchLine(line, null)
+                      : editLine(line.key, { nomenclatureId: null, nomenclatureName: null, nomenclatureLost: false, nomenclatureArchived: false })} />
+                ) : (
+                  <span className={line.nomenclatureId ? 'text-fg1' : 'text-warning'}>
+                    {line.nomenclatureLost ? LOST.position
+                      : line.nomenclatureId
+                        ? withArchiveWord(line.nomenclatureName ?? 'позиция без названия', !!line.nomenclatureArchived)
+                        : 'не сопоставлена'}
+                  </span>
+                ),
+              },
+              {
+                key: 'sourceText', label: 'Наименование в накладной',
+                cell: (line, index) => (
+                  <input className={cell} value={line.sourceText} disabled={locked}
+                    aria-label={`Наименование в накладной, строка ${index + 1}`}
+                    onChange={e => editLine(line.key, { sourceText: e.target.value })} />
+                ),
+              },
+              {
+                key: 'unit', label: 'Ед.', width: 'w-20',
+                cell: (line, index) => (
+                  <input className={cell} value={line.unit} disabled={locked}
+                    aria-label={`Единица, строка ${index + 1}`}
+                    onChange={e => editLine(line.key, { unit: e.target.value })} />
+                ),
+              },
+              {
+                key: 'quantity', label: 'Количество', width: 'w-28', align: 'right',
+                cell: (line, index) => (
+                  <NumberInput value={line.quantity} disabled={locked}
+                    label={`Количество, строка ${index + 1}`}
+                    onChange={quantity => editLine(line.key, { quantity })} />
+                ),
+              },
+            ]} />
         </section>
       </div>
     </div>
