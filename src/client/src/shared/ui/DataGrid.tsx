@@ -181,7 +181,10 @@ export function DataGrid<Row extends object>({
    * (`<th scope="rowgroup">`), клетки колонок у неё не рисуются. null — обычная строка.
    */
   section?: (row: Row, index: number) => ReactNode | null;
-  /** Строки переставляют перетаскиванием. */
+  /**
+   * Строки переставляют перетаскиванием. Номера здесь, как и во всех свойствах по строке, — места в
+   * `rows`, заголовки групп (`section`) тоже в счёт: у них свои места в том же массиве.
+   */
   drag?: DataGridDrag;
 }) {
   const shown = state === 'module-off' ? [] : rows;
@@ -201,9 +204,10 @@ export function DataGrid<Row extends object>({
     : undefined);
 
   // Двухэтажная шапка: колонки с группой стоят на втором этаже, и он липнет под первым, а не на
-  // него — иначе при прокрутке подписи полей уходили бы под имена групп.
+  // него — иначе при прокрутке подписи полей уходили бы под имена групп. Высоту этажа таблица держит
+  // переменной `--dt-head` (dataTable): число задано там один раз.
   const grouped = columns.some(c => c.group);
-  const lower: CSSProperties = { top: compact ? '2rem' : '42px' };
+  const lower: CSSProperties = { top: 'var(--dt-head)' };
 
   const head = (c: DataGridColumn<Row>, i: number, extra?: { rowSpan?: number; style?: CSSProperties }) => {
     const reason = c.unavailable ? DATA_GRID_STATES[c.unavailable] : null;
@@ -252,8 +256,10 @@ export function DataGrid<Row extends object>({
               let span = 1;
               while (columns[i + span]?.group?.key === c.group.key) span++;
               return (
+                // Закреплена первая колонка группы — закреплена и её шапка: иначе имя группы уезжало бы
+                // вбок, а подписи полей под ним стояли на месте.
                 <th key={`group:${c.group.key}:${i}`} colSpan={span} scope="colgroup" title={c.group.hint}
-                  className={`${th} text-center`}>
+                  className={`${th} text-center ${pin(i)}`} style={pinStyle(i, 30)}>
                   {c.group.label}
                 </th>
               );
@@ -309,7 +315,8 @@ export function DataGrid<Row extends object>({
                 } : {})}
                 {...(onRowOpen ? {
                   tabIndex: 0,
-                  'aria-selected': open,
+                  // aria-current, а не aria-selected: у строки таблицы выбора нет, а «открыта сейчас» — есть.
+                  'aria-current': open || undefined,
                   onClick: () => { if (!selectingText()) onRowOpen(row, i); },
                   onKeyDown: (e: KeyboardEvent) => {
                     if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
@@ -384,7 +391,10 @@ function usePinOffsets(pinned: number, columnKeys: string) {
     const element = table.current;
     if (!element || pinned <= 0) return;
 
-    const heads = [...element.querySelectorAll<HTMLElement>('th[data-pin]')];
+    // По номеру колонки, а не по порядку в разметке: в двухэтажной шапке колонки без группы стоят в
+    // первой строке, а с группой — во второй, и порядок в разметке с порядком колонок расходится.
+    const heads = [...element.querySelectorAll<HTMLElement>('th[data-pin]')]
+      .sort((a, b) => Number(a.dataset.pin) - Number(b.dataset.pin));
     const measure = () => {
       let left = 0;
       heads.forEach((th, i) => {

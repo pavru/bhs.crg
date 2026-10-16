@@ -87,6 +87,28 @@ describe('DataGrid: особые строки и шапка (#1354, 3/3)', () =>
       .toEqual(['1', 'Анна', 'длинное пояснение']);
   });
 
+  it('закреплённая колонка в группе закрепляет и шапку группы; второй этаж липнет под первым', () => {
+    // В jsdom нет ResizeObserver, а закрепление меряет шапку им. Ширин здесь нет — проверяем стили.
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    grid([
+      { key: 'name', label: 'Имя', group: { key: 'p', label: 'Человек' } },
+      { key: 'note', label: 'Заметка' },
+    ], { pinned: 1 });
+    const group = screen.getByRole('columnheader', { name: 'Человек' });
+    expect(group.className).toContain('sticky');
+    expect(group.style.left).toBe('var(--pin-0, 0px)');
+    expect(screen.getByRole('columnheader', { name: 'Имя' }).style.top).toBe('var(--dt-head)');
+    vi.unstubAllGlobals();
+  });
+
+  it('открытая строка — aria-current, а не aria-selected', () => {
+    grid([{ key: 'name', label: 'Имя' }], { onRowOpen: () => {}, rowOpen: p => p.id === '1' });
+    const [, anna, boris] = screen.getAllByRole('row');
+    expect(anna.getAttribute('aria-current')).toBe('true');
+    expect(boris.hasAttribute('aria-current')).toBe(false);
+    expect(anna.hasAttribute('aria-selected')).toBe(false);
+  });
+
   it('заголовок строки — th scope="row", заголовок группы — одна клетка во всю ширину', () => {
     grid([{ key: 'name', label: 'Имя', rowHeader: true }, { key: 'note', label: 'Заметка' }],
       { section: p => (p.id === '1' ? 'Первые' : null) });

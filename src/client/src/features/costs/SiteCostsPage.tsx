@@ -137,8 +137,6 @@ function Report({ data, bySections, onSite, stale }: {
     // По разделам счёт на два раздела стоит в двух строках: числа счетов в итог не складываются.
     data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined, linkNote);
   const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: data.total, link: siteCostsLinks.total(data) };
-  const cellOf = (key: string, line: Line) => columns.find(c => c.key === key)!.cell!(line, 0);
-  const entry = (one: Line) => one;
   const lines: Line[] = data.site && bySections
     // Среза может не быть в ответе: клиент и сервер обновляются порознь.
     // «Без раздела» и «раздел удалён» — приглушённо: это не название, а его отсутствие. Стрелка — только
@@ -151,26 +149,25 @@ function Report({ data, bySections, onSite, stale }: {
     ? data.suppliers.map((line): Line => ({ kind: 'figure', key: line.id ?? line.name, name: line.name, muted: line.id === null,
         figure: line, link: line.linked ? siteCostsLinks.supplier(data, line.id === null ? null : line.name) : undefined }))
     : [
-        ...(data.sites.length > 0 ? [entry({ kind: 'group', key: 'group:sites', title: 'Стройки',
-          action: unfolded && folded ? { label: 'Свернуть неизбранные', onClick: () => setUnfolded(false) } : undefined })] : []),
+        ...(data.sites.length > 0 ? [{ kind: 'group', key: 'group:sites', title: 'Стройки',
+          action: unfolded && folded ? { label: 'Свернуть неизбранные', onClick: () => setUnfolded(false) } : undefined } satisfies Line] : []),
         // Первой в группе, а не последней: под ней до двадцати избранных, и в конце она ушла бы ниже
         // сгиба — а без неё столбец не сходится с итогом на глазах.
-        ...(foldedNow ? [entry({ kind: 'folded', key: 'folded', folded: foldedNow, onUnfold: () => setUnfolded(true) })] : []),
-        ...(foldedNow ? shown : data.sites).map((line): Line => ({ kind: 'figure', key: `site:${line.id}`, indent: true, figure: line,
+        ...(foldedNow ? [{ kind: 'folded', key: 'folded', folded: foldedNow, onUnfold: () => setUnfolded(true) } satisfies Line] : []),
+        ...(foldedNow ? shown : data.sites).map((line): Line => ({ kind: 'figure', key: `site:${line.id ?? line.name}`, indent: true, figure: line,
           link: siteCostsLinks.object(data, line.name), label: line.name,
           name: <button type="button" onClick={() => line.id && onSite(line.id)}
             className="text-left text-brand hover:underline">{line.name}</button> })),
-        ...(data.articles.length > 0 ? [entry({ kind: 'group', key: 'group:articles', title: 'Вне строек' })] : []),
-        ...data.articles.map((line): Line => ({ kind: 'figure', key: `article:${line.id}`, indent: true, name: line.name, figure: line,
+        ...(data.articles.length > 0 ? [{ kind: 'group', key: 'group:articles', title: 'Вне строек' } satisfies Line] : []),
+        ...data.articles.map((line): Line => ({ kind: 'figure', key: `article:${line.id ?? line.name}`, indent: true, name: line.name, figure: line,
           link: siteCostsLinks.object(data, line.name) })),
         // Удалённые объекты — одной строкой и без перехода «внутрь»: стройки больше нет.
-        ...(data.lost ? [entry({ kind: 'figure', key: 'lost', name: data.lost.name, muted: true, figure: data.lost,
-          link: siteCostsLinks.object(data, data.lost.name) })] : []),
+        ...(data.lost ? [{ kind: 'figure', key: 'lost', name: data.lost.name, muted: true, figure: data.lost,
+          link: siteCostsLinks.object(data, data.lost.name) } satisfies Line] : []),
         // Без ссылки: отбора «есть неразнесённый остаток» у реестра нет, а «Объект: пусто» находит только
         // счета без разноски вовсе — число бы не сошлось.
-        ...(data.unallocated ? [entry({ kind: 'figure', key: 'unallocated', name: 'Не разнесено', figure: data.unallocated })] : []),
+        ...(data.unallocated ? [{ kind: 'figure', key: 'unallocated', name: 'Не разнесено', figure: data.unallocated } satisfies Line] : []),
       ];
-
 
   return (
     <div className={`space-y-5 ${stale ? 'opacity-60' : ''}`} aria-busy={stale}>
@@ -187,7 +184,9 @@ function Report({ data, bySections, onSite, stale }: {
             description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
         ) : (
           <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
-            footer={c => <span className="text-sm text-fg1">{cellOf(c.key, total)}</span>} />
+            // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
+            // выделен целиком, а не одним названием.
+            footer={c => <span className="text-sm font-medium text-fg1">{c.cell?.(total, -1)}</span>} />
         )}
 
         {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
@@ -207,7 +206,7 @@ function Report({ data, bySections, onSite, stale }: {
 
       <section aria-label="Не входит в затраты" className="border-t border-stroke pt-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">Не входит в затраты</h2>
-        <DataGrid className="mt-1.5" columns={costColumns('', undefined, linkNote)} rowKey={l => l.key} rows={[{
+        <DataGrid className="mt-1.5" columns={costColumns('Показатель', undefined, linkNote)} rowKey={l => l.key} rows={[{
           kind: 'figure', key: 'payable', figure: data.payable, label: 'К оплате',
           link: data.payable.invoices > 0 ? siteCostsLinks.payable(data) : undefined,
           name: <>К оплате <span className="text-fg4">· не оплачено, на сегодня, от периода не зависит</span></>,
