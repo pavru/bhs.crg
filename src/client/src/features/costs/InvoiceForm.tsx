@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, Save, Sparkles, TriangleAlert } from 'lucide-react';
+import { CheckCheck, PencilLine, Save, Sparkles, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
@@ -41,6 +41,9 @@ import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { CorrectionBar } from './CorrectionBar';
+import { CorrectionContext, useCorrecting, useCorrectionDraft } from './useCorrectionDraft';
+import { mayCorrect } from './correction';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -92,12 +95,13 @@ export function InvoiceForm({
   const confirm = useConfirmInvoiceFields();
   const attach = useAttachInvoiceScan();
   const toast = useToast();
+  const correction = useCorrectionDraft();
 
   const value = (key: string): unknown => (key in edits ? edits[key] : view.requisites[key]);
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
   const [linesDirty, setLinesDirty] = useState(false);
-  const unsaved = dirty || linesDirty;
+  const unsaved = dirty || linesDirty || correction.dirty;
   const header = useRef<HTMLDivElement>(null);
   // Один раз, при открытии: форма перемонтируется на каждый счёт.
   useEffect(() => { if (focusHeader) header.current?.focus(); }, [focusHeader]);
@@ -143,9 +147,17 @@ export function InvoiceForm({
   // а не «есть и откажут» — каждое из них ответило бы 403 (N1, issue #1102). Разноска и оплата — свои
   // права, их это не касается.
   // Счёта больше нет — то же чтение: сохранять некуда, и каждое действие ответило бы «не найден».
-  const mayEdit = useCan().permission('costs.invoice.edit');
+  const can = useCan();
+  const mayEdit = can.permission('costs.invoice.edit');
   const canEdit = mayEdit && !gone;
-  const locked = closed || !canEdit;
+  // Запертый счёт правится ИСПРАВЛЕНИЕМ (E2, issue #1100, PR 6b-1): та же форма, переключённая на месте, —
+  // причина, версия и книга, всё одним телом. Кнопка — тому, у кого и правка, и право исправления;
+  // остальным о режиме ни слова.
+  const correctable = mayCorrect(view, can.permission, gone);
+  const correcting = correction.active && !gone;
+  const locked = (closed && !correcting) || !canEdit;
+  // Всё, что пишет само, в исправлении убрано: запись у него одна (скан, распознавание, «Ещё», «Сохранить»).
+  const quiet = locked || correcting;
 
   const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
 
@@ -153,7 +165,7 @@ export function InvoiceForm({
   // адресе, и пункт «Счета» в навигации ведёт на адрес БЕЗ счёта: форма закрылась бы вместе с
   // правками — молча. Пока выбор жил в состоянии экрана, тот же щелчок не делал ничего.
   const [leave, setLeave] = useState<(() => void) | null>(null);
-  useLeaveGuard(dirty && !gone, proceed => setLeave(() => proceed));
+  useLeaveGuard((dirty || correction.dirty) && !gone, proceed => setLeave(() => proceed));
 
   /** @returns сохранилось ли: уходить со страницы после отказа нельзя — правки бы пропали. */
   async function save(): Promise<boolean> {
@@ -185,20 +197,27 @@ export function InvoiceForm({
   // одна форма; раскрыли в одном списке — раскрыты все, до ухода к другому счёту (форма с ключом).
   return (
     <SiteRevealScope>
-    <RecognitionContext.Provider value={locked ? undefined : watch.recognition}>
+    <CorrectionContext.Provider value={correction}>
+    <RecognitionContext.Provider value={quiet ? undefined : watch.recognition}>
     <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty || linesDirty} reading={watch.running}
       organizations={organizations} onDeleted={onClose}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={update.isPending}
         onCancel={() => setLeave(null)}
         onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
-        onSave={async () => { const go = leave; setLeave(null); if (await save()) go?.(); }} />
+        onSave={async () => {
+          const go = leave;
+          setLeave(null);
+          // Исправление обычным сохранением не пишется: сервер откажет «заперт». Путь у него один.
+          if (correcting) toast.info('Исправление записывается кнопкой «Проверить исправление…» — после проверки.');
+          else if (await save()) go?.();
+        }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3 outline-none"
         ref={header} tabIndex={-1} role="group" data-testid="invoice-header"
         aria-label={`Счёт № ${asInput(view.requisites[K.number]) || 'без номера'}`}>
         {gone && <InvoiceGoneNotice onClose={onClose} />}
-        {!gone && base.stale && !watch.settling && !byScan
+        {!gone && base.stale && !watch.settling && !byScan && !correcting
           && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
         <div className="flex items-center gap-2 flex-wrap">
           <StateChip text={asInput(view.requisites[K.state])} />
@@ -223,23 +242,29 @@ export function InvoiceForm({
           {canEdit && watch.running && (
             <span className="text-xs text-fg3">Файл распознаётся — заменить можно после исхода</span>
           )}
-          {!locked && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
-          {canEdit && !watch.running && !(closed && scan !== null) && (
+          {!quiet && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
+          {canEdit && !correcting && !watch.running && !(closed && scan !== null) && (
             <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
               onPick={file => {
                 attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Файл не приложен'));
               }} />
           )}
-          {!locked && (
+          {correctable && !correcting && (
+            <Button variant="outlined" size="sm" icon={<PencilLine size={14} />} onClick={correction.start}>
+              Исправить
+            </Button>
+          )}
+          {!quiet && (
             <Button variant="filled" size="sm" icon={<Save size={14} />} disabled={!dirty}
               loading={update.isPending} onClick={save}>
               Сохранить
             </Button>
           )}
-          {!locked && <InvoiceMoreMenu view={view} onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />}
+          {!quiet && <InvoiceMoreMenu view={view} onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />}
         </div>
 
         {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
+        {correcting && <CorrectionBar view={view} draft={correction} edits={edits} onResetHeader={reread} />}
         {!gone && <InvoicePayment view={view} dirty={dirty} />}
 
         {organizationsError != null && (
@@ -274,7 +299,7 @@ export function InvoiceForm({
 
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-6">
-        {!locked && <RecognitionNotes recognition={watch.recognition} />}
+        {!quiet && <RecognitionNotes recognition={watch.recognition} />}
         {BLOCKS.slice(1).map(block => (
           <section key={block.id} className="space-y-3">
             <BlockFields block={block} columns="sm:grid-cols-2" titled
@@ -291,7 +316,7 @@ export function InvoiceForm({
           </p>
         )}
 
-        <InvoiceLinesTable view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
+        <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
           headerDirty={dirty} onParsed={onExit && (send => onExit('parsed', send, () => {}))} />
 
         <p className="text-xs text-fg4">
@@ -302,6 +327,7 @@ export function InvoiceForm({
     </div>
     </InvoiceDeleteProvider>
     </RecognitionContext.Provider>
+    </CorrectionContext.Provider>
     </SiteRevealScope>
   );
 }
@@ -317,6 +343,9 @@ function BlockFields({
   onConfirm: (block: InvoiceBlock) => void; confirming: boolean;
 }) {
   const marks = unconfirmedInBlock(block, view.unconfirmed);
+  // В исправлении поля открыты, но то, что пишет само («Всё верно», прочитанное со скана), — нет.
+  const correcting = useCorrecting() !== null;
+  const quiet = locked || correcting;
 
   return (
     <>
@@ -326,7 +355,7 @@ function BlockFields({
           <div className="flex-1" />
           {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
               действие, которое заведомо откажет, — обман. */}
-          {marks.length > 0 && !locked && (
+          {marks.length > 0 && !quiet && (
             <Button size="sm" variant="outlined" icon={<CheckCheck size={13} />} loading={confirming}
               onClick={() => onConfirm(block)}>
               Всё верно ({marks.length})
@@ -339,7 +368,7 @@ function BlockFields({
           <div key={key} className="min-w-0" {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}>
             <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
               organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
-            {!locked && (
+            {!quiet && (
               <InvoiceFieldScan fieldKey={key} view={view} edits={edits} set={set} organizations={organizations} />
             )}
           </div>

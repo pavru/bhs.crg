@@ -2,7 +2,7 @@ import type { AllocationPartView, InvoiceView, LineAllocationView } from '@/shar
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
 import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
 import { K } from './invoiceFields';
-import { toNumber } from './invoiceLines';
+import { preview as linePreview, toNumber, type LineDraft } from './invoiceLines';
 import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
 
 /**
@@ -48,13 +48,14 @@ export function newTarget(place: Place = NO_PLACE): MatrixTarget {
   return { key: `колонка-${columns}`, ...place, percent: '' };
 }
 
+const documentRow = (total: number | null): MatrixRow => ({
+  key: DOCUMENT_ROW, lineId: null, title: 'Счёт целиком (строк нет)', mode: 'amount', unit: null,
+  whole: total, amount: total,
+});
+
 /** Строки матрицы: строки счёта или, пока их нет, одна строка «счёт целиком». */
 export function rowsOf(view: InvoiceView, total: number | null): MatrixRow[] {
-  if (view.lines.length === 0)
-    return [{
-      key: DOCUMENT_ROW, lineId: null, title: 'Счёт целиком (строк нет)', mode: 'amount', unit: null,
-      whole: total, amount: total,
-    }];
+  if (view.lines.length === 0) return [documentRow(total)];
 
   return view.lines.map(line => ({
     key: line.id,
@@ -65,6 +66,26 @@ export function rowsOf(view: InvoiceView, total: number | null): MatrixRow[] {
     whole: line.allocation.mode === 'quantity' ? line.quantity : line.amount,
     amount: line.amount,
   }));
+}
+
+/**
+ * Строки матрицы по ЧЕРНОВИКУ строк — у исправления (E2, issue #1100, PR 6b-1): строки правят тем же
+ * телом, что и разноску, и новую строку надо разнести, не записывая её отдельно. Строка зовётся ключом
+ * черновика (у записанной это её идентификатор), вид разноски — тем же правилом, что у сервера
+ * (`AllocationMath.ModeOf`): есть количество — делится количество, нет — сумма.
+ */
+export function draftRows(drafts: readonly LineDraft[], total: number | null): MatrixRow[] {
+  if (drafts.length === 0) return [documentRow(total)];
+  return drafts.map((draft, index) => {
+    const quantity = toNumber(draft.quantity);
+    const amount = linePreview(draft).amount;
+    const mode = quantity !== null && quantity > 0 ? 'quantity' : amount !== null && amount !== 0 ? 'amount' : 'none';
+    return {
+      key: draft.key, lineId: draft.key,
+      title: `${index + 1}. ${draft.nomenclatureName ?? (draft.supplierText.trim() || 'без наименования')}`,
+      mode, unit: draft.unit.trim() || null, whole: mode === 'quantity' ? quantity : amount, amount,
+    };
+  });
 }
 
 /**
@@ -104,6 +125,16 @@ export function targetsOf(view: InvoiceView): MatrixTarget[] {
   const seen = new Map<string, MatrixTarget>();
   for (const part of parts) {
     const place = placeOfPart(part);
+    if (!seen.has(placeKey(place))) seen.set(placeKey(place), newTarget(place));
+  }
+  return [...seen.values()];
+}
+
+/** Цели набора, уже лежащего в черновике исправления, — тем же порядком первого появления. */
+export function targetsOfState(state: MatrixState): MatrixTarget[] {
+  const seen = new Map<string, MatrixTarget>();
+  for (const part of [...state.lines.flatMap(l => l.parts), ...state.document]) {
+    const place = { construction: part.construction, section: part.section, article: part.article };
     if (!seen.has(placeKey(place))) seen.set(placeKey(place), newTarget(place));
   }
   return [...seen.values()];
