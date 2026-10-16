@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using BHS.CRG.Application.Activity;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -29,14 +30,18 @@ public partial class InvoicePaymentTests
         requisites["ВТомЧислеНДС"] = "205,75";
         requisites["Отсрочка"] = "15";
 
+        var untouched = await ChangedRecordsAsync(invoice);
         await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new { requisites }));
+        // Настоящая правка журналом замечена — иначе «повтор молчит» ниже доказывал бы лишь то, что счёт
+        // записей не видит ничего (0 = 0).
+        var changes = await ChangedRecordsAsync(invoice);
+        Assert.Equal(untouched + 1, changes);
 
         var saved = (await ReadAsync(admin, invoice)).GetProperty("requisites");
         Assert.Equal(1234.50m, saved.GetProperty("Итого").GetDecimal());
         Assert.Equal(205.75m, saved.GetProperty("ВТомЧислеНДС").GetDecimal());
         Assert.Equal(15, saved.GetProperty("Отсрочка").GetInt32());
 
-        var changes = await ChangedRecordsAsync(invoice);
         await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new { requisites }));
         Assert.Equal(changes, await ChangedRecordsAsync(invoice));
     }
@@ -60,12 +65,16 @@ public partial class InvoicePaymentTests
         Assert.Equal(100_000.50m, corrected.GetProperty("requisites").GetProperty("Итого").GetDecimal());
     }
 
-    /// <summary>Сколько раз журнал записал «счёт изменён» об этом счёте.</summary>
+    /// <summary>
+    /// Сколько раз журнал записал «счёт изменён» об этом счёте. Счётом по набору, а не страницей службы
+    /// журнала: страница — последние N записей всей базы, и соседние тесты, пишущие в журнал параллельно,
+    /// сдвигали бы её между двумя чтениями.
+    /// </summary>
     private async Task<int> ChangedRecordsAsync(Guid invoice)
     {
         using var scope = host.Services.CreateScope();
-        return (await scope.ServiceProvider.GetRequiredService<IActivityLog>()
-                .ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.changed"))
-            .Count(r => r.TargetId == invoice.ToString());
+        var target = invoice.ToString();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().ActivityRecords
+            .CountAsync(r => r.Action == "costs.invoice.changed" && r.TargetId == target);
     }
 }

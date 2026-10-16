@@ -280,15 +280,18 @@ try {
   // ответом сервера и чтением — не видом поля, где набранный текст стоит и без сохранения.
   await check('сумма к оплате, набранная «1 234,50», сохраняется числом', async () => {
     const number = `СЧ-С${stamp}-3`;
-    await api('POST', '/costs/invoices', { requisites: requisites(number, 'Сумма с запятой') });
+    // Идентификатор — из ответа создания, а не поиском в списке: на стенде с накопленными счетами новый
+    // в первую страницу списка может не попасть.
+    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'Сумма с запятой') });
 
     await open(number);
     await page.getByLabel('Сумма к оплате').fill('1 234,50');
     await page.getByLabel('В том числе НДС').fill('205,75');
     await save();
 
-    const saved = (await api('GET', '/costs/invoices')).find(i => i.number === number);
-    if (saved.total !== 1234.5) throw new Error(`сумма к оплате легла как ${saved.total}, ожидалось 1234.5`);
+    const saved = (await api('GET', `/costs/invoices/${created.id}`)).requisites;
+    if (saved['Итого'] !== 1234.5) throw new Error(`сумма к оплате легла как ${saved['Итого']}, ожидалось 1234.5`);
+    if (saved['ВТомЧислеНДС'] !== 205.75) throw new Error(`НДС лёг как ${saved['ВТомЧислеНДС']}, ожидалось 205.75`);
   });
 
   // ── 6. Дубликат — оговорка со ссылкой, а не запрет ──────────────────────────

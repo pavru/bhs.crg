@@ -89,7 +89,25 @@ public static class InvoiceRequisites
     /// поправить → сохранить» не проходил ни разу, а в тестах это было не видно, потому что помощник
     /// вырезал те же три ключа перед каждой правкой.</para>
     /// </param>
-    public static (InvoiceColumns Columns, JsonDocument Extra) Split(JsonElement requisites, JsonObject? stored)
+    /// <returns>
+    /// Колонки, остаток схемы и <b>присланные реквизиты в том виде, в каком они лягут в счёт</b>: каждая
+    /// присланная колонка заменена разобранным значением — тем же узлом, что отдаёт <see cref="Merge" />.
+    ///
+    /// <para>⚠️ Охране записи ядра и сравнению «что изменилось» (<see cref="Changed" />) отдаётся только
+    /// этот третий элемент, а не присланное. Охрана судит вид значения по схеме типа и строку в числовом
+    /// поле отвергает: «ожидается число, а хранится строка». А разбор строку принимает нарочно —
+    /// «1 234,50» приходит и из поля формы, и из вставки из буфера. Отдай охране присланное как есть, и
+    /// сумма, набранная в форме, не сохранялась бы ни правкой, ни исправлением (так и было). А сравнение
+    /// сочло бы ту же сумму строкой правкой и сняло бы метку распознавания.</para>
+    ///
+    /// <para>Отдельным шагом после разбора это не делается нарочно: шаг, который каждый звавший обязан
+    /// помнить, однажды забудут. Отсюда же — замена ВСЕХ колонок одним списком (<see cref="ColumnNodes" />),
+    /// общим с <see cref="Merge" />, а не перечня «числовых»: новая колонка с разбором текста иначе снова
+    /// доехала бы до охраны текстом, а разойдись вид узла здесь и в Merge — каждое сохранение считалось бы
+    /// правкой.</para>
+    /// </returns>
+    public static (InvoiceColumns Columns, JsonDocument Extra, JsonObject Requisites) Split(
+        JsonElement requisites, JsonObject? stored)
     {
         if (requisites.ValueKind != JsonValueKind.Object)
             throw new InvalidRequestException(
@@ -125,41 +143,20 @@ public static class InvoiceRequisites
             DueDate: CostsValues.Date(requisites, DueDateKey));
 
         var rest = new JsonObject();
+        var landing = new JsonObject();
         foreach (var property in requisites.EnumerateObject())
-            if (!ColumnKeys.Contains(property.Name))
-                rest[property.Name] = JsonNode.Parse(property.Value.GetRawText());
-
-        return (columns, JsonDocument.Parse(rest.ToJsonString()));
-    }
-
-    /// <summary>
-    /// Присланные реквизиты, в которых числовые поля-колонки (сумма к оплате, НДС, отсрочка) заменены
-    /// РАЗОБРАННЫМИ значениями — числом, а не тем текстом, что набрал человек.
-    ///
-    /// <para>⚠️ Охрана записи ядра судит вид значения по схеме типа и строку в числовом поле отвергает:
-    /// «ожидается число, а хранится строка». А <see cref="Split" /> строку принимает нарочно — «1 234,50»
-    /// приходит и из поля формы, и из вставки из буфера. Отдай охране присланное как есть, и сумма,
-    /// набранная в форме, не сохранялась бы ни правкой, ни исправлением, хотя разобрать её было чем.
-    /// Охрана обязана видеть то, что ЛЯЖЕТ в счёт, — как и с подставленной отсрочкой.</para>
-    ///
-    /// <para>Сравнение «что изменилось» (<see cref="Changed" />) идёт по тем же значениям: иначе сумма,
-    /// присланная строкой без правки, считалась бы правкой и снимала бы метку распознавания.</para>
-    /// </summary>
-    public static JsonElement Canonical(JsonElement requisites, InvoiceColumns columns)
-    {
-        var result = JsonNode.Parse(requisites.GetRawText())!.AsObject();
-
-        void Put(string key, JsonNode? value)
         {
-            if (result.ContainsKey(key)) result[key] = value;
+            var node = JsonNode.Parse(property.Value.GetRawText());
+            if (!ColumnKeys.Contains(property.Name)) rest[property.Name] = node?.DeepClone();
+            landing[property.Name] = node;
         }
 
-        Put(TotalKey, columns.Total is { } total ? JsonValue.Create(total) : null);
-        Put(VatTotalKey, columns.VatTotal is { } vat ? JsonValue.Create(vat) : null);
-        Put(DeferralKey, columns.DeferralDays is { } days ? JsonValue.Create(days) : null);
+        // Только присланные колонки: отсутствующий ключ — «стёрто» для Changed и охраны, подставить его
+        // значит выдумать правку.
+        foreach (var (key, node) in ColumnNodes(columns))
+            if (landing.ContainsKey(key)) landing[key] = node;
 
-        using var document = JsonDocument.Parse(result.ToJsonString());
-        return document.RootElement.Clone();
+        return (columns, JsonDocument.Parse(rest.ToJsonString()), landing);
     }
 
     /// <summary>
@@ -208,16 +205,10 @@ public static class InvoiceRequisites
         foreach (var property in invoice.Data.RootElement.EnumerateObject())
             result[property.Name] = JsonNode.Parse(property.Value.GetRawText());
 
-        Put(result, NumberKey, invoice.Number is { } number ? JsonValue.Create(number) : null);
-        Put(result, DateKey, DateNode(invoice.IssuedOn));
-        Put(result, SupplierKey, ReferenceNode(invoice.SupplierId));
-        Put(result, PayerKey, ReferenceNode(invoice.PayerId));
-        Put(result, PurposeKey, invoice.Purpose is { } purpose ? JsonValue.Create(purpose) : null);
-        Put(result, TotalKey, invoice.Total is { } total ? JsonValue.Create(total) : null);
-        Put(result, VatTotalKey, invoice.VatTotal is { } vat ? JsonValue.Create(vat) : null);
-        Put(result, ShippedOnKey, DateNode(invoice.ShippedOn));
-        Put(result, DeferralKey, invoice.DeferralDays is { } days ? JsonValue.Create(days) : null);
-        Put(result, DueDateKey, DateNode(invoice.DueDate));
+        foreach (var (key, node) in ColumnNodes(new InvoiceColumns(invoice.Number, invoice.IssuedOn,
+                     invoice.SupplierId, invoice.PayerId, invoice.Purpose, invoice.Total, invoice.VatTotal,
+                     invoice.ShippedOn, invoice.DeferralDays, invoice.DueDate)))
+            Put(result, key, node);
         Put(result, StateKey, JsonValue.Create(Label(invoice.State)));
         Put(result, PaymentKey, JsonValue.Create(Label(invoice.Payment)));
         Put(result, ScanKey, ScanNode(invoice));
@@ -238,12 +229,9 @@ public static class InvoiceRequisites
     /// впервые — а запертое поле нельзя заполнить даже впервые. Поэтому при создании охране уходит
     /// присланное как есть, а состояния код кладёт сам, после проверки.</para>
     /// </summary>
-    public static JsonObject Resulting(JsonElement incoming, JsonObject stored)
+    public static JsonObject Resulting(JsonObject incoming, JsonObject stored)
     {
-        var result = new JsonObject();
-
-        foreach (var property in incoming.EnumerateObject())
-            result[property.Name] = JsonNode.Parse(property.Value.GetRawText());
+        var result = incoming.DeepClone().AsObject();
 
         foreach (var key in ReadOnlyColumnKeys.Keys)
             if (stored.TryGetPropertyValue(key, out var value))
@@ -264,27 +252,26 @@ public static class InvoiceRequisites
     /// <para>Сравнение значений, а не текста JSON: <c>100</c> и <c>100.00</c> — одно и то же число, и
     /// «правка», которой не было, снимала бы метку с нетронутого поля.</para>
     /// </summary>
-    public static IReadOnlyList<string> Changed(JsonObject before, JsonElement after)
+    public static IReadOnlyList<string> Changed(JsonObject before, JsonObject after)
     {
         var changed = new List<string>();
 
-        foreach (var property in after.EnumerateObject())
+        foreach (var (key, now) in after)
         {
-            if (ReadOnlyColumnKeys.ContainsKey(property.Name)) continue;
+            if (ReadOnlyColumnKeys.ContainsKey(key)) continue;
 
-            var was = before.TryGetPropertyValue(property.Name, out var node) ? node : null;
-            var now = JsonNode.Parse(property.Value.GetRawText());
-            if (!JsonNode.DeepEquals(was, now)) changed.Add(property.Name);
+            var was = before.TryGetPropertyValue(key, out var node) ? node : null;
+            if (!JsonNode.DeepEquals(was, now)) changed.Add(key);
         }
 
         // Поле, которое БЫЛО и в правке не пришло, — стёртое значение: это тоже правка.
         foreach (var (key, was) in before)
-            if (was is not null && !ColumnKeys.Contains(key) && !after.TryGetProperty(key, out _))
+            if (was is not null && !ColumnKeys.Contains(key) && !after.ContainsKey(key))
                 changed.Add(key);
 
         foreach (var key in WritableColumnKeys)
             if (before.TryGetPropertyValue(key, out var was) && was is not null
-                && !after.TryGetProperty(key, out _) && !changed.Contains(key))
+                && !after.ContainsKey(key) && !changed.Contains(key))
                 changed.Add(key);
 
         return changed;
@@ -304,6 +291,26 @@ public static class InvoiceRequisites
         InvoicePaymentState.Paid => "Оплачен",
         _ => throw new InvalidRequestException($"Неизвестное состояние оплаты «{payment}»."),
     };
+
+    /// <summary>
+    /// Колонки, которые присылает человек, — узлами реквизитов. Один список на <see cref="Merge" /> («как
+    /// лежит») и <see cref="Split" /> («как ляжет»): <see cref="Changed" /> сравнивает одно с другим, и
+    /// разойдись вид узла (масштаб числа, формат даты, форма ссылки) — каждое сохранение считалось бы
+    /// правкой. Полноту против <see cref="WritableColumnKeys" /> сверяет <c>InvoiceRequisitesTests</c>.
+    /// </summary>
+    private static (string Key, JsonNode? Node)[] ColumnNodes(InvoiceColumns columns) =>
+    [
+        (NumberKey, columns.Number is { } number ? JsonValue.Create(number) : null),
+        (DateKey, DateNode(columns.IssuedOn)),
+        (SupplierKey, ReferenceNode(columns.SupplierId)),
+        (PayerKey, ReferenceNode(columns.PayerId)),
+        (PurposeKey, columns.Purpose is { } purpose ? JsonValue.Create(purpose) : null),
+        (TotalKey, columns.Total is { } total ? JsonValue.Create(total) : null),
+        (VatTotalKey, columns.VatTotal is { } vat ? JsonValue.Create(vat) : null),
+        (ShippedOnKey, DateNode(columns.ShippedOn)),
+        (DeferralKey, columns.DeferralDays is { } days ? JsonValue.Create(days) : null),
+        (DueDateKey, DateNode(columns.DueDate)),
+    ];
 
     private static void Put(JsonObject target, string key, JsonNode? value)
     {
