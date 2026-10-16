@@ -171,6 +171,16 @@ internal static class StartupTasks
         // рассчитывать, что схема базы и справочники ядра на месте.
         await scope.ServiceProvider.InitializeAppModulesAsync();
 
+        // Обработчики смены настроек модулей (E2, issue #1100): сторож — до любой смены, а выравнивание чинит
+        // смену, сорвавшуюся между фиксацией модуля и фиксацией ядра. Сторож останавливает запуск: обработчик
+        // забытой настройки не позвали бы никогда, и запертые счета остались бы без книги. Выравнивание — нет:
+        // несведённый счёт оно называет в журнале приложения, а его следующая запись откажет с причиной.
+        BHS.CRG.Api.Modules.ModuleSettingWriter.Validate(
+            scope.ServiceProvider.GetServices<BHS.CRG.Modules.Settings.IModuleSettingChange>(),
+            scope.ServiceProvider.GetRequiredService<BHS.CRG.Modules.Settings.ModuleSettingCatalog>(),
+            scope.ServiceProvider.GetRequiredService<ModuleRegistry>());
+        await scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleSettingWriter>().AlignAllAsync();
+
         // Типы, объявленные модулями, — в схемы (issue #958). ПОСЛЕ инициализации: модуль вправе
         // завести к этому моменту свои справочники, на которые скелет ссылается. Исключение отсюда не
         // ловится намеренно: расхождение объявления с базой обязано останавливать старт, а не
