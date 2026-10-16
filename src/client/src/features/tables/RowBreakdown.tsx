@@ -1,5 +1,27 @@
 import type { TableBreakdown } from '@/shared/api/tables';
+import { DataGrid, DataGridValue, type DataGridColumn } from '@/shared/ui/DataGrid';
+import { columnUnavailable } from '@/shared/ui/dataGridStates';
 import { breakdownTotals, cellText } from './tableCells';
+
+type BreakdownRow = TableBreakdown['rows'][number];
+
+/**
+ * Колонки расшифровки. Закрытая колонка называет причину словами сетки — теми же, что у клетки
+ * строки рядом, в той же панели. Названное отбором помечено и словом — своей колонкой.
+ */
+function breakdownColumns(breakdown: TableBreakdown): DataGridColumn<BreakdownRow>[] {
+  const columns: DataGridColumn<BreakdownRow>[] = breakdown.columns.map(c => {
+    const column: DataGridColumn<BreakdownRow> = {
+      key: c.key, label: c.label, unavailable: columnUnavailable(c.unavailable),
+      align: c.kind === 'number' ? 'right' : 'left', wrap: c.kind !== 'number',
+    };
+    column.cell = row => <DataGridValue row={row.values} column={column} renderValue={v => cellText(v, c.kind)} />;
+    return column;
+  });
+  if (breakdown.narrowed)
+    columns.push({ key: 'named', label: 'Отбор', cell: row => row.named ? <span className="text-brand">в отборе</span> : null });
+  return columns;
+}
 
 /**
  * Расшифровка строки в боковой панели: счёт по объектам и учётным месяцам (G4, issue #1097).
@@ -27,40 +49,8 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
       <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
       {breakdown.note && <p className="mt-0.5 text-xs text-fg3">{breakdown.note}</p>}
 
-      <table className="mt-1.5 w-full text-sm">
-        <thead>
-          <tr>
-            {breakdown.columns.map(c => (
-              <th key={c.key} scope="col"
-                className={`py-0.5 pr-2 text-xs font-normal text-fg4 ${c.kind === 'number' ? 'text-right' : 'text-left'}`}>
-                {c.label}
-              </th>
-            ))}
-            {breakdown.narrowed && <th scope="col"><span className="sr-only">Названо отбором</span></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {breakdown.rows.length === 0 && (
-            <tr><td colSpan={breakdown.columns.length} className="py-0.5 text-fg3">Строк нет.</td></tr>
-          )}
-          {breakdown.rows.map((row, i) => (
-            <tr key={i} className={row.named ? 'font-medium text-fg1' : 'text-fg2'}>
-              {breakdown.columns.map(c => (
-                <td key={c.key}
-                  className={`py-0.5 pr-2 align-top ${c.kind === 'number' ? 'text-right tabular-nums whitespace-nowrap' : 'break-words'}`}>
-                  {c.unavailable
-                    // Закрытая колонка называет причину, а не молчит: пустая клетка читалась бы как ноль.
-                    ? <span className="text-xs text-fg4">{c.reason ?? 'недоступно'}</span>
-                    : row.values[c.key] == null ? <span className="text-fg4">—</span> : cellText(row.values[c.key], c.kind)}
-                </td>
-              ))}
-              {breakdown.narrowed && (
-                <td className="py-0.5 align-top text-xs text-brand whitespace-nowrap">{row.named ? 'в отборе' : ''}</td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataGrid density="compact" framed={false} className="mt-1.5" columns={breakdownColumns(breakdown)}
+        rows={breakdown.rows} emphasized={row => row.named} />
 
       {totals.length > 0 && (
         <dl className="mt-1.5 pt-1.5 border-t border-stroke/60 text-sm">
