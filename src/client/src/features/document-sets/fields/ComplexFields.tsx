@@ -795,7 +795,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               <Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button>
             </div>
           }>
-          <div>{subfieldsBody}</div>
+          {subfieldsBody}
         </Modal>
         {picker}
         {extractModal}

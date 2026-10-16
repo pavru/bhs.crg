@@ -39,14 +39,15 @@ export const RULES = [
     instead: 'цвет — только токеном (text-brand, bg-warning-subtle, text-tertiary…): docs/UI.md, «Цвет»',
   },
   {
-    id: 'modal-width',
-    // Своя ширина в файле с окном (issue #1382): обёртка тела с min-w-[520px] подпирает окно изнутри,
-    // и размер выходит не тем, что назван у Modal. Различить обёртку и колонку по тексту нельзя —
-    // законные (колонка сопоставления, поле поиска) стоят в уровне. Доля (max-w-[45%]) — обрезка
-    // подписи в строке: окно она не подпирает и не считается.
-    when: text => /<Modal\b/.test(text),
-    pattern: /(?<![\w-])(?:min|max)-w-\[[^\]\s%]+\]/g,
-    instead: 'размер окна — по содержимому: обычное, wide или fullScreen (docs/UI.md, «Окна»); ширину колонки — width у DataGrid / EditGrid, а не подпорка тела окна',
+    id: 'fixed-width',
+    // Своя ширина (issue #1382): w-[…], min-w-[…], max-w-[…] и числовая ширина в style. Обёртка тела
+    // с min-w-[520px] подпирает окно изнутри, и размер выходит не тем, что назван у Modal. По всему
+    // features/, а не только в файлах с <Modal: тело окна обычно живёт в своём файле (форма,
+    // редактор сопоставления), и сторож по файлу с окном его не видел бы. Различить обёртку и
+    // колонку по тексту нельзя — законные (колонка сопоставления, поле поиска) стоят в уровне.
+    // Доля (max-w-[45%]) — обрезка подписи в строке: ничего не подпирает и не считается.
+    pattern: /(?<![\w-])(?:min-|max-)?w-\[[^\]\s%]+\]|\b(?:minWidth|maxWidth|width)\s*:\s*['"]?\d/g,
+    instead: 'размер окна — по содержимому: обычное, wide или fullScreen (docs/UI.md, «Окна»); ширину колонки — width у DataGrid / EditGrid классом шкалы (w-36); раскладку экрана задают каркасы (docs/UI.md, «Узкий экран»)',
   },
 ];
 
@@ -54,7 +55,6 @@ export const RULES = [
 export function countViolations(text) {
   const counts = {};
   for (const rule of RULES) {
-    if (rule.when && !rule.when(text)) continue;
     const n = text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }

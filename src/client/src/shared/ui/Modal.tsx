@@ -76,7 +76,7 @@ export type ModalProps = ModalBaseProps & ModalDismissalProps;
  * экран»): плавающая карточка там оставляла бы по краям полосы в полтора пальца и резала бы поля.
  * Классами `max-sm:`, а не отдельной веткой: окно одно и то же, меняется только раскладка.
  */
-const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:max-w-none ' +
+const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:w-full max-sm:max-w-none ' +
   'max-sm:max-h-none max-sm:rounded-none max-sm:border-0';
 
 /**
@@ -200,7 +200,9 @@ function ModalBody({
           className={fullScreen
             ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-base'
             : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
-              wide ? 'w-full max-w-4xl' : 'w-full max-w-lg'
+              // У широкого — зазор по краям: между телефоном и 896 px (планшет, 768) иначе окно
+              // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
+              wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
             } ${NARROW_FULL}`}
           style={fullScreen ? undefined : { boxShadow: 'var(--f-shadow28)' }}
           // «Тронуто»: первый же ввод внутри содержимого.
