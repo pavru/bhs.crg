@@ -382,13 +382,14 @@ public sealed class InvoiceScanReading(
         if (filled.Count > 0)
         {
             using var incoming = JsonDocument.Parse(after.ToJsonString());
-            var (columns, rest) = InvoiceRequisites.Split(incoming.RootElement, before);
+            // Охране — то, что ляжет в счёт, а не присланное: см. Split.
+            var (columns, rest, landing) = InvoiceRequisites.Split(incoming.RootElement, before);
             // Узнанный поставщик приносит отсрочку из своих условий (ТЗ COST-9.2): скан её не читает.
             // До охраны — охрана судит то, что ляжет в счёт (ревью PR #1329).
             (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
             // Охрана записи ядра — та же, что у формы: фоновой правке её правила не уступают.
             await InvoiceEndpoints.EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
-                InvoiceEndpoints.WithTerms(after, termed, columns), ct);
+                InvoiceEndpoints.WithTerms(landing, termed, columns), ct);
             // Срок оплаты распознавание не трогает, значит и «вписан рукой» ему ставить нечему.
             var dueBefore = invoice.DueDate;
             invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);

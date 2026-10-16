@@ -94,7 +94,8 @@ public static class InvoiceEndpoints
                 "приложения — причину пропуска он называет в журнале запуска (обычно код или имя " +
                 "типа занял другой тип).");
 
-        var (columns, rest) = InvoiceRequisites.Split(body.Requisites, stored: null);
+        // Охране — то, что ляжет в счёт (разобранные числа), а не набранный текст: см. Split.
+        var (columns, rest, requisites) = InvoiceRequisites.Split(body.Requisites, stored: null);
         // Стороны — ПРЕЖДЕ охраны: с правилом архива в охране ядра (issue #1185) она отвергла бы
         // архивного поставщика первой, своими словами, а у четырёх адресов модуля текст один.
         await EnsurePartiesExistAsync(targets, catalog, columns, supplierWas: null, payerWas: null, ct);
@@ -103,7 +104,7 @@ public static class InvoiceEndpoints
         // обязана видеть ту отсрочку, которая ляжет в счёт, а не присланную.
         (columns, var termed) = await desk.WithTermsAsync(columns, was: null, ct);
         await EnsureAllowedAsync(guard, typeId, stored: null,
-            WithTerms(JsonNode.Parse(body.Requisites.GetRawText())!.AsObject(), termed, columns), ct);
+            WithTerms(requisites, termed, columns), ct);
 
         var invoice = Invoice.Create(typeId, user.Id);
         var marks = body.Unconfirmed ?? [];
@@ -219,17 +220,19 @@ public static class InvoiceEndpoints
         IModuleReferenceTargets targets, IModuleCatalog catalog, InvoiceDueRule rule, CancellationToken ct)
     {
         var before = InvoiceRequisites.Merge(invoice);
-        var (columns, rest) = InvoiceRequisites.Split(requisites, before);
+        // Дальше — то, что ляжет в счёт, а не набранный текст: охрана отвергла бы «1 234,50» в числовом
+        // поле, а сравнение сочло бы его правкой. См. Split.
+        var (columns, rest, landing) = InvoiceRequisites.Split(requisites, before);
         // Стороны — прежде охраны: см. создание.
         await EnsurePartiesExistAsync(targets, catalog, columns, invoice.SupplierId, invoice.PayerId, ct);
         // Сменили поставщика — отсрочка из его условий (ТЗ COST-9.2), если её не правили той же
         // записью. До охраны — см. создание.
         (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
         await EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
-            WithTerms(InvoiceRequisites.Resulting(requisites, before), termed, columns), ct);
+            WithTerms(InvoiceRequisites.Resulting(landing, before), termed, columns), ct);
 
         // Подставленная отсрочка названа среди изменённого: журнал и метки о ней знают.
-        var changed = InvoiceRequisites.Changed(before, requisites);
+        var changed = InvoiceRequisites.Changed(before, landing);
         if (termed && !changed.Contains(InvoiceRequisites.DeferralKey))
             changed = [.. changed, InvoiceRequisites.DeferralKey];
 
