@@ -240,7 +240,8 @@ await check('all-sites-folds-non-favorite-and-keeps-the-total', async () => {
   try {
     await page.setViewportSize({ width: 1366, height: 768 });
     await open(query);
-    const folded = report.getByTestId('site-costs-folded');
+    // Метка стоит в клетке названия; числа строки — в её соседних клетках.
+    const folded = report.locator('tr', { has: page.getByTestId('site-costs-folded') });
     await folded.waitFor({ timeout: 10_000 });
     if (await report.locator('th[scope="row"]', { hasText: SITE }).count())
       throw new Error('неизбранная стройка прогона стоит строкой под фильтром');

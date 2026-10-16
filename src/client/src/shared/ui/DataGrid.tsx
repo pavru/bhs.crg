@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ArrowDown, ArrowUp, ArrowUpRight, EyeOff, Unlink, X } from 'lucide-react';
 import {
@@ -47,6 +47,33 @@ export interface DataGridColumn<Row = Record<string, unknown>> {
    * всех строк прижаты к верху: многострочная клетка рядом с выровненными по центру читается плохо.
    */
   wrap?: boolean;
+  /** Подсказка шапки — например, полный путь поля, когда в шапке стоит только его последнее имя. */
+  hint?: string;
+  /**
+   * Над колонкой — общая шапка соседних колонок с тем же `group.key` (двухэтажная шапка: поля одного
+   * вложенного объекта). Колонка без группы занимает оба этажа.
+   */
+  group?: { key: string; label: string; hint?: string };
+  /** Клетка — заголовок строки (`<th scope="row">`): по ней читалка экрана называет строку. */
+  rowHeader?: boolean;
+  /**
+   * В клетке свои действия (кнопки, меню): щелчок в ней строку не открывает. Нужна только у сетки,
+   * строку которой открывают (`onRowOpen`).
+   */
+  interactive?: boolean;
+}
+
+/**
+ * Перестановка строк перетаскиванием. Что тащат и куда ляжет, знает экран — сетка тащимую строку
+ * приглушает, а место, куда она ляжет, отмечает чертой.
+ */
+export interface DataGridDrag {
+  /** Номер строки, которую тащат; null — не тащат ничего. */
+  dragging: number | null;
+  /** Куда ляжет: перед строкой с этим номером; число строк — после последней. */
+  target: number | null;
+  onOver: (event: DragEvent, index: number) => void;
+  onDrop: () => void;
 }
 
 export interface DataGridSort {
@@ -93,6 +120,7 @@ export function DataGridValue<Row>({ row, column, renderValue }: {
 export function DataGrid<Row extends object>({
   columns, rows, state, renderValue, rowKey, framed = true, className = '', density = 'regular',
   sort, onSort, sortable, footer, pinned = 0, onRowOpen, rowOpen, rowLink, onRemoveColumn, emphasized, tone, fixed = false,
+  section, drag,
 }: {
   columns: DataGridColumn<Row>[];
   rows: Row[];
@@ -148,6 +176,13 @@ export function DataGrid<Row extends object>({
    * содержимому, обрезка не работает, и правые колонки уезжают за край (#680).
    */
   fixed?: boolean;
+  /**
+   * Строка — заголовок группы строк («Стройки», «Вне строек»): одна клетка во всю ширину
+   * (`<th scope="rowgroup">`), клетки колонок у неё не рисуются. null — обычная строка.
+   */
+  section?: (row: Row, index: number) => ReactNode | null;
+  /** Строки переставляют перетаскиванием. */
+  drag?: DataGridDrag;
 }) {
   const shown = state === 'module-off' ? [] : rows;
   const empty = shown.length === 0 ? DATA_GRID_STATES[state ?? 'no-data'] : null;
@@ -165,47 +200,70 @@ export function DataGrid<Row extends object>({
     ? { left: `var(--pin-${index}, 0px)`, zIndex: layer }
     : undefined);
 
+  // Двухэтажная шапка: колонки с группой стоят на втором этаже, и он липнет под первым, а не на
+  // него — иначе при прокрутке подписи полей уходили бы под имена групп.
+  const grouped = columns.some(c => c.group);
+  const lower: CSSProperties = { top: compact ? '2rem' : '42px' };
+
+  const head = (c: DataGridColumn<Row>, i: number, extra?: { rowSpan?: number; style?: CSSProperties }) => {
+    const reason = c.unavailable ? DATA_GRID_STATES[c.unavailable] : null;
+    const order = sort?.findIndex(s => s.column === c.key) ?? -1;
+    const sorted = order >= 0 ? sort![order] : null;
+    const canSort = onSort && (sortable ? sortable(c) : !c.unavailable);
+    const label = (
+      <span className={`inline-flex items-center gap-1 ${reason ? 'text-fg4' : ''}`}>
+        {c.unavailable && COLUMN_ICON[c.unavailable]}
+        <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.header ?? c.label}</span>
+        {sorted && (sorted.descending ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />)}
+        {sorted && sort!.length > 1 && <span className="text-caption text-fg4">{order + 1}</span>}
+      </span>
+    );
+    return (
+      <th key={c.key} data-pin={i < pinCount ? i : undefined} rowSpan={extra?.rowSpan}
+        className={`${th} ${c.align === 'right' ? 'text-right' : ''} ${c.width ?? ''} ${pin(i)}`}
+        style={{ ...extra?.style, ...pinStyle(i, 30) }} title={reason?.hint ?? c.hint}
+        aria-sort={!canSort ? undefined : !sorted ? 'none' : sorted.descending ? 'descending' : 'ascending'}>
+        {canSort ? (
+          <button type="button" onClick={e => onSort(c, e.shiftKey)}
+            title="Сортировать. С Shift — добавить колонку к сортировке"
+            className="hover:text-fg1 focus-visible:outline-2 rounded-sm">
+            {label}
+          </button>
+        ) : label}
+        {c.unavailable === 'removed' && onRemoveColumn && (
+          <button type="button" onClick={() => onRemoveColumn(c)}
+            aria-label={`Убрать колонку «${c.label}»`} title="Убрать колонку"
+            className="ml-1 align-middle text-fg4 hover:text-danger">
+            <X size={12} aria-hidden />
+          </button>
+        )}
+      </th>
+    );
+  };
+
   return (
     <div className={`${framed ? dtCard : 'overflow-auto'} ${className}`}>
       <table ref={table} className={`${compact ? dtTableCompact : dtTable} ${fixed ? 'table-fixed' : ''}`}>
         <thead>
           <tr>
             {columns.map((c, i) => {
-              const reason = c.unavailable ? DATA_GRID_STATES[c.unavailable] : null;
-              const order = sort?.findIndex(s => s.column === c.key) ?? -1;
-              const sorted = order >= 0 ? sort![order] : null;
-              const canSort = onSort && (sortable ? sortable(c) : !c.unavailable);
-              const label = (
-                <span className={`inline-flex items-center gap-1 ${reason ? 'text-fg4' : ''}`}>
-                  {c.unavailable && COLUMN_ICON[c.unavailable]}
-                  <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.header ?? c.label}</span>
-                  {sorted && (sorted.descending ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />)}
-                  {sorted && sort!.length > 1 && <span className="text-caption text-fg4">{order + 1}</span>}
-                </span>
-              );
+              if (!c.group) return head(c, i, grouped ? { rowSpan: 2 } : undefined);
+              if (columns[i - 1]?.group?.key === c.group.key) return null;
+              let span = 1;
+              while (columns[i + span]?.group?.key === c.group.key) span++;
               return (
-                <th key={c.key} data-pin={i < pinCount ? i : undefined}
-                  className={`${th} ${c.align === 'right' ? 'text-right' : ''} ${c.width ?? ''} ${pin(i)}`}
-                  style={pinStyle(i, 30)} title={reason?.hint}
-                  aria-sort={!canSort ? undefined : !sorted ? 'none' : sorted.descending ? 'descending' : 'ascending'}>
-                  {canSort ? (
-                    <button type="button" onClick={e => onSort(c, e.shiftKey)}
-                      title="Сортировать. С Shift — добавить колонку к сортировке"
-                      className="hover:text-fg1 focus-visible:outline-2 rounded-sm">
-                      {label}
-                    </button>
-                  ) : label}
-                  {c.unavailable === 'removed' && onRemoveColumn && (
-                    <button type="button" onClick={() => onRemoveColumn(c)}
-                      aria-label={`Убрать колонку «${c.label}»`} title="Убрать колонку"
-                      className="ml-1 align-middle text-fg4 hover:text-danger">
-                      <X size={12} aria-hidden />
-                    </button>
-                  )}
+                <th key={`group:${c.group.key}:${i}`} colSpan={span} scope="colgroup" title={c.group.hint}
+                  className={`${th} text-center`}>
+                  {c.group.label}
                 </th>
               );
             })}
           </tr>
+          {grouped && (
+            <tr>
+              {columns.map((c, i) => (c.group ? head(c, i, { style: lower }) : null))}
+            </tr>
+          )}
         </thead>
         <tbody>
           {empty ? (
@@ -216,15 +274,39 @@ export function DataGrid<Row extends object>({
               </td>
             </tr>
           ) : shown.map((row, i) => {
+            const key = rowKey ? rowKey(row, i) : i;
+            const heading = section?.(row, i) ?? null;
+            if (heading !== null) {
+              return (
+                <tr key={key}>
+                  <th scope="rowgroup" colSpan={Math.max(columns.length, 1)}
+                    className={`${td} pt-3 text-left text-xs font-medium text-fg3`}>
+                    {heading}
+                  </th>
+                </tr>
+              );
+            }
             const open = rowOpen?.(row, i) ?? false;
             const link = rowLink?.(row, i) ?? null;
             const strong = emphasized?.(row, i) ?? false;
             const marked = !open && tone?.(row, i) === 'warning';
+            // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью, а не
+            // рамкой — рамка сдвинула бы строки на её толщину, и строка уехала бы из-под курсора.
+            const dropMark = !drag || drag.dragging === null ? null
+              : drag.target === i ? 'inset 0 2px 0 0 var(--color-brand)'
+              : drag.target === shown.length && i === shown.length - 1 ? 'inset 0 -2px 0 0 var(--color-brand)'
+              : null;
             // Строка — именованная группа `group/row`: действия строки, видимые по наведению,
             // проявляются классом `group-hover/row:` и не путаются с группами внутри клетки.
             return (
-              <tr key={rowKey ? rowKey(row, i) : i}
-                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : ''} ${strong ? 'font-medium' : ''}`}
+              <tr key={key}
+                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : ''} ${strong ? 'font-medium' : ''} `
+                  + `${drag?.dragging === i ? 'opacity-40' : ''}`}
+                style={dropMark ? { boxShadow: dropMark } : undefined}
+                {...(drag ? {
+                  onDragOver: (e: DragEvent) => drag.onOver(e, i),
+                  onDrop: drag.onDrop,
+                } : {})}
                 {...(onRowOpen ? {
                   tabIndex: 0,
                   'aria-selected': open,
@@ -235,26 +317,31 @@ export function DataGrid<Row extends object>({
                     onRowOpen(row, i);
                   },
                 } : {})}>
-                {columns.map((c, ci) => (
-                  <td key={c.key} style={pinStyle(ci, 5)}
-                    className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-fg1 `
-                      + `${c.align === 'right' ? dtNum : ''} `
-                      + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : 'bg-surface') : ''}`}>
-                    {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
-                        перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
-                    {ci === 0 && link && (
-                      <Link to={link.to} aria-label={link.label} title={link.label}
-                        onClick={e => e.stopPropagation()}
-                        className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
-                        <ArrowUpRight size={14} aria-hidden />
-                      </Link>
-                    )}
-                    {c.cell && !c.unavailable ? c.cell(row, i) : (
-                      <DataGridValue row={row as Record<string, unknown>} column={c}
-                        renderValue={renderValue ? v => renderValue(v, c) : undefined} />
-                    )}
-                  </td>
-                ))}
+                {columns.map((c, ci) => {
+                  const Cell = c.rowHeader ? 'th' : 'td';
+                  return (
+                    <Cell key={c.key} style={pinStyle(ci, 5)} scope={c.rowHeader ? 'row' : undefined}
+                      // Щелчок в клетке с действиями — это действие, а не «открыть строку».
+                      onClick={c.interactive ? e => e.stopPropagation() : undefined}
+                      className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-fg1 `
+                        + `${c.rowHeader ? 'text-left [font-weight:inherit]' : ''} ${c.align === 'right' ? dtNum : ''} `
+                        + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : 'bg-surface') : ''}`}>
+                      {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
+                          перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
+                      {ci === 0 && link && (
+                        <Link to={link.to} aria-label={link.label} title={link.label}
+                          onClick={e => e.stopPropagation()}
+                          className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
+                          <ArrowUpRight size={14} aria-hidden />
+                        </Link>
+                      )}
+                      {c.cell && !c.unavailable ? c.cell(row, i) : (
+                        <DataGridValue row={row as Record<string, unknown>} column={c}
+                          renderValue={renderValue ? v => renderValue(v, c) : undefined} />
+                      )}
+                    </Cell>
+                  );
+                })}
               </tr>
             );
           })}
@@ -262,13 +349,16 @@ export function DataGrid<Row extends object>({
         {footer && (
           <tfoot>
             <tr>
-              {columns.map((c, i) => (
-                <td key={c.key} style={pinStyle(i, 30)}
-                  className={`sticky bottom-0 z-10 bg-muted border-t border-stroke ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-xs text-fg2 `
-                    + `whitespace-nowrap align-top ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
-                  {footer(c)}
-                </td>
-              ))}
+              {columns.map((c, i) => {
+                const Cell = c.rowHeader ? 'th' : 'td';
+                return (
+                  <Cell key={c.key} style={pinStyle(i, 30)} scope={c.rowHeader ? 'row' : undefined}
+                    className={`sticky bottom-0 z-10 bg-muted border-t border-stroke ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-xs text-fg2 `
+                      + `whitespace-nowrap align-top ${c.rowHeader ? 'text-left font-medium' : ''} ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
+                    {footer(c)}
+                  </Cell>
+                );
+              })}
             </tr>
           </tfoot>
         )}

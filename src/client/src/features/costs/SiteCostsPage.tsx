@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ArrowUpRight, ChartNoAxesColumn } from 'lucide-react';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
@@ -132,6 +133,45 @@ function Report({ data, bySections, onSite, stale }: {
   // Под «без НДС» реестр по ссылке покажет суммы С НДС — без оговорки сверка глазами дала бы расхождение.
   const linkNote = data.withVat ? undefined : 'в реестре суммы с НДС';
 
+  const columns = costColumns(!data.site ? 'Объект' : bySections ? 'Раздел' : 'Контрагент',
+    // По разделам счёт на два раздела стоит в двух строках: числа счетов в итог не складываются.
+    data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined, linkNote);
+  const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: data.total, link: siteCostsLinks.total(data) };
+  const cellOf = (key: string, line: Line) => columns.find(c => c.key === key)!.cell!(line, 0);
+  const entry = (one: Line) => one;
+  const lines: Line[] = data.site && bySections
+    // Среза может не быть в ответе: клиент и сервер обновляются порознь.
+    // «Без раздела» и «раздел удалён» — приглушённо: это не название, а его отсутствие. Стрелка — только
+    // под названием, каким раздел зовёт реестр: коротким именем он его не зовёт никогда, и ссылка с ним
+    // открыла бы пустой реестр — «счетов нет» вместо отказа.
+    ? (data.sections ?? []).map((line): Line => ({ kind: 'figure', key: line.id ?? line.name, name: line.name, muted: line.id === null,
+        figure: line, link: line.registry ? siteCostsLinks.section(data, line.registry) : undefined }))
+    : data.site
+    // Удалённый поставщик — без стрелки: реестр его не называет, отбора под него нет.
+    ? data.suppliers.map((line): Line => ({ kind: 'figure', key: line.id ?? line.name, name: line.name, muted: line.id === null,
+        figure: line, link: line.linked ? siteCostsLinks.supplier(data, line.id === null ? null : line.name) : undefined }))
+    : [
+        ...(data.sites.length > 0 ? [entry({ kind: 'group', key: 'group:sites', title: 'Стройки',
+          action: unfolded && folded ? { label: 'Свернуть неизбранные', onClick: () => setUnfolded(false) } : undefined })] : []),
+        // Первой в группе, а не последней: под ней до двадцати избранных, и в конце она ушла бы ниже
+        // сгиба — а без неё столбец не сходится с итогом на глазах.
+        ...(foldedNow ? [entry({ kind: 'folded', key: 'folded', folded: foldedNow, onUnfold: () => setUnfolded(true) })] : []),
+        ...(foldedNow ? shown : data.sites).map((line): Line => ({ kind: 'figure', key: `site:${line.id}`, indent: true, figure: line,
+          link: siteCostsLinks.object(data, line.name), label: line.name,
+          name: <button type="button" onClick={() => line.id && onSite(line.id)}
+            className="text-left text-brand hover:underline">{line.name}</button> })),
+        ...(data.articles.length > 0 ? [entry({ kind: 'group', key: 'group:articles', title: 'Вне строек' })] : []),
+        ...data.articles.map((line): Line => ({ kind: 'figure', key: `article:${line.id}`, indent: true, name: line.name, figure: line,
+          link: siteCostsLinks.object(data, line.name) })),
+        // Удалённые объекты — одной строкой и без перехода «внутрь»: стройки больше нет.
+        ...(data.lost ? [entry({ kind: 'figure', key: 'lost', name: data.lost.name, muted: true, figure: data.lost,
+          link: siteCostsLinks.object(data, data.lost.name) })] : []),
+        // Без ссылки: отбора «есть неразнесённый остаток» у реестра нет, а «Объект: пусто» находит только
+        // счета без разноски вовсе — число бы не сошлось.
+        ...(data.unallocated ? [entry({ kind: 'figure', key: 'unallocated', name: 'Не разнесено', figure: data.unallocated })] : []),
+      ];
+
+
   return (
     <div className={`space-y-5 ${stale ? 'opacity-60' : ''}`} aria-busy={stale}>
       <section aria-label="Затраты за период">
@@ -146,66 +186,8 @@ function Report({ data, bySections, onSite, stale }: {
           <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
             description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
         ) : (
-          <table className="mt-1.5 w-full text-sm">
-            <thead>
-              <tr className="text-xs text-fg4">
-                <th scope="col" className="py-1 text-left font-normal">
-                  {!data.site ? 'Объект' : bySections ? 'Раздел' : 'Контрагент'}
-                </th>
-                {/* По разделам счёт на два раздела стоит в двух строках: числа счетов в итог не складываются. */}
-                <th scope="col" className="py-1 text-right font-normal w-24"
-                  title={data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined}>
-                  Счетов
-                </th>
-                <th scope="col" className="py-1 text-right font-normal w-40">Сумма</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.site && bySections ? (
-                // Среза может не быть в ответе: клиент и сервер обновляются порознь.
-                (data.sections ?? []).map(line => (
-                  // «Без раздела» и «раздел удалён» — приглушённо: это не название, а его отсутствие.
-                  // Стрелка — только под названием, каким раздел зовёт реестр: коротким именем он его не
-                  // зовёт никогда, и ссылка с ним открыла бы пустой реестр — «счетов нет» вместо отказа.
-                  <Row key={line.id ?? line.name} name={line.name} muted={line.id === null} figure={line} linkNote={linkNote}
-                    link={line.registry ? siteCostsLinks.section(data, line.registry) : undefined} />
-                ))
-              ) : data.site ? (
-                data.suppliers.map(line => (
-                  // Удалённый поставщик — без стрелки: реестр его не называет, отбора под него нет.
-                  <Row key={line.id ?? line.name} name={line.name} muted={line.id === null} figure={line} linkNote={linkNote}
-                    link={line.linked ? siteCostsLinks.supplier(data, line.id === null ? null : line.name) : undefined} />
-                ))
-              ) : (
-                <>
-                  {data.sites.length > 0 && <Group title="Стройки"
-                    action={unfolded && folded ? { label: 'Свернуть неизбранные', onClick: () => setUnfolded(false) } : undefined} />}
-                  {/* Первой в группе, а не последней: под ней до двадцати избранных, и в конце она ушла бы
-                      ниже сгиба — а без неё столбец не сходится с итогом на глазах. */}
-                  {foldedNow && <FoldedRow folded={foldedNow} onUnfold={() => setUnfolded(true)} />}
-                  {(foldedNow ? shown : data.sites).map(line => (
-                    <Row key={line.id} indent figure={line} link={siteCostsLinks.object(data, line.name)} linkNote={linkNote}
-                      name={<button type="button" onClick={() => line.id && onSite(line.id)}
-                        className="text-left text-brand hover:underline">{line.name}</button>} label={line.name} />
-                  ))}
-                  {data.articles.length > 0 && <Group title="Вне строек" />}
-                  {data.articles.map(line => (
-                    <Row key={line.id} indent name={line.name} figure={line}
-                      link={siteCostsLinks.object(data, line.name)} linkNote={linkNote} />
-                  ))}
-                  {/* Удалённые объекты — одной строкой и без перехода «внутрь»: стройки больше нет. */}
-                  {data.lost && <Row name={data.lost.name} muted figure={data.lost}
-                    link={siteCostsLinks.object(data, data.lost.name)} linkNote={linkNote} />}
-                  {/* Без ссылки: отбора «есть неразнесённый остаток» у реестра нет, а «Объект: пусто»
-                      находит только счета без разноски вовсе — число бы не сошлось. */}
-                  {data.unallocated && <Row name="Не разнесено" figure={data.unallocated} />}
-                </>
-              )}
-            </tbody>
-            <tfoot>
-              <Row name="Итого затраты" strong figure={data.total} link={siteCostsLinks.total(data)} linkNote={linkNote} />
-            </tfoot>
-          </table>
+          <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
+            footer={c => <span className="text-sm text-fg1">{cellOf(c.key, total)}</span>} />
         )}
 
         {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
@@ -225,13 +207,11 @@ function Report({ data, bySections, onSite, stale }: {
 
       <section aria-label="Не входит в затраты" className="border-t border-stroke pt-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">Не входит в затраты</h2>
-        <table className="mt-1.5 w-full text-sm">
-          <tbody>
-            <Row figure={data.payable} link={data.payable.invoices > 0 ? siteCostsLinks.payable(data) : undefined} linkNote={linkNote}
-              label="К оплате"
-              name={<>К оплате <span className="text-fg4">· не оплачено, на сегодня, от периода не зависит</span></>} />
-          </tbody>
-        </table>
+        <DataGrid className="mt-1.5" columns={costColumns('', undefined, linkNote)} rowKey={l => l.key} rows={[{
+          kind: 'figure', key: 'payable', figure: data.payable, label: 'К оплате',
+          link: data.payable.invoices > 0 ? siteCostsLinks.payable(data) : undefined,
+          name: <>К оплате <span className="text-fg4">· не оплачено, на сегодня, от периода не зависит</span></>,
+        }]} />
         {data.payableVatUnknown && (
           <p className="mt-1 pl-4 text-sm text-fg3">
             НДС не указан: {invoicesText(data.payableVatUnknown.invoices)} на {formatMoney(data.payableVatUnknown.amount)} — учтены полной суммой
@@ -258,68 +238,69 @@ function Segmented<T>({ label, value, options, onChange }: {
   );
 }
 
-function Group({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) {
+/** Строка отчёта: заголовок группы, свёрнутые неизбранные стройки или число. */
+type Line =
+  | { kind: 'group'; key: string; title: string; action?: { label: string; onClick: () => void } }
+  | { kind: 'folded'; key: string; folded: FoldedSites; onUnfold: () => void }
+  | {
+      kind: 'figure'; key: string; name: ReactNode; figure: CostFigure; link?: string; indent?: boolean; muted?: boolean;
+      /** Чем строку назвать в подписи ссылки, если `name` — не текст. */
+      label?: string;
+    };
+
+function sectionOf(line: Line): ReactNode | null {
+  if (line.kind !== 'group') return null;
   return (
-    <tr>
-      <th scope="rowgroup" colSpan={3} className="pt-2 pb-0.5 text-left text-xs font-medium text-fg3">
-        {title}
-        {action && (
-          <button type="button" onClick={action.onClick} className="ml-2 font-normal text-fg3 underline hover:text-fg1">
-            {action.label}
-          </button>
-        )}
-      </th>
-    </tr>
+    <>
+      {line.title}
+      {line.action && (
+        <button type="button" onClick={line.action.onClick} className="ml-2 font-normal text-fg3 underline hover:text-fg1">
+          {line.action.label}
+        </button>
+      )}
+    </>
   );
 }
+
+/** Место стрелки у строки без неё: суммы стоят столбцом, а не пляшут на ширину стрелки. */
+const NO_LINK = <span className="inline-block w-[22px]" aria-hidden />;
 
 /**
- * Неизбранные стройки одной строкой: название, сколько их и их деньги. Клетка «Счетов» пуста нарочно —
- * счёт на двух стройках посчитан в каждой, и число свёрнутых счетов не сложилось бы с соседними. Стрелки в
- * реестр нет: отбор «все неизбранные» — перечень названий длиной в справочник, а одноимённые стройки
- * сделали бы итог реестра больше строки.
+ * Колонки отчёта: название — заголовок строки, число счетов и сумма со стрелкой в реестр.
+ *
+ * Неизбранные стройки — одной строкой (`folded`): название, сколько их и их деньги. Клетка «Счетов» пуста
+ * нарочно — счёт на двух стройках посчитан в каждой, и число свёрнутых счетов не сложилось бы с соседними.
+ * Стрелки в реестр нет: отбор «все неизбранные» — перечень названий длиной в справочник, а одноимённые
+ * стройки сделали бы итог реестра больше строки.
  */
-function FoldedRow({ folded, onUnfold }: { folded: FoldedSites; onUnfold: () => void }) {
-  return (
-    <tr className="border-t border-stroke/40 text-fg3" data-testid="site-costs-folded">
-      <th scope="row" className="py-1 pl-4 text-left font-normal">
-        {foldedText(folded.count)}
-        <button type="button" onClick={onUnfold} className="ml-2 text-xs underline hover:text-fg1">Показать построчно</button>
-      </th>
-      <td className="py-1" />
-      <td className="py-1 text-right tabular-nums whitespace-nowrap">
-        {formatMoney(folded.amount)}
-        <span className="inline-block w-[22px]" aria-hidden />
-      </td>
-    </tr>
-  );
+function costColumns(name: string, countHint: string | undefined, linkNote: string | undefined): DataGridColumn<Line>[] {
+  return [
+    { key: 'name', label: name, rowHeader: true, wrap: true,
+      cell: line => line.kind === 'folded' ? (
+        <span data-testid="site-costs-folded" className="pl-4 text-fg3">
+          {foldedText(line.folded.count)}
+          <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-fg1">Показать построчно</button>
+        </span>
+      ) : line.kind === 'figure' ? (
+        <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-fg3' : ''}`}>{line.name}</span>
+      ) : null },
+    { key: 'invoices', label: 'Счетов', hint: countHint, align: 'right', width: 'w-24',
+      cell: line => line.kind === 'figure' ? <span className="text-fg2">{formatCount(line.figure.invoices)}</span> : null },
+    { key: 'amount', label: 'Сумма', align: 'right', width: 'w-40',
+      cell: line => {
+        if (line.kind === 'folded') return <span className="text-fg3">{formatMoney(line.folded.amount)}{NO_LINK}</span>;
+        if (line.kind !== 'figure') return null;
+        const text = line.label ?? (typeof line.name === 'string' ? line.name : '');
+        return (
+          <span className={line.muted ? 'text-fg3' : ''}>
+            {formatMoney(line.figure.amount)}
+            {line.link ? <RegistryLink to={line.link} label={`${text} — счета в реестре`} note={linkNote} /> : NO_LINK}
+          </span>
+        );
+      } },
+  ];
 }
 
-function Row({ name, label, figure, link, linkNote, indent, strong, muted }: {
-  name: ReactNode;
-  /** Чем строку назвать в подписи ссылки, если `name` — не текст. */
-  label?: string;
-  figure: CostFigure;
-  link?: string;
-  linkNote?: string;
-  indent?: boolean;
-  strong?: boolean;
-  muted?: boolean;
-}) {
-  const text = label ?? (typeof name === 'string' ? name : '');
-  return (
-    <tr className={`${strong ? 'border-t border-stroke font-medium' : 'border-t border-stroke/40'} ${muted ? 'text-fg3' : 'text-fg1'}`}>
-      <th scope="row" className={`py-1 text-left ${strong ? 'font-medium' : 'font-normal'} ${indent ? 'pl-4' : ''}`}>{name}</th>
-      <td className="py-1 text-right tabular-nums text-fg2">{formatCount(figure.invoices)}</td>
-      <td className="py-1 text-right tabular-nums whitespace-nowrap">
-        {formatMoney(figure.amount)}
-        {link
-          ? <RegistryLink to={link} label={`${text} — счета в реестре`} note={linkNote} />
-          : <span className="inline-block w-[22px]" aria-hidden />}
-      </td>
-    </tr>
-  );
-}
 
 /** Стрелка в реестр: настоящая ссылка — её открывают в новой вкладке и до неё доходят клавишей Tab. */
 function RegistryLink({ to, label, note }: { to: string; label: string; note?: string }) {
