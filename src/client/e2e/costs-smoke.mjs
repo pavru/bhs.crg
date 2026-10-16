@@ -247,7 +247,7 @@ async function waybillPart(seat) {
   await pickOption(page.getByLabel('Получатель — стройка').first(), SITE);
 
   for (const [name, quantity] of [['Кабель прогона', '12,5'], ['Хомут прогона', '4']]) {
-    await page.getByRole('button', { name: 'Строка', exact: true }).click();
+    await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
     const row = page.locator('tbody tr').last();
     await row.getByLabel(/Наименование в накладной/).fill(name);
     await row.getByLabel(/Количество/).fill(quantity);
@@ -304,7 +304,7 @@ async function waybillDeletePart(seat) {
   await page.getByRole('button', { name: 'Новая накладная' }).click();
   await page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 });
   await page.getByLabel('Номер', { exact: true }).fill(waybill);
-  await page.getByRole('button', { name: 'Строка', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
   await page.locator('tbody tr').last().getByLabel(/Наименование в накладной/).fill('Заведено по ошибке');
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await page.getByRole('heading', { name: new RegExp(waybill) }).waitFor({ timeout: 10_000 });

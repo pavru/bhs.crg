@@ -12,7 +12,7 @@ export const RULES = [
   {
     id: 'table',
     pattern: /<table\b/g,
-    instead: 'данные — DataGrid (shared/ui/DataGrid: cell, width, wrap, density="compact"); «поле — значение» и форма — раскладка (dl, grid), а не таблица (docs/UI.md, «Таблицы», #1354)',
+    instead: 'данные — DataGrid (shared/ui/DataGrid: cell, width, wrap, density="compact"); черновик строк — EditGrid (shared/ui/EditGrid: cell, add, onRemove, total); «поле — значение» и форма — раскладка (dl, grid), а не таблица (docs/UI.md, «Таблицы», #1354)',
   },
   {
     id: 'select',

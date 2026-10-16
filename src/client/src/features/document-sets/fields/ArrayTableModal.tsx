@@ -4,12 +4,13 @@
  * <p>Выделено из `ComplexFields.tsx` (issue #1014). Опирается только на ячейки
  * (`./ComplexCells`); на редакторы полей не ссылается, поэтому цикла здесь нет.</p>
  */
-import { useState, useRef } from 'react';
-import { Clipboard, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Clipboard, GripVertical, Trash2 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
@@ -149,51 +150,98 @@ function ArrayTableModalBody({
     setPasteOpen(true);
   }
 
-  // ↑↓-навигация между ячейками ОДНОЙ колонки (issue #107, F8a). Полный APG grid (←→, роли,
-  // выделение строк, ресайз с клавиатуры) отложен в фазу таблиц MD3. Список (role=combobox) не
-  // трогаем — там ↑↓ открывают и листают пункты; для остальных (text/number/date/checkbox/пикер) нативное ↑↓ — no-op либо
-  // нежелательный инкремент, так что перехват безопасен и полезен при вводе столбца сверху вниз.
-  const tableRef = useRef<HTMLTableElement>(null);
-  // Фокус на контрол ячейки (r,c). true — удалось.
-  function focusCell(r: number, c: number): boolean {
-    const target = tableRef.current?.querySelector<HTMLElement>(`td[data-r="${r}"][data-c="${c}"]`);
-    const f = target?.querySelector<HTMLElement>('input, select, textarea, button');
-    if (!f) return false;
-    f.focus();
-    if (f instanceof HTMLInputElement && f.type !== 'checkbox') f.select();
-    return true;
-  }
-  // APG grid-навигация (issue #107 F8b): ↑↓ — строки; ←→ — колонки, но для текст-инпута только
-  // когда каретка на краю (иначе стрелка двигает курсор). Список хранит ↑↓ за собой (пункты).
-  function onGridKey(e: React.KeyboardEvent) {
-    const el = e.target as HTMLElement;
-    const td = el.closest('td[data-r]') as HTMLElement | null;
-    if (!td) return;
-    const r = Number(td.dataset.r), c = Number(td.dataset.c);
-    const input = el instanceof HTMLInputElement ? el : null;
-    const isText = !!input && input.type !== 'checkbox';
-    const atStart = !isText || (input!.selectionStart === 0 && input!.selectionEnd === 0);
-    const atEnd = !isText || (input!.selectionStart === input!.value.length && input!.selectionEnd === input!.value.length);
+  // Перетаскивание (issue #171): строка ложится туда, где черта. Над строкой ниже тащимой черта
+  // встаёт ПОД неё — иначе строка, брошенная на соседа снизу, осталась бы на месте.
+  const drag = {
+    dragging: dragIdx,
+    target: dropIdx,
+    onOver: (e: React.DragEvent, i: number) => {
+      if (dragIdx === null) return;
+      e.preventDefault();
+      const target = i > dragIdx ? i + 1 : i;
+      if (dropIdx !== target) setDropIdx(target);
+    },
+    onDrop: () => {
+      if (dragIdx !== null && dropIdx !== null) moveRow(dragIdx, dropIdx > dragIdx ? dropIdx - 1 : dropIdx);
+      setDragIdx(null);
+      setDropIdx(null);
+    },
+  };
 
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (el.getAttribute('role') === 'combobox') return;
-      const nr = e.key === 'ArrowUp' ? r - 1 : r + 1;
-      if (nr < 0 || nr >= rows.length) return;
-      if (focusCell(nr, c)) e.preventDefault();
-    } else if (e.key === 'ArrowLeft') {
-      if (!atStart || c - 1 < 0) return;
-      if (focusCell(r, c - 1)) e.preventDefault();
-    } else if (e.key === 'ArrowRight') {
-      if (!atEnd || c + 1 >= tableFields.length) return;
-      if (focusCell(r, c + 1)) e.preventDefault();
-    }
-  }
-
-  // Сетка красится токенами темы, а не литералами светлой (issue #1065). Литералы держались
-  // только на светлом фоне: на тёмном оставались светло-серые линии и почти белая шапка — весь
-  // остальной интерфейс тему держит, а единственная редактируемая сетка не держала.
-  const CELL = 'border border-stroke';
-  const TH = `${CELL} bg-muted`;
+  const columns: EditGridColumn<Record<string, unknown>>[] = [
+    {
+      key: '@select', label: 'Выбор', size: 34,
+      header: (
+        <span className="flex items-center justify-center">
+          <Checkbox size="sm" aria-label="Выбрать все строки"
+            checked={rowIds.length > 0 && selected.size === rowIds.length}
+            indeterminate={selected.size > 0 && selected.size < rowIds.length}
+            onChange={toggleAll} />
+        </span>
+      ),
+      cell: (_, i) => (
+        <span className="flex items-center justify-center">
+          <Checkbox size="sm" checked={selected.has(rowIds[i])} onChange={() => toggleSelect(rowIds[i])}
+            aria-label={`Выбрать строку ${i + 1}`} />
+        </span>
+      ),
+    },
+    {
+      key: '@index', label: '#', size: 44, rowHeader: true,
+      header: <span className="flex justify-center font-normal text-fg4">#</span>,
+      cell: (_, i) => (
+        <div className="flex items-center justify-center gap-0.5">
+          <button type="button" draggable
+            // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
+            onDragStart={e => {
+              setDragIdx(i);
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
+            }}
+            onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+            onKeyDown={e => {
+              if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
+              else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
+            }}
+            title="Перетащить для изменения порядка (или стрелки ↑↓)"
+            aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
+            className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+            <GripVertical size={12} />
+          </button>
+          <span className="text-xs text-fg4 font-mono">{i + 1}</span>
+        </div>
+      ),
+    },
+    ...tableFields.map((f): EditGridColumn<Record<string, unknown>> => ({
+      key: f.key, label: f.title, size: getW(f),
+      header: (
+        <>
+          <span className="block truncate font-semibold text-fg2 select-none">
+            {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
+          </span>
+          {/* Шапка липкая, а значит позиционирована: разделитель встаёт по её правому краю. */}
+          <div role="separator" aria-orientation="vertical" tabIndex={0}
+            aria-label={`Ширина колонки «${f.title}» — стрелки ←→`}
+            onMouseDown={e => startResize(e, f.key, getW(f))}
+            onKeyDown={e => {
+              if (e.key === 'ArrowLeft') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: Math.max(44, getW(f) - 16) })); }
+              else if (e.key === 'ArrowRight') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: getW(f) + 16 })); }
+            }}
+            className="absolute inset-y-0 right-0 z-[1] w-[5px] cursor-col-resize transition-colors
+              hover:bg-brand-subtle/40 focus-visible:bg-brand focus-visible:outline-none" />
+        </>
+      ),
+      cell: (row, i) => {
+        const compositeForField = f.type === 'complex'
+          ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
+        return (
+          <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
+            compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
+            scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} enumTypeDef={enumDef(f)} />
+        );
+      },
+    })),
+  ];
 
   return (
     <Modal open onOpenChange={onOpenChange}
@@ -210,8 +258,6 @@ function ArrayTableModalBody({
               </>
             ) : (
               <>
-                <Button variant="text" size="sm" icon={<Plus size={13} />} onClick={addRow}>Добавить строку</Button>
-                <span className="text-stroke-strong">·</span>
                 <Button variant="text" size="sm" icon={<Clipboard size={13} />} onClick={handlePasteClick}>Вставить из Excel</Button>
               </>
             )}
@@ -222,114 +268,10 @@ function ArrayTableModalBody({
           </div>
         </div>
       }>
-      <div className="overflow-x-auto -mx-6 px-6">
-        <table ref={tableRef} onKeyDown={onGridKey} role="grid" aria-label={`Строки: ${compositeType?.name ?? field.title}`}
-          style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
-          <colgroup>
-            <col style={{ width: 34 }} />
-            <col style={{ width: 44 }} />
-            {tableFields.map(f => <col key={f.key} style={{ width: getW(f) }} />)}
-            <col style={{ width: 26 }} />
-          </colgroup>
-          <thead>
-            <tr role="row">
-              <th className={TH} style={{ padding: 0, width: 34 }}>
-                <span className="flex items-center justify-center" style={{ height: 28 }}>
-                  <Checkbox size="sm" aria-label="Выбрать все строки"
-                    checked={rowIds.length > 0 && selected.size === rowIds.length}
-                    indeterminate={selected.size > 0 && selected.size < rowIds.length}
-                    onChange={toggleAll} />
-                </span>
-              </th>
-              <th role="columnheader" className={TH} style={{ padding: 0, width: 44 }}>
-                <span className="flex items-center justify-center text-xs text-fg4 font-normal" style={{ height: 28 }}>#</span>
-              </th>
-              {tableFields.map(f => (
-                <th key={f.key} role="columnheader" className={TH}
-                  style={{ padding: 0, position: 'relative', userSelect: 'none' }}>
-                  <span className="flex items-center px-2 text-left text-xs font-semibold text-fg2 truncate" style={{ height: 28 }}>
-                    {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
-                  </span>
-                  <div role="separator" aria-orientation="vertical" tabIndex={0}
-                    aria-label={`Ширина колонки «${f.title}» — стрелки ←→`}
-                    onMouseDown={e => startResize(e, f.key, getW(f))}
-                    onKeyDown={e => {
-                      if (e.key === 'ArrowLeft') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: Math.max(44, getW(f) - 16) })); }
-                      else if (e.key === 'ArrowRight') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: getW(f) + 16 })); }
-                    }}
-                    className="hover:bg-brand-subtle/40 focus-visible:bg-brand focus-visible:outline-none transition-colors"
-                    style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', zIndex: 1 }} />
-                </th>
-              ))}
-              <th className={TH} style={{ padding: 0, width: 26 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const sel = selected.has(rowIds[i]);
-              return (
-              <tr key={rowIds[i]} role="row"
-                onDragOver={e => { if (dragIdx !== null) { e.preventDefault(); if (dropIdx !== i) setDropIdx(i); } }}
-                onDrop={e => { e.preventDefault(); if (dragIdx !== null) moveRow(dragIdx, i); setDragIdx(null); setDropIdx(null); }}
-                style={dragIdx !== null && dropIdx === i && dragIdx !== i
-                  ? { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' } : undefined}>
-                <td style={{ padding: 0, textAlign: 'center' }} className={`${CELL} ${sel ? 'bg-brand-subtle' : ''}`}>
-                  <span className="flex items-center justify-center" style={{ height: 26 }}>
-                    <input type="checkbox" checked={sel} onChange={() => toggleSelect(rowIds[i])}
-                      aria-label={`Выбрать строку ${i + 1}`} className="w-4 h-4 accent-brand cursor-pointer" />
-                  </span>
-                </td>
-                <td role="rowheader" style={{ padding: 0 }} className={`${CELL} ${sel ? 'bg-brand-subtle' : 'bg-base'}`}>
-                  <div className="flex items-center justify-center gap-0.5" style={{ height: 26 }}>
-                    <button type="button" draggable
-                      // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
-                      onDragStart={e => {
-                        setDragIdx(i);
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
-                      }}
-                      onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-                      onKeyDown={e => {
-                        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
-                        else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
-                      }}
-                      title="Перетащить для изменения порядка (или стрелки ↑↓)"
-                      aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
-                      className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
-                      <GripVertical size={12} />
-                    </button>
-                    <span className="text-xs text-fg4 font-mono">{i + 1}</span>
-                  </div>
-                </td>
-                {tableFields.map((f, ci) => {
-                  const compositeForField = f.type === 'complex'
-                    ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
-                  return (
-                    <td key={f.key} data-r={i} data-c={ci} role="gridcell"
-                      className={`${CELL} focus-within:bg-brand-subtle transition-colors ${sel ? 'bg-brand-subtle' : ''}`}
-                      style={{ padding: 0, height: 26 }}>
-                      <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
-                        compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
-                        scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} enumTypeDef={enumDef(f)} />
-                    </td>
-                  );
-                })}
-                <td style={{ padding: 0, width: 26 }} className={`${CELL} ${sel ? 'bg-brand-subtle' : ''}`}>
-                  <button type="button" onClick={() => removeRow(i)}
-                    className="w-full h-full flex items-center justify-center text-stroke-strong hover:text-danger transition-colors"
-                    style={{ height: 26 }}>
-                    <Trash2 size={11} />
-                  </button>
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {rows.length === 0 && (
-          <p className="text-center text-xs text-fg4 py-6">Нет строк — нажмите «Добавить строку»</p>
-        )}
-      </div>
+      <EditGrid sheet label={`Строки: ${compositeType?.name ?? field.title}`} rows={rows} rowKey={(_, i) => rowIds[i]}
+        columns={columns} selected={(_, i) => selected.has(rowIds[i])} drag={drag}
+        empty="Нет строк — нажмите «Добавить строку»"
+        add={{ label: 'Добавить строку', onAdd: addRow }} onRemove={(_, i) => removeRow(i)} />
       {hiddenFields.length > 0 && (
         <p className="text-xs text-fg4 mt-3">
           {hiddenFields.length === 1
