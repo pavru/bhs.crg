@@ -3,6 +3,7 @@ using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Settings;
 using BHS.CRG.Modules.Tables;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -311,6 +312,10 @@ public sealed class CostsModule : IAppModule
         // Раздел модуля в диалоге закрытия периода (E1b, issue #1099): что войдёт в закрытый период
         // и что не завершено. Спрашивает его служба закрытия ядра.
         services.AddScoped<IModuleClosingReport, CostsClosingReport>();
+
+        // Смена допуска расхождения пишет книгу запертым счетам (E2, issue #1100, spec v3.3 п. 1.9). Зовёт
+        // ядро — из адреса настроек, двумя фиксациями, и при старте: выровнять то, что сорвалось между ними.
+        services.AddScoped<IModuleSettingChange, ToleranceChange>();
     }
 
     /// <summary>
