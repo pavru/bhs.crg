@@ -72,10 +72,18 @@ public sealed class InvoiceBookEntry : IAppendOnly
 
     public Guid? AuthorId { get; private set; }
 
+    /// <summary>
+    /// Имя автора НА МОМЕНТ ЗАПИСИ — как в журнале действий: книга — история, и переименование человека
+    /// её не переписывает. Читать имя по <see cref="AuthorId" /> модулю нечем, а запись, сделанная до
+    /// этого поля (PR 6b-2 E2), имени не знает — история показывает её прочерком. У служебных записей
+    /// (открытие, страховочное выравнивание внутри чужой записи) имени нет нарочно: их пишет не человек.
+    /// </summary>
+    public string? AuthorName { get; private set; }
+
     public DateTimeOffset At { get; private set; }
 
     public static InvoiceBookEntry Create(
-        Guid invoiceId, int seq, BookRecord record, Guid? author, string? reason, int? version) => new()
+        Guid invoiceId, int seq, BookRecord record, Guid? author, string? authorName, string? reason, int? version) => new()
     {
         Id = Guid.CreateVersion7(),
         InvoiceId = invoiceId,
@@ -86,6 +94,7 @@ public sealed class InvoiceBookEntry : IAppendOnly
         Reason = reason,
         Version = version,
         AuthorId = author,
+        AuthorName = authorName,
         At = DateTimeOffset.UtcNow,
     };
 
@@ -105,6 +114,7 @@ public sealed class InvoiceBookEntry : IAppendOnly
         entry.Property(e => e.Reason).HasColumnName("reason");
         entry.Property(e => e.Version).HasColumnName("version");
         entry.Property(e => e.AuthorId).HasColumnName("author_id");
+        entry.Property(e => e.AuthorName).HasColumnName("author_name");
         entry.Property(e => e.At).HasColumnName("at");
 
         // Две записи с одним номером — два продолжения одной книги от одного «до»: отказ ключом.

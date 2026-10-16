@@ -72,6 +72,10 @@ public sealed record InvoiceView(
     InvoiceDueView Due,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
+    // Сколько записей в книге проводок счёта (E2, PR 6b-2): больше нуля — у формы есть секция
+    // «Исправления», и историю она читает своим адресом (`…/book`). Число, а не признак: та же
+    // запись в книгу двигает и версию, так что история перечитывается вместе с формой.
+    int Book,
     // Что запомнилось ЭТИМ сохранением строк (issue #1079). Есть только в ответе сохранения строк:
     // чтение счёта о запоминании не знает, и ноль там читался бы как «ничего не запомнилось».
     InvoiceMatchMemory? Memory = null);
@@ -202,7 +206,8 @@ public static class InvoiceViews
             invoice.State == InvoiceState.Draft && payment.LockedBy is null ? readiness.Gaps : null),
         due,
         invoice.CreatedAt,
-        invoice.UpdatedAt);
+        invoice.UpdatedAt,
+        invoice.BookSeq);
 
     /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
     /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть

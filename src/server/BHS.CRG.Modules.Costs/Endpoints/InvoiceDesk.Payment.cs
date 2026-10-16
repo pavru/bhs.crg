@@ -60,7 +60,7 @@ public sealed partial class InvoiceDesk
             last => new BookChange(paid ? InvoiceBookKind.Payment : InvoiceBookKind.Unpayment,
                 Before(tolerance), tolerance, after, tolerance,
                 last is { } t && t != tolerance ? Before(t) : null),
-            boundaries, await clock.TodayAsync(ct), new BookAuthor(user.Id, reason), ct);
+            boundaries, await clock.TodayAsync(ct), BookAuthor.Of(user, reason), ct);
         await db.SaveChangesAsync(ct);
     }
 }

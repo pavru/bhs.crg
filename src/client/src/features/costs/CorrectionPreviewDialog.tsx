@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Check, ChevronDown, ChevronRight, CircleHelp, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, RefreshCw, TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { apiError } from '@/shared/utils/apiError';
-import { formatDate, formatMoney } from '@/shared/format/format';
-import type { CorrectionLineView, CorrectionPreview, CorrectionRecordView } from '@/shared/api/invoiceCorrection';
-import { correctionRows, serviceRecords, signed, type PreviewRow } from './correction';
-import { placeName, usePlaces, type Places } from './places';
+import { formatDate } from '@/shared/format/format';
+import type { CorrectionPreview, CorrectionRecordView } from '@/shared/api/invoiceCorrection';
+import { correctionRows, plainRows, serviceRecords } from './correction';
+import { usePlaces, type Places } from './places';
+import { BookLines } from './BookLines';
 
 /**
  * Предпросмотр исправления (E2, issue #1100, PR 6b-1): что запишет исправление — день, версия и строки
@@ -112,49 +112,9 @@ function ServiceRecord({ record, places }: { record: CorrectionRecordView; place
       </button>
       {open && (
         <div className="mt-2">
-          <BookLines places={places}
-            rows={record.lines.map((line, i): PreviewRow => ({ kind: 'line', key: `${record.kind}-${i}`, line }))} />
+          <BookLines places={places} rows={plainRows(record.kind, record.lines)} />
         </div>
       )}
     </div>
   );
-}
-
-function BookLines({ rows, places }: { rows: PreviewRow[]; places: Places }) {
-  const line = (row: PreviewRow): CorrectionLineView | null => (row.kind === 'line' ? row.line : null);
-  const columns: DataGridColumn<PreviewRow>[] = [
-    { key: 'place', label: 'Куда', cell: row => { const l = line(row); return l ? where(l, places) : null; } },
-    { key: 'day', label: 'День', cell: row => { const l = line(row); return l ? formatDate(l.day) : null; } },
-    {
-      key: 'gross', label: 'С НДС ±', align: 'right',
-      cell: row => { const l = line(row); return l ? <span className="tabular-nums">{signed(l.gross, formatMoney)}</span> : null; },
-    },
-    {
-      key: 'net', label: 'Без НДС ±', align: 'right',
-      cell: row => {
-        const l = line(row);
-        if (!l) return null;
-        return (
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            {l.vatUnknown && (
-              <span title="НДС неизвестен: сумма без НДС не посчитана точно" className="text-warning">
-                <CircleHelp size={12} aria-label="НДС неизвестен" />
-              </span>
-            )}
-            {signed(l.net, formatMoney)}
-          </span>
-        );
-      },
-    },
-  ];
-  return (
-    <DataGrid density="compact" rows={rows} rowKey={row => row.key} columns={columns}
-      section={row => (row.kind === 'group' ? row.title : null)} />
-  );
-}
-
-/** Куда ляжет строка: стройка (с разделом) или статья; без цели — остаток счёта. */
-function where(line: CorrectionLineView, places: Places): string {
-  if (!line.constructionId && !line.articleId) return 'Не разнесено (остаток счёта)';
-  return placeName({ construction: line.constructionId, section: line.sectionId, article: line.articleId }, places);
 }

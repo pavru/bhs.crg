@@ -301,6 +301,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("author_id");
 
+                    b.Property<string>("AuthorName")
+                        .HasColumnType("text")
+                        .HasColumnName("author_name");
+
                     b.Property<DateOnly>("Day")
                         .HasColumnType("date")
                         .HasColumnName("day");

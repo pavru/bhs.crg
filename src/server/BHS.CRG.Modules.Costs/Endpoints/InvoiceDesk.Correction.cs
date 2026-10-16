@@ -106,7 +106,7 @@ public sealed partial class InvoiceDesk
                 var appended = await InvoiceBook.AppendAsync(db, invoice,
                     last => new BookChange(InvoiceBookKind.Correction, before, tolerance, after, tolerance,
                         last is { } t && t != tolerance ? MoneyAt(t) : null),
-                    boundaries, today, new BookAuthor(user.Id, body.Reason, number), ct);
+                    boundaries, today, BookAuthor.Of(user, body.Reason, number), ct);
 
                 var done = new CorrectionDone(invoice, number, appended.Records,
                     InvoiceBookPosting.Stamp(appended.Records), changed, dueWas);

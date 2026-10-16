@@ -278,6 +278,11 @@ export interface InvoiceView {
   due?: { manual: boolean; byRule: string | null; supplierDeferral?: number | null };
   createdAt: string;
   updatedAt: string;
+  /**
+   * Записей в книге проводок счёта (E2, PR 6b-2): больше нуля — у формы есть секция «Исправления».
+   * Старый сервер поля не присылает — секции нет.
+   */
+  book?: number;
   /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */
   memory?: InvoiceMatchMemory | null;
 }
@@ -450,7 +455,7 @@ export const scansRunning = (items: InvoiceListItem[] | undefined): string[] =>
   (items ?? []).filter(i => i.recognition?.state === 'running').map(i => i.id);
 
 /** Чтение счёта — одно на обычный запрос и на перечитывание после отказа: ключ и адрес не разойдутся. */
-function invoiceQuery(id: string | undefined) {
+export function invoiceQuery(id: string | undefined) {
   return {
     queryKey: [QK, id] as const,
     queryFn: () => apiClient.get<InvoiceView>(`/costs/invoices/${id}`).then(r => r.data),
