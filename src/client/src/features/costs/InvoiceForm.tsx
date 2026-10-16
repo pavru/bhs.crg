@@ -284,7 +284,7 @@ export function InvoiceForm({
           <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
             onRetryRead={watch.retry} canEdit={canEdit} />
         )}
-        <LostReferencesNote view={view} locked={gone ? 'gone' : closed ? 'closed' : null} />
+        <LostReferencesNote view={view} locked={gone ? 'gone' : closed && !correcting ? (correctable ? 'correct' : 'closed') : null} />
         <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
         {scanSlot}
 

@@ -71,7 +71,7 @@ public sealed class CostsClosingReport(
         {
             Money = [.. i.Money.Where(m => m.AccountingOn is { } day && scope.ClosesAnew(m.Part?.ConstructionId, day))],
         })];
-        CostFigure Money(IReadOnlyList<CostMoney> of) => SiteCosts.Of(of, first, scope.Through, site, withVat: true).Total;
+        CostFigure Money(IReadOnlyList<CostMoney> of) => Locking(of, first, scope.Through, site);
 
         // Не завершено: счёт не разобран либо у него остался неразнесённый остаток. Остаток — только
         // положительный: отрицательный — копеечная поправка к деньгам долей (строки чуть больше суммы к
@@ -189,6 +189,20 @@ public sealed class CostsClosingReport(
     }
 
     private static readonly JsonSerializerOptions LinkJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>
+    /// Число строки диалога: каждый счёт, чьи деньги лежат в этих днях (у стройки — на ней), и с нулевой
+    /// суммой тоже (ревью PR #1392). Строки диалога говорят, что ЗАПРЁТСЯ, а запрётся и счёт «+500 и −500», и
+    /// исправление «−120 и +120». Правило отчёта «нулевой в строке не считается» (`SiteCosts.Of`) — о чтении
+    /// строки, не о замке: возьми его диалог, такой счёт не попал бы ни в одну строку и запирался бы молча.
+    /// Деньги — те же, что у отчёта, с НДС.
+    /// </summary>
+    public static CostFigure Locking(IEnumerable<CostMoney> money, DateOnly first, DateOnly through, Guid? site)
+    {
+        var inside = money.Where(m => m.Grain.Day >= first && m.Grain.Day <= through
+                                      && (site is null || m.Grain.Cell.Target?.ConstructionId == site)).ToList();
+        return new(inside.Select(m => m.Invoice).Distinct().Count(), inside.Sum(m => m.Grain.Gross));
+    }
 
     /// <summary>
     /// Какие счета запрутся. Запирается счёт целиком и по ЛЮБОЙ закрытой учётной дате — и с долей без

@@ -59,6 +59,33 @@ public partial class InvoicePaymentTests
     }
 
     /// <summary>
+    /// «Без позиции номенклатуры сейчас» во взгляде закрытия — число ПЕРВОГО взгляда, как его найдёт реестр
+    /// (PR 6c; ревью PR #1392): клиент ставит его указателем вместо «из них». В первом взгляде поля нет.
+    /// </summary>
+    [Fact]
+    public async Task Без_позиции_сейчас_во_взгляде_закрытия_число_первого_взгляда()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var invoice = await CreateAsync(admin, complete: true);
+        var view = await LinesAsync(admin, invoice, [Line(null, 10, 100)]);
+        var (site, _) = await SiteAsync("Без позиции сейчас");
+        await AllocateAsync(admin, invoice, LineId(view, 1), [Part(site, quantity: 10)]);
+        await OkAsync(await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(admin, invoice, "Итого", 1_000m) }));
+        await PayAsync(admin, invoice, today, await PreviewAsync(admin, invoice, today), null);
+        var range = $"site={site}&from={today:yyyy-MM}&to={today:yyyy-MM}";
+
+        var corrected = await admin.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?{range}");
+        var closing = await admin.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?{range}&view=closing");
+
+        Assert.Equal((1, 1_000m), (corrected.GetProperty("unmatched").GetProperty("invoices").GetInt32(),
+            corrected.GetProperty("unmatched").GetProperty("amount").GetDecimal()));
+        Assert.Equal(JsonValueKind.Null, corrected.GetProperty("unmatchedNow").ValueKind);
+        Assert.Equal(corrected.GetProperty("unmatched").GetRawText(), closing.GetProperty("unmatchedNow").GetRawText());
+    }
+
+    /// <summary>
     /// «Затраты по стройке» — два взгляда (spec п. 1.7): по умолчанию «с исправлениями», как реестр;
     /// <c>view=closing</c> — по книге. Полоса знает, чем они различаются; ссылка у строки «на момент
     /// закрытия» — только под числом, которое покажет реестр.
@@ -103,7 +130,6 @@ public partial class InvoicePaymentTests
         Assert.Equal(0m, Amount(closing.GetProperty("other")));
         // «Без позиции сейчас» — только во взгляде закрытия (PR 6c): в первом под итогом стоит «из них».
         Assert.Equal(JsonValueKind.Null, corrected.GetProperty("unmatchedNow").ValueKind);
-        Assert.True(closing.TryGetProperty("unmatchedNow", out _));
         // Список «Счета» помечает счёт с книгой исправлений (PR 6c).
         var listed = (await admin.GetFromJsonAsync<JsonElement>("/api/costs/invoices"))
             .EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice);
