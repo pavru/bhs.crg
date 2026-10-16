@@ -15,6 +15,12 @@
 //   3. `locked-invoice-says-why` — оплаченный счёт, попавший в закрытый период: полоса с причиной,
 //      кнопок сохранения и отмены оплаты нет вовсе (а не «есть и получают 409»), и ни один запрос
 //      экрана отказа не получил.
+//   4. `admin-corrects-locked-invoice` — исправление запертого счёта (E2, issue #1100, PR 6b-1): без
+//      причины проверка не нажимается, у строк нет своей кнопки записи, предпросмотр называет день
+//      исправления, запись проходит без отказов, и сервер хранит ровно набранное — в шапке и в строке.
+//      ⚠️ Под АДМИНИСТРАТОРОМ прогона, а не под бухгалтером: входы всех наборов CI уже упираются в предел
+//      частоты (`suites.test.mjs`), и второй вход здесь сделал бы красным соседний набор. Кто видит кнопку
+//      («Бухгалтер» — да, «Руководитель» — нет), проверяет `mayCorrect` модульно.
 //
 // ⚠️ ЗАКРЫТИЕ ПЕРИОДА ЗДЕСЬ — ТОЛЬКО СВОЕЙ СТРОЙКИ, И ОНО ОТМЕНЯЕТСЯ. База прогонов общая на все
 // наборы, и закрытие компании осталось бы соседям. Стройка прогона своя (заводится один раз), закрытие
@@ -26,6 +32,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -360,6 +367,54 @@ await check('locked-invoice-says-why', async () => {
   try { await api('PUT', `/costs/invoices/${lockedId}`, { requisites: { ...view.requisites, 'Назначение': 'правка' } }); }
   catch (e) { error = e.message; }
   if (!error || !/409/.test(error) || !/заперт/.test(error)) throw new Error(`сервер правку запертого счёта не отверг: ${error}`);
+});
+
+// ── 4. Исправление запертого счёта (E2, issue #1100, PR 6b-1) ──────────────────────────────────────────
+await check('admin-corrects-locked-invoice', async () => {
+  const refused = [];
+  const listen = r => { if (r.status() >= 400 && r.url().includes('/api/')) refused.push(`${r.status()} ${r.url()}`); };
+  page.on('response', listen);
+  try {
+    await open(lockedNumber);
+    await page.getByRole('button', { name: 'Исправить', exact: true }).click();
+    const bar = page.getByTestId('correction-bar');
+    await bar.waitFor({ timeout: 10_000 });
+    const verify = bar.getByRole('button', { name: 'Проверить исправление…' });
+    if (await verify.isEnabled()) throw new Error('проверка доступна без причины и правок');
+
+    await page.getByLabel('Назначение', { exact: true }).fill('исправлено прогоном');
+    // И строку: у неё своей записи в исправлении нет — набранное обязано уехать тем же телом.
+    await page.getByLabel('Примечание, строка 1').fill('примечание исправления');
+    if (await page.getByRole('button', { name: 'Сохранить строки', exact: true }).count())
+      throw new Error('в исправлении у строк осталась своя кнопка записи');
+    await bar.getByLabel(/Причина исправления/).fill('опечатка в назначении');
+    await verify.click();
+
+    const dialog = page.getByRole('dialog');
+    await dialog.getByText(/Исправление ляжет днём/).waitFor({ timeout: 10_000 });
+    const text = await dialog.innerText();
+    if (!text.includes(`днём ${ru(today)}`)) throw new Error(`предпросмотр не назвал день исправления ${ru(today)}: ${text.slice(0, 300)}`);
+    if (!/Деньги не меняются/.test(text)) throw new Error(`правка назначения показана как движение денег: ${text.slice(0, 300)}`);
+
+    const written = page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${lockedId}/correction`)
+      && r.request().method() === 'POST');
+    await dialog.getByRole('button', { name: 'Записать исправление' }).click();
+    const response = await written;
+    if (!response.ok()) throw new Error(`запись исправления отказала: ${response.status()} ${await response.text()}`);
+    await page.getByText(/Исправление записано: версия 1 ушла в историю/).waitFor({ timeout: 10_000 });
+    if (await page.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
+    if (refused.length) throw new Error(`экран исправления получил отказы: ${refused.join('; ')}`);
+  } finally {
+    page.off('response', listen);
+  }
+
+  // Сервер хранит ровно набранное, и счёт по-прежнему заперт: исправление закрытый месяц не открывает.
+  const view = await api('GET', `/costs/invoices/${lockedId}`);
+  if (view.requisites['Назначение'] !== 'исправлено прогоном')
+    throw new Error(`назначение после исправления — «${view.requisites['Назначение']}»`);
+  if (view.lines[0]?.note !== 'примечание исправления')
+    throw new Error(`примечание строки после исправления — «${view.lines[0]?.note}»: строки не уехали с исправлением`);
+  if (view.payment.lockedBy === null) throw new Error('после исправления счёт перестал быть запертым');
 });
 
 }

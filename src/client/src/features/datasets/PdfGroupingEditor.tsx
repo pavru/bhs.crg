@@ -161,7 +161,7 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
   }, [fileId, pageIndex]);
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} extraWide nothingToLose>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} wide nothingToLose>
       {failed ? (
         <p className="text-sm text-danger py-10 text-center">Не удалось загрузить изображение листа.</p>
       ) : !url ? (

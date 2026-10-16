@@ -122,7 +122,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
   ];
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Соответствия наименований" extraWide>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Соответствия наименований" wide>
       <p className="text-xs text-fg3 mb-3">
         Что система запомнила: какую позицию номенклатуры вы выбирали строке поставщика. Следующий счёт
         того же поставщика получает эту позицию сам. Появляются соответствия сами — при сохранении строк счёта.

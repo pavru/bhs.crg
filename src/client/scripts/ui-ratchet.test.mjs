@@ -26,6 +26,19 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({ palette: 4 });
   });
 
+  /** Тело окна обычно живёт в своём файле, без `<Modal` в тексте (ревью PR #1386). */
+  it('своя ширина — классом и в style, в любом файле экрана', () => {
+    expect(countViolations('<div className="space-y-4 min-w-[520px]"> <p className="max-w-[18rem] w-[600px] md:min-w-[30rem]">'))
+      .toEqual({ 'fixed-width': 4 });
+    expect(countViolations('<span style={{ width: \'120px\' }} /> <div style={{ minWidth: 520 }} />'))
+      .toEqual({ 'fixed-width': 2 });
+  });
+
+  it('шкала, доля и высота своей шириной не считаются', () => {
+    expect(countViolations('min-w-0 max-w-lg w-36 max-w-[45%] w-[calc(100%-1rem)] h-[70vh] max-h-[55vh] style={{ width: pct }}'))
+      .toEqual({});
+  });
+
   it('токены и чёрно-белые слои палитрой не считаются', () => {
     expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
       .toEqual({});

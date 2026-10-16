@@ -429,7 +429,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       <LinkPickerModal open={pickerOpen} onClose={closePicker} allDocTypes={allDocTypes}
         scope={pickerScope.scope} scopeId={pickerScope.scopeId} materials={pickerRows} onPick={handlePick} />
 
-      <Modal open={viewDoc !== null} onOpenChange={o => { if (!o) setViewDoc(null); }} title="Документ качества" extraWide>
+      <Modal open={viewDoc !== null} onOpenChange={o => { if (!o) setViewDoc(null); }} title="Документ качества" wide>
         {viewDoc && (
           <QualityDocForm allDocTypes={allDocTypes} scope={viewDoc.scope} scopeId={viewDoc.scopeId ?? null}
             initial={viewDoc} onSaved={() => setViewDoc(null)} onCancel={() => setViewDoc(null)} />

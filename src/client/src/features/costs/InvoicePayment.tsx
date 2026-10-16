@@ -46,6 +46,10 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
       <Lock size={14} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
+        {/* Путь исправления (E2, PR 6b-1) называем тому, у кого есть кнопка «Исправить», — остальным он закрыт. */}
+        {can.permission('costs.invoice.edit') && can.permission('costs.invoice.correct') && (
+          <> Изменить их можно исправлением — кнопкой «Исправить»: оно ляжет в книгу, закрытый месяц не изменится.</>
+        )}
         {/* Отмена оплаты такому счёту — с правом исправления (E2, issue #1100): она ложится в книгу
             исправлений днём отмены, закрытый месяц не трогая. Без права её нет вовсе — молчим о ней. */}
         {can.permission('costs.invoice.pay') && can.permission('costs.invoice.correct') && (
