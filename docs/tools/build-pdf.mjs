@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { dirname, resolve, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { marked } from 'marked';
+import { headings } from './toc.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DOCS = resolve(HERE, '..');
@@ -82,6 +83,22 @@ function footer(title) {
   </div>`;
 }
 
+// Якоря заголовков (issue #1374): без них ссылки содержания в PDF вели бы в никуда — marked id не
+// ставит. Берутся из toc.mjs по порядку заголовков, тем же правилом, что у GitHub, — одна ссылка
+// работает в обоих местах. Разойдись разбор marked и toc.mjs (заголовок, который видит один и не видит
+// другой), — отказ сборки, а не PDF со съехавшими ссылками.
+let anchors = [];
+marked.use({
+  renderer: {
+    heading({ tokens, depth, text }) {
+      const next = anchors.shift();
+      if (!next || next.text !== text)
+        throw new Error(`Заголовок «${text}» не совпал с разбором toc.mjs («${next?.text ?? 'нет'}») — якоря съехали бы.`);
+      return `<h${depth} id="${next.anchor}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+    },
+  },
+});
+
 const chromium = await loadChromium();
 mkdirSync(OUT, { recursive: true });
 
@@ -106,6 +123,7 @@ for (const [file, title] of jobs) {
   const cover = `<div class="doc-title"><div class="t">${title}</div>
     <div class="s">Система исполнительной документации BHS.CRG</div>
     <div class="d">Версия документа: ${new Date().toISOString().slice(0, 10)}</div></div>`;
+  anchors = headings(md);
   const html = htmlTemplate(title, cover + marked.parse(md));
 
   // Временный HTML рядом с документом — чтобы относительные пути к images/ работали.
@@ -123,6 +141,9 @@ for (const [file, title] of jobs) {
     headerTemplate: '<span></span>',
     footerTemplate: footer(title),
     margin: { top: '16mm', bottom: '16mm', left: '16mm', right: '14mm' },
+    // Закладки просмотрщика — по заголовкам; строятся из размеченного (tagged) PDF.
+    tagged: true,
+    outline: true,
   });
   await page.close();
   rmSync(tmp, { force: true });
