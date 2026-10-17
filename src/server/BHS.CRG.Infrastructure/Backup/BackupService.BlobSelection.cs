@@ -12,8 +12,84 @@ public partial class BackupService
     /// <param name="TakenByScan">Пути, которые нашёл только обход: список мест о них не знает.</param>
     /// <param name="LeftInText">Строки, где ссылка на файл записана внутри текста, а файла в копии нет;
     /// ключи у каждой — только невзятые.</param>
+    /// <param name="Holders">Все пути, которые уезжают в архив, и чей каждый из них.</param>
+    /// <param name="Addresses">Поле манифеста, где обход встретил путь первым, — у путей точной формы.</param>
     private sealed record BlobSelection(
-        HashSet<string> Paths, IReadOnlyList<CoreFileHit> TakenByScan, IReadOnlyList<CoreFileHit> LeftInText);
+        Dictionary<string, BlobHolder> Holders, IReadOnlyList<CoreFileHit> TakenByScan,
+        IReadOnlyList<CoreFileHit> LeftInText, IReadOnlyDictionary<string, string> Addresses)
+    {
+        /// <summary>
+        /// Пути архива — ключи <see cref="Holders" />, а не второе множество: архив, оценка веса и
+        /// проверка восстановления обязаны видеть один и тот же состав.
+        /// </summary>
+        public IReadOnlyCollection<string> Paths => Holders.Keys;
+    }
+
+    /// <summary>Чей файл — от этого зависит, что сказать восстановлению, если его нет.</summary>
+    private enum BlobHolderKind
+    {
+        /// <summary>Поле записи (вложение, файл набора, найденное обходом) — общий случай.</summary>
+        Record,
+
+        /// <summary>Файл набора данных — сырьё, из которого набор читается и режется.</summary>
+        DataSetFile,
+
+        /// <summary>Часть PDF-набора, вырезанная разбиением (issue #1399), — вырезается заново из
+        /// файла набора, если он есть.</summary>
+        DataSetPart,
+
+        /// <summary>Сформированный PDF документа — формируется заново.</summary>
+        Generated,
+
+        /// <summary>Скан документа качества — и есть сам документ.</summary>
+        QualityScan,
+
+        /// <summary>Ассет шаблона: шрифт, графика.</summary>
+        TemplateAsset,
+
+        /// <summary>Файл модуля: о нём говорит модуль (<c>IModuleSchemaBackup</c>).</summary>
+        Module,
+    }
+
+    /// <param name="DataSetFileId">Набор — у <see cref="BlobHolderKind.DataSetFile" /> и
+    /// <see cref="BlobHolderKind.DataSetPart" />.</param>
+    private sealed record BlobHolder(BlobHolderKind Kind, Guid? DataSetFileId = null)
+    {
+        public static readonly BlobHolder Record = new(BlobHolderKind.Record);
+        public static readonly BlobHolder Generated = new(BlobHolderKind.Generated);
+        public static readonly BlobHolder QualityScan = new(BlobHolderKind.QualityScan);
+        public static readonly BlobHolder TemplateAsset = new(BlobHolderKind.TemplateAsset);
+        public static readonly BlobHolder Module = new(BlobHolderKind.Module);
+        public static BlobHolder FileOf(Guid fileId) => new(BlobHolderKind.DataSetFile, fileId);
+        public static BlobHolder PartOf(Guid fileId) => new(BlobHolderKind.DataSetPart, fileId);
+    }
+
+    /// <summary>Пути списка мест вместе с хозяевами — накопитель <see cref="ExtractBlobPaths" />.</summary>
+    private sealed class BlobHolders
+    {
+        private readonly HashSet<string> batch = new(StringComparer.Ordinal);
+
+        public Dictionary<string, BlobHolder> Of { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Поле записи — самый общий хозяин и уступает любому другому: скан, на который сослались ещё и
+        /// из реквизитов, остаётся сканом. Прочие — кто первым назвал.
+        /// </summary>
+        public void Add(string path, BlobHolder holder)
+        {
+            if (!Of.TryGetValue(path, out var had) ||
+                had.Kind == BlobHolderKind.Record && holder.Kind != BlobHolderKind.Record)
+                Of[path] = holder;
+        }
+
+        /// <summary>Пути, которые собрал <paramref name="collect" />, — за одним хозяином.</summary>
+        public void Add(BlobHolder holder, Action<HashSet<string>> collect)
+        {
+            batch.Clear();
+            collect(batch);
+            foreach (var path in batch) Add(path, holder);
+        }
+    }
 
     /// <summary>
     /// Все файлы, которые уезжают с этим манифестом, — одно место для архива, оценки веса и паспорта
@@ -45,12 +121,12 @@ public partial class BackupService
     /// <param name="warnings">Куда сказать о данных, пути из которых список прочесть не смог.</param>
     private static BlobSelection SelectBlobs(BackupManifest manifest, List<string> warnings)
     {
-        var paths = ExtractBlobPaths(manifest, warnings);
+        var holders = ExtractBlobPaths(manifest, warnings);
         var found = CoreFileScan.Scan(manifest, JsonOptions);
 
         var exactKeys = new HashSet<string>(StringComparer.Ordinal);
         var anyKeys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var path in paths)
+        foreach (var path in holders.Keys)
             if (BlobPathShape.Inspect(path) is { } listed)
             {
                 anyKeys.UnionWith(listed.Keys);
@@ -61,7 +137,7 @@ public partial class BackupService
         foreach (var hit in found.Exact)
             if (exactKeys.Add(hit.Hit.Keys[0]))
             {
-                paths.Add(hit.Text);
+                holders.TryAdd(hit.Text, BlobHolder.Record);
                 anyKeys.Add(hit.Hit.Keys[0]);
                 taken.Add(hit);
             }
@@ -73,7 +149,10 @@ public partial class BackupService
             .Where(h => h.Hit.Keys.Count > 0)
             .ToList();
 
-        return new BlobSelection(paths, taken, left);
+        var addresses = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var hit in found.Exact) addresses.TryAdd(hit.Text, hit.Address);
+
+        return new BlobSelection(holders, taken, left, addresses);
     }
 
     /// <summary>
