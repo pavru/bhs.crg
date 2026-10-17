@@ -156,13 +156,20 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
-    /// Оценка не завышает на битых ссылках. Экспорт недоступный блоб пропускает с предупреждением —
-    /// значит и веса он не добавляет; но молчать о нём тоже нельзя: битая ссылка иначе не всплывёт
-    /// нигде, кроме лога экспорта.
+    /// Оценка не завышает на битых ссылках. Экспорт недоступный блоб пропускает с предупреждением и
+    /// записи в архиве не заводит — значит и веса он не добавляет, ни байтами, ни заголовком; но
+    /// молчать о нём тоже нельзя: битая ссылка иначе не всплывёт нигде, кроме лога экспорта.
+    ///
+    /// Сверяем с настоящим архивом, а не только счётчики: заголовок записи прибавлялся и пропавшему
+    /// файлу (issue #1425), и счётчики этого не видели — оценка расходилась с архивом на 3,6 КБ при
+    /// десяти пропавших. Пропавших берём несколько и с длинными именами: заголовок одного весит
+    /// ~160 байт и в допуск 256 прошёл бы.
     /// </summary>
     [Fact]
     public async Task EstimateSize_CountsMissingBlobsSeparately_AndDoesNotChargeForThem()
     {
+        var missingPaths = Enumerable.Range(1, 4)
+            .Select(i => $"quality/2026/сертификат-которого-нет-в-хранилище-{i}.pdf").ToList();
         var docTypeId = Guid.NewGuid();
         using (var scope = fixture.Services.CreateScope())
         {
@@ -171,20 +178,33 @@ public partial class BackupServiceTests
                 docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
                 JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
                 false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
-            db.QualityDocuments.Add(QualityDocument.Restore(
-                Guid.NewGuid(), docTypeId, "Сертификат без файла", JsonDocument.Parse("{}"),
-                CatalogScope.System, null, QualityDocSource.Manual, null,
-                "quality/2026/pointer-to-nowhere.pdf", "нет.pdf", "application/pdf",
-                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            foreach (var path in missingPaths)
+                db.QualityDocuments.Add(QualityDocument.Restore(
+                    Guid.NewGuid(), docTypeId, "Сертификат без файла", JsonDocument.Parse("{}"),
+                    CatalogScope.System, null, QualityDocSource.Manual, null,
+                    path, "нет.pdf", "application/pdf",
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             await db.SaveChangesAsync();
         }
 
-        using var estimateScope = fixture.Services.CreateScope();
-        var estimate = await Backup(estimateScope).EstimateSizeAsync(limitBytes: 500L * 1024 * 1024);
+        BackupSizeEstimate estimate;
+        long actualBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var svc = Backup(scope);
+            estimate = await svc.EstimateSizeAsync(limitBytes: 500L * 1024 * 1024);
 
-        Assert.Equal(1, estimate.Variant.BlobCount);
-        Assert.Equal(1, estimate.Variant.MissingBlobCount);
+            var (zipStream, _) = await svc.ExportAsync();
+            await using var _zipHandle = zipStream;
+            actualBytes = zipStream.Length;
+        }
+
+        Assert.Equal(missingPaths.Count, estimate.Variant.BlobCount);
+        Assert.Equal(missingPaths.Count, estimate.Variant.MissingBlobCount);
         Assert.Equal(0, estimate.Variant.BlobBytes);
+        var diff = Math.Abs(estimate.Variant.TotalBytes - actualBytes);
+        Assert.True(diff < 256,
+            $"оценка {estimate.Variant.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
     }
 
     /// <summary>

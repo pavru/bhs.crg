@@ -270,14 +270,19 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         var missing = 0;
         foreach (var path in paths)
         {
-            overhead += EntryOverhead($"blobs/{path}");
             // Размер каждого блоба спрашиваем один раз на обе оценки: конфигурационные файлы
             // входят в обе, и повторный HEAD по каждому из них удвоил бы стоимость запроса.
             if (!sizes.TryGetValue(path, out var size))
                 sizes[path] = size = await blob.GetSizeAsync(path, ct);
-            // Недоступный блоб экспорт пропускает с предупреждением - оценка считает его так же.
+            // Недоступный блоб экспорт пропускает с предупреждением и записи в архиве не заводит -
+            // оценка считает его так же, вместе с заголовком: до issue #1425 заголовок шёл за
+            // каждый путь, и десять пропавших файлов завышали оценку на 3,6 КБ.
             if (size is null) missing++;
-            else blobBytes += size.Value;
+            else
+            {
+                blobBytes += size.Value;
+                overhead += EntryOverhead($"blobs/{path}");
+            }
         }
 
         // Паспорт копии (issue #831) - вторая JSON-запись архива. Считаем её тем же Deflate: без
