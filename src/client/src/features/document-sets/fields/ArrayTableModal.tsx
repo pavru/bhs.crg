@@ -1,5 +1,7 @@
 /**
- * Таблица массива отдельным окном: обёртка со стойкими ширинами колонок и тело.
+ * Таблица массива отдельным окном: обёртка со стойкими ширинами колонок и тело. Массив, стоящий
+ * сам в окне (поле составного в окне), открывает таблицу шагом этого окна (`WindowStep`, issue #1384),
+ * и вставка из Excel над ней — тоже шагом.
  *
  * <p>Выделено из `ComplexFields.tsx` (issue #1014). Опирается только на ячейки
  * (`./ComplexCells`); на редакторы полей не ссылается, поэтому цикла здесь нет.</p>
@@ -7,7 +9,8 @@
 import { useState } from 'react';
 import { Clipboard, GripVertical, Trash2 } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { ModalExit } from '@/shared/ui/Modal';
+import { WindowStep } from '@/shared/ui/WindowStep';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
@@ -244,7 +247,7 @@ function ArrayTableModalBody({
   ];
 
   return (
-    <Modal open onOpenChange={onOpenChange}
+    <WindowStep onBack={() => onOpenChange(false)}
       title={`${compositeType?.name ?? field.title} — таблица`}
       wide isDirty={edited}
       footer={
@@ -290,6 +293,6 @@ function ArrayTableModalBody({
           setRowIds(prev => [...prev, ...newRows.map(() => newLocalId())]);
         }}
       />
-    </Modal>
+    </WindowStep>
   );
 }
