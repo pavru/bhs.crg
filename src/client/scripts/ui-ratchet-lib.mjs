@@ -61,7 +61,93 @@ export const RULES = [
     count: countNativeTitles,
     instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки (docs/UI.md, «Подсказка»)',
   },
+  {
+    id: 'chip',
+    // Свой чип (#1416): нажимаемая пилюля — rounded-full с полями по бокам (px-…) или aria-pressed у
+    // нативного элемента. Компоненты (Button, Chip) рисуют пилюлю сами и не считаются: правило
+    // смотрит только элементы разметки.
+    count: text => countElements(text, isChip),
+    instead: 'чип-переключатель и отбор — Chip (shared/ui/Chip: selected, count, tone, onRemove); режим внутри панели — Tabs variant="segmented" (docs/UI.md, «Язык формы», #1416)',
+  },
+  {
+    id: 'badge',
+    // Своя пометка состояния (#1416): пилюля без нажатия — span или div с rounded-full и фоном или рамкой.
+    // Круги заданного размера (аватар, точка, спиннер, полоса загрузки) — не пометки: у них w-/h-/size-.
+    count: text => countElements(text, isBadge),
+    instead: 'пометка состояния — StatusBadge (shared/ui/StatusBadge): tone по смыслу — neutral, brand, success, warning, danger, quiet; bordered на заливке (docs/UI.md, «Язык формы»)',
+  },
+  {
+    id: 'icon-button',
+    // Своя кнопка из одной иконки (#1417): нативный <button>, единственный ребёнок которого — компонент
+    // (значок lucide). IconButton даёт ей размер не меньше 32 px, имя для скринридера и подсказку.
+    count: text => countElements(text, isIconButton),
+    instead: 'кнопка из одной иконки — IconButton (shared/ui/Button: значок ребёнком, label — имя для скринридера, size sm|md|lg — 32/36/40 px, danger); с подписью — Button variant="text" (docs/UI.md, «Узкий экран»: кнопка-иконка не меньше 32 px)',
+  },
+  {
+    id: 'tabs',
+    // Свои вкладки по ARIA (#1416): role="tab" / "tablist" / "tabpanel" у элемента разметки. Их клавиатуру
+    // (стрелки, Home/End, ручная активация) Tabs уже делает — второй раз её пишут с ошибками.
+    count: text => countElements(text, isTabRole),
+    instead: 'вкладки — Tabs + TabPanel (shared/ui/Tabs): underline для разделов, segmented для режима; стрелки и ручную активацию компонент делает сам (docs/UI.md, «Язык формы»)',
+  },
 ];
+
+// Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения
+// className целиком. Модификаторы (hover:bg-…) — не основной вид: пилюля без своего фона только
+// подсвечивается при наведении и пометкой не выглядит.
+const PILL = /(?<![\w-])rounded-full\b/;
+const SIZED = /(?<![\w-])(?:(?:w|h|size)-(?:\d|\[|px\b)|inset-)/;
+const SIDE_PADDING = /(?<![\w:-])px-/;
+const SURFACE = /(?<![\w:/-])(?:bg-(?!transparent\b)|border(?![\w-]*(?:-0|-none|-transparent)\b))/;
+const INTERACTIVE = new Set(['button', 'a', 'label']);
+const PLAIN = new Set(['span', 'div', 'p', 'small', 'em', 'strong', 'mark', 'li']);
+
+function isChip({ tag, cls, attrs }) {
+  if (!INTERACTIVE.has(tag)) return false;
+  return attrs.has('aria-pressed') || (PILL.test(cls) && SIDE_PADDING.test(cls) && !SIZED.test(cls));
+}
+
+function isBadge({ tag, cls }) {
+  return PLAIN.has(tag) && PILL.test(cls) && SURFACE.test(cls) && !SIZED.test(cls);
+}
+
+function isIconButton({ tag, element, sf }) {
+  if (tag !== 'button' || !ts.isJsxElement(element)) return false;
+  const kids = element.children.filter(c => !(ts.isJsxText(c) && !c.text.trim()));
+  return kids.length === 1 && ts.isJsxSelfClosingElement(kids[0]) && /^[A-Z]/.test(kids[0].tagName.getText(sf));
+}
+
+function isTabRole({ attrs }) {
+  return /^["'{`]*(?:tab|tablist|tabpanel)["'}`]*$/.test(attrs.get('role') ?? '');
+}
+
+// Четыре правила подряд читают один и тот же файл — дерево разбирается однажды.
+let parsed = { text: null, sf: null };
+function parse(text) {
+  if (parsed.text !== text) parsed = { text, sf: ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX) };
+  return parsed.sf;
+}
+
+/** Сколько элементов разметки (тег со строчной буквы) подходят под `match`. */
+function countElements(text, match) {
+  if (!text.includes('<')) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const visit = node => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tag = node.tagName.getText(sf);
+      if (/^[a-z]/.test(tag)) {
+        const attrs = new Map(node.attributes.properties.filter(ts.isJsxAttribute)
+          .map(p => [p.name.getText(sf), p.initializer?.getText(sf) ?? '']));
+        const element = ts.isJsxSelfClosingElement(node) ? node : node.parent;
+        if (match({ tag, cls: attrs.get('className') ?? '', attrs, element, sf })) n++;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
 
 /** Подсказка — полный текст самой строки: `title` совпадает с её содержимым. */
 function repeatsContent(init, element) {
@@ -76,7 +162,7 @@ function repeatsContent(init, element) {
 /** Нативные `title` у элементов разметки — кроме законных (см. правило `native-title`). */
 function countNativeTitles(text) {
   if (!text.includes('title')) return 0;
-  const sf = ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sf = parse(text);
   let n = 0;
   const visit = node => {
     if (ts.isJsxAttribute(node) && node.name.getText(sf) === 'title') {

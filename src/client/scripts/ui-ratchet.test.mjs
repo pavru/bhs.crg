@@ -58,6 +58,43 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({ 'native-title': 1 });
   });
 
+  /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusBadge, IconButton, Tabs. */
+  it('свой чип: нажимаемая пилюля или aria-pressed', () => {
+    expect(countViolations([
+      '<button className={`px-2 py-1 rounded-full ${on ? "bg-brand-subtle" : ""}`}>Только новые</button>',
+      '<button aria-pressed={on} onClick={go}>Таблица</button>',
+    ].join(' '))).toEqual({ chip: 2 });
+  });
+
+  it('своя пометка: пилюля с фоном или рамкой', () => {
+    expect(countViolations([
+      '<span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3">строка</span>',
+      '<span className={`rounded-full border px-1.5 ${cls}`}>внеш. документ</span>',
+    ].join(' '))).toEqual({ badge: 2 });
+  });
+
+  it('круг заданного размера, подсветка наведением и компоненты пилюлями не считаются', () => {
+    expect(countViolations([
+      '<span className="w-2 h-2 rounded-full bg-brand" /> <div className="h-1.5 rounded-full bg-muted" />',
+      '<div className="absolute inset-0 rounded-full bg-muted" />',
+      '<span className="px-2 rounded-full hover:bg-muted">наведи</span>',
+      '<Chip selected>Все</Chip> <StatusBadge tone="success">Оплачен</StatusBadge> <Button>Сохранить</Button>',
+    ].join(' '))).toEqual({});
+  });
+
+  it('своя кнопка из одной иконки — но не кнопка с подписью', () => {
+    expect(countViolations([
+      '<button type="button" onClick={close}>\n  <X size={16} />\n</button>',
+      '<button type="button"><Plus size={14} /> Добавить</button>',
+      '<IconButton label="Закрыть" onClick={close}><X size={16} /></IconButton>',
+    ].join(' '))).toEqual({ 'icon-button': 1 });
+  });
+
+  it('свои вкладки по ARIA', () => {
+    expect(countViolations('<div role="tablist"><button role="tab" aria-selected={on}>A</button></div> <div role="option" />'))
+      .toEqual({ tabs: 2 });
+  });
+
   it('токены и чёрно-белые слои палитрой не считаются', () => {
     expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
       .toEqual({});
