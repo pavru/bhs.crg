@@ -53,7 +53,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
     const actions: Cmd[] = [
       { id: 'theme-light',  label: 'Тема: светлая',   section: 'Действия', icon: Sun,     run: () => setTheme('light') },
       { id: 'theme-dark',   label: 'Тема: тёмная',    section: 'Действия', icon: Moon,    run: () => setTheme('dark') },
-      { id: 'theme-system', label: 'Тема: системная', section: 'Действия', icon: Monitor, run: () => setTheme('system') },
+      { id: 'theme-system', label: 'Тема: авто (как в системе)', section: 'Действия', icon: Monitor, run: () => setTheme('system') },
       { id: 'logout',       label: 'Выйти',           section: 'Действия', icon: LogOut,  run: () => leave(logout) },
     ];
     return [...nav, ...actions];
