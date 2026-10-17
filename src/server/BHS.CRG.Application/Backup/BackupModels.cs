@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Application.Backup;
 
@@ -429,6 +430,18 @@ public record BackupSizeVariant(
     long BlobBytes,
     int BlobCount,
     int MissingBlobCount);
+
+/// <summary>
+/// Вес копии не оценить: хранилище файлов отказало в ответе (issue #1427).
+///
+/// Род — конфликт, как у недоступного Typst: запрос правильный, не пускает состояние стенда. Отказ
+/// вместо числа нарочно: прежде лежащее хранилище давало оценку «все файлы пропали» — крошечную
+/// копию с предупреждением о битых ссылках, которых нет.
+/// </summary>
+public class BackupSizeUnknownException(Exception inner) : ConflictException(
+    "Оценить вес копии нельзя: хранилище файлов отказало в запросе размера — оно недоступно, не " +
+    "принимает ключ доступа или в нём нет указанного бакета. Причина записана в журнал сервера. " +
+    "Копия, снятая сейчас, вышла бы без этих файлов.", inner);
 
 public record RestoreReport(
     bool Success,

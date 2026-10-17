@@ -3,7 +3,7 @@ import { useServerForm } from '@/shared/hooks/useServerForm';
 
 /** Значение как есть — когда серверный кусок и есть форма. */
 const asIs = <T,>(x: T): T => x;
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download, Info, Loader2, RotateCcw,
   Trash2, Upload, XCircle,
@@ -14,7 +14,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { formatBytes } from '@/shared/api/attachments';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  downloadBackupFile, fetchBackupSize, uploadBackupFile,
+  downloadBackupFile, uploadBackupFile,
   useBackupFiles, useBackupJob, useCreateBackup, useDeleteBackupFile, useRestoreFromFile,
   useSaveBackupSchedule,
 } from '@/shared/api/backup';
@@ -23,6 +23,7 @@ import type {
 } from '@/shared/api/types';
 import { formatDateTime, formatDayTime } from '@/shared/format/format';
 import { CollapsibleSection } from './CollapsibleSection';
+import { BackupSizeLine } from './BackupSizeLine';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -50,69 +51,6 @@ export function BackupSection() {
       </p>
       <BackupFilesPanel />
     </CollapsibleSection>
-  );
-}
-
-// ─── Вес копии против предела загрузки через браузер ──────────────────────────
-
-/**
- * Сколько весит копия ВЫБРАННОГО состава и на каком пороге её откажется принять ЗАГРУЗКА через
- * браузер (issue #711, #833).
- *
- * Считается по требованию и только для выбранного состава: полный манифест — это все объекты с их
- * данными и все источники наборов вместе с разобранным кэшем, и держать его в памяти сервера ради
- * строки на экране настроек можно лишь тогда, когда именно этот состав человек и выбрал.
- *
- * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого.
- */
-function BackupSizeLine({ scope }: { scope: BackupScope }) {
-  const { data, isPending, isError } = useQuery({
-    queryKey: ['backup', 'size', scope],
-    queryFn: () => fetchBackupSize(scope),
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
-
-  if (isPending) return <p className="text-xs text-fg4">Размер копии оценивается…</p>;
-  // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
-  if (isError || !data) return <p className="text-xs text-fg4">Размер копии оценить не удалось.</p>;
-
-  const variant = data.variant;
-  const exceedsUploadLimit = variant.totalBytes > data.limitBytes;
-
-  return (
-    <div className="space-y-1">
-      <p className="text-xs text-fg3">
-        Размер копии ≈ <b>{formatBytes(variant.totalBytes)}</b>
-        {variant.blobCount > 0 && <> · файлов: {variant.blobCount}</>}
-      </p>
-      {/*
-        Предел касается ТОЛЬКО браузерной загрузки: копия сверх него снимается и восстанавливается
-        по-прежнему — просто переносится файлом. Сказать об этом надо заранее: с полным составом
-        (умолчание) перерасти предел стало обычным делом, и узнать о нём при попытке загрузить
-        копию на новый сервер значит узнать в середине переезда.
-      */}
-      {exceedsUploadLimit && (
-        <p className="text-xs text-warning flex items-start gap-1">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
-          <span>
-            Копия крупнее {formatBytes(data.limitBytes)} — через браузер её не загрузить. Для
-            переноса кладите файл в каталог на сервере (путь показан ниже); скачивать и загружать
-            такую копию вкладкой браузера не стоит.
-          </span>
-        </p>
-      )}
-      {variant.missingBlobCount > 0 && (
-        <p className="text-xs text-warning flex items-start gap-1">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
-          <span>
-            Файлов нет в хранилище: {variant.missingBlobCount}. В копию они не попадут — ссылки на
-            них останутся битыми и после восстановления.
-          </span>
-        </p>
-      )}
-    </div>
   );
 }
 

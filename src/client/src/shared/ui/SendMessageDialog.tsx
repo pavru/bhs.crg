@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { Checkbox } from './Checkbox';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useSendEmail } from '@/shared/api/users';
 import { apiError } from '@/shared/utils/apiError';
@@ -64,7 +65,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
                 const ok = validEmail(c.email);
                 return (
                   <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${ok ? 'cursor-pointer hover:bg-base' : 'opacity-60'}`}>
-                    <input type="checkbox" checked={selected.has(c.id)} disabled={!ok} onChange={() => toggle(c.id)} />
+                    <Checkbox size="sm" checked={selected.has(c.id)} disabled={!ok} onChange={() => toggle(c.id)} />
                     <span className="text-fg1 flex-1 min-w-0 truncate">{c.displayName || c.email}</span>
                     <span className="text-xs text-fg4 min-w-0 truncate">{c.email || '—'}</span>
                     {!ok && <AlertTriangle size={13} className="text-warning shrink-0" />}

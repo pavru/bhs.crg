@@ -21,7 +21,6 @@ namespace BHS.CRG.Tests.Integration;
 public partial class BackupServiceTests
 {
     private const string RecordsLackFiles = "В копии нет файлов, на которые ссылаются записи";
-    private const string StorageCaveat = "О ненайденных файлах";
 
     /// <summary>
     /// Проверка срабатывает: файлов нет ни в архиве, ни в хранилище — отчёт называет число, поле и
@@ -51,7 +50,6 @@ public partial class BackupServiceTests
             w.Contains(RecordsLackFiles) && w.Contains("CommonDataEntries[].Data (2)") &&
             w.Contains("1 из них лежат в полях, которые версия, снявшая копию, не обходила") &&
             w.Contains("снимите копию заново") && w.Contains("Остальных не было в хранилище"));
-        Assert.Contains(report.Warnings, w => w.StartsWith(StorageCaveat));
     }
 
     /// <summary>
@@ -134,11 +132,42 @@ public partial class BackupServiceTests
         await DropStoredAsync(path);
         await fixture.ResetDatabaseAsync();
         var complete = await ImportZipAsync(zipBytes);
-        Assert.DoesNotContain(complete.Warnings, w => w.Contains(RecordsLackFiles) || w.StartsWith(StorageCaveat));
+        Assert.DoesNotContain(complete.Warnings, w => w.Contains(RecordsLackFiles));
 
         // Поверх живой системы, где файл уже на месте: архив без него — и всё равно молчание.
         var survived = await ImportZipAsync(AsOldCopy(WithoutEntries(zipBytes, [$"blobs/{path}"])));
-        Assert.DoesNotContain(survived.Warnings, w => w.Contains(RecordsLackFiles) || w.StartsWith(StorageCaveat));
+        Assert.DoesNotContain(survived.Warnings, w => w.Contains(RecordsLackFiles));
+    }
+
+    /// <summary>
+    /// Хранилище недоступно во время восстановления — отчёт говорит «проверить не удалось», а не
+    /// объявляет файлы потерянными (issue #1427).
+    ///
+    /// <para>Прежде отказ хранилища выглядел отсутствием файла, и отчёт называл потерянным файл, который
+    /// лежит на месте; спасала его только оговорка в конце отчёта «на недоступность оно отвечает так же».
+    /// Файл здесь уцелел на этой установке — пропасть ему нечем, недоступна только связь.</para>
+    /// </summary>
+    [Fact]
+    public async Task StorageUnreachable_DuringRestore_SaysCheckFailed_NotLost()
+    {
+        var (path, _) = await StoreAsync("подпись.png");
+        await SeedRecordWithDataAsync(new { Подпись = path });
+        var zipBytes = AsOldCopy(WithoutEntries(await ExportAsync(BackupScope.Full), [$"blobs/{path}"]));
+
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+        RestoreReport report;
+        try
+        {
+            storage.Offline = true;
+            report = await ImportZipAsync(zipBytes);
+        }
+        finally { storage.Offline = false; }
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains(RecordsLackFiles));
+        Assert.Contains(report.Warnings, w =>
+            w.Contains("проверить, на месте ли файлы, на которые они ссылаются, не удалось") &&
+            w.Contains("хранилище файлов отказало в ответе"));
     }
 
     /// <summary>
@@ -171,7 +200,6 @@ public partial class BackupServiceTests
         Assert.Contains(report.Warnings, w => w.StartsWith("Ассеты шаблонов: 1") && w.Contains("загрузите ассеты"));
         Assert.Contains(report.Warnings, w => w.StartsWith("Сформированные PDF документов: 1") && w.Contains("сформируйте"));
         Assert.DoesNotContain(report.Warnings, w => w.Contains(RecordsLackFiles));
-        Assert.Contains(report.Warnings, w => w.StartsWith(StorageCaveat));
     }
 
     /// <summary>
@@ -202,7 +230,7 @@ public partial class BackupServiceTests
         var report = await ImportManifestZipAsync(manifest);
 
         Assert.Equal(1, report.QualityDocumentsCreated);
-        Assert.DoesNotContain(report.Warnings, w => w.Contains("скан не восстановлен") || w.StartsWith(StorageCaveat));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("скан не восстановлен"));
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────

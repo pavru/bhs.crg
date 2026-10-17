@@ -288,8 +288,20 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         var missing = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
         {
-            var size = await blob.GetSizeAsync(path, ct);
-            // Недоступный блоб экспорт пропускает с предупреждением и записи в архиве не заводит -
+            // null — только «объекта нет»; отказ хранилища — отказ оценки (issue #1427), а не копия,
+            // в которой пропало всё. Даже отказ по одному объекту: хранилище, отказывающее в файле,
+            // — то, что администратор обязан увидеть до копии, а не в её паспорте после. Ловится
+            // только отказ хранилища: сбой базы в реестре хранилищем не назван и уходит как есть.
+            long? size;
+            try { size = await blob.GetSizeAsync(path, ct); }
+            catch (BlobStorageUnavailableException ex)
+            {
+                // Человеку — наш текст, причина (403, бакета нет, обрыв) — только здесь: отказ 409
+                // в журнал не пишет никто, и без этой строки отличить ключ от лежащего порта нечем.
+                logger.LogWarning(ex, "Оценка веса копии: хранилище отказало в размере объекта {BlobPath}", path);
+                throw new BackupSizeUnknownException(ex);
+            }
+            // Отсутствующий блоб экспорт пропускает с предупреждением и записи в архиве не заводит -
             // оценка считает его так же, вместе с заголовком: до issue #1425 заголовок шёл за
             // каждый путь, и десять пропавших файлов завышали оценку на 3,6 КБ.
             if (size is null) missing.Add(path);
