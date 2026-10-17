@@ -80,9 +80,11 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             bufferSize: 81920, FileOptions.Asynchronous);
 
-        var blobPaths = ExtractBlobPaths(manifest, warnings);
+        var selection = SelectBlobs(manifest, warnings);
+        LogScanFindings(selection);
+        var blobPaths = selection.Paths;
         var summary = BuildSummary(manifest, blobPaths.Count, warnings);
-        var missingBlobs = 0;
+        var missingBlobs = new HashSet<string>(StringComparer.Ordinal);
 
         using (var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -95,29 +97,42 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             var done = 0;
             foreach (var blobPath in blobPaths)
             {
+                // Пропуском прощается только отказ ОТКРЫТЬ файл в хранилище, и под catch стоит одно
+                // это: запись в архиве заводится после, так что пропущенный файл не оставляет в
+                // архиве ничего. На этом держится оценка веса (MeasureAsync): нет файла — нет ни
+                // байтов, ни заголовка (issue #1425). Отказ посреди переноса в архив пропуском не
+                // считается и роняет экспорт: запись к тому времени заведена, и обрезанный файл
+                // восстановление выдало бы за целый.
+                Stream? blobStream = null;
                 try
                 {
-                    // await using, а не голый вызов: поток от хранилища держит соединение, и до
-                    // issue #687 их было по числу ассетов шаблона — единицы. Теперь их по числу
-                    // сертификатов в библиотеке, и неосвобождённые ответы исчерпают пул соединений
-                    // клиента MinIO — экспорт не упадёт, а повиснет, что разбирать заметно труднее.
-                    await using var blobStream = await blob.DownloadAsync(blobPath, ct);
-                    var entry = zip.CreateEntry($"blobs/{blobPath}", CompressionLevel.NoCompression);
-                    await using var ew = entry.Open();
-                    await blobStream.CopyToAsync(ew, ct);
+                    blobStream = await blob.DownloadAsync(blobPath, ct);
                 }
                 catch (Exception ex)
                 {
                     // Blob missing in storage — skip, DB reference kept intact
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
-                    missingBlobs++;
+                    missingBlobs.Add(blobPath);
                 }
+
+                // await using, а не голый вызов: поток от хранилища держит соединение, и до
+                // issue #687 их было по числу ассетов шаблона — единицы. Теперь их по числу
+                // сертификатов в библиотеке, и неосвобождённые ответы исчерпают пул соединений
+                // клиента MinIO — экспорт не упадёт, а повиснет, что разбирать заметно труднее.
+                if (blobStream is not null)
+                    await using (blobStream)
+                    {
+                        var entry = zip.CreateEntry($"blobs/{blobPath}", CompressionLevel.NoCompression);
+                        await using var ew = entry.Open();
+                        await blobStream.CopyToAsync(ew, ct);
+                    }
 
                 done++;
                 if (progress is not null) await progress(done, blobPaths.Count);
             }
 
-            if (missingBlobs > 0) warnings.Add(MissingBlobsWarning(missingBlobs, blobPaths.Count));
+            WarnAboutScan(selection, missingBlobs, warnings);
+            if (missingBlobs.Count > 0) warnings.Add(MissingBlobsWarning(missingBlobs.Count, blobPaths.Count));
 
             // Паспорт пишем ПОСЛЕДНИМ, хотя читается он первым: до конца прогона по блобам не
             // известно, чего в хранилище не оказалось, а поле «что пропущено» заведено именно
@@ -250,7 +265,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         var manifest = await BuildManifestAsync(scope, warnings, ct);
         return new BackupSizeEstimate(
             scope.ToString(),
-            await MeasureAsync(manifest, new Dictionary<string, long?>(StringComparer.Ordinal), warnings, ct),
+            await MeasureAsync(manifest, warnings, ct),
             limitBytes);
     }
 
@@ -258,28 +273,31 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
     /// <param name="warnings">Предупреждения, собранные при построении манифеста; сюда же ложатся
     /// предупреждения сбора путей и пропавших файлов — в том порядке, что у настоящей копии.</param>
     private async Task<BackupSizeVariant> MeasureAsync(
-        BackupManifest manifest, Dictionary<string, long?> sizes, List<string> warnings, CancellationToken ct)
+        BackupManifest manifest, List<string> warnings, CancellationToken ct)
     {
         var counter = new CountingStream();
         await using (var deflate = new DeflateStream(counter, CompressionLevel.Fastest, leaveOpen: true))
             await JsonSerializer.SerializeAsync(deflate, manifest, JsonOptions, ct);
         var manifestBytes = counter.Written;
 
-        var paths = ExtractBlobPaths(manifest, warnings);
+        var selection = SelectBlobs(manifest, warnings);
+        var paths = selection.Paths;
         var overhead = EntryOverhead("manifest.json") + EntryOverhead(BackupFileStore.SummaryEntryName);
 
         long blobBytes = 0;
-        var missing = 0;
+        var missing = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
         {
-            overhead += EntryOverhead($"blobs/{path}");
-            // Размер каждого блоба спрашиваем один раз на обе оценки: конфигурационные файлы
-            // входят в обе, и повторный HEAD по каждому из них удвоил бы стоимость запроса.
-            if (!sizes.TryGetValue(path, out var size))
-                sizes[path] = size = await blob.GetSizeAsync(path, ct);
-            // Недоступный блоб экспорт пропускает с предупреждением - оценка считает его так же.
-            if (size is null) missing++;
-            else blobBytes += size.Value;
+            var size = await blob.GetSizeAsync(path, ct);
+            // Недоступный блоб экспорт пропускает с предупреждением и записи в архиве не заводит -
+            // оценка считает его так же, вместе с заголовком: до issue #1425 заголовок шёл за
+            // каждый путь, и десять пропавших файлов завышали оценку на 3,6 КБ.
+            if (size is null) missing.Add(path);
+            else
+            {
+                blobBytes += size.Value;
+                overhead += EntryOverhead($"blobs/{path}");
+            }
         }
 
         // Паспорт копии (issue #831) - вторая JSON-запись архива. Считаем её тем же Deflate: без
@@ -287,7 +305,8 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         // проверяется с точностью до сотен байт - то есть разъехалось бы сразу и молча. Считаем
         // ПОСЛЕ размеров файлов, как и копия пишет паспорт последним: о пропавших файлах тоже
         // говорит паспорт.
-        if (missing > 0) warnings.Add(MissingBlobsWarning(missing, paths.Count));
+        WarnAboutScan(selection, missing, warnings);
+        if (missing.Count > 0) warnings.Add(MissingBlobsWarning(missing.Count, paths.Count));
         var summaryCounter = new CountingStream();
         await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
             await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count, warnings)), ct);
@@ -298,7 +317,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             ManifestBytes: manifestBytes,
             BlobBytes: blobBytes,
             BlobCount: paths.Count,
-            MissingBlobCount: missing);
+            MissingBlobCount: missing.Count);
     }
 
     private async Task<BackupManifest> BuildManifestAsync(

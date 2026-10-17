@@ -28,6 +28,13 @@ public class FakeBlobStorage : IBlobStorage
     /// </summary>
     public bool FailDeletes { get; set; }
 
+    /// <summary>
+    /// Путь, чьё содержимое обрывается посреди чтения: открыть файл удаётся, а дочитать — нет
+    /// (issue #1425). Так ведёт себя хранилище, оборвавшее соединение после первых байтов.
+    /// <para>Сбрасывать обязательно (<c>try/finally</c>): подделка — синглтон на всю коллекцию.</para>
+    /// </summary>
+    public string? BreakBodyOf { get; set; }
+
     /// <summary>Сколько файлов выгружено за жизнь подделки — чтобы проверить, что отказ пришёл ДО выгрузки.</summary>
     public int Uploads => _uploads;
     private int _uploads;
@@ -49,7 +56,7 @@ public class FakeBlobStorage : IBlobStorage
     public Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
     {
         if (_store.TryGetValue(blobPath, out var bytes))
-            return Task.FromResult<Stream>(new MemoryStream(bytes));
+            return Task.FromResult<Stream>(blobPath == BreakBodyOf ? new BrokenBodyStream(bytes) : new MemoryStream(bytes));
         // Не доменный отказ намеренно (issue #691): отсутствующий файл — это битая ссылка, то есть
         // дефект, а не то, что пользователь может исправить. Настоящее хранилище тоже отвечает здесь
         // своим исключением, и подделка должна вести себя так же.
@@ -73,6 +80,31 @@ public class FakeBlobStorage : IBlobStorage
     public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
         => Task.FromResult(!Offline && _store.TryGetValue(blobPath, out var bytes)
             ? bytes.LongLength : (long?)null);
+
+    /// <summary>Отдаёт первую половину файла и обрывается — см. <see cref="BreakBodyOf" />.</summary>
+    private sealed class BrokenBodyStream(byte[] bytes) : Stream
+    {
+        private bool _sent;
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_sent) throw new IOException("Хранилище оборвало соединение посреди файла");
+            _sent = true;
+            var n = Math.Min(count, Math.Max(1, bytes.Length / 2));
+            Array.Copy(bytes, 0, buffer, offset, n);
+            return n;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
 
     /// <summary>Для тестов best-effort очистки осиротевших blob'ов — проверить, что путь реально удалён/не существовал.</summary>
     public bool Exists(string blobPath) => _store.ContainsKey(blobPath);
