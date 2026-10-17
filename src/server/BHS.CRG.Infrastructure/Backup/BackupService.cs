@@ -78,7 +78,9 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             bufferSize: 81920, FileOptions.Asynchronous);
 
-        var blobPaths = ExtractBlobPaths(manifest, warnings);
+        var selection = SelectBlobs(manifest, warnings);
+        LogScanFindings(selection);
+        var blobPaths = selection.Paths;
         var summary = BuildSummary(manifest, blobPaths.Count, warnings);
         var missingBlobs = 0;
 
@@ -263,7 +265,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             await JsonSerializer.SerializeAsync(deflate, manifest, JsonOptions, ct);
         var manifestBytes = counter.Written;
 
-        var paths = ExtractBlobPaths(manifest, warnings);
+        var paths = SelectBlobs(manifest, warnings).Paths;
         var overhead = EntryOverhead("manifest.json") + EntryOverhead(BackupFileStore.SummaryEntryName);
 
         long blobBytes = 0;
