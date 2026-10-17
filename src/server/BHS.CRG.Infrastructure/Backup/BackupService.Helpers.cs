@@ -100,43 +100,47 @@ public partial class BackupService
     /// Файлы хранилища, которые копия знает по месту: список, выписанный руками. Архив, оценка веса и
     /// паспорт берут пути не отсюда, а из <see cref="SelectBlobs" />: к списку там добавляется обход
     /// манифеста по форме пути — он находит то, о чём список не знает (issue #1422).
+    ///
+    /// <para>У каждого пути записано, чей он (<see cref="BlobHolder" />): о файле, которого нет,
+    /// восстановление говорит словами его места — скан, часть набора, сформированный PDF, — а не одним
+    /// «файла нет» (<see cref="WarnAboutMissingFilesAsync" />).</para>
     /// </summary>
     /// <param name="warnings">Куда сказать о данных, пути из которых прочесть не удалось.</param>
-    private static HashSet<string> ExtractBlobPaths(BackupManifest manifest, List<string> warnings)
+    private static Dictionary<string, BlobHolder> ExtractBlobPaths(BackupManifest manifest, List<string> warnings)
     {
-        var paths = new HashSet<string>(StringComparer.Ordinal);
+        var holders = new BlobHolders();
         foreach (var e in manifest.CommonDataEntries)
-            CollectBlobPaths(e.Data, paths);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(e.Data, paths));
         foreach (var e in manifest.CatalogEntities)
-            CollectBlobPaths(e.Data, paths);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(e.Data, paths));
         // Файлы ассетов шаблонов (issue #403) — графика/шрифты в blob-хранилище.
         foreach (var a in manifest.TemplateAssets ?? [])
-            if (!string.IsNullOrEmpty(a.BlobPath)) paths.Add(a.BlobPath);
+            if (!string.IsNullOrEmpty(a.BlobPath)) holders.Add(a.BlobPath, BlobHolder.TemplateAsset);
         // Сканы документов качества (issue #687). Скан — не иллюстрация к документу, а он сам:
         // библиотека без сканов не подтверждает ничего, и переносить её метаданными было бы
         // переносом пустых карточек. Реквизиты обходим тем же сборщиком — там могут лежать
         // вложения (тот же формат, что у реквизитов экземпляра документа).
         foreach (var q in manifest.QualityDocuments ?? [])
         {
-            if (!string.IsNullOrEmpty(q.ScanBlobPath)) paths.Add(q.ScanBlobPath);
-            CollectBlobPaths(q.Requisites, paths);
+            if (!string.IsNullOrEmpty(q.ScanBlobPath)) holders.Add(q.ScanBlobPath, BlobHolder.QualityScan);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(q.Requisites, paths));
         }
         // Проектные данные (issue #833).
         foreach (var d in manifest.Documents ?? [])
         {
-            CollectBlobPaths(d.Data, paths);
-            foreach (var f in d.GeneratedFiles) paths.Add(f.BlobPath);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(d.Data, paths));
+            foreach (var f in d.GeneratedFiles) holders.Add(f.BlobPath, BlobHolder.Generated);
         }
         // Файл набора данных - то самое сырьё, из которого документы и собираются. У системных
         // наборов блоба нет вовсе: их сырьё - данные самой системы, а в BlobPath лежит сентинел.
         foreach (var f in manifest.DataSetFiles ?? [])
         {
-            if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") paths.Add(f.BlobPath);
+            if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") holders.Add(f.BlobPath, BlobHolder.Record);
             // Части альбома по ГОСТ (issue #1399): каждая группа-документ режется в свой под-PDF, и
             // путь к нему лежит в разбиении набора. До #1399 копия их не уносила вовсе — отчёт писал
             // «восстановлено N из N», а генерация после восстановления молча выдавала документы без
             // вложений: части в реестре файлов уже не значились.
-            CollectGroupingParts(f, paths, warnings);
+            holders.Add(BlobHolder.PartOf(f.Id), paths => CollectGroupingParts(f, paths, warnings));
         }
         // Те же части глазами реестра «Документы»: генерация берёт путь вложения ИМЕННО отсюда —
         // колонкой ФайлПуть, через файловый маппинг привязки, — а не из разбиения. Сегодня строки —
@@ -148,13 +152,14 @@ public partial class BackupService
         // (Excel, CSV), и его значения — текст пользователя, а не пути нашего хранилища.
         foreach (var s in manifest.DataSetSources ?? [])
             if (s.SheetOrPath == PdfProfiles.GostDocumentsMarker)
-                CollectRowFilePaths(s, paths, warnings);
+                holders.Add(BlobHolder.PartOf(s.FileId), paths => CollectRowFilePaths(s, paths, warnings));
         // Файлы модулей (issue #1261): сканы счетов. Перечень собран при снятии строк модуля —
         // IModuleSchemaBackup: колонки модуля ядро не знает, а путь в его строках находит обход. Сюда
         // он приходит готовым, чтобы архив, оценка веса и паспорт брали пути из одного места.
         foreach (var m in manifest.ModuleData ?? [])
-            paths.UnionWith(m.Files ?? []);
-        return paths;
+            foreach (var path in m.Files ?? [])
+                holders.Add(path, BlobHolder.Module);
+        return holders.Of;
     }
 
     /// <summary>

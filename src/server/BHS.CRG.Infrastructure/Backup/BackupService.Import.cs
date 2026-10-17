@@ -33,7 +33,6 @@ public partial class BackupService
 
         string? conversionNotice = null;
         var warnings = new List<string>();
-        var restoredBlobPaths = new HashSet<string>(StringComparer.Ordinal);
 
         if (manifest.SchemaVersion > CurrentSchemaVersion)
             warnings.Add($"Резервная копия создана в более новой версии системы (schema v{manifest.SchemaVersion}). Часть данных могла быть пропущена.");
@@ -45,7 +44,7 @@ public partial class BackupService
         // Restore blobs first (before DB, so references are valid on use)
         var blobEntries = zip.Entries.Where(e => e.FullName.StartsWith("blobs/", StringComparison.OrdinalIgnoreCase)).ToList();
         // Всё, что лежит в архиве, — положенное и то, что положить не удалось: о втором отчёт говорит
-        // ниже сам, и проверка файлов модулей не должна звать его «в копии нет».
+        // ниже сам, и проверки файлов не должны звать его «в копии нет».
         var archived = blobEntries.Select(e => e.FullName["blobs/".Length..]).ToHashSet(StringComparer.Ordinal);
         int blobsRestored = 0;
         foreach (var entry in blobEntries)
@@ -60,7 +59,6 @@ public partial class BackupService
                     await es.CopyToAsync(entryMs, ct);
                 entryMs.Position = 0;
                 await blob.PutAsync(blobPath, entryMs, contentType, ct);
-                restoredBlobPaths.Add(blobPath);
                 blobsRestored++;
             }
             catch (Exception ex)
@@ -124,7 +122,7 @@ public partial class BackupService
             // После типов документов: подтип сертификата — обычный тип, и без него документ качества
             // не показать.
             await RestoreQualityDocumentsAsync(
-                manifest.QualityDocuments ?? [], restoredBlobPaths,
+                manifest.QualityDocuments ?? [],
                 manifest.IncludesProjectData == true, stats, warnings, ct);
             // Наборы данных: файл → источники → привязки. Привязка адресует и источник, и объект-
             // владельца, поэтому идёт последней из трёх и после документов с общими данными.
@@ -176,8 +174,8 @@ public partial class BackupService
         // База зафиксирована: дальше только слова отчёта. Вне try нарочно — отказ или отмена здесь
         // не «ошибка восстановления», и откат уже зафиксированной транзакции бросил бы сам, превратив
         // восстановленную базу в отказ запроса без отчёта.
+        await WarnAboutMissingFilesAsync(manifest, archived, warnings, ct);
         await WarnAboutModuleFilesAsync(restoredModules, archived, warnings, ct);
-        await WarnAboutDataSetPartsAsync(manifest, archived, warnings, ct);
 
         return new RestoreReport(true, conversionNotice, warnings,
             stats.DocumentTypesCreated, stats.DocumentTypesUpdated,
