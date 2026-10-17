@@ -24,7 +24,7 @@ namespace BHS.CRG.Tests.Integration;
 public partial class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => DropDataSetFilesAsync();
 
     private const string AssetBlobPath = "assets/logo.png";
     private static readonly byte[] AssetBytes = [1, 2, 3, 4, 5];

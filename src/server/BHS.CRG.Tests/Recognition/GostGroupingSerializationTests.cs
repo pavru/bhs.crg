@@ -77,4 +77,48 @@ public class GostGroupingSerializationTests
         Assert.False(parsed!.ManuallyEdited);
         Assert.Single(parsed.Groups);
     }
+
+    /// <summary>
+    /// Пути частей из JSON — те же, что даёт полный разбор (ревью PR #1408): два чтения одного
+    /// знания обязаны сходиться.
+    /// </summary>
+    [Fact]
+    public void ReadPartPaths_MatchesFullParse()
+    {
+        var data = new GostGroupingData(
+        [
+            new GostGroupingGroup(GostGroupKind.Cover, null, null, [new GostGroupingPage(0, new Dictionary<string, string?>())]),
+            new GostGroupingGroup(GostGroupKind.Document, "01-ЭМ", "Схема", [new GostGroupingPage(1, new Dictionary<string, string?>())],
+                BlobPath: "bhs-crg/2026/10/17/00000000-0000-0000-0000-000000000001_01.pdf"),
+            new GostGroupingGroup(GostGroupKind.Document, "02-ЭМ", "План", [new GostGroupingPage(2, new Dictionary<string, string?>())],
+                BlobPath: ""),
+        ], ManuallyEdited: false);
+        var json = JsonSerializer.Serialize(data);
+
+        Assert.Equal(GostGroupingSerialization.PartPaths(GostGroupingSerialization.Parse(json)),
+            GostGroupingSerialization.ReadPartPaths(json));
+    }
+
+    /// <summary>
+    /// Разбиение чужой формы путей не даёт и не роняет: на нём полный разбор падает исключениями,
+    /// которых фильтр копии не ждал (ревью PR #1408). Прежний формат частей не знал вовсе.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("""{"Groups":null}""")]
+    [InlineData("""{"Groups":[null, 1, "x", {"BlobPath": 5}]}""")]
+    [InlineData("""{"Documents":[{"PageIndices":[1.5]}]}""")]
+    public void ReadPartPaths_OddShape_IsEmpty(string? json)
+    {
+        Assert.Empty(GostGroupingSerialization.ReadPartPaths(json)!);
+    }
+
+    /// <summary>Не JSON или не объект — «не прочитано», а не «частей нет»: копия назовёт набор.</summary>
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{не json")]
+    public void ReadPartPaths_Unreadable_IsNull(string json)
+    {
+        Assert.Null(GostGroupingSerialization.ReadPartPaths(json));
+    }
 }
