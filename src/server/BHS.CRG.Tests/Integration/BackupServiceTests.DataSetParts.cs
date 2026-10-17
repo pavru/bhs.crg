@@ -240,8 +240,7 @@ public partial class BackupServiceTests
 
         Assert.Contains(summary.Warnings ?? [], w => w.Contains("разбиение на документы не прочитано"));
         Assert.Contains(summary.Warnings ?? [], w => w.Contains("не оказалось в хранилище"));
-        var diff = Math.Abs(estimate.Variant.TotalBytes - actualBytes);
-        Assert.True(diff < 256, $"оценка {estimate.Variant.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+        AssertEstimateMatchesArchive(estimate.Variant.TotalBytes, actualBytes);
     }
 
     /// <summary>
