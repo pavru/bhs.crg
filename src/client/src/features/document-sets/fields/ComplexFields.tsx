@@ -44,6 +44,7 @@ import { ArrayTableModal } from './ArrayTableModal';
 import {
   isRowEmpty, filledVariants, overfilledNote, isVariantFilled, unionSummary,
 } from './complexFieldHelpers';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Модульная пустышка для дефолта пропа: инлайновый `= []` — новый массив на каждый рендер. */
 const EMPTY_ENUM_TYPES: EnumTypeDef[] = [];
@@ -261,30 +262,31 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)}
           aria-label={`Выбрать строку ${i + 1}`}
           className="shrink-0 w-3.5 h-3.5 accent-brand cursor-pointer" />
-        <button type="button" draggable data-grip={i}
-          // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
-          onDragStart={e => {
-            setDragIdx(i);
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
-          }}
-          onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-          onKeyDown={e => {
-            const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null;
-            if (to === null) return;
-            // Стрелку гасим и на краю: иначе последнее нажатие в «довести строку до низа»
-            // достаётся браузеру, и форма уезжает прокруткой ровно в тот момент, когда строка
-            // встала на место. Тот же сценарий, ради которого MoveButtons не делает disabled (#517).
-            e.preventDefault(); e.stopPropagation();
-            if (to < 0 || to >= allItems.length) return;
-            moveItem(i, to);
-            focusRow.current = to;
-          }}
-          title="Перетащить для изменения порядка (или стрелки ↑↓)"
-          aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
-          className="shrink-0 cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
-          <GripVertical size={12} />
-        </button>
+        <Tooltip content="Перетащить для изменения порядка (или стрелки ↑↓)">
+          <button type="button" draggable data-grip={i}
+            // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
+            onDragStart={e => {
+              setDragIdx(i);
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
+            }}
+            onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+            onKeyDown={e => {
+              const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null;
+              if (to === null) return;
+              // Стрелку гасим и на краю: иначе последнее нажатие в «довести строку до низа»
+              // достаётся браузеру, и форма уезжает прокруткой ровно в тот момент, когда строка
+              // встала на место. Тот же сценарий, ради которого MoveButtons не делает disabled (#517).
+              e.preventDefault(); e.stopPropagation();
+              if (to < 0 || to >= allItems.length) return;
+              moveItem(i, to);
+              focusRow.current = to;
+            }}
+            aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
+            className="shrink-0 cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+            <GripVertical size={12} />
+          </button>
+        </Tooltip>
         <span className={`text-xs font-mono w-5 text-right shrink-0 ${danger ? 'text-danger' : 'text-fg4'}`}>
           {i + 1}
         </span>
@@ -444,10 +446,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <ArchivedRefMark value={wrapped.ref} />
                   <span className="text-caption text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
-                  <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
-                    className="p-1 text-fg4 hover:text-fg2 shrink-0">
-                    <Pencil size={13} />
-                  </button>
+                  <Tooltip content="Редактировать" name>
+                    <button type="button" onClick={() => setRowModal(i)}
+                      className="p-1 text-fg4 hover:text-fg2 shrink-0">
+                      <Pencil size={13} />
+                    </button>
+                  </Tooltip>
                   <button type="button" onClick={() => removeItem(i)}
                     className="p-1 text-fg4 hover:text-danger shrink-0">
                     <Trash2 size={13} />
@@ -474,15 +478,18 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   {rowSummary(row)}
                 </button>
                 {extraVariants.length > 1 && (
-                  <span className="flex items-center gap-1 text-caption text-warning shrink-0"
-                    title={overfilledNote(extraVariants)} role="img" aria-label={overfilledNote(extraVariants)}>
-                    <AlertTriangle size={12} /> вариантов: {extraVariants.length}
-                  </span>
+                  <Tooltip content={overfilledNote(extraVariants)}>
+                    <span className="flex items-center gap-1 text-caption text-warning shrink-0" role="img" aria-label={overfilledNote(extraVariants)}>
+                      <AlertTriangle size={12} /> вариантов: {extraVariants.length}
+                    </span>
+                  </Tooltip>
                 )}
-                <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
-                  className="p-1 text-fg4 hover:text-fg2 shrink-0">
-                  <Pencil size={13} />
-                </button>
+                <Tooltip content="Редактировать" name>
+                  <button type="button" onClick={() => setRowModal(i)}
+                    className="p-1 text-fg4 hover:text-fg2 shrink-0">
+                    <Pencil size={13} />
+                  </button>
+                </Tooltip>
                 <button type="button" onClick={() => removeItem(i)}
                   className="p-1 text-fg4 hover:text-danger shrink-0">
                   <Trash2 size={13} />
@@ -693,14 +700,18 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           <div className={`flex items-center gap-1.5 rounded-lg pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
             <Link2 size={16} className="text-danger shrink-0" />
             <span className={`flex-1 text-sm font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
-            <button type="button" onClick={() => setPickerOpen(true)}
-              className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Заменить ссылку">
-              <RefreshCw size={14} />
-            </button>
-            <button type="button" onClick={() => onChange({})}
-              className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Снять ссылку">
-              <Unlink size={14} />
-            </button>
+            <Tooltip content="Заменить ссылку" name>
+              <button type="button" onClick={() => setPickerOpen(true)}
+                className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+                <RefreshCw size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Снять ссылку" name>
+              <button type="button" onClick={() => onChange({})}
+                className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+                <Unlink size={14} />
+              </button>
+            </Tooltip>
           </div>
           <BrokenRefNote />
           {picker}
@@ -770,10 +781,12 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors shrink-0">
             <Link2 size={11} /> Из каталога
           </button>
-          <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
-            className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0">
-            <Pencil size={13} />
-          </button>
+          <Tooltip content="Редактировать" name>
+            <button type="button" onClick={() => setModalOpen(true)}
+              className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0">
+              <Pencil size={13} />
+            </button>
+          </Tooltip>
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide
           title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
@@ -965,9 +978,11 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
       <span>{overfilledNote(overfilled)}</span>
     </span>
   ) : (
-    <span className="text-caption text-fg4 flex items-center gap-1 shrink-0" title="Заполняется ровно один из вариантов">
-      <Info size={11} /> заполните одно из
-    </span>
+    <Tooltip content="Заполняется ровно один из вариантов">
+      <span className="text-caption text-fg4 flex items-center gap-1 shrink-0">
+        <Info size={11} /> заполните одно из
+      </span>
+    </Tooltip>
   );
   const activeEditor = activeSf && (
     <SubfieldEditor sf={activeSf} value={subValues[activeSf.key]} onChange={setActiveValue}
@@ -995,13 +1010,16 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
               обычными данными — а ✎ и первая правка унесли бы второй вариант (issue #756). Ровно та
               же дверь, что закрыта в списке строк массива; здесь она оставалась открытой. */}
           {overfilled.length > 1 && (
-            <span className="flex items-center gap-1 text-caption text-warning shrink-0"
-              title={overfilledNote(overfilled)} role="img" aria-label={overfilledNote(overfilled)}>
-              <AlertTriangle size={12} /> вариантов: {overfilled.length}
-            </span>
+            <Tooltip content={overfilledNote(overfilled)}>
+              <span className="flex items-center gap-1 text-caption text-warning shrink-0" role="img" aria-label={overfilledNote(overfilled)}>
+                <AlertTriangle size={12} /> вариантов: {overfilled.length}
+              </span>
+            </Tooltip>
           )}
-          <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
-            className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
+          <Tooltip content="Редактировать" name>
+            <button type="button" onClick={() => setModalOpen(true)}
+              className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
+          </Tooltip>
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
           footer={<div className="flex justify-end"><Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button></div>}>

@@ -11,6 +11,7 @@ import { InstanceAuditModal } from './InstanceAuditModal';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ── Вкладка «Генерация» ─────────────────────────────────────────────────────────
 // Выделено из editor/index.tsx (#490): файл на 1220 строк был оболочкой вкладок и двумя
@@ -246,11 +247,12 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-fg2">Сгенерированные файлы</p>
             {canSend && (
-              <button onClick={() => setEmailOpen(true)}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-stroke rounded-md hover:bg-base transition-colors"
-                title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
-                <Mail size={13} className="text-brand" /> Отправить по почте
-              </button>
+              <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
+                <button onClick={() => setEmailOpen(true)}
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-stroke rounded-md hover:bg-base transition-colors">
+                  <Mail size={13} className="text-brand" /> Отправить по почте
+                </button>
+              </Tooltip>
             )}
           </div>
           <div className="space-y-1.5">
@@ -258,7 +260,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               const tpl = templates.find((t: Template) => t.id === f.templateId);
               return (
                 <div key={f.id} className="flex items-center gap-2">
-                  <span className="text-xs text-fg2 flex-1 min-w-0 truncate" title={tpl?.name}>{tpl ? tpl.name : 'PDF'}</span>
+                  <Tooltip content={tpl?.name}><span className="text-xs text-fg2 flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>
                   {/* Во время генерации файл перезаписывается — блокируем открытие/скачивание, чтобы
                       не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние). */}
                   <button onClick={() => previewGeneratedFile(instance.id, f.templateId)} disabled={busy}

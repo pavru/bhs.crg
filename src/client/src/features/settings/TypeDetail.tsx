@@ -20,6 +20,7 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { PropertiesEditor } from './PropertiesEditor';
 import { SchemaEditor } from './SchemaEditor';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Типы, ссылающиеся на данный тип полем complex/array/doc-ref/doc-array (по собственной схеме). */
 function findReferencingTypes(id: string, allDocTypes: DocumentType[]): DocumentType[] {
@@ -115,11 +116,12 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
               <DetailTitle>{docType.name}</DetailTitle>
               <span className="text-xs text-fg4 font-mono">{docType.code}</span>
               {parentType && (
-                <button type="button" onClick={() => onSelectType(parentType.id)}
-                  title="Перейти к родительскому типу"
-                  className={`${jumpBadge} bg-brand-subtle text-brand hover:text-brand-hover hover:underline`}>
-                  ↑ {parentType.name}
-                </button>
+                <Tooltip content="Перейти к родительскому типу">
+                  <button type="button" onClick={() => onSelectType(parentType.id)}
+                    className={`${jumpBadge} bg-brand-subtle text-brand hover:text-brand-hover hover:underline`}>
+                    ↑ {parentType.name}
+                  </button>
+                </Tooltip>
               )}
               {docType.isAbstract && <span className={`${badge} bg-warning-subtle text-warning`}>абстрактный</span>}
               {docType.allowsProxy && <span className={`${badge} bg-brand-subtle text-brand`}>роль/прокси</span>}
@@ -132,37 +134,44 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
               )}
               {requiredCount > 0 && <span className={`${badge} bg-muted text-fg3`}>{requiredCount} обязательных</span>}
               {complexFields.length > 0 && (
-                <span className={`${badge} bg-muted text-fg3`} title={complexFields.map(getFieldTypeLabel).join(', ')}>
-                  {complexFields.length} составных
-                </span>
+                <Tooltip content={complexFields.map(getFieldTypeLabel).join(', ')}>
+                  <span className={`${badge} bg-muted text-fg3`}>
+                    {complexFields.length} составных
+                  </span>
+                </Tooltip>
               )}
               {referencedBy.length > 0 && (
-                <span className={`${badge} bg-brand-subtle text-brand`} title={`Используется в: ${referencedBy.map(t => t.name).join(', ')}`}>
-                  используется: {referencedBy.length}
-                </span>
+                <Tooltip content={`Используется в: ${referencedBy.map(t => t.name).join(', ')}`}>
+                  <span className={`${badge} bg-brand-subtle text-brand`}>
+                    используется: {referencedBy.length}
+                  </span>
+                </Tooltip>
               )}
               {healthLabel.blocking && (
-                <span className={`${badge} bg-danger-subtle text-danger`}
-                  title={health.blocking.map(b => `• ${b.text}`).join(String.fromCharCode(10))}>
-                  ⚠ {healthLabel.blocking}
-                </span>
+                <Tooltip content={health.blocking.map(b => `• ${b.text}`).join(String.fromCharCode(10))}>
+                  <span className={`${badge} bg-danger-subtle text-danger`}>
+                    ⚠ {healthLabel.blocking}
+                  </span>
+                </Tooltip>
               )}
               {healthLabel.soft && (
-                <span className={`${badge} bg-warning-subtle text-warning`}
-                  title={health.soft.map(i => `• ${i.text}`).join(String.fromCharCode(10))}>
-                  {healthLabel.soft}
-                </span>
+                <Tooltip content={health.soft.map(i => `• ${i.text}`).join(String.fromCharCode(10))}>
+                  <span className={`${badge} bg-warning-subtle text-warning`}>
+                    {healthLabel.soft}
+                  </span>
+                </Tooltip>
               )}
             </div>
             {children.length > 0 && (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 <span className="text-xs text-fg4 shrink-0">наследники:</span>
                 {children.map(c => (
-                  <button key={c.id} type="button" onClick={() => onSelectType(c.id)}
-                    title={`Перейти к типу «${c.name}»`}
-                    className={`${jumpBadge} bg-muted text-fg2 hover:text-brand-hover hover:underline`}>
-                    ↓ {c.name}
-                  </button>
+                  <Tooltip key={c.id} content={`Перейти к типу «${c.name}»`}>
+                    <button type="button" onClick={() => onSelectType(c.id)}
+                      className={`${jumpBadge} bg-muted text-fg2 hover:text-brand-hover hover:underline`}>
+                      ↓ {c.name}
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
             )}

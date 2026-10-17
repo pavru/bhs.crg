@@ -43,6 +43,7 @@ import { findReferencingTypeNames } from './fieldTypeUsage';
 import { withRowUids } from '@/shared/utils/rowIdentity';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -226,9 +227,11 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
         <StatusIcon size={16} className={`shrink-0 ${tone}`} />
         <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
           className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-fg1 placeholder:text-fg4" />
-        <span className={`text-xs shrink-0 max-w-[45%] truncate ${tone}`} title={has && !ok ? (err ?? '') : undefined}>
-          {!has ? 'по ограничениям' : ok ? 'соответствует' : err}
-        </span>
+        <Tooltip content={has && !ok ? (err ?? '') : undefined}>
+          <span className={`text-xs shrink-0 max-w-[45%] truncate ${tone}`}>
+            {!has ? 'по ограничениям' : ok ? 'соответствует' : err}
+          </span>
+        </Tooltip>
       </div>
     </div>
   );
@@ -425,12 +428,14 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                 {applicableTags.map(t => {
                   const on = allowedTags.includes(t.code);
                   return (
-                    <button key={t.code} type="button" title={t.description}
-                      onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                        on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'}`}>
-                      {t.label}
-                    </button>
+                    <Tooltip key={t.code} content={t.description}>
+                      <button type="button"
+                        onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
+                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                          on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'}`}>
+                        {t.label}
+                      </button>
+                    </Tooltip>
                   );
                 })}
               </div>
@@ -439,11 +444,12 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <span className="text-xs text-fg4">Тэги модуля:</span>
                 {unknownAllowed.map(code => (
-                  <span key={code}
-                    title="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат."
-                    className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
-                    {code}
-                  </span>
+                  <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат.">
+                    <span
+                      className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
+                      {code}
+                    </span>
+                  </Tooltip>
                 ))}
               </div>
             )}

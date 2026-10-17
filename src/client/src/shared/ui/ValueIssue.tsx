@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Расхождение значения с объявленным типом — у поля формы (issue #644).
@@ -23,9 +24,11 @@ export function ValueIssueBadge({ count, className = '' }: { count: number; clas
   // Подложка токеном -subtle, а не заливкой цветом текста: в тёмной теме --color-warning сам светлый,
   // и белые цифры на нём не читались бы.
   return (
-    <span title={`Значений не по типу: ${count}`}
-      className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-subtle text-warning border border-warning-border text-caption font-semibold leading-none ${className}`}>
-      {count}
-    </span>
+    <Tooltip content={`Значений не по типу: ${count}`}>
+      <span
+        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-subtle text-warning border border-warning-border text-caption font-semibold leading-none ${className}`}>
+        {count}
+      </span>
+    </Tooltip>
   );
 }

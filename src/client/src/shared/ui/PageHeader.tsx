@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Заголовок страницы (issue #1352). До него на 26 страниц приходилось восемь вариантов `h1`, и
@@ -44,10 +45,11 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
           {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
           <div className="flex items-center gap-2 min-w-0">
             {icon && <span className="flex text-fg3 shrink-0">{icon}</span>}
-            <h1 className={`text-xl font-semibold text-fg1 min-w-0 ${plain ? 'truncate' : ''}`}
-              title={plain ? title : undefined}>
-              {title}
-            </h1>
+            <Tooltip content={plain ? title : undefined}>
+              <h1 className={`text-xl font-semibold text-fg1 min-w-0 ${plain ? 'truncate' : ''}`}>
+                {title}
+              </h1>
+            </Tooltip>
             {badge && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">{badge}</div>}
           </div>
           {subtitle && <div className="text-xs text-fg3 mt-0.5">{subtitle}</div>}

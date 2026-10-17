@@ -1,3 +1,4 @@
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ── Счётчик битых ссылок ────────────────────────────────────────────────────
 
@@ -6,9 +7,11 @@
 export function BrokenCountBadge({ count, className = '' }: { count: number; className?: string }) {
   if (count <= 0) return null;
   return (
-    <span title={`Битых ссылок: ${count}`}
-      className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-caption font-semibold leading-none ${className}`}>
-      {count}
-    </span>
+    <Tooltip content={`Битых ссылок: ${count}`}>
+      <span
+        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-caption font-semibold leading-none ${className}`}>
+        {count}
+      </span>
+    </Tooltip>
   );
 }

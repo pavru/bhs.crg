@@ -7,6 +7,7 @@ import { useGuardedNavigate, useGuardedPick } from './NavigationGuard';
 import { useWorkspace } from './workspaceContext';
 import { outsideItem } from './workspaces';
 import type { NavItem } from './navConfig';
+import { Tooltip } from './Tooltip';
 
 /**
  * «Ещё N разделов вне пространства ▸» — последней строкой рабочего меню, постоянно (ТЗ AUTH-16.1;
@@ -28,23 +29,27 @@ export function OutsideNav({ items, collapsed = false, onPick }: {
   const pill = collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-2 px-3 py-2';
   return (
     <div data-testid="outside-nav" className="mt-1">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} title={collapsed ? caption : undefined}
-        className={`w-full flex items-center rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${pill}`}>
-        {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
-        <span className={collapsed ? 'sr-only' : undefined}>{caption}</span>
-      </button>
+      <Tooltip content={collapsed ? caption : undefined}>
+        <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+          className={`w-full flex items-center rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${pill}`}>
+          {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
+          <span className={collapsed ? 'sr-only' : undefined}>{caption}</span>
+        </button>
+      </Tooltip>
       {open && (
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} onClick={guardedClick(to)} title={collapsed ? label : undefined}
-              className={({ isActive }) =>
-                `flex items-center rounded-full text-sm select-none transition-colors ` +
-                `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                  collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2'} ${
-                  isActive ? 'bg-tonal text-on-tonal' : 'text-fg2 hover:bg-black/5 dark:hover:bg-white/10'}`}>
-              <Icon size={16} className="shrink-0 text-fg4" />
-              <span className={collapsed ? 'sr-only' : undefined}>{label}</span>
-            </NavLink>
+            <Tooltip key={to} content={collapsed ? label : undefined} side="right" name>
+              <NavLink to={to} onClick={guardedClick(to)}
+                className={({ isActive }) =>
+                  `flex items-center rounded-full text-sm select-none transition-colors ` +
+                  `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2'} ${
+                    isActive ? 'bg-tonal text-on-tonal' : 'text-fg2 hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                <Icon size={16} className="shrink-0 text-fg4" />
+                <span className={collapsed ? 'sr-only' : undefined}>{label}</span>
+              </NavLink>
+            </Tooltip>
           ))}
         </div>
       )}

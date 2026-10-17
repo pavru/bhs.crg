@@ -135,7 +135,7 @@ await Promise.all([
 await dialog.getByRole('button', { name: 'Применить' }).waitFor();
 
 const shown = await cells(dialog);
-const marked = await dialog.getByTitle(/остаток округления/).count();
+const marked = await dialog.locator('[aria-description*="остаток округления"]').count();
 
 await check('kopeck-goes-to-a-named-part', async () => {
   const delivery = shown[0];

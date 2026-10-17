@@ -30,6 +30,7 @@ import {
 } from './tableViewState';
 import { useTableView } from './useTableView';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Экран таблицы модуля (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092): отбор чипами, сортировка
@@ -213,10 +214,12 @@ export function TablePage() {
             чего не хватает и КОДОМ какого права. Со словами человек пойдёт к администратору, а тот
             ищет право по коду. У кого прав хватает, строки нет вовсе. */}
         {!off && hiddenByRight(decl.columns, view.columns).map(group => (
-          <p key={`${group.requires}|${group.reason}`} className="mt-2 text-xs text-fg3" title={group.labels.join(', ')}>
-            {hiddenCountText(group.count)}: {group.reason}
-            {group.requires && <> (<code className="text-fg2">{group.requires}</code>)</>}
-          </p>
+          <Tooltip key={`${group.requires}|${group.reason}`} content={group.labels.join(', ')}>
+            <p className="mt-2 text-xs text-fg3">
+              {hiddenCountText(group.count)}: {group.reason}
+              {group.requires && <> (<code className="text-fg2">{group.requires}</code>)</>}
+            </p>
+          </Tooltip>
         ))}
 
         {/* Отказ — на месте строк, а не поверх прежней выдачи: строки под ним получены под другим
@@ -301,11 +304,13 @@ function Total({ view, data, column, kind }: {
   const total = chosen ? totalText(data.totals?.[column.key], chosen.aggregate, kind ?? 'text') : null;
   if (!total) return null;
   return (
-    <div title="Итог по всему отбору, а не по странице">
-      <div className="font-medium text-fg1">{total.text}</div>
-      {total.note && <div className="text-warning">{total.note}</div>}
-      {total.meaning && <div className="text-fg4 font-normal whitespace-normal">{total.meaning}</div>}
-    </div>
+    <Tooltip content="Итог по всему отбору, а не по странице">
+      <div>
+        <div className="font-medium text-fg1">{total.text}</div>
+        {total.note && <div className="text-warning">{total.note}</div>}
+        {total.meaning && <div className="text-fg4 font-normal whitespace-normal">{total.meaning}</div>}
+      </div>
+    </Tooltip>
   );
 }
 

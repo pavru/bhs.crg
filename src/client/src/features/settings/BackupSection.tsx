@@ -24,6 +24,7 @@ import type {
 import { formatDateTime, formatDayTime } from '@/shared/format/format';
 import { CollapsibleSection } from './CollapsibleSection';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Резервное копирование: каталог копий на сервере (issue #831).
@@ -407,9 +408,11 @@ function BackupFilesPanel() {
                       {f.includesProjectData ? 'полная' : 'настройка'}
                     </span>
                     {scheduled.has(f.fileName) && (
-                      <span className="ml-2 text-caption text-fg4 font-normal" title="Снята расписанием — попадает под уборку старых">
-                        плановая
-                      </span>
+                      <Tooltip content="Снята расписанием — попадает под уборку старых">
+                        <span className="ml-2 text-caption text-fg4 font-normal">
+                          плановая
+                        </span>
+                      </Tooltip>
                     )}
                   </p>
                   <p className="text-xs text-fg3">
@@ -544,18 +547,19 @@ function IconAction({ title, onClick, danger, disabled, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      disabled={disabled}
-      className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-        danger ? 'text-fg3 hover:text-danger hover:bg-danger-subtle' : 'text-fg3 hover:text-fg1 hover:bg-base'
-      }`}
-    >
-      {children}
-    </button>
+    <Tooltip content={title}>
+      <button
+        type="button"
+        aria-label={title}
+        onClick={onClick}
+        disabled={disabled}
+        className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
+          danger ? 'text-fg3 hover:text-danger hover:bg-danger-subtle' : 'text-fg3 hover:text-fg1 hover:bg-base'
+        }`}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 

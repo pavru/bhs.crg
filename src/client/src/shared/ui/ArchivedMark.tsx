@@ -1,5 +1,6 @@
 import { Archive } from 'lucide-react';
 import { ARCHIVED_HINT, ARCHIVED_WORD } from './archive';
+import { Tooltip } from './Tooltip';
 
 /**
  * Пометка «в архиве» после названия записи (issue #1185). Ставит её и ядро, и модули — поэтому она
@@ -10,10 +11,12 @@ import { ARCHIVED_HINT, ARCHIVED_WORD } from './archive';
  */
 export function ArchivedMark({ words = true, className = '' }: { words?: boolean; className?: string }) {
   return (
-    <span title={ARCHIVED_HINT} aria-label={words ? undefined : ARCHIVED_WORD}
-      className={`inline-flex items-center gap-1 text-caption text-fg3 shrink-0 ${className}`}>
-      <Archive size={11} className="shrink-0" />
-      {words && ARCHIVED_WORD}
-    </span>
+    <Tooltip content={ARCHIVED_HINT}>
+      <span aria-label={words ? undefined : ARCHIVED_WORD}
+        className={`inline-flex items-center gap-1 text-caption text-fg3 shrink-0 ${className}`}>
+        <Archive size={11} className="shrink-0" />
+        {words && ARCHIVED_WORD}
+      </span>
+    </Tooltip>
   );
 }

@@ -1,5 +1,6 @@
 import { CircleCheck, ListTodo } from 'lucide-react';
 import { goTo, type ReadinessItem } from './invoiceReadiness';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * «До „Разобран“ осталось: плательщик · 3 строки без позиции · разноска» — строка у кнопки «Разобран»
@@ -44,7 +45,7 @@ export function InvoiceReadinessLine({ items, unsaved }: {
                   {item.label}
                 </button>
               )
-              : <span title={item.why}>{item.label}</span>}
+              : <Tooltip content={item.why}><span>{item.label}</span></Tooltip>}
           </span>
         ))}
         .{stale}

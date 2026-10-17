@@ -2,6 +2,7 @@ import { Archive, Check, ListChecks, ScanLine, TriangleAlert } from 'lucide-reac
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { QUEUE_LABEL, queueChip } from './invoiceQueues';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Очереди списка счетов чипами (issue #1186): «Разобрать», «Удалённые записи 3», «В архиве 5».
@@ -61,10 +62,11 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
           ariaLabel={`${QUEUE_LABEL.archived}, счетов: ${archived.count || 'нет'}`} />
       )}
       {failed && (
-        <button type="button" onClick={onRetry} className="text-fg3 underline hover:text-fg1"
-          title="Сколько счетов не распознано, с удалёнными и с архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
-          Отборы не посчитаны
-        </button>
+        <Tooltip content="Сколько счетов не распознано, с удалёнными и с архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
+          <button type="button" onClick={onRetry} className="text-fg3 underline hover:text-fg1">
+            Отборы не посчитаны
+          </button>
+        </Tooltip>
       )}
     </div>
   );
@@ -87,11 +89,13 @@ function Chip({ active, icon: Icon, label, count, title, tone, onClick, ariaLabe
     : 'border-stroke text-fg3 hover:text-fg1';
   const Shown = active ? Check : Icon;
   return (
-    <button type="button" aria-pressed={active} aria-label={ariaLabel} title={title} onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 bg-surface ${look}`}>
-      <Shown size={12} aria-hidden />
-      {label}
-      {count && <span className="font-medium">{count}</span>}
-    </button>
+    <Tooltip content={title}>
+      <button type="button" aria-pressed={active} aria-label={ariaLabel} onClick={onClick}
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 bg-surface ${look}`}>
+        <Shown size={12} aria-hidden />
+        {label}
+        {count && <span className="font-medium">{count}</span>}
+      </button>
+    </Tooltip>
   );
 }

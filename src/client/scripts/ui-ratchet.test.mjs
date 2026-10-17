@@ -39,6 +39,25 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({});
   });
 
+  /** Подсказка браузера вместо нашей (issue #1394): атрибут в любой строке многострочного тега. */
+  it('нативный title у элемента разметки', () => {
+    expect(countViolations('<button\n  onClick={go}\n  title="Удалить">x</button> <span title={why}>!</span>'))
+      .toEqual({ 'native-title': 2 });
+  });
+
+  it('title компонента, iframe и полный текст обрезанной строки нарушением не считаются', () => {
+    expect(countViolations([
+      '<Modal title="Окно" /> <Button title="Почему" /> <iframe title="Скан" />',
+      '<span className="truncate" title={f.name}>{f.name}</span>',
+      '<p className={`line-clamp-2 ${x}`} title="Длинный текст">Длинный текст</p>',
+    ].join(' '))).toEqual({});
+  });
+
+  it('у обрезанной строки подсказка не о ней — нарушение', () => {
+    expect(countViolations('<button className="truncate" title="Просмотреть документ">{doc.name}</button>'))
+      .toEqual({ 'native-title': 1 });
+  });
+
   it('токены и чёрно-белые слои палитрой не считаются', () => {
     expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
       .toEqual({});

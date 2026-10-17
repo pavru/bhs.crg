@@ -12,6 +12,7 @@ import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
 
@@ -207,9 +208,11 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
               <span className="text-xs text-fg4">Без обработки</span>
             )}
             {template.sheetOrPath && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand" title={template.sheetOrPath}>
-                <Route size={9} /> Extraction
-              </span>
+              <Tooltip content={template.sheetOrPath}>
+                <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+                  <Route size={9} /> Extraction
+                </span>
+              </Tooltip>
             )}
             {filterCount > 0 && (
               <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">

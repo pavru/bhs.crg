@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, RefreshCw, PanelRightClose, PanelRightOpen, FileWarning, FileText } from 'lucide-react';
 import { previewDocument, type PreviewResult } from '@/shared/api/documentSets';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 type State =
   | { kind: 'idle' }
@@ -58,12 +59,13 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpenPersist(true)}
-        title="Показать предпросмотр"
-        className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-stroke pt-4 text-fg4 hover:text-brand hover:bg-muted transition-colors">
-        <PanelRightOpen size={18} />
-        <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">Предпросмотр</span>
-      </button>
+      <Tooltip content="Показать предпросмотр">
+        <button type="button" onClick={() => setOpenPersist(true)}
+          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-stroke pt-4 text-fg4 hover:text-brand hover:bg-muted transition-colors">
+          <PanelRightOpen size={18} />
+          <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">Предпросмотр</span>
+        </button>
+      </Tooltip>
     );
   }
 
@@ -75,14 +77,16 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
         {updatedAt && state.kind === 'pdf' && (
           <span className="text-xs text-fg4">обновлено {timeAgo(updatedAt)}</span>
         )}
-        <button type="button" onClick={() => void run()} disabled={state.kind === 'loading'}
-          title="Обновить" className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50">
-          <RefreshCw size={15} className={state.kind === 'loading' ? 'animate-spin' : ''} />
-        </button>
-        <button type="button" onClick={() => setOpenPersist(false)}
-          title="Скрыть предпросмотр" className="p-1.5 rounded-full text-fg4 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
-          <PanelRightClose size={16} />
-        </button>
+        <Tooltip content="Обновить" name>
+          <button type="button" onClick={() => void run()} disabled={state.kind === 'loading'} className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50">
+            <RefreshCw size={15} className={state.kind === 'loading' ? 'animate-spin' : ''} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Скрыть предпросмотр" name>
+          <button type="button" onClick={() => setOpenPersist(false)} className="p-1.5 rounded-full text-fg4 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+            <PanelRightClose size={16} />
+          </button>
+        </Tooltip>
       </div>
       <div className="flex-1 min-h-0 relative">
         {state.kind === 'pdf' && (

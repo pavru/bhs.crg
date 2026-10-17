@@ -2,6 +2,7 @@ import { ArrowUpRight, TriangleAlert } from 'lucide-react';
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
 import { formatMoney } from '@/shared/format/format';
 import { figure, goneLines, goneSections, localLink, unfinishedSummary, wasText, type ClosingGroup } from './closing';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Перечень диалога закрытия периода: по разделу на модуль — что не завершено и что войдёт в закрытый
@@ -113,11 +114,13 @@ function Figure({ line }: { line: ClosingLine }) {
   if (!link) return text;
 
   return (
-    <a href={link} target="_blank" rel="noreferrer" title="Открыть список — в новой вкладке"
-      className="text-brand hover:underline">
-      {text}
-      <ArrowUpRight size={12} className="inline-block align-baseline ml-0.5" aria-hidden />
-    </a>
+    <Tooltip content="Открыть список — в новой вкладке">
+      <a href={link} target="_blank" rel="noreferrer"
+        className="text-brand hover:underline">
+        {text}
+        <ArrowUpRight size={12} className="inline-block align-baseline ml-0.5" aria-hidden />
+      </a>
+    </Tooltip>
   );
 }
 

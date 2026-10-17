@@ -47,6 +47,7 @@ import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { BindingCheckReport } from './BindingCheckReport';
 import { ArchivedTwinNote } from './ArchivedTwinNote';
 import { BoundRefValue } from './BoundRefValue';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
 // кандидаты (записи родительского типа по скопам) строятся ниже из parentEntries.
@@ -472,11 +473,12 @@ export function CatalogEntryForm({
                       : 'наследуется от реального'}
                   </span>
                   {proxyOverridden && (
-                    <button type="button" onClick={() => setValue(field.key, undefined)}
-                      title="Вернуть к наследованию от реального объекта"
-                      className="text-caption text-brand hover:text-brand-hover flex items-center gap-0.5 shrink-0">
-                      <CornerUpLeft size={11} /> наследовать
-                    </button>
+                    <Tooltip content="Вернуть к наследованию от реального объекта">
+                      <button type="button" onClick={() => setValue(field.key, undefined)}
+                        className="text-caption text-brand hover:text-brand-hover flex items-center gap-0.5 shrink-0">
+                        <CornerUpLeft size={11} /> наследовать
+                      </button>
+                    </Tooltip>
                   )}
                 </div>
               )}
@@ -550,7 +552,7 @@ export function CatalogEntryForm({
       return (
         <div className="space-y-4">
           {fields.map(f => recognizedKeys.has(f.key)
-            ? <div key={f.key} className="border-l-2 border-brand pl-2" title={RECOGNIZED_HINT}>{renderCell(f)}</div>
+            ? <Tooltip key={f.key} content={RECOGNIZED_HINT}><div className="border-l-2 border-brand pl-2">{renderCell(f)}</div></Tooltip>
             : renderCell(f))}
         </div>
       );
@@ -625,10 +627,12 @@ export function CatalogEntryForm({
             {aliases.map(a => (
               <span key={a} className="inline-flex items-center gap-1 text-xs bg-muted text-fg2 rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                 <span className="min-w-0 break-words">{a}</span>
-                <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                  className="text-fg4 hover:text-danger transition-colors shrink-0" title="Удалить">
-                  <X size={11} />
-                </button>
+                <Tooltip content="Удалить" name>
+                  <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
+                    className="text-fg4 hover:text-danger transition-colors shrink-0">
+                    <X size={11} />
+                  </button>
+                </Tooltip>
               </span>
             ))}
           </div>
@@ -749,7 +753,7 @@ export function CatalogEntryForm({
                   <span className="text-xs font-semibold uppercase tracking-wide text-fg2 flex-1">{section.title}</span>
                   {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
                   {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" title="Есть ошибка формата" />
+                    <Tooltip content="Есть ошибка формата"><span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" /></Tooltip>
                   )}
                   <span className="text-xs text-fg4">{section.fields.length} п.</span>
                 </button>

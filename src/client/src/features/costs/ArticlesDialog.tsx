@@ -8,6 +8,7 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useCostsArticles, useDeleteArticle, useSaveArticle, useSetArticleArchive, type CostsArticle,
 } from '@/shared/api/articles';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Справочник статей вне строек — «Склад», «Общие расходы» (задача F3, issue #1087, ТЗ COST-10.1).
@@ -91,28 +92,40 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             onChange={e => setEditing({ ...editing, name: e.target.value })}
             onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }}
             className={FIELD} />
-          <button type="button" title="Сохранить название" onClick={() => void rename()}
-            className="text-fg3 hover:text-brand p-1"><Check size={14} /></button>
-          <button type="button" title="Отменить" onClick={() => setEditing(null)}
-            className="text-fg3 hover:text-fg1 p-1"><X size={14} /></button>
+          <Tooltip content="Сохранить название" name>
+            <button type="button" onClick={() => void rename()}
+              className="text-fg3 hover:text-brand p-1"><Check size={14} /></button>
+          </Tooltip>
+          <Tooltip content="Отменить" name>
+            <button type="button" onClick={() => setEditing(null)}
+              className="text-fg3 hover:text-fg1 p-1"><X size={14} /></button>
+          </Tooltip>
         </>
       ) : (
         <>
           <span className={`flex-1 ${article.archived ? 'text-fg3' : ''}`}>{article.name}</span>
-          <button type="button" title={`Переименовать «${article.name}»`}
-            onClick={() => setEditing({ id: article.id, name: article.name })}
-            className="text-fg3 hover:text-brand p-1"><Pencil size={14} /></button>
+          <Tooltip content={`Переименовать «${article.name}»`} name>
+            <button type="button"
+              onClick={() => setEditing({ id: article.id, name: article.name })}
+              className="text-fg3 hover:text-brand p-1"><Pencil size={14} /></button>
+          </Tooltip>
           {article.archived ? (
-            <button type="button" title={`Вернуть «${article.name}» из архива`} disabled={archive.isPending}
-              onClick={() => void setArchived(article, false)}
-              className="text-fg3 hover:text-brand p-1"><ArchiveRestore size={14} /></button>
+            <Tooltip content={`Вернуть «${article.name}» из архива`} name>
+              <button type="button" disabled={archive.isPending}
+                onClick={() => void setArchived(article, false)}
+                className="text-fg3 hover:text-brand p-1"><ArchiveRestore size={14} /></button>
+            </Tooltip>
           ) : (
-            <button type="button" title={`В архив «${article.name}»`} disabled={archive.isPending}
-              onClick={() => void setArchived(article, true)}
-              className="text-fg3 hover:text-brand p-1"><Archive size={14} /></button>
+            <Tooltip content={`В архив «${article.name}»`} name>
+              <button type="button" disabled={archive.isPending}
+                onClick={() => void setArchived(article, true)}
+                className="text-fg3 hover:text-brand p-1"><Archive size={14} /></button>
+            </Tooltip>
           )}
-          <button type="button" title={`Удалить «${article.name}»`} onClick={() => setDeleting(article)}
-            className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+          <Tooltip content={`Удалить «${article.name}»`} name>
+            <button type="button" onClick={() => setDeleting(article)}
+              className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+          </Tooltip>
         </>
       )}
     </li>

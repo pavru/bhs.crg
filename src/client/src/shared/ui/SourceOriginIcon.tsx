@@ -1,6 +1,7 @@
 import { DatabaseZap, ScanText } from 'lucide-react';
 import type { DataOrigin, DataSetStaleReason } from '@/shared/api/types';
 import { staleReasonText } from '@/shared/api/datasetHelpers';
+import { Tooltip } from './Tooltip';
 
 /**
  * Значок «откуда это значение» у поля, заполняемого источником данных.
@@ -42,13 +43,15 @@ export function SourceOriginIcon(
   const cls = stale ? 'text-warning' : 'text-brand';
 
   return (
-    <span title={title}>
-      {recognized
-        ? <ScanText size={12} className={cls} aria-hidden />
-        : <DatabaseZap size={12} className={cls} aria-hidden />}
-      {/* Подсказка на span доступна только мышью — тем, кто ведёт форму с клавиатуры, признак
-          обязан достаться текстом (проект keyboard-first, issue #107). */}
-      <span className="sr-only">{title}</span>
-    </span>
+    <Tooltip content={title}>
+      <span>
+        {recognized
+          ? <ScanText size={12} className={cls} aria-hidden />
+          : <DatabaseZap size={12} className={cls} aria-hidden />}
+        {/* Подсказка на span доступна только мышью — тем, кто ведёт форму с клавиатуры, признак
+            обязан достаться текстом (проект keyboard-first, issue #107). */}
+        <span className="sr-only">{title}</span>
+      </span>
+    </Tooltip>
   );
 }

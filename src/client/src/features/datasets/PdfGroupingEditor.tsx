@@ -15,6 +15,7 @@ import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { newLocalId } from '@/shared/utils/localId';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -114,30 +115,32 @@ function PageTile({
   onView: (pageIndex: number) => void;
 }) {
   return (
-    <div
-      onClick={e => onToggle(pageIndex, e)}
-      className={`group/tile relative rounded-md p-1 border-2 transition-colors text-left cursor-pointer ${
-        selected ? 'border-brand bg-brand-subtle' : 'border-transparent hover:border-stroke'
-      }`}
-      title={noAnswer
+    <Tooltip content={noAnswer
         ? `Страница ${pageIndex + 1} — модель не ответила по этому листу, поля пусты`
         : `Страница ${pageIndex + 1}`}>
-      <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
-      <button
-        onClick={e => { e.stopPropagation(); onView(pageIndex); }}
-        title="Просмотреть лист крупно"
-        className="absolute top-1.5 right-1.5 p-1 rounded bg-surface/90 border border-stroke text-fg3 opacity-70 hover:text-brand hover:opacity-100 transition-opacity">
-        <ZoomIn size={12} />
-      </button>
-      <div className="flex items-center justify-between mt-1 px-0.5">
-        <span className="text-caption text-fg4">{pageIndex + 1}</span>
-        {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
-            что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
-        {noAnswer
-          ? <AlertCircle size={10} className="text-danger" />
-          : suspicious && <AlertTriangle size={10} className="text-warning" />}
+      <div
+        onClick={e => onToggle(pageIndex, e)}
+        className={`group/tile relative rounded-md p-1 border-2 transition-colors text-left cursor-pointer ${
+          selected ? 'border-brand bg-brand-subtle' : 'border-transparent hover:border-stroke'
+        }`}>
+        <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
+        <Tooltip content="Просмотреть лист крупно" name>
+        <button
+            onClick={e => { e.stopPropagation(); onView(pageIndex); }}
+            className="absolute top-1.5 right-1.5 p-1 rounded bg-surface/90 border border-stroke text-fg3 opacity-70 hover:text-brand hover:opacity-100 transition-opacity">
+            <ZoomIn size={12} />
+          </button>
+      </Tooltip>
+        <div className="flex items-center justify-between mt-1 px-0.5">
+          <span className="text-caption text-fg4">{pageIndex + 1}</span>
+          {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
+              что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
+          {noAnswer
+            ? <AlertCircle size={10} className="text-danger" />
+            : suspicious && <AlertTriangle size={10} className="text-warning" />}
+        </div>
       </div>
-    </div>
+    </Tooltip>
   );
 }
 
@@ -306,10 +309,12 @@ function GroupSection({
         )}
         <span className="text-xs text-fg4 shrink-0">{group.pageIndices.length} л.</span>
         {!isSpecial && (
-          <button onClick={() => onDisband(group.id)} title="Расформировать (страницы станут без группы)"
-            className="p-1 text-stroke-strong hover:text-danger shrink-0">
-            <Trash2 size={13} />
-          </button>
+          <Tooltip content="Расформировать (страницы станут без группы)" name>
+            <button onClick={() => onDisband(group.id)}
+              className="p-1 text-stroke-strong hover:text-danger shrink-0">
+              <Trash2 size={13} />
+            </button>
+          </Tooltip>
         )}
       </div>
 
@@ -331,19 +336,21 @@ function GroupSection({
             {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <SelectItem key={p.id} value={p.id} disabled={p.disabled}>{p.name}</SelectItem>)}
           </Select>
           {(currentTag || group.profileId) && (
-            <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
-              title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
-              {tableBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <Table2 size={12} />}
-              Таблица
-            </button>
+            <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
+              <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
+                {tableBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <Table2 size={12} />}
+                Таблица
+              </button>
+            </Tooltip>
           )}
-          <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
-            title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
-            {docBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            Перераспознать
-          </button>
+          <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
+            <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
+              {docBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Перераспознать
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -527,10 +534,12 @@ export function PdfGroupingEditor() {
     <div className="p-6 flex flex-col h-full">
       <PageHeader className="mb-4 shrink-0"
         icon={
-          <button onClick={() => navigate(-1)} aria-label="Назад" title="Назад"
-            className="p-1.5 text-fg4 hover:text-fg1 rounded transition-colors">
-            <ArrowLeft size={16} />
-          </button>
+          <Tooltip content="Назад">
+            <button onClick={() => navigate(-1)} aria-label="Назад"
+              className="p-1.5 text-fg4 hover:text-fg1 rounded transition-colors">
+              <ArrowLeft size={16} />
+            </button>
+          </Tooltip>
         }
         title={`Разбиение${location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}`}
         subtitle={<>
@@ -541,10 +550,11 @@ export function PdfGroupingEditor() {
               остальное, человек увидит обрубки документов. Где именно проблема — видно на
               плитках, там сигнал и громкий. */}
           {pagesWithoutAnswer.size > 0 && (
-            <span className="text-danger"
-              title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
-              {' · '}{ruCount(pagesWithoutAnswer.size, 'лист', 'листа', 'листов')} без ответа
-            </span>
+            <Tooltip content="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
+              <span className="text-danger">
+                {' · '}{ruCount(pagesWithoutAnswer.size, 'лист', 'листа', 'листов')} без ответа
+              </span>
+            </Tooltip>
           )}
         </>}
         actions={<>

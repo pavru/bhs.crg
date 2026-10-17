@@ -8,6 +8,7 @@ import {
   offeredCondition, type FilterChange,
 } from './chipsModel';
 import { columnLabel, type FilterColumn } from './rowFilterModel';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Чипы отбора над таблицей (ТЗ CORE-33; задача G1d, issue #1091): каждое условие — чип, который
@@ -121,19 +122,20 @@ function Chip({ cond, columns, onChange, onRemove }: {
   const problem = chipProblem(cond, columns);
 
   return (
-    <span className={`${CHIP_CLS} ${problem ? 'border-danger text-danger' : 'border-stroke text-fg1'}`}
-      title={problem ? `Условие не выполнится: ${problem}` : undefined}>
-      <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
-        <button type="button" className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full hover:bg-muted">
-          {problem && <TriangleAlert size={12} aria-hidden />}
-          {text}
+    <Tooltip content={problem ? `Условие не выполнится: ${problem}` : undefined}>
+      <span className={`${CHIP_CLS} ${problem ? 'border-danger text-danger' : 'border-stroke text-fg1'}`}>
+        <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
+          <button type="button" className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full hover:bg-muted">
+            {problem && <TriangleAlert size={12} aria-hidden />}
+            {text}
+          </button>
+        </ConditionPopover>
+        <button type="button" onClick={onRemove} aria-label={`Снять условие «${text}»`}
+          className="pl-0.5 pr-2 py-1 rounded-r-full text-fg4 hover:text-danger">
+          <X size={12} aria-hidden />
         </button>
-      </ConditionPopover>
-      <button type="button" onClick={onRemove} aria-label={`Снять условие «${text}»`}
-        className="pl-0.5 pr-2 py-1 rounded-r-full text-fg4 hover:text-danger">
-        <X size={12} aria-hidden />
-      </button>
-    </span>
+      </span>
+    </Tooltip>
   );
 }
 

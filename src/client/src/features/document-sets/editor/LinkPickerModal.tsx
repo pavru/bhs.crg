@@ -23,6 +23,7 @@ import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
@@ -204,8 +205,10 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                         {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
                     </button>
                     {d.scanBlobPath && (
-                      <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)} title="Просмотр скана (в новой вкладке)"
-                        className="p-1 text-fg4 hover:text-brand shrink-0"><Eye size={14} /></button>
+                      <Tooltip content="Просмотр скана (в новой вкладке)" name>
+                        <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)}
+                          className="p-1 text-fg4 hover:text-brand shrink-0"><Eye size={14} /></button>
+                      </Tooltip>
                     )}
                   </div>
                 ))}

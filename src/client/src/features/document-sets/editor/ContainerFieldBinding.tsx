@@ -11,6 +11,7 @@ import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { isLockedField } from '../fields';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -137,15 +138,16 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
 
   return (
     <>
-      <button type="button" onClick={() => onOpenChange(true)}
-        title={locked ? 'Поле заперто модулем — привязку можно только снять'
-          : isBound ? 'Заполняется из источника — изменить/отвязать' : 'Привязать к источнику данных'}
-        aria-label={locked ? 'Снять привязку к источнику'
-          : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
-        className={`inline-flex items-center justify-center rounded transition-colors ${
-          isBound ? 'text-brand hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-fg2'}`}>
-        <Database size={13} />
-      </button>
+      <Tooltip content={locked ? 'Поле заперто модулем — привязку можно только снять'
+          : isBound ? 'Заполняется из источника — изменить/отвязать' : 'Привязать к источнику данных'}>
+        <button type="button" onClick={() => onOpenChange(true)}
+          aria-label={locked ? 'Снять привязку к источнику'
+            : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
+          className={`inline-flex items-center justify-center rounded transition-colors ${
+            isBound ? 'text-brand hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-fg2'}`}>
+          <Database size={13} />
+        </button>
+      </Tooltip>
 
       <Modal open={open} onOpenChange={onOpenChange} title={`Привязка «${field.title}» к источнику`} wide
         footer={
