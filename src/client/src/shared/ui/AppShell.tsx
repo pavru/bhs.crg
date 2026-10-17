@@ -4,10 +4,10 @@ import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
-import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
+import { AccountMenu } from '@/shared/ui/AccountMenu';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { paletteShown, refusedByDialog } from '@/shared/ui/modalDismissal';
@@ -21,7 +21,8 @@ import { DrawerBody } from '@/shared/ui/AppRail';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
-import { MailWarning, X, Menu } from 'lucide-react';
+import { CircleHelp, MailWarning, X, Menu, Search } from 'lucide-react';
+import { IconButton } from './Button';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -76,7 +77,6 @@ function Shell() {
   const productName = useProductName();
   const { allWork, work, outside, settings, rail: sections } = useNavSections();
   const { pathname } = useLocation();
-  const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -137,7 +137,7 @@ function Shell() {
       <aside data-testid="rail" data-panel={panelShown || undefined}
         className="shrink-0 hidden md:flex border-r border-stroke">
         <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
-          onShowPanel={() => setRail('expanded')} onChangePassword={() => setPwOpen(true)} />
+          onShowPanel={() => setRail('expanded')} />
         {panelShown && (
           <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')}
             groups={sections.find(s => s.def.id === panelSection.id)?.groups ?? []} />
@@ -152,8 +152,7 @@ function Shell() {
             className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] flex flex-col bg-surface border-r border-stroke focus:outline-none md:hidden"
             style={{ boxShadow: 'var(--f-shadow28)' }}>
             <Dialog.Title className="sr-only">Меню</Dialog.Title>
-            <DrawerBody onChangePassword={() => setPwOpen(true)}
-              onPick={() => setMenuOpen(false)} head={
+            <DrawerBody onPick={() => setMenuOpen(false)} head={
                 <div className="flex items-center gap-2 h-12 pl-4 pr-2 border-b border-stroke shrink-0">
                   {brand}
                   <Tooltip content="Закрыть меню">
@@ -166,15 +165,15 @@ function Shell() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* Content */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* На узком экране шапка — две строки (issue #1355): сверху меню, задачи и уведомления, под
-            ними контекст экрана. В одну строку 390 px не вмещают: подпись избранного ложилась в два
-            этажа поверх колокольчика. Прятать контекст в «ещё» нельзя — он говорит, что видно. */}
+        {/* Шапка (issue #1430): контекст экрана, поиск, задачи и уведомления, справка, профиль.
+            На узком экране — две строки (issue #1355): сверху меню, поиск и кнопки, под ними контекст
+            экрана. В одну строку 390 px не вмещают: подпись избранного ложилась в два этажа поверх
+            колокольчика. Прятать контекст в «ещё» нельзя — он говорит, что видно. */}
         <header className="min-h-12 md:h-12 shrink-0 border-b border-stroke bg-surface flex flex-wrap md:flex-nowrap items-center gap-1 px-2 md:px-4">
           <Tooltip content="Меню">
             <button type="button" onClick={() => setMenuOpen(true)} aria-label="Меню"
@@ -191,9 +190,14 @@ function Shell() {
             {/* Избранные стройки — за пространством (#1218): тоже «что я вижу», а не действие. */}
             <SiteFilterSwitch />
           </div>
-          <div className="flex-1" />
+          <SearchButton onOpen={() => setPaletteOpen(true)} />
           <ActiveJobsIndicator />
           <NotificationsCenter />
+          {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. */}
+          <IconButton label="Справка и горячие клавиши" size="lg" onClick={() => setHelpOpen(true)}>
+            <CircleHelp size={20} />
+          </IconButton>
+          <span className="pl-1"><AccountMenu /></span>
         </header>
         <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
@@ -201,6 +205,26 @@ function Shell() {
           <Outlet />
         </div>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Поиск в шапке (issue #1430) — видимая дверь к палитре Ctrl K: клавишу знает только тот, кто её уже
+ * нашёл. Занимает свободное место строки, но не шире 640 px — дальше строка поиска читается как
+ * разделитель, а не поле. Что палитра ищет — #1433.
+ */
+function SearchButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="flex-1 min-w-0 flex">
+      {/* Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала уходит
+          метка клавиш, потом подпись становится невидимой, и остаётся значок поиска. */}
+      <button type="button" onClick={onOpen} aria-keyshortcuts="Control+K"
+        className="@container flex-1 min-w-10 max-w-160 flex items-center gap-2.5 h-10 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-base text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        <Search size={18} className="shrink-0" />
+        <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
+        <kbd className="hidden @xs:inline shrink-0 rounded border border-stroke px-1.5 text-caption text-fg4">Ctrl K</kbd>
+      </button>
     </div>
   );
 }

@@ -94,7 +94,7 @@ export function BugReportsPage() {
         ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div>
         : (reports?.length ?? 0) === 0
           ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
-              Сообщений нет. Пользователи отправляют их пунктом «Сообщить об ошибке» в боковой панели.
+              Сообщений нет. Пользователи отправляют их пунктом «Сообщить о проблеме» в меню профиля.
             </div>
           : undefined}
       nav={
@@ -441,6 +441,8 @@ function defaultIssueTitle(message: string): string {
 }
 
 function originLabel(origin: string): string {
+  if (origin === 'account') return 'меню профиля';
+  // Сообщения, отправленные до переезда пункта в меню профиля (#1430).
   if (origin === 'rail') return 'боковая панель';
   if (origin === 'boundary') return 'экран сбоя интерфейса';
   if (origin === 'toast') return 'уведомление об ошибке';

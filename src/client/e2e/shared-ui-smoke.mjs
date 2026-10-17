@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/shared-ui-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until } from './harness.mjs';
+import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until, accountAction, pickTheme as pickThemeOf } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -32,10 +32,8 @@ const { check, summarize } = createChecks();
 
 const domTheme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
 const storedTheme = () => page.evaluate(() => localStorage.getItem('crg-theme'));
-const pickTheme = async (label) => {
-  await page.getByRole('group', { name: 'Тема оформления' }).getByRole('button', { name: label }).click();
-  await settled(page);
-};
+// Тема — из меню профиля в шапке (issue #1430).
+const pickTheme = label => pickThemeOf(page, label);
 
 await login(page);
 
@@ -59,7 +57,7 @@ try {
 await check('theme-saves-right-after-form-login', async () => {
   await page.goto(`${BASE}/document-sets`);
   await settled(page);
-  await pickTheme('Системная');
+  await pickTheme('Авто');
 
   await clearSession(page);
   await page.evaluate(() => localStorage.removeItem('crg-theme'));
@@ -99,7 +97,7 @@ await check('theme-choice-survives-reload', async () => {
 // Ради этой проверки и заводился useSyncExternalStore: системная тема меняется БЕЗ участия
 // приложения, и подписка обязана быть живой. Эмулируем смену системной настройки браузером.
 await check('system-theme-follows-os-change', async () => {
-  await pickTheme('Системная');
+  await pickTheme('Авто');
   await page.emulateMedia({ colorScheme: 'light' });
   await settled(page);
   if ((await domTheme()) !== 'light') throw new Error(`при светлой системе на <html> «${await domTheme()}»`);
@@ -146,7 +144,7 @@ await check('theme-comes-from-the-server-not-the-browser', async () => {
 // «выйти — войти другим» занимает пять секунд, а кэш жил пять минут.
 await check('settings-do-not-survive-a-change-of-user', async () => {
   await pickTheme('Тёмная');
-  await page.getByRole('button', { name: 'Выйти' }).click();
+  await accountAction(page, 'Выйти');
   await page.waitForSelector('input[type=email]', { timeout: 10000 });
 
   // Вход ДРУГИМ человеком в той же вкладке — без перезагрузки страницы.
@@ -159,7 +157,7 @@ await check('settings-do-not-survive-a-change-of-user', async () => {
     throw new Error('вошедшему второму человеку досталась тема первого');
 
   // Возвращаем прогон к администратору: дальше нужны его данные.
-  await page.getByRole('button', { name: 'Выйти' }).click();
+  await accountAction(page, 'Выйти');
   await page.waitForSelector('input[type=email]', { timeout: 10000 });
 });
 

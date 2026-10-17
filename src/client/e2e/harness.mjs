@@ -423,6 +423,34 @@ export async function wholeMenu(page) {
   return parts.join('\n');
 }
 
+/**
+ * Меню профиля в шапке (issue #1430): тема, «Профиль и пароль», «Сообщить о проблеме», «Выйти» и
+ * версия живут в нём, а не на экране. Открывает меню и отдаёт его.
+ */
+export async function accountMenu(page) {
+  await page.getByTestId('account-menu').click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ timeout: 5000 });
+  return menu;
+}
+
+/** Пункт меню профиля по имени: открыть меню и выбрать. */
+export async function accountAction(page, name) {
+  await (await accountMenu(page)).getByRole('menuitem', { name, exact: true }).click();
+}
+
+/**
+ * Тема — из меню профиля. Выбор меню не закрывает (новую тему видно сразу), поэтому закрываем
+ * сами: открытое меню перехватило бы следующий щелчок проверки.
+ */
+export async function pickTheme(page, label) {
+  const menu = await accountMenu(page);
+  await menu.getByRole('menuitemradio', { name: label, exact: true }).click();
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden', timeout: 5000 });
+  await settled(page);
+}
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

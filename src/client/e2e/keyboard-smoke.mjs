@@ -3,6 +3,7 @@
 //   • видимый фокус после Tab (:focus-visible) на ключевых экранах;
 //   • командная палитра Ctrl/⌘+K открывается и закрывается по Esc;
 //   • шпаргалка «?» открывается на неполевом фокусе и закрывается по Esc;
+//   • шапка: поиск и «?» открывают палитру и справку, меню профиля проходится клавиатурой (#1430);
 //   • Radix-диалоги возвращают фокус и ловятся Esc;
 //   • чем закрывается модальный диалог — по его состоянию (issue #1235).
 //
@@ -11,7 +12,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/keyboard-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, accountAction } from './harness.mjs';
 
 const PALETTE_INPUT = 'input[placeholder="Перейти к разделу…"]';
 const { check, summarize } = createChecks();
@@ -66,6 +67,42 @@ try {
     await page.getByText('Горячие клавиши').first().waitFor({ state: 'hidden', timeout: 3000 });
   });
 
+  // ── Шапка: видимые входы в палитру и справку, меню профиля (issue #1430) ─────
+  await check('header-search-opens-palette', async () => {
+    await page.getByRole('button', { name: /Найти счёт, стройку или действие/ }).click();
+    await page.waitForSelector(PALETTE_INPUT, { state: 'visible', timeout: 3000 });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector(PALETTE_INPUT, { state: 'hidden', timeout: 3000 });
+  });
+  await check('header-help-button-opens-help', async () => {
+    await page.getByRole('button', { name: 'Справка и горячие клавиши' }).click();
+    await page.getByText('Горячие клавиши').first().waitFor({ state: 'visible', timeout: 3000 });
+    await page.keyboard.press('Escape');
+    await page.getByText('Горячие клавиши').first().waitFor({ state: 'hidden', timeout: 3000 });
+  });
+  // Без мыши: фокус на аватар, Enter открывает, стрелки ходят по пунктам, Esc закрывает и
+  // возвращает фокус на аватар.
+  await check('account-menu-by-keyboard', async () => {
+    const avatar = page.getByTestId('account-menu');
+    if ((await avatar.getAttribute('aria-haspopup')) !== 'menu') throw new Error('у аватара нет aria-haspopup="menu"');
+    if (!/профиль и оформление/.test((await avatar.getAttribute('aria-label')) ?? ''))
+      throw new Error('у аватара нет имени с подписью меню');
+    await avatar.focus();
+    await page.keyboard.press('Enter');
+    const menu = page.getByRole('menu');
+    await menu.waitFor({ timeout: 3000 });
+    const focusedItem = () => page.evaluate(() => (document.activeElement?.textContent ?? '').trim());
+    await until(async () => { if ((await focusedItem()) !== 'Профиль и пароль') throw new Error(`фокус на «${await focusedItem()}»`); });
+    await page.keyboard.press('ArrowDown');
+    await until(async () => { if ((await focusedItem()) !== 'Светлая') throw new Error(`после ↓ фокус на «${await focusedItem()}»`); });
+    await page.keyboard.press('Escape');
+    await menu.waitFor({ state: 'hidden', timeout: 3000 });
+    await until(async () => {
+      if (!(await page.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'account-menu')))
+        throw new Error('после Esc фокус не вернулся на аватар');
+    });
+  });
+
   // ── Чем закрывается диалог (issue #1235) ────────────────────────────────────
   // Правило — по состоянию окна. Сама таблица проверена тестом `Modal`; здесь то, чего тест не
   // видит: настоящий щелчок по затемнению, настоящий фокус и слой, вложенный в диалог.
@@ -78,7 +115,7 @@ try {
   const hinted = () => page.evaluate(() => (document.querySelector('[data-modal-hint]')?.textContent ?? '').trim());
   const closed = () => until(async () => { if (await dialogs()) throw new Error('диалог не закрылся'); });
   const openBugReport = async () => {
-    await page.getByRole('button', { name: 'Сообщить об ошибке', exact: true }).first().click();
+    await accountAction(page, 'Сообщить о проблеме');
     await page.locator('[role=dialog] textarea').first().waitFor({ state: 'visible', timeout: 5000 });
   };
 
