@@ -9,7 +9,7 @@
 // «Счета и накладные» сузило бы им меню, и они упали бы на чужом. Поэтому настройки пространств
 // сбрасываются и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi } from './harness.mjs';
+import { BASE, settled, callApi, railSection } from './harness.mjs';
 
 const RESET = { workspaces: null, workspace: null, 'workspace.default': null };
 const OWN = 'Снабжение (проверка)';
@@ -68,12 +68,17 @@ export async function workspaceChecks(page, check) {
 
     await check('workspace-narrows-the-menu-and-names-what-is-hidden', async () => {
       await choose(page, 'Счета и накладные');
-      const nav = page.locator('aside nav');
-      if (!(await nav.getByRole('link', { name: 'Счета', exact: true }).count()))
-        throw new Error('в пространстве «Счета и накладные» нет пункта «Счета»');
-      if (!(await nav.getByRole('link', { name: 'Стройки', exact: true }).count()))
+      if (!(await railSection(page, 'Стройки').count()))
         throw new Error('нет «Строек» — раздела ядра, который объявил модуль счетов');
-      if (await nav.getByRole('link', { name: 'Документы качества', exact: true }).count())
+      await railSection(page, 'Учёт').click();
+      await settled(page);
+      const panel = page.getByTestId('section-panel');
+      if (!(await panel.getByRole('link', { name: 'Счета', exact: true }).count()))
+        throw new Error('в пространстве «Счета и накладные» нет пункта «Счета»');
+      // «Данные» остаются разделом — «Общие данные» объявил модуль счетов, — но без страниц модуля ИД.
+      await railSection(page, 'Данные').click();
+      await settled(page);
+      if (await panel.getByRole('link', { name: 'Документы качества', exact: true }).count())
         throw new Error('пункт модуля ИД виден в пространстве счетов');
       const more = await page.getByTestId('outside-nav').locator('button').first().innerText();
       if (!/^Ещё \d+ раздел/.test(more) || !more.includes('вне пространства'))

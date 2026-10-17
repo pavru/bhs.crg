@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/themeContext';
 import { workNav, settingsNav } from './navConfig';
+import { railDef } from './railSections';
 import { visibleNav } from './navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedLeave, useGuardedNavigate } from './NavigationGuard';
@@ -44,8 +45,10 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
 
   const items = useMemo<Cmd[]>(() => {
     const nav = [
-      ...work.map(n => ({ ...n, section: inside(n) ? 'Документы и данные' : 'Вне пространства' })),
-      ...settings.map(n => ({ ...n, section: 'Настройка системы' })),
+      // Группы палитры — разделы рейла (issue #1429): найденное подписано тем же именем, под которым
+      // его искать в меню.
+      ...work.map(n => ({ ...n, section: inside(n) ? railDef(n.rail).title : 'Вне пространства' })),
+      ...settings.map(n => ({ ...n, section: railDef(n.rail).title })),
     ].map(n => ({ id: n.to, label: n.label, section: n.section, icon: n.icon, run: () => navigate(n.to) }));
     const actions: Cmd[] = [
       { id: 'theme-light',  label: 'Тема: светлая',   section: 'Действия', icon: Sun,     run: () => setTheme('light') },

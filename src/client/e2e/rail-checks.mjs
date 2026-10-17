@@ -1,64 +1,79 @@
-// Свёрнутая боковая панель (issue #1355) — проверки живым браузером.
+// Рейл разделов и подпанель раздела (issue #1429; до неё — свёртка панели в иконки, #1355) —
+// проверки живым браузером.
 //
 // Отдельным файлом, а не своим набором — по той же причине, что пространства и избранное: входы
 // прогонов CI упёрлись в предел частоты (`suites.test.mjs`). Едут внутри `settings-smoke`.
 //
-// ⚠️ Выбор хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленная свёрнутой
-// панель прятала бы подписи пунктов, и чужие локаторы по тексту меню упали бы. Поэтому настройка
-// сбрасывается и до проверок, и после — в finally, адресом, а не через экран.
+// ⚠️ Выбор хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленная скрытой
+// подпанель прятала бы страницы разделов, и чужие локаторы по тексту меню упали бы. Поэтому
+// настройка сбрасывается и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, until } from './harness.mjs';
+import { BASE, settled, callApi, until, railSection } from './harness.mjs';
 
 const RESET = { rail: null };
 
-const railWidth = page => page.getByTestId('rail').evaluate(el => el.getBoundingClientRect().width);
+const panel = page => page.getByTestId('section-panel');
 
 export async function railChecks(page, check) {
   const reset = await callApi(page, 'PUT', '/account/settings', RESET);
-  if (reset.status !== 200) throw new Error(`настройка панели не сброшена: ${reset.status}`);
+  if (reset.status !== 200) throw new Error(`настройка подпанели не сброшена: ${reset.status}`);
   try {
     // Зеркало в браузере осталось бы от прошлых прогонов: первый кадр взял бы его, а не умолчание.
     await page.evaluate(() => localStorage.removeItem('crg-rail'));
-    await page.goto(`${BASE}/document-sets`);
+    await page.goto(`${BASE}/roles`);
     await settled(page);
 
-    await check('rail-collapses-to-icons-with-names-kept', async () => {
-      const wide = await railWidth(page);
-      if (wide < 200) throw new Error(`панель по умолчанию не развёрнута: ${wide}px`);
-
-      await page.getByRole('button', { name: 'Свернуть панель' }).click();
-      await until(async () => {
-        const w = await railWidth(page);
-        if (w >= 80) throw new Error(`панель не свернулась: ${w}px`);
-      });
-
-      // Пункт без подписи на экране обязан остаться названным: подсказкой для глаза и именем для
-      // диктора. Пропади имя — меню превратилось бы в ряд неотличимых кнопок.
-      const link = page.locator('#app-rail-nav a').first();
-      const spoken = (await link.locator('.sr-only').allTextContents()).join('').trim();
-      if (!spoken) throw new Error('подпись пункта свёрнутой панели не оставлена диктору');
-      await link.hover();
-      // Подсказка появляется с задержкой наведения; её слой — role=tooltip в портале.
-      await page.locator('[role=tooltip]', { hasText: spoken }).first().waitFor({ state: 'attached', timeout: 3000 })
-        .catch(() => { throw new Error(`у пункта «${spoken}» свёрнутой панели нет подсказки`); });
+    await check('section-panel-shows-the-pages-of-the-section', async () => {
+      // Окно прогона шире 1200 px, а человек ничего не выбирал — подпанель на месте.
+      if (!(await panel(page).isVisible()))
+        throw new Error(`подпанель не показана по умолчанию на ${page.viewportSize()?.width}px`);
+      const title = (await panel(page).getByRole('heading', { level: 2 }).innerText()).trim();
+      if (title !== 'Администрирование') throw new Error(`у «Системы» подпанель «${title}»`);
+      for (const group of ['Документы', 'Люди и доступ', 'Наблюдение', 'Общее'])
+        if (!(await panel(page).getByRole('heading', { level: 3, name: group }).count()))
+          throw new Error(`в «Администрировании» нет группы «${group}»`);
+      const width = await page.getByTestId('rail').evaluate(el => el.getBoundingClientRect().width);
+      // Рейл 88 + подпанель 240 + черта.
+      if (Math.abs(width - 329) > 2) throw new Error(`рейл с подпанелью шириной ${width}px, ждали 329`);
     });
 
-    await check('rail-collapsed-survives-reload-and-lives-on-server', async () => {
+    await check('section-panel-hides-and-lives-on-server', async () => {
+      await panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click();
+      await panel(page).waitFor({ state: 'detached' });
       await until(async () => {
         const { body } = await callApi(page, 'GET', '/account/settings');
-        if (body?.rail !== 'collapsed') throw new Error(`свёрнутая панель не записана на сервер: ${body?.rail}`);
+        if (body?.rail !== 'collapsed') throw new Error(`скрытая подпанель не записана на сервер: ${body?.rail}`);
       });
 
       await page.reload();
       await settled(page);
-      const width = await railWidth(page);
-      if (width >= 80) throw new Error(`после перезагрузки панель развёрнута: ${width}px`);
+      if (await panel(page).count()) throw new Error('после перезагрузки подпанель вернулась');
 
-      await page.getByRole('button', { name: 'Развернуть панель' }).click();
-      await until(async () => {
-        const w = await railWidth(page);
-        if (w <= 200) throw new Error(`панель не развернулась обратно: ${w}px`);
-      });
+      // Свой раздел в рейле при скрытой подпанели — «покажи страницы», а не переход на первую.
+      await railSection(page, 'Система').click();
+      await panel(page).waitFor();
+      if (new URL(page.url()).pathname !== '/roles')
+        throw new Error(`щелчок по своему разделу увёл на ${new URL(page.url()).pathname}`);
+
+      // И кнопка у края страницы — второй вход к скрытой подпанели.
+      await panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click();
+      await panel(page).waitFor({ state: 'detached' });
+      await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+      await panel(page).waitFor();
+    });
+
+    // В карточке стройки подпанели нет: её место у навигации стройки, две панели рядом не стоят.
+    await check('site-card-has-no-section-panel', async () => {
+      const sites = (await callApi(page, 'GET', '/constructions')).body;
+      if (!Array.isArray(sites) || !sites.length) throw new Error('нет ни одной стройки — нужны демо-данные');
+      await page.goto(`${BASE}/document-sets`);
+      await settled(page);
+      if (!(await panel(page).isVisible())) throw new Error('у списка строек нет подпанели');
+      await page.goto(`${BASE}/document-sets/${sites[0].id}`);
+      await settled(page);
+      if (await panel(page).count()) throw new Error('в карточке стройки стоит подпанель раздела');
+      const current = await page.locator('#app-rail-nav a[aria-current="true"]').innerText();
+      if (current.trim() !== 'Стройки') throw new Error(`в карточке стройки текущим помечен раздел «${current.trim()}»`);
     });
 
     await narrowChecks(page, check);
@@ -77,6 +92,7 @@ const sideScroll = page => page.evaluate(() => document.documentElement.scrollWi
 async function narrowChecks(page, check) {
   const desktop = page.viewportSize();
   const sections = await page.locator('#app-rail-nav a').count();
+  if (!sections) throw new Error('в рейле нет ни одного раздела');
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE}/document-sets`);
@@ -90,8 +106,9 @@ async function narrowChecks(page, check) {
       await page.getByRole('button', { name: 'Меню' }).click();
       const drawer = page.getByTestId('rail-drawer');
       await drawer.waitFor();
-      // Тот же список, что у панели на рабочем столе: копия, разошедшаяся с ней, прятала бы разделы.
-      const shown = await drawer.locator('#app-drawer-nav a').count();
+      // Те же разделы, что в рейле рабочего стола, — все сразу, каждый со страницами: копия,
+      // разошедшаяся с рейлом, прятала бы разделы.
+      const shown = await drawer.locator('#app-drawer-nav h2').count();
       if (shown !== sections) throw new Error(`в меню ${shown} разделов, на рабочем столе ${sections}`);
 
       // Выбор раздела закрывает меню — иначе оно лежало бы поверх открытого раздела.

@@ -7,49 +7,45 @@ import { useGuardedNavigate, useGuardedPick } from './NavigationGuard';
 import { useWorkspace } from './workspaceContext';
 import { outsideItem } from './workspaces';
 import type { NavItem } from './navConfig';
-import { Tooltip } from './Tooltip';
 
 /**
- * «Ещё N разделов вне пространства ▸» — последней строкой рабочего меню, постоянно (ТЗ AUTH-16.1;
- * issue #1001). Меню само говорит, что скрыто: без этой строки к скрытому разделу вёл бы только
+ * «Ещё N разделов вне пространства ▸» — последней строкой подпанели и меню, постоянно (ТЗ AUTH-16.1;
+ * issue #1001, #1429). Меню само говорит, что скрыто: без этой строки к скрытому разделу вёл бы только
  * поиск, то есть нужно было бы заранее знать ответ. Переход открывает раздел БЕЗ смены пространства.
+ *
+ * Строка одна на все разделы рейла, а не своя у каждого: раздел, у которого вне пространства ВСЁ, из
+ * рейла уходит, и его страницам остаётся только эта строка.
  */
-export function OutsideNav({ items, collapsed = false, onPick }: {
-  items: NavItem[]; collapsed?: boolean;
-  /** Выбран раздел — выдвижное меню по нему закрывается (см. `RailBody`). */
+export function OutsideNav({ items, onPick }: {
+  items: NavItem[];
+  /** Выбран раздел — выдвижное меню по нему закрывается (см. `DrawerBody`). */
   onPick?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  // Открытая отсюда страница держит список раскрытым: иначе выбранный пункт пропадал бы из виду.
+  const here = items.some(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
+  const [open, setOpen] = useState(here);
   const guardedClick = useGuardedPick(onPick);
   if (items.length === 0) return null;
 
-  // В свёрнутой панели (issue #1355) строка остаётся — иконкой с тем же текстом в подсказке:
-  // пропади она, к скрытым разделам снова вёл бы только поиск.
   const caption = `Ещё ${ruCount(items.length, 'раздел', 'раздела', 'разделов')} вне пространства`;
-  const pill = collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-2 px-3 py-2';
   return (
-    <div data-testid="outside-nav" className="mt-1">
-      <Tooltip content={collapsed ? caption : undefined}>
-        <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-          className={`w-full flex items-center rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${pill}`}>
-          {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
-          <span className={collapsed ? 'sr-only' : undefined}>{caption}</span>
-        </button>
-      </Tooltip>
+    <div data-testid="outside-nav" className="mt-3">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
+        <span>{caption}</span>
+      </button>
       {open && (
         <div className="space-y-0.5 mt-0.5">
-          {items.map(({ to, label, icon: Icon }) => (
-            <Tooltip key={to} content={collapsed ? label : undefined} side="right" name>
-              <NavLink to={to} onClick={guardedClick(to)}
-                className={({ isActive }) =>
-                  `flex items-center rounded-full text-sm select-none transition-colors ` +
-                  `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                    collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2'} ${
-                    isActive ? 'bg-tonal text-on-tonal' : 'text-fg2 hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                <Icon size={16} className="shrink-0 text-fg4" />
-                <span className={collapsed ? 'sr-only' : undefined}>{label}</span>
-              </NavLink>
-            </Tooltip>
+          {items.map(({ to, label }) => (
+            <NavLink key={to} to={to} onClick={guardedClick(to)}
+              className={({ isActive }) =>
+                'flex items-center h-10 px-3 rounded-full text-sm select-none transition-colors ' +
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
+                (isActive ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
+              <span className="truncate">{label}</span>
+            </NavLink>
           ))}
         </div>
       )}

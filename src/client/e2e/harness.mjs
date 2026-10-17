@@ -379,6 +379,35 @@ export function callApi(page, method, path, body) {
 export const registryAddress = filter =>
   `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
 
+/**
+ * Навигация с #1429 — рейл РАЗДЕЛОВ и подпанель открытого раздела: страницы других разделов на
+ * экране не видны. Отсюда три помощника вместо `page.locator('nav')`, который находил бы рейл без
+ * страниц, а на экране со своим `<nav>` — ещё и чужую колонку.
+ */
+export const railSection = (page, name) =>
+  page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name, exact: true });
+
+/** Текст навигации на экране: разделы рейла и страницы открытой подпанели. */
+export const menuText = page => page.locator('#app-rail-nav, [data-testid="section-panel"]')
+  .allInnerTexts().then(parts => parts.join('\n'));
+
+/**
+ * Всё меню человека — обходом разделов рейла: «пункта нет у роли» иначе проверялось бы на одной
+ * подпанели и проходило бы, не глядя на остальные. Уводит со страницы.
+ */
+export async function wholeMenu(page) {
+  const rail = page.getByRole('navigation', { name: 'Разделы' });
+  const names = (await rail.getByRole('link').allInnerTexts()).map(t => t.trim()).filter(Boolean);
+  const parts = [names.join('\n')];
+  for (const name of names) {
+    await railSection(page, name).click();
+    await rail.locator('a[aria-current="true"]', { hasText: name }).waitFor({ timeout: 5000 });
+    const panel = page.getByTestId('section-panel');
+    if (await panel.count()) parts.push(await panel.innerText());
+  }
+  return parts.join('\n');
+}
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
