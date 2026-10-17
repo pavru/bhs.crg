@@ -132,20 +132,49 @@ public class OrphanBlobCleanup(
         long size = 0;
         var missing = 0;
         var sizes = new Dictionary<string, long>(StringComparer.Ordinal);
+        // Объекты, о которых хранилище отказало ответить (issue #1427). Их не трогаем: без размера не
+        // отличить живой файл от пропавшего, а приняв одно за другое, уборка сняла бы запись у живого.
+        // Пропуск — по объекту, а не всей уборки: пакет берётся в одном и том же порядке, и объект,
+        // отказывающий всегда (ключ, которого хранилище не принимает), иначе держал бы её вечно.
+        var unchecked_ = new HashSet<string>(StringComparer.Ordinal);
+        BlobStorageUnavailableException? firstRefusal = null;
         foreach (var entry in batch)
         {
-            var value = await blobs.GetSizeAsync(entry.Path, ct);
+            long? value;
+            try { value = await blobs.GetSizeAsync(entry.Path, ct); }
+            catch (BlobStorageUnavailableException ex)
+            {
+                firstRefusal ??= ex;
+                unchecked_.Add(entry.Path);
+                continue;
+            }
             if (value is { } bytes) { sizes[entry.Path] = bytes; size += bytes; } else missing++;
         }
 
-        // «Размера нет» и «хранилище не отвечает» с виду одно и то же: MinIOBlobStorage возвращает
-        // null на ЛЮБОЙ отказ. Разница решающая — при недоступном хранилище отчёт скажет «все
-        // объекты и так пропали, уйдут только записи», администратор подтвердит, и записи реестра
-        // уйдут у живых файлов. А без записи в реестре файл не отдаётся и больше никогда не
-        // попадётся этой же уборке: он станет невидимым навсегда.
+        // Отказали все — отказывает хранилище, а не объекты. По одной строке журнала на объект здесь
+        // было бы до двух тысяч одинаковых строк; причина одна, и её довольно записать раз.
+        if (firstRefusal is not null)
+        {
+            if (unchecked_.Count == batch.Count)
+            {
+                log.LogWarning(firstRefusal, "Уборка хранилища отменена: хранилище отказало в размере всех "
+                    + "{Count} объектов пакета", batch.Count);
+                return Report(bytes: 0, missing: 0, deleted: 0, failed: 0, unreachable: true);
+            }
+            log.LogWarning(firstRefusal, "Уборка хранилища: хранилище отказало в размере {Count} объектов, "
+                + "они пропущены до следующего прогона", unchecked_.Count);
+        }
+
+        // Хранилище, ответившее «объекта нет» на ВСЁ, — тоже не обязательно правда о файлах: так
+        // отвечает пустой или чужой бакет (перепутанная настройка, хранилище поднято заново). Отказ
+        // связи с issue #1427 приходит исключением (выше), а этот ответ — нет. Разница решающая:
+        // отчёт скажет «все объекты и так пропали, уйдут только записи», администратор подтвердит,
+        // и записи реестра уйдут у живых файлов. А без записи в реестре файл не отдаётся и больше
+        // никогда не попадётся этой же уборке: он станет невидимым навсегда.
         //
         // Различаем пробой по ЗАВЕДОМО живому объекту: на него ссылается база, значит он должен
-        // быть на месте. Молчат все пробы — молчит хранилище, а не файлы.
+        // быть на месте. Не нашлась ни одна проба — перед нами не то хранилище, о котором говорит
+        // база, а не пропавшие файлы.
         if (missing > 0 && !await StorageAnswersAsync(registered.Where(e => live.IsLive(e.Path)).Select(e => e.Path), ct))
         {
             log.LogWarning("Уборка хранилища отменена: хранилище не отвечает (не удалось получить размер "
@@ -153,16 +182,19 @@ public class OrphanBlobCleanup(
             return Report(bytes: 0, missing: missing, deleted: 0, failed: 0, unreachable: true);
         }
 
-        if (dryRun) return Report(size, missing, deleted: 0, failed: 0, unreachable: false);
+        // Пропущенные без размера — в «не удалось»: удалены они не будут, и отчёт обязан это сказать
+        // уже при подсчёте, а не только после прогона.
+        if (dryRun) return Report(size, missing, deleted: 0, failed: unchecked_.Count, unreachable: false);
 
         long freed = 0;
         var deleted = 0;
-        var failed = 0;
+        var failed = unchecked_.Count;
         foreach (var entry in batch)
         {
             // На отмене выходим, а не бросаем: отвечать уже некому, но отчёт и запись в журнал
             // должны сказать, сколько успели, — иначе прерванный прогон выглядит как несделанный.
             if (ct.IsCancellationRequested) break;
+            if (unchecked_.Contains(entry.Path)) continue;
             try
             {
                 // Через то же хранилище, что и вся остальная работа: оно убирает объект и снимает
@@ -195,6 +227,7 @@ public class OrphanBlobCleanup(
     /// Проб несколько, потому что и живая ссылка бывает битой; ответ хотя бы одной означает, что
     /// хранилище на месте, а пропавшие — действительно пропавшие. Проверять нечем (живых объектов
     /// нет вовсе) — считаем, что доступно: иначе первая же уборка на пустой системе встала бы.
+    /// Отказ на пробе — как молчание этой пробы, но не всех (issue #1427).
     /// </summary>
     private async Task<bool> StorageAnswersAsync(IEnumerable<string> livePaths, CancellationToken ct)
     {
@@ -202,7 +235,16 @@ public class OrphanBlobCleanup(
         foreach (var path in livePaths.Take(ProbeSize))
         {
             probed++;
-            if (await blobs.GetSizeAsync(path, ct) is not null) return true;
+            try
+            {
+                if (await blobs.GetSizeAsync(path, ct) is not null) return true;
+            }
+            catch (BlobStorageUnavailableException ex)
+            {
+                // Следующую пробу — всё равно: отказ на одном объекте ещё не отказ хранилища, ради
+                // этого проб и несколько.
+                log.LogWarning(ex, "Проба хранилища не удалась ({Path})", path);
+            }
         }
         return probed == 0;
     }

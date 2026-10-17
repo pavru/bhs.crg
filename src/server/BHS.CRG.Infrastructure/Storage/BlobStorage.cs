@@ -1,6 +1,7 @@
 using BHS.CRG.Application.Common;
 using Minio;
 using Minio.DataModel.Args;
+using Minio.Exceptions;
 
 namespace BHS.CRG.Infrastructure.Storage;
 
@@ -99,11 +100,25 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
                 .WithObject(obj), ct);
             return stat.Size;
         }
-        catch (Exception) when (!ct.IsCancellationRequested)
+        catch (ObjectNotFoundException)
         {
-            // Объекта нет (или до него не достучаться) — для оценки это «ноль байт», а не отказ.
-            // Отмену пропускаем наружу: она значит, что спрашивать уже некому.
+            // null — ТОЛЬКО на ответ хранилища «такого объекта нет» (issue #1427). Прежде здесь
+            // ловилось всё, кроме отмены, и лежащее хранилище, 403 или таймаут выглядели пропавшим
+            // файлом: оценка копии показывала крошечный архив «с пропавшими файлами», а уборка
+            // осиротевших держалась на отдельной пробе, чтобы не снять записи у живых файлов.
+            // Остальные отказы уходят наружу — отличить их от отсутствия может только этот слой.
+            // «Бакета нет» (BucketNotFoundException) — тоже отказ: это перепутанная настройка, а не
+            // пропавшие файлы. Какой отказ на что, сверено на живом Garage (BlobSizeTests).
             return null;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            // Отказ — одним своим типом, что бы ни бросил клиент: на 500 без тела клиент Minio 7.0.0
+            // падает NullReferenceException, и поимённый перечень его типов пропустил бы этот случай.
+            // Заворачивается только сам запрос: путь разобран выше, до try, — битый путь хранилищем
+            // не отказывает и за его отказ выдаваться не должен.
+            throw new BlobStorageUnavailableException(
+                $"Хранилище не ответило на запрос размера объекта «{blobPath}»: {ex.GetType().Name}", ex);
         }
     }
 
