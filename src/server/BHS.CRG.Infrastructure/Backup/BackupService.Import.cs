@@ -83,6 +83,9 @@ public partial class BackupService
             await RestorePrimitiveTypesAsync(manifest.PrimitiveTypes ?? [], stats, warnings, ct);
             await RestoreEnumTypesAsync(manifest.EnumTypes ?? [], stats, warnings, ct);
             await RestoreRecognitionProfilesAsync(manifest.RecognitionProfiles ?? [], stats, warnings, ct);
+            // Тёзки — до типов (issue #1400): тип, который новая система завела сама, стоит под своим
+            // идентификатором, и вставка одноимённого из копии упала бы на уникальности кода.
+            await ReplaceTypeNamesakesAsync(manifest.DocumentTypes, warnings, ct);
             await RestoreDocumentTypesAsync(manifest.DocumentTypes, stats, warnings, ct);
             await AssignDirectoryRolesAsync(manifest, warnings, ct);
             await RestoreTemplatesAsync(manifest.Templates, stats, warnings, ct);
@@ -180,6 +183,10 @@ public partial class BackupService
         // восстановленную базу в отказ запроса без отчёта.
         await WarnAboutMissingFilesAsync(manifest, archived, restored, warnings, ct);
         await WarnAboutModuleFilesAsync(restoredModules, archived, warnings, ct);
+        // То, что старт делает после миграций, — и восстановлению (issue #1400): роль справочника
+        // назначена только что, и тип модуля, который на неё опирается, иначе появился бы лишь
+        // после перезапуска.
+        await aftercare.RunAsync(warnings, ct);
 
         return new RestoreReport(true, conversionNotice, warnings,
             stats.DocumentTypesCreated, stats.DocumentTypesUpdated,
