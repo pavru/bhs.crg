@@ -24,7 +24,7 @@ namespace BHS.CRG.Tests.Integration;
 /// <para>Проверяется через НАСТОЯЩУЮ очередь: черновик заводит адрес, читает скан фоновая задача, а
 /// тест ждёт исхода тем же опросом, что и форма.</para>
 /// </summary>
-public sealed class InvoiceFromScanTests(InvoiceScanHost host)
+public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
     : InvoiceLineTestBase(host), IClassFixture<InvoiceScanHost>
 {
     private static readonly string[] Fields =
@@ -38,6 +38,7 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
     [
         CostsRecognitionProfiles.LineName, CostsRecognitionProfiles.LineUnit, CostsRecognitionProfiles.LineQuantity,
         CostsRecognitionProfiles.LinePrice, CostsRecognitionProfiles.LineAmount,
+        CostsRecognitionProfiles.LineVatRate, CostsRecognitionProfiles.LineVatAmount,
     ];
 
     // ── Сторожа задачи ────────────────────────────────────────────────────────
@@ -632,7 +633,8 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
         };
 
     internal static IReadOnlyDictionary<string, string?> Row(
-        string name, string unit, string quantity, string price, string amount) =>
+        string name, string unit, string quantity, string price, string amount,
+        string? vatRate = null, string? vatAmount = null) =>
         new Dictionary<string, string?>
         {
             [CostsRecognitionProfiles.LineName] = name,
@@ -640,6 +642,8 @@ public sealed class InvoiceFromScanTests(InvoiceScanHost host)
             [CostsRecognitionProfiles.LineQuantity] = quantity,
             [CostsRecognitionProfiles.LinePrice] = price,
             [CostsRecognitionProfiles.LineAmount] = amount,
+            [CostsRecognitionProfiles.LineVatRate] = vatRate,
+            [CostsRecognitionProfiles.LineVatAmount] = vatAmount,
         };
 
     internal static ModuleRecognitionResult Read(
