@@ -14,6 +14,51 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// </summary>
 public static class GostGroupingSerialization
 {
+    /// <summary>
+    /// Пути вырезанных PDF документов — этот класс единственный знает, где в разбиении они лежат:
+    /// здесь и <see cref="ReadPartPaths" /> рядом. Пользуются ими уборка прежних частей при
+    /// переразрезании и резервная копия (issue #1399): знание, разнесённое по разным классам,
+    /// разошлось бы при первой смене формы.
+    /// </summary>
+    public static HashSet<string> PartPaths(GostGroupingData? grouping) =>
+        grouping is null
+            ? []
+            : grouping.Groups.Select(g => g.BlobPath).OfType<string>().Where(p => p.Length > 0).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Те же пути — прямо из JSON разбиения, не разбирая его целиком (ревью PR #1408). Резервной
+    /// копии и проверке восстановления нужны только пути, а <see cref="Parse" /> читает каждое
+    /// разбиение дважды и поднимает в память всё: распознанные таблицы, поля каждого листа, — у
+    /// больших альбомов это мегабайты на набор, и копия делает так по каждому набору.
+    ///
+    /// <para>Разбиение чужой формы путей не даёт и не роняет: группа-null, <c>Groups: null</c>,
+    /// прежний формат <c>{Documents}</c> (частей у него не было) — пустой перечень. Отказ — только
+    /// когда разбиение не прочитать вовсе: не JSON или не объект.</para>
+    /// </summary>
+    /// <returns>Пути частей; null — разбиение не прочитано.</returns>
+    public static HashSet<string>? ReadPartPaths(string? json)
+    {
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        if (json is null) return paths;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+            if (doc.RootElement.TryGetProperty(nameof(GostGroupingData.Groups), out var groups) &&
+                groups.ValueKind == JsonValueKind.Array)
+                foreach (var g in groups.EnumerateArray())
+                    if (g.ValueKind == JsonValueKind.Object &&
+                        g.TryGetProperty(nameof(GostGroupingGroup.BlobPath), out var p) &&
+                        p.ValueKind == JsonValueKind.String && p.GetString() is { Length: > 0 } path)
+                        paths.Add(path);
+            return paths;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>null, если <paramref name="json"/> null (у источника ещё нет группировки).</summary>
     public static GostGroupingData? Parse(string? json)
     {
