@@ -61,7 +61,45 @@ export const RULES = [
     count: countNativeTitles,
     instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки (docs/UI.md, «Подсказка»)',
   },
+  {
+    id: 'native-checkbox',
+    // Нативный флажок в обход Checkbox (issue #1414): у каждого свой размер, цвет и отступ, а у
+    // голого — серый браузерный вид. По синтаксическому дереву, как native-title: `type` стоит в
+    // любой строке многострочного тега, а текстом `<input … type="checkbox"` не поймать — перед
+    // ним бывают обработчики со стрелкой `=>`. Накопленные стоят в уровне до перевода экранов
+    // (перечень — в #1414). Законных исключений нет: Checkbox и есть нативный `<input>` — он
+    // годится и в ячейку таблицы (size="sm"), и под Tooltip (передаёт ref), и флажку только для
+    // чтения (aria-readonly и onClick уходят во флажок как есть).
+    count: countNativeCheckboxes,
+    instead: 'флажок — Checkbox (shared/ui/Checkbox): label и description — подпись и пояснение, size="sm" в строках таблиц и плотных списках, indeterminate — «выбраны не все»; внутри своей разметки строки — Checkbox без label в обёртке <label> или с aria-label (docs/UI.md, таблица контролов)',
+  },
 ];
+
+const parse = text => ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+/** Значение атрибута разметки строкой: `"x"`, `{'x'}`, `{"x"}`; выражение — null. */
+function literalOf(init) {
+  if (!init) return null;
+  if (ts.isStringLiteral(init)) return init.text;
+  const e = init.expression;
+  return e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) ? e.text : null;
+}
+
+/** `<input type="checkbox">` — см. правило `native-checkbox`. */
+function countNativeCheckboxes(text) {
+  if (!text.includes('checkbox')) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(sf) === 'input'
+      && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type'
+        && literalOf(p.initializer) === 'checkbox'))
+      n++;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
 
 /** Подсказка — полный текст самой строки: `title` совпадает с её содержимым. */
 function repeatsContent(init, element) {
@@ -76,7 +114,7 @@ function repeatsContent(init, element) {
 /** Нативные `title` у элементов разметки — кроме законных (см. правило `native-title`). */
 function countNativeTitles(text) {
   if (!text.includes('title')) return 0;
-  const sf = ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sf = parse(text);
   let n = 0;
   const visit = node => {
     if (ts.isJsxAttribute(node) && node.name.getText(sf) === 'title') {
