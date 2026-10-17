@@ -37,5 +37,6 @@
     "features/tables/ExportMenu.tsx": 1,
     "features/tables/RowPanel.tsx": 1,
     "features/templates/EditorPanel.tsx": 1
-  }
+  },
+  "native-title": {}
 }

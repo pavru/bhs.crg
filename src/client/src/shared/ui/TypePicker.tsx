@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Search, Ban } from 'lucide-react';
 import { typeIcon } from './typeIcons';
 import { useMemo, useRef, useState } from 'react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Searchable-пикер типа (issue: длинный несортированный Select) — модалка в стиле командной
@@ -175,7 +176,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                             i === active ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
                           <Icon size={16} className={i === active ? 'text-on-tonal' : 'text-fg3'} />
-                          <span className="flex-1 truncate" title={showCode ? `${t.name} (${code})` : t.name}>{t.name}</span>
+                          <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
                           {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{code}</span>}
                         </button>
                       </li>

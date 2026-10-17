@@ -15,6 +15,7 @@ import {
   useRemoveSupplierTerms, useSetSupplierTerms, useSupplierTerms, type SupplierTermsItem,
 } from '@/shared/api/supplierTerms';
 import { BAD_DAYS, choosable, parseDays, removeQuestion, termsSupplier } from './supplierTerms';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Условия поставщиков — отсрочка платежа (ТЗ COST-9.2; задача C4, issue #1080). Окно, а не страница, по
@@ -102,23 +103,26 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
         const text = typed[item.supplierId] ?? String(item.deferralDays);
         const days = parseDays(text);
         return (
-          <input value={text} inputMode="numeric" readOnly={saving.has(item.supplierId)} aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
-            aria-invalid={typeof days !== 'number' || undefined}
-            title={typeof days !== 'number' ? BAD_DAYS : undefined}
-            onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
-            onBlur={() => void change(item)}
-            onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-            className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg1
-              ${typeof days !== 'number' ? 'border-danger' : 'border-stroke'}`} />
+          <Tooltip content={typeof days !== 'number' ? BAD_DAYS : undefined}>
+            <input value={text} inputMode="numeric" readOnly={saving.has(item.supplierId)} aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
+              aria-invalid={typeof days !== 'number' || undefined}
+              onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
+              onBlur={() => void change(item)}
+              onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
+              className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg1
+                ${typeof days !== 'number' ? 'border-danger' : 'border-stroke'}`} />
+          </Tooltip>
         );
       } },
     { key: 'updatedAt', label: 'Изменено',
       cell: item => <span className="text-fg3">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
     { key: 'remove', label: '', width: 'w-8',
       cell: item => (
-        <button type="button" title="Снять условия" disabled={saving.has(item.supplierId)}
-          onClick={() => setRemovingId(item.supplierId)}
-          className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+        <Tooltip content="Снять условия" name>
+          <button type="button" disabled={saving.has(item.supplierId)}
+            onClick={() => setRemovingId(item.supplierId)}
+            className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+        </Tooltip>
       ) },
   ];
 

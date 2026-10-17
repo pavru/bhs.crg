@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { FilterCondition } from '@/shared/api/types';
 import { opArity, valueFits, type FilterColumn } from './rowFilterModel';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
 
@@ -140,14 +141,15 @@ function OptionList({ options, values, onChange }: {
         </label>
       ))}
       {strays.map(v => (
-        <span key={v} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs bg-muted text-danger"
-          title="Этого значения в перечне колонки нет">
-          {v}
-          <button type="button" onClick={() => onChange(values.filter(x => x !== v))}
-            className="hover:text-danger" aria-label={`Убрать «${v}»`}>
-            <X size={10} />
-          </button>
-        </span>
+        <Tooltip key={v} content="Этого значения в перечне колонки нет">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs bg-muted text-danger">
+            {v}
+            <button type="button" onClick={() => onChange(values.filter(x => x !== v))}
+              className="hover:text-danger" aria-label={`Убрать «${v}»`}>
+              <X size={10} />
+            </button>
+          </span>
+        </Tooltip>
       ))}
     </div>
   );

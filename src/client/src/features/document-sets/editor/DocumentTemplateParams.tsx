@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { useSetDocumentTemplateParams } from '@/shared/api/documentSets';
 import { parseTemplateParams } from '@/features/templates/templateParams';
 import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Значения параметров ОДНОГО сфокусированного шаблона на документе. Параметры индивидуальны для
@@ -36,10 +37,12 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
           Параметры · <span className="text-fg1">«{template.name}»</span>
         </label>
         {!participating && (
-          <span className="flex items-center gap-1 text-caption text-warning" title="Шаблон не отмечен для генерации">
-            <AlertTriangle size={11} className="shrink-0" />
-            не участвует — значения сохранятся, но PDF по нему не создастся
-          </span>
+          <Tooltip content="Шаблон не отмечен для генерации">
+            <span className="flex items-center gap-1 text-caption text-warning">
+              <AlertTriangle size={11} className="shrink-0" />
+              не участвует — значения сохранятся, но PDF по нему не создастся
+            </span>
+          </Tooltip>
         )}
       </div>
       {declared.length === 0 ? (
@@ -51,16 +54,17 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
             const value = overridden ? overrides[p.name] : p.default;
             return (
               <div key={p.name} className="flex items-center gap-2">
-                <span className="text-xs text-fg2 flex-1 min-w-0 truncate" title={p.name}>{p.label || p.name}</span>
+                <Tooltip content={p.name}><span className="text-xs text-fg2 flex-1 min-w-0 truncate">{p.label || p.name}</span></Tooltip>
                 <ParamValueInput type={p.type} value={value}
                   onChange={v => commit({ ...overrides, [p.name]: v })} />
                 {overridden ? (
-                  <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }}
-                    title="Сбросить к значению по умолчанию" className="text-caption text-fg4 hover:text-brand shrink-0">
-                    сброс
-                  </button>
+                  <Tooltip content="Сбросить к значению по умолчанию">
+                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-caption text-fg4 hover:text-brand shrink-0">
+                      сброс
+                    </button>
+                  </Tooltip>
                 ) : (
-                  <span className="text-caption text-fg4 shrink-0" title="Используется значение по умолчанию шаблона">по умолч.</span>
+                  <Tooltip content="Используется значение по умолчанию шаблона"><span className="text-caption text-fg4 shrink-0">по умолч.</span></Tooltip>
                 )}
               </div>
             );

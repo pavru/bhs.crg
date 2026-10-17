@@ -19,6 +19,7 @@ import { K, REJECTED, asInput } from './invoiceFields';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { changedRows, paidToast, payLabel } from './paymentPosting';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Оплата счёта в форме (задача C5, issue #1082): отметка, расклад по периодам, отмена — и полоса
@@ -146,16 +147,18 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
     );
 
   return (
-    <span title="Дату меняют отменой оплаты и новой отметкой">
-      Оплачен <b className="tabular-nums">{payment.paidOn ? formatDate(payment.paidOn) : '—'}</b>
-      {' · '}платёжный документ: {payment.document ?? 'не указан'}{' '}
-      {editable && (
-        <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
-          onClick={() => setDraft(payment.document ?? '')}>
-          изменить
-        </button>
-      )}
-    </span>
+    <Tooltip content="Дату меняют отменой оплаты и новой отметкой">
+      <span>
+        Оплачен <b className="tabular-nums">{payment.paidOn ? formatDate(payment.paidOn) : '—'}</b>
+        {' · '}платёжный документ: {payment.document ?? 'не указан'}{' '}
+        {editable && (
+          <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
+            onClick={() => setDraft(payment.document ?? '')}>
+            изменить
+          </button>
+        )}
+      </span>
+    </Tooltip>
   );
 }
 

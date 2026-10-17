@@ -5,6 +5,7 @@ import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { WorkspacesDialog } from '@/features/account/WorkspacesDialog';
 import { useWorkspace } from './workspaceContext';
 import { compositionLabel, type Workspace } from './workspaces';
+import { Tooltip } from './Tooltip';
 
 const itemCls =
   'flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none ' +
@@ -50,12 +51,14 @@ export function WorkspaceSwitcher() {
             className="flex items-center gap-2 min-w-0 max-w-[28rem] h-9 px-3 rounded-full text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
             <LayoutGrid size={16} className="shrink-0 text-fg3" />
             {/* Имя не режется — режется состав, целиком он в подсказке. */}
-            <span className="min-w-0 flex items-baseline gap-2" title={composition ?? undefined}>
-              <span className="text-sm font-medium text-fg1 whitespace-nowrap">{ws.current.name}</span>
-              {composition && (
-                <span className="text-xs text-fg3 truncate" data-testid="workspace-composition">{composition}</span>
-              )}
-            </span>
+            <Tooltip content={composition ?? undefined}>
+              <span className="min-w-0 flex items-baseline gap-2">
+                <span className="text-sm font-medium text-fg1 whitespace-nowrap">{ws.current.name}</span>
+                {composition && (
+                  <span className="text-xs text-fg3 truncate" data-testid="workspace-composition">{composition}</span>
+                )}
+              </span>
+            </Tooltip>
             <ChevronDown size={14} className="shrink-0 text-fg3" />
           </button>
         </DropdownMenu.Trigger>

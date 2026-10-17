@@ -7,6 +7,7 @@ import { useFileKinds } from '@/shared/api/fileKinds';
 import { formatDateTime } from '@/shared/format/format';
 import { useToast } from '@/shared/ui/Toast';
 import { saveScan } from './scanView';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Вид для чтения файла счёта (issue #1270): Excel и Word рядом с формой стоят не сами, а PDF,
@@ -64,12 +65,13 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
       </div>
       <div className="px-3 py-1.5 border-b border-stroke bg-muted text-xs text-fg2 shrink-0" data-testid="image-caveat">
         <div className="flex items-baseline gap-2">
-          <span className="flex-1"
-            title={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
+          <Tooltip content={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
               + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'}>
-            <span className="font-medium text-fg1">Вид для чтения</span>
-            {image.pages ? ` · ${image.pages} стр.` : ''} — {IMAGE_CAVEAT}.
-          </span>
+            <span className="flex-1">
+              <span className="font-medium text-fg1">Вид для чтения</span>
+              {image.pages ? ` · ${image.pages} стр.` : ''} — {IMAGE_CAVEAT}.
+            </span>
+          </Tooltip>
           {canEdit && (
             <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
               title="Построить вид заново. Сам файл и распознанное остаются как были."

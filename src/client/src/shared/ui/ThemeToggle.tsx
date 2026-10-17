@@ -1,5 +1,6 @@
 import { Check, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme, type Theme } from '@/shared/ui/themeContext';
+import { Tooltip } from './Tooltip';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -29,17 +30,18 @@ export function ThemeToggle({ label = 'Тема оформления', vertical 
       {themeOptions.map(({ value, icon: Icon, label: optionLabel }, i) => {
         const active = theme === value;
         return (
-          <button key={value} type="button" onClick={() => setTheme(value)}
-            title={optionLabel} aria-label={optionLabel} aria-pressed={active}
-            // В столбике — своя высота, а не flex-1: нулевая основа перебила бы её, и сегмент
-            // сжался бы до иконки.
-            className={`${vertical ? 'h-8' : 'flex-1'} flex items-center justify-center gap-1 text-xs transition-colors ` +
-              `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ` +
-              `${i > 0 ? (vertical ? 'border-t' : 'border-l') + ' border-stroke-strong' : ''} ` +
-              (active ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
-            {active && !vertical && <Check size={14} className="shrink-0" />}
-            <Icon size={16} />
-          </button>
+          <Tooltip key={value} content={optionLabel}>
+            <button type="button" onClick={() => setTheme(value)} aria-label={optionLabel} aria-pressed={active}
+              // В столбике — своя высота, а не flex-1: нулевая основа перебила бы её, и сегмент
+              // сжался бы до иконки.
+              className={`${vertical ? 'h-8' : 'flex-1'} flex items-center justify-center gap-1 text-xs transition-colors ` +
+                `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ` +
+                `${i > 0 ? (vertical ? 'border-t' : 'border-l') + ' border-stroke-strong' : ''} ` +
+                (active ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
+              {active && !vertical && <Check size={14} className="shrink-0" />}
+              <Icon size={16} />
+            </button>
+          </Tooltip>
         );
       })}
     </div>

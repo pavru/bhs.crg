@@ -17,6 +17,7 @@ import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
 import { ruCount } from '@/shared/utils/pluralize';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
   let cur: string | null = childId;
@@ -124,7 +125,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   return (
     <div className="space-y-1 rounded-md border border-stroke/60 p-1.5">
       <div className="flex items-center gap-2">
-        <span className={`flex-1 min-w-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${field.title} (${field.key}) — составное поле`}>{field.title}</span>
+        <Tooltip content={`${field.title} (${field.key}) — составное поле`}><span className={`flex-1 min-w-0 text-xs text-fg2 ${MAP_LABEL}`}>{field.title}</span></Tooltip>
         <div className="flex rounded-md border border-stroke overflow-hidden text-caption shrink-0">
           {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
         </div>
@@ -143,13 +144,13 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 value={refModeVal} onValueChange={m => { setRefModeOverride(m as 'name' | 'identity'); onChange(undefined); }}>
                 <SelectItem value="name">по имени</SelectItem><SelectItem value="identity">по идентификатору</SelectItem>
               </Select>
-            ) : <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>}
+            ) : <Tooltip content="У типа нет полей-идентификаторов — только по имени"><span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right">по имени</span></Tooltip>}
           </div>
           {refModeVal === 'identity' && (
             <div className="pl-2 space-y-1 border-l border-stroke">
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
-                  <span className={`w-40 shrink-0 text-caption text-fg4 ${MAP_LABEL}`} title={idf.key}>{idf.title}</span>
+                  <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-caption text-fg4 ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
                   <Select size="sm" className="flex-1" aria-label={`Колонка для identity-поля «${idf.title}»`}
                     value={idCols[idf.key] ?? ''} onValueChange={c => setRefIdentity(idf.key, c)} emptyItem="— колонка —">
                     {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -165,7 +166,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
           <div className="pl-2 space-y-1 border-l border-brand/40">
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
-                <span className={`w-40 shrink-0 text-caption text-fg3 ${MAP_LABEL}`} title={`${sf.title} (${sf.key})`}>{sf.title}</span>
+                <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-caption text-fg3 ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                 <Select size="sm" className="flex-1" aria-label={`Колонка для под-поля «${sf.title}»`}
                   value={inlineFields[sf.key] ?? ''} onValueChange={c => setSub(sf.key, c || undefined)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -180,7 +181,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                     onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
                     className="flex items-center gap-1 py-0.5 text-caption text-fg3 hover:text-fg1">
                     {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    <span className={`text-left ${MAP_LABEL}`} title={`${sf.title} (${sf.key}) — составное поле`}>{sf.title}</span>
+                    <Tooltip content={`${sf.title} (${sf.key}) — составное поле`}><span className={`text-left ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                     {inlineFields[sf.key] && <span className="text-brand">•</span>}
                     <span className="text-fg4">(составное)</span>
                   </button>
@@ -318,9 +319,11 @@ export function MappingEditor({
         <div className="space-y-1.5">
           {scalarMappable.map(f => (
             <div key={f.key} className="flex items-center gap-2">
-              <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${f.title} (${f.key})`}>
-                {f.title}
-              </span>
+              <Tooltip content={`${f.title} (${f.key})`}>
+                <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`}>
+                  {f.title}
+                </span>
+              </Tooltip>
               <Select size="sm" className="flex-1" aria-label={`Колонка для «${f.title}»`}
                 value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
                 {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -336,9 +339,11 @@ export function MappingEditor({
             const fileMap = parseFileMapping(mapping[f.key]);
             return (
               <div key={f.key} className="flex items-center gap-2">
-                <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${f.title} (${f.key}) — файл-вложение`}>
-                  {f.title} <span className="text-fg4">📎</span>
-                </span>
+                <Tooltip content={`${f.title} (${f.key}) — файл-вложение`}>
+                  <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`}>
+                    {f.title} <span className="text-fg4">📎</span>
+                  </span>
+                </Tooltip>
                 <Select size="sm" className="flex-1" aria-label={`Колонка с путём к файлу для «${f.title}»`}
                   value={fileMap?.column ?? ''} onValueChange={c => setFile(f, c, fileMap?.sizeColumn ?? '')} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -355,11 +360,12 @@ export function MappingEditor({
             const targetType = allDocTypes.find(dt => dt.id === f.typeId);
             return (
               <div key={f.key} className="flex items-center gap-2">
-                <span className={`w-56 shrink-0 text-xs text-fg2 flex items-center gap-1 ${MAP_LABEL}`}
-                  title={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
-                  <Link2 size={12} className="shrink-0 text-fg4" />
-                  {f.title}
-                </span>
+                <Tooltip content={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
+                  <span className={`w-56 shrink-0 text-xs text-fg2 flex items-center gap-1 ${MAP_LABEL}`}>
+                    <Link2 size={12} className="shrink-0 text-fg4" />
+                    {f.title}
+                  </span>
+                </Tooltip>
                 <Select size="sm" className="flex-1" aria-label={`Колонка для «${f.title}»`}
                   value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -605,21 +611,23 @@ function BindingRow({
           </div>
         </div>
         <StaleSourceAction source={source} />
-        <button
-          onClick={() => setEditing(e => !e)}
-          className="p-1.5 rounded text-xs text-fg3"
-          title="Редактировать маппинг"
-        >
-          <Pencil size={13} />
-        </button>
-        {!confirming ? (
+        <Tooltip content="Редактировать маппинг" name>
           <button
-            onClick={() => setConfirming(true)}
-            className="p-1.5 rounded text-fg4 hover:text-danger transition-colors"
-            title="Удалить"
+            onClick={() => setEditing(e => !e)}
+            className="p-1.5 rounded text-xs text-fg3"
           >
-            <Trash2 size={13} />
+            <Pencil size={13} />
           </button>
+        </Tooltip>
+        {!confirming ? (
+          <Tooltip content="Удалить" name>
+            <button
+              onClick={() => setConfirming(true)}
+              className="p-1.5 rounded text-fg4 hover:text-danger transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          </Tooltip>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <button onClick={handleDelete} disabled={del.isPending}

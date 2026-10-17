@@ -13,6 +13,7 @@ import { registerErrorText, autoLoginFailedText } from '@/shared/auth/identityEr
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Фоновая сетка бренд-панели (по макету 2a) — тонкие линии 34×34.
@@ -73,10 +74,11 @@ export function LoginPage() {
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>
           </div>
-          <div className="text-xs tracking-wide text-on-brand/55"
-            title={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
-            {versionLabel || ' '}
-          </div>
+          <Tooltip content={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
+            <div className="text-xs tracking-wide text-on-brand/55">
+              {versionLabel || ' '}
+            </div>
+          </Tooltip>
         </div>
 
         {/* ── Форма (справа) ────────────────────────────────────────────────── */}
@@ -95,10 +97,11 @@ export function LoginPage() {
             : registrationOpen ? <FirstAdminForm /> : <SignInForm />}
 
           {version && (
-            <p className="md:hidden mt-6 text-center text-caption text-fg4"
-              title={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
-              {versionLabel}
-            </p>
+            <Tooltip content={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
+              <p className="md:hidden mt-6 text-center text-caption text-fg4">
+                {versionLabel}
+              </p>
+            </Tooltip>
           )}
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useTheme } from '@/shared/ui/themeContext';
 import { useTypeBlocks, type TypeBlockFile, type TypeBlocksProblem } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
 import { FileCode, LogIn, Lock, AlertTriangle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Точка входа — её импортирует шаблон; модули лежат в подпапке `typeblocks/`. */
 const ENTRYPOINT = 'typeblocks.typ';
@@ -172,13 +173,15 @@ function FileRow({ label, icon, title, active, onClick }: {
   label: string; icon: React.ReactNode; title?: string; active: boolean; onClick: () => void;
 }) {
   return (
-    <button
-      type="button" onClick={onClick} title={title} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-sm
-                  ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}
-    >
-      <span className={`shrink-0 ${active ? 'text-brand' : 'text-fg3'}`}>{icon}</span>
-      <span className={`truncate ${active ? 'text-fg1 font-medium' : 'text-fg2'}`}>{label}</span>
-    </button>
+    <Tooltip content={title}>
+      <button
+        type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
+        className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-sm
+                    ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}
+      >
+        <span className={`shrink-0 ${active ? 'text-brand' : 'text-fg3'}`}>{icon}</span>
+        <span className={`truncate ${active ? 'text-fg1 font-medium' : 'text-fg2'}`}>{label}</span>
+      </button>
+    </Tooltip>
   );
 }

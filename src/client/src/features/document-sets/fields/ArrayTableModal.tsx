@@ -22,6 +22,7 @@ import { ROW_DRAG_MIME, TABLE_SHOWN_TYPES, defaultColWidth } from './constants';
 import { PasteMappingModal } from './PasteMappingModal';
 import { newLocalId } from '@/shared/utils/localId';
 import { TableCell } from './ComplexCells';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── Array table modal ────────────────────────────────────────────────────────
 
@@ -194,23 +195,24 @@ function ArrayTableModalBody({
       header: <span className="flex justify-center font-normal text-fg4">#</span>,
       cell: (_, i) => (
         <div className="flex items-center justify-center gap-0.5">
-          <button type="button" draggable
-            // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
-            onDragStart={e => {
-              setDragIdx(i);
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
-            }}
-            onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-            onKeyDown={e => {
-              if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
-              else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
-            }}
-            title="Перетащить для изменения порядка (или стрелки ↑↓)"
-            aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
-            className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
-            <GripVertical size={12} />
-          </button>
+          <Tooltip content="Перетащить для изменения порядка (или стрелки ↑↓)">
+            <button type="button" draggable
+              // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
+              onDragStart={e => {
+                setDragIdx(i);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
+              }}
+              onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+              onKeyDown={e => {
+                if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
+              }}
+              aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
+              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+              <GripVertical size={12} />
+            </button>
+          </Tooltip>
           <span className="text-xs text-fg4 font-mono">{i + 1}</span>
         </div>
       ),

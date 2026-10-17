@@ -16,6 +16,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { carriesFiles } from '@/shared/ui/fileDrop';
 import { SourcesPanel, FileRecognizeActions } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const ACCEPT = '.csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf';
 const ALL = 'all';
@@ -49,7 +50,7 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
           </span>
         )}
       </span>
-      {stale && <span title="Есть устаревшие источники — распознайте набор заново" className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />}
+      {stale && <Tooltip content="Есть устаревшие источники — распознайте набор заново"><span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" /></Tooltip>}
       {count != null && <span className="text-xs text-fg4 tabular-nums shrink-0">{count}</span>}
     </button>
   );
@@ -61,10 +62,12 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
  */
 function LevelChip({ file }: { file: DataSetFile }) {
   return (
-    <span title={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}
-      className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3 leading-tight">
-      {SCOPE_LABELS[file.scope]}
-    </span>
+    <Tooltip content={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}>
+      <span
+        className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3 leading-tight">
+        {SCOPE_LABELS[file.scope]}
+      </span>
+    </Tooltip>
   );
 }
 

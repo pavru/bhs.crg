@@ -8,6 +8,7 @@ import { moveItem } from '@/shared/utils/moveItem';
 import { rowKey, withRowUid } from '@/shared/utils/rowIdentity';
 import type { EnumOptionDef, EnumTypeDef } from '@/shared/api/types';
 import { nextAutoKey } from './schemaConstants';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Реестр перечислений (issue #59) переведён в list-detail (issue #210) — редактор живёт в
 // PrimitiveTypesPage (EnumTypeDetail). Здесь остаются переиспользуемые куски: редактор вариантов
@@ -41,16 +42,18 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
         <div key={rowKey(v, i)} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
           onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
-          <span className="flex justify-center text-fg4 cursor-grab" draggable
-            /* Заглушка в dataTransfer — страховка по спецификации, а не требование Firefox:
-               утверждение «пустой payload отменяет перетаскивание» проверено вручную 2026-08-17 и
-               не подтвердилось (см. ROW_DRAG_MIME в document-sets/fields).
-               Тип здесь text/plain, а не свой, как требует #518, — но значение ПУСТОЕ, и ронять в
-               соседние поля «Код»/«Название» нечего. Ставить свой тип всё равно правильнее. */
-            onDragStart={e => { e.dataTransfer.setData('text/plain', ''); setDragIdx(i); }}
-            onDragEnd={() => setDragIdx(null)} title="Перетащить">
-            <GripVertical size={14} />
-          </span>
+          <Tooltip content="Перетащить">
+            <span className="flex justify-center text-fg4 cursor-grab" draggable
+              /* Заглушка в dataTransfer — страховка по спецификации, а не требование Firefox:
+                 утверждение «пустой payload отменяет перетаскивание» проверено вручную 2026-08-17 и
+                 не подтвердилось (см. ROW_DRAG_MIME в document-sets/fields).
+                 Тип здесь text/plain, а не свой, как требует #518, — но значение ПУСТОЕ, и ронять в
+                 соседние поля «Код»/«Название» нечего. Ставить свой тип всё равно правильнее. */
+              onDragStart={e => { e.dataTransfer.setData('text/plain', ''); setDragIdx(i); }}
+              onDragEnd={() => setDragIdx(null)}>
+              <GripVertical size={14} />
+            </span>
+          </Tooltip>
           <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
             className="border border-stroke-strong rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface" />
           <input value={v.label} onChange={e => update(i, { label: e.target.value })} placeholder="Согласован"
@@ -58,7 +61,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
-            <button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-danger" title="Удалить"><Trash2 size={13} /></button>
+            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-danger"><Trash2 size={13} /></button></Tooltip>
           </span>
         </div>
       ))}

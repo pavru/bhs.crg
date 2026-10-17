@@ -31,6 +31,7 @@ import { SectionCard } from './typeEditorShell';
 import { useRegisterEditor } from './typeEditorRegistry';
 import { useToast } from '@/shared/ui/Toast';
 import { InheritedFieldsPanel } from './InheritedFieldsPanel';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -308,11 +309,12 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
           <span className="text-xs text-fg4">Тэги модуля:</span>
           {unknownTypeTags.map(code => (
-            <span key={code}
-              title="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат."
-              className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
-              {code}
-            </span>
+            <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат.">
+              <span
+                className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
+                {code}
+              </span>
+            </Tooltip>
           ))}
         </div>
       )}
@@ -331,22 +333,22 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
                 && (((dt.schema as { tags?: string[] }).tags) ?? []).includes(t.code));
               const blocked = max != null && !on && otherBearers.length >= max;
               return (
-                <button
-                  key={t.code}
-                  type="button"
-                  disabled={blocked}
-                  title={blocked
+                <Tooltip key={t.code} content={blocked
                     ? `Тэг уже назначен: ${otherBearers.map(b => `«${b.name}»`).join(', ')}. Допустимо не более ${max}.`
-                    : t.description}
-                  onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
-                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                    blocked ? 'border-stroke text-fg4/50 opacity-60 cursor-not-allowed'
-                      : on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle'
-                        : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
-                  }`}
-                >
-                  {t.label}
-                </button>
+                    : t.description}>
+                  <button
+                    type="button"
+                    disabled={blocked}
+                    onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                      blocked ? 'border-stroke text-fg4/50 opacity-60 cursor-not-allowed'
+                        : on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle'
+                          : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                </Tooltip>
               );
             })}
           </div>

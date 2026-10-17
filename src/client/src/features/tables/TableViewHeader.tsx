@@ -16,6 +16,7 @@ import {
   viewModified, withViewReset, type ViewLookup,
 } from './savedViews';
 import { wholeTableHash, type TableView, type ViewChange } from './tableViewState';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Право заводить и править общие представления (сервер проверяет его сам — здесь только показ). */
 const SHARE = 'core.views.share';
@@ -144,14 +145,16 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
       <PageHeader
         title={
           <Popover.Root open={open} onOpenChange={setOpen}>
-            <Popover.Trigger asChild>
-              <button type="button" title="Выбрать представление"
-                className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-[calc(100%+0.75rem)]">
-                <Table2 size={18} className="text-fg3 shrink-0" aria-hidden />
-                <span className="truncate">{title}</span>
-                <ChevronDown size={16} className="text-fg3 shrink-0" aria-hidden />
-              </button>
-            </Popover.Trigger>
+            <Tooltip content="Выбрать представление">
+              <Popover.Trigger asChild>
+                <button type="button"
+                  className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-[calc(100%+0.75rem)]">
+                  <Table2 size={18} className="text-fg3 shrink-0" aria-hidden />
+                  <span className="truncate">{title}</span>
+                  <ChevronDown size={16} className="text-fg3 shrink-0" aria-hidden />
+                </button>
+              </Popover.Trigger>
+            </Tooltip>
             <Popover.Portal>
               <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
                 className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-2 focus:outline-none"

@@ -5,6 +5,7 @@ import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { ComputedColumn } from '@/shared/api/types';
 import { columnAccessor } from './computedColumnAccess';
 import { useDialogSave } from './useDialogSave';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 function ColumnRow({
   col,
@@ -177,22 +178,22 @@ export function ComputedColumnsDialog({
           </p>
           <div className="flex flex-wrap gap-1.5">
             {sourceColumns.map((name, i) => (
-              <button
-                key={name}
-                type="button"
-                /* Не отдаём фокус кнопке: иначе к моменту клика курсор уже ушёл из выражения
-                   и вставлять было бы некуда, кроме конца строки. */
-                onMouseDown={e => e.preventDefault()}
-                onClick={() => insert(columnAccessor(name))}
-                disabled={columns.length === 0}
-                title={`${columnAccessor(name)} или cols[${i + 1}]`}
-                className="flex items-center gap-1 px-2 py-1 rounded border border-stroke bg-surface
-                           hover:border-brand hover:text-brand disabled:opacity-50 disabled:hover:border-stroke
-                           disabled:hover:text-fg2 text-fg2"
-              >
-                <span className="text-fg4 font-mono">{i + 1}</span>
-                <span className="font-mono">{name}</span>
-              </button>
+              <Tooltip key={name} content={`${columnAccessor(name)} или cols[${i + 1}]`}>
+                <button
+                  type="button"
+                  /* Не отдаём фокус кнопке: иначе к моменту клика курсор уже ушёл из выражения
+                     и вставлять было бы некуда, кроме конца строки. */
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => insert(columnAccessor(name))}
+                  disabled={columns.length === 0}
+                  className="flex items-center gap-1 px-2 py-1 rounded border border-stroke bg-surface
+                             hover:border-brand hover:text-brand disabled:opacity-50 disabled:hover:border-stroke
+                             disabled:hover:text-fg2 text-fg2"
+                >
+                  <span className="text-fg4 font-mono">{i + 1}</span>
+                  <span className="font-mono">{name}</span>
+                </button>
+              </Tooltip>
             ))}
           </div>
         </div>

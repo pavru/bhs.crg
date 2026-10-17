@@ -1,5 +1,6 @@
 import { Minus, Plus } from 'lucide-react';
 import { tagLabelOf, tagOrder, type TagDefinition } from '@/shared/api/tags';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Функциональный тэг поля как ОДИН объект (issue #630).
@@ -41,36 +42,39 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
           : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
       }`}
     >
-      <button type="button" title={tag.description} onClick={onToggle} className="px-2 py-0.5">
-        {tag.label}
-      </button>
+      <Tooltip content={tag.description}>
+        <button type="button" onClick={onToggle} className="px-2 py-0.5">
+          {tag.label}
+        </button>
+      </Tooltip>
       {/* Номер — только у проставленного тэга, который его принимает: у неотмеченного поля
           номер задавать не над чем. */}
       {showParameter && (
-        <span
-          className="flex items-center gap-0.5 border-l border-tertiary/50 pl-1 pr-1"
-          title={tag.parameter!.description}
-        >
-          <button type="button" className={arrowClass} onClick={() => step(-1)}
-            disabled={(order ?? 0) <= 1} aria-label={`Уменьшить порядок: ${tag.label}`}>
-            <Minus size={11} />
-          </button>
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={2}
-            value={order ?? ''}
-            placeholder={tag.parameter!.label}
-            aria-label={`Порядок компонента: ${tag.label}`}
-            onChange={e => onOrderChange(e.target.value)}
-            className="w-5 bg-transparent text-center tabular-nums text-on-tertiary-subtle outline-none
-                       placeholder:text-tertiary/60"
-          />
-          <button type="button" className={arrowClass} onClick={() => step(1)}
-            disabled={(order ?? 0) >= 99} aria-label={`Увеличить порядок: ${tag.label}`}>
-            <Plus size={11} />
-          </button>
-        </span>
+        <Tooltip content={tag.parameter!.description}>
+          <span
+            className="flex items-center gap-0.5 border-l border-tertiary/50 pl-1 pr-1"
+          >
+            <button type="button" className={arrowClass} onClick={() => step(-1)}
+              disabled={(order ?? 0) <= 1} aria-label={`Уменьшить порядок: ${tag.label}`}>
+              <Minus size={11} />
+            </button>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              value={order ?? ''}
+              placeholder={tag.parameter!.label}
+              aria-label={`Порядок компонента: ${tag.label}`}
+              onChange={e => onOrderChange(e.target.value)}
+              className="w-5 bg-transparent text-center tabular-nums text-on-tertiary-subtle outline-none
+                         placeholder:text-tertiary/60"
+            />
+            <button type="button" className={arrowClass} onClick={() => step(1)}
+              disabled={(order ?? 0) >= 99} aria-label={`Увеличить порядок: ${tag.label}`}>
+              <Plus size={11} />
+            </button>
+          </span>
+        </Tooltip>
       )}
     </span>
   );

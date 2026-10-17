@@ -8,6 +8,7 @@ import {
   uploadAttachment, uploadPrintForm, loadAttachmentObjectUrl, formatBytes,
 } from '@/shared/api/attachments';
 import { Modal } from '@/shared/ui/Modal';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 export interface PrintFormContext {
   setId: string;
@@ -142,15 +143,19 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
           <FileTypeIcon mimeType={attachment.mimeType} />
           <span className="flex-1 text-sm text-fg1 font-medium truncate">{attachment.fileName}</span>
           <span className="text-xs text-fg4 shrink-0">{formatBytes(attachment.size)}</span>
-          <button type="button" onClick={() => setPreviewOpen(true)} title="Предпросмотр"
-            className="p-1 text-fg4 hover:text-brand transition-colors shrink-0">
-            <Eye size={14} />
-          </button>
-          {!readOnly && (
-            <button type="button" onClick={() => onChange(null)} title="Удалить"
-              className="p-1 text-fg4 hover:text-danger transition-colors shrink-0">
-              <Trash2 size={13} />
+          <Tooltip content="Предпросмотр" name>
+            <button type="button" onClick={() => setPreviewOpen(true)}
+              className="p-1 text-fg4 hover:text-brand transition-colors shrink-0">
+              <Eye size={14} />
             </button>
+          </Tooltip>
+          {!readOnly && (
+            <Tooltip content="Удалить" name>
+              <button type="button" onClick={() => onChange(null)}
+                className="p-1 text-fg4 hover:text-danger transition-colors shrink-0">
+                <Trash2 size={13} />
+              </button>
+            </Tooltip>
           )}
         </div>
         {uploadError && <p className="text-xs text-danger mt-1">{uploadError}</p>}

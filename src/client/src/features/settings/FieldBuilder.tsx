@@ -19,6 +19,7 @@ import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -182,7 +183,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
       {inCycle ? (
         <p className="text-caption text-danger">⚠ Циклическая зависимость — поле ссылается само на себя (прямо или через другие расчётные).</p>
       ) : syntaxError ? (
-        <p className="text-caption text-danger" title={syntaxError}>✗ Синтаксическая ошибка: {syntaxError}</p>
+        <Tooltip content={syntaxError}><p className="text-caption text-danger">✗ Синтаксическая ошибка: {syntaxError}</p></Tooltip>
       ) : unknownRefs.length > 0 ? (
         <p className="text-caption text-warning">⚠ Неизвестные поля: {unknownRefs.map(k => `«${k}»`).join(', ')}</p>
       ) : expr.trim() ? (
@@ -354,42 +355,50 @@ export function FieldCard({
         />
         {/* Key — стабильный идентификатор хранения (issue #355) */}
         <div className="relative">
-          <input
-            value={field.key}
-            onChange={e => { onChange({ key: e.target.value }); if (savedKey !== null) onKeyRename?.(savedKey, e.target.value); }}
-            readOnly={keyLocked}
-            placeholder="КлючПоля"
-            spellCheck={false}
-            title={keyLocked ? 'Идентификатор хранения — заморожен. Нажмите замок, чтобы изменить.' : undefined}
-            className={`w-full border rounded-md pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
-              keyConflict ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong focus-visible:ring-brand'
-            } ${keyLocked ? 'bg-muted/60 text-fg3 cursor-default' : 'bg-surface'}`}
-          />
+          <Tooltip content={keyLocked ? 'Идентификатор хранения — заморожен. Нажмите замок, чтобы изменить.' : undefined}>
+            <input
+              value={field.key}
+              onChange={e => { onChange({ key: e.target.value }); if (savedKey !== null) onKeyRename?.(savedKey, e.target.value); }}
+              readOnly={keyLocked}
+              placeholder="КлючПоля"
+              spellCheck={false}
+              className={`w-full border rounded-md pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
+                keyConflict ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong focus-visible:ring-brand'
+              } ${keyLocked ? 'bg-muted/60 text-fg3 cursor-default' : 'bg-surface'}`}
+            />
+          </Tooltip>
           {keyConflict ? (
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-danger">!</span>
           ) : keyLocked ? (
-            <button type="button" onClick={() => setConfirmUnlock(true)}
-              title="Изменить ключ (осторожно: осиротит данные документов)"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-fg2">
-              <Lock size={13} />
-            </button>
+            <Tooltip content="Изменить ключ (осторожно: осиротит данные документов)" name>
+              <button type="button" onClick={() => setConfirmUnlock(true)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-fg2">
+                <Lock size={13} />
+              </button>
+            </Tooltip>
           ) : keyAutoNew ? (
-            <span title="Ключ авто-генерируется из названия" className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none">
-              <Link2 size={13} />
-            </span>
+            <Tooltip content="Ключ авто-генерируется из названия">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none">
+                <Link2 size={13} />
+              </span>
+            </Tooltip>
           ) : null}
         </div>
         {/* Type — открывает searchable TypePicker (issue #197) */}
-        <button type="button" onClick={() => setPickerOpen(true)} title="Выбрать тип поля"
-          className="flex items-center justify-between gap-1 border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-          <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
-          <ChevronDown size={14} className="text-fg4 shrink-0" />
-        </button>
+        <Tooltip content="Выбрать тип поля">
+          <button type="button" onClick={() => setPickerOpen(true)}
+            className="flex items-center justify-between gap-1 border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
+            <ChevronDown size={14} className="text-fg4 shrink-0" />
+          </button>
+        </Tooltip>
         {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
         {field.computed ? (
-          <span className="flex items-center justify-center gap-1 text-caption text-brand" title="Расчётное поле — значение вычисляется формулой">
-            <FunctionSquare size={12} /> вычисл.
-          </span>
+          <Tooltip content="Расчётное поле — значение вычисляется формулой">
+            <span className="flex items-center justify-center gap-1 text-caption text-brand">
+              <FunctionSquare size={12} /> вычисл.
+            </span>
+          </Tooltip>
         ) : (
           <label className="flex items-center justify-center gap-1.5 cursor-pointer">
             <input
@@ -552,11 +561,12 @@ export function FieldCard({
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Тэги модуля:</span>
           <div className="flex flex-wrap gap-1.5">
             {unknownTags.map(code => (
-              <span key={code}
-                title="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат."
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
-                <Lock size={9} />{code}
-              </span>
+              <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
+                  <Lock size={9} />{code}
+                </span>
+              </Tooltip>
             ))}
           </div>
         </div>

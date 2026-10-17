@@ -21,6 +21,7 @@ import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { apiError } from '@/shared/utils/apiError';
 import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Пустые значения — модульными константами, а не инлайновыми `[]`: инлайновый литерал даёт новую
 // ссылку каждый рендер и ломает мемоизацию ниже по течению (issue #305, #870).
@@ -347,10 +348,11 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
               {isUnion && !byRowType && (
                 <div className="space-y-1.5">
-                  <span className="text-caption text-fg4 flex items-center gap-1"
-                    title="Заполняется ровно один из вариантов">
-                    <Info size={11} /> выберите вариант — заполняется ровно один
-                  </span>
+                  <Tooltip content="Заполняется ровно один из вариантов">
+                    <span className="text-caption text-fg4 flex items-center gap-1">
+                      <Info size={11} /> выберите вариант — заполняется ровно один
+                    </span>
+                  </Tooltip>
                   <VariantPicker
                     options={effectiveFields.map(f => ({ key: f.key, label: f.title, filled: !!mapping[f.key] || !!variantStash[f.key] }))}
                     active={activeVariant}

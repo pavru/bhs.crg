@@ -15,6 +15,7 @@ import { formatCount, formatMoney } from '@/shared/format/format';
 import { correctionsText, foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const ALL = 'all';
 
@@ -340,9 +341,11 @@ function CorrectionMark({ corrections }: { corrections: CostCorrections | null }
 function CorrectionIcon({ text }: { text: string }) {
   const title = text.charAt(0).toUpperCase() + text.slice(1);
   return (
-    <span role="img" aria-label={title} title={title} className="ml-1.5 inline-flex align-middle text-fg3">
-      <History size={14} aria-hidden />
-    </span>
+    <Tooltip content={title}>
+      <span role="img" aria-label={title} className="ml-1.5 inline-flex align-middle text-fg3">
+        <History size={14} aria-hidden />
+      </span>
+    </Tooltip>
   );
 }
 
@@ -394,10 +397,12 @@ function costColumns(
 function RegistryLink({ to, label, note }: { to: string; label: string; note?: string }) {
   const title = note ? `${label} (${note})` : label;
   return (
-    <Link to={to} aria-label={title} title={title}
-      className="ml-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
-      <ArrowUpRight size={14} aria-hidden />
-    </Link>
+    <Tooltip content={title}>
+      <Link to={to} aria-label={title}
+        className="ml-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
+        <ArrowUpRight size={14} aria-hidden />
+      </Link>
+    </Tooltip>
   );
 }
 

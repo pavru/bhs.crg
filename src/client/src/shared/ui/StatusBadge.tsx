@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Пометка состояния записи (issue #1351): черновик, разобран, оплачен, отклонён, в архиве.
@@ -38,11 +39,13 @@ export function StatusBadge({ tone = 'neutral', icon: Icon, bordered = false, ti
   const t = TONE[tone];
   const outlined = bordered || tone === 'quiet';
   return (
-    <span title={title}
-      className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium whitespace-nowrap ` +
-        `${t.fill} ${outlined ? `border ${t.border}` : ''} ${className}`}>
-      {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
-      {children}
-    </span>
+    <Tooltip content={title}>
+      <span
+        className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium whitespace-nowrap ` +
+          `${t.fill} ${outlined ? `border ${t.border}` : ''} ${className}`}>
+        {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
+        {children}
+      </span>
+    </Tooltip>
   );
 }

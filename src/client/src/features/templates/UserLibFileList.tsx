@@ -3,6 +3,7 @@ import { NavSection } from '@/shared/ui/ListDetailShell';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { buildRows, ENTRYPOINT } from './userLibTree';
 import type { UserLibFile, UserLibError, UserLibWarning } from '@/shared/api/typstUserLib';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Список файлов библиотеки (issue #473).
@@ -51,10 +52,12 @@ export function UserLibFileList({
 
       <div className="flex items-center justify-between pr-2">
         <NavSection label="Файлы библиотеки" />
-        <button type="button" onClick={() => onCreate()} title="Создать файл"
-          className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-fg1 hover:bg-muted transition-colors">
-          <Plus size={14} />
-        </button>
+        <Tooltip content="Создать файл" name>
+          <button type="button" onClick={() => onCreate()}
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-fg1 hover:bg-muted transition-colors">
+            <Plus size={14} />
+          </button>
+        </Tooltip>
       </div>
 
       {files.length === 0 ? (
@@ -69,12 +72,14 @@ export function UserLibFileList({
           style={{ paddingLeft: `${0.75 + row.depth}rem` }}>
           <Folder size={12} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
-          <button type="button" onClick={() => onCreate(row.path)} title={`Создать файл в «${row.path}»`}
-            className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-fg4
-                       hover:text-fg1 hover:bg-muted opacity-0 group-hover/dir:opacity-100
-                       focus-visible:opacity-100 transition-colors">
-            <Plus size={12} />
-          </button>
+          <Tooltip content={`Создать файл в «${row.path}»`} name>
+            <button type="button" onClick={() => onCreate(row.path)}
+              className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-fg4
+                         hover:text-fg1 hover:bg-muted opacity-0 group-hover/dir:opacity-100
+                         focus-visible:opacity-100 transition-colors">
+              <Plus size={12} />
+            </button>
+          </Tooltip>
         </div>
       ) : (
         <FileRow
@@ -101,21 +106,23 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
 }) {
   return (
     <div className={`group flex items-center gap-1 pr-1.5 ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
-      <button type="button" onClick={onClick} title={title} aria-current={active ? 'true' : undefined}
-        className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"
-        style={{ paddingLeft: `${0.75 + depth}rem` }}>
-        <span className={`shrink-0 ${active ? 'text-brand' : 'text-fg3'}`}>{icon}</span>
-        <span className={`truncate ${active ? 'text-fg1 font-medium' : 'text-fg2'}`}>{label}</span>
-        {/* Ошибка может прилететь из файла, который сейчас закрыт — бейдж на его строке
-            единственное место, где её видно. */}
-        {errors > 0 && (
-          <span title={`Ошибок: ${errors}`} className="shrink-0 text-danger"><AlertCircle size={12} /></span>
-        )}
-        {errors === 0 && warnings > 0 && (
-          <span title={`Замечаний: ${warnings}`} className="shrink-0 text-warning"><AlertTriangle size={12} /></span>
-        )}
-        {dirty && <span title="Не сохранено" className="shrink-0 h-1.5 w-1.5 rounded-full bg-fg3" />}
-      </button>
+      <Tooltip content={title}>
+        <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
+          className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"
+          style={{ paddingLeft: `${0.75 + depth}rem` }}>
+          <span className={`shrink-0 ${active ? 'text-brand' : 'text-fg3'}`}>{icon}</span>
+          <span className={`truncate ${active ? 'text-fg1 font-medium' : 'text-fg2'}`}>{label}</span>
+          {/* Ошибка может прилететь из файла, который сейчас закрыт — бейдж на его строке
+              единственное место, где её видно. */}
+          {errors > 0 && (
+            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 text-danger"><AlertCircle size={12} /></span></Tooltip>
+          )}
+          {errors === 0 && warnings > 0 && (
+            <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 text-warning"><AlertTriangle size={12} /></span></Tooltip>
+          )}
+          {dirty && <Tooltip content="Не сохранено"><span className="shrink-0 h-1.5 w-1.5 rounded-full bg-fg3" /></Tooltip>}
+        </button>
+      </Tooltip>
       {actions && <span className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100">{actions}</span>}
     </div>
   );

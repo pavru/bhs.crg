@@ -12,6 +12,7 @@ import {
   useCreatePartyOrganization, type InvoiceParty, type InvoicePartySide,
 } from '@/shared/api/invoiceRecognition';
 import { inheritsFrom, nameOf, partyLine, partyWhy, pickOrder, scanParty } from './recognition';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const NAME_LIMIT = 512;
 
@@ -64,7 +65,7 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
           )}
         </p>
       )}
-      {read && <p className="text-fg4 truncate" title={`В файле: ${read}`}>в файле: {read}</p>}
+      {read && <Tooltip content={`В файле: ${read}`}><p className="text-fg4 truncate">в файле: {read}</p></Tooltip>}
       {creating && (
         <CreateDialog invoiceId={invoiceId} side={side} party={party} onClose={() => setCreating(false)}
           onDone={id => { setCreated(id); onChoose(id); setCreating(false); }} />

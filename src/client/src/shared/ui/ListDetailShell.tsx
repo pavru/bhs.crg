@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
+import { Tooltip } from './Tooltip';
 
 
 /** Свой порядок сплита начинает с карточки — страницы уровня (см. ниже). Постоянная «запись»:
@@ -125,18 +126,22 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
       <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>
       <span className="flex-1 truncate text-sm">{label}</span>
       {progress != null && (
-        <span title={progressTitle ?? `Готовность по плану: ${progress}%`}
-          className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
-            progress === 100 ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg3'}`}>
-          {progress}%
-        </span>
+        <Tooltip content={progressTitle ?? `Готовность по плану: ${progress}%`}>
+          <span
+            className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
+              progress === 100 ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg3'}`}>
+            {progress}%
+          </span>
+        </Tooltip>
       )}
       {alert != null && alert > 0 && (
-        <span title={`Требует разбора: ${alert}`}
-          className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
-            alertDanger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
-          {alert > 99 ? '99+' : alert}
-        </span>
+        <Tooltip content={`Требует разбора: ${alert}`}>
+          <span
+            className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
+              alertDanger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+            {alert > 99 ? '99+' : alert}
+          </span>
+        </Tooltip>
       )}
       {chevron ? (
         <>

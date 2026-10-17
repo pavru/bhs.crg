@@ -7,6 +7,7 @@ import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins } from './arrayRows';
 import { InstancePickerModal } from './InstancePickerModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId, broken = false }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -42,10 +43,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
    */
   function replaceButton(tone: string) {
     return (
-      <button type="button" onClick={() => setPickerOpen(true)} title="Заменить ссылку"
-        className={`p-1 transition-colors shrink-0 ${tone}`}>
-        <RefreshCw size={13} />
-      </button>
+      <Tooltip content="Заменить ссылку" name>
+        <button type="button" onClick={() => setPickerOpen(true)}
+          className={`p-1 transition-colors shrink-0 ${tone}`}>
+          <RefreshCw size={13} />
+        </button>
+      </Tooltip>
     );
   }
 
@@ -62,8 +65,10 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
             <FileText size={14} className="text-danger shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
             {replaceButton('text-danger hover:text-fg1')}
-            <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
-              className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+            <Tooltip content="Снять ссылку" name>
+              <button type="button" onClick={() => onChange(null)}
+                className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+            </Tooltip>
           </div>
           <BrokenRefNote />
           {picker}
@@ -83,10 +88,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           </span>
         )}
         {replaceButton('text-on-brand-subtle/70 hover:text-on-brand-subtle')}
-        <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
-          className="p-1 text-on-brand-subtle/70 hover:text-danger transition-colors">
-          <Unlink size={13} />
-        </button>
+        <Tooltip content="Снять ссылку" name>
+          <button type="button" onClick={() => onChange(null)}
+            className="p-1 text-on-brand-subtle/70 hover:text-danger transition-colors">
+            <Unlink size={13} />
+          </button>
+        </Tooltip>
         {picker}
       </div>
     );
@@ -100,8 +107,10 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
             <FileText size={14} className="text-danger shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
             {replaceButton('text-danger hover:text-fg1')}
-            <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
-              className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+            <Tooltip content="Снять ссылку" name>
+              <button type="button" onClick={() => onChange(null)}
+                className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+            </Tooltip>
           </div>
           <BrokenRefNote />
           {picker}
@@ -116,10 +125,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <span className="block text-xs text-warning truncate">Общие данные</span>
         </span>
         {replaceButton('text-warning hover:text-brand')}
-        <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
-          className="p-1 text-warning hover:text-danger transition-colors">
-          <Unlink size={13} />
-        </button>
+        <Tooltip content="Снять ссылку" name>
+          <button type="button" onClick={() => onChange(null)}
+            className="p-1 text-warning hover:text-danger transition-colors">
+            <Unlink size={13} />
+          </button>
+        </Tooltip>
         {picker}
       </div>
     );

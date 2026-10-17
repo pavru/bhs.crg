@@ -4,6 +4,7 @@ import { formatDate, formatMoney } from '@/shared/format/format';
 import type { CorrectionLineView } from '@/shared/api/invoiceCorrection';
 import { signed, type PreviewRow } from './correction';
 import { placeName, type Places } from './places';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Строки книги проводок счёта: куда, каким днём и сколько — со знаком. Один вид на предпросмотр
@@ -27,9 +28,11 @@ export function BookLines({ rows, places }: { rows: PreviewRow[]; places: Places
         return (
           <span className="inline-flex items-center gap-1 tabular-nums">
             {l.vatUnknown && (
-              <span title="НДС неизвестен: сумма без НДС не посчитана точно" className="text-warning">
-                <CircleHelp size={12} aria-label="НДС неизвестен" />
-              </span>
+              <Tooltip content="НДС неизвестен: сумма без НДС не посчитана точно">
+                <span className="text-warning">
+                  <CircleHelp size={12} aria-label="НДС неизвестен" />
+                </span>
+              </Tooltip>
             )}
             {signed(l.net, formatMoney)}
           </span>

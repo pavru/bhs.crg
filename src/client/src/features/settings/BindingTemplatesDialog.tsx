@@ -8,6 +8,7 @@ import {
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import type { DataSetBindingTemplate, DocumentType } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Shared input styling.
 const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
@@ -200,21 +201,23 @@ function TemplateRow({
             </span>
           </div>
         </div>
-        <button
-          onClick={() => setEditing(e => !e)}
-          className="p-1.5 rounded text-fg3"
-          title="Редактировать"
-        >
-          <Pencil size={13} />
-        </button>
-        {!confirming ? (
+        <Tooltip content="Редактировать" name>
           <button
-            onClick={() => setConfirming(true)}
-            className="p-1.5 rounded text-fg4 hover:text-danger transition-colors"
-            title="Удалить"
+            onClick={() => setEditing(e => !e)}
+            className="p-1.5 rounded text-fg3"
           >
-            <Trash2 size={13} />
+            <Pencil size={13} />
           </button>
+        </Tooltip>
+        {!confirming ? (
+          <Tooltip content="Удалить" name>
+            <button
+              onClick={() => setConfirming(true)}
+              className="p-1.5 rounded text-fg4 hover:text-danger transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          </Tooltip>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-fg3">Удалить?</span>

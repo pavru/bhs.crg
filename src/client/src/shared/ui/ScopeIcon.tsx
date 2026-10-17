@@ -1,5 +1,6 @@
 import { Boxes, Building2, FolderOpen, Layers } from 'lucide-react';
 import { SCOPE_LABELS, type CatalogScope } from '@/shared/api/types';
+import { Tooltip } from './Tooltip';
 
 /**
  * Значок уровня области (issue #649).
@@ -31,9 +32,11 @@ export function ScopeIcon({ scope, size = 13, className = '', title }: {
   const Icon = SCOPE_ICONS[scope];
   const label = title ?? `Уровень связи: ${SCOPE_LABELS[scope]}`;
   return (
-    <span title={label} aria-label={label} role="img"
-      className={`inline-flex items-center shrink-0 text-fg4 ${className}`}>
-      <Icon size={size} />
-    </span>
+    <Tooltip content={label}>
+      <span aria-label={label} role="img"
+        className={`inline-flex items-center shrink-0 text-fg4 ${className}`}>
+        <Icon size={size} />
+      </span>
+    </Tooltip>
   );
 }

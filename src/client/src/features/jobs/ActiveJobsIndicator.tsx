@@ -2,6 +2,7 @@ import { createElement, useEffect, useState, type ComponentType } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Loader2, X, ScanText, FileText, Layers, Activity } from 'lucide-react';
 import { useActiveJobs, useCancelJob, type ActiveJob } from '@/shared/api/jobs';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Иконка типа задачи по kind (для аватара-статуса). */
 function kindIcon(kind: string): ComponentType<{ size?: number; className?: string }> {
@@ -107,15 +108,16 @@ function JobRow({ job }: { job: ActiveJob }) {
       </div>
       {/* Отмена — только пока задача в очереди; выполняемые добегают до конца. */}
       {queued && (
-        <button
-          type="button"
-          onClick={() => cancel.mutate(job.id)}
-          disabled={cancel.isPending}
-          title="Отменить (задача ещё в очереди)"
-          className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full text-fg4 hover:text-danger hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 transition-colors"
-        >
-          <X size={16} />
-        </button>
+        <Tooltip content="Отменить (задача ещё в очереди)" name>
+          <button
+            type="button"
+            onClick={() => cancel.mutate(job.id)}
+            disabled={cancel.isPending}
+            className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full text-fg4 hover:text-danger hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

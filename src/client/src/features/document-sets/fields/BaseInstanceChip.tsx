@@ -3,6 +3,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link2, FileText, Database, ChevronDown, Repeat, Unlink, AlertTriangle } from 'lucide-react';
 import { BaseCandidatePicker } from './BaseCandidatePicker';
 import type { BaseCandidate } from './baseCandidates';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Chip «Основа» в шапке документа (issue #71, перенос из раздела формы в шапку — вариант друга 1a).
@@ -26,6 +27,7 @@ export function BaseInstanceChip({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const Icon = selected?.proxy ? Link2 : selected?.kind === 'catalog' ? Database : FileText;
+  const chipLabel = selected && `${selected.proxy ? 'Роль' : 'Основа'}: ${selected.name}`;
 
   // База выбрана — тональный chip с меню (Заменить / Отвязать); read-only при !editable.
   const selectedChip = selected && (
@@ -33,10 +35,11 @@ export function BaseInstanceChip({
       <DropdownMenu.Trigger asChild disabled={!editable}>
         <button type="button"
           className={`flex items-center gap-1.5 h-7 pl-2.5 pr-2 rounded-lg text-xs font-medium bg-brand-subtle text-brand-hover max-w-[16rem] transition-colors ${
-            editable ? 'hover:bg-brand-subtle/70 cursor-pointer' : 'cursor-default'}`}
-          title={selected.proxy ? `Роль → ${selected.name}` : `Основа: ${selected.name}`}>
+            editable ? 'hover:bg-brand-subtle/70 cursor-pointer' : 'cursor-default'}`}>
           <Icon size={13} className="shrink-0" />
-          <span className="truncate">{selected.proxy ? 'Роль' : 'Основа'}: {selected.name}</span>
+          {/* Полный текст обрезанной подписи — нативным title: подсказка на самой кнопке не видна,
+              пока она неактивна (только чтение), а обрезана подпись и тогда. */}
+          <span className="truncate" title={chipLabel}>{chipLabel}</span>
           {editable && <ChevronDown size={13} className="shrink-0 opacity-70" />}
         </button>
       </DropdownMenu.Trigger>
@@ -60,22 +63,24 @@ export function BaseInstanceChip({
 
   // Ссылка задана, но кандидат не найден — предупреждающий chip.
   const missingChip = !selected && missing && (
-    <button type="button" onClick={editable ? onClear : undefined} disabled={!editable}
-      className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-warning-subtle text-warning max-w-[16rem]"
-      title="Базовый экземпляр недоступен (удалён или вне области видимости) — нажмите, чтобы отвязать">
-      <AlertTriangle size={13} className="shrink-0" />
-      <span className="truncate">Основа недоступна</span>
-    </button>
+    <Tooltip content="Базовый экземпляр недоступен (удалён или вне области видимости) — нажмите, чтобы отвязать">
+      <button type="button" onClick={editable ? onClear : undefined} disabled={!editable}
+        className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-warning-subtle text-warning max-w-[16rem]">
+        <AlertTriangle size={13} className="shrink-0" />
+        <span className="truncate">Основа недоступна</span>
+      </button>
+    </Tooltip>
   );
 
   // База не выбрана — dashed-chip «Выбрать основу».
   const emptyChip = !selected && !missing && editable && (
-    <button type="button" onClick={() => setPickerOpen(true)}
-      className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium border border-dashed border-brand-subtle text-brand hover:bg-brand-subtle transition-colors"
-      title="Предзаполнить поля из базового экземпляра или роли">
-      <Link2 size={13} className="shrink-0" />
-      <span>Выбрать основу</span>
-    </button>
+    <Tooltip content="Предзаполнить поля из базового экземпляра или роли">
+      <button type="button" onClick={() => setPickerOpen(true)}
+        className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium border border-dashed border-brand-subtle text-brand hover:bg-brand-subtle transition-colors">
+        <Link2 size={13} className="shrink-0" />
+        <span>Выбрать основу</span>
+      </button>
+    </Tooltip>
   );
 
   return (

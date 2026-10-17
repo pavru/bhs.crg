@@ -7,6 +7,7 @@ import {
   useSubscribers, useRecipients, useAddSubscriber, useRemoveSubscriber, type SubscriptionScope,
 } from '@/shared/api/subscriptions';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Содержимое «Подписчики» для ЛЮБОГО scope (issue #210, ось видимости): тулбар «Сообщение» +
@@ -73,15 +74,19 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
               <span className="text-fg1 flex-1 min-w-0 truncate">{s.displayName}</span>
               <span className="text-xs text-fg4 min-w-0 truncate">{s.email || '—'}</span>
               {!s.validEmail && (
-                <span title="Нет валидного email — писем не получит" className="shrink-0">
-                  <AlertTriangle size={13} className="text-warning" />
-                </span>
+                <Tooltip content="Нет валидного email — писем не получит">
+                  <span className="shrink-0">
+                    <AlertTriangle size={13} className="text-warning" />
+                  </span>
+                </Tooltip>
               )}
               {canManage && (
-                <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
-                  className="p-0.5 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all" title="Убрать из подписчиков">
-                  <Trash2 size={13} />
-                </button>
+                <Tooltip content="Убрать из подписчиков" name>
+                  <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
+                    className="p-0.5 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
+                    <Trash2 size={13} />
+                  </button>
+                </Tooltip>
               )}
             </div>
           ))}

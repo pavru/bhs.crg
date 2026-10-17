@@ -20,6 +20,7 @@ import {
 } from '@/shared/api/recognitionProfiles';
 import { groupByModule, hiddenSummary, type HiddenRecognitionProfile } from '@/shared/api/recognitionProfileGroups';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Библиотека профилей распознавания (issue #408). Промпты пишем мы — пользователь правит только
@@ -79,11 +80,12 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
         return (
           <div key={rowKey(f, i)} className={cols}>
             <div className="relative">
-              <input value={f.name} onChange={e => update(i, { name: e.target.value })}
-                readOnly={locked} placeholder="Позиция"
-                title={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}
-                className={`w-full border border-stroke-strong rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface ${
-                  locked ? 'pr-7 text-fg3 cursor-not-allowed' : ''}`} />
+              <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
+                <input value={f.name} onChange={e => update(i, { name: e.target.value })}
+                  readOnly={locked} placeholder="Позиция"
+                  className={`w-full border border-stroke-strong rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface ${
+                    locked ? 'pr-7 text-fg3 cursor-not-allowed' : ''}`} />
+              </Tooltip>
               {locked && (
                 <Lock size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4"
                   aria-label="Обязательное поле" />
@@ -99,9 +101,10 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             <span className="flex items-center gap-0.5">
               <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                 isFirst={i === 0} isLast={i === fields.length - 1} />
-              <button type="button" onClick={() => remove(i)} disabled={locked}
-                className="p-0.5 text-fg4 hover:text-danger disabled:opacity-25"
-                title={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'}><Trash2 size={13} /></button>
+              <Tooltip content={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'} name>
+                <button type="button" onClick={() => remove(i)} disabled={locked}
+                  className="p-0.5 text-fg4 hover:text-danger disabled:opacity-25"><Trash2 size={13} /></button>
+              </Tooltip>
             </span>
           </div>
         );
@@ -393,7 +396,7 @@ export function RecognitionProfilesPage() {
       <span className="flex items-center gap-1.5">
         <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>
         {p.builtInOutdated && <AlertTriangle size={12} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
-        {p.isModified && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="Изменён" />}
+        {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /></Tooltip>}
       </span>
       <span className="block text-xs text-fg4 truncate">
         {p.kindInfo.label} · {profileSummary(p)}{p.isBuiltIn ? '' : ' · свой'}
@@ -448,11 +451,12 @@ export function RecognitionProfilesPage() {
             {/* Профили выключенных модулей лежат в базе, но не предлагаются. Строка говорит, что
                 они есть и почему их не видно, — иначе «у меня был профиль» выглядит потерей. */}
             {hiddenLine && (
-              <p className="flex items-start gap-1.5 border-t border-stroke px-3 py-2 text-xs text-fg4"
-                title={hidden.map(h => h.name).join('\n')}>
-                <EyeOff size={12} className="shrink-0 mt-0.5" />
-                <span>{hiddenLine}</span>
-              </p>
+              <Tooltip content={hidden.map(h => h.name).join('\n')}>
+                <p className="flex items-start gap-1.5 border-t border-stroke px-3 py-2 text-xs text-fg4">
+                  <EyeOff size={12} className="shrink-0 mt-0.5" />
+                  <span>{hiddenLine}</span>
+                </p>
+              </Tooltip>
             )}
           </div>
         }
