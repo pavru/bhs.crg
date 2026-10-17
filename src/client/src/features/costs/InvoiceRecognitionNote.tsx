@@ -77,14 +77,15 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
         {/* Кнопки, которая откажет, нет: причину называет сервер, заранее. */}
         {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
       </span>
-      {/* Короткий путь (issue #1282): в файле не прочитано ничего — чаще всего приложили не тот файл,
-          и черновик из него не нужен. Только там, где удалить можно. */}
-      {askDelete && recognition.reason === 'NoAnswer' && (
+      {/* Короткий путь (issue #1282): в файле не прочитано ничего или сам файл не читается (#1343) —
+          чаще всего приложили не тот файл, и черновик из него не нужен. Только там, где удалить можно. */}
+      {askDelete && (recognition.reason === 'NoAnswer' || recognition.reason === 'BadFile') && (
         <Button size="sm" variant="text" onClick={() => askDelete('wrong-file')}>
           Не тот файл — удалить черновик…
         </Button>
       )}
-      {canEdit && recognition.canStart && (
+      {/* Сам файл не читается (#1343): повтор на том же файле даст то же самое — путь только другой файл. */}
+      {canEdit && recognition.canStart && recognition.reason !== 'BadFile' && (
         <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} loading={start.isPending}
           onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
           Распознать ещё раз

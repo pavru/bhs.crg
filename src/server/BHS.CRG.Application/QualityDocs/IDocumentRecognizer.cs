@@ -78,6 +78,23 @@ public class RecognitionUnavailableException(string message) : Exception(message
 public class RecognitionSilentException(string message) : RecognitionUnavailableException(message);
 
 /// <summary>
+/// Не читается сам ФАЙЛ, а не движок (issue #1343): PDF не открывается — повреждён, под паролем или
+/// это вовсе не PDF, — либо пуст. Раньше такой файл уходил к движку как есть, а ответ 400 назывался
+/// «распознавание недоступно»: битый файл человека выглядел как «сломался Google», и чинить шли
+/// настройки, которые в порядке.
+///
+/// <para>Бросает его НАША проверка файла, до движков, — и только по отказу разбора документа. Ответ
+/// поставщика 400 сюда не относится (ревью PR #1398): одним «INVALID_ARGUMENT» Gemini отвечает и на
+/// слишком большой запрос, и на параметр, не принятый моделью, — тогда следующий движок прочёл бы
+/// исправный файл, а человеку велели бы приложить другой.</para>
+///
+/// <para>Наследник <see cref="RecognitionUnavailableException" /> — место, которое ловит базовый тип,
+/// не уронит запрос. Но слова «распознавание недоступно» перед ним — неправда: такие места берут
+/// текст через <c>RecognitionShared.RefusalText</c>.</para>
+/// </summary>
+public class RecognitionFileRejectedException(string message) : RecognitionUnavailableException(message);
+
+/// <summary>
 /// Движок не ответил за отведённый срок (issue #797).
 ///
 /// Наследник <see cref="RecognitionUnavailableException" /> намеренно: для цепочки движков это

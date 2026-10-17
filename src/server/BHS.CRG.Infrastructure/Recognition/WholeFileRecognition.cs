@@ -35,6 +35,12 @@ public static class WholeFileRecognition
             return await recognizer.RecognizeAsync(
                 content, mimeType, RecognitionKinds.ComposeCallFields(profile), prompt, ct);
         }
+        catch (RecognitionFileRejectedException ex)
+        {
+            // Чинит человек другим файлом (issue #1343): ни настройки, ни повтор тут не помогут, и слова
+            // «распознавание недоступно» отправили бы его не туда.
+            throw new RecognitionRefusedException(RecognitionRefusal.BadFile, EngineRefusal.TextOf(ex), ex);
+        }
         catch (RecognitionSilentException ex)
         {
             // Отдельно от «недоступно» ради текста: движок работает, но ответа не отдал, и совет

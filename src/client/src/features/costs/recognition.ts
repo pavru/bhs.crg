@@ -18,6 +18,7 @@ export function shortReason(reason: string | null | undefined): string {
     case 'NotConfigured': return 'распознавание не настроено';
     case 'Unavailable': return 'движок не справился';
     case 'NoAnswer': return 'документ не прочитан';
+    case 'BadFile': return 'файл не читается';
     case 'Interrupted': return 'прервано';
     case 'Refused': return 'прочитанное не записалось';
     case 'NoImage': return 'вид для чтения не построен';
@@ -54,6 +55,9 @@ export function failureNote(recognition: InvoiceRecognition): { text: string; qu
       return { text: `Файл не распознан: движок не справился.${error} Поля пусты не потому, что в файле их нет.`, quiet: false };
     case 'NoAnswer':
       return { text: `Файл не распознан: в документе не прочитано ничего.${error} Проверьте, тот ли файл приложен.`, quiet: false };
+    case 'BadFile':
+      // Сам файл, а не движок (issue #1343): повтор и настройки не помогут — нужен другой файл.
+      return { text: `Файл не распознан: сам файл не читается.${error} Замените его исправным — «Заменить файл».`, quiet: false };
     case 'Interrupted':
       return { text: `Распознавание прервано и исхода не оставило.${error}`, quiet: false };
     case 'Refused':

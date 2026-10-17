@@ -153,6 +153,14 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         Assert.Contains("достигнут лимит", down.Message);
         Assert.Equal(RecognitionRefusal.NotConfigured, unset.Reason);
         Assert.Equal(noEngine.Message, unset.Message);
+
+        // Негодный файл — о файле, даже когда предполётная проверка сказала бы «некому» (issue #1343):
+        // чинит его человек другим файлом, а не администратор настройками.
+        var bad = await Assert.ThrowsAsync<RecognitionRefusedException>(() =>
+            Port(scope, new Failing(new RecognitionFileRejectedException("PDF не открывается.")), noEngine)
+                .RecognizeAsync(Code, Scan, "application/pdf"));
+        Assert.Equal(RecognitionRefusal.BadFile, bad.Reason);
+        Assert.Equal("PDF не открывается.", bad.Message);
     }
 
     /// <summary>
