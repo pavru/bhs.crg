@@ -74,6 +74,7 @@ public class InvoiceScanLinesTests
     [InlineData(null, null)]
     [InlineData("", " ")]
     [InlineData("-", "—")]
+    [InlineData("--", "Х")]   // прочерк в две черты и крест — тоже «нечего указать», а не непрочитанное
     public void Нет_колонки_НДС_пусто_а_не_ноль(string? rate, string? vat)
     {
         var line = Single(Row("1200", rate, vat));
@@ -96,14 +97,80 @@ public class InvoiceScanLinesTests
         Assert.Contains(expected, line.Note);
     }
 
+    /// <summary>
+    /// Сумма НДС стояла и не прочиталась — не досчитывается по ставке, и ставка одна в строке не
+    /// остаётся: сохранение формы досчитало бы НДС по ней, и счёт перешёл бы на НДС по строкам без
+    /// прочитанного числа (ревью PR #1444). Ставка — в примечании, рядом с непрочитанным.
+    /// </summary>
     [Fact]
-    public void Непрочитанная_сумма_НДС_не_досчитывается_по_ставке()
+    public void Непрочитанная_сумма_НДС_не_досчитывается_и_ставка_не_остаётся_одна()
     {
         var line = Single(Row("1220", "22%", "1.220"));
 
-        Assert.Equal(22m, line.VatRate);
+        Assert.Null(line.VatRate);
         Assert.Null(line.VatAmount);
         Assert.Contains("сумма НДС «1.220»", line.Note);
+        Assert.Contains("ставка 22 %", line.Note);
+    }
+
+    /// <summary>
+    /// ⚠️ Строка со ставкой, но без суммы НДС, — тоже «НДС тронут» (ревью PR #1444): её соседку без НДС
+    /// правило «все или ни одной» обязано увидеть, хотя полной суммы НДС нет ни у одной строки.
+    /// </summary>
+    [Fact]
+    public void Ставка_без_суммы_НДС_у_одной_строки_снимается_и_причина_названа()
+    {
+        var reading = InvoiceScanLines.Read([Row("1220", "22%", "1.220"), Row("600")]);
+
+        Assert.All(reading.Lines, l => Assert.Null(l.VatRate));
+        Assert.All(reading.Lines, l => Assert.Null(l.VatAmount));
+        Assert.NotNull(reading.VatNote);
+    }
+
+    /// <summary>
+    /// Сумма строки стояла и не прочиталась — НДС от «количество × цена» не досчитывается: у строки без
+    /// суммы стоял бы НДС из числа, которого никто не видел (ревью PR #1444).
+    /// </summary>
+    [Fact]
+    public void НДС_не_досчитывается_от_непрочитанной_суммы_строки()
+    {
+        var line = Single(new Dictionary<string, string?>
+        {
+            [CostsRecognitionProfiles.LineName] = "Кабель",
+            [CostsRecognitionProfiles.LineQuantity] = "10",
+            [CostsRecognitionProfiles.LinePrice] = "122,00",
+            [CostsRecognitionProfiles.LineAmount] = "1 22О,00",   // буква «О» вместо нуля
+            [CostsRecognitionProfiles.LineVatRate] = "22%",
+        });
+
+        Assert.Null(line.Amount);
+        Assert.Null(line.VatAmount);
+    }
+
+    /// <summary>
+    /// В примечание снятого НДС пишется только прочитанное: досчитанной по ставке суммы в файле нет, и
+    /// «НДС в файле: сумма 100,00» человек перенёс бы как число с бумаги (ревью PR #1444).
+    /// </summary>
+    [Fact]
+    public void Досчитанная_сумма_НДС_не_выдаётся_за_прочитанную()
+    {
+        var reading = InvoiceScanLines.Read([Row("1100", "10%"), Row("600")]);
+
+        Assert.Contains("ставка 10 %", reading.Lines[0].Note);
+        Assert.DoesNotContain("сумма", reading.Lines[0].Note);
+    }
+
+    /// <summary>
+    /// Прочерк в сумме НДС у строки «Без НДС» — не непрочитанное: иначе одна такая ячейка снимала бы НДС
+    /// со всего счёта (ревью PR #1444).
+    /// </summary>
+    [Fact]
+    public void Прочерк_в_сумме_НДС_не_снимает_НДС_со_счёта()
+    {
+        var reading = InvoiceScanLines.Read([Row("1220", "22%", "220"), Row("600", "Без НДС", "--")]);
+
+        Assert.Equal([220m, 0m], reading.Lines.Select(l => l.VatAmount));
+        Assert.Null(reading.VatNote);
     }
 
     /// <summary>

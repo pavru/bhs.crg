@@ -27,32 +27,45 @@ public static class InvoiceScanLines
     /// тому, ради чего НДС строк читается. Сверка «сумма НДС строк ≈ НДС шапки» эту дыру не закрывает:
     /// она судит о сумме, а беда в строках, у которых НДС нет вовсе; и шапка бывает не прочитана.</para>
     ///
+    /// <para>⚠️ «Есть НДС» — это сумма НДС, а не ставка: отчёты смотрят на сумму. Но и строка с одной
+    /// ставкой (сумма НДС стояла и не прочиталась) тянет счёт туда же, только позже: первое сохранение
+    /// формы досчитает ей НДС по ставке (<see cref="InvoiceLineValues.Completed" />), а строкам без
+    /// ставки — нет. Поэтому снимается всё, если хоть у одной строки НДС ТРОНУТ, а полным — суммой —
+    /// он есть не у всех (ревью PR #1444).</para>
+    ///
     /// <para>Снятое не теряется: прочитанное лежит в примечании строки, причина — в примечании
     /// распознавания. Человек впишет недостающее, и счёт перейдёт на НДС по строкам уже целиком.</para>
     /// </summary>
     public static Reading Read(IEnumerable<IReadOnlyDictionary<string, string?>> rows)
     {
-        var lines = rows.Select(Line).OfType<InvoiceLineValues>().ToList();
-        var named = lines.Count(l => l.VatAmount is not null);
-        if (named == 0 || named == lines.Count) return new(lines, null);
+        var lines = rows.Select(Line).OfType<Scanned>().ToList();
+        var named = lines.Count(l => l.Values.VatAmount is not null);
+        var touched = lines.Any(l => l.Values.VatAmount is not null || l.Values.VatRate is not null);
+        if (!touched || named == lines.Count) return new([.. lines.Select(l => l.Values)], null);
 
-        var stripped = lines.Select(Strip).ToList();
-        return new(stripped,
+        return new([.. lines.Select(Strip)],
             $"НДС прочитан не у всех строк (у {named} из {lines.Count}) — в строки не положен ни у одной: " +
             "отчёты берут НДС из шапки, только когда о нём молчат все строки. Прочитанное — в примечаниях " +
             "строк; впишите недостающее, если НДС нужен по строкам.");
     }
 
-    /// <summary>Снять НДС со строки, оставив прочитанное в примечании.</summary>
-    private static InvoiceLineValues Strip(InvoiceLineValues line)
-    {
-        if (line.VatRate is null && line.VatAmount is null) return line;
+    /// <summary>Строка и то, прочитана ли её сумма НДС в файле, — или досчитана по ставке.</summary>
+    private sealed record Scanned(InvoiceLineValues Values, bool VatAmountRead);
 
+    /// <summary>
+    /// Снять НДС со строки, оставив в примечании ПРОЧИТАННОЕ. Досчитанная по ставке сумма туда не
+    /// пишется: в файле её нет, а «НДС в файле: сумма 100,00» человек перенёс бы как число с бумаги.
+    /// </summary>
+    private static InvoiceLineValues Strip(Scanned scanned)
+    {
+        var line = scanned.Values;
         var read = new List<string>();
         // Разбор отдаёт «22» как 22,0 — в примечании число пишется так, как его пишет бумага.
         if (line.VatRate is { } rate) read.Add($"ставка {rate.ToString("0.##", Russian)} %");
-        if (line.VatAmount is { } vat) read.Add($"сумма {vat.ToString("0.00", Russian)}");
-        var note = $"НДС в файле: {string.Join(", ", read)} — не положен, у других строк его нет";
+        if (scanned.VatAmountRead && line.VatAmount is { } vat) read.Add($"сумма {vat.ToString("0.00", Russian)}");
+        if (read.Count == 0) return line;
+
+        var note = $"НДС в файле: {string.Join(", ", read)} — не положен: НДС прочитан не у всех строк";
         return line with
         {
             VatRate = null,
@@ -72,7 +85,7 @@ public static class InvoiceScanLines
     /// примечание строки. Молча округлить или обрезать нельзя: записанное разошлось бы с бумагой, а
     /// отказ базы уронил бы всё распознавание вместе с шапкой.</para>
     /// </summary>
-    private static InvoiceLineValues? Line(IReadOnlyDictionary<string, string?> row)
+    private static Scanned? Line(IReadOnlyDictionary<string, string?> row)
     {
         // Строка, в которой движок не прочитал ничего, — не строка счёта.
         if (row.Values.All(string.IsNullOrWhiteSpace)) return null;
@@ -102,18 +115,20 @@ public static class InvoiceScanLines
         }
 
         // Колонки НДС: прочерк — пустая ячейка, а не «не прочитано» и не ноль. «Без НДС» — ноль: строка
-        // НДС назвала, и назвала нулём (issue #1410).
-        decimal? Vat(string key, string title, Func<string?, decimal?> parse) =>
-            Dash(row.GetValueOrDefault(key))
-                ? null
-                : Number(key, title, text => RecognizedValues.NoVat(text) ? 0m : parse(text), 2);
+        // НДС назвала, и назвала нулём (issue #1410). Ставку разбирает VatRate целиком, вместе с «Без НДС»;
+        // у суммы НДС «Без НДС» понимается тем же правилом (RecognizedValues.NoVat) — одно место на оба.
+        var rateEmpty = Empty(row.GetValueOrDefault(CostsRecognitionProfiles.LineVatRate));
+        var vatEmpty = Empty(row.GetValueOrDefault(CostsRecognitionProfiles.LineVatAmount));
 
         var quantity = Number(CostsRecognitionProfiles.LineQuantity, "количество", RecognizedValues.Quantity, 3);
         // Цена — деньгами, а не количеством: «1.250» в графе цены бывает и тысячей двести пятьюдесятью.
         var price = Number(CostsRecognitionProfiles.LinePrice, "цена", RecognizedValues.Money, 2);
         var amount = Number(CostsRecognitionProfiles.LineAmount, "сумма", RecognizedValues.Money, 2);
-        var rate = Vat(CostsRecognitionProfiles.LineVatRate, "ставка НДС", RecognizedValues.VatRate);
-        var vat = Vat(CostsRecognitionProfiles.LineVatAmount, "сумма НДС", RecognizedValues.Money);
+        var rate = rateEmpty ? null : Number(CostsRecognitionProfiles.LineVatRate, "ставка НДС", RecognizedValues.VatRate, 2);
+        var vat = vatEmpty
+            ? null
+            : Number(CostsRecognitionProfiles.LineVatAmount, "сумма НДС",
+                text => RecognizedValues.NoVat(text) ? 0m : RecognizedValues.Money(text), 2);
         var unit = Text(CostsRecognitionProfiles.LineUnit, "единица", InvoiceLine.UnitLength);
 
         if (amount is null && quantity is { } q && price is { } p && Math.Abs(q * p) >= CostsValues.Limit)
@@ -136,19 +151,30 @@ public static class InvoiceScanLines
         // Досчитываем только то, чего в скане НЕТ: сумму — по количеству и цене, сумму НДС — по ставке.
         // Стояло, но не прочиталось — оставляем пустым: посчитанное выглядело бы прочитанным, а на бумаге
         // написано другое.
-        var completed = values.Completed();
-        return values with
-        {
-            Amount = string.IsNullOrWhiteSpace(row.GetValueOrDefault(CostsRecognitionProfiles.LineAmount))
-                ? completed.Amount
-                : amount,
-            VatAmount = Dash(row.GetValueOrDefault(CostsRecognitionProfiles.LineVatAmount)) ? completed.VatAmount : vat,
-        };
+        var total = string.IsNullOrWhiteSpace(row.GetValueOrDefault(CostsRecognitionProfiles.LineAmount))
+            ? values.Completed().Amount
+            : amount;
+        values = values with { Amount = total };
+
+        // ⚠️ НДС — только от суммы, которая ЕСТЬ у строки (ревью PR #1444). Не прочиталась сумма — нет и
+        // НДС: Completed досчитал бы его от «количество × цена», и у строки без суммы стоял бы НДС,
+        // посчитанный из числа, которого никто не видел.
+        if (vatEmpty && total is not null) values = values with { VatAmount = values.Completed().VatAmount };
+
+        return new(values, VatAmountRead: !vatEmpty && vat is not null);
     }
 
-    /// <summary>Пустая ячейка — в том числе прочерком: «-», «—» в таблице счёта значат «нет».</summary>
-    private static bool Dash(string? text) =>
-        string.IsNullOrWhiteSpace(text) || text.Trim() is "-" or "—" or "–";
+    /// <summary>
+    /// Пустая ячейка — в том числе прочерком («-», «--», «—») или крестом «Х»: так в таблицах счетов и
+    /// УПД пишут «здесь нечего указать». Иначе прочерк считался бы непрочитанным значением, и правило
+    /// «все или ни одной» снимало бы из-за одной такой ячейки НДС со всего счёта.
+    /// </summary>
+    private static bool Empty(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        var bare = text.Trim();
+        return bare.All(c => c is '-' or '—' or '–') || bare is "Х" or "х" or "X" or "x";
+    }
 
     private static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
 }
