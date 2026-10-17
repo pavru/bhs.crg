@@ -317,7 +317,7 @@ public partial class DataSetPdfRecognitionService
     private async Task<GostMaterializeResult> MaterializeFileGroupingAsync(
         DataSetFile file, GostGroupingData unified, byte[] bytes, CancellationToken ct)
     {
-        var previousBlobs = ExtractGroupBlobPaths(ParseGrouping(file.Grouping));
+        var previousBlobs = GostGroupingSerialization.PartPaths(ParseGrouping(file.Grouping));
         var withBlobs = await SplitDocumentsIntoGroupingAsync(bytes, unified, file.Id, ct);
         file.SetGrouping(JsonSerializer.Serialize(withBlobs));
 
@@ -327,7 +327,7 @@ public partial class DataSetPdfRecognitionService
 
         await db.SaveChangesAsync(ct);
 
-        var newBlobs = withBlobs.Groups.Select(g => g.BlobPath).Where(p => !string.IsNullOrEmpty(p)).ToHashSet()!;
+        var newBlobs = GostGroupingSerialization.PartPaths(withBlobs);
         await DeleteOrphanGroupBlobsAsync(previousBlobs, newBlobs, file.Id, ct);
 
         var failedSplits = withBlobs.Groups.Count(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0 && string.IsNullOrEmpty(g.BlobPath));
@@ -373,7 +373,7 @@ public partial class DataSetPdfRecognitionService
             .Fields.Select(f => f.Name).ToArray();
         var documentsColumnPaths = (await ProfileForFileAsync(file, RecognitionProfileKind.TitleBlock, ct))
             .Fields.Select(f => f.Name)
-            .Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
+            .Concat(["КоличествоЛистов", GostGroupingProjection.FilePathColumn, GostGroupingProjection.FileSizeColumn]).ToArray();
 
         static DataSetColumnInfo[] Cols(IReadOnlyList<string> paths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
             paths.Select(p => new DataSetColumnInfo(p, data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
@@ -389,9 +389,6 @@ public partial class DataSetPdfRecognitionService
         foreach (var documents in ProjectionsOf(sources, PdfProfiles.GostDocumentsMarker))
             documents.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(documentsColumnPaths, docRows)), docRows.Count, JsonSerializer.Serialize(docRows));
     }
-
-    private static HashSet<string> ExtractGroupBlobPaths(GostGroupingData? grouping) =>
-        grouping is null ? [] : grouping.Groups.Select(g => g.BlobPath).Where(p => !string.IsNullOrEmpty(p)).ToHashSet()!;
 
     private async Task DeleteOrphanGroupBlobsAsync(HashSet<string> previous, HashSet<string> current, Guid fileIdForLog, CancellationToken ct)
     {

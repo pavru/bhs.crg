@@ -420,16 +420,13 @@ public partial class BackupService
 
     /// <summary>
     /// Библиотека документов качества со сканами (issue #687).
+    ///
+    /// <para>О скане, которого нет, здесь не говорится: это делает общая проверка файлов после
+    /// фиксации (<see cref="WarnAboutMissingFilesAsync" />, issue #1437) — она спрашивает и хранилище,
+    /// поэтому скан, уцелевший на этой установке, не объявляет потерянным.</para>
     /// </summary>
-    /// <param name="restoredBlobPaths">
-    /// Адреса файлов, реально записанных в хранилище из этого архива. Нужны, чтобы не назвать
-    /// успехом карточку без скана: у документа качества скан — это сам документ, а не иллюстрация к
-    /// нему, и восстановленный сертификат, чей файл в архив не попал, ничего не подтверждает. Для
-    /// ассетов шаблонов такой проверки нет намеренно: отсутствие шрифта ухудшает вёрстку, но не
-    /// превращает объект в неправду.
-    /// </param>
     private async Task RestoreQualityDocumentsAsync(
-        BackupQualityDocument[] items, HashSet<string> restoredBlobPaths,
+        BackupQualityDocument[] items,
         bool projectDataInBackup, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         if (items.Length == 0) return;
@@ -442,7 +439,6 @@ public partial class BackupService
         var sectionIds = await db.Sections.Select(e => e.Id).ToHashSetAsync(ct);
         var constructionIds = await db.Constructions.Select(e => e.Id).ToHashSetAsync(ct);
         var orphanedByScope = 0;
-        var withoutScan = 0;
         var scanDropped = 0;
         var nameClashes = 0;
 
@@ -480,9 +476,6 @@ public partial class BackupService
             if (!ScopeCarrierExists(scope, item.ScopeId, setIds, sectionIds, constructionIds))
                 orphanedByScope++;
 
-            if (item.ScanBlobPath is { Length: > 0 } scanPath && !restoredBlobPaths.Contains(scanPath))
-                withoutScan++;
-
             // Карточка уже есть, скан у неё есть, а копия принесла её БЕЗ скана: скан загрузили уже
             // после снятия копии. Восстановление обнулит указатель — и обещание «добавляет и
             // обновляет, но ничего не удаляет» тут перестаёт быть правдой. Данные всё равно берём из
@@ -517,12 +510,6 @@ public partial class BackupService
                 $"{Agree(orphanedByScope, "относится", "относятся")} к комплектам, разделам или стройкам, " +
                 "которых в этой системе нет. Они восстановлены, но в библиотеке не появятся, пока не " +
                 "будут созданы соответствующие объекты (проектные данные в резервную копию не входят).");
-
-        if (withoutScan > 0)
-            warnings.Add(
-                $"Документы качества: у {RecordsGenitive(withoutScan)} скан не восстановлен — файла не " +
-                "было в архиве или его не удалось записать. Карточка документа откроется, но сам " +
-                "сертификат по ней не показать: скан нужно загрузить заново.");
 
         if (scanDropped > 0)
             warnings.Add(
