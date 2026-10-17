@@ -66,11 +66,12 @@ public partial class InvoicePaymentTests
 
     /// <summary>
     /// Диалог закрытия делит книгу по признаку переноса (разбор Дизайнера, п. 8): своя строка — к
-    /// «вошедшим», перенесённая — строкой «Исправления счетов закрытых периодов». У одного счёта бывают обе,
+    /// «вошедшим», перенесённая — строкой «Корректировки закрытых периодов». У одного счёта бывают обе,
     /// и в сумме они — итог взгляда «на момент закрытия» за те же дни (здесь ноль: отмена и новая оплата).
     ///
-    /// <para>Закрыть сегодняшний день нельзя, а поправка отмены лежит сегодня: запись отмены здесь
-    /// «состарена» на день прямо в базе. Читателю всё равно, когда её сделали, — он видит строки по дням.</para>
+    /// <para>Закрыть сегодняшний день нельзя, а поправка отмены лежит сегодня: запись отмены (и только
+    /// она — новая оплата того же дня остаётся сегодняшней) здесь «состарена» на день прямо в базе. Читателю
+    /// всё равно, когда её сделали, — он видит строки по дням.</para>
     /// </summary>
     [Fact]
     public async Task Диалог_закрытия_отделяет_поправки_закрытых_периодов()
@@ -83,9 +84,9 @@ public partial class InvoicePaymentTests
         {
             var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database;
             await db.ExecuteSqlInterpolatedAsync(
-                $"UPDATE costs.invoice_book_lines SET day = {yesterday} WHERE shifted AND day = {today} AND entry_id IN (SELECT id FROM costs.invoice_book_entries WHERE invoice_id = {invoice})");
+                $"UPDATE costs.invoice_book_lines SET day = {yesterday} WHERE day = {today} AND entry_id IN (SELECT id FROM costs.invoice_book_entries WHERE invoice_id = {invoice} AND kind = 'Unpayment')");
             await db.ExecuteSqlInterpolatedAsync(
-                $"UPDATE costs.invoice_book_entries SET day = {yesterday} WHERE invoice_id = {invoice} AND day = {today}");
+                $"UPDATE costs.invoice_book_entries SET day = {yesterday} WHERE invoice_id = {invoice} AND kind = 'Unpayment'");
         }
 
         // А закрывается по вчера: новая оплата легла своим днём «9 дней назад» (+40 000), поправка отмены —
@@ -96,8 +97,38 @@ public partial class InvoicePaymentTests
         Assert.Equal((0, 0), Line(preview, "frozen", "locked"));
         var adjustments = Assert.Single(Assert.Single(preview.GetProperty("sections").EnumerateArray())
             .GetProperty("frozen").EnumerateArray(), l => l.GetProperty("key").GetString() == "adjustments");
-        Assert.Equal("Исправления счетов закрытых периодов, сделанные в эти дни", adjustments.GetProperty("text").GetString());
+        Assert.Equal("Корректировки закрытых периодов, сделанные в эти дни", adjustments.GetProperty("text").GetString());
         Assert.Equal(JsonValueKind.Null, adjustments.GetProperty("link").ValueKind);
+
+        // Счёт, который этим закрытием запирается, но назван только корректировками, — назван и запираемым
+        // (ревью PR #1397): корректировки говорят «счёт относится к своему периоду». Своя строка новой
+        // оплаты здесь помечена перенесённой прямо в базе — так выглядит пара, уведённая днём записи.
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoice_book_lines SET shifted = true WHERE day = {today.AddDays(-9)} AND entry_id IN (SELECT id FROM costs.invoice_book_entries WHERE invoice_id = {invoice} AND kind = 'Payment')");
+        preview = await ClosingPreviewAsync(admin, today.AddDays(-9), yesterday, a);
+        Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
+        Assert.Equal((1, 0m), Line(preview, "frozen", "adjustments"));
+        Assert.Equal(1, Line(preview, "frozen", "locked").Count);
+    }
+
+    /// <summary>
+    /// Неоплаченный счёт с книгой — не «оплаченный, вошедший в период» (ревью PR #1397): его свои строки
+    /// (открытие и отмена оплаты своим днём, в сумме ноль) идут к корректировкам закрытых периодов.
+    /// </summary>
+    [Fact]
+    public async Task Неоплаченный_счёт_с_книгой_не_входит_во_вошедшие()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, _, b) = await LockedAsync(admin, today);
+        await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }));
+
+        // Б не закрывалась: открытие (+60 000) и отмена (−60 000) легли своим днём оплаты.
+        var preview = await ClosingPreviewAsync(admin, today.AddDays(-40), today.AddDays(-1), b);
+        Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
+        Assert.Equal((1, 0m), Line(preview, "frozen", "adjustments"));
+        Assert.Equal((0, 0), Line(preview, "frozen", "locked"));
     }
 
     /// <summary>

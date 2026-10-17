@@ -364,6 +364,51 @@ public partial class InvoicePaymentTests
     }
 
     /// <summary>
+    /// За целый месяц ссылки у «вошедших» нет, когда в них счёт с книгой исправлений (spec п. 1.8): строка
+    /// считает его по книге, реестр — как он есть сейчас. Ссылку здесь дали бы все прочие условия — число
+    /// счетов под отбором совпадает, — поэтому снимает её именно книга, и причина названа.
+    /// </summary>
+    [Fact]
+    public async Task За_целый_месяц_ссылки_нет_когда_во_вошедших_счёт_с_книгой()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        // Не тот давний месяц, что у соседних тестов ссылки (−4): счёт с книгой снял бы ссылку и их
+        // закрытию компании — ровно то, что здесь проверяется.
+        var month = new DateOnly(today.Year, today.Month, 1).AddMonths(-2);
+        var (last, next) = (month.AddMonths(1).AddDays(-1), month.AddMonths(1));
+        var nextLast = next.AddMonths(1).AddDays(-1);
+        async Task CloseSiteAsync(Guid site)
+        {
+            using var scope = host.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
+                .CloseAsync(new ClosePeriod(PeriodContour.Construction(site), month, last, null, null));
+        }
+
+        // А закрыта по конец месяца, счёт оплачен в нём: доля А уходит в следующий месяц. Б закрыта после
+        // оплаты — счёт заперт; отмена оплаты и новая оплата заводят книгу. Своя часть книги у А в
+        // следующем месяце — те же 40 000, что в документе.
+        var (invoice, a, b) = await TwoSitesAsync(admin);
+        await OkAsync(await admin.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
+        await CloseSiteAsync(a);
+        var paidOn = month.AddDays(2);
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+        await CloseSiteAsync(b);
+        await OkAsync(await admin.PostAsJsonAsync($"/api/costs/invoices/{invoice}/unpaid", new { reason = "ошиблись" }));
+        await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
+
+        var response = await admin.PostAsJsonAsync("/api/periods/close/preview",
+            new { contour = "construction", constructionId = a, from = Iso(next), through = Iso(nextLast) });
+        await OkAsync(response);
+        var preview = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal((1, 40_000m), Line(preview, "frozen", "entering"));
+        var entering = Assert.Single(preview.GetProperty("sections").EnumerateArray()).GetProperty("frozen").EnumerateArray()
+            .Single(l => l.GetProperty("key").GetString() == "entering");
+        Assert.Equal(JsonValueKind.Null, entering.GetProperty("link").ValueKind);
+        Assert.EndsWith(CostsClosingReport.NoListing, entering.GetProperty("note").GetString());
+    }
+
+    /// <summary>
     /// У закрытия СТРОЙКИ реестр под ссылкой отбирает счёт двумя независимыми условиями: «есть доля на
     /// стройку» и «есть учётная дата в этих месяцах» — хоть бы и у чужой доли (ревью PR #1202). Счёт,
     /// чья доля на эту стройку легла в другой месяц, реестр перечислит, а строка не считает: число
