@@ -105,9 +105,7 @@ public partial class BackupServiceTests
 
         // Расхождение — считаные байты: заголовки zip считаются по длине имени, а не круглой
         // константой (круглая занижала оценку на рабочей базе почти на 6 КБ).
-        var diff = Math.Abs(config.TotalBytes - actualBytes);
-        Assert.True(diff < 256,
-            $"оценка {config.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+        AssertEstimateMatchesArchive(config.TotalBytes, actualBytes);
     }
 
     /// <summary>
@@ -156,20 +154,17 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
-    /// Оценка не завышает на битых ссылках. Экспорт недоступный блоб пропускает с предупреждением и
-    /// записи в архиве не заводит — значит и веса он не добавляет, ни байтами, ни заголовком; но
-    /// молчать о нём тоже нельзя: битая ссылка иначе не всплывёт нигде, кроме лога экспорта.
+    /// Файл, оборвавшийся ПОСРЕДИ переноса в архив, — отказ экспорта, а не «пропущен».
     ///
-    /// Сверяем с настоящим архивом, а не только счётчики: заголовок записи прибавлялся и пропавшему
-    /// файлу (issue #1425), и счётчики этого не видели — оценка расходилась с архивом на 3,6 КБ при
-    /// десяти пропавших. Пропавших берём несколько и с длинными именами: заголовок одного весит
-    /// ~160 байт и в допуск 256 прошёл бы.
+    /// Запись в архиве к этому времени уже заведена и наполовину записана; посчитай экспорт такой
+    /// файл пропавшим и иди дальше — копия вышла бы с обрезанным файлом, который восстановление
+    /// положит на место целого, а паспорт скажет «в копию не попал». Пропуском прощается только
+    /// отказ открыть файл (issue #1425): на этом же держится оценка веса.
     /// </summary>
     [Fact]
-    public async Task EstimateSize_CountsMissingBlobsSeparately_AndDoesNotChargeForThem()
+    public async Task Export_FailsWhenBlobBreaksMidCopy()
     {
-        var missingPaths = Enumerable.Range(1, 4)
-            .Select(i => $"quality/2026/сертификат-которого-нет-в-хранилище-{i}.pdf").ToList();
+        const string scanPath = "quality/2026/оборвётся.pdf";
         var docTypeId = Guid.NewGuid();
         using (var scope = fixture.Services.CreateScope())
         {
@@ -178,11 +173,62 @@ public partial class BackupServiceTests
                 docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
                 JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
                 false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
-            foreach (var path in missingPaths)
+            await scope.ServiceProvider.GetRequiredService<IBlobStorage>()
+                .PutAsync(scanPath, new MemoryStream(new byte[64 * 1024]), "application/pdf", default);
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                Guid.NewGuid(), docTypeId, "Сертификат", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null,
+                scanPath, "оборвётся.pdf", "application/pdf",
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        var fake = fixture.Services.GetRequiredService<FakeBlobStorage>();
+        fake.BreakBodyOf = scanPath;
+        try
+        {
+            using var scope = fixture.Services.CreateScope();
+            await Assert.ThrowsAsync<IOException>(() => Backup(scope).ExportAsync());
+        }
+        finally
+        {
+            fake.BreakBodyOf = null;
+        }
+    }
+
+    /// <summary>
+    /// Оценка не завышает на битых ссылках. Экспорт недоступный блоб пропускает с предупреждением и
+    /// записи в архиве не заводит — значит и веса он не добавляет, ни байтами, ни заголовком; но
+    /// молчать о нём тоже нельзя: битая ссылка иначе не всплывёт нигде, кроме лога экспорта.
+    ///
+    /// Сверяем с настоящим архивом, а не только счётчики: заголовок записи прибавлялся и пропавшему
+    /// файлу (issue #1425), и счётчики этого не видели — оценка расходилась с архивом на 3,6 КБ при
+    /// десяти пропавших. Пропавших берём несколько и с длинными именами: заголовок одного весит
+    /// ~160 байт и в допуск 256 прошёл бы. Рядом — один файл, который в хранилище ЕСТЬ, с таким же
+    /// длинным именем: заголовок положен ему, и правка, отнявшая заголовок у всех, тоже краснеет.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSize_CountsMissingBlobsSeparately_AndDoesNotChargeForThem()
+    {
+        var missingPaths = Enumerable.Range(1, 4)
+            .Select(i => $"quality/2026/сертификат-которого-нет-в-хранилище-{i}.pdf").ToList();
+        const string presentPath = "quality/2026/сертификат-который-в-хранилище-есть-и-ляжет-в-копию.pdf";
+        byte[] presentBytes = [7, 7, 7, 7];
+        var docTypeId = Guid.NewGuid();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            await scope.ServiceProvider.GetRequiredService<IBlobStorage>()
+                .PutAsync(presentPath, new MemoryStream(presentBytes), "application/pdf", default);
+            foreach (var path in missingPaths.Append(presentPath))
                 db.QualityDocuments.Add(QualityDocument.Restore(
-                    Guid.NewGuid(), docTypeId, "Сертификат без файла", JsonDocument.Parse("{}"),
+                    Guid.NewGuid(), docTypeId, "Сертификат", JsonDocument.Parse("{}"),
                     CatalogScope.System, null, QualityDocSource.Manual, null,
-                    path, "нет.pdf", "application/pdf",
+                    path, "файл.pdf", "application/pdf",
                     DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             await db.SaveChangesAsync();
         }
@@ -199,12 +245,10 @@ public partial class BackupServiceTests
             actualBytes = zipStream.Length;
         }
 
-        Assert.Equal(missingPaths.Count, estimate.Variant.BlobCount);
+        Assert.Equal(missingPaths.Count + 1, estimate.Variant.BlobCount);
         Assert.Equal(missingPaths.Count, estimate.Variant.MissingBlobCount);
-        Assert.Equal(0, estimate.Variant.BlobBytes);
-        var diff = Math.Abs(estimate.Variant.TotalBytes - actualBytes);
-        Assert.True(diff < 256,
-            $"оценка {estimate.Variant.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+        Assert.Equal(presentBytes.LongLength, estimate.Variant.BlobBytes);
+        AssertEstimateMatchesArchive(estimate.Variant.TotalBytes, actualBytes);
     }
 
     /// <summary>
