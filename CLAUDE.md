@@ -276,7 +276,9 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
 ### Документация и развёртывание
 
 - `docs/` — инструкции (Markdown + PDF): `DEPLOYMENT.md`, `USER_GUIDE.md`, `ADMIN_GUIDE.md`
-  (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`).
+  (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`). Содержание в начале
+  этих трёх инструкций строит `npm run toc` там же — руками его не правят; добавили или
+  переименовали главу — перестройте (забытое ловит проверка «Frontend», issue #1374).
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — **«почему так сделано»**: обоснования решений,
   история переходов, статус первой версии и полный листинг REST API. Сюда вынесено то, что нужно
   редко, чтобы `CLAUDE.md` не читался целиком каждой сессией (issue #1016).
