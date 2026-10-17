@@ -78,7 +78,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             bufferSize: 81920, FileOptions.Asynchronous);
 
-        var blobPaths = ExtractBlobPaths(manifest);
+        var blobPaths = ExtractBlobPaths(manifest, warnings);
         var summary = BuildSummary(manifest, blobPaths.Count, warnings);
         var missingBlobs = 0;
 
@@ -115,10 +115,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
                 if (progress is not null) await progress(done, blobPaths.Count);
             }
 
-            if (missingBlobs > 0)
-                warnings.Add(
-                    $"Файлов не оказалось в хранилище: {missingBlobs} из {blobPaths.Count} — " +
-                    "в копию они не попали, и после восстановления ссылки на них останутся битыми.");
+            if (missingBlobs > 0) warnings.Add(MissingBlobsWarning(missingBlobs, blobPaths.Count));
 
             // Паспорт пишем ПОСЛЕДНИМ, хотя читается он первым: до конца прогона по блобам не
             // известно, чего в хранилище не оказалось, а поле «что пропущено» заведено именно
@@ -130,6 +127,11 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
 
         return summary;
     }
+
+    /// <summary>Одна фраза на экспорт и на оценку: паспорт оценки обязан весить столько же.</summary>
+    private static string MissingBlobsWarning(int missing, int total) =>
+        $"Файлов не оказалось в хранилище: {missing} из {total} — " +
+        "в копию они не попали, и после восстановления ссылки на них останутся битыми.";
 
     /// <summary>
     /// Копия одним потоком, без каталога на сервере. Прямого потребителя у этой формы больше нет —
@@ -238,32 +240,31 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         // источники наборов ВМЕСТЕ С КЭШЕМ разбора; держать его в памяти ради строки на экране
         // настроек можно лишь тогда, когда именно этот состав человек и выбрал. Пока выбрана
         // «настройка», проектные данные не читаются вовсе — как и до issue #833.
-        var manifest = await BuildManifestAsync(scope, [], ct);
+        //
+        // Предупреждения собираются, хотя на экран не идут: они лежат в паспорте копии, а паспорт —
+        // запись архива и весит. Пустой список вместо них занижал оценку на каждое предупреждение
+        // (ревью PR #1408) — длинные кириллические фразы, по сотне байт после сжатия.
+        var warnings = new List<string>();
+        var manifest = await BuildManifestAsync(scope, warnings, ct);
         return new BackupSizeEstimate(
             scope.ToString(),
-            await MeasureAsync(manifest, new Dictionary<string, long?>(StringComparer.Ordinal), ct),
+            await MeasureAsync(manifest, new Dictionary<string, long?>(StringComparer.Ordinal), warnings, ct),
             limitBytes);
     }
 
     /// <summary>Вес одного состава: сжатый манифест плюс блобы как есть плюс заголовки записей.</summary>
+    /// <param name="warnings">Предупреждения, собранные при построении манифеста; сюда же ложатся
+    /// предупреждения сбора путей и пропавших файлов — в том порядке, что у настоящей копии.</param>
     private async Task<BackupSizeVariant> MeasureAsync(
-        BackupManifest manifest, Dictionary<string, long?> sizes, CancellationToken ct)
+        BackupManifest manifest, Dictionary<string, long?> sizes, List<string> warnings, CancellationToken ct)
     {
         var counter = new CountingStream();
         await using (var deflate = new DeflateStream(counter, CompressionLevel.Fastest, leaveOpen: true))
             await JsonSerializer.SerializeAsync(deflate, manifest, JsonOptions, ct);
         var manifestBytes = counter.Written;
 
-        var paths = ExtractBlobPaths(manifest);
+        var paths = ExtractBlobPaths(manifest, warnings);
         var overhead = EntryOverhead("manifest.json") + EntryOverhead(BackupFileStore.SummaryEntryName);
-
-        // Паспорт копии (issue #831) - вторая JSON-запись архива. Считаем её тем же Deflate: без
-        // неё оценка занижала бы вес на её размер, а сходство оценки с настоящим архивом
-        // проверяется с точностью до сотен байт - то есть разъехалось бы сразу и молча.
-        var summaryCounter = new CountingStream();
-        await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
-            await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count, [])), ct);
-        manifestBytes += summaryCounter.Written;
 
         long blobBytes = 0;
         var missing = 0;
@@ -278,6 +279,17 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             if (size is null) missing++;
             else blobBytes += size.Value;
         }
+
+        // Паспорт копии (issue #831) - вторая JSON-запись архива. Считаем её тем же Deflate: без
+        // неё оценка занижала бы вес на её размер, а сходство оценки с настоящим архивом
+        // проверяется с точностью до сотен байт - то есть разъехалось бы сразу и молча. Считаем
+        // ПОСЛЕ размеров файлов, как и копия пишет паспорт последним: о пропавших файлах тоже
+        // говорит паспорт.
+        if (missing > 0) warnings.Add(MissingBlobsWarning(missing, paths.Count));
+        var summaryCounter = new CountingStream();
+        await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
+            await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count, warnings)), ct);
+        manifestBytes += summaryCounter.Written;
 
         return new BackupSizeVariant(
             TotalBytes: manifestBytes + blobBytes + overhead,
