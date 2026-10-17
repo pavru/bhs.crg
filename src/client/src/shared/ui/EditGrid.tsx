@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from './Button';
 import { dtCard, dtNum, dtRow, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact } from './dataTable';
 import type { DataGridDrag } from './DataGrid';
+import { Tooltip } from './Tooltip';
 
 /**
  * Сетка правки (#1354): черновик строк, которые правят вместе и сохраняют целиком, — строки
@@ -188,10 +189,12 @@ export function EditGrid<Row>({
             <tr>
               {numbered && <th className={th('w-8')}>№</th>}
               {columns.map(c => (
-                <th key={c.key} title={c.hint} style={{ ...sizeStyle(c), ...pinStyle(c, 30) }}
-                  className={th(`${c.width ?? ''} ${c.align === 'right' ? 'text-right' : ''} ${pinClass(c)}`)}>
-                  {c.header ?? c.label}
-                </th>
+                <Tooltip key={c.key} content={c.hint}>
+                  <th style={{ ...sizeStyle(c), ...pinStyle(c, 30) }}
+                    className={th(`${c.width ?? ''} ${c.align === 'right' ? 'text-right' : ''} ${pinClass(c)}`)}>
+                    {c.header ?? c.label}
+                  </th>
+                </Tooltip>
               ))}
               {removable && <th className={th('w-8')}><span className="sr-only">Удалить</span></th>}
             </tr>
@@ -274,10 +277,12 @@ const FOOT = 'sticky bottom-0 z-10 bg-muted border-t border-stroke px-2 py-1.5 t
 
 function RemoveButton({ index, label, onClick }: { index: number; label: string; onClick: () => void }) {
   return (
-    <button type="button" data-remove={index} onClick={onClick} aria-label={label} title={label}
-      className="rounded-sm p-0.5 text-fg4 hover:text-danger focus-visible:outline-2">
-      <Trash2 size={13} aria-hidden />
-    </button>
+    <Tooltip content={label}>
+      <button type="button" data-remove={index} onClick={onClick} aria-label={label}
+        className="rounded-sm p-0.5 text-fg4 hover:text-danger focus-visible:outline-2">
+        <Trash2 size={13} aria-hidden />
+      </button>
+    </Tooltip>
   );
 }
 

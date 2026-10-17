@@ -17,6 +17,7 @@ import {
 } from '../../shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
 import { ProxyToggle } from './ProxyToggle';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── Метаданные движков (порядок отображения, подписи, какие поля показывать) ────
 
@@ -170,27 +171,33 @@ function EngineCard({
         {/* Один сигнал, не три: слепота > «модель не обслуживается» > «не участвует». Слепой движок
             не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
         {blind && (
-          <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-danger-subtle text-danger border border-danger/30 shrink-0"
-            title={blindIssue ?? undefined}
-          >
-            <AlertCircle size={11} /> не работает: модель без зрения
-          </span>
+          <Tooltip content={blindIssue ?? undefined}>
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-danger-subtle text-danger border border-danger/30 shrink-0"
+            >
+              <AlertCircle size={11} /> не работает: модель без зрения
+            </span>
+          </Tooltip>
         )}
         {!blind && notParticipating && (
-          <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
-            title={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}
-          >
-            <AlertTriangle size={11} /> не участвует: {missing}
-          </span>
+          <Tooltip content={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}>
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
+            >
+              <AlertTriangle size={11} /> не участвует: {missing}
+            </span>
+          </Tooltip>
         )}
         {reorder && (
           <div className="flex gap-1">
-            <button type="button" onClick={reorder.onUp} disabled={!reorder.onUp}
-              className="px-1.5 text-fg3 hover:text-fg1 disabled:opacity-30 disabled:hover:text-fg3" title="Выше">↑</button>
-            <button type="button" onClick={reorder.onDown} disabled={!reorder.onDown}
-              className="px-1.5 text-fg3 hover:text-fg1 disabled:opacity-30 disabled:hover:text-fg3" title="Ниже">↓</button>
+            <Tooltip content="Выше">
+              <button type="button" onClick={reorder.onUp} disabled={!reorder.onUp}
+                className="px-1.5 text-fg3 hover:text-fg1 disabled:opacity-30 disabled:hover:text-fg3">↑</button>
+            </Tooltip>
+            <Tooltip content="Ниже">
+              <button type="button" onClick={reorder.onDown} disabled={!reorder.onDown}
+                className="px-1.5 text-fg3 hover:text-fg1 disabled:opacity-30 disabled:hover:text-fg3">↓</button>
+            </Tooltip>
           </div>
         )}
       </div>

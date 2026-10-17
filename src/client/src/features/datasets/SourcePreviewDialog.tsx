@@ -5,6 +5,7 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
 import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965).
@@ -67,14 +68,15 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
                 {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
               </div>
             </div>
-            <button
-              onClick={() => path && handleOpen(i, path)}
-              disabled={!path || opening === i}
-              title={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'}
-              className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
-              {opening === i ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-              Просмотреть
-            </button>
+            <Tooltip content={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'}>
+              <button
+                onClick={() => path && handleOpen(i, path)}
+                disabled={!path || opening === i}
+                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
+                {opening === i ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                Просмотреть
+              </button>
+            </Tooltip>
           </div>
         );
       })}

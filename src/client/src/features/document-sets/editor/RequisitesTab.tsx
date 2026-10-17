@@ -26,6 +26,7 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { containsRef } from './brokenRefs';
 import { BrokenCountBadge } from './BrokenCountBadge';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Ссылка на сохранение вкладки: оболочка вызывает его, не зная внутренностей формы. */
 export type SaveRef = { current: (() => Promise<boolean>) | null };
@@ -444,14 +445,15 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     <FunctionSquare size={11} /> вычисляется
                   </span>
                 </label>
-                <div className="w-full rounded-md border border-dashed border-stroke bg-muted/30 px-3 py-1.5 text-sm"
-                  title={field.expression}>
-                  {preview.error
-                    ? <span className="text-danger">Ошибка формулы</span>
-                    : empty && missingInputs.length > 0
-                      ? <span className="text-fg4">— · заполните {missingInputs.join(', ')}</span>
-                      : <span className="text-fg1">{String(preview.value ?? '—')}</span>}
-                </div>
+                <Tooltip content={field.expression}>
+                  <div className="w-full rounded-md border border-dashed border-stroke bg-muted/30 px-3 py-1.5 text-sm">
+                    {preview.error
+                      ? <span className="text-danger">Ошибка формулы</span>
+                      : empty && missingInputs.length > 0
+                        ? <span className="text-fg4">— · заполните {missingInputs.join(', ')}</span>
+                        : <span className="text-fg1">{String(preview.value ?? '—')}</span>}
+                  </div>
+                </Tooltip>
               </div>
             );
           }

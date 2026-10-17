@@ -3,6 +3,7 @@ import { Boxes, Search, X } from 'lucide-react';
 import { TypePicker, type PickType } from './TypePicker';
 import { typeIcon } from './typeIcons';
 import { OutlinedField } from './OutlinedField';
+import { Tooltip } from './Tooltip';
 
 /**
  * Триггер-поле над `TypePicker` (issue #266): закрытый вид читается как поле формы (значок
@@ -93,10 +94,11 @@ export function TypePickerField({
       {createElement(icon, { size: 16, className: `shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}` })}
       {/* Подсказка — на самом обрезаемом тексте, а не на кнопке (issue #548): подсказку кнопки
           наследуют и лупа, и код типа, и всплывало бы имя типа поверх них. */}
-      <span className={`flex-1 truncate ${selected ? 'text-fg1' : 'text-fg4'}`}
-        title={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
-        {selected ? selected.name : placeholder}
-      </span>
+      <Tooltip content={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
+        <span className={`flex-1 truncate ${selected ? 'text-fg1' : 'text-fg4'}`}>
+          {selected ? selected.name : placeholder}
+        </span>
+      </Tooltip>
       {showCode && <span className="text-caption font-mono text-fg4 shrink-0">{code}</span>}
       {/* Место под крестик резервируем В ПОТОКЕ, а не правым паддингом: паддинг сдвинул бы влево и
           саму лупу (она такой же элемент потока), и у края поля осталась бы дыра. */}
@@ -114,20 +116,22 @@ export function TypePickerField({
   // оставалось «в фокусе» (бренд-рамка без фокуса), а сам фокус падал на <body>, и следующий Tab
   // начинался с начала страницы.
   const clear = showClear && (
-    <button type="button" aria-label="Очистить" title="Очистить"
-      onClick={() => { onChange(null); triggerRef.current?.focus(); }}
-      className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-fg4 ` +
-        // Прозрачность НЕ отменяет попадания, а крестик лежит поверх триггера: без
-        // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
-        // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).
-        // Где hover'а нет, показываем его сразу, иначе до него было бы не добраться.
-        `opacity-0 pointer-events-none transition-opacity hover:text-fg2 ` +
-        `group-hover:opacity-100 group-hover:pointer-events-auto ` +
-        `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
-        `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
-        `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm`}>
-      <X size={14} />
-    </button>
+    <Tooltip content="Очистить">
+      <button type="button" aria-label="Очистить"
+        onClick={() => { onChange(null); triggerRef.current?.focus(); }}
+        className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-fg4 ` +
+          // Прозрачность НЕ отменяет попадания, а крестик лежит поверх триггера: без
+          // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
+          // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).
+          // Где hover'а нет, показываем его сразу, иначе до него было бы не добраться.
+          `opacity-0 pointer-events-none transition-opacity hover:text-fg2 ` +
+          `group-hover:opacity-100 group-hover:pointer-events-auto ` +
+          `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
+          `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
+          `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm`}>
+        <X size={14} />
+      </button>
+    </Tooltip>
   );
 
   // Фокус слушаем на обёртке, а не на самом триггере: крестик — его сосед и визуально часть того же

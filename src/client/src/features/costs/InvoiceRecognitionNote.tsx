@@ -4,6 +4,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import { useInvoiceDelete } from './invoiceDelete';
 import { failureNote, unusedLinesNote, type FieldOffer } from './recognition';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Распознавание скана в форме счёта (issue #1077): чип «Распознаётся…», полоса отказа, замечания.
@@ -136,17 +137,19 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
 /** Строка под полем: «В скане: … · Взять». «Взять» кладёт значение в правки формы и не сохраняет. */
 export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value: unknown) => void }) {
   return (
-    <p className="mt-0.5 flex items-baseline gap-1 text-xs text-fg3 min-w-0" title={offer.title ?? `В файле: ${offer.text}`}>
-      <span className="truncate">В файле: {offer.text}</span>
-      {offer.take !== undefined
-        ? (
-          <button type="button" className="shrink-0 text-brand hover:underline" onClick={() => onTake(offer.take)}>
-            Взять
-          </button>
-        )
-        // Значение не разобрано или его нечем положить в поле: показать — честно, предложить «Взять» — нет.
-        : <span className="shrink-0">— впишите вручную</span>}
-    </p>
+    <Tooltip content={offer.title ?? `В файле: ${offer.text}`}>
+      <p className="mt-0.5 flex items-baseline gap-1 text-xs text-fg3 min-w-0">
+        <span className="truncate">В файле: {offer.text}</span>
+        {offer.take !== undefined
+          ? (
+            <button type="button" className="shrink-0 text-brand hover:underline" onClick={() => onTake(offer.take)}>
+              Взять
+            </button>
+          )
+          // Значение не разобрано или его нечем положить в поле: показать — честно, предложить «Взять» — нет.
+          : <span className="shrink-0">— впишите вручную</span>}
+      </p>
+    </Tooltip>
   );
 }
 

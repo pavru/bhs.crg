@@ -4,6 +4,7 @@ import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { RefPickerModal } from './RefPickerModal';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 export function DocRefCatalogPickerField({ field, allDocTypes, value, onChange, setId, scope, scopeId }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -21,14 +22,18 @@ export function DocRefCatalogPickerField({ field, allDocTypes, value, onChange, 
           <span className="flex-1 text-sm text-warning font-medium">{ref.displayName}</span>
           {/* «Заменить» рядом со «Снять» (issue #749): без неё замена шла в два шага, причём первый
               стирал то, на что смотришь, выбирая второй. Пикер тот же, что и при первом выборе. */}
-          <button type="button" onClick={() => setPickerOpen(true)} title="Заменить ссылку"
-            className="p-1 text-warning hover:text-brand transition-colors shrink-0">
-            <RefreshCw size={13} />
-          </button>
-          <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
-            className="p-1 text-warning hover:text-danger transition-colors">
-            <Unlink size={13} />
-          </button>
+          <Tooltip content="Заменить ссылку" name>
+            <button type="button" onClick={() => setPickerOpen(true)}
+              className="p-1 text-warning hover:text-brand transition-colors shrink-0">
+              <RefreshCw size={13} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Снять ссылку" name>
+            <button type="button" onClick={() => onChange(null)}
+              className="p-1 text-warning hover:text-danger transition-colors">
+              <Unlink size={13} />
+            </button>
+          </Tooltip>
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}

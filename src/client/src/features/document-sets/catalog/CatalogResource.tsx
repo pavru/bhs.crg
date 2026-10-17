@@ -26,6 +26,7 @@ import { ArchivedRows } from '@/shared/ui/ArchivedRows';
 import { ArchivedBanner } from './ArchiveParts';
 import { useRecordArchive } from './useRecordArchive';
 import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const NO_TYPE = '__no_type__';
 const PROFILE = '__profile__';
@@ -432,10 +433,12 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         </p>
         <div className="flex items-center gap-2 mt-1.5">
           <code className="text-xs font-mono bg-muted text-fg1 px-2 py-1 rounded">data.{key}.*</code>
-          <button type="button" onClick={copy} title="Скопировать ключ"
-            className="text-fg4 hover:text-brand transition-colors">
-            {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
-          </button>
+          <Tooltip content="Скопировать ключ" name>
+            <button type="button" onClick={copy}
+              className="text-fg4 hover:text-brand transition-colors">
+              {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+            </button>
+          </Tooltip>
         </div>
       </div>
 

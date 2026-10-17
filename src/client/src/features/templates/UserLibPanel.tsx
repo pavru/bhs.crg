@@ -18,6 +18,7 @@ import { UserLibPathDialog } from './UserLibPathDialog';
 import {
   ENTRYPOINT, referencingFiles, mergeFiles, mergeText, treeKey, checkStillApplies,
 } from './userLibTree';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── User Typst library: точка входа + дерево файлов (issue #473) ─────────────
 
@@ -445,7 +446,7 @@ function DiagnosticBlock({ tone, title, items, alive, onGo }: {
 function DiagnosticLine({ path, text, alive, onGo }: {
   path: string; text: string; alive: boolean; onGo: (path: string) => void;
 }) {
-  if (!alive) return <p className="text-fg3" title="Файла нет в текущем дереве — сохраните изменения">{text}</p>;
+  if (!alive) return <Tooltip content="Файла нет в текущем дереве — сохраните изменения"><p className="text-fg3">{text}</p></Tooltip>;
   return (
     <button type="button" onClick={() => onGo(path)}
       className="block text-left text-fg2 hover:text-fg1 hover:underline">

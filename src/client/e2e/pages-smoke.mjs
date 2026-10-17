@@ -126,7 +126,7 @@ await check('document-page-asks-before-leaving-with-edits', async () => {
   const input = editor.getByLabel('Количество экземпляров');
   await input.fill(String(Number(await input.inputValue() || 0) + 7));
   // Охрана включается эффектом после ввода — ждём её признака на вкладке, иначе уход опередит её.
-  await editor.getByTitle('Есть несохранённые изменения').waitFor({ timeout: 5000 });
+  await editor.locator('[aria-description="Есть несохранённые изменения"]').waitFor({ timeout: 5000 });
 
   const back = editor.getByRole('button', { name: 'К комплекту' });
   const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
@@ -155,7 +155,7 @@ await check('document-page-browser-back-asks-with-edits', async () => {
   const input = editor.getByLabel('Количество экземпляров');
   await input.fill(String(Number(await input.inputValue() || 0) + 7));
   // Охрана включается эффектом после ввода — ждём её признака на вкладке, иначе уход опередит её.
-  await editor.getByTitle('Есть несохранённые изменения').waitFor({ timeout: 5000 });
+  await editor.locator('[aria-description="Есть несохранённые изменения"]').waitFor({ timeout: 5000 });
 
   const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
   await page.evaluate(() => history.back());

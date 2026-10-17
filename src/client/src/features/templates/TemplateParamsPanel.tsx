@@ -7,6 +7,7 @@ import type { Template, TemplateParam } from '@/shared/api/types';
 import { newLocalId } from '@/shared/utils/localId';
 import { parseTemplateParams } from './templateParams';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -80,11 +81,13 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   Сам груз — страховка по спецификации, а не требование Firefox: утверждение «без
                   setData Firefox отменит перетаскивание» (шло из #517) проверено вручную
                   2026-08-17 и не подтвердилось, см. ROW_DRAG_MIME в document-sets/fields. */}
-              <span className="text-fg4 cursor-grab shrink-0" draggable
-                onDragStart={e => { e.dataTransfer.setData(DRAG_MIME, String(i)); setDragIdx(i); }}
-                onDragEnd={() => setDragIdx(null)} title="Перетащить">
-                <GripVertical size={13} />
-              </span>
+              <Tooltip content="Перетащить">
+                <span className="text-fg4 cursor-grab shrink-0" draggable
+                  onDragStart={e => { e.dataTransfer.setData(DRAG_MIME, String(i)); setDragIdx(i); }}
+                  onDragEnd={() => setDragIdx(null)}>
+                  <GripVertical size={13} />
+                </span>
+              </Tooltip>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
                 className="w-24 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
@@ -99,8 +102,10 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
               <span className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                   isFirst={i === 0} isLast={i === rows.length - 1} />
-                <button onClick={() => save(rows.filter((_, idx) => idx !== i))} title="Удалить параметр"
-                  className="p-1 text-stroke-strong hover:text-danger"><Trash2 size={12} /></button>
+                <Tooltip content="Удалить параметр" name>
+                  <button onClick={() => save(rows.filter((_, idx) => idx !== i))}
+                    className="p-1 text-stroke-strong hover:text-danger"><Trash2 size={12} /></button>
+                </Tooltip>
               </span>
             </div>
           ))}
@@ -121,7 +126,7 @@ function ParamDefault({ type, value, onChange }: {
   if (type === 'boolean')
     return (
       <span className="w-20 shrink-0 flex justify-center">
-        <input type="checkbox" checked={value === true} onChange={e => onChange(e.target.checked)} title="Значение по умолчанию" />
+        <Tooltip content="Значение по умолчанию"><input type="checkbox" checked={value === true} onChange={e => onChange(e.target.checked)} /></Tooltip>
       </span>
     );
   return (

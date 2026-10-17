@@ -1,3 +1,4 @@
+import { Tooltip } from '@/shared/ui/Tooltip';
 /**
  * Выбор одного варианта union-поля — вынесен из ComplexFields (issue #747).
  *
@@ -34,9 +35,11 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
               </span>
               <span className="flex-1 min-w-0 truncate">{o.label}</span>
               {o.filled && (
-                <span className="text-caption text-brand flex items-center gap-1 shrink-0" title="Значение задано">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand" /> задан
-                </span>
+                <Tooltip content="Значение задано">
+                  <span className="text-caption text-brand flex items-center gap-1 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand" /> задан
+                  </span>
+                </Tooltip>
               )}
             </button>
           );

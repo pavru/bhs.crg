@@ -35,10 +35,12 @@ export async function railChecks(page, check) {
       // Пункт без подписи на экране обязан остаться названным: подсказкой для глаза и именем для
       // диктора. Пропади имя — меню превратилось бы в ряд неотличимых кнопок.
       const link = page.locator('#app-rail-nav a').first();
-      const title = await link.getAttribute('title');
-      if (!title) throw new Error('у пункта свёрнутой панели нет подсказки');
-      const spoken = await link.locator('.sr-only').allTextContents();
-      if (!spoken.includes(title)) throw new Error(`подпись пункта «${title}» не оставлена диктору: ${spoken}`);
+      const spoken = (await link.locator('.sr-only').allTextContents()).join('').trim();
+      if (!spoken) throw new Error('подпись пункта свёрнутой панели не оставлена диктору');
+      await link.hover();
+      // Подсказка Radix — скрытая копия с role=tooltip: видимой её не дождаться, только в разметке.
+      await page.locator('[role=tooltip]', { hasText: spoken }).first().waitFor({ state: 'attached', timeout: 3000 })
+        .catch(() => { throw new Error(`у пункта «${spoken}» свёрнутой панели нет подсказки`); });
     });
 
     await check('rail-collapsed-survives-reload-and-lives-on-server', async () => {

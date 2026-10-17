@@ -9,6 +9,7 @@ import { useNomenclature } from '@/shared/api/invoices';
 import { useCan } from '@/shared/api/access';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
 import type { LineWords } from './newNomenclature';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Выбор позиции номенклатуры для строки счёта (задача C2, issue #1078, ТЗ COST-7).
@@ -58,24 +59,28 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
   return (
     <>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => setOpen(true)} title={archived && !lost ? ARCHIVED_HINT : undefined}
-          className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
-            ${lost ? 'border-danger/30 text-danger'
-              : chosen ? 'border-stroke text-fg1' : 'border-warning-border text-warning'}`}>
-          {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
-              но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
-          {lost ? lostText ?? LOST.position
-            : chosen ? withArchiveWord(name ?? 'позиция без названия', !!archived) : 'выбрать позицию'}
-        </button>
+        <Tooltip content={archived && !lost ? ARCHIVED_HINT : undefined}>
+          <button type="button" onClick={() => setOpen(true)}
+            className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
+              ${lost ? 'border-danger/30 text-danger'
+                : chosen ? 'border-stroke text-fg1' : 'border-warning-border text-warning'}`}>
+            {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
+                но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
+            {lost ? lostText ?? LOST.position
+              : chosen ? withArchiveWord(name ?? 'позиция без названия', !!archived) : 'выбрать позицию'}
+          </button>
+        </Tooltip>
         {/* ⚠️ Снять ссылку можно ВСЕГДА, пока она есть, — и особенно когда позиция потеряна: сервер
             отказывает сохранять строку с битой ссылкой, а спрятанная кнопка не оставляла человеку
             вообще никакого выхода (ревью PR #1117). */}
         {mark}
         {chosen && clearable && (
-          <button type="button" onClick={onClear} title="Снять позицию"
-            className="shrink-0 text-fg4 hover:text-fg1 p-0.5">
-            <X size={12} />
-          </button>
+          <Tooltip content="Снять позицию" name>
+            <button type="button" onClick={onClear}
+              className="shrink-0 text-fg4 hover:text-fg1 p-0.5">
+              <X size={12} />
+            </button>
+          </Tooltip>
         )}
       </div>
 

@@ -10,6 +10,7 @@ import {
 } from '@/shared/filter/rowFilterModel';
 import { ConditionEditor } from '@/shared/filter/ConditionEditor';
 import { useDialogSave } from './useDialogSave';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── Logic toggle ─────────────────────────────────────────────────────────────
 
@@ -61,18 +62,19 @@ function FilterConditionRow({
   return (
     <div>
       <div className="flex items-start gap-1.5 group/cond">
-        <span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-fg4" title={`Условие ${path}`}>{path}</span>
+        <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-fg4">{path}</span></Tooltip>
         <ConditionEditor cond={cond} columns={columns} onChange={onChange} />
 
         {/* Remove */}
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
-          title="Удалить условие"
-        >
-          <Trash2 size={12} />
-        </button>
+        <Tooltip content="Удалить условие" name>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
+          >
+            <Trash2 size={12} />
+          </button>
+        </Tooltip>
       </div>
       {problem && <p className="mt-0.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
     </div>
@@ -147,14 +149,15 @@ function FilterGroupEditor({
           </button>
         )}
         {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-fg4 hover:text-danger"
-            title="Удалить группу"
-          >
-            <Trash2 size={11} /> Удалить группу
-          </button>
+          <Tooltip content="Удалить группу">
+            <button
+              type="button"
+              onClick={onRemove}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-fg4 hover:text-danger"
+            >
+              <Trash2 size={11} /> Удалить группу
+            </button>
+          </Tooltip>
         )}
       </div>
 

@@ -23,6 +23,7 @@ import { formatDate } from '@/shared/format/format';
 import { FilterHidesAll, NotInListNotice, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
 import { NOT_IN_LIST, SEARCH_HIDDEN, hiddenEmpty, useWaybillSites } from './useWaybillSites';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const PARAM = 'waybill';
 
@@ -241,10 +242,11 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
         <div className="flex-1" />
         {/* Ноль не показываем: число «0» у каждой строки читается как шум. */}
         {item.unmatched > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
-            title={`Не сопоставлено строк: ${item.unmatched} из ${item.lines}`}>
-            <ListChecks size={11} />{item.unmatched}
-          </span>
+          <Tooltip content={`Не сопоставлено строк: ${item.unmatched} из ${item.lines}`}>
+            <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
+              <ListChecks size={11} />{item.unmatched}
+            </span>
+          </Tooltip>
         )}
       </div>
     </button>

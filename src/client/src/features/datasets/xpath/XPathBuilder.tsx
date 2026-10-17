@@ -4,6 +4,7 @@ import { parseXPath, toXPath, type XPathModel, type XPathStep, type XPathPredica
 import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 interface XPathBuilderProps {
   value: string;
@@ -138,12 +139,13 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
     <div className="border border-stroke rounded-md px-1.5 py-1 bg-base flex flex-col gap-1 min-w-0">
       <div className="flex items-center gap-1">
         {isLast && (
-          <button type="button"
-            onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
-            title="Атрибут / элемент"
-            className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-brand text-white' : 'text-fg4 border border-stroke hover:border-stroke-strong'}`}>
-            @
-          </button>
+          <Tooltip content="Атрибут / элемент">
+            <button type="button"
+              onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
+              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-brand text-white' : 'text-fg4 border border-stroke hover:border-stroke-strong'}`}>
+              @
+            </button>
+          </Tooltip>
         )}
         <input value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}

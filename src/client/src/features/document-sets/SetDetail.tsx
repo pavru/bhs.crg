@@ -36,6 +36,7 @@ import { documentPath, FROM_SET } from './documentPath';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ── Экран комплекта ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -241,12 +242,13 @@ export function SetDetail() {
     { key: 'order', label: '', hint: 'Порядок в собранном комплекте', width: 'w-16', interactive: true,
       cell: (_, index) => (
         <div className="flex items-center gap-1">
-          <button type="button" draggable
-            onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
-            className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand"
-            title="Перетащить для изменения порядка" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
-            <GripVertical size={14} />
-          </button>
+          <Tooltip content="Перетащить для изменения порядка">
+            <button type="button" draggable
+              onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
+              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
+              <GripVertical size={14} />
+            </button>
+          </Tooltip>
           <div className="flex flex-col items-center -my-1">
             <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
               isFirst={index === 0} isLast={index === lastIndex}
@@ -277,11 +279,12 @@ export function SetDetail() {
           <div className="flex items-center gap-1">
             {pdfFiles.length === 1 && (
               <>
-                <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
-                  title="Открыть PDF">
-                  <Eye size={11} /> PDF
-                </button>
+                <Tooltip content="Открыть PDF">
+                  <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors">
+                    <Eye size={11} /> PDF
+                  </button>
+                </Tooltip>
                 <IconButton label="Скачать PDF" size="sm"
                   onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}>
                   <Download size={13} />
@@ -289,11 +292,12 @@ export function SetDetail() {
               </>
             )}
             {pdfFiles.length > 1 && (
-              <button onClick={() => openDocument(inst)}
-                className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
-                title="Несколько PDF — открыть документ для выбора">
-                <Eye size={11} /> {pdfFiles.length} PDF
-              </button>
+              <Tooltip content="Несколько PDF — открыть документ для выбора">
+                <button onClick={() => openDocument(inst)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors">
+                  <Eye size={11} /> {pdfFiles.length} PDF
+                </button>
+              </Tooltip>
             )}
           </div>
         );

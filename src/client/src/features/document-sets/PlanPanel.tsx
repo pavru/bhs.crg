@@ -6,6 +6,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useDocumentSetPlan, useReplaceDocumentSetPlan, type PlanRow } from '@/shared/api/plans';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Строка в правке — ТОЛЬКО план. Факта здесь нет намеренно: он приходит с сервера и в состоянии
@@ -157,11 +158,12 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                   }}
                   className="h-8 px-2 rounded-lg border border-stroke bg-surface text-right tabular-nums
                              focus:outline-none focus:border-brand" />
-                <span className={`text-right tabular-nums ${
-                  (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-brand' : 'text-fg3'}`}
-                  title={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
-                  {actualOf(r.documentTypeId) ?? '—'}
-                </span>
+                <Tooltip content={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
+                  <span className={`text-right tabular-nums ${
+                    (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-brand' : 'text-fg3'}`}>
+                    {actualOf(r.documentTypeId) ?? '—'}
+                  </span>
+                </Tooltip>
                 <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
                   onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
                   className="h-7 w-7 grid place-items-center rounded-lg text-fg4 hover:text-danger hover:bg-danger-subtle transition-colors">

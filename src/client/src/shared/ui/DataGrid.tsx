@@ -8,6 +8,7 @@ import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
   type ColumnUnavailable, type GridState,
 } from './dataGridStates';
+import { Tooltip } from './Tooltip';
 
 /**
  * Общая сетка данных (задача G1a этапа 2, issue #1088, ТЗ CORE-33). Первый потребитель —
@@ -102,12 +103,12 @@ export function DataGridValue<Row>({ row, column, renderValue }: {
     // Значение у такой колонки бывает (строки таблицы генерация пишет и вне схемы) — тогда оно
     // видно, но приглушено и с причиной. Нет значения — клетка называет причину, а не пустует.
     if (kind === 'value')
-      return <span className="text-fg4" title={state.hint}>{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span>;
-    return <span className="text-fg4 italic" title={state.hint}>{state.title}</span>;
+      return <Tooltip content={state.hint}><span className="text-fg4">{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span></Tooltip>;
+    return <Tooltip content={state.hint}><span className="text-fg4 italic">{state.title}</span></Tooltip>;
   }
   switch (kind) {
     case 'absent':
-      return <span className="text-fg4" title={ABSENT_CELL_HINT} aria-label={ABSENT_CELL_HINT}>—</span>;
+      return <Tooltip content={ABSENT_CELL_HINT}><span className="text-fg4" aria-label={ABSENT_CELL_HINT}>—</span></Tooltip>;
     // Пустое значение — пустая клетка: так его читает любой, кто видел таблицу. Слово «null» на
     // экране было отладочным выводом, а не ответом.
     case 'empty':
@@ -223,25 +224,30 @@ export function DataGrid<Row extends object>({
       </span>
     );
     return (
-      <th key={c.key} data-pin={i < pinCount ? i : undefined} rowSpan={extra?.rowSpan}
-        className={`${th} ${c.align === 'right' ? 'text-right' : ''} ${c.width ?? ''} ${pin(i)}`}
-        style={{ ...extra?.style, ...pinStyle(i, 30) }} title={reason?.hint ?? c.hint}
-        aria-sort={!canSort ? undefined : !sorted ? 'none' : sorted.descending ? 'descending' : 'ascending'}>
-        {canSort ? (
-          <button type="button" onClick={e => onSort(c, e.shiftKey)}
-            title="Сортировать. С Shift — добавить колонку к сортировке"
-            className="hover:text-fg1 focus-visible:outline-2 rounded-sm">
-            {label}
-          </button>
-        ) : label}
-        {c.unavailable === 'removed' && onRemoveColumn && (
-          <button type="button" onClick={() => onRemoveColumn(c)}
-            aria-label={`Убрать колонку «${c.label}»`} title="Убрать колонку"
-            className="ml-1 align-middle text-fg4 hover:text-danger">
-            <X size={12} aria-hidden />
-          </button>
-        )}
-      </th>
+      <Tooltip key={c.key} content={reason?.hint ?? c.hint}>
+        <th data-pin={i < pinCount ? i : undefined} rowSpan={extra?.rowSpan}
+          className={`${th} ${c.align === 'right' ? 'text-right' : ''} ${c.width ?? ''} ${pin(i)}`}
+          style={{ ...extra?.style, ...pinStyle(i, 30) }}
+          aria-sort={!canSort ? undefined : !sorted ? 'none' : sorted.descending ? 'descending' : 'ascending'}>
+          {canSort ? (
+            <Tooltip content="Сортировать. С Shift — добавить колонку к сортировке">
+            <button type="button" onClick={e => onSort(c, e.shiftKey)}
+                className="hover:text-fg1 focus-visible:outline-2 rounded-sm">
+                {label}
+              </button>
+          </Tooltip>
+          ) : label}
+          {c.unavailable === 'removed' && onRemoveColumn && (
+            <Tooltip content="Убрать колонку">
+            <button type="button" onClick={() => onRemoveColumn(c)}
+                aria-label={`Убрать колонку «${c.label}»`}
+                className="ml-1 align-middle text-fg4 hover:text-danger">
+                <X size={12} aria-hidden />
+              </button>
+          </Tooltip>
+          )}
+        </th>
+      </Tooltip>
     );
   };
 
@@ -258,10 +264,12 @@ export function DataGrid<Row extends object>({
               return (
                 // Закреплена первая колонка группы — закреплена и её шапка: иначе имя группы уезжало бы
                 // вбок, а подписи полей под ним стояли на месте.
-                <th key={`group:${c.group.key}:${i}`} colSpan={span} scope="colgroup" title={c.group.hint}
-                  className={`${th} text-center ${pin(i)}`} style={pinStyle(i, 30)}>
-                  {c.group.label}
-                </th>
+                <Tooltip key={`group:${c.group.key}:${i}`} content={c.group.hint}>
+                  <th colSpan={span} scope="colgroup"
+                    className={`${th} text-center ${pin(i)}`} style={pinStyle(i, 30)}>
+                    {c.group.label}
+                  </th>
+                </Tooltip>
               );
             })}
           </tr>
@@ -336,11 +344,13 @@ export function DataGrid<Row extends object>({
                       {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
                           перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
                       {ci === 0 && link && (
-                        <Link to={link.to} aria-label={link.label} title={link.label}
-                          onClick={e => e.stopPropagation()}
-                          className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
-                          <ArrowUpRight size={14} aria-hidden />
-                        </Link>
+                        <Tooltip content={link.label}>
+                          <Link to={link.to} aria-label={link.label}
+                            onClick={e => e.stopPropagation()}
+                            className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
+                            <ArrowUpRight size={14} aria-hidden />
+                          </Link>
+                        </Tooltip>
                       )}
                       {c.cell && !c.unavailable ? c.cell(row, i) : (
                         <DataGridValue row={row as Record<string, unknown>} column={c}

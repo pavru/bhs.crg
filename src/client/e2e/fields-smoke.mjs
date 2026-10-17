@@ -149,7 +149,7 @@ await settled(page);
 await check('nested-composite-in-row-opens-in-place', async () => {
   const dlg = page.locator('[role=dialog]').last();
   if (!rowTitle.test(await dialogTitle(dlg))) throw new Error(`открылась не строка: «${await dialogTitle(dlg)}»`);
-  const pencils = await dlg.getByTitle('Редактировать').count();
+  const pencils = await dlg.getByRole('button', { name: 'Редактировать', exact: true }).count();
   if (pencils) throw new Error(`в окне строки ${pencils} составных открываются своим окном — окно над окном`);
 });
 
@@ -278,8 +278,7 @@ await check('union-second-row-has-its-own-variant', async () => {
 editor = await openInstance(PDF_DOC);
 
 await check('file-preview-shows-attachment', async () => {
-  const eye = editor.getByRole('button', { name: /предпросмотр/i })
-    .or(editor.locator('button[title="Предпросмотр"]')).first();
+  const eye = editor.getByRole('button', { name: /предпросмотр/i }).first();
   if (!(await eye.count())) throw new Error('кнопки предпросмотра у поля-файла нет');
   await eye.click();
   await settled(page);
@@ -377,8 +376,7 @@ await check('union-clearing-keeps-active-variant', async () => {
   const dlg = page.locator('[role=dialog]').last();
   const on = await checkedVariant();
   if (on !== 'Проект') throw new Error(`строка открылась на «${on}», ждали «Проект»`);
-  const unlink = dlg.getByRole('button', { name: /снять ссылку/i })
-    .or(dlg.locator('button[title="Снять ссылку"]')).first();
+  const unlink = dlg.getByRole('button', { name: /снять ссылку/i }).first();
   if (!(await unlink.count())) throw new Error('нечем очистить значение — кнопки «Снять ссылку» нет');
   await unlink.click();
   await settled(page);

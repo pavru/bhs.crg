@@ -6,6 +6,7 @@ import { apiError } from '@/shared/utils/apiError';
 import type { ImageValue, ImageBlobValue, ImageOptions } from '@/shared/api/schema';
 import { checkImageResult } from './checkImageResult';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Предел проверяет СЕРВЕР (issue #534). Клиентская константа была осознанной временной мерой: у
@@ -155,9 +156,11 @@ export function ImageField({ value, onChange, readOnly = false }: {
           ? <img src={shownSrc} alt="" className="max-h-48 max-w-full object-contain" />
           : <span className="py-8 text-xs text-fg4">Загрузка изображения…</span>}
         {pending && (
-          <span className="absolute top-1.5 right-1.5 rounded bg-surface/90 p-1" title="Загружается в хранилище">
-            <Loader2 size={13} className="animate-spin text-brand" />
-          </span>
+          <Tooltip content="Загружается в хранилище">
+            <span className="absolute top-1.5 right-1.5 rounded bg-surface/90 p-1">
+              <Loader2 size={13} className="animate-spin text-brand" />
+            </span>
+          </Tooltip>
         )}
       </div>
 

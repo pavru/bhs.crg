@@ -7,6 +7,7 @@ import {
   type TemplateAssetDto, type TemplateAssetScope,
 } from '@/shared/api/templateAssets';
 import { assetReference } from '@/shared/api/templateAssetRef';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.svg,.ttf,.otf,.ttc';
 
@@ -39,21 +40,23 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
   }
 
   return (
-    <button type="button" title={`${asset.fileName} — скопировать ссылку`}
-      onClick={() => {
-        void navigator.clipboard?.writeText(reference);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      }}
-      className="flex-1 min-w-0 flex items-start gap-1.5 text-left group/ref">
-      {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «/assets/Г…» не отвечает на
-          вопрос, ради которого строку и переделали, — что писать в шаблоне. Имя файла ушло в
-          подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
-      <code className="text-xs font-mono text-fg1 break-all leading-snug">{reference}</code>
-      {copied
-        ? <Check size={11} className="text-success shrink-0 mt-0.5" />
-        : <Copy size={11} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
-    </button>
+    <Tooltip content={`${asset.fileName} — скопировать ссылку`}>
+      <button type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(reference);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        }}
+        className="flex-1 min-w-0 flex items-start gap-1.5 text-left group/ref">
+        {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «/assets/Г…» не отвечает на
+            вопрос, ради которого строку и переделали, — что писать в шаблоне. Имя файла ушло в
+            подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
+        <code className="text-xs font-mono text-fg1 break-all leading-snug">{reference}</code>
+        {copied
+          ? <Check size={11} className="text-success shrink-0 mt-0.5" />
+          : <Copy size={11} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
+      </button>
+    </Tooltip>
   );
 }
 

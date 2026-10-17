@@ -21,6 +21,7 @@ import { toDrafts, type LineDraft } from './invoiceLines';
 import { PlaceSelect } from './PlaceSelect';
 import { chosen, missingSection, placeOfPart, samePlace, usePlaces, type Places } from './places';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Матрица разноски «строки × объекты» (задача F2, issue #1086, ТЗ COST-6.2, COST-11, COST-12).
@@ -263,17 +264,19 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
                         onChange={value => edit(row.key, target.key, value)} />
                     )}
                     {partAt(allocation, target)?.mismatched && (
-                      <div className="text-right text-warning"
-                        title="У строки сменился вид (появилось или пропало количество): такая часть не разносит ничего">
-                        часть не того вида — уйдёт при сохранении
-                      </div>
+                      <Tooltip content="У строки сменился вид (появилось или пропало количество): такая часть не разносит ничего">
+                        <div className="text-right text-warning">
+                          часть не того вида — уйдёт при сохранении
+                        </div>
+                      </Tooltip>
                     )}
                     {!dirty && (
                       <div className="text-right text-fg2">
                         {cellText(row, partAt(allocation, target))}
                         {remainder(row, target) && (
-                          <span className="ml-1 text-warning"
-                            title="Сюда ушёл остаток округления — так части складываются ровно в строку">◆</span>
+                          <Tooltip content="Сюда ушёл остаток округления — так части складываются ровно в строку">
+                            <span className="ml-1 text-warning">◆</span>
+                          </Tooltip>
                         )}
                       </div>
                     )}
@@ -310,10 +313,12 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
       <div className="flex items-center gap-1">
         <PlaceSelect value={target} places={places} label={`Объект ${number}`} placeholder="— объект —"
           onChange={onChange} />
-        <button type="button" title={`Убрать объект ${number}`} onClick={onRemove}
-          className="text-fg4 hover:text-danger p-0.5">
-          <Trash2 size={13} />
-        </button>
+        <Tooltip content={`Убрать объект ${number}`} name>
+          <button type="button" onClick={onRemove}
+            className="text-fg4 hover:text-danger p-0.5">
+            <Trash2 size={13} />
+          </button>
+        </Tooltip>
       </div>
       <div className="flex items-center gap-1">
         <Select size="sm" value={target.section ?? ''} aria-label={`Раздел, объект ${number}`}

@@ -22,6 +22,7 @@ import {
 } from './fieldMapping';
 import { saveGroup } from './fieldMappingSave';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * «Сопоставление полей» (ТЗ TYPE-23.1, issue #1101): что включённые модули читают из справочников
@@ -317,9 +318,11 @@ function Row({ row, typeName, draft, changed, disabled, onPick }: {
       data-tag={row.tag}>
       <div>
         {/* Код тэга — подсказкой: он нужен разработчику, а не администратору. */}
-        <p className="text-sm text-fg1" title={row.tag}>
-          {row.label}{!row.required && <span className="text-fg3"> · необязательно</span>}
-        </p>
+        <Tooltip content={row.tag}>
+          <p className="text-sm text-fg1">
+            {row.label}{!row.required && <span className="text-fg3"> · необязательно</span>}
+          </p>
+        </Tooltip>
         <p className="text-xs text-fg3 mt-0.5">{row.description}</p>
       </div>
 
