@@ -214,7 +214,8 @@ public static class SiteCostsEndpoints
             closing ? Closing : Corrected,
             differs switch { ViewsDiffer.Totals => "totals", ViewsDiffer.Details => "details", _ => null },
             result.Total.Same(registry.Total),
-            result.Unmatched == registry.Unmatched,
+            // Тем же Same, что и прочие ссылки: в равенство записей входят корректировки (ревью PR #1395).
+            result.Unmatched?.Same(registry.Unmatched) ?? registry.Unmatched is null,
             // Итог другого взгляда — числом, без его корректировок: полоса называет только его.
             differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total with { Corrections = null },
             closing ? registry.Unmatched : null));

@@ -50,8 +50,12 @@ public sealed record CorrectionRecordView(
     string Kind, DateOnly Day, decimal Tolerance, IReadOnlyList<CorrectionLineView> Lines);
 
 /// <summary>Строка книги: ячейка (цель доли; без цели — остаток счёта), день и деньги.</summary>
+/// <param name="Shifted">Строка легла днём записи, а не своим днём (<see cref="Grain.Shifted" />). По дню этого не
+/// узнать: своя и перенесённая строки одной ячейки на день записи лежат раздельно (PR 6d) — без признака это
+/// две одинаковые строки с одним днём, бывает +30 и −30 (ревью PR #1395).</param>
 public sealed record CorrectionLineView(
-    Guid? ConstructionId, Guid? SectionId, Guid? ArticleId, DateOnly Day, decimal Gross, decimal Net, bool VatUnknown);
+    Guid? ConstructionId, Guid? SectionId, Guid? ArticleId, DateOnly Day, decimal Gross, decimal Net, bool VatUnknown,
+    bool Shifted);
 
 /// <summary>Разбор тела исправления и сборка ответа предпросмотра.</summary>
 internal static class InvoiceCorrections
@@ -121,7 +125,7 @@ internal static class InvoiceCorrections
 
     /// <summary>Строка книги ответом — одна на предпросмотр и историю счёта.</summary>
     public static CorrectionLineView Line(Grain line) => new(line.Cell.Target?.ConstructionId,
-        line.Cell.Target?.SectionId, line.Cell.Target?.ArticleId, line.Day, line.Gross, line.Net, line.VatUnknown);
+        line.Cell.Target?.SectionId, line.Cell.Target?.ArticleId, line.Day, line.Gross, line.Net, line.VatUnknown, line.Shifted);
 
     /// <summary>Вид записи словом ответа — один на предпросмотр и историю счёта.</summary>
     public static string Kind(InvoiceBookKind kind) => kind switch

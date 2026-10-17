@@ -11,8 +11,8 @@ namespace BHS.CRG.Tests.Costs;
 ///
 /// <para>После каждого шага — инварианты, которые видны без базы: I1 (книга по ячейкам равна документу
 /// — его держит и сама функция), I4′ (а) и (в) — строки не в закрытых днях, дни записей не убывают, —
-/// и I8 там, где контур не закрывался ни разу. Заморозку закрытого месяца (I2) сценарии проверяют
-/// числом «на момент закрытия» до и после.</para>
+/// и I8 там, где контур не закрывался ни разу, и I9 — его обобщение на контуры, которые закрывались.
+/// Заморозку закрытого месяца (I2) сценарии проверяют числом «на момент закрытия» до и после.</para>
 ///
 /// <para>Зёрна «до» и «после» здесь заданы руками, как в материалах прогона: дни долей назначает
 /// <see cref="PaymentPosting" /> (его правила проверяют свои тесты), а книга кладёт деньги по дням,
@@ -50,6 +50,9 @@ public partial class InvoiceBookPostingTests
         /// <summary>Контуры, которые не закрывались ни разу: в них «на момент закрытия» = документ по парам (I8).</summary>
         public HashSet<PeriodContour> NeverClosed { get; } = [];
 
+        /// <summary>Самая поздняя граница закрытия, какую контур видел за прогон, — и после отмены закрытия (I9).</summary>
+        private readonly Dictionary<PeriodContour, DateOnly> _closedEver = [];
+
         public IReadOnlyList<BookRecord> Post(
             InvoiceBookKind kind, DateOnly today, PeriodBoundaries boundaries, Grain[] before, Grain[] after,
             decimal toleranceBefore = 1.00m, decimal? toleranceAfter = null, Grain[]? atLast = null)
@@ -73,6 +76,20 @@ public partial class InvoiceBookPostingTests
 
             Book.AddRange(added);
 
+            // I9 (ревью PR #1395): в днях позже любой границы, которую контур видел, своя часть книги (строки
+            // без переноса) по парам равна документу. Перенесённая строка — чужие деньги, легшие днём записи,
+            // и пару своей не делает: иначе новая оплата датой этого дня уходила бы днём D «корректировкой».
+            foreach (var contour in before.Concat(after).Concat(added.SelectMany(r => r.Lines)).Select(g => g.Cell.Contour).Distinct())
+                if (boundaries.ClosedThrough(contour) is { } through && (!_closedEver.TryGetValue(contour, out var seen) || through > seen))
+                    _closedEver[contour] = through;
+            bool Fresh(Grain g) => !_closedEver.TryGetValue(g.Cell.Contour, out var through) || g.Day > through;
+            var own = Book.SelectMany(r => r.Lines).Where(l => !l.Shifted && Fresh(l))
+                .GroupBy(l => (l.Cell, l.Day)).ToDictionary(g => g.Key, g => (g.Sum(l => l.Gross), g.Sum(l => l.Net)));
+            var fresh = after.Where(Fresh)
+                .GroupBy(g => (g.Cell, g.Day)).ToDictionary(g => g.Key, g => (g.Sum(x => x.Gross), g.Sum(x => x.Net)));
+            foreach (var key in own.Keys.Union(fresh.Keys).Where(k => own.GetValueOrDefault(k) != fresh.GetValueOrDefault(k)))
+                Assert.Fail($"I9: {key} своя часть книги {own.GetValueOrDefault(key)}, документ {fresh.GetValueOrDefault(key)}");
+
             // I4′(в): дни записей не убывают.
             Assert.Equal(Book.Select(r => r.Day).OrderBy(d => d), Book.Select(r => r.Day));
 
@@ -91,6 +108,10 @@ public partial class InvoiceBookPostingTests
         /// <summary>«На момент закрытия» по ячейкам стройки за месяц — с НДС.</summary>
         public decimal Close(Func<BookCell, bool> cells, int month) =>
             Book.SelectMany(r => r.Lines).Where(l => cells(l.Cell) && l.Day.Month == month).Sum(l => l.Gross);
+
+        /// <summary>Корректировки закрытых периодов в месяце — перенесённые строки, с НДС.</summary>
+        public decimal Shifted(Func<BookCell, bool> cells, int month) =>
+            Book.SelectMany(r => r.Lines).Where(l => l.Shifted && cells(l.Cell) && l.Day.Month == month).Sum(l => l.Gross);
     }
 
     private static bool OnA(BookCell cell) => cell.Target?.ConstructionId == A;

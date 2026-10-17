@@ -1,4 +1,4 @@
-import { formatCount } from '@/shared/format/format';
+import { formatCount, formatMoney } from '@/shared/format/format';
 import type { FilterCondition, FilterGroup } from '@/shared/api/types';
 import type { CostLine, SiteCosts } from '@/shared/api/siteCosts';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -72,12 +72,27 @@ export function invoicesText(count: number): string {
   return `${formatCount(count)} ${word}`;
 }
 
+/**
+ * «включая корректировки закрытых периодов: 2 счёта, −100,00 ₽» — одна формулировка на строку под итогом и
+ * подсказку значка у строки (PR 6d): две копии разошлись бы при первой правке слов. Без числа счетов — у
+ * свёрнутых строек, где счета не складываются.
+ */
+export function correctionsText({ invoices, amount }: { invoices?: number; amount: number }): string {
+  return `включая корректировки закрытых периодов: ${invoices === undefined ? '' : `${invoicesText(invoices)}, `}${formatMoney(amount)}`;
+}
+
 /** Стройки, свёрнутые фильтром «Избранные стройки» в одну строку отчёта (issue #1223). */
 export interface FoldedSites {
   /** Сколько строк свёрнуто. */
   count: number;
   /** Их деньги вместе. Числа счетов нет: счёт на двух стройках стоит в обеих строках и в сумму не складывается. */
   amount: number;
+  /**
+   * Корректировки закрытых периодов скрытых строк — деньгами, без числа счетов (по той же причине); `null` — ни у
+   * одной скрытой их нет. Без них корректировка под итогом, лежащая только у неизбранных строек, не находилась бы
+   * на экране ничем (ревью PR #1395).
+   */
+  corrections: number | null;
 }
 
 /**
@@ -96,9 +111,12 @@ export function foldSites(sites: readonly CostLine[], visible: (id: string | nul
   // Одним проходом: два противоположных отбора дважды спрашивали бы правило о каждой стройке (ревью PR #1339).
   const shown: CostLine[] = [], hidden: CostLine[] = [];
   for (const s of sites) (visible(s.id) ? shown : hidden).push(s);
+  const adjusted = hidden.filter(s => s.corrections);
   const folded: FoldedSites | null = hidden.length === 0 ? null : {
     count: hidden.length,
     amount: hidden.reduce((sum, s) => sum + Math.round(s.amount * 100), 0) / 100,
+    corrections: adjusted.length === 0 ? null
+      : adjusted.reduce((sum, s) => sum + Math.round(s.corrections!.amount * 100), 0) / 100,
   };
   return { shown, folded };
 }

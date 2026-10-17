@@ -83,10 +83,17 @@ describe('стройки отчёта под фильтром «Избранны
   it('видимые строки и свёрнутая вместе с остальными сходятся с «Итого» — до копейки', () => {
     const { shown, folded } = foldSites(sites, visible(['a']));
     expect(shown.map(s => s.id)).toEqual(['a', 'gone']);
-    expect(folded).toEqual({ count: 2, amount: 0.3 });
+    expect(folded).toEqual({ count: 2, amount: 0.3, corrections: null });
     const cents = [...shown, ...articles].reduce((sum, s) => sum + Math.round(s.amount * 100), 0)
       + Math.round(folded!.amount * 100) + Math.round(unallocated * 100);
     expect(cents).toBe(Math.round(total * 100));
+  });
+
+  it('корректировки скрытых строк — деньгами в копейках; ни у одной — null', () => {
+    const adjusted = (id: string, amount: number, corrections: number): CostLine =>
+      ({ ...line(id, amount), corrections: { invoices: 1, amount: corrections, whole: false } });
+    const { folded } = foldSites([line('a', 1), adjusted('b', 1, 0.2), adjusted('c', 1, 0.1), line('d', 1)], visible(['a']));
+    expect(folded).toEqual({ count: 2, amount: 2, corrections: 0.3 });
   });
 
   it('стройки, которой нет в справочнике, не сворачивает: она видна, как в списках', () => {

@@ -12,7 +12,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import { useSiteCosts, type CostCorrections, type CostFigure, type SiteCosts } from '@/shared/api/siteCosts';
 import { formatCount, formatMoney } from '@/shared/format/format';
-import { foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
+import { correctionsText, foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
 
@@ -125,7 +125,6 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
   onView: (view: 'corrected' | 'closing') => void;
 }) {
   const period = data.from === data.to ? data.months[0] : `${data.months[0]} — ${data.months[data.months.length - 1]}`;
-  const empty = data.total.invoices === 0;
   // Неизбранные стройки — одной строкой (issue #1223): фильтр прячет строки, но чисел не меняет. Раскрытие —
   // здесь и только здесь: глобальный фильтр оно не трогает и не запоминается (§62.3 Дизайнера).
   const filter = useSiteFilterState();
@@ -151,6 +150,9 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
   // Корректировки закрытых периодов — только во взгляде «на момент закрытия»: в первом их нет по устройству, а
   // при совпавших взглядах на экране числа основной таблицы.
   const adjusted = closing ? data.total.corrections : null;
+  // Ноль счетов с корректировкой — не «счетов нет»: свои деньги периода и корректировка одного счёта погасили
+  // друг друга (ревью PR #1395). Пустота тогда названа так, чтобы строка «включая» под ней ей не противоречила.
+  const empty = data.total.invoices === 0;
   // Корректировки итога названы строкой под ним — значок у самого числа повторял бы её.
   const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: { ...data.total, corrections: null },
     link: data.totalLinked !== false ? siteCostsLinks.total(data) : undefined };
@@ -199,8 +201,13 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
           </h2>
 
           {empty ? (
-            <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
-              description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
+            adjusted ? (
+              <EmptyState icon={<ChartNoAxesColumn size={28} />} title="Затраты за период — ноль"
+                description="Деньги, вошедшие в эти месяцы, и корректировки закрытых периодов в сумме дали ноль." />
+            ) : (
+              <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
+                description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
+            )
           ) : (
             <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
               // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
@@ -213,7 +220,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
               бывает и с минусом, и больше итога. */}
           {adjusted && (
             <p className="mt-1 pl-4 text-sm text-fg3">
-              включая корректировки закрытых периодов: {invoicesText(adjusted.invoices)}, {formatMoney(adjusted.amount)}
+              {correctionsText(adjusted)}
             </p>
           )}
           {/* Во взгляде «на момент закрытия» — не «из них», а указатель (разбор Дизайнера, п. 7): «без позиции»
@@ -326,7 +333,12 @@ const NO_LINK = <span className="inline-block w-[22px]" aria-hidden />;
 function CorrectionMark({ corrections }: { corrections: CostCorrections | null }) {
   if (!corrections) return null;
   if (corrections.whole) return <span className="text-fg4"> · корректировка</span>;
-  const title = `Включая корректировки закрытых периодов: ${invoicesText(corrections.invoices)}, ${formatMoney(corrections.amount)}`;
+  return <CorrectionIcon text={correctionsText(corrections)} />;
+}
+
+/** Значок корректировок; числа — в подсказке, той же формулировкой, что под итогом. */
+function CorrectionIcon({ text }: { text: string }) {
+  const title = text.charAt(0).toUpperCase() + text.slice(1);
   return (
     <span role="img" aria-label={title} title={title} className="ml-1.5 inline-flex align-middle text-fg3">
       <History size={14} aria-hidden />
@@ -351,6 +363,7 @@ function costColumns(
       cell: line => line.kind === 'folded' ? (
         <span data-testid="site-costs-folded" className="pl-4 text-fg3">
           {foldedText(line.folded.count)}
+          {corrections && line.folded.corrections !== null && <CorrectionIcon text={correctionsText({ amount: line.folded.corrections })} />}
           <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-fg1">Показать построчно</button>
         </span>
       ) : line.kind === 'figure' ? (

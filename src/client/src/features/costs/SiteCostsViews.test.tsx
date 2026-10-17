@@ -59,11 +59,11 @@ function report(closing: boolean, differs: SiteCosts['differs']): SiteCosts {
 
 let differs: SiteCosts['differs'];
 
-function mount(url = '/site-costs?from=2026-09&to=2026-09') {
+function mount(url = '/site-costs?from=2026-09&to=2026-09', filter = FILTER) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <SiteFilterContext.Provider value={FILTER}>
+      <SiteFilterContext.Provider value={filter}>
         <MemoryRouter initialEntries={[url]}><SiteCostsPage /></MemoryRouter>
       </SiteFilterContext.Provider>
     </QueryClientProvider>,
@@ -109,7 +109,8 @@ describe('два взгляда на закрытые периоды', () => {
     expect(arrow('Итого затраты')).toBeNull();
     expect(arrow('Комарова 36')).toBeNull();
     // Корректировки закрытых периодов (PR 6d, разбор Дизайнера п. 7): под итогом — «включая»; у смешанной
-    // строки — значок на месте стрелки; у строки целиком из корректировок — слово в названии и без значка.
+    // строки — значок после названия (не на месте стрелки: смешанная строка бывает и со стрелкой); у строки целиком
+    // из корректировок — слово в названии и без значка.
     expect(screen.getByText(/включая корректировки закрытых периодов: 2 счёта/)).toBeTruthy();
     expect(screen.getByRole('img', { name: /^Включая корректировки закрытых периодов: 1 счёт, \S?30/ })).toBeTruthy();
     expect(screen.getAllByRole('img', { name: /корректировки закрытых периодов/ })).toHaveLength(2);
@@ -126,6 +127,27 @@ describe('два взгляда на закрытые периоды', () => {
     fireEvent.click(screen.getByRole('button', { name: 'сумма и список во взгляде «с исправлениями»' }));
     await screen.findByRole('tab', { name: 'С исправлениями', selected: true });
     await screen.findByText(/из них без позиции номенклатуры/);
+  });
+
+  it('корректировки только у неизбранных строек — значок у свёрнутой строки, деньгами без счетов', async () => {
+    const state = filterState(['a'], true, new Set(SITES.map(s => s.id)));
+    mount('/site-costs?from=2026-09&to=2026-09&view=closing', { ...FILTER, on: true, active: state.active,
+      favorites: state.favorites, visible: s => isVisible(s, state) });
+    const folded = await screen.findByTestId('site-costs-folded');
+    // Скрыта Ленина 5 (+20); Мира 1 и Садовая 2 справочнику неизвестны — они видны, как в списках.
+    expect(folded.querySelector('[role="img"]')?.getAttribute('aria-label'))
+      .toMatch(/^Включая корректировки закрытых периодов: 20/);
+  });
+
+  it('ноль счетов с корректировкой — не «оплаченных счетов нет»: пустота названа без противоречия строке под ней', async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => url === '/costs/constructions'
+      ? { data: SITES.map(s => ({ ...s, sections: [] })) }
+      : { data: { ...report(true, 'totals'), sites: [],
+        total: { invoices: 0, amount: 0, corrections: { invoices: 1, amount: -30, whole: false } } } });
+    mount('/site-costs?from=2026-09&to=2026-09&view=closing');
+    await screen.findByText('Затраты за период — ноль');
+    expect(screen.queryByText('За период оплаченных счетов нет')).toBeNull();
+    expect(screen.getByText(/включая корректировки закрытых периодов: 1 счёт/)).toBeTruthy();
   });
 
   it('вкладка следует адресу сразу, не дожидаясь ответа; вкладка указывает на панель затрат', async () => {
