@@ -252,6 +252,43 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
+    /// Хранилище не отвечает — оценка отвечает отказом, а не копией, в которой пропало всё
+    /// (issue #1427).
+    ///
+    /// <para>Прежде отказ хранилища выглядел отсутствием файла, и экран настроек показывал крошечный
+    /// архив «с пропавшими файлами»: веса нет, а предупреждение говорит о битых ссылках, которых
+    /// нет. Файл здесь лежит на месте — пропасть ему нечем, недоступна только связь.</para>
+    /// </summary>
+    [Fact]
+    public async Task EstimateSize_StorageUnreachable_RefusesInsteadOfReportingMissingFiles()
+    {
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await scope.ServiceProvider.GetRequiredService<IBlobStorage>()
+                .PutAsync(AssetBlobPath, new MemoryStream(AssetBytes), "image/png", default);
+            db.TemplateAssets.Add(TemplateAsset.Restore(Guid.NewGuid(), TemplateAssetScope.System, null,
+                TemplateAssetKind.Image, "logo", "logo.png", "image/png", AssetBlobPath, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+        Exception? failure;
+        try
+        {
+            storage.Offline = true;
+            using var scope = fixture.Services.CreateScope();
+            failure = await Record.ExceptionAsync(() => Backup(scope).EstimateSizeAsync(limitBytes: 500L * 1024 * 1024));
+        }
+        finally { storage.Offline = false; }
+
+        // Отказ — наш, с текстом для человека: экран показывает его вместо «оценить не удалось».
+        var refusal = Assert.IsType<BackupSizeUnknownException>(failure);
+        Assert.Contains("хранилище", refusal.Message);
+    }
+
+    /// <summary>
     /// Предел — не украшение: копия сверх него помечена как непринимаемая. Проверяем негативом,
     /// подставив предел ниже фактического веса, — иначе признак остался бы вычислением, которое
     /// никогда не срабатывало.
