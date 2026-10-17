@@ -199,7 +199,10 @@ export interface InvoiceLineTotals {
   count: number;
   withoutNomenclature: number;
   amount: number;
+  /** Сумма НДС по строкам, где он указан. */
   vat: number;
+  /** Сколько строк без НДС (issue #1409): равно `count` — «не указан», а не ноль. */
+  vatMissing: number;
 }
 
 /**
