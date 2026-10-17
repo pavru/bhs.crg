@@ -1,5 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 /**
  * MD3-кнопки (issue #110, фаза 1). Форма — пилюля (rounded-full), label-large (500),
@@ -71,11 +72,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Разрешить перенос длинной подписи на несколько строк (высота растёт, фикс. h → min-h).
    *  По умолчанию кнопки однострочные (whitespace-nowrap). */
   multiline?: boolean;
+  /**
+   * Подсказка при наведении и фокусе — наша (`Tooltip`, issue #1394), а не браузерная. У неактивной
+   * кнопки она и объясняет, почему нельзя: видна и тогда. У кнопки без подписи — ещё и её имя.
+   */
+  title?: string;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'text', size = 'md', danger = false, loading = false,
-    icon, trailingIcon, fullWidth, multiline = false, className = '', type, disabled, children, ...rest },
+    icon, trailingIcon, fullWidth, multiline = false, className = '', type, disabled, title, children, ...rest },
   ref,
 ) {
   // Однострочные по умолчанию; multiline меняет фикс. высоту на min-h + вертикальный отступ и разрешает перенос.
@@ -83,17 +89,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     ? `${(variant === 'text' ? MULTILINE_TEXT_SIZE : MULTILINE_SIZE)[size]} py-1.5 whitespace-normal`
     : `${(variant === 'text' ? TEXT_SIZE : SIZE)[size]} whitespace-nowrap`;
   return (
-    <button
-      ref={ref}
-      type={type ?? 'button'}
-      disabled={disabled || loading}
-      className={`${BASE} ${sizeCls} ${variantClass(variant, danger)} ${fullWidth ? 'w-full' : ''} ${className}`}
-      {...rest}
-    >
-      {loading ? <Loader2 size={16} className="animate-spin shrink-0" /> : icon}
-      {children}
-      {trailingIcon}
-    </button>
+    <Tooltip content={title} disabled={!!disabled} wrapperClassName={fullWidth ? 'w-full' : ''}>
+      <button
+        ref={ref}
+        type={type ?? 'button'}
+        disabled={disabled || loading}
+        // Без подписи имя кнопки — её подсказка: браузерный `title` давал его сам, наша — нет.
+        aria-label={rest['aria-label'] ?? (children == null ? title : undefined)}
+        className={`${BASE} ${sizeCls} ${variantClass(variant, danger)} ${fullWidth ? 'w-full' : ''} ${className}`}
+        {...rest}
+      >
+        {loading ? <Loader2 size={16} className="animate-spin shrink-0" /> : icon}
+        {children}
+        {trailingIcon}
+      </button>
+    </Tooltip>
   );
 });
 
@@ -104,34 +114,37 @@ const ICON_SIZE: Record<ButtonSize, string> = {
 };
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Обязательная доступная подпись (иконка сама по себе непрозрачна для скринридера). */
+  /** Обязательная доступная подпись (иконка сама по себе непрозрачна для скринридера). Она же —
+   *  подсказка при наведении, если своей `title` не дали. */
   label: string;
+  title?: string;
   size?: ButtonSize;
   danger?: boolean;
 }
 
 /** Круглая icon-кнопка MD3: state-layer на hover, кольцо фокуса, обязательный aria-label. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { label, size = 'md', danger = false, className = '', type, children, ...rest },
+  { label, size = 'md', danger = false, className = '', type, title, children, ...rest },
   ref,
 ) {
   return (
-    <button
-      ref={ref}
-      type={type ?? 'button'}
-      aria-label={label}
-      title={rest.title ?? label}
-      className={`inline-flex items-center justify-center rounded-full shrink-0 ${ICON_SIZE[size]} ` +
-        'transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 ' +
-        'focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-base ' +
-        'disabled:opacity-40 disabled:pointer-events-none ' +
-        (danger
-          ? 'text-fg3 hover:text-danger hover:bg-danger/10'
-          : 'text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10') +
-        ` ${className}`}
-      {...rest}
-    >
-      {children}
-    </button>
+    <Tooltip content={title ?? label} disabled={!!rest.disabled}>
+      <button
+        ref={ref}
+        type={type ?? 'button'}
+        aria-label={label}
+        className={`inline-flex items-center justify-center rounded-full shrink-0 ${ICON_SIZE[size]} ` +
+          'transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 ' +
+          'focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-base ' +
+          'disabled:opacity-40 disabled:pointer-events-none ' +
+          (danger
+            ? 'text-fg3 hover:text-danger hover:bg-danger/10'
+            : 'text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10') +
+          ` ${className}`}
+        {...rest}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 });
