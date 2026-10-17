@@ -14,6 +14,7 @@ import {
   ownProblem, ownToWorkspace, type OwnWorkspace,
 } from '@/shared/ui/workspaces';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 interface Draft {
   /** null — новое пространство. */
@@ -149,16 +150,12 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             <legend className="text-xs text-fg3 mb-1">Модули</legend>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {offered.map(m => (
-                <label key={m.code} className="flex items-center gap-2 text-sm text-fg1">
-                  <input type="checkbox" checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
-                  {m.title}
-                </label>
+                <Checkbox key={m.code} checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)}
+                  label={m.title} />
               ))}
               {closed.map(m => (
-                <label key={m.code} className="flex items-center gap-2 text-sm text-fg3">
-                  <input type="checkbox" checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
-                  {m.title} <span className="text-xs">— недоступен</span>
-                </label>
+                <Checkbox key={m.code} checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)}
+                  label={<span className="text-fg3">{m.title} <span className="text-xs">— недоступен</span></span>} />
               ))}
             </div>
             <p className="mt-1 text-xs text-fg3" data-testid="workspace-together">
@@ -172,10 +169,8 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             </p>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-fg1">
-            <input type="checkbox" checked={draft.opensAtLogin} onChange={e => setDraft({ ...draft, opensAtLogin: e.target.checked })} />
-            Открывать при входе
-          </label>
+          <Checkbox checked={draft.opensAtLogin} onChange={v => setDraft({ ...draft, opensAtLogin: v })}
+            label="Открывать при входе" />
 
           <div className="flex items-center gap-2">
             <Button variant="filled" loading={saving} disabled={problem !== null} onClick={() => void save()}>

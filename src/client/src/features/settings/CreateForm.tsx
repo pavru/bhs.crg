@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/Button';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { CORE_OWNER, offeredTypes, ownerOptions } from '@/shared/api/typeOwners';
 import { useCreateDocumentType } from '@/shared/api/documentTypes';
@@ -90,12 +91,8 @@ export function CreateForm({
       </div>
 
       {kind === 'Document' && (
-        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-          <input type="checkbox" checked={isAbstract} onChange={e => setIsAbstract(e.target.checked)}
-            className="w-4 h-4 rounded border-stroke-strong text-brand" />
-          <span className="text-sm font-medium text-fg2">Абстрактный тип</span>
-          <span className="text-xs text-fg4">(нельзя добавить в комплект напрямую)</span>
-        </label>
+        <Checkbox checked={isAbstract} onChange={setIsAbstract}
+          label="Абстрактный тип" description="Нельзя добавить в комплект напрямую" />
       )}
 
       <Select label="Владелец" value={module} onValueChange={setModule}>

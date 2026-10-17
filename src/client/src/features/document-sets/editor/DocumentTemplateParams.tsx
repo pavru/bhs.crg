@@ -4,6 +4,7 @@ import { useSetDocumentTemplateParams } from '@/shared/api/documentSets';
 import { parseTemplateParams } from '@/features/templates/templateParams';
 import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /**
  * Значения параметров ОДНОГО сфокусированного шаблона на документе. Параметры индивидуальны для
@@ -55,7 +56,7 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
             return (
               <div key={p.name} className="flex items-center gap-2">
                 <Tooltip content={p.name}><span className="text-xs text-fg2 flex-1 min-w-0 truncate">{p.label || p.name}</span></Tooltip>
-                <ParamValueInput type={p.type} value={value}
+                <ParamValueInput type={p.type} name={p.label || p.name} value={value}
                   onChange={v => commit({ ...overrides, [p.name]: v })} />
                 {overridden ? (
                   <Tooltip content="Сбросить к значению по умолчанию">
@@ -75,13 +76,13 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
   );
 }
 
-function ParamValueInput({ type, value, onChange }: {
-  type: TemplateParam['type']; value: unknown; onChange: (v: unknown) => void;
+function ParamValueInput({ type, name, value, onChange }: {
+  type: TemplateParam['type']; name: string; value: unknown; onChange: (v: unknown) => void;
 }) {
   if (type === 'boolean')
-    return <input type="checkbox" checked={value === true} onChange={e => onChange(e.target.checked)} className="shrink-0" />;
+    return <Checkbox size="sm" aria-label={name} checked={value === true} onChange={onChange} />;
   return (
-    <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
+    <input type={type === 'number' ? 'number' : 'text'} aria-label={name} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
       className="w-40 shrink-0 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
   );

@@ -44,6 +44,7 @@ import { withRowUids } from '@/shared/utils/rowIdentity';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -166,12 +167,8 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
               onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')} />
           </div>
         </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4 rounded accent-brand"
-            checked={constraints.integer ?? false}
-            onChange={e => e.target.checked ? set('integer', true) : unset('integer')} />
-          <span className="text-sm text-fg1">Только целые числа</span>
-        </label>
+        <Checkbox checked={constraints.integer ?? false} label="Только целые числа"
+          onChange={v => v ? set('integer', true) : unset('integer')} />
       </div>
     );
   }

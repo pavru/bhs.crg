@@ -25,6 +25,7 @@ import { formatDateTime, formatDayTime } from '@/shared/format/format';
 import { CollapsibleSection } from './CollapsibleSection';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /**
  * Резервное копирование: каталог копий на сервере (issue #831).
@@ -168,17 +169,12 @@ function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
 
   return (
     <div className="rounded-md border border-muted p-3 space-y-2">
-      <label className="flex items-start gap-2 text-sm text-fg2">
-        <input type="checkbox" className="mt-0.5" checked={form.enabled}
-          onChange={e => setForm({ ...form, enabled: e.target.checked })} />
-        <span>
-          Снимать копию автоматически
-          <span className="block text-xs text-fg4">
-            Раз в сутки. Пропущенный запуск (сервер был выключен) выполняется при следующем старте;
-            за неделю простоя снимается одна копия, а не семь.
-          </span>
-        </span>
-      </label>
+      <Checkbox checked={form.enabled} onChange={enabled => setForm({ ...form, enabled })}
+        label="Снимать копию автоматически"
+        description={<>
+          Раз в сутки. Пропущенный запуск (сервер был выключен) выполняется при следующем старте;
+          за неделю простоя снимается одна копия, а не семь.
+        </>} />
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-fg3">

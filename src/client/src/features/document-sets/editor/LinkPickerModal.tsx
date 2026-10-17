@@ -24,6 +24,7 @@ import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
@@ -164,11 +165,8 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
       {tab === 'pick' && (
         <div className="space-y-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
-          <label className="flex items-center gap-1.5 text-xs text-fg3 cursor-pointer">
-            <input type="checkbox" checked={includeExpired} onChange={e => setIncludeExpired(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-stroke-strong text-brand" />
-            Показать просроченные{expiredCount > 0 ? ` (${expiredCount})` : ''}
-          </label>
+          <Checkbox size="sm" checked={includeExpired} onChange={setIncludeExpired}
+            label={`Показать просроченные${expiredCount > 0 ? ` (${expiredCount})` : ''}`} />
           {isLoading ? <p className="text-sm text-fg4 py-3 text-center">Загрузка...</p>
             : visible.length === 0 ? (
               <div className="text-center py-5 space-y-2">

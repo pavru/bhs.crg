@@ -2,6 +2,7 @@ import { formatDateTime, formatTime } from '@/shared/format/format';
 import { RefreshCw } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { useUpdateStatus, useCheckUpdatesNow, useSaveUpdateSettings } from '@/shared/api/updates';
 import { ProxyToggle } from './ProxyToggle';
@@ -69,18 +70,12 @@ export function UpdateSettingsSection() {
 
   return (
     <CollapsibleSection title="Обновления" storageKey="updates" defaultOpen={false}>
-      <label className="flex items-start gap-2 text-sm text-fg2">
-        <input type="checkbox" className="mt-0.5" checked={enabled}
-          disabled={isLoading || save.isPending}
-          onChange={e => void toggle(e.target.checked)} />
-        <span>
-          Проверять новые версии на GitHub
-          <span className="block text-xs text-fg4">
-            Раз в шесть часов. Выключено — система не обращается к сети вовсе: для установок без
-            интернета это единственный способ не копить в журнале неудачные попытки.
-          </span>
-        </span>
-      </label>
+      <Checkbox checked={enabled} disabled={isLoading || save.isPending} onChange={v => void toggle(v)}
+        label="Проверять новые версии на GitHub"
+        description={<>
+          Раз в шесть часов. Выключено — система не обращается к сети вовсе: для установок без
+          интернета это единственный способ не копить в журнале неудачные попытки.
+        </>} />
 
       <ProxyToggle checked={viaProxy} disabled={isLoading || save.isPending}
         onChange={v => void toggleProxy(v)} />

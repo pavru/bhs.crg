@@ -15,6 +15,7 @@ import { CELL_INPUT } from './constants';
 import { RefPickerModal } from './RefPickerModal';
 import { ArchivedRefMark } from './ArchivedRefs';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -77,9 +78,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   if (field.type === 'boolean') {
     return (
       <div className="flex items-center justify-center w-full h-full">
-        <input type="checkbox" checked={!!value}
-          onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 rounded border-stroke-strong text-brand" />
+        <Checkbox size="sm" aria-label={field.title} checked={!!value} onChange={onChange} />
       </div>
     );
   }

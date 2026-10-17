@@ -21,6 +21,7 @@ import {
 import { groupByModule, hiddenSummary, type HiddenRecognitionProfile } from '@/shared/api/recognitionProfileGroups';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /**
  * Библиотека профилей распознавания (issue #408). Промпты пишем мы — пользователь правит только
@@ -128,14 +129,8 @@ function ShapeEditor({ shape, onChange }: { shape: RecognitionTableShape; onChan
   return (
     <div className="space-y-1.5">
       {flags.map(f => (
-        <label key={f.key} className="flex items-start gap-2 text-sm text-fg2 cursor-pointer">
-          <input type="checkbox" checked={shape[f.key]} onChange={e => onChange({ ...shape, [f.key]: e.target.checked })}
-            className="mt-0.5 accent-[var(--f-brand)]" />
-          <span>
-            {f.label}
-            <span className="block text-xs text-fg4">{f.hint}</span>
-          </span>
-        </label>
+        <Checkbox key={f.key} checked={shape[f.key]} onChange={v => onChange({ ...shape, [f.key]: v })}
+          label={f.label} description={f.hint} />
       ))}
     </div>
   );

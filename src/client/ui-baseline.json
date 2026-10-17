@@ -38,5 +38,6 @@
     "features/tables/RowPanel.tsx": 1,
     "features/templates/EditorPanel.tsx": 1
   },
-  "native-title": {}
+  "native-title": {},
+  "native-checkbox": {}
 }

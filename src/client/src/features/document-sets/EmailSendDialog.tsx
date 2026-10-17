@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { useSetEmailRecipients } from '@/shared/api/documentSets';
 import { apiError } from '@/shared/utils/apiError';
 
@@ -109,7 +110,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
             <div className="rounded-md border border-stroke divide-y divide-muted max-h-40 overflow-y-auto">
               {recipients.map(r => (
                 <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${r.validEmail ? 'cursor-pointer hover:bg-base' : 'opacity-60'}`}>
-                  <input type="checkbox" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
+                  <Checkbox size="sm" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
                   <span className="text-fg1 flex-1 min-w-0 truncate">{r.displayName}</span>
                   <span className="text-xs text-fg4 min-w-0 truncate">{r.email || '—'}</span>
                   {!r.validEmail && <AlertTriangle size={13} className="text-warning shrink-0" />}

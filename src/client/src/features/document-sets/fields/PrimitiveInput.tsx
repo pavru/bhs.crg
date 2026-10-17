@@ -4,6 +4,7 @@ import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { fieldInputClass } from './constants';
@@ -53,10 +54,10 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       // окончательное. У флажка нет своего `readOnly`, поэтому правку гасим сами: клик отменяем,
       // состояние объявляем через `aria-readonly`.
       <label className={`flex items-center gap-2 ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
-        <input type="checkbox" checked={!!value} aria-readonly={readOnly || undefined}
-          onChange={e => { if (!readOnly) onChange(e.target.checked); }}
+        <Checkbox checked={!!value} aria-readonly={readOnly || undefined}
+          onChange={v => { if (!readOnly) onChange(v); }}
           onClick={e => { if (readOnly) e.preventDefault(); }}
-          className={`w-4 h-4 rounded border-stroke-strong text-brand ${readOnly ? 'opacity-70' : ''}`} />
+          className={readOnly ? 'opacity-70' : ''} />
         <span className="text-sm text-fg2">{label ?? field.title}</span>
       </label>
     );

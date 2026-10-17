@@ -24,6 +24,7 @@ import { FilterHidesAll, NotInListNotice, SiteFilterNote } from '@/shared/siteFi
 import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
 import { NOT_IN_LIST, SEARCH_HIDDEN, hiddenEmpty, useWaybillSites } from './useWaybillSites';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 const PARAM = 'waybill';
 
@@ -135,7 +136,7 @@ export function WaybillsPage() {
         <>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, стройка, склад…" />
           <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg3 cursor-pointer">
-            <input type="checkbox" checked={unmatched} onChange={e => setUnmatched(e.target.checked)} />
+            <Checkbox size="sm" checked={unmatched} onChange={setUnmatched} />
             <ListChecks size={13} />
             Только «Сопоставить»
           </label>

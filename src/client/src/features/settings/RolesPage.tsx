@@ -6,6 +6,7 @@ import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ListDetailShell, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useRoles, usePermissionCatalog, useCreateRole, useRenameRole, useSetRolePermissions, useDeleteRole,
@@ -180,7 +181,7 @@ export function RolesPage() {
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-base ${
                     locked ? 'cursor-default' : 'cursor-pointer'}`}>
-                    <input type="checkbox" className="mt-1 shrink-0" checked={checked.has(p.code)}
+                    <Checkbox className="mt-px" checked={checked.has(p.code)}
                       disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
                       <span className="block text-sm text-fg1">{p.gives}</span>

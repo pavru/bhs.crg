@@ -1,5 +1,6 @@
 import { Archive } from 'lucide-react';
 import type { ObjectResolveResult } from '@/shared/api/objects';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /** Ячейка вставки, чьё значение совпало с записью в архиве: куда положить ссылку, если запись вернут. */
 export interface ArchivedCell {
@@ -34,10 +35,7 @@ export function PasteArchivedNote({ cells, canReturn, checked, onChange }: {
         {names.length > NAMES_SHOWN && ` и ещё ${names.length - NAMES_SHOWN}`}
       </p>
       {canReturn && (
-        <label className="flex items-center gap-2 text-sm text-fg1 cursor-pointer">
-          <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
-          Вернуть из архива и связать ({names.length})
-        </label>
+        <Checkbox checked={checked} onChange={onChange} label={`Вернуть из архива и связать (${names.length})`} />
       )}
       <p className="text-xs text-fg4">
         {checked
