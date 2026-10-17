@@ -8,8 +8,10 @@ using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Settings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -35,6 +37,7 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
     [Fact]
     public async Task Модуль_пишет_под_замком_ядра_а_выравнивает_без_него()
     {
+        await using var neighbour = await NeighbourHoldsAsync();
         var probe = new Probe(host.Services, refuse: false);
         await SaveAsync([probe], new Dictionary<string, string?> { [Key] = "0.30" });
 
@@ -82,6 +85,7 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
     [Fact]
     public async Task Срыв_после_фиксации_модуля_выравнивает_к_прежнему_без_замков_ядра()
     {
+        await using var neighbour = await NeighbourHoldsAsync();
         var applied = new Probe(host.Services, refuse: false);
         var refusing = new Probe(host.Services, refuse: true) { Watched = CostsSettings.ShippingDayCounts };
 
@@ -122,7 +126,14 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
     {
         using var scope = host.Services.CreateScope();
         var services = scope.ServiceProvider;
-        var writer = new ModuleSettingWriter(probes, services.GetRequiredService<AppDbContext>(),
+        // Соединение ядра открыто заранее и до конца смены одно: так у него один pid, и зонд спрашивает именно
+        // о нём. Управляй им EF, выравнивание могло бы взять из пула другое — и зонд смотрел бы мимо.
+        var db = services.GetRequiredService<AppDbContext>();
+        await db.Database.OpenConnectionAsync();
+        var core = await db.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
+        foreach (var probe in probes.OfType<Probe>()) probe.Core = core;
+
+        var writer = new ModuleSettingWriter(probes, db,
             services.GetRequiredService<IAppSettingsStore>(), services.GetRequiredService<IActivityLog>(),
             services.GetRequiredService<IModulePeriods>(), NullLogger<ModuleSettingWriter>.Instance);
         await writer.SaveAsync(services.GetRequiredService<ModuleRegistry>().Find("costs")!, values, CancellationToken.None);
@@ -135,11 +146,38 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
     }
 
     /// <summary>
-    /// Зонд вместо модуля: спрашивает с ЧУЖОГО соединения, держит ли кто-нибудь разделяемый замок записи в
-    /// учёт, — так его видит закрытие периода.
+    /// Сосед: другое соединение к базе хоста держит тот же замок записи в учёт разделяемым, пока его не
+    /// закроют. Зонд обязан его не видеть — он спрашивает о соединении ядра, а не о базе.
+    ///
+    /// <para>⚠️ Замок держит не только ядро. <c>pg_locks</c> общий на сервер, и зонд, искавший «кто-нибудь
+    /// держит», видел замок соседнего потока прогона на его базе: в прогоне двумя потоками тест изредка
+    /// краснел <c>(True, True)</c>, отдельно — никогда. В той же базе его держат фоновые записи хоста, а
+    /// настоящий модуль — сам, на своём соединении, при выравнивании. С соседом зонд, смотрящий мимо
+    /// соединения ядра, краснеет всегда, а не изредка.</para>
+    ///
+    /// <para>Без пула: закрытие соединения кончает сеанс, и замок уходит наверняка, а не с откатом в пуле.</para>
+    /// </summary>
+    private async Task<NpgsqlConnection> NeighbourHoldsAsync()
+    {
+        var address = new NpgsqlConnectionStringBuilder(
+            host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")) { Pooling = false };
+        var neighbour = new NpgsqlConnection(address.ConnectionString);
+        await neighbour.OpenAsync();
+        await using (var begin = new NpgsqlCommand("BEGIN", neighbour)) await begin.ExecuteNonQueryAsync();
+        await using (var take = new NpgsqlCommand($"SELECT pg_advisory_xact_lock_shared({AdvisoryLockKeys.PeriodWrite})", neighbour))
+            await take.ExecuteNonQueryAsync();
+        return neighbour;
+    }
+
+    /// <summary>
+    /// Зонд вместо модуля: спрашивает с ЧУЖОГО соединения, держит ли соединение ЯДРА разделяемый замок записи
+    /// в учёт. Отбор — по его pid (<see cref="Core" />): чей ещё замок бывает виден, сказано у
+    /// <see cref="NeighbourHoldsAsync" />.
     /// </summary>
     private sealed class Probe(IServiceProvider services, bool refuse) : IModuleSettingChange
     {
+        /// <summary>pid соединения ядра; ставит <see cref="SaveAsync" /> перед сменой.</summary>
+        public int Core { get; set; }
         public ModuleSetting Watched { get; init; } = CostsSettings.AllocationTolerance;
         public ModuleSetting Setting => Watched;
         public ModuleSettingChange? Applied { get; private set; }
@@ -176,7 +214,7 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
             const long key = AdvisoryLockKeys.PeriodWrite;
             return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.SqlQuery<bool>($"""
                 SELECT EXISTS (SELECT 1 FROM pg_locks
-                    WHERE locktype = 'advisory' AND granted AND mode = 'ShareLock'
+                    WHERE locktype = 'advisory' AND granted AND mode = 'ShareLock' AND pid = {Core}
                       AND objsubid = 1 AND classid::bigint = {key >> 32} AND objid::bigint = {key & 0xFFFFFFFF}) AS "Value"
                 """).SingleAsync();
         }
