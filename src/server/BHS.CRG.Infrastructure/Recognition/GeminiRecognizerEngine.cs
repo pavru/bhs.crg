@@ -115,14 +115,11 @@ public class GeminiRecognizerEngine(
                     $"Gemini: модель {model} больше не обслуживается"
                     + (advice is null ? "." : $" — {advice}."));
             }
-            // Негодный документ и неверный ключ приходят одним 400 INVALID_ARGUMENT (issue #1343). У ключа
-            // причина названа в details (API_KEY_INVALID), у документа — нет. Отказ о файле не повторяется
-            // и к следующему движку не уходит: файл тот же. Прочие 400 — отказ сервиса, но с кодом.
+            // Код ошибки — да, сообщение — нет (issue #1343): «ответил 400» без кода не говорит, что
+            // чинить. Отказом о ФАЙЛЕ 400 не считается (ревью PR #1398): INVALID_ARGUMENT приходит и на
+            // запрос больше предела, и на параметр, не принятый моделью, — следующий движок прочёл бы
+            // исправный файл. Битый файл сюда не доходит: его отсекает проверка цепочки.
             var status = ProviderErrorCode.Of(body, "error", "status");
-            if (resp.StatusCode == HttpStatusCode.BadRequest && status == "INVALID_ARGUMENT"
-                && ProviderErrorCode.GeminiReasons(body).Count == 0)
-                throw new RecognitionFileRejectedException(
-                    "Gemini отклонил документ как негодный: файл повреждён, не того вида или слишком велик для отправки.");
             throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}{ProviderErrorCode.Suffix(status)}.");
         }
     }

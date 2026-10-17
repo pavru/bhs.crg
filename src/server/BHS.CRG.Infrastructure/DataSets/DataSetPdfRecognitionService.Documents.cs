@@ -116,7 +116,7 @@ public partial class DataSetPdfRecognitionService
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
-            throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
+            throw new InvalidRequestException(RecognitionShared.RefusalText(ex), ex);
         }
 
         var rows = GostTableFields.SplitRows(result.Values, columns);
@@ -257,7 +257,7 @@ public partial class DataSetPdfRecognitionService
             {
                 // Движок не работает вовсе (нет ключа, лимит, отказ) — перебирать оставшиеся страницы
                 // незачем, каждая упрётся в то же самое.
-                throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
+                throw new InvalidRequestException(RecognitionShared.RefusalText(ex), ex);
             }
 
             var nameMissing = string.IsNullOrWhiteSpace(values.GetValueOrDefault("НаименованиеДокумента"));

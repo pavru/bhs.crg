@@ -83,7 +83,8 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
           Не тот файл — удалить черновик…
         </Button>
       )}
-      {canEdit && recognition.canStart && (
+      {/* Сам файл не читается (#1343): повтор на том же файле даст то же самое — путь только другой файл. */}
+      {canEdit && recognition.canStart && recognition.reason !== 'BadFile' && (
         <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} loading={start.isPending}
           onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
           Распознать ещё раз

@@ -206,7 +206,7 @@ public partial class DataSetPdfRecognitionService
                 // одной, а дальше первой строка остаётся пустой. Это и есть прежнее поведение,
                 // только теперь по классифицированному типу, а не по сырой отмене.
                 if (i == 0)
-                    throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
+                    throw new InvalidRequestException(RecognitionShared.RefusalText(ex), ex);
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failures.PageFailed(ex, silent: false, pageIndex: i);

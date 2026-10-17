@@ -57,7 +57,7 @@ export function failureNote(recognition: InvoiceRecognition): { text: string; qu
       return { text: `Файл не распознан: в документе не прочитано ничего.${error} Проверьте, тот ли файл приложен.`, quiet: false };
     case 'BadFile':
       // Сам файл, а не движок (issue #1343): повтор и настройки не помогут — нужен другой файл.
-      return { text: `Файл не распознан: сам файл не читается.${error} Приложите исправный файл.`, quiet: false };
+      return { text: `Файл не распознан: сам файл не читается.${error} Замените его исправным — «Заменить файл».`, quiet: false };
     case 'Interrupted':
       return { text: `Распознавание прервано и исхода не оставило.${error}`, quiet: false };
     case 'Refused':

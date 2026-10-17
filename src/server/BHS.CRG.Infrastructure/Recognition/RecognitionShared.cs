@@ -20,6 +20,15 @@ public static class RecognitionShared
     /// </summary>
     public static bool AcceptsPdfOrImage(string mime) => IsPdf(mime) || ImageTypes.Contains(mime);
 
+    /// <summary>
+    /// Текст отказа движка для человека: «Распознавание недоступно: …» — или слова о файле как есть
+    /// (issue #1343, ревью PR #1398). Перед отказом о файле рамка «недоступно» была бы неправдой: она
+    /// отправляет проверять настройки, а чинить надо файл.
+    /// </summary>
+    public static string RefusalText(Exception ex) => ex is RecognitionFileRejectedException
+        ? EngineRefusal.TextOf(ex)
+        : $"Распознавание недоступно: {EngineRefusal.TextOf(ex)}";
+
     public static string NormalizeImageMime(string mime)
         => string.Equals(mime, "image/jpg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg" : mime.ToLowerInvariant();
 

@@ -173,7 +173,7 @@ public partial class DataSetPdfRecognitionService
                 // страницо-специфичной проблемой (не роняем весь реестр, см. фикс невычислимых
                 // колонок XPath/JSONPath той же сессии), строка остаётся пустой.
                 if (i == 0)
-                    throw new InvalidRequestException($"Распознавание недоступно: {EngineRefusal.TextOf(ex)}", ex);
+                    throw new InvalidRequestException(RecognitionShared.RefusalText(ex), ex);
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, sourceId);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failures.PageFailed(ex, silent: false);

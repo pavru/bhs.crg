@@ -38,30 +38,6 @@ public static partial class ProviderErrorCode
         }
     }
 
-    /// <summary>
-    /// Причины ошибки у Gemini — <c>error.details[].reason</c> (<c>API_KEY_INVALID</c> и подобные).
-    /// Нужны, чтобы отличить негодный документ от неверного ключа: оба приходят как
-    /// <c>INVALID_ARGUMENT</c>, но у ключа причина названа, а у документа — нет.
-    /// </summary>
-    public static IReadOnlyList<string> GeminiReasons(string json)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("error", out var error) || error.ValueKind != JsonValueKind.Object
-                || !error.TryGetProperty("details", out var details) || details.ValueKind != JsonValueKind.Array)
-                return [];
-            return [.. details.EnumerateArray()
-                .Where(d => d.ValueKind == JsonValueKind.Object && d.TryGetProperty("reason", out var r)
-                    && r.ValueKind == JsonValueKind.String)
-                .Select(d => d.GetProperty("reason").GetString()!)];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
-    }
-
     /// <summary>Хвост текста отказа: « (КОД)» или ничего.</summary>
     public static string Suffix(string? code) => code is null ? "" : $" ({code})";
 }

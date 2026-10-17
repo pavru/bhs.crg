@@ -11,8 +11,7 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// Отбор движков живёт не здесь, а в <see cref="RecognitionEngineSelector" />: тем же правилом
 /// пользуется предполётная проверка, и разъехаться им нельзя (issue #801).
 ///
-/// <para>Файл, который не читается, к движкам не уходит вовсе (issue #1343), а отказ движка о файле
-/// перебор прекращает: следующий получил бы тот же файл.</para>
+/// <para>Файл, который не читается, к движкам не уходит вовсе (issue #1343).</para>
 /// </summary>
 public class ChainDocumentRecognizer(
     RecognitionEngineSelector selector, ILogger<ChainDocumentRecognizer> logger
@@ -23,11 +22,15 @@ public class ChainDocumentRecognizer(
     {
         // Файл — ПЕРВЫМ, до выбора движков: проверка бесплатна, а выбор бывает с пробой зрения. И слова
         // о файле верны при любых настройках, а «распознавать некому» — нет, если файл всё равно не читается.
-        if (RecognitionFileCheck.WhyUnreadable(file, mimeType, out var cause) is { } unreadable)
+        var check = await RecognitionFileCheck.CheckAsync(file, mimeType, ct);
+        if (check.Why is { } unreadable)
         {
-            logger.LogWarning(cause, "Распознавание: файл не читается и к движкам не отправлен");
+            logger.LogWarning(check.Cause, "Распознавание: файл не читается и к движкам не отправлен");
             throw new RecognitionFileRejectedException(unreadable);
         }
+        if (check.Cause is { } skipped)
+            // Сбой окружения, а не файла: молчать о нём нельзя, отказывать файлу — тоже.
+            logger.LogWarning(skipped, "Распознавание: файл проверить не удалось — отправлен движкам как есть");
 
         var selection = await selector.SelectAsync(probeVision: true, ct);
         var ordered = selection.Ordered;
@@ -49,11 +52,6 @@ public class ChainDocumentRecognizer(
                 var values = RecognitionShared.ParseValues(text, fields);
                 logger.LogInformation("Распознавание выполнено движком {Engine}, полей: {N}", engine.Name, values.Count);
                 return new RecognitionResult(values, text, Engine: await DescribeAsync(engine, ct));
-            }
-            catch (RecognitionFileRejectedException ex)
-            {
-                logger.LogWarning("Движок {Engine}: файл негоден — перебор прекращён. {Msg}", engine.Name, ex.Message);
-                throw;
             }
             catch (RecognitionLimitException ex) { logger.LogWarning("Движок {Engine}: лимит — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
             catch (RecognitionModelGoneException ex)

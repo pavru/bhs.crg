@@ -51,7 +51,7 @@ describe('полоса отказа', () => {
   it('негодный файл — о файле, а не о движке', () => {
     const note = failureNote(recognition({ state: 'failed', reason: 'BadFile', error: 'PDF не открывается.' }));
     expect(note).toEqual({
-      text: 'Файл не распознан: сам файл не читается. PDF не открывается. Приложите исправный файл.', quiet: false,
+      text: 'Файл не распознан: сам файл не читается. PDF не открывается. Замените его исправным — «Заменить файл».', quiet: false,
     });
   });
 

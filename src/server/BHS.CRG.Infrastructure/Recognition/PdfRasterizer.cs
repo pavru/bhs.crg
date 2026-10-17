@@ -32,7 +32,7 @@ public static class PdfRasterizer
     {
         // Считает тот же PDFium, что и рисует: предел сверяется с тем числом страниц, которое он
         // отдал бы. Второе открытие документа — цена отказа ДО рендера, а не после него.
-        var total = Conversion.GetPageCount(pdf);
+        var total = PageCount(pdf);
         if (total > maxPages) throw new PdfPageLimitException(total, maxPages);
 
         var pages = new List<byte[]>();
@@ -45,6 +45,13 @@ public static class PdfRasterizer
         }
         return pages;
     }
+
+    /// <summary>
+    /// Число страниц — тем же PDFium, что рисует. Одно место на растеризатор и на проверку файла перед
+    /// распознаванием (<see cref="RecognitionFileCheck" />): разойдись они в том, как открывают документ,
+    /// проверка пропускала бы то, на чём растеризатор падает, или наоборот.
+    /// </summary>
+    public static int PageCount(byte[] pdf) => Conversion.GetPageCount(pdf);
 
     /// <summary>Рендерит ОДНУ страницу PDF в PNG — для миниатюр в редакторе разбиения
     /// (дешевле, чем растрировать все страницы через ToPngPages, если нужна всего одна).</summary>

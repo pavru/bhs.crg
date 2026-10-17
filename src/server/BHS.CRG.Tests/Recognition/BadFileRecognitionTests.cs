@@ -136,50 +136,50 @@ public class BadFileRecognitionTests
     }
 
     /// <summary>
-    /// Отказ движка о файле прекращает перебор: следующий движок получил бы тот же файл. Ломается, если
-    /// цепочка ловит отказ о файле как обычную недоступность.
+    /// Ответ поставщика 400 — недоступность движка, а не отказ о файле (ревью PR #1398): тем же
+    /// INVALID_ARGUMENT Gemini отвечает и на запрос больше предела, и на параметр, не принятый моделью.
+    /// Перебор идёт дальше, и следующий движок читает исправный файл. Ломается, если 400 снова
+    /// считать отказом о файле: второй движок не будет вызван.
     /// </summary>
     [Fact]
-    public async Task Отказ_о_файле_не_уходит_к_следующему_движку()
+    public async Task Отказ_Gemini_400_не_останавливает_перебор()
     {
-        var first = new Counting("Gemini", new RecognitionFileRejectedException("Gemini отклонил документ как негодный."));
+        var gemini = new Provider(HttpStatusCode.BadRequest, GoogleBadDocument);
         var second = new Counting("Anthropic");
 
-        await Assert.ThrowsAsync<RecognitionFileRejectedException>(
-            () => Chain(Settings("Gemini", "Anthropic"), first, second).RecognizeAsync(RealPdf(), "application/pdf", Fields));
+        var result = await Chain(Settings("Gemini", "Anthropic"), Gemini(gemini), second)
+            .RecognizeAsync(RealPdf(), "application/pdf", Fields);
 
-        Assert.Equal(1, first.Calls);
-        Assert.Equal(0, second.Calls);
-    }
-
-    /// <summary>Gemini: 400 INVALID_ARGUMENT без названной причины — это документ, и повтора нет.</summary>
-    [Fact]
-    public async Task Gemini_400_о_документе_это_отказ_о_файле()
-    {
-        var provider = new Provider(HttpStatusCode.BadRequest, GoogleBadDocument);
-
-        var refusal = await Assert.ThrowsAsync<RecognitionFileRejectedException>(
-            () => Gemini(provider).RecognizeRawAsync(RealPdf(), "application/pdf", Fields));
-
-        Assert.Equal(1, provider.Calls);
-        Assert.Contains("негодный", refusal.Message);
-        // Сообщение поставщика — свободный текст: в отказ оно не идёт (issue #1050).
-        Assert.DoesNotContain("invalid argument", refusal.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, gemini.Calls);
+        Assert.Equal(1, second.Calls);
+        Assert.Equal("17", result.Values["Номер"]);
     }
 
     /// <summary>
-    /// Неверный ключ отвечает тем же INVALID_ARGUMENT — но причина названа, и это отказ сервиса, а не
-    /// файла. Ломается, если отличать документ только по коду ответа.
+    /// В отказе сервиса — код ошибки, но не сообщение поставщика: это свободный текст стороннего
+    /// сервиса (issue #1050). Документ и ключ отвечают одним кодом — текст у них один.
     /// </summary>
-    [Fact]
-    public async Task Gemini_400_о_ключе_это_отказ_сервиса_с_кодом()
+    [Theory]
+    [InlineData(GoogleBadDocument)]
+    [InlineData(GoogleBadKey)]
+    public async Task Gemini_400_называет_код_но_не_сообщение(string body)
     {
         var refusal = await Assert.ThrowsAsync<RecognitionUnavailableException>(
-            () => Gemini(new Provider(HttpStatusCode.BadRequest, GoogleBadKey)).RecognizeRawAsync(RealPdf(), "application/pdf", Fields));
+            () => Gemini(new Provider(HttpStatusCode.BadRequest, body)).RecognizeRawAsync(RealPdf(), "application/pdf", Fields));
 
         Assert.IsNotType<RecognitionFileRejectedException>(refusal);
         Assert.Equal("Gemini ответил 400 (INVALID_ARGUMENT).", refusal.Message);
-        Assert.DoesNotContain("API key", refusal.Message);
+    }
+
+    /// <summary>
+    /// Наборы данных ставили перед любым отказом «Распознавание недоступно:» — и перед отказом о файле
+    /// тоже, отправляя проверять настройки (ревью PR #1398).
+    /// </summary>
+    [Fact]
+    public void Рамка_недоступно_не_ставится_перед_отказом_о_файле()
+    {
+        Assert.Equal("PDF не открывается.", RecognitionShared.RefusalText(new RecognitionFileRejectedException("PDF не открывается.")));
+        Assert.Equal("Распознавание недоступно: нет ключа.", RecognitionShared.RefusalText(new RecognitionUnavailableException("нет ключа.")));
     }
 
     [Fact]

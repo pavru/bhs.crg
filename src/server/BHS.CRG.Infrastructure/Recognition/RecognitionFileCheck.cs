@@ -1,4 +1,4 @@
-using PDFtoImage;
+using PDFtoImage.Exceptions;
 
 namespace BHS.CRG.Infrastructure.Recognition;
 
@@ -10,37 +10,55 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// Ollama называла тот же случай честно, но только потому, что сама растеризует PDF. Проверка здесь —
 /// одна для всех движков: бесплатная, быстрая и одними словами.</para>
 ///
-/// <para>Открывает документ тот же PDFium, что растеризует его для Ollama: «открылся» здесь значит
-/// «откроется и там». Признака <c>%PDF-</c> в начале мало — его несёт и файл живых прогонов, внутри
-/// которого строка текста (#1344). Изображения не проверяются: их разбирает сам движок, и отказ
-/// поставщика о негодном изображении назван в движке.</para>
+/// <para>Страницы считает <see cref="PdfRasterizer.PageCount" /> — то же место, которым растеризатор
+/// сверяет предел: «открылся здесь» значит «откроется и там». Признака <c>%PDF-</c> в начале мало —
+/// его несёт и файл живых прогонов, внутри которого строка текста (#1344). Изображения не
+/// проверяются: их разбирает сам движок.</para>
+///
+/// <para>⚠️ Отказом о файле считается только отказ РАЗБОРА документа (<see cref="PdfException" /> и
+/// наследники: не тот формат, пароль, неизвестная схема защиты). Сбой окружения — не загрузилась
+/// нативная библиотека, не хватило памяти — о файле ничего не говорит (ревью PR #1398): облачным
+/// движкам PDFium не нужен вовсе, и назвать им исправный файл битым значило бы выключить
+/// распознавание PDF на всей установке, отправив людей искать «исправный файл».</para>
 /// </summary>
 public static class RecognitionFileCheck
 {
-    /// <summary>Чем бывает нечитаемый PDF — одна фраза на проверку и на отказ поставщика.</summary>
+    /// <summary>Чем бывает нечитаемый PDF — одна фраза на все места.</summary>
     public const string Unreadable = "файл повреждён, защищён паролем или это не PDF";
 
-    /// <summary>
-    /// Почему файл не прочитать, или <c>null</c>, если читается. Исключение разборщика — в
-    /// <paramref name="cause" />: его сообщение чужое и называет внутренности (issue #1050), место ему
-    /// в журнале, а не в тексте отказа.
-    /// </summary>
-    public static string? WhyUnreadable(byte[] file, string mimeType, out Exception? cause)
-    {
-        cause = null;
-        if (file.Length == 0) return "Файл пуст.";
-        if (!RecognitionShared.IsPdf(mimeType)) return null;
+    /// <summary>Исход проверки.</summary>
+    /// <param name="Why">Почему файл не прочитать; <c>null</c> — читается или проверить не удалось.</param>
+    /// <param name="Cause">
+    /// Исключение разборщика или окружения — для журнала: его сообщение чужое и называет внутренности
+    /// (issue #1050). При <paramref name="Why" /> = <c>null</c> и непустом <c>Cause</c> проверка не
+    /// выполнена, и файл уходит движкам как есть — как до неё.
+    /// </param>
+    public readonly record struct Outcome(string? Why, Exception? Cause);
 
-        int pages;
+    /// <summary>
+    /// Разбор — на пуле через <c>Task.Run</c>, как у растеризатора: PDFium синхронен, а документ бывает
+    /// на десятки мегабайт (ревью PR #1398).
+    /// </summary>
+    public static async Task<Outcome> CheckAsync(byte[] file, string mimeType, CancellationToken ct)
+    {
+        if (file.Length == 0) return new("Файл пуст.", null);
+        if (!RecognitionShared.IsPdf(mimeType)) return default;
+
         try
         {
-            pages = Conversion.GetPageCount(file);
+            var pages = await Task.Run(() => PdfRasterizer.PageCount(file), ct);
+            return pages > 0 ? default : new(NoPages, null);
+        }
+        catch (PdfException ex)
+        {
+            return new($"PDF не открывается: {Unreadable}.", ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            cause = ex;
-            return $"PDF не открывается: {Unreadable}.";
+            return new(null, ex);
         }
-        return pages > 0 ? null : "В PDF нет ни одной страницы.";
     }
+
+    /// <summary>Документ открылся, а страниц в нём нет — текст один и для растеризатора Ollama.</summary>
+    public const string NoPages = "В PDF нет ни одной страницы.";
 }
