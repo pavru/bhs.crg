@@ -39,5 +39,37 @@
     "features/templates/EditorPanel.tsx": 1
   },
   "native-title": {},
-  "native-checkbox": {}
+  "native-checkbox": {
+    "features/account/WorkspacesDialog.tsx": 3,
+    "features/costs/WaybillsPage.tsx": 1,
+    "features/datasets/PdfSourceDialog.tsx": 1,
+    "features/document-sets/EmailSendDialog.tsx": 1,
+    "features/document-sets/catalog/PickRow.tsx": 1,
+    "features/document-sets/editor/DocumentTemplateParams.tsx": 1,
+    "features/document-sets/editor/FieldSourceBinding.tsx": 1,
+    "features/document-sets/editor/GenerationTab.tsx": 1,
+    "features/document-sets/editor/LinkPickerModal.tsx": 1,
+    "features/document-sets/editor/SuggestionsModal.tsx": 1,
+    "features/document-sets/fields/ComplexCells.tsx": 1,
+    "features/document-sets/fields/ComplexFields.tsx": 1,
+    "features/document-sets/fields/PasteArchivedNote.tsx": 1,
+    "features/document-sets/fields/PasteMappingModal.tsx": 1,
+    "features/document-sets/fields/PrimitiveInput.tsx": 1,
+    "features/quality-docs/QualityDocLinks.tsx": 1,
+    "features/reconciliations/ReconciliationsPage.tsx": 1,
+    "features/settings/BackupSection.tsx": 1,
+    "features/settings/CreateForm.tsx": 1,
+    "features/settings/EmailSettingsSection.tsx": 2,
+    "features/settings/FieldBuilder.tsx": 3,
+    "features/settings/IntegrationSettingsSection.tsx": 1,
+    "features/settings/PrimitiveTypesPage.tsx": 1,
+    "features/settings/ProxyToggle.tsx": 1,
+    "features/settings/RecognitionProfilesPage.tsx": 1,
+    "features/settings/RolesPage.tsx": 1,
+    "features/settings/UpdateSettingsSection.tsx": 1,
+    "features/tables/ColumnsPanel.tsx": 1,
+    "features/tables/SaveViewDialog.tsx": 1,
+    "features/templates/TemplateParamsPanel.tsx": 1,
+    "features/templates/TemplateSidebar.tsx": 1
+  }
 }

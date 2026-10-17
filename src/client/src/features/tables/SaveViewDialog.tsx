@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
-import { Checkbox } from '@/shared/ui/Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 
 /**
@@ -49,8 +48,13 @@ export function SaveViewDialog({ heading, action, initial, share, onSave, onClos
         <TextField label="Название" value={title} maxLength={120} autoFocus required error={error ?? undefined}
           onChange={e => { setTitle(e.target.value); setError(null); }} />
         {share && (
-          <Checkbox checked={shared} onChange={setShared}
-            label="Общее" description="Его увидят все, кому открыта таблица." />
+          <label className="flex items-start gap-2 text-sm text-fg1 cursor-pointer">
+            <input type="checkbox" className="mt-0.5" checked={shared} onChange={e => setShared(e.target.checked)} />
+            <span>
+              Общее
+              <span className="block text-xs text-fg4">Его увидят все, кому открыта таблица.</span>
+            </span>
+          </label>
         )}
         <div className="flex justify-end gap-2 pt-1">
           <ModalExit />

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Mail, Send, CheckCircle, XCircle, AlertTriangle, PlugZap } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Checkbox } from '@/shared/ui/Checkbox';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import {
   useIntegrationSettings, useSaveSmtp, useTestEmail, useTestSmtpConnection, useEmailUserStatus,
@@ -76,7 +75,10 @@ export function EmailSettingsSection() {
         Настройки исходящей почты для отправки уведомлений и документов подписчикам.
       </p>
 
-      <Checkbox checked={form.enabled} onChange={v => set('enabled', v)} label="Включить отправку почты" />
+      <label className="flex items-center gap-2 text-sm text-fg2">
+        <input type="checkbox" checked={form.enabled} onChange={e => set('enabled', e.target.checked)} />
+        Включить отправку почты
+      </label>
 
       <div className="grid grid-cols-2 gap-3">
         <TextField containerClassName="col-span-2 sm:col-span-1" label="SMTP-сервер (host)"
@@ -92,7 +94,10 @@ export function EmailSettingsSection() {
           value={form.fromName ?? ''} onChange={e => set('fromName', e.target.value)} hint="BHS.CRG" />
       </div>
 
-      <Checkbox checked={form.useSsl} onChange={v => set('useSsl', v)} label="Шифрование (STARTTLS/SSL — порт 587/465)" />
+      <label className="flex items-center gap-2 text-sm text-fg2">
+        <input type="checkbox" checked={form.useSsl} onChange={e => set('useSsl', e.target.checked)} />
+        Шифрование (STARTTLS/SSL — порт 587/465)
+      </label>
 
       <ProxyToggle checked={form.useProxy} onChange={v => set('useProxy', v)} />
 

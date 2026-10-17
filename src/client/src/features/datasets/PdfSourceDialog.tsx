@@ -3,7 +3,6 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
-import { Checkbox } from '@/shared/ui/Checkbox';
 import { useCreatePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 import { usePdfProfiles } from '@/shared/api/recognitionProfiles';
@@ -99,8 +98,14 @@ export function PdfSourceDialog(
             <p className="text-sm font-medium text-fg1 mb-1">Структура PDF</p>
             <div className="space-y-1.5">
               {datasetTags(allTags).map(t => (
-                <Checkbox key={t.code} checked={tags.includes(t.code)} onChange={() => toggleTag(t.code)}
-                  label={t.label} description={t.description} />
+                <label key={t.code} className="flex items-start gap-2 text-sm text-fg2 cursor-pointer">
+                  <input type="checkbox" checked={tags.includes(t.code)} onChange={() => toggleTag(t.code)}
+                    className="mt-0.5 shrink-0" />
+                  <span>
+                    {t.label}
+                    <span className="block text-xs text-fg4">{t.description}</span>
+                  </span>
+                </label>
               ))}
             </div>
           </div>

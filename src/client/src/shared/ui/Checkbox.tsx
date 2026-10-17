@@ -56,10 +56,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   );
   if (!label) return input;
 
-  // Блок шириной по содержимому, а не `inline-flex`: флажок с подписью — пункт формы, и два подряд
-  // («Шифрование», «Через прокси») иначе вставали бы в одну строку (#1414).
   return (
-    <label className={`flex w-fit items-start gap-2 text-sm text-fg1 select-none ` +
+    <label className={`inline-flex items-start gap-2 text-sm text-fg1 select-none ` +
       `${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${className}`}>
       {input}
       <span className="min-w-0">

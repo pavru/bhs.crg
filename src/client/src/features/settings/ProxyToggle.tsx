@@ -1,5 +1,4 @@
 import { useIntegrationSettings } from '@/shared/api/integrationSettings';
-import { Checkbox } from '@/shared/ui/Checkbox';
 
 /**
  * Галка «через прокси» у внешнего сервиса (issue #936).
@@ -16,15 +15,19 @@ export function ProxyToggle({ checked, onChange, disabled }: {
   const { data } = useIntegrationSettings();
   const proxyUrl = data?.proxy.url?.trim();
   return (
-    <Checkbox checked={checked} disabled={disabled} onChange={onChange} label="Через прокси"
-      description={
-        <span className={checked && !proxyUrl ? 'text-warning' : undefined}>
+    <label className="flex items-start gap-2 text-sm text-fg2">
+      <input type="checkbox" className="mt-0.5 accent-brand" checked={checked} disabled={disabled}
+        onChange={e => onChange(e.target.checked)} />
+      <span>
+        Через прокси
+        <span className={`block text-xs ${checked && !proxyUrl ? 'text-warning' : 'text-fg4'}`}>
           {proxyUrl
             ? proxyUrl
             : checked
               ? 'Прокси не задан — запросы идут напрямую. Задайте его в разделе «Прокси».'
               : 'Прокси не задан'}
         </span>
-      } />
+      </span>
+    </label>
   );
 }

@@ -11,7 +11,6 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import type { TemplateGroup } from './groupTemplates';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { Checkbox } from '@/shared/ui/Checkbox';
 
 /** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
 export type TemplateUsageMap = Record<string, TemplateUsage>;
@@ -103,7 +102,13 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                 className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors
                   ${i > 0 ? 'border-t border-muted' : ''}
                   ${protected_ ? 'opacity-60 cursor-not-allowed bg-base' : checked ? 'bg-danger-subtle hover:bg-danger-subtle' : 'hover:bg-base'}`}>
-                <Checkbox size="sm" checked={checked} disabled={protected_} onChange={() => toggleVersion(t.id)} />
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={protected_}
+                  onChange={() => toggleVersion(t.id)}
+                  className="w-4 h-4 rounded border-stroke-strong text-danger disabled:opacity-40"
+                />
                 <span className="font-mono text-fg2 shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
                   {t.isActive && <span className="text-xs text-success bg-success-subtle px-1.5 py-0.5 rounded shrink-0">активный</span>}

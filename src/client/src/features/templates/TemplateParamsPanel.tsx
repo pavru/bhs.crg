@@ -8,7 +8,6 @@ import { newLocalId } from '@/shared/utils/localId';
 import { parseTemplateParams } from './templateParams';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { Checkbox } from '@/shared/ui/Checkbox';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -127,9 +126,7 @@ function ParamDefault({ type, value, onChange }: {
   if (type === 'boolean')
     return (
       <span className="w-20 shrink-0 flex justify-center">
-        <Tooltip content="Значение по умолчанию">
-          <Checkbox size="sm" aria-label="Значение по умолчанию" checked={value === true} onChange={onChange} />
-        </Tooltip>
+        <Tooltip content="Значение по умолчанию"><input type="checkbox" checked={value === true} onChange={e => onChange(e.target.checked)} /></Tooltip>
       </span>
     );
   return (

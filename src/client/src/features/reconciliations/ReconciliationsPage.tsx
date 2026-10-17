@@ -14,7 +14,6 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
-import { Checkbox } from '@/shared/ui/Checkbox';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
@@ -73,8 +72,8 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
       <div className="flex items-center gap-2">
         {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
         {linkable && (
-          <Checkbox size="sm" checked={checked} onChange={onToggle}
-            aria-label={`Выбрать «${f.label}» для связывания`} />
+          <input type="checkbox" checked={checked} onChange={onToggle}
+            aria-label={`Выбрать «${f.label}» для связывания`} className="shrink-0 accent-brand" />
         )}
         <StatusBadge f={f} />
         <span className="flex-1 truncate text-sm text-fg1" title={f.label}>{f.label}</span>
