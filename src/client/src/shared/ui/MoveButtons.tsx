@@ -1,4 +1,5 @@
 import { ArrowUp, ArrowDown } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Пара кнопок «Выше»/«Ниже» для списков с перестановкой (issue #542).
@@ -33,14 +34,16 @@ export function MoveButtons({
   const downBlocked = isLast || busy;
   return (
     <>
-      <button type="button" onClick={() => { if (!upBlocked) onUp(); }} aria-disabled={upBlocked}
-        title={upTitle} className={cls}>
-        <ArrowUp size={size} />
-      </button>
-      <button type="button" onClick={() => { if (!downBlocked) onDown(); }} aria-disabled={downBlocked}
-        title={downTitle} className={cls}>
-        <ArrowDown size={size} />
-      </button>
+      <Tooltip content={upTitle} name>
+        <button type="button" onClick={() => { if (!upBlocked) onUp(); }} aria-disabled={upBlocked} className={cls}>
+          <ArrowUp size={size} />
+        </button>
+      </Tooltip>
+      <Tooltip content={downTitle} name>
+        <button type="button" onClick={() => { if (!downBlocked) onDown(); }} aria-disabled={downBlocked} className={cls}>
+          <ArrowDown size={size} />
+        </button>
+      </Tooltip>
     </>
   );
 }

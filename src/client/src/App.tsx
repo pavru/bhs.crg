@@ -11,7 +11,6 @@ import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { BrandIconLinks } from '@/shared/ui/BrandIconLinks';
 import { DocumentTitleManager } from '@/shared/ui/DocumentTitleManager';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
-import { TooltipProvider } from '@/shared/ui/Tooltip';
 import { BugReportProvider } from '@/shared/ui/BugReportProvider';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, RequireAccess } from '@/shared/ui/ProtectedRoute';
@@ -59,7 +58,6 @@ export default function App() {
         <ThemeProvider>
         <LocaleProvider>
         <ToastProvider>
-        <TooltipProvider>
         {/* Выше корневой границы ошибок намеренно (issue #834): поймав сбой, граница РАЗМОНТИРУЕТ
             своих детей — окажись форма внутри, кнопка «Сообщить об ошибке» пропала бы ровно на том
             экране, ради которого она и заведена. */}
@@ -75,7 +73,6 @@ export default function App() {
           </ErrorBoundary>
         </BrowserRouter>
         </BugReportProvider>
-        </TooltipProvider>
         </ToastProvider>
         </LocaleProvider>
         </ThemeProvider>

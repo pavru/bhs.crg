@@ -8,6 +8,7 @@ import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
 import { rowDue } from './invoiceDue';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Строка списка счетов.
@@ -47,10 +48,12 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {item.number || !item.scanFileName
           ? <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
           : (
-            <span className="inline-flex items-center gap-1 min-w-0 text-sm text-fg2" title="Номера ещё нет — это имя файла счёта">
-              <ScanLine size={12} className="shrink-0 text-fg3" aria-hidden />
-              <span className="truncate">{item.scanFileName}</span>
-            </span>
+            <Tooltip content="Номера ещё нет — это имя файла счёта">
+              <span className="inline-flex items-center gap-1 min-w-0 text-sm text-fg2">
+                <ScanLine size={12} className="shrink-0 text-fg3" aria-hidden />
+                <span className="truncate">{item.scanFileName}</span>
+              </span>
+            </Tooltip>
           )}
         {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
@@ -61,62 +64,71 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         <div className="flex-1" />
         {/* Значки-счётчики. Нулей не рисуем: число «0» у каждой строки читается как шум. */}
         {lost > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-danger shrink-0"
-            title={lostTitle(item)} aria-label={`Удалённых записей: ${lost}`}>
-            <TriangleAlert size={11} aria-hidden />{lost}
-          </span>
+          <Tooltip content={lostTitle(item)}>
+            <span className="inline-flex items-center gap-0.5 text-xs text-danger shrink-0" aria-label={`Удалённых записей: ${lost}`}>
+              <TriangleAlert size={11} aria-hidden />{lost}
+            </span>
+          </Tooltip>
         )}
         {archived > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0"
-            title={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}
-            aria-label={`Записей в архиве: ${archived}`}>
-            <Archive size={11} aria-hidden />{archived}
-          </span>
+          <Tooltip content={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}>
+            <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0"
+              aria-label={`Записей в архиве: ${archived}`}>
+              <Archive size={11} aria-hidden />{archived}
+            </span>
+          </Tooltip>
         )}
         {item.unconfirmedCount > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
-            title="Распознано, не подтверждено">
-            <Sparkles size={11} />{item.unconfirmedCount}
-          </span>
+          <Tooltip content="Распознано, не подтверждено">
+            <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
+              <Sparkles size={11} />{item.unconfirmedCount}
+            </span>
+          </Tooltip>
         )}
         {due && (
-          <span className={`inline-flex items-center gap-0.5 text-xs shrink-0 ${DUE_TONE[due.tone]}`}
-            title={due.title} data-testid="row-due">
-            {due.tone === 'danger' ? <AlarmClock size={11} aria-hidden /> : <Clock size={11} aria-hidden />}{due.text}
-          </span>
+          <Tooltip content={due.title}>
+            <span className={`inline-flex items-center gap-0.5 text-xs shrink-0 ${DUE_TONE[due.tone]}`} data-testid="row-due">
+              {due.tone === 'danger' ? <AlarmClock size={11} aria-hidden /> : <Clock size={11} aria-hidden />}{due.text}
+            </span>
+          </Tooltip>
         )}
         {/* Отклонённый назван словом: в реестре он остаётся, и без пометки выглядел бы счётом в работе. */}
         {rejected && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0" title="По счёту не платим">
-            <Ban size={11} aria-hidden />отклонён
-          </span>
+          <Tooltip content="По счёту не платим">
+            <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0">
+              <Ban size={11} aria-hidden />отклонён
+            </span>
+          </Tooltip>
         )}
         {/* Исправленный — тихим словом, как «отклонён» (разбор Дизайнера, п. 6): это не задача, а след. Без
             пометки счёт закрытого месяца выглядел бы таким, каким его закрыли. */}
         {item.corrected && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0"
-            title="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
-            <History size={11} aria-hidden />исправлен
-          </span>
+          <Tooltip content="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
+            <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0">
+              <History size={11} aria-hidden />исправлен
+            </span>
+          </Tooltip>
         )}
         {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
             У отклонённого его нет: разбирать такой счёт незачем. К очереди «Разобрать» счётчик не
             относится — она с issue #1292 отбирает по состоянию, а не по строкам без позиции. */}
         {!rejected && item.linesWithoutNomenclature > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0"
-            title={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
-            <ListChecks size={11} />{item.linesWithoutNomenclature}
-          </span>
+          <Tooltip content={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
+            <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
+              <ListChecks size={11} />{item.linesWithoutNomenclature}
+            </span>
+          </Tooltip>
         )}
       </div>
       {where && (
         <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-danger' : 'text-fg3'}`}>{where}</div>
       )}
       {readiness && (
-        <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-fg3'}`}
-          title={readiness.title} data-testid="row-readiness">
-          {readiness.text}
-        </div>
+        <Tooltip content={readiness.title}>
+          <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-fg3'}`} data-testid="row-readiness">
+            {readiness.text}
+          </div>
+        </Tooltip>
       )}
       {scan && (
         <div className={`mt-0.5 flex items-center gap-1 text-xs ${SCAN_TONE[scan.tone]}`}>
@@ -149,16 +161,17 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
   active?: boolean;
 }) {
   return (
-    <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
-      className={`w-full text-left px-3 py-2 border-b border-stroke/60 ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}
-      title={exit
+    <Tooltip content={exit
         ? `Счёт ${EXIT_WORD[exit]} и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться`
         : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>
-      <div className="text-sm text-fg1 font-medium truncate">{number || 'без номера'}</div>
-      <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
-        <Check size={11} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
-      </div>
-    </button>
+      <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
+        className={`w-full text-left px-3 py-2 border-b border-stroke/60 ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
+        <div className="text-sm text-fg1 font-medium truncate">{number || 'без номера'}</div>
+        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
+          <Check size={11} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
+        </div>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -186,11 +199,12 @@ function SupplierName({ item }: { item: InvoiceListItem }) {
 
   const lost = item.references?.supplierLost === true;
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-danger truncate"
-      title={lost
+    <Tooltip content={lost
         ? 'Запись справочника удалена. Откройте счёт и выберите другую организацию'
         : 'Ссылка на организацию есть, а в справочнике организаций её нет: запись удалили либо перевели в другой вид. Что именно — скажет открытый счёт'}>
-      <TriangleAlert size={11} /> {lost ? LOST.organization : MISSING.organization}
-    </span>
+      <span className="inline-flex items-center gap-1 text-xs text-danger truncate">
+        <TriangleAlert size={11} /> {lost ? LOST.organization : MISSING.organization}
+      </span>
+    </Tooltip>
   );
 }

@@ -15,6 +15,7 @@ import { useScopeGroups } from './catalogGroups';
 import { ScopeGroupList } from './ScopeGroupList';
 import { useIsArchivedRef } from './archivedRefIds';
 import { RefPickerArchive, RefPickerCurrentArchived } from './RefPickerArchive';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -479,10 +480,11 @@ function RefPickerModalBody({
                       </span>
                     )}
                     {!filled && (
-                      <span className={`text-caption shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}
-                        title="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
-                        не заполнено
-                      </span>
+                      <Tooltip content="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
+                        <span className={`text-caption shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}>
+                          не заполнено
+                        </span>
+                      </Tooltip>
                     )}
                   </button>
                 );

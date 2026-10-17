@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RecognitionBlockedDialog } from '@/features/datasets/RecognitionBlockedDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import type { DataSetBindingSource } from '@/shared/api/types';
+import { Tooltip } from './Tooltip';
 
 /**
  * Чип «устарело» и действие «Перераспознать» у привязки к устаревшему источнику (issue #815).
@@ -43,16 +44,19 @@ export function StaleSourceAction({ source }: { source: DataSetBindingSource | u
 
   return (
     <>
-      <span title={staleReasonText(source.staleReason)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning shrink-0">
-        <AlertTriangle size={10} /> устарело
-      </span>
+      <Tooltip content={staleReasonText(source.staleReason)}>
+        <span
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning shrink-0">
+          <AlertTriangle size={10} /> устарело
+        </span>
+      </Tooltip>
       {scope !== 'None' && (
-      <button type="button" onClick={() => setConfirm(true)} disabled={recognize.isPending}
-        className="p-1.5 rounded text-warning disabled:opacity-50 shrink-0"
-        title="Перераспознать источник" aria-label="Перераспознать источник">
-        {recognize.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-      </button>
+      <Tooltip content="Перераспознать источник">
+        <button type="button" onClick={() => setConfirm(true)} disabled={recognize.isPending}
+          className="p-1.5 rounded text-warning disabled:opacity-50 shrink-0" aria-label="Перераспознать источник">
+          {recognize.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+        </button>
+      </Tooltip>
       )}
 
       <ConfirmDialog open={confirm} onOpenChange={o => { if (!o) setConfirm(false); }}

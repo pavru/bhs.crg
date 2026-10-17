@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileText, Database, Link2, Unlink, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { type BaseCandidate } from './baseCandidates';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Базовый экземпляр (issue #71/#73): объект дочернего типа наследуется от базы — документа комплекта
 // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). Единый пикер + общие хелперы
@@ -130,9 +131,11 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
             {selected.proxy && <span className="text-fg4 font-normal">→ </span>}{selected.name}
           </span>
           <span className="text-caption text-fg4 shrink-0">{selected.scopeLabel}</span>
-          <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
-            <Unlink size={13} />
-          </button>
+          <Tooltip content="Снять ссылку" name>
+            <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors">
+              <Unlink size={13} />
+            </button>
+          </Tooltip>
         </div>
         {selected.targetIsProxy && (
           <p className="text-caption text-warning flex items-center gap-1">
@@ -144,9 +147,11 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
       ) : missing ? (
         <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
           <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
-          <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
-            <Unlink size={13} />
-          </button>
+          <Tooltip content="Снять ссылку" name>
+            <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors">
+              <Unlink size={13} />
+            </button>
+          </Tooltip>
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}

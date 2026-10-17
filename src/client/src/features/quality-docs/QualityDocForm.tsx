@@ -24,6 +24,7 @@ import {
 } from '@/features/document-sets/fields';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { RECOGNIZED_HINT, recognizedFieldKeys, applyRecognized } from './recognizedMark';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, onCancel }: {
   allDocTypes: DocumentType[]; scope: CatalogScope; scopeId: string | null;
@@ -236,30 +237,32 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
     // Составное, массив и ссылка под замком сегодня не заводятся (белый список видов значения в
     // объявлении модуля), но редактор им не даём: см. `LockedFieldValue`.
     if (locked && (f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' || f.type === 'doc-array'))
-      return <div key={f.key} className={cls} title={hint}>{label}<LockedFieldValue value={v} /></div>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<LockedFieldValue value={v} /></div></Tooltip>;
     if (f.type === 'complex')
-      return <div key={f.key} className={cls} title={hint}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
-        onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
+        onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div></Tooltip>;
     if (f.type === 'array')
-      return <div key={f.key} className={cls} title={hint}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
-        onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
+        onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div></Tooltip>;
     if (f.type === 'doc-ref')
-      return <div key={f.key} className={cls} title={hint}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
-        onChange={x => setValue(f.key, x ?? undefined)} scope={scope} scopeId={scopeId} /></div>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
+        onChange={x => setValue(f.key, x ?? undefined)} scope={scope} scopeId={scopeId} /></div></Tooltip>;
     if (f.type === 'image')
-      return <div key={f.key} className={cls} title={hint}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} readOnly={locked} /></div>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} readOnly={locked} /></div></Tooltip>;
     if (f.type === 'file')
-      return <div key={f.key} className={cls} title={hint}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} readOnly={locked} /></div>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} readOnly={locked} /></div></Tooltip>;
     return (
-      <div key={f.key} className={cls} title={hint}>
-        <PrimitiveInput field={f} value={v} label={f.title}
-          onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
-          primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
-        {locked && <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
-        {constraintErrors[f.key] && (
-          <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
-        )}
-      </div>
+      <Tooltip key={f.key} content={hint}>
+        <div className={cls}>
+          <PrimitiveInput field={f} value={v} label={f.title}
+            onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
+            primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
+          {locked && <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
+          {constraintErrors[f.key] && (
+            <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
+          )}
+        </div>
+      </Tooltip>
     );
   }
 

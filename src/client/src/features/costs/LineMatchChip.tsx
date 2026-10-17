@@ -5,6 +5,7 @@ import { formatDate } from '@/shared/format/format';
 import type { LineDraft } from './invoiceLines';
 import { byWord, lineKey, matchTrouble, usable, type MatchOffer, type MemoryFate } from './supplierMatches';
 import { SupplierMatchesDialog } from './SupplierMatchesDialog';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Пометка у позиции строки счёта (задача C3, issue #1079, ТЗ COST-7.1): «запомнено» у подставленной,
@@ -64,10 +65,12 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
               query: draft.match?.source ?? '',
             }} />
         )}
-        <button type="button" onClick={onCancel} title="Отменить подстановку"
-          className="text-fg4 hover:text-fg1 p-0.5">
-          <X size={12} />
-        </button>
+        <Tooltip content="Отменить подстановку" name>
+          <button type="button" onClick={onCancel}
+            className="text-fg4 hover:text-fg1 p-0.5">
+            <X size={12} />
+          </button>
+        </Tooltip>
       </span>
     );
   }

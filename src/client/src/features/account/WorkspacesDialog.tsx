@@ -13,6 +13,7 @@ import {
   DEFAULT_KEY, NAME_MAX, availableModules, compositionLabel, coreSectionsWith, membership, newWorkspaceId,
   ownProblem, ownToWorkspace, type OwnWorkspace,
 } from '@/shared/ui/workspaces';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 interface Draft {
   /** null — новое пространство. */
@@ -120,13 +121,17 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
               {/* Пока черновик изменён, правку другого не начать — карандаш скрыт (ревью PR #1330):
                   иначе набранное заменилось бы молча, хотя закрытие окна те же правки бережёт. */}
               {!dirty && (
-                <button type="button" title="Изменить" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-fg1">
-                  <Pencil size={14} />
-                </button>
+                <Tooltip content="Изменить" name>
+                  <button type="button" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-fg1">
+                    <Pencil size={14} />
+                  </button>
+                </Tooltip>
               )}
-              <button type="button" title="Удалить" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-danger">
-                <Trash2 size={14} />
-              </button>
+              <Tooltip content="Удалить" name>
+                <button type="button" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-danger">
+                  <Trash2 size={14} />
+                </button>
+              </Tooltip>
             </li>
           ))}
         </ul>

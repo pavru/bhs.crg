@@ -4,6 +4,7 @@ import type { DatePrecision } from '@/shared/api/types';
 import {
   MONTHS_RU, MONTHS_RU_SHORT, WEEKDAYS_RU, parseISO, toISO, daysInMonth, monthMatrix,
 } from '@/shared/utils/date';
+import { Tooltip } from './Tooltip';
 
 /**
  * MD3 docked-календарь (issue #338): чистая управляемая поверхность выбора даты. Три ТЕРМИНАЛЬНЫХ
@@ -132,12 +133,13 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
           {clampYear(pageStart)}–{clampYear(pageStart + YEARS_PER_PAGE - 1)}
         </span>
       ) : (
-        <button type="button" onClick={() => setView('years')}
-          className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          title="Выбрать год">
-          {view === 'days' ? `${MONTHS_RU[fm - 1]} ${fy}` : fy}
-          <ChevronDown size={14} className="text-fg4" />
-        </button>
+        <Tooltip content="Выбрать год">
+          <button type="button" onClick={() => setView('years')}
+            className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+            {view === 'days' ? `${MONTHS_RU[fm - 1]} ${fy}` : fy}
+            <ChevronDown size={14} className="text-fg4" />
+          </button>
+        </Tooltip>
       )}
       <button type="button" aria-label="Вперёд" className={HEADER_BTN}
         onClick={() => view === 'years' ? setFy(y => clampYear(y + YEARS_PER_PAGE)) : view === 'months' ? setFy(y => clampYear(y + 1)) : shiftMonth(1)}>

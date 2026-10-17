@@ -20,6 +20,7 @@ import { GenerationTab } from './GenerationTab';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { useGuardedLeave, useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
 // Сами вкладки вынесены по файлам (#490).
@@ -187,10 +188,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       {/* MD3 top app bar: «к комплекту» слева, имя+подзаголовок, статус, действия справа */}
       <div className="shrink-0 bg-surface">
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
-          <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту" title="К комплекту"
-            className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            <ArrowLeft size={20} />
-          </button>
+          <Tooltip content="К комплекту">
+            <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту"
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <ArrowLeft size={20} />
+            </button>
+          </Tooltip>
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
             <p className="text-xs text-fg4 mt-0.5 truncate">
@@ -243,7 +246,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
                   <span className="sr-only">устарели: </span>{staleSourceCount}
                 </span>
               )}
-              {key === tab && dirty && <span className="text-warning" title="Есть несохранённые изменения">•</span>}
+              {key === tab && dirty && <Tooltip content="Есть несохранённые изменения"><span className="text-warning">•</span></Tooltip>}
             </>,
           }))} />
       </div>

@@ -18,6 +18,7 @@ import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── Toolbar button ───────────────────────────────────────────────────────────
 
@@ -25,10 +26,12 @@ function ToolbarButton({
   active, onClick, children, title,
 }: { active?: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
   return (
-    <button type="button" onClick={onClick} title={title}
-      className={`px-2 py-1 text-sm rounded transition-colors ${active ? 'bg-brand-subtle text-brand-hover' : 'text-fg2 hover:bg-muted'}`}>
-      {children}
-    </button>
+    <Tooltip content={title}>
+      <button type="button" onClick={onClick}
+        className={`px-2 py-1 text-sm rounded transition-colors ${active ? 'bg-brand-subtle text-brand-hover' : 'text-fg2 hover:bg-muted'}`}>
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -315,20 +318,24 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
         </div>
         <div className="flex items-center gap-2">
           {/* Индикатор версии + dirty-точка */}
-          <span className="text-xs text-fg4 flex items-center gap-1" title={
+          <Tooltip content={
             dirty ? 'Есть несохранённые правки' : 'Сохранено'
           }>
-            v{template.version}
-            {dirty
-              ? <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-label="есть правки" />
-              : <span className="w-1.5 h-1.5 rounded-full bg-success/60" aria-label="сохранено" />}
-          </span>
+            <span className="text-xs text-fg4 flex items-center gap-1">
+              v{template.version}
+              {dirty
+                ? <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-label="есть правки" />
+                : <span className="w-1.5 h-1.5 rounded-full bg-success/60" aria-label="сохранено" />}
+            </span>
+          </Tooltip>
           {template.isActive ? (
             <span className="text-xs text-success flex items-center gap-1"><CheckCircle size={12} /> активный</span>
           ) : (
-            <span className="text-xs text-fg4 flex items-center gap-1" title="Не активная версия — правится только форком в новую">
-              <History size={12} /> историческая
-            </span>
+            <Tooltip content="Не активная версия — правится только форком в новую">
+              <span className="text-xs text-fg4 flex items-center gap-1">
+                <History size={12} /> историческая
+              </span>
+            </Tooltip>
           )}
           {template.isDefault ? (
             <span className="text-xs text-warning flex items-center gap-1">
@@ -346,24 +353,27 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           {/* Сплит-кнопка: слева in-place (Ctrl+S), справа каретка → меню «новая версия» */}
           <div className="relative flex items-center" ref={saveMenuRef}>
             {template.isActive ? (
-              <button type="button" onClick={handleSave} disabled={saving}
-                title="Сохранить в текущую версию (Ctrl+S)"
-                className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
-                <Save size={12} /> {saving ? 'Сохранение…' : 'Сохранить'}
-              </button>
+              <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
+                <button type="button" onClick={handleSave} disabled={saving}
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                  <Save size={12} /> {saving ? 'Сохранение…' : 'Сохранить'}
+                </button>
+              </Tooltip>
             ) : (
               // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
-              <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
-                title="Историческая версия — сохранить как новую"
-                className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
-                <GitBranch size={12} /> Сохранить как новую
-              </button>
+              <Tooltip content="Историческая версия — сохранить как новую">
+                <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                  <GitBranch size={12} /> Сохранить как новую
+                </button>
+              </Tooltip>
             )}
-            <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
-              title="Ещё варианты сохранения"
-              className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-brand/25 bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
-              <ChevronDown size={13} />
-            </button>
+            <Tooltip content="Ещё варианты сохранения" name>
+              <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
+                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-brand/25 bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                <ChevronDown size={13} />
+              </button>
+            </Tooltip>
             {saveMenuOpen && (
               <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-stroke rounded-lg shadow-lg py-1">
                 <button type="button"

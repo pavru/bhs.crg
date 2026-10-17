@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { FavoritesPicker } from './FavoritesPicker';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { useSiteFilterState } from './siteFilterContext';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const quiet = 'flex items-center gap-1.5 h-8 px-3 rounded-full text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand';
 
@@ -58,10 +59,11 @@ function SwitchContent() {
   // Не пришло — сказать, а не изображать загрузку: списки при этом полные, фильтр не действует.
   if (filter.status === 'error') {
     return (
-      <span className="h-8 px-3 flex items-center gap-1.5 text-sm text-fg4" data-testid="site-filter-error"
-        title="Настройки или справочник строек не загрузились. Списки показаны полностью; обновите страницу.">
-        <Star size={14} aria-hidden /> Избранные стройки не загрузились — показаны все
-      </span>
+      <Tooltip content="Настройки или справочник строек не загрузились. Списки показаны полностью; обновите страницу.">
+        <span className="h-8 px-3 flex items-center gap-1.5 text-sm text-fg4" data-testid="site-filter-error">
+          <Star size={14} aria-hidden /> Избранные стройки не загрузились — показаны все
+        </span>
+      </Tooltip>
     );
   }
 
@@ -93,25 +95,28 @@ function SwitchContent() {
 
   return (
     <div className="flex items-center gap-1" data-testid="site-filter-switch">
-      <div role="group" aria-label="Избранные стройки"
-        title={filter.on ? `Показаны только избранные стройки: ${count} из ${total}` : 'Показаны все стройки'}
-        className="flex items-center gap-0.5 p-0.5 rounded-full border border-stroke">
-        <button type="button" aria-pressed={filter.on} className={seg(filter.on)}
-          onClick={() => { if (!filter.on) filter.setOn(true); }}>
-          <span className="inline-flex items-center gap-1">
-            <Star size={13} className={filter.on ? 'fill-current' : ''} aria-hidden /> Избранные {count}
-          </span>
-        </button>
-        <button type="button" aria-pressed={!filter.on} className={seg(!filter.on)}
-          onClick={() => { if (filter.on) filter.setOn(false); }}>
-          Все {total}
-        </button>
-      </div>
+      <Tooltip content={filter.on ? `Показаны только избранные стройки: ${count} из ${total}` : 'Показаны все стройки'}>
+        <div role="group" aria-label="Избранные стройки"
+          className="flex items-center gap-0.5 p-0.5 rounded-full border border-stroke">
+          <button type="button" aria-pressed={filter.on} className={seg(filter.on)}
+            onClick={() => { if (!filter.on) filter.setOn(true); }}>
+            <span className="inline-flex items-center gap-1">
+              <Star size={13} className={filter.on ? 'fill-current' : ''} aria-hidden /> Избранные {count}
+            </span>
+          </button>
+          <button type="button" aria-pressed={!filter.on} className={seg(!filter.on)}
+            onClick={() => { if (filter.on) filter.setOn(false); }}>
+            Все {total}
+          </button>
+        </div>
+      </Tooltip>
       <PickerPopover trigger={
-        <button type="button" aria-label="Изменить список" title="Изменить список"
-          className="flex items-center justify-center w-7 h-7 rounded-full text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-          <ChevronDown size={14} />
-        </button>} />
+        <Tooltip content="Изменить список">
+          <button type="button" aria-label="Изменить список"
+            className="flex items-center justify-center w-7 h-7 rounded-full text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <ChevronDown size={14} />
+          </button>
+        </Tooltip>} />
     </div>
   );
 }

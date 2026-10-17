@@ -5,6 +5,7 @@ import type { CommonDataEntry } from '@/shared/api/types';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { ARCHIVED_WORD } from '@/shared/ui/archive';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Закреплённая строка «Сейчас: … — в архиве» (issue #1185). Текущее значение пикер обычно не
@@ -13,14 +14,15 @@ import { ARCHIVED_WORD } from '@/shared/ui/archive';
  */
 export function RefPickerCurrentArchived({ name, onKeep }: { name: string; onKeep: () => void }) {
   return (
-    <button type="button" onClick={onKeep}
-      title="Оставить как есть. После замены выбрать эту запись заново будет нельзя."
-      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md border border-stroke bg-base hover:bg-brand-subtle transition-colors">
-      <Archive size={13} className="text-fg3 shrink-0" />
-      <span className="text-fg3 shrink-0">Сейчас:</span>
-      <span className="flex-1 font-medium text-fg1 truncate">{name}</span>
-      <span className="text-caption text-fg3 shrink-0">{ARCHIVED_WORD}</span>
-    </button>
+    <Tooltip content="Оставить как есть. После замены выбрать эту запись заново будет нельзя.">
+      <button type="button" onClick={onKeep}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md border border-stroke bg-base hover:bg-brand-subtle transition-colors">
+        <Archive size={13} className="text-fg3 shrink-0" />
+        <span className="text-fg3 shrink-0">Сейчас:</span>
+        <span className="flex-1 font-medium text-fg1 truncate">{name}</span>
+        <span className="text-caption text-fg3 shrink-0">{ARCHIVED_WORD}</span>
+      </button>
+    </Tooltip>
   );
 }
 

@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { FieldCard } from './FieldBuilder';
 import { fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Группированный редактор собственных полей (issue #197 Фаза C): группы = карточки-контейнеры,
@@ -283,12 +284,13 @@ export function GroupedFieldsEditor({
               onDrop={() => { if (dragGroupKey && !draggingThis) { moveGroupTo(dragGroupKey, group.key); endGroupDrag(); } }}>
             {/* Шапка группы */}
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-stroke">
-              <button type="button" draggable
-                onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
-                className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand"
-                title="Перетащить для изменения порядка групп" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
-                <GripVertical size={14} />
-              </button>
+              <Tooltip content="Перетащить для изменения порядка групп">
+                <button type="button" draggable
+                  onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
+                  className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
+                  <GripVertical size={14} />
+                </button>
+              </Tooltip>
               <Layers size={14} className="text-fg4 shrink-0" />
               <input
                 value={group.title}
@@ -300,8 +302,10 @@ export function GroupedFieldsEditor({
               <div className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
                   isFirst={gi === 0} isLast={gi === groups.length - 1} size={13} />
-                <button type="button" onClick={() => deleteGroup(group.key)}
-                  className="p-1 text-fg4 hover:text-danger" title="Удалить группу (поля → «Без группы»)"><Trash2 size={13} /></button>
+                <Tooltip content="Удалить группу (поля → «Без группы»)" name>
+                  <button type="button" onClick={() => deleteGroup(group.key)}
+                    className="p-1 text-fg4 hover:text-danger"><Trash2 size={13} /></button>
+                </Tooltip>
               </div>
             </div>
             {/* Тело группы (drop-зона) */}

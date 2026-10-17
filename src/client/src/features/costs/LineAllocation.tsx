@@ -18,6 +18,7 @@ import {
 import { PlaceSelect } from './PlaceSelect';
 import { missingSection, usePlaces } from './places';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Разноска строки счёта по стройкам (задача F1, issue #1085, ТЗ COST-10, COST-11, COST-13).
@@ -60,10 +61,12 @@ export function LineAllocationCell({ view, line, number, blocked, locked, onOpen
 
   if (!line || blocked)
     return (
-      <span className="text-fg4" title={blocked ?? 'Строка не сохранена'}>
-        {blocked ? 'сохраните строки' : '—'}
-        {dialog}
-      </span>
+      <Tooltip content={blocked ?? 'Строка не сохранена'}>
+        <span className="text-fg4">
+          {blocked ? 'сохраните строки' : '—'}
+          {dialog}
+        </span>
+      </Tooltip>
     );
 
   const status = allocationStatus(line.allocation, line.unit);
@@ -243,14 +246,18 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                 <div className="text-fg2">
                   {!dirty && saved?.amount != null ? formatMoney(saved.amount) : '—'}
                   {!dirty && saved && saved.rounding !== 0 && (
-                    <div className="text-fg4" title="Копейки округления уходят в последнюю часть — так сумма частей равна сумме строки">
-                      копейки округления: {formatMoney(saved.rounding)}
-                    </div>
+                    <Tooltip content="Копейки округления уходят в последнюю часть — так сумма частей равна сумме строки">
+                      <div className="text-fg4">
+                        копейки округления: {formatMoney(saved.rounding)}
+                      </div>
+                    </Tooltip>
                   )}
                   {!dirty && saved && saved.discrepancy !== 0 && (
-                    <div className="text-fg4" title="Расхождение суммы строк с суммой к оплате в пределах допуска уходит в последнюю часть счёта">
-                      расхождение со счётом: {formatMoney(saved.discrepancy)}
-                    </div>
+                    <Tooltip content="Расхождение суммы строк с суммой к оплате в пределах допуска уходит в последнюю часть счёта">
+                      <div className="text-fg4">
+                        расхождение со счётом: {formatMoney(saved.discrepancy)}
+                      </div>
+                    </Tooltip>
                   )}
                 </div>
               );

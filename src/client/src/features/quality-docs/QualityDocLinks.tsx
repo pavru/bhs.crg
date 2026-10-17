@@ -14,6 +14,7 @@ import {
 } from '@/shared/api/qualityDocs';
 import { LinkPickerModal } from '@/features/document-sets/editor/LinkPickerModal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Связки материалов документа качества — правая часть экрана контроля (issue #555).
@@ -163,8 +164,10 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
           {/* Знак аномалии — рядом со значком уровня, но цветом: он говорит не «какой уровень»,
               а «здесь что-то не так». Тот же приём, что у коллизий идентичности в QualityLinksTab. */}
           {anomalyOf(link) && (
-            <span title={anomalyOf(link)!} aria-label={anomalyOf(link)!} role="img"
-              className="mt-1 shrink-0 text-warning"><AlertTriangle size={13} /></span>
+            <Tooltip content={anomalyOf(link)!}>
+              <span aria-label={anomalyOf(link)!} role="img"
+                className="mt-1 shrink-0 text-warning"><AlertTriangle size={13} /></span>
+            </Tooltip>
           )}
           <div className="flex items-center gap-1 shrink-0">
             <Button variant="text" size="sm" icon={<Replace size={13} />}

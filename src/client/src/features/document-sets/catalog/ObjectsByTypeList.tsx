@@ -3,6 +3,7 @@ import { IconButton } from '@/shared/ui/Button';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { ARCHIVED_WORD } from '@/shared/ui/archive';
 import type { CommonDataEntry } from '@/shared/api/types';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Общие презентационные части списка «объекты по типу» (issue #88) — устраняют дублирование между
 // системным каталогом (SystemCommonDataPage) и скоуп-панелью каталога (ScopedCatalogPanel). Обёртки
@@ -24,11 +25,12 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
   const target = tid ? (resolvePool ?? siblings).find(e => e.id === tid) : undefined;
   if (!target || target.compositeTypeId !== entry.compositeTypeId) return null;
   return (
-    <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
-      title="Открыть реальный объект"
-      className="flex items-center gap-1 text-caption text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
-      <Link2 size={11} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
-    </button>
+    <Tooltip content="Открыть реальный объект">
+      <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
+        className="flex items-center gap-1 text-caption text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
+        <Link2 size={11} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
+      </button>
+    </Tooltip>
   );
 }
 

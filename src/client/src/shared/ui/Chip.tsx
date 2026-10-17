@@ -1,5 +1,6 @@
 import { Check, X, type LucideIcon } from 'lucide-react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Чип-переключатель (issue #1351): готовый отбор, быстрый фильтр, пометка «выбрано» — пилюля MD3.
@@ -68,11 +69,13 @@ export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRe
         className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
         {body}
       </button>
-      <button type="button" onClick={onRemove} aria-label={removeLabel ?? 'Снять'} title={removeLabel ?? 'Снять'}
-        disabled={rest.disabled}
-        className="pl-0.5 pr-2 py-1 rounded-r-full hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-        <X size={12} aria-hidden />
-      </button>
+      <Tooltip content={removeLabel ?? 'Снять'}>
+        <button type="button" onClick={onRemove} aria-label={removeLabel ?? 'Снять'}
+          disabled={rest.disabled}
+          className="pl-0.5 pr-2 py-1 rounded-r-full hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+          <X size={12} aria-hidden />
+        </button>
+      </Tooltip>
     </span>
   );
 }

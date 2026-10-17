@@ -20,6 +20,7 @@ import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { RailBody } from '@/shared/ui/AppRail';
 import { useNavSections } from '@/shared/ui/navSections';
 import { MailWarning, X, PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Боковая панель свёрнута в иконки (issue #1355). Выбор — настройка человека, как тема: лежит на
@@ -114,11 +115,13 @@ function Shell() {
           // панели от строки остаётся кнопка разворота: логотип без названия ничего не называет.
           <div className={`flex items-center gap-2 h-12 border-b border-stroke shrink-0 ${collapsed ? 'justify-center' : 'pl-4 pr-2'}`}>
             {!collapsed && brand}
-            <button type="button" onClick={() => setRail(collapsed ? 'expanded' : 'collapsed')}
-              aria-label={railToggle} title={railToggle} aria-expanded={!collapsed} aria-controls="app-rail-nav"
-              className={iconButton}>
-              {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-            </button>
+            <Tooltip content={railToggle}>
+              <button type="button" onClick={() => setRail(collapsed ? 'expanded' : 'collapsed')}
+                aria-label={railToggle} aria-expanded={!collapsed} aria-controls="app-rail-nav"
+                className={iconButton}>
+                {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+              </button>
+            </Tooltip>
           </div>
         } />
       </aside>
@@ -136,9 +139,11 @@ function Shell() {
               onPick={() => setMenuOpen(false)} head={
                 <div className="flex items-center gap-2 h-12 pl-4 pr-2 border-b border-stroke shrink-0">
                   {brand}
-                  <Dialog.Close aria-label="Закрыть меню" title="Закрыть меню" className={iconButton}>
-                    <X size={18} />
-                  </Dialog.Close>
+                  <Tooltip content="Закрыть меню">
+                    <Dialog.Close aria-label="Закрыть меню" className={iconButton}>
+                      <X size={18} />
+                    </Dialog.Close>
+                  </Tooltip>
                 </div>
               } />
           </Dialog.Content>
@@ -154,10 +159,12 @@ function Shell() {
             ними контекст экрана. В одну строку 390 px не вмещают: подпись избранного ложилась в два
             этажа поверх колокольчика. Прятать контекст в «ещё» нельзя — он говорит, что видно. */}
         <header className="min-h-12 md:h-12 shrink-0 border-b border-stroke bg-surface flex flex-wrap md:flex-nowrap items-center gap-1 px-2 md:px-4">
-          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Меню" title="Меню"
-            className={`${iconButton} md:hidden h-12`}>
-            <Menu size={20} />
-          </button>
+          <Tooltip content="Меню">
+            <button type="button" onClick={() => setMenuOpen(true)} aria-label="Меню"
+              className={`${iconButton} md:hidden h-12`}>
+              <Menu size={20} />
+            </button>
+          </Tooltip>
           <div data-testid="header-context"
             className="order-last md:order-none w-full md:w-auto min-w-0 flex items-center gap-1 whitespace-nowrap max-md:[&>*]:shrink-0 max-md:overflow-x-auto max-md:pb-1.5">
             {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}

@@ -6,6 +6,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import {
   batchTitle, dismissBatch, repeatsTitle, repeatWords, retryable, shownRepeats, stopBatch, uploadLine, type ScanBatch,
 } from './scanBatch';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Колонка списка счетов как цель перетаскивания сканов (задача D4, issue #1093).
@@ -132,11 +133,14 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
               const words = repeatWords(r);
               return (
                 <li key={r.id} className="text-fg2">
-                  <button type="button" className="font-medium break-all underline hover:text-fg1"
-                    title="Открыть новый черновик" onClick={() => onOpen(r.id)}>{r.name}</button>
+                  <Tooltip content="Открыть новый черновик">
+                    <button type="button" className="font-medium break-all underline hover:text-fg1" onClick={() => onOpen(r.id)}>{r.name}</button>
+                  </Tooltip>
                   {' — '}{words.lead}
-                  <button type="button" className="underline hover:text-fg1" title="Открыть прежний счёт"
-                    onClick={() => onOpen(r.others[0].id)}>{words.link}</button>
+                  <Tooltip content="Открыть прежний счёт">
+                    <button type="button" className="underline hover:text-fg1"
+                      onClick={() => onOpen(r.others[0].id)}>{words.link}</button>
+                  </Tooltip>
                   {words.tail}
                 </li>
               );
@@ -147,8 +151,10 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
       {line && (
         <p className="text-fg3" data-testid="upload-line">
           {line.text && `${line.text} `}
-          <button type="button" className="underline hover:text-fg1" title={line.title}
-            onClick={line.action === 'only' ? onOnly : onShowAll}>{line.label}</button>
+          <Tooltip content={line.title}>
+            <button type="button" className="underline hover:text-fg1"
+              onClick={line.action === 'only' ? onOnly : onShowAll}>{line.label}</button>
+          </Tooltip>
         </p>
       )}
     </div>

@@ -23,7 +23,7 @@ const mount = (item: InvoiceListItem) =>
 describe('строка списка счетов', () => {
   it('исправленный после закрытия назван словом', () => {
     mount({ ...ITEM, corrected: true });
-    expect(screen.getByText('исправлен').closest('[title]')?.getAttribute('title')).toContain('после закрытия периода');
+    expect(screen.getByText('исправлен').closest('[aria-description]')?.getAttribute('aria-description')).toContain('после закрытия периода');
   });
 
   it('без книги исправлений — и без пометки, и когда сервер о ней молчит', () => {

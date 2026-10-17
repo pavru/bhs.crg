@@ -14,6 +14,7 @@ import {
 } from '@/shared/api/notifications';
 import { apiClient } from '@/shared/api/client';
 import { filenameFromContentDisposition, saveBlob } from '@/shared/api/attachments';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Ссылка ведёт НАРУЖУ (issue #834): issue в GitHub, заведённый из сообщения об ошибке. Такую
@@ -151,14 +152,16 @@ function HealthSection() {
             : c.state === 'Unknown' ? 'не проверяли'
             : (c.detail ? 'сбой' : 'недоступен');
           return (
-            <div key={c.code} className="flex items-center gap-2.5 h-9 text-sm" title={c.detail ?? undefined}>
-              <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-              <span className="text-fg1 flex-1 truncate">
-                {c.name}
-                {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
-              </span>
-              <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
-            </div>
+            <Tooltip key={c.code} content={c.detail ?? undefined}>
+              <div className="flex items-center gap-2.5 h-9 text-sm">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                <span className="text-fg1 flex-1 truncate">
+                  {c.name}
+                  {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
+                </span>
+                <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
+              </div>
+            </Tooltip>
           );
         })}
       </div>
@@ -178,21 +181,22 @@ export function NotificationsCenter() {
 
   return (
     <Popover.Root>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          title="Уведомления"
-          aria-label="Уведомления"
-          className="relative flex items-center justify-center w-11 h-11 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-tonal data-[state=open]:text-on-tonal"
-        >
-          <Bell size={22} />
-          {unread > 0 && (
-            <span className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-caption font-medium flex items-center justify-center text-white ${hasUnreadError ? 'bg-danger' : 'bg-success'}`}>
-              {unread > 99 ? '99+' : unread}
-            </span>
-          )}
-        </button>
-      </Popover.Trigger>
+      <Tooltip content="Уведомления">
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            aria-label="Уведомления"
+            className="relative flex items-center justify-center w-11 h-11 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-tonal data-[state=open]:text-on-tonal"
+          >
+            <Bell size={22} />
+            {unread > 0 && (
+              <span className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-caption font-medium flex items-center justify-center text-white ${hasUnreadError ? 'bg-danger' : 'bg-success'}`}>
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+          </button>
+        </Popover.Trigger>
+      </Tooltip>
       <Popover.Portal>
         <Popover.Content
           align="end"

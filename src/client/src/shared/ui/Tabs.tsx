@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Вкладки (issue #1351) — шаблон APG «tablist» с ручной активацией: стрелки, Home и End двигают
@@ -79,17 +80,19 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
         const on = it.value === value;
         const Icon = it.icon;
         return (
-          <button key={it.value} type="button" role="tab" id={tabId(id, it.value)}
-            aria-selected={on} aria-controls={panelId(id, it.value)} tabIndex={on ? 0 : -1}
-            disabled={it.disabled} title={it.title}
-            ref={el => { refs.current[i] = el; }}
-            onClick={() => { if (!on) onChange(it.value); }}
-            onKeyDown={e => onKey(e, i)}
-            className={`${s.tab} ${on ? s.on : s.off} disabled:opacity-40 disabled:pointer-events-none`}>
-            {Icon && <Icon size={14} aria-hidden className="shrink-0" />}
-            {it.label}
-            {it.badge}
-          </button>
+          <Tooltip key={it.value} content={it.title}>
+            <button type="button" role="tab" id={tabId(id, it.value)}
+              aria-selected={on} aria-controls={panelId(id, it.value)} tabIndex={on ? 0 : -1}
+              disabled={it.disabled}
+              ref={el => { refs.current[i] = el; }}
+              onClick={() => { if (!on) onChange(it.value); }}
+              onKeyDown={e => onKey(e, i)}
+              className={`${s.tab} ${on ? s.on : s.off} disabled:opacity-40 disabled:pointer-events-none`}>
+              {Icon && <Icon size={14} aria-hidden className="shrink-0" />}
+              {it.label}
+              {it.badge}
+            </button>
+          </Tooltip>
         );
       })}
     </div>

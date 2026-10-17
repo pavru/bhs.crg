@@ -16,6 +16,7 @@ import {
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { forgetAllQuestion, forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Сколько ждать после последней буквы, прежде чем искать: запрос на каждое нажатие — это десяток запросов на слово. */
 const TYPING_PAUSE = 300;
@@ -91,10 +92,12 @@ export function SupplierMatchesDialog({ initial, onClose }: {
     }] : []),
     { key: 'source', label: 'У поставщика', wrap: true,
       cell: item => (
-        <span title={item.source}>
-          <span className="text-fg4">{item.by === 'code' ? 'артикул ' : ''}</span>
-          {item.source}
-        </span>
+        <Tooltip content={item.source}>
+          <span>
+            <span className="text-fg4">{item.by === 'code' ? 'артикул ' : ''}</span>
+            {item.source}
+          </span>
+        </Tooltip>
       ) },
     { key: 'nomenclature', label: 'Позиция номенклатуры', width: 'w-[38%]', wrap: true,
       cell: item => (
@@ -116,8 +119,10 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       cell: item => <span className="text-fg3">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
     { key: 'forget', label: '', width: 'w-8',
       cell: item => (
-        <button type="button" title="Забыть соответствие" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
-          className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+        <Tooltip content="Забыть соответствие" name>
+          <button type="button" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
+            className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+        </Tooltip>
       ) },
   ];
 

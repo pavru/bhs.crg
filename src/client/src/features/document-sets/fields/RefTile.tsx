@@ -3,6 +3,7 @@ import { Link2, RefreshCw, Unlink } from 'lucide-react';
 import { SCOPE_LABELS, type FieldRef } from '@/shared/api/types';
 import { SCOPE_COLORS } from './constants';
 import { ArchivedRefMark } from './ArchivedRefs';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Плитка составного поля, заполненного ССЫЛКОЙ (issue #189): нейтральный контейнер, имя — ссылка
@@ -27,14 +28,18 @@ export function RefTile({ value, onReplace, onClear, children }: {
           {SCOPE_LABELS[value.scope]}
         </span>
       )}
-      <button type="button" onClick={onReplace}
-        className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Заменить ссылку">
-        <RefreshCw size={14} />
-      </button>
-      <button type="button" onClick={onClear}
-        className="p-1.5 rounded-full text-fg4 hover:text-danger hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Снять ссылку">
-        <Unlink size={14} />
-      </button>
+      <Tooltip content="Заменить ссылку" name>
+        <button type="button" onClick={onReplace}
+          className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+          <RefreshCw size={14} />
+        </button>
+      </Tooltip>
+      <Tooltip content="Снять ссылку" name>
+        <button type="button" onClick={onClear}
+          className="p-1.5 rounded-full text-fg4 hover:text-danger hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+          <Unlink size={14} />
+        </button>
+      </Tooltip>
       {children}
     </div>
   );

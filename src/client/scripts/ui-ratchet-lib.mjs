@@ -1,6 +1,8 @@
 // Счёт и сравнение для храповика интерфейса (issue #1349). Чистые функции: файловая система и
 // процесс — в ui-ratchet.mjs, здесь только то, что проверяет тест.
 
+import ts from 'typescript';
+
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
 
@@ -49,13 +51,54 @@ export const RULES = [
     pattern: /(?<![\w-])(?:min-|max-)?w-\[[^\]\s%]+\]|\b(?:minWidth|maxWidth|width)\s*:\s*['"]?\d/g,
     instead: 'размер окна — по содержимому: обычное, wide или fullScreen (docs/UI.md, «Окна»); ширину колонки — width у DataGrid / EditGrid классом шкалы (w-36); раскладку экрана задают каркасы (docs/UI.md, «Узкий экран»)',
   },
+  {
+    id: 'native-title',
+    // Браузерная подсказка у элемента разметки (issue #1394): серая, с задержкой в секунду, к фокусу
+    // глуха. Текстом её не поймать — `title` носят и наши компоненты (окно, заголовок страницы), и
+    // атрибут бывает в любой строке многострочного тега; поэтому — по синтаксическому дереву.
+    // Законны две: у iframe `title` — его имя для скринридера, а у обрезанной строки (truncate,
+    // line-clamp) — её же полный текст, когда подсказка совпадает с содержимым.
+    count: countNativeTitles,
+    instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки (docs/UI.md, «Подсказка»)',
+  },
 ];
+
+/** Подсказка — полный текст самой строки: `title` совпадает с её содержимым. */
+function repeatsContent(init, element) {
+  if (!init || !ts.isJsxElement(element)) return false;
+  const kids = element.children.flatMap(c => ts.isJsxElement(c) ? [c, ...c.children] : [c]);
+  const norm = s => s.replace(/\s+/g, ' ');
+  if (ts.isStringLiteral(init)) return kids.some(c => ts.isJsxText(c) && c.text.trim() === init.text);
+  const want = init.expression && norm(init.expression.getText());
+  return kids.some(c => ts.isJsxExpression(c) && c.expression && norm(c.expression.getText()) === want);
+}
+
+/** Нативные `title` у элементов разметки — кроме законных (см. правило `native-title`). */
+function countNativeTitles(text) {
+  if (!text.includes('title')) return 0;
+  const sf = ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let n = 0;
+  const visit = node => {
+    if (ts.isJsxAttribute(node) && node.name.getText(sf) === 'title') {
+      const opening = node.parent.parent;
+      const tag = opening.tagName.getText(sf);
+      const element = ts.isJsxSelfClosingElement(opening) ? opening : opening.parent;
+      const cls = opening.attributes.properties
+        .find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className')?.initializer?.getText(sf) ?? '';
+      const truncated = /\b(?:truncate|line-clamp-\d+)\b/.test(cls) && repeatsContent(node.initializer, element);
+      if (/^[a-z]/.test(tag) && tag !== 'iframe' && !truncated) n++;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
 
 /** Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются. */
 export function countViolations(text) {
   const counts = {};
   for (const rule of RULES) {
-    const n = text.match(rule.pattern)?.length ?? 0;
+    const n = rule.count ? rule.count(text) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }
   return counts;

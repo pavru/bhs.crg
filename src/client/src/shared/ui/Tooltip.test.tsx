@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as Popover from '@radix-ui/react-popover';
 import { Button, IconButton } from './Button';
 import { Modal } from './Modal';
 import { Tooltip } from './Tooltip';
@@ -29,6 +31,63 @@ describe('Tooltip', () => {
     render(<Tooltip content="Сохранить черновик"><button type="button">Сохранить</button></Tooltip>);
     await focus(screen.getByRole('button', { name: 'Сохранить' }));
     expect(tip()?.textContent).toBe('Сохранить черновик');
+  });
+
+  it('условная подсказка не пересоздаёт триггер — фокус остаётся на нём', () => {
+    const { rerender } = render(<Tooltip content={undefined}><button type="button">Сохранить</button></Tooltip>);
+    const before = screen.getByRole('button', { name: 'Сохранить' });
+    before.focus();
+    rerender(<Tooltip content="Идёт сохранение"><button type="button">Сохранить</button></Tooltip>);
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBe(before);
+    expect(document.activeElement).toBe(before);
+  });
+
+  it('у кнопки из одной иконки подсказка — её имя; у подписанной — постоянное описание', () => {
+    render(<>
+      <Tooltip content="Удалить строку" name><button type="button"><svg /></button></Tooltip>
+      <Tooltip content="Без сохранения"><button type="button">Закрыть</button></Tooltip>
+      <Tooltip content="Обновить"><button type="button" aria-label="Обновить"><svg /></button></Tooltip>
+    </>);
+    expect(screen.getByRole('button', { name: 'Удалить строку' }).hasAttribute('aria-description')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Закрыть' }).getAttribute('aria-description')).toBe('Без сохранения');
+    // Подсказка, повторяющая имя, описанием не ложится: скринридер прочёл бы его дважды.
+    expect(screen.getByRole('button', { name: 'Обновить' }).hasAttribute('aria-description')).toBe(false);
+  });
+
+  it('неактивная своя кнопка с подсказкой: доступна мыши и Tab, вид — её же неактивный, нажатие ничего не делает', async () => {
+    const onClick = vi.fn();
+    render(
+      <Tooltip content="Нечего сохранять">
+        <button type="button" disabled onClick={onClick}
+          className="px-2 hover:bg-muted disabled:opacity-40 disabled:pointer-events-none">Сохранить</button>
+      </Tooltip>,
+    );
+    const button = screen.getByRole('button', { name: 'Сохранить' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.className.split(' ').sort()).toEqual(['opacity-40', 'px-2']);
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    await focus(button);
+    expect(tip()?.textContent).toBe('Нечего сохранять');
+  });
+
+  it('вокруг триггера окна и меню: их состояние на кнопке не перебито, запрет меню не снят', async () => {
+    render(<>
+      <Popover.Root defaultOpen>
+        <Tooltip content="Уведомления">
+          <Popover.Trigger asChild><button type="button">Колокол</button></Popover.Trigger>
+        </Tooltip>
+        <Popover.Portal><Popover.Content>Список</Popover.Content></Popover.Portal>
+      </Popover.Root>
+      <DropdownMenu.Root>
+        <Tooltip content="Основа: акт">
+          <DropdownMenu.Trigger asChild disabled><button type="button">Основа</button></DropdownMenu.Trigger>
+        </Tooltip>
+      </DropdownMenu.Root>
+    </>);
+    expect(screen.getByRole('button', { name: 'Колокол' }).getAttribute('data-state')).toBe('open');
+    expect((screen.getByRole('button', { name: 'Основа' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('невидимый фокус (вернуло окно, щелчок мышью) подсказку не открывает — Esc остаётся окну', async () => {

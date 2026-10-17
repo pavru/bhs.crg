@@ -1,5 +1,6 @@
 import { Lock } from 'lucide-react';
 import { LOCKED_HINT } from './lockedFields';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Компоненты отдельным файлом от предиката и подсказки (та же причина, что у
 // `fieldValidation.ts`, issue #858): модуль, экспортирующий и компонент, и функцию, не
@@ -15,10 +16,12 @@ export function LockedFieldIcon({ className = '' }: { className?: string }) {
   return (
     // Подсказка на обёртке, а не на самой иконке: `title` у SVG-глифа браузер показывает не везде,
     // а `aria-label` слышит только вспомогательное средство — глазами подсказку тоже надо получить.
-    <span title={LOCKED_HINT} aria-label={LOCKED_HINT} role="img"
-      className={`inline-block shrink-0 text-fg4 ${className}`}>
-      <Lock size={11} />
-    </span>
+    <Tooltip content={LOCKED_HINT}>
+      <span aria-label={LOCKED_HINT} role="img"
+        className={`inline-block shrink-0 text-fg4 ${className}`}>
+        <Lock size={11} />
+      </span>
+    </Tooltip>
   );
 }
 
@@ -36,9 +39,10 @@ export function LockedFieldValue({ value }: { value: unknown }) {
     ? null
     : typeof value === 'object' ? JSON.stringify(value) : String(value);
   return (
-    <div className="w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke truncate"
-      title={shown ?? undefined}>
-      {shown ?? <em className="text-fg4">нет значения</em>}
-    </div>
+    <Tooltip content={shown ?? undefined}>
+      <div className="w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke truncate">
+        {shown ?? <em className="text-fg4">нет значения</em>}
+      </div>
+    </Tooltip>
   );
 }

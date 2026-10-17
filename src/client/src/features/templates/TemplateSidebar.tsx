@@ -10,6 +10,7 @@ import { useDeleteTemplate, type TemplateUsage } from '@/shared/api/templates';
 import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import type { TemplateGroup } from './groupTemplates';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
 export type TemplateUsageMap = Record<string, TemplateUsage>;
@@ -210,9 +211,11 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
     <aside className="w-64 border-r border-stroke bg-surface flex flex-col">
       <div className="px-4 py-3 border-b border-muted flex items-center justify-between">
         <span className="text-sm font-medium text-fg2">Шаблоны</span>
-        <button onClick={onNew} className="text-brand hover:text-brand-hover transition-colors" title="Новый шаблон">
-          <Plus size={16} />
-        </button>
+        <Tooltip content="Новый шаблон" name>
+          <button onClick={onNew} className="text-brand hover:text-brand-hover transition-colors">
+            <Plus size={16} />
+          </button>
+        </Tooltip>
       </div>
       <TemplateAssetsPanel
         key={`assets-${documentTypeId}`}
@@ -249,20 +252,22 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     <AlertTriangle size={12} className="text-warning shrink-0" />
                   )}
                 </button>
-                <button
-                  onClick={() => onDuplicate(group)}
-                  className="px-2 py-2.5 text-stroke-strong hover:text-brand opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
-                  title="Дублировать шаблон"
-                >
-                  <Copy size={13} />
-                </button>
-                <button
-                  onClick={() => onDeleteGroup(group)}
-                  className="px-2 py-2.5 text-stroke-strong hover:text-danger opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
-                  title="Удалить шаблон со всеми версиями"
-                >
-                  <Trash2 size={13} />
-                </button>
+                <Tooltip content="Дублировать шаблон" name>
+                  <button
+                    onClick={() => onDuplicate(group)}
+                    className="px-2 py-2.5 text-stroke-strong hover:text-brand opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
+                  >
+                    <Copy size={13} />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Удалить шаблон со всеми версиями" name>
+                  <button
+                    onClick={() => onDeleteGroup(group)}
+                    className="px-2 py-2.5 text-stroke-strong hover:text-danger opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </Tooltip>
               </div>
 
               {isExpanded && (
@@ -285,9 +290,11 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                           {t.isActive && <span className="text-xs text-success shrink-0">активный</span>}
                           {t.isDefault && <span className="text-xs text-warning shrink-0">по умолч.</span>}
                           {used > 0 && (
-                            <span className="flex items-center gap-0.5 text-xs text-fg4 shrink-0" title={`Используется в ${used} докум.`}>
-                              <FileText size={10} /> {used}
-                            </span>
+                            <Tooltip content={`Используется в ${used} докум.`}>
+                              <span className="flex items-center gap-0.5 text-xs text-fg4 shrink-0">
+                                <FileText size={10} /> {used}
+                              </span>
+                            </Tooltip>
                           )}
                           {t.comment && (
                             <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>

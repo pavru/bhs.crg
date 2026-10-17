@@ -11,6 +11,7 @@ import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField, type TypstRender } from '@/shared/api/schema';
+import { Tooltip } from '@/shared/ui/Tooltip';
 // ─── Typst it-field autocomplete ──────────────────────────────────────────────
 
 type ItFieldTree = Map<string, { field: SchemaField; children?: ItFieldTree }>;
@@ -266,9 +267,11 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
               <Code size={14} className="text-fg4 shrink-0" />
               <span className="text-sm text-fg2 flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (
-                <span className="inline-flex items-center gap-1 text-xs text-danger shrink-0" title="Ошибка сборки блока">
-                  <AlertCircle size={13} /> не собирается
-                </span>
+                <Tooltip content="Ошибка сборки блока">
+                  <span className="inline-flex items-center gap-1 text-xs text-danger shrink-0">
+                    <AlertCircle size={13} /> не собирается
+                  </span>
+                </Tooltip>
               )}
               {problemsByFn?.[r.fnName.trim()] === 'warning' && (
                 <AlertTriangle size={13} className="text-warning shrink-0" />

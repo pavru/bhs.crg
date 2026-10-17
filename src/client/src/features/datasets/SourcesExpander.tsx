@@ -28,6 +28,7 @@ import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { SourceProcessingDialogs, type ProcessingDialogKind } from './SourceProcessingDialogs';
 import type { DataSetFile, DataSetProcessingTemplate, DataSetSource } from '@/shared/api/types';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Мини-диалог имени источника: переименование, копия, второй источник на ту же консолидацию
@@ -87,9 +88,11 @@ function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
   // эта подпись отвечает на вопрос «сколько строк даст источник». Поймано живой проверкой: с битым
   // отбором строка списка говорила «0 строк», пока предпросмотр отказывал с причиной.
   if (error) return (
-    <span className="ml-2 font-normal text-danger" title={apiError(error, 'Источник не прочитан')}>
-      не прочитан
-    </span>
+    <Tooltip content={apiError(error, 'Источник не прочитан')}>
+      <span className="ml-2 font-normal text-danger">
+        не прочитан
+      </span>
+    </Tooltip>
   );
 
   return <span className="ml-2 font-normal text-fg4">{data?.totalRows ?? 0} строк</span>;
@@ -184,28 +187,34 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
             {src.recognitionStale && (
               // Причина приезжает с сервера (issue #815): раньше чип во всех случаях говорил про
               // замену файла, хотя сменить могли и профиль распознавания, и границы документа.
-              <span title={`${staleReasonText(src.staleReason)}. Распознайте заново.`}
-                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning align-middle">
-                <AlertTriangle size={10} /> устарело
-              </span>
+              <Tooltip content={`${staleReasonText(src.staleReason)}. Распознайте заново.`}>
+                <span
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning align-middle">
+                  <AlertTriangle size={10} /> устарело
+                </span>
+              </Tooltip>
             )}
             {src.materializeTypeId && (
-              <span title={src.materializeByIdColumn
+              <Tooltip content={src.materializeByIdColumn
                 // Режим «по Ид» (issue #725) виден чипом: маппинга у такого источника нет, и подпись
                 // про «маппинг на источнике» отправляла бы искать настройку, которой там не бывает.
                 ? `Строки источника — ссылки на существующие документы по колонке «${src.materializeByIdColumn}».`
-                : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}
-                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-brand/10 text-brand align-middle">
-                <Boxes size={10} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
-              </span>
+                : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}>
+                <span
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-brand/10 text-brand align-middle">
+                  <Boxes size={10} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
+                </span>
+              </Tooltip>
             )}
             {/* Счётчик привязок (issue #417): удаление источника не должно быть вслепую.
                 null = не считали (ответ мутации) — тогда чип не показываем, чтобы не мигал ложный ноль. */}
             {!!src.bindingCount && (
-              <span title={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}
-                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-muted text-fg3 align-middle">
-                <Link2 size={10} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
-              </span>
+              <Tooltip content={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}>
+                <span
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-muted text-fg3 align-middle">
+                  <Link2 size={10} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
+                </span>
+              </Tooltip>
             )}
             <SourceRowCountBadge sourceId={src.id} />
           </div>
@@ -228,10 +237,12 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-          {passiveLabel && <span className="text-fg4 italic" title="Заполняется вместе с главным источником той же тройки/пары">{passiveLabel}</span>}
-          <button onClick={() => setPreviewing(true)} className="p-1 text-fg4 hover:text-brand" title="Просмотреть результат обработки">
-            <Eye size={13} />
-          </button>
+          {passiveLabel && <Tooltip content="Заполняется вместе с главным источником той же тройки/пары"><span className="text-fg4 italic">{passiveLabel}</span></Tooltip>}
+          <Tooltip content="Просмотреть результат обработки" name>
+            <button onClick={() => setPreviewing(true)} className="p-1 text-fg4 hover:text-brand">
+              <Eye size={13} />
+            </button>
+          </Tooltip>
           <RowActionsMenu actions={actions} ariaLabel="Действия над источником" hasActive={hasActiveProcessing} />
         </div>
       </div>
@@ -436,25 +447,30 @@ export function SourcesPanel({
                   <span className="text-fg2">
                     {c.name} <span className="text-fg4">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
                     {existing > 0 && (
-                      <span className="text-fg4" title="Источники на эту консолидацию уже созданы — можно добавить ещё один, с другим фильтром">
-                        {' '}· уже добавлен{existing > 1 ? ` (${existing})` : ''}
-                      </span>
+                      <Tooltip content="Источники на эту консолидацию уже созданы — можно добавить ещё один, с другим фильтром">
+                        <span className="text-fg4">
+                          {' '}· уже добавлен{existing > 1 ? ` (${existing})` : ''}
+                        </span>
+                      </Tooltip>
                     )}
                     {/* Оговорка к данным (issue #626) — до создания источника, а не после: иначе о
                         неполноте узнают, уже привязав реестр к полям документа. */}
                     {c.warning && (
-                      <span title={c.warning} className="ml-1 inline-flex items-center gap-0.5 text-warning align-middle">
-                        <AlertTriangle size={10} /> с оговоркой
-                      </span>
+                      <Tooltip content={c.warning}>
+                        <span className="ml-1 inline-flex items-center gap-0.5 text-warning align-middle">
+                          <AlertTriangle size={10} /> с оговоркой
+                        </span>
+                      </Tooltip>
                     )}
                   </span>
                   {pending ? (
-                    <button type="button" disabled={recognizeTable.isPending}
-                      onClick={() => recognizeTable.mutate(c.firstPageIndex!)}
-                      title="Распознать таблицу этого документа — затем можно создать источник"
-                      className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
-                      <ScanText size={11} /> Распознать таблицу
-                    </button>
+                    <Tooltip content="Распознать таблицу этого документа — затем можно создать источник">
+                      <button type="button" disabled={recognizeTable.isPending}
+                        onClick={() => recognizeTable.mutate(c.firstPageIndex!)}
+                        className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
+                        <ScanText size={11} /> Распознать таблицу
+                      </button>
+                    </Tooltip>
                   ) : existing > 0 ? (
                     // Второй источник на ту же консолидацию (issue #717) — только через диалог имени:
                     // без имени в наборе оказались бы два неразличимых «Документы комплекта».
