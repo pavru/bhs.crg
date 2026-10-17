@@ -141,7 +141,9 @@ public class FixtureResetTouchedTests(IntegrationTestFixture fixture) : IAsyncLi
             for (;;)
             {
                 await using var waiting = new NpgsqlCommand(
-                    "SELECT count(*) FROM pg_locks WHERE NOT granted AND relation = 'app_settings'::regclass",
+                    // pg_locks общий на сервер: без отбора по базе засчиталась бы очередь соседнего прогона.
+                    "SELECT count(*) FROM pg_locks WHERE NOT granted AND relation = 'app_settings'::regclass " +
+                    "AND database = (SELECT oid FROM pg_database WHERE datname = current_database())",
                     observer);
                 if ((long)(await waiting.ExecuteScalarAsync())! > 0) break;
 
