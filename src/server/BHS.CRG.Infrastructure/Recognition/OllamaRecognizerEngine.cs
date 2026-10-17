@@ -125,11 +125,16 @@ public class OllamaRecognizerEngine(
             {
                 // Сообщение растеризатора — в журнал: оно чужое и называет пути (issue #1050).
                 logger.LogWarning(ex, "Ollama: растеризация PDF не удалась");
+                // Недоступность движка, а не отказ о файле (ревью PR #1398): файл уже прошёл проверку
+                // цепочки тем же PDFium, и падение рендера здесь — чаще окружение (память, SkiaSharp).
+                // Следующему движку растеризация не нужна — пусть попробует он.
                 throw new RecognitionUnavailableException(
                     "Ollama: не удалось преобразовать PDF в изображения — файл повреждён или защищён.");
             }
+            // Документ открылся, а страниц нет — это о файле. Через цепочку сюда не дойти: проверка файла
+            // отказала бы раньше теми же словами; здесь — для вызова в обход неё.
             if (pages.Count == 0)
-                throw new RecognitionUnavailableException("Ollama: PDF не содержит страниц для распознавания.");
+                throw new RecognitionFileRejectedException($"Ollama: {RecognitionFileCheck.NoPages}");
             logger.LogInformation("Ollama: PDF растеризован в {N} стр. @ {Dpi} DPI", pages.Count, PdfRasterizer.DefaultDpi);
             images = pages.Select(Convert.ToBase64String).ToArray();
         }

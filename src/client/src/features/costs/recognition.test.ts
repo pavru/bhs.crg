@@ -48,6 +48,13 @@ describe('полоса отказа', () => {
     expect(note.text).toContain('Превышено время ожидания.');
   });
 
+  it('негодный файл — о файле, а не о движке', () => {
+    const note = failureNote(recognition({ state: 'failed', reason: 'BadFile', error: 'PDF не открывается.' }));
+    expect(note).toEqual({
+      text: 'Файл не распознан: сам файл не читается. PDF не открывается. Замените его исправным — «Заменить файл».', quiet: false,
+    });
+  });
+
   it('незнакомая причина всё равно отказ', () => {
     expect(failureNote(recognition({ state: 'failed', reason: 'Новая', error: 'Что-то.' })))
       .toEqual({ text: 'Файл не распознан. Что-то.', quiet: false });

@@ -115,7 +115,12 @@ public class GeminiRecognizerEngine(
                     $"Gemini: модель {model} больше не обслуживается"
                     + (advice is null ? "." : $" — {advice}."));
             }
-            throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}.");
+            // Код ошибки — да, сообщение — нет (issue #1343): «ответил 400» без кода не говорит, что
+            // чинить. Отказом о ФАЙЛЕ 400 не считается (ревью PR #1398): INVALID_ARGUMENT приходит и на
+            // запрос больше предела, и на параметр, не принятый моделью, — следующий движок прочёл бы
+            // исправный файл. Битый файл сюда не доходит: его отсекает проверка цепочки.
+            var status = ProviderErrorCode.Of(body, "error", "status");
+            throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}{ProviderErrorCode.Suffix(status)}.");
         }
     }
 

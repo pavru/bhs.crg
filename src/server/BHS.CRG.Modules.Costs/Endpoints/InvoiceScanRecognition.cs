@@ -15,7 +15,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// руками; <c>done</c> — прочитано; <c>failed</c> — не удалось, причина в <paramref name="Reason" />
 /// и <paramref name="Error" />.</param>
 /// <param name="Reason"><c>NotConfigured</c> — движок не настроен; <c>Unavailable</c> — не справился;
-/// <c>NoAnswer</c> — документ не прочитан; <c>Interrupted</c> — задача прервана; <c>Refused</c> —
+/// <c>NoAnswer</c> — документ не прочитан; <c>BadFile</c> — сам файл не читается (повреждён, под
+/// паролем, не PDF); <c>Interrupted</c> — задача прервана; <c>Refused</c> —
 /// прочитанное не записалось; <c>NoImage</c> — у Excel или Word нет читаемого образа, читать было
 /// нечего.</param>
 /// <param name="Values">Что прочитано в шапке, как есть: «ключ профиля → текст».</param>
