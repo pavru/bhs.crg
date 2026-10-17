@@ -22,6 +22,24 @@ public interface IBlobStorage
     /// вместо отказа.</para>
     /// </summary>
     Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default);
+
+    /// <summary>
+    /// Какие из путей отсутствуют — тот же ответ, что <see cref="GetSizeAsync" /> <c>null</c>, но о
+    /// многих путях сразу (issue #1439). Недоступное хранилище — тот же отказ
+    /// <see cref="BlobStorageUnavailableException" />, на первом же пути.
+    ///
+    /// <para>Заведён ради проверки файлов после восстановления: у копии, снятой при недоступном
+    /// хранилище, путей вне архива тысячи, и вопрос о каждом по одному шёл десятки секунд внутри
+    /// HTTP-запроса. Умолчание здесь — тот же вопрос по одному; обёртка с реестром отвечает быстрее
+    /// (<c>RegisteredBlobStorage</c>): незарегистрированные пути отсеивает одним запросом к базе.</para>
+    /// </summary>
+    async Task<IReadOnlySet<string>> FindAbsentAsync(IEnumerable<string> blobPaths, CancellationToken ct = default)
+    {
+        var absent = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var path in blobPaths.Distinct(StringComparer.Ordinal))
+            if (await GetSizeAsync(path, ct) is null) absent.Add(path);
+        return absent;
+    }
 }
 
 /// <summary>

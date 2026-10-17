@@ -95,8 +95,16 @@ public class FakeBlobStorage : IBlobStorage
         _store[blobPath] = ms.ToArray();
     }
 
+    /// <summary>
+    /// Сколько раз хранилище спросили о размере — чтобы проверить, что о пути, которого нет в реестре,
+    /// его не спрашивают вовсе (issue #1439).
+    /// </summary>
+    public int SizeQueries => _sizeQueries;
+    private int _sizeQueries;
+
     public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
     {
+        Interlocked.Increment(ref _sizeQueries);
         if (Offline || blobPath == RefuseSizeOf)
             throw new BlobStorageUnavailableException($"Хранилище не ответило ({blobPath})", new IOException("Хранилище недоступно"));
         return Task.FromResult(!Blank && _store.TryGetValue(blobPath, out var bytes) ? bytes.LongLength : (long?)null);

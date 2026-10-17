@@ -43,9 +43,14 @@ public partial class BackupServiceTests
         await DropStoredAsync(listed);
         await DropStoredAsync(scanned);
         await fixture.ResetDatabaseAsync();
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+        var asked = storage.SizeQueries;
         var report = await ImportZipAsync(zipBytes);
 
         Assert.True(report.Success, string.Join("; ", report.Warnings));
+        // Путей нет в реестре — «нет» говорит реестр, одним запросом; хранилище о них не спрашивают
+        // (issue #1439). У копии, снятой при недоступном хранилище, таких путей тысячи.
+        Assert.Equal(asked, storage.SizeQueries);
         Assert.Contains(report.Warnings, w =>
             w.Contains(RecordsLackFiles) && w.Contains("CommonDataEntries[].Data (2)") &&
             w.Contains("1 из них лежат в полях, которые версия, снявшая копию, не обходила") &&

@@ -49,13 +49,14 @@ public partial class BackupService
         {
             // Предупреждения выбора не повторяются: их копия сказала паспортом при снятии.
             var selection = SelectBlobs(manifest, []);
-            var missing = new List<(string Path, BlobHolder Holder)>();
-            foreach (var (path, holder) in selection.Holders)
-            {
-                if (holder.Kind == BlobHolderKind.Module) continue;
-                if ((holder.Kind == BlobHolderKind.QualityScan ? restored : archived).Contains(path)) continue;
-                if (await blob.GetSizeAsync(path, ct) is null) missing.Add((path, holder));
-            }
+            var asked = selection.Holders
+                .Where(h => h.Value.Kind != BlobHolderKind.Module
+                         && !(h.Value.Kind == BlobHolderKind.QualityScan ? restored : archived).Contains(h.Key))
+                .ToList();
+            // Все пути одним вопросом (issue #1439): по одному у копии, снятой при недоступном
+            // хранилище, — тысячи вопросов и десятки секунд внутри запроса восстановления.
+            var absent = await blob.FindAbsentAsync(asked.Select(h => h.Key), ct);
+            var missing = asked.Where(h => absent.Contains(h.Key)).Select(h => (Path: h.Key, Holder: h.Value)).ToList();
 
             var copyKnew = manifest.KnowsCoreFileScan == true;
             if (!copyKnew && selection.LeftInText.Count > 0)
