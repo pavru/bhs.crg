@@ -29,10 +29,9 @@ internal static class DomainRegistration
     internal static void AddMediatRAndRepositories(this WebApplicationBuilder builder)
     {
     // ── MediatR ───────────────────────────────────────────────────────────────────
-    builder.Services.AddMediatR(cfg =>
-        cfg.RegisterServicesFromAssemblies(
-            typeof(CatalogHandlers).Assembly,
-            typeof(GenerateDocumentHandler).Assembly));
+    // Обработчики лежат в одной сборке — BHS.CRG.Application. Прежде здесь были названы два её типа, и
+    // это читалось как две сборки; повтор держался только на том, что MediatR сам убирает дубли (#1405).
+    builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CatalogHandlers).Assembly));
 
     // ── Repositories ──────────────────────────────────────────────────────────────
     builder.Services.AddScoped<IRepository<CatalogEntity>, Repository<CatalogEntity>>();
