@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Storage;
 using Minio;
+using Minio.Exceptions;
 
 namespace BHS.CRG.Tests.Storage;
 
@@ -39,19 +41,34 @@ public class BlobSizeTests
         Assert.Null(await Blobs(client).GetSizeAsync("bucket/file.bin").WaitAsync(Limit));
     }
 
+    [Fact]
+    public async Task Чужой_ключ_это_отказ_а_не_пропавший_файл()
+    {
+        using var storage = new StatusStorage("403 Forbidden");
+        using var client = Client(storage.Port);
+
+        var refusal = await RefusalAsync(client);
+
+        Assert.IsType<AccessDeniedException>(refusal.InnerException);
+        Assert.False(storage.Unexpected, "клиент спросил хранилище о чём-то, кроме объекта и бакета");
+    }
+
+    /// <summary>
+    /// Ошибка сервера. Род внутреннего отказа здесь НЕ закреплён нарочно: на 500 без тела клиент
+    /// Minio 7.0.0 падает <c>NullReferenceException</c> — дефект чужой сборки, ради которого отказ и
+    /// заворачивается в свой тип. Закрепить его значило бы покраснеть, когда клиент починят.
+    /// </summary>
     [Theory]
-    [InlineData("403 Forbidden")]
     [InlineData("500 Internal Server Error")]
     [InlineData("503 Service Unavailable")]
-    public async Task Отказ_хранилища_это_отказ_а_не_пропавший_файл(string status)
+    public async Task Ошибка_хранилища_это_отказ_а_не_пропавший_файл(string status)
     {
         using var storage = new StatusStorage(status);
         using var client = Client(storage.Port);
 
-        var failure = await Record.ExceptionAsync(() => Blobs(client).GetSizeAsync("bucket/file.bin").WaitAsync(Limit));
+        await RefusalAsync(client);
 
-        Assert.True(failure is not null, $"хранилище ответило {status}, а размер вернулся как «объекта нет»");
-        Assert.IsNotType<TimeoutException>(failure);
+        Assert.False(storage.Unexpected, "клиент спросил хранилище о чём-то, кроме объекта и бакета");
     }
 
     [Fact]
@@ -62,10 +79,10 @@ public class BlobSizeTests
         using var storage = new StatusStorage("404 Not Found", bucketExists: false);
         using var client = Client(storage.Port);
 
-        var failure = await Record.ExceptionAsync(() => Blobs(client).GetSizeAsync("bucket/file.bin").WaitAsync(Limit));
+        var refusal = await RefusalAsync(client);
 
-        Assert.True(failure is not null, "бакета нет, а размер вернулся как «объекта нет»");
-        Assert.IsNotType<TimeoutException>(failure);
+        Assert.IsType<BucketNotFoundException>(refusal.InnerException);
+        Assert.False(storage.Unexpected, "клиент спросил хранилище о чём-то, кроме объекта и бакета");
     }
 
     [Fact]
@@ -78,10 +95,9 @@ public class BlobSizeTests
         listener.Stop();
         using var client = Client(port);
 
-        var failure = await Record.ExceptionAsync(() => Blobs(client).GetSizeAsync("bucket/file.bin").WaitAsync(Limit));
+        var refusal = await RefusalAsync(client);
 
-        Assert.True(failure is not null, "до хранилища не достучаться, а размер вернулся как «объекта нет»");
-        Assert.IsNotType<TimeoutException>(failure);
+        Assert.IsType<HttpRequestException>(refusal.InnerException);
     }
 
     [Fact]
@@ -108,9 +124,21 @@ public class BlobSizeTests
         new(client, new BlobStorageOptions { Bucket = "bucket" });
 
     /// <summary>
+    /// Отказ — своим типом, что бы ни бросил клиент. <c>null</c> вместо отказа здесь и есть дефект
+    /// issue #1427: хранилище отказало, а размер вернулся как «объекта нет».
+    /// </summary>
+    private static async Task<BlobStorageUnavailableException> RefusalAsync(IMinioClient client)
+    {
+        var failure = await Record.ExceptionAsync(() => Blobs(client).GetSizeAsync("bucket/file.bin").WaitAsync(Limit));
+        Assert.True(failure is not null, "хранилище отказало, а размер вернулся как «объекта нет»");
+        return Assert.IsType<BlobStorageUnavailableException>(failure);
+    }
+
+    /// <summary>
     /// Поддельное хранилище, которое на HEAD объекта отвечает заданным статусом — без тела, как
     /// настоящее (у ответа на HEAD тела не бывает, и клиент разбирает отказ по одному статусу). На
-    /// всё прочее — 501: появись у клиента запрос другого вида, тест покраснеет этим кодом.
+    /// всё прочее — 501 и отметка <see cref="Unexpected" />: клиент на 501 тоже отказывает, и без
+    /// отметки тест отказа зеленел бы по чужой причине, если клиент начнёт спрашивать другое.
     ///
     /// <para>⚠️ HEAD самого бакета отвечается отдельно, и это не подробность: получив 404 на объект,
     /// клиент Minio 7.0.0 переспрашивает бакет и по ответу выбирает отказ — «объекта нет» или «бакета
@@ -129,6 +157,9 @@ public class BlobSizeTests
         private readonly bool _bucketExists;
 
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+
+        /// <summary>Клиент прислал запрос, которого стенд не ждал, и получил 501.</summary>
+        public bool Unexpected { get; private set; }
 
         public StatusStorage(string status, long contentLength = 0, bool bucketExists = true)
         {
@@ -167,6 +198,7 @@ public class BlobSizeTests
                     var parts = text.ToString().Split("\r\n")[0].Split(' ');
                     var path = parts.Length > 1 ? parts[1].Split('?')[0] : "";
                     var head = parts[0] == "HEAD";
+                    if (!head || !path.StartsWith("/bucket", StringComparison.Ordinal)) Unexpected = true;
                     var response = head && path is "/bucket" or "/bucket/"
                         ? $"HTTP/1.1 {(_bucketExists ? "200 OK" : "404 Not Found")}\r\nContent-Length: 0\r\n\r\n"
                         : head && path.StartsWith("/bucket/", StringComparison.Ordinal)

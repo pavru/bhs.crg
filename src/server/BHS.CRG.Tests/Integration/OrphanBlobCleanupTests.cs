@@ -439,6 +439,37 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
     }
 
     /// <summary>
+    /// Отказ хранилища на одном объекте пропускает этот объект, а не всю уборку (issue #1427).
+    ///
+    /// <para>Пакет берётся в одном и том же порядке, и объект, о котором хранилище отказывает всегда,
+    /// иначе отменял бы каждый прогон — под видом «хранилище не отвечает», при живом хранилище.
+    /// Сам он не трогается: без размера живой файл от пропавшего не отличить.</para>
+    /// </summary>
+    [Fact]
+    public async Task Cleanup_OneObjectRefusesSize_SkipsItAndCleansTheRest()
+    {
+        var referenced = await UploadAsync("cert.pdf");
+        await SeedQualityDocAsync(referenced);
+        var stubborn = await UploadAsync("упрямый.pdf");
+        var orphan = await UploadAsync("забытый.pdf");
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+
+        OrphanBlobReport report;
+        try
+        {
+            storage.RefuseSizeOf = stubborn;
+            report = await RunAsync(dryRun: false);
+        }
+        finally { storage.RefuseSizeOf = null; }
+
+        Assert.False(report.StorageUnreachable);
+        Assert.Equal(1, report.Failed);            // пропущенный сказан, а не утаён
+        Assert.False(await InRegistryAsync(orphan));
+        Assert.True(await InRegistryAsync(stubborn));
+        Assert.True(InStorage(stubborn));
+    }
+
+    /// <summary>
     /// Хранилище отвечает «нет» обо всём — тоже не уборка (issue #1427).
     ///
     /// <para>Так выглядит пустой или чужой бакет: связь есть, отказа нет, а объектов, на которые

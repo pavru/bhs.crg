@@ -111,6 +111,15 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
             // пропавшие файлы. Какой отказ на что, сверено на живом Garage (BlobSizeTests).
             return null;
         }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            // Отказ — одним своим типом, что бы ни бросил клиент: на 500 без тела клиент Minio 7.0.0
+            // падает NullReferenceException, и поимённый перечень его типов пропустил бы этот случай.
+            // Заворачивается только сам запрос: путь разобран выше, до try, — битый путь хранилищем
+            // не отказывает и за его отказ выдаваться не должен.
+            throw new BlobStorageUnavailableException(
+                $"Хранилище не ответило на запрос размера объекта «{blobPath}»: {ex.GetType().Name}", ex);
+        }
     }
 
     public Task DeleteAsync(string blobPath, CancellationToken ct = default)
